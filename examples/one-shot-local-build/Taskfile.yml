@@ -203,11 +203,12 @@ tasks:
           {
             echo "network:"
             echo "  --release-tag: \"{{.CN_VERSION}}\""
+            echo "  --pvcs: true"
+            echo "  --application-properties: \"{{.APP_PROPS_OVERRIDE_FILE}}\""
             echo ""
             echo "setup:"
             echo "  --local-build-path: \"{{.CN_LOCAL_BUILD_PATH}}\""
             echo "  --release-tag: \"{{.CN_VERSION}}\""
-            echo "  --application-properties: \"{{.APP_PROPS_OVERRIDE_FILE}}\""
             echo ""
             echo "blockNode:"
             echo "  --block-node-chart-dir: \"{{.BLOCK_NODE_CHART_DIR}}\""

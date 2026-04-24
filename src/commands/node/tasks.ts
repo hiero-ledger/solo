@@ -187,6 +187,8 @@ export type LeaseWrapper = {lease: Lock};
 @injectable()
 export class NodeCommandTasks {
   private readonly soloConfig: SoloConfig;
+  private static readonly LEDGER_ID_WAIT_MAX_ATTEMPTS: number = 12;
+  private static readonly LEDGER_ID_WAIT_RETRY_DELAY: Duration = Duration.ofSeconds(5);
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
@@ -232,6 +234,35 @@ export class NodeCommandTasks {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
+  }
+
+  private async transferAmountWithLedgerIdRetry(
+    fromAccountId: AccountId | string,
+    toAccountId: AccountId | string,
+    amount: number,
+  ): Promise<void> {
+    for (let attempt: number = 1; attempt <= NodeCommandTasks.LEDGER_ID_WAIT_MAX_ATTEMPTS; attempt++) {
+      try {
+        await this.accountManager.transferAmount(fromAccountId, toAccountId, amount);
+        return;
+      } catch (error: unknown) {
+        const message: string = error instanceof Error ? error.message : String(error);
+        const isWaitingForLedgerId: boolean = message.includes('WAITING_FOR_LEDGER_ID');
+        const hasAttemptsRemaining: boolean = attempt < NodeCommandTasks.LEDGER_ID_WAIT_MAX_ATTEMPTS;
+
+        if (isWaitingForLedgerId && hasAttemptsRemaining) {
+          this.logger.warn(
+            `Transfer ${fromAccountId} -> ${toAccountId} hit WAITING_FOR_LEDGER_ID ` +
+              `(attempt ${attempt}/${NodeCommandTasks.LEDGER_ID_WAIT_MAX_ATTEMPTS}), retrying in ` +
+              `${NodeCommandTasks.LEDGER_ID_WAIT_RETRY_DELAY.seconds} seconds...`,
+          );
+          await sleep(NodeCommandTasks.LEDGER_ID_WAIT_RETRY_DELAY);
+          continue;
+        }
+
+        throw error;
+      }
+    }
   }
 
   private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion: string): Promise<string> {
@@ -880,7 +911,7 @@ export class NodeCommandTasks {
         const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of config.existingNodeAliases) {
           const accountId: string = accountMap.get(nodeAlias)!;
-          await this.accountManager.transferAmount(treasuryAccountId, accountId, 1);
+          await this.transferAmountWithLedgerIdRetry(treasuryAccountId, accountId, 1);
         }
       },
     };
@@ -2052,7 +2083,7 @@ export class NodeCommandTasks {
         for (const nodeAlias of accountMap.keys()) {
           const accountId: string = accountMap.get(nodeAlias);
           config.nodeClient.setOperator(treasuryAccountId, config.treasuryKey);
-          await this.accountManager.transferAmount(treasuryAccountId, accountId, 1);
+          await this.transferAmountWithLedgerIdRetry(treasuryAccountId, accountId, 1);
         }
       },
     };

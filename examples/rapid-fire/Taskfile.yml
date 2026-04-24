@@ -118,33 +118,52 @@ tasks:
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
           # Keep funding newly-created rapid-fire accounts while HeliSwap is running.
-          # HeliSwap creates the payer during execution, so one-time prefund misses it.
+          # HeliSwap creates/uses payer accounts during execution, so one-time prefund misses them.
+          # Discover account IDs from both:
+          #   1) K8s account-key secrets (Solo-created accounts)
+          #   2) Numeric account-id range scan (NLG-created accounts such as HeliSwap creator)
+          get_candidate_accounts() {
+            kubectl --context kind-{{ .SOLO_CLUSTER_NAME }} -n {{ .SOLO_NAMESPACE }} get secrets -o jsonpath='{range .items[*]}{.metadata.labels.solo\.hedera\.com/account-id}{"\n"}{end}' \
+              | awk -F'.' 'NF==3 && $1=="0" && $2=="0" && $3 ~ /^[0-9]+$/ && $3 >= 1000 {print $0}' \
+              | sort -u
+          }
+
+          fund_account() {
+            account_id="$1"
+            [ -z "${account_id}" ] && return 0
+
+            if grep -qx "${account_id}" "${funded_ids_file}"; then
+              return 0
+            fi
+
+            if $SOLO_COMMAND ledger account update \
+              --deployment {{ .SOLO_DEPLOYMENT }} \
+              --account-id "${account_id}" \
+              --hbar-amount {{ .HELISWAP_PREFUND_HBAR }} \
+              --dev >/dev/null 2>&1; then
+              echo "${account_id}" >> "${funded_ids_file}"
+              echo "Pre-funded ${account_id} for HeliSwap"
+            fi
+          }
+
           funded_ids_file="$(mktemp /tmp/heliswap-funded-ids.XXXXXX)"
           touch "${funded_ids_file}"
+
+          # Pre-fund all currently known user accounts once before HeliSwap starts.
+          for account_num in $(seq {{ .HELISWAP_PREFUND_START_ACCOUNT }} {{ .HELISWAP_PREFUND_END_ACCOUNT }}); do
+            fund_account "0.0.${account_num}"
+          done
+          get_candidate_accounts | while read -r account_id; do
+            fund_account "${account_id}"
+          done
 
           (
             while true; do
               for account_num in $(seq {{ .HELISWAP_PREFUND_START_ACCOUNT }} {{ .HELISWAP_PREFUND_END_ACCOUNT }}); do
-                account_id="0.0.${account_num}"
-                if grep -qx "${account_id}" "${funded_ids_file}"; then
-                  continue
-                fi
-
-                if $SOLO_COMMAND ledger account get \
-                  --deployment {{ .SOLO_DEPLOYMENT }} \
-                  --account-id "${account_id}" \
-                  --dev >/dev/null 2>&1; then
-                  if $SOLO_COMMAND ledger account update \
-                    --deployment {{ .SOLO_DEPLOYMENT }} \
-                    --account-id "${account_id}" \
-                    --hbar-amount {{ .HELISWAP_PREFUND_HBAR }} \
-                    --dev >/dev/null 2>&1; then
-                    echo "${account_id}" >> "${funded_ids_file}"
-                    echo "Pre-funded ${account_id} for HeliSwap"
-                  else
-                    echo "Warning: failed to pre-fund ${account_id}; will retry"
-                  fi
-                fi
+                fund_account "0.0.${account_num}"
+              done
+              get_candidate_accounts | while read -r account_id; do
+                fund_account "${account_id}"
               done
               sleep {{ .HELISWAP_PREFUND_SLEEP_SECONDS }}
             done

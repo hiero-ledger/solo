@@ -13,7 +13,7 @@ vars:
   NODE_IDENTIFIERS: "node1,node2"
   SOLO_NETWORK_SIZE: "2"
   DEPLOYMENT: "deployment-localbuild-with-custom-config"
-  NAMESPACE: "namespace-localbuild-with-custom-config"
+  NAMESPACE: "ns-localbuild-custom-config"
   CLUSTER_NAME: "localbuild-with-custom-config-cluster"
   CONTEXT: "kind-localbuild-with-custom-config-cluster"
   CLUSTER_REFERENCE: "kind-localbuild-with-custom-config-cluster"
