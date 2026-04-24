@@ -326,7 +326,7 @@ export class NodeCommandTasks {
     await container.execContainer([
       'bash',
       '-c',
-      `rm -rf ${constants.HEDERA_HAPI_PATH}/data/lib/*.jar ${constants.HEDERA_HAPI_PATH}/data/apps/*.jar`,
+      `rm -rf ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`,
     ]);
 
     await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
@@ -376,6 +376,7 @@ export class NodeCommandTasks {
       if (!fs.existsSync(localDataLibraryBuildPath)) {
         throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
       }
+
       const k8: K8 = this.k8Factory.getK8(context);
 
       subTasks.push({
@@ -1912,6 +1913,22 @@ export class NodeCommandTasks {
                 config.namespace,
                 nodeAlias,
               );
+
+              for (const directory of [constants.HEDERA_DATA_APPS_DIR, constants.HEDERA_DATA_LIB_DIR]) {
+                const directoryPath: string = `${constants.HEDERA_HAPI_PATH}/${directory}`;
+                const output: string = await container.execContainer([
+                  'bash',
+                  '-c',
+                  `ls "${directoryPath}"/*.jar 2>/dev/null | wc -l`,
+                ]);
+                if (Number.parseInt(output.trim(), 10) === 0) {
+                  throw new SoloError(
+                    `Node '${nodeAlias}': no JAR files found in ${directoryPath}. ` +
+                      'Ensure platform software was copied to the node before starting.',
+                  );
+                }
+              }
+
               await (constants.ENABLE_S6_IMAGE
                 ? container.execContainer([
                     'bash',
