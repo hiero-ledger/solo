@@ -1593,6 +1593,7 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Wait for ledger ID',
+      skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
       task: async ({config}, task): Promise<
         SoloListr<
           NodeStartContext | NodeAddContext | NodeUpdateContext | NodeDestroyContext | NodeRefreshContext | NodeUpgradeContext
@@ -1629,6 +1630,16 @@ export class NodeCommandTasks {
 
                 const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
                 const output: string = await container.execContainer(['cat', hgcaaLogPath]);
+
+                // In record-stream-only mode (or when history proofs are disabled), CN won't emit
+                // ledger-id externalization markers, so this gate is not applicable.
+                if (
+                  output.includes('blockStream.streamMode = RECORDS') ||
+                  output.includes('tss.historyEnabled = false')
+                ) {
+                  success = true;
+                  continue;
+                }
 
                 if (
                   output.includes(constants.LEDGER_ID_SET_MSG) ||
