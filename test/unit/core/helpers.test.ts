@@ -9,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import * as helpers from '../../../src/core/helpers.js';
+import {helmValuesHelper} from '../../../src/core/helm-values-helper.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 
@@ -67,8 +68,8 @@ describe('Helpers', (): void => {
   describe('buildPerNodeExtraEnvironmentValuesStructure', (): void => {
     it('should sanitize -Xms/-Xmx from JAVA_OPTS coming from baseExtraEnvironmentVariables', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const result: ReturnType<typeof helpers.buildPerNodeExtraEnvironmentValuesStructure> =
-        helpers.buildPerNodeExtraEnvironmentValuesStructure([node], {
+      const result: ReturnType<typeof helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure> =
+        helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure([node], {
           baseExtraEnvironmentVariables: {
             node1: [{name: 'JAVA_OPTS', value: '-Xms256m -Xmx2g -Dfoo=bar'}],
           },
@@ -81,8 +82,8 @@ describe('Helpers', (): void => {
 
     it('should sanitize -Xms/-Xmx from JAVA_OPTS after debug-node prepend adds base value with heap flags', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const result: ReturnType<typeof helpers.buildPerNodeExtraEnvironmentValuesStructure> =
-        helpers.buildPerNodeExtraEnvironmentValuesStructure([node], {
+      const result: ReturnType<typeof helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure> =
+        helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure([node], {
           debugNodeAlias: 'node1',
           baseExtraEnvironmentVariables: {
             node1: [{name: 'JAVA_OPTS', value: '-Xms512m -Xmx4g -Dfoo=bar'}],
@@ -100,8 +101,8 @@ describe('Helpers', (): void => {
 
     it('should sanitize -Xms/-Xmx from JAVA_OPTS coming from additionalEnvironmentVariables', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const result: ReturnType<typeof helpers.buildPerNodeExtraEnvironmentValuesStructure> =
-        helpers.buildPerNodeExtraEnvironmentValuesStructure([node], {
+      const result: ReturnType<typeof helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure> =
+        helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure([node], {
           additionalEnvironmentVariables: {
             node1: [{name: 'JAVA_OPTS', value: '-Xms128m -Xmx1g -Dbaz=qux'}],
           },
@@ -115,8 +116,8 @@ describe('Helpers', (): void => {
     it('should preserve blockNodesJson from additionalNodeValues in the output structure', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
       const blockNodesJsonContent: string = JSON.stringify({blockNodes: [{host: 'localhost', port: 8080}]});
-      const result: ReturnType<typeof helpers.buildPerNodeExtraEnvironmentValuesStructure> =
-        helpers.buildPerNodeExtraEnvironmentValuesStructure([node], {
+      const result: ReturnType<typeof helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure> =
+        helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure([node], {
           additionalNodeValues: {
             node1: {name: 'node1', nodeId: 0, accountId: '0.0.3', blockNodesJson: blockNodesJsonContent},
           },
@@ -126,8 +127,8 @@ describe('Helpers', (): void => {
 
     it('should not include blockNodesJson in output when not provided', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const result: ReturnType<typeof helpers.buildPerNodeExtraEnvironmentValuesStructure> =
-        helpers.buildPerNodeExtraEnvironmentValuesStructure([node], {
+      const result: ReturnType<typeof helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure> =
+        helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure([node], {
           additionalNodeValues: {
             node1: {name: 'node1', nodeId: 0, accountId: '0.0.3'},
           },
@@ -152,9 +153,10 @@ describe('Helpers', (): void => {
       const temporaryFile: string = path.join(temporaryDirectory, 'values.yaml');
       fs.writeFileSync(temporaryFile, valuesContent, 'utf8');
       try {
-        const result: Record<NodeAlias, string> = helpers.extractPerNodeBlockNodesJsonFromValuesFile(temporaryFile, [
-          node,
-        ]);
+        const result: Record<NodeAlias, string> = helmValuesHelper.extractPerNodeBlockNodesJsonFromValuesFile(
+          temporaryFile,
+          [node],
+        );
         expect(result['node1']).to.equal(blockNodesJsonContent);
       } finally {
         fs.rmSync(temporaryDirectory, {recursive: true, force: true});
@@ -163,7 +165,7 @@ describe('Helpers', (): void => {
 
     it('should return empty record when file does not exist', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const result: Record<NodeAlias, string> = helpers.extractPerNodeBlockNodesJsonFromValuesFile(
+      const result: Record<NodeAlias, string> = helmValuesHelper.extractPerNodeBlockNodesJsonFromValuesFile(
         '/nonexistent/file.yaml',
         [node],
       );
@@ -177,9 +179,10 @@ describe('Helpers', (): void => {
       const temporaryFile: string = path.join(temporaryDirectory, 'values.yaml');
       fs.writeFileSync(temporaryFile, valuesContent, 'utf8');
       try {
-        const result: Record<NodeAlias, string> = helpers.extractPerNodeBlockNodesJsonFromValuesFile(temporaryFile, [
-          node,
-        ]);
+        const result: Record<NodeAlias, string> = helmValuesHelper.extractPerNodeBlockNodesJsonFromValuesFile(
+          temporaryFile,
+          [node],
+        );
         expect(result).to.deep.equal({});
       } finally {
         fs.rmSync(temporaryDirectory, {recursive: true, force: true});

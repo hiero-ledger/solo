@@ -14,18 +14,14 @@ import {Templates} from '../core/templates.js';
 import {
   addRootImageValues,
   createAndCopyBlockNodeJsonFileForConsensusNode,
-  extractExtraEnvironmentFromValuesFiles,
-  extractPerNodeBlockNodesJsonFromValuesFile,
-  extractPerNodeIdentityFromValuesFile,
-  generateExtraEnvironmentValuesFile,
   parseNodeAliases,
-  parseValuesFilePaths,
-  type PerNodeIdentity,
   prepareValuesFilesMapMultipleCluster,
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
 } from '../core/helpers.js';
+import {helmValuesHelper} from '../core/helm-values-helper.js';
+import {type PerNodeIdentity} from '../types/helm-values.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -481,10 +477,10 @@ export class NetworkCommand extends BaseCommand {
         // silently dropped when the extraEnv values file replaces the hedera.nodes array.
         const clusterProfileValuesFile: string | undefined = this.profileValuesFile?.[clusterReference];
         const nodeIdentityMap: Record<NodeAlias, PerNodeIdentity> = clusterProfileValuesFile
-          ? extractPerNodeIdentityFromValuesFile(clusterProfileValuesFile, clusterConsensusNodes)
+          ? helmValuesHelper.extractPerNodeIdentityFromValuesFile(clusterProfileValuesFile, clusterConsensusNodes)
           : {};
         const blockNodesJsonMap: Record<NodeAlias, string> = clusterProfileValuesFile
-          ? extractPerNodeBlockNodesJsonFromValuesFile(clusterProfileValuesFile, clusterConsensusNodes)
+          ? helmValuesHelper.extractPerNodeBlockNodesJsonFromValuesFile(clusterProfileValuesFile, clusterConsensusNodes)
           : {};
 
         for (const consensusNode of clusterConsensusNodes) {
@@ -506,9 +502,9 @@ export class NetworkCommand extends BaseCommand {
         // Collect extraEnv entries already present in this cluster's values files so that the
         // generated file can include them and avoid Helm array replacement silently dropping
         // env vars set by user-provided values files.
-        const existingValuesFilePaths: string[] = parseValuesFilePaths(valuesFiles[clusterReference]);
+        const existingValuesFilePaths: string[] = helmValuesHelper.parseValuesFilePaths(valuesFiles[clusterReference]);
 
-        const clusterExtraEnvironmentValuesFile: string = generateExtraEnvironmentValuesFile(
+        const clusterExtraEnvironmentValuesFile: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
           clusterConsensusNodes,
           {
             wrapsEnabled: config.wrapsEnabled,
@@ -516,7 +512,7 @@ export class NetworkCommand extends BaseCommand {
             debugNodeAlias: config.debugNodeAlias,
             useJavaMainClass: config.app !== constants.HEDERA_APP_NAME,
             additionalNodeValues,
-            baseExtraEnvironmentVariables: extractExtraEnvironmentFromValuesFiles(
+            baseExtraEnvironmentVariables: helmValuesHelper.extractExtraEnvironmentFromValuesFiles(
               existingValuesFilePaths,
               clusterConsensusNodes,
             ),

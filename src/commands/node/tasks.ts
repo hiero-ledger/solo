@@ -122,6 +122,7 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {helmValuesHelper} from '../../core/helm-values-helper.js';
 import {type GitClient} from '../../integration/git/git-client.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
@@ -3299,7 +3300,7 @@ export class NodeCommandTasks {
             // Always include the chart's own defaults file so default JAVA_OPTS/heap vars
             // are preserved when no per-node override exists in the user-provided files.
             const existingValuesFilePaths: string[] = [constants.SOLO_DEPLOYMENT_VALUES_FILE];
-            for (const filePath of helpers.parseValuesFilePaths(valuesArgumentMap[clusterReference])) {
+            for (const filePath of helmValuesHelper.parseValuesFilePaths(valuesArgumentMap[clusterReference])) {
               if (!existingValuesFilePaths.includes(filePath)) {
                 existingValuesFilePaths.push(filePath);
               }
@@ -3321,14 +3322,14 @@ export class NodeCommandTasks {
               ...unindexedConsensusNodes,
             ];
 
-            const extraEnvironmentValuesFile: string = helpers.generateExtraEnvironmentValuesFile(
+            const extraEnvironmentValuesFile: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
               clusterConsensusNodes,
               {
                 wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
                 tss: this.soloConfig.tss,
                 debugNodeAlias: config.debugNodeAlias,
                 useJavaMainClass: false,
-                baseExtraEnvironmentVariables: helpers.extractExtraEnvironmentFromValuesFiles(
+                baseExtraEnvironmentVariables: helmValuesHelper.extractExtraEnvironmentFromValuesFiles(
                   existingValuesFilePaths,
                   clusterConsensusNodes,
                 ),
