@@ -19,6 +19,9 @@ vars:
   HELISWAP_PREFUND_END_ACCOUNT: "1300"
   HELISWAP_PREFUND_HBAR: "200000"
   HELISWAP_PREFUND_SLEEP_SECONDS: "1"
+  HELISWAP_CREATOR_ACCOUNT_ID: "0.0.1013"
+  HELISWAP_CREATOR_TOP_UP_HBAR: "1000000"
+  HELISWAP_CREATOR_TOP_UP_BURST_COUNT: "3"
 
 tasks:
   deploy:
@@ -146,6 +149,16 @@ tasks:
             fi
           }
 
+          top_up_creator_account() {
+            if $SOLO_COMMAND ledger account update \
+              --deployment {{ .SOLO_DEPLOYMENT }} \
+              --account-id {{ .HELISWAP_CREATOR_ACCOUNT_ID }} \
+              --hbar-amount {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} \
+              --dev >/dev/null 2>&1; then
+              echo "Topped up HeliSwap creator {{ .HELISWAP_CREATOR_ACCOUNT_ID }}"
+            fi
+          }
+
           funded_ids_file="$(mktemp /tmp/heliswap-funded-ids.XXXXXX)"
           touch "${funded_ids_file}"
 
@@ -156,9 +169,13 @@ tasks:
           get_candidate_accounts | while read -r account_id; do
             fund_account "${account_id}"
           done
+          for _ in $(seq 1 {{ .HELISWAP_CREATOR_TOP_UP_BURST_COUNT }}); do
+            top_up_creator_account
+          done
 
           (
             while true; do
+              top_up_creator_account
               for account_num in $(seq {{ .HELISWAP_PREFUND_START_ACCOUNT }} {{ .HELISWAP_PREFUND_END_ACCOUNT }}); do
                 fund_account "0.0.${account_num}"
               done

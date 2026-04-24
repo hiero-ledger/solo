@@ -58,15 +58,9 @@ tasks:
           mv "{{.MERGED_VALUES_FILE}}.tmp" "{{.MERGED_VALUES_FILE}}"
 
           $SOLO_COMMAND one-shot falcon deploy \
-<<<<<<< copilot/bump-consensus-node-version
           --values-file {{.MERGED_VALUES_FILE}} \
           --quiet-mode --dev
-=======
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --quiet-mode --dev
-        
-      # Run verification task to check application.properties in the deployed consensus node
       - task: verify
->>>>>>> main
 
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
@@ -77,10 +71,8 @@ tasks:
       # Delete Kind cluster
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
 
-<<<<<<< copilot/bump-consensus-node-version
       # Remove generated overrides
       - cmd: rm -f {{.APP_PROPS_OVERRIDE_FILE}} {{.MERGED_VALUES_FILE}}
-=======
   verify:
     desc: Verify custom application.properties was merged into the consensus node container
     cmds:
@@ -124,7 +116,6 @@ tasks:
             echo "❌ FAIL: fake.property=${FAKE} (expected: ${FAKE_EXPECTED})"
             exit 1
           fi
->>>>>>> main
 
   default:
     desc: Run the default deploy task

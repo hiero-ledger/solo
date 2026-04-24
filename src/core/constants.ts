@@ -293,7 +293,7 @@ export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
 export const TSS_SIGNER_READY_MSG: string = 'TSS protocol ready to sign blocks';
 export const LEDGER_ID_SET_MSG: string = 'Set ledger id to';
 export const LEDGER_ID_EXTERNALIZED_MSG: string = 'Externalizing ledger id';
-export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
+export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'true';
 export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
 
 export const CONTAINER_COPY_MAX_ATTEMPTS: number = +getEnvironmentVariable('CONTAINER_COPY_MAX_ATTEMPTS') || 3;
