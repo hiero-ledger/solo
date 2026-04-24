@@ -577,7 +577,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       );
       const context: Context =
         this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString() ??
-        this.configManager.getFlag<string>(flags.context);
+        this.configManager.getFlag(flags.context);
       const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id);
       const nodeId: NodeId = Templates.renderNodeIdFromComponentId(node.metadata.id);
 
