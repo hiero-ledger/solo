@@ -49,8 +49,7 @@ describe('NodeCommandTasks local build path PVC validation', (): void => {
       'kind-beta': ['data-node2'],
     });
 
-    await expect(
-      invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-alpha', 'kind-beta'])
-    ).to.eventually.be.fulfilled;
+    await expect(invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-alpha', 'kind-beta'])).to.eventually
+      .be.fulfilled;
   });
 });
