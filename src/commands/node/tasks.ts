@@ -1656,7 +1656,8 @@ export class NodeCommandTasks {
 
                 if (
                   output.includes(constants.LEDGER_ID_SET_MSG) ||
-                  output.includes(constants.LEDGER_ID_EXTERNALIZED_MSG)
+                  output.includes(constants.LEDGER_ID_EXTERNALIZED_MSG) ||
+                  output.includes(constants.TSS_SIGNER_READY_MSG)
                 ) {
                   success = true;
                 } else {
