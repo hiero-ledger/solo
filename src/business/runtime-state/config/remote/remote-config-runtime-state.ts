@@ -383,9 +383,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     await this.setDefaultContextIfNotSet();
 
     // Sync resolved context back to argv so subsequent configManager.update(argv) preserves it.
-    if (!argv[flags.context.name]) {
-      argv[flags.context.name] = this.configManager.getFlag<Context>(flags.context);
-    }
+    argv[flags.context.name] ||= this.configManager.getFlag<Context>(flags.context);
 
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const context: Context = this.populateClusterReferences(deploymentName);
