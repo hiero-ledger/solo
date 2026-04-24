@@ -1761,15 +1761,13 @@ export class NodeCommandTasks {
   public prepareStagingDirectory(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare staging directory',
-      task: (context_, task): SoloListr<AnyListrContext> => {
-        const config: any = context_.config;
-        const nodeAliases: any = config[nodeAliasesProperty];
+      task: ({config}, task): SoloListr<AnyListrContext> => {
+        const nodeAliases: NodeAliases = config[nodeAliasesProperty];
         const subTasks: SoloListrTask<AnyListrContext>[] = [
           {
             title: 'Create and populate staging directory',
-            task: async (context_): Promise<void> => {
-              const config: any = context_.config;
-              const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            task: async ({config}): Promise<void> => {
+              const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
               const applicationPropertiesPath: string = PathEx.joinWithRealPath(
                 config.cacheDir,
                 'templates',
@@ -1778,7 +1776,6 @@ export class NodeCommandTasks {
 
               const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
               const yamlRoot: AnyObject = {};
-              const emptyDomainNamesMapping: Record<string, IP> = {};
 
               const stagingDirectory: string = Templates.renderStagingDir(
                 this.configManager.getFlag(flags.cacheDir),
@@ -1790,7 +1787,6 @@ export class NodeCommandTasks {
                   consensusNodes,
                   nodeAliases,
                   yamlRoot,
-                  emptyDomainNamesMapping,
                   deploymentName,
                   applicationPropertiesPath,
                 );
