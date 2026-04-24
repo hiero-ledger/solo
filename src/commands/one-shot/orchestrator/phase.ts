@@ -13,13 +13,46 @@ type WaitCondition = {
   timeout: Duration;
 };
 
+export type ExecutionMode = 'sequential' | 'concurrent';
+
 export class Phase<TConfig extends {deployment: string}, TContext> {
   private readonly waitConditions: WaitCondition[] = [];
+  private readonly title: string;
+  private readonly step: OrchestratorStep<TConfig, TContext> | undefined;
+  private readonly subPhases: ReadonlyArray<Phase<TConfig, TContext>>;
+  private readonly executionMode: ExecutionMode;
+  private readonly exitOnError: boolean;
 
+  public constructor(title: string, step: OrchestratorStep<TConfig, TContext>);
   public constructor(
-    private readonly title: string,
-    private readonly step: OrchestratorStep<TConfig, TContext>,
-  ) {}
+    title: string,
+    step: OrchestratorStep<TConfig, TContext> | undefined,
+    subPhases: ReadonlyArray<Phase<TConfig, TContext>>,
+    executionMode: ExecutionMode,
+    exitOnError: boolean,
+  );
+  public constructor(
+    title: string,
+    step: OrchestratorStep<TConfig, TContext> | undefined,
+    subPhases: ReadonlyArray<Phase<TConfig, TContext>> = [],
+    executionMode: ExecutionMode = 'sequential',
+    exitOnError: boolean = true,
+  ) {
+    this.title = title;
+    this.step = step;
+    this.subPhases = subPhases;
+    this.executionMode = executionMode;
+    this.exitOnError = exitOnError;
+  }
+
+  public static composite<TConfig extends {deployment: string}, TContext>(
+    title: string,
+    subPhases: ReadonlyArray<Phase<TConfig, TContext>>,
+    executionMode: ExecutionMode = 'sequential',
+    exitOnError: boolean = true,
+  ): Phase<TConfig, TContext> {
+    return new Phase<TConfig, TContext>(title, undefined, subPhases, executionMode, exitOnError);
+  }
 
   public withWaitCondition(eventType: SoloEventType, timeout: Duration = Duration.ofMinutes(5)): this {
     this.waitConditions.push({eventType, timeout});
@@ -27,8 +60,21 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
   }
 
   public asListrTask(config: TConfig, eventBus: SoloEventBus): SoloListrTask<TContext> {
+    if (this.subPhases.length > 0) {
+      return {
+        title: this.title,
+        task: (_: TContext, task: SoloListrTaskWrapper<TContext>): SoloListr<TContext> =>
+          task.newListr(
+            this.subPhases.map(
+              (phase: Phase<TConfig, TContext>): SoloListrTask<TContext> => phase.asListrTask(config, eventBus),
+            ),
+            {concurrent: this.executionMode === 'concurrent', exitOnError: this.exitOnError},
+          ),
+      };
+    }
+
     if (this.waitConditions.length === 0) {
-      return this.step.asListrTask(config);
+      return (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(config);
     }
 
     return {
@@ -41,7 +87,7 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
             timeout,
           );
         }
-        return task.newListr([this.step.asListrTask(config)]);
+        return task.newListr([(this.step as OrchestratorStep<TConfig, TContext>).asListrTask(config)]);
       },
     };
   }

@@ -3,12 +3,12 @@
 import sinon from 'sinon';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
-import {DeployMirrorNodeStep} from '../../../../../src/commands/one-shot/orchestrator/deploy-mirror-node-step.js';
-import {type OneShotSingleDeployConfigClass} from '../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
-import * as constants from '../../../../../src/core/constants.js';
-import {NamespaceName} from '../../../../../src/types/namespace/namespace-name.js';
+import {DeployMirrorNodeStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-mirror-node-step.js';
+import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import * as constants from '../../../../../../src/core/constants.js';
+import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
 import {type ListrContext, type ListrRendererValue} from 'listr2';
-import {type TaskList} from '../../../../../src/core/task-list/task-list.js';
+import {type TaskList} from '../../../../../../src/core/task-list/task-list.js';
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {

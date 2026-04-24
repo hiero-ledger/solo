@@ -70,12 +70,21 @@ import {type SoloConfigSchema} from '../../data/schema/model/solo/solo-config-sc
 import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
 import {DefaultOneShotCommand} from '../../commands/one-shot/default-one-shot.js';
-import {DefaultOneShotDeployOrchestrator} from '../../commands/one-shot/orchestrator/default-one-shot-deploy-orchestrator.js';
-import {DeployBlockNodeStep} from '../../commands/one-shot/orchestrator/deploy-block-node-step.js';
-import {DeployNetworkPipelineStep} from '../../commands/one-shot/orchestrator/deploy-network-pipeline-step.js';
-import {DeployMirrorNodeStep} from '../../commands/one-shot/orchestrator/deploy-mirror-node-step.js';
-import {DeployExplorerStep} from '../../commands/one-shot/orchestrator/deploy-explorer-step.js';
-import {DeployRelayStep} from '../../commands/one-shot/orchestrator/deploy-relay-step.js';
+import {DefaultOneShotDeployOrchestrator} from '../../commands/one-shot/orchestrator/deploy/default-one-shot-deploy-orchestrator.js';
+import {DeployBlockNodeStep} from '../../commands/one-shot/orchestrator/deploy/deploy-block-node-step.js';
+import {DeployNetworkPipelineStep} from '../../commands/one-shot/orchestrator/deploy/deploy-network-pipeline-step.js';
+import {DeployMirrorNodeStep} from '../../commands/one-shot/orchestrator/deploy/deploy-mirror-node-step.js';
+import {DeployExplorerStep} from '../../commands/one-shot/orchestrator/deploy/deploy-explorer-step.js';
+import {DeployRelayStep} from '../../commands/one-shot/orchestrator/deploy/deploy-relay-step.js';
+import {DefaultOneShotDestroyOrchestrator} from '../../commands/one-shot/orchestrator/destroy/default-one-shot-destroy-orchestrator.js';
+import {DestroyExplorerStep} from '../../commands/one-shot/orchestrator/destroy/destroy-explorer-step.js';
+import {DestroyRelayStep} from '../../commands/one-shot/orchestrator/destroy/destroy-relay-step.js';
+import {DestroyMirrorNodeStep} from '../../commands/one-shot/orchestrator/destroy/destroy-mirror-node-step.js';
+import {DestroyBlockNodeStep} from '../../commands/one-shot/orchestrator/destroy/destroy-block-node-step.js';
+import {DestroyConsensusNodeStep} from '../../commands/one-shot/orchestrator/destroy/destroy-consensus-node-step.js';
+import {ClusterResetStep} from '../../commands/one-shot/orchestrator/destroy/cluster-reset-step.js';
+import {ClusterDisconnectStep} from '../../commands/one-shot/orchestrator/destroy/cluster-disconnect-step.js';
+import {DeploymentDeleteStep} from '../../commands/one-shot/orchestrator/destroy/deployment-delete-step.js';
 import {DefaultTaskList} from '../task-list/default-task-list.js';
 import {Commands} from '../../commands/commands.js';
 import {BlockCommandDefinition} from '../../commands/command-definitions/block-command-definition.js';
@@ -193,6 +202,15 @@ export class Container {
       new SingletonContainer(InjectTokens.DeployExplorerStep, DeployExplorerStep),
       new SingletonContainer(InjectTokens.DeployRelayStep, DeployRelayStep),
       new SingletonContainer(InjectTokens.OneShotDeployOrchestrator, DefaultOneShotDeployOrchestrator),
+      new SingletonContainer(InjectTokens.DestroyExplorerStep, DestroyExplorerStep),
+      new SingletonContainer(InjectTokens.DestroyRelayStep, DestroyRelayStep),
+      new SingletonContainer(InjectTokens.DestroyMirrorNodeStep, DestroyMirrorNodeStep),
+      new SingletonContainer(InjectTokens.DestroyBlockNodeStep, DestroyBlockNodeStep),
+      new SingletonContainer(InjectTokens.DestroyConsensusNodeStep, DestroyConsensusNodeStep),
+      new SingletonContainer(InjectTokens.ClusterResetStep, ClusterResetStep),
+      new SingletonContainer(InjectTokens.ClusterDisconnectStep, ClusterDisconnectStep),
+      new SingletonContainer(InjectTokens.DeploymentDeleteStep, DeploymentDeleteStep),
+      new SingletonContainer(InjectTokens.OneShotDestroyOrchestrator, DefaultOneShotDestroyOrchestrator),
       new SingletonContainer(InjectTokens.OneShotCommand, DefaultOneShotCommand),
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),

@@ -3,18 +3,18 @@
 import sinon, {type SinonStub} from 'sinon';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
-import {DefaultOneShotDeployOrchestrator} from '../../../../../src/commands/one-shot/orchestrator/default-one-shot-deploy-orchestrator.js';
-import {type DeployBlockNodeStep} from '../../../../../src/commands/one-shot/orchestrator/deploy-block-node-step.js';
-import {type DeployNetworkPipelineStep} from '../../../../../src/commands/one-shot/orchestrator/deploy-network-pipeline-step.js';
-import {type DeployMirrorNodeStep} from '../../../../../src/commands/one-shot/orchestrator/deploy-mirror-node-step.js';
-import {type DeployExplorerStep} from '../../../../../src/commands/one-shot/orchestrator/deploy-explorer-step.js';
-import {type DeployRelayStep} from '../../../../../src/commands/one-shot/orchestrator/deploy-relay-step.js';
-import {type SoloEventBus} from '../../../../../src/core/events/solo-event-bus.js';
-import {SoloEventType} from '../../../../../src/core/events/event-types/event-types.js';
-import {type OneShotSingleDeployConfigClass} from '../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
-import {type OneShotSingleDeployContext} from '../../../../../src/commands/one-shot/one-shot-single-deploy-context.js';
-import {type SoloListrTaskWrapper} from '../../../../../src/types/index.js';
-import {NamespaceName} from '../../../../../src/types/namespace/namespace-name.js';
+import {DefaultOneShotDeployOrchestrator} from '../../../../../../src/commands/one-shot/orchestrator/deploy/default-one-shot-deploy-orchestrator.js';
+import {type DeployBlockNodeStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-block-node-step.js';
+import {type DeployNetworkPipelineStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-network-pipeline-step.js';
+import {type DeployMirrorNodeStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-mirror-node-step.js';
+import {type DeployExplorerStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-explorer-step.js';
+import {type DeployRelayStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-relay-step.js';
+import {type SoloEventBus} from '../../../../../../src/core/events/solo-event-bus.js';
+import {SoloEventType} from '../../../../../../src/core/events/event-types/event-types.js';
+import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import {type OneShotSingleDeployContext} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-context.js';
+import {type SoloListrTaskWrapper} from '../../../../../../src/types/index.js';
+import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {

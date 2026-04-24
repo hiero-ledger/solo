@@ -2,24 +2,24 @@
 
 import {inject, injectable} from 'tsyringe-neo';
 import {type ListrContext, type ListrRendererValue} from 'listr2';
-import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
-import {patchInject} from '../../../core/dependency-injection/container-helper.js';
-import {type TaskList} from '../../../core/task-list/task-list.js';
-import {type SoloListrTask} from '../../../types/index.js';
-import {type AnyObject} from '../../../types/aliases.js';
-import {type OneShotSingleDeployConfigClass} from '../one-shot-single-deploy-config-class.js';
-import {type OneShotSingleDeployContext} from '../one-shot-single-deploy-context.js';
-import {MirrorCommandDefinition} from '../../command-definitions/mirror-command-definition.js';
-import {Flags} from '../../flags.js';
+import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../../../../core/dependency-injection/container-helper.js';
+import {type TaskList} from '../../../../core/task-list/task-list.js';
+import {type SoloListrTask} from '../../../../types/index.js';
+import {type AnyObject} from '../../../../types/aliases.js';
+import {type OneShotSingleDeployConfigClass} from '../../one-shot-single-deploy-config-class.js';
+import {type OneShotSingleDeployContext} from '../../one-shot-single-deploy-context.js';
+import {MirrorCommandDefinition} from '../../../command-definitions/mirror-command-definition.js';
+import {Flags} from '../../../flags.js';
 import {
   appendConfigToArgv,
   argvPushGlobalFlags,
   invokeSoloCommand,
   newArgv,
   optionFromFlag,
-} from '../../command-helpers.js';
-import * as constants from '../../../core/constants.js';
-import {type OrchestratorStep} from './orchestrator-step.js';
+} from '../../../command-helpers.js';
+import * as constants from '../../../../core/constants.js';
+import {type OrchestratorStep} from '../orchestrator-step.js';
 
 @injectable()
 export class DeployMirrorNodeStep implements OrchestratorStep<

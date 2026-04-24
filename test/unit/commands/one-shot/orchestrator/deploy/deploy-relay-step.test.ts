@@ -3,11 +3,11 @@
 import sinon from 'sinon';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
-import {DeployRelayStep} from '../../../../../src/commands/one-shot/orchestrator/deploy-relay-step.js';
-import {type OneShotSingleDeployConfigClass} from '../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
-import {NamespaceName} from '../../../../../src/types/namespace/namespace-name.js';
+import {DeployRelayStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-relay-step.js';
+import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
 import {type ListrContext, type ListrRendererValue} from 'listr2';
-import {type TaskList} from '../../../../../src/core/task-list/task-list.js';
+import {type TaskList} from '../../../../../../src/core/task-list/task-list.js';
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {

@@ -3,16 +3,16 @@
 import sinon from 'sinon';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
-import {DeployNetworkPipelineStep} from '../../../../../src/commands/one-shot/orchestrator/deploy-network-pipeline-step.js';
-import {type OneShotSingleDeployConfigClass} from '../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
-import {ConsensusCommandDefinition} from '../../../../../src/commands/command-definitions/consensus-command-definition.js';
-import {NamespaceName} from '../../../../../src/types/namespace/namespace-name.js';
+import {DeployNetworkPipelineStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-network-pipeline-step.js';
+import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import {ConsensusCommandDefinition} from '../../../../../../src/commands/command-definitions/consensus-command-definition.js';
+import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
 import {type ListrContext, type ListrRendererValue} from 'listr2';
-import {type TaskList} from '../../../../../src/core/task-list/task-list.js';
-import {type AccountManager} from '../../../../../src/core/account-manager.js';
-import {type LocalConfigRuntimeState} from '../../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {type RemoteConfigRuntimeStateApi} from '../../../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
-import {type SoloLogger} from '../../../../../src/core/logging/solo-logger.js';
+import {type TaskList} from '../../../../../../src/core/task-list/task-list.js';
+import {type AccountManager} from '../../../../../../src/core/account-manager.js';
+import {type LocalConfigRuntimeState} from '../../../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type SoloLogger} from '../../../../../../src/core/logging/solo-logger.js';
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {

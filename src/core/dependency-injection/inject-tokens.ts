@@ -88,6 +88,15 @@ export class InjectTokens {
   public static DeployMirrorNodeStep: symbol = Symbol.for('DeployMirrorNodeStep');
   public static DeployExplorerStep: symbol = Symbol.for('DeployExplorerStep');
   public static DeployRelayStep: symbol = Symbol.for('DeployRelayStep');
+  public static OneShotDestroyOrchestrator: symbol = Symbol.for('OneShotDestroyOrchestrator');
+  public static DestroyExplorerStep: symbol = Symbol.for('DestroyExplorerStep');
+  public static DestroyRelayStep: symbol = Symbol.for('DestroyRelayStep');
+  public static DestroyMirrorNodeStep: symbol = Symbol.for('DestroyMirrorNodeStep');
+  public static DestroyBlockNodeStep: symbol = Symbol.for('DestroyBlockNodeStep');
+  public static DestroyConsensusNodeStep: symbol = Symbol.for('DestroyConsensusNodeStep');
+  public static ClusterResetStep: symbol = Symbol.for('ClusterResetStep');
+  public static ClusterDisconnectStep: symbol = Symbol.for('ClusterDisconnectStep');
+  public static DeploymentDeleteStep: symbol = Symbol.for('DeploymentDeleteStep');
   public static TaskList: symbol = Symbol.for('TaskList');
   public static Commands: symbol = Symbol.for('Commands');
   public static MetricsServer: symbol = Symbol.for('MetricsServer');
