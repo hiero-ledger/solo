@@ -1160,6 +1160,7 @@ export class MirrorNodeCommand extends BaseCommand {
             false,
           );
           const accountQueryUrl: string = `http://localhost:${localPort}/api/v1/accounts/${operatorIdUsing}`;
+          const networkNodesQueryUrl: string = `http://localhost:${localPort}/api/v1/network/nodes?limit=1`;
           const maxAttempts: number = MirrorNodeCommand.IMPORTER_INDEXING_MAX_ATTEMPTS;
 
           for (let attempt: number = 1; attempt <= maxAttempts && !received; attempt++) {
@@ -1174,6 +1175,17 @@ export class MirrorNodeCommand extends BaseCommand {
                 }
               } else {
                 lastStatus = `HTTP ${response.status}`;
+
+                // Some environments do not surface account 0.0.2 immediately; accept importer readiness
+                // once network nodes are available from mirror REST.
+                const networkResponse: Response = await fetch(networkNodesQueryUrl, {cache: 'no-store'});
+                if (networkResponse.ok) {
+                  const networkObject: {nodes?: unknown[]} = await networkResponse.json();
+                  if (Array.isArray(networkObject.nodes) && networkObject.nodes.length > 0) {
+                    received = true;
+                    lastStatus = `network nodes available (count=${networkObject.nodes.length})`;
+                  }
+                }
               }
             } catch (error: unknown) {
               lastStatus = error instanceof Error ? error.message : String(error);

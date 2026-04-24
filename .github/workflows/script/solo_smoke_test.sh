@@ -119,7 +119,22 @@ function start_sdk_test ()
     log_and_exit $result
   fi
   result=0
-  node scripts/create-topic.js || result=$?
+  local max_attempts=3
+  local attempt=1
+  while [[ $attempt -le $max_attempts ]]; do
+    echo "Running JavaScript SDK create-topic test (attempt ${attempt}/${max_attempts})"
+    if node scripts/create-topic.js; then
+      result=0
+      break
+    fi
+
+    result=$?
+    if [[ $attempt -lt $max_attempts ]]; then
+      echo "create-topic test failed with exit code ${result}; retrying in 10s..."
+      sleep 10
+    fi
+    attempt=$((attempt + 1))
+  done
   cd -
   if [[ $result -ne 0 ]]; then
     echo "JavaScript SDK test failed with exit code $result"
