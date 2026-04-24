@@ -289,7 +289,9 @@ export class PlatformInstaller {
       if (!secretCreated) {
         throw new SoloError(`failed to create secret for gossip keys for node '${consensusNode.name}'`);
       }
-      const message: string = `failed to copy gossip keys to secret '${Templates.renderGossipKeySecretName(consensusNode.name as NodeAlias)}': ${error.message}`;
+    } catch (error) {
+      const errorMessage: string = error instanceof Error ? error.message : String(error);
+      const message: string = `failed to copy gossip keys to secret '${Templates.renderGossipKeySecretName(consensusNode.name as NodeAlias)}': ${errorMessage}`;
       throw new SoloError(message, error);
     }
   }
