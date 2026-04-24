@@ -45,10 +45,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     parentTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
   ): SoloListr<OneShotSingleDeployContext> {
     const phases: Array<Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
-      new Phase(`Deploy block node`, this.blockNodeStep),
+      new Phase('Deploy block node', this.blockNodeStep),
       new Phase('Deploy network node', this.networkPipelineStep),
-      new Phase(`Deploy mirror node`, this.mirrorNodeStep),
-      new Phase(`Deploy explorer`, this.explorerStep).withWaitCondition(
+      new Phase('Deploy mirror node', this.mirrorNodeStep),
+      new Phase('Deploy explorer', this.explorerStep).withWaitCondition(
         SoloEventType.MirrorNodeDeployed,
         Duration.ofMinutes(10),
       ),
