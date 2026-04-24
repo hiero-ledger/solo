@@ -6,7 +6,7 @@ network:
 #  --api-permission-properties: ""
 #  --app: ""
   --application-env: "application.env.txt"
-#  --application-properties: ""
+  --application-properties: "custom-application.properties"
 #  --bootstrap-properties: ""
 #  --genesis-throttles-file: ""
 #  --cache-dir: ""
