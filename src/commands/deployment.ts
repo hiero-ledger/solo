@@ -4,7 +4,6 @@ import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {select as selectPrompt} from '@inquirer/prompts';
 import {SoloError} from '../core/errors/solo-error.js';
-import {DeploymentAlreadyExistsSoloError} from '../core/errors/types/deployment-already-exists-solo-error.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
@@ -43,7 +42,7 @@ import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state
 import * as version from '../../version.js';
 import find from 'find-process';
 import type ProcessInfo from 'find-process';
-import {CreateDeploymentSoloError} from '../core/errors/types/create-deployment-solo-error.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -153,7 +152,7 @@ export class DeploymentCommand extends BaseCommand {
                 (d: Deployment): boolean => d.name === context_.config.deployment,
               )
             ) {
-              throw new DeploymentAlreadyExistsSoloError(context_.config.deployment);
+              throw new SoloErrors.deployment.alreadyExists(context_.config.deployment);
             }
           },
         },
@@ -186,7 +185,7 @@ export class DeploymentCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new CreateDeploymentSoloError(error);
+        throw new SoloErrors.deployment.createFailed(error);
       }
     }
 
