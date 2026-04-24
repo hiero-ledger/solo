@@ -14,11 +14,8 @@ import {DeployNetworkPipelineStep} from './deploy-network-pipeline-step.js';
 import {DeployMirrorNodeStep} from './deploy-mirror-node-step.js';
 import {DeployExplorerStep} from './deploy-explorer-step.js';
 import {DeployRelayStep} from './deploy-relay-step.js';
-import {BlockCommandDefinition} from '../../command-definitions/block-command-definition.js';
-import {MirrorCommandDefinition} from '../../command-definitions/mirror-command-definition.js';
-import {ExplorerCommandDefinition} from '../../command-definitions/explorer-command-definition.js';
-import {RelayCommandDefinition} from '../../command-definitions/relay-command-definition.js';
 import {Phase} from './phase.js';
+import {Duration} from '../../../core/time/duration.js';
 
 @injectable()
 export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrator {
@@ -48,15 +45,16 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     parentTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
   ): SoloListr<OneShotSingleDeployContext> {
     const phases: Array<Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
-      new Phase(`solo ${BlockCommandDefinition.ADD_COMMAND}`, this.blockNodeStep),
+      new Phase(`Deploy block node`, this.blockNodeStep),
       new Phase('Deploy network node', this.networkPipelineStep),
-      new Phase(`solo ${MirrorCommandDefinition.ADD_COMMAND}`, this.mirrorNodeStep),
-      new Phase(`solo ${ExplorerCommandDefinition.ADD_COMMAND}`, this.explorerStep).withWaitCondition(
+      new Phase(`Deploy mirror node`, this.mirrorNodeStep),
+      new Phase(`Deploy explorer`, this.explorerStep).withWaitCondition(
         SoloEventType.MirrorNodeDeployed,
+        Duration.ofMinutes(10),
       ),
-      new Phase(`solo ${RelayCommandDefinition.ADD_COMMAND}`, this.relayStep)
-        .withWaitCondition(SoloEventType.MirrorNodeDeployed)
-        .withWaitCondition(SoloEventType.NodesStarted),
+      new Phase(`Deploy JSON-RPC Relay`, this.relayStep)
+        .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
+        .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(5)),
     ];
 
     return parentTask.newListr(

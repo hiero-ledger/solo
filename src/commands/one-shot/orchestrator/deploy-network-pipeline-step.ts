@@ -31,9 +31,13 @@ import {Duration} from '../../../core/time/duration.js';
 import * as helpers from '../../../core/helpers.js';
 import {entityId} from '../../../core/helpers.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
+import {type OrchestratorStep} from './orchestrator-step.js';
 
 @injectable()
-export class DeployNetworkPipelineStep {
+export class DeployNetworkPipelineStep implements OrchestratorStep<
+  OneShotSingleDeployConfigClass,
+  OneShotSingleDeployContext
+> {
   public constructor(
     @inject(InjectTokens.TaskList)
     private readonly taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,

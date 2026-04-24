@@ -19,9 +19,13 @@ import {
   optionFromFlag,
 } from '../../command-helpers.js';
 import * as constants from '../../../core/constants.js';
+import {type OrchestratorStep} from './orchestrator-step.js';
 
 @injectable()
-export class DeployBlockNodeStep {
+export class DeployBlockNodeStep implements OrchestratorStep<
+  OneShotSingleDeployConfigClass,
+  OneShotSingleDeployContext
+> {
   public constructor(
     @inject(InjectTokens.TaskList)
     private readonly taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,

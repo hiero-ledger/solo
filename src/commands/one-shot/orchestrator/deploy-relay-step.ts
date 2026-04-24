@@ -17,9 +17,10 @@ import {
   newArgv,
   optionFromFlag,
 } from '../../command-helpers.js';
+import {type OrchestratorStep} from './orchestrator-step.js';
 
 @injectable()
-export class DeployRelayStep {
+export class DeployRelayStep implements OrchestratorStep<OneShotSingleDeployConfigClass, OneShotSingleDeployContext> {
   private static readonly MIRROR_NODE_ID: number = 1;
 
   public constructor(
