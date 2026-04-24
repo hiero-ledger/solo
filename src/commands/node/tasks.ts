@@ -1594,13 +1594,26 @@ export class NodeCommandTasks {
     return {
       title: 'Wait for ledger ID',
       skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
-      task: async ({config}, task): Promise<
+      task: async (
+        {config},
+        task,
+      ): Promise<
         SoloListr<
-          NodeStartContext | NodeAddContext | NodeUpdateContext | NodeDestroyContext | NodeRefreshContext | NodeUpgradeContext
+          | NodeStartContext
+          | NodeAddContext
+          | NodeUpdateContext
+          | NodeDestroyContext
+          | NodeRefreshContext
+          | NodeUpgradeContext
         >
       > => {
         const subTasks: SoloListrTask<
-          NodeStartContext | NodeAddContext | NodeUpdateContext | NodeDestroyContext | NodeRefreshContext | NodeUpgradeContext
+          | NodeStartContext
+          | NodeAddContext
+          | NodeUpdateContext
+          | NodeDestroyContext
+          | NodeRefreshContext
+          | NodeUpgradeContext
         >[] = [];
 
         for (const nodeAlias of config[nodeAliasesProperty] as NodeAliases) {
