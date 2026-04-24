@@ -1883,7 +1883,6 @@ export class NodeCommandTasks {
                 }
               }
               await container.execContainer(['bash', '-c', startCommand]);
-
             },
           });
         }
