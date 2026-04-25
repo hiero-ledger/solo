@@ -60,7 +60,7 @@ For detailed platform-specific instructions, see the [Solo User Guide](https://s
 
 ## Documentation
 If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
-[solo docs](https://solo.hiero.org/docs/simple-solo-setup/quickstart/#deploy-a-local-network-one-shot))
+[solo docs](https://solo.hiero.org/docs/simple-solo-setup/quickstart/#deploy-a-local-network-one-shot)
 
 ## Contributing
 
