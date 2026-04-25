@@ -54,6 +54,7 @@ export interface ComponentsDataWrapperApi {
     reuse?: boolean,
     nodeId?: number,
     persist?: boolean,
+    externalAddress?: string,
   ): Promise<number>;
 
   stopPortForwards(

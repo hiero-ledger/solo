@@ -69,6 +69,7 @@ consensusNode:
   --state-file: ""
   --stake-amounts: ""
   --force-port-forward: true
+  --external-address: ""
 
 # Mirror node deployment configuration
 mirrorNode:
@@ -81,6 +82,7 @@ mirrorNode:
   --mirror-static-ip: ""
   --domain-name: ""
   --force-port-forward: true
+  --external-address: ""
   --quiet-mode: false
   --pinger: true
   --operator-id: ""
@@ -112,6 +114,7 @@ relayNode:
   --operator-id: ""
   --operator-key: ""
   --force-port-forward: true
+  --external-address: ""
   --quiet-mode: false
   --mirror-node-id: null
   --mirror-namespace: ""
@@ -144,6 +147,7 @@ explorerNode:
   --explorer-static-ip: ""
   --cluster-setup-namespace: ""
   --force-port-forward: true
+  --external-address: ""
   --quiet-mode: false
   --mirror-node-id: null
   --mirror-namespace: ""

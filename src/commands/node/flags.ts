@@ -272,6 +272,7 @@ export const START_FLAGS: CommandFlags = {
     flags.stateFile,
     flags.stakeAmounts,
     flags.forcePortForward,
+    flags.externalAddress,
     flags.wrapsKeyPath,
     flags.grpcWebEndpoints,
   ],

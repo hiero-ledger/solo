@@ -181,6 +181,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.clusterSetupNamespace,
       flags.domainName,
       flags.forcePortForward,
+      flags.externalAddress,
 
       // Mirror Node
       flags.mirrorNodeId,
@@ -209,6 +210,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.clusterSetupNamespace,
       flags.domainName,
       flags.forcePortForward,
+      flags.externalAddress,
       flags.id,
 
       // Mirror Node
@@ -522,6 +524,9 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Enable port forwarding for explorer',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.forcePortForward,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
+        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
+        const nodeId: number | undefined = undefined;
+        const persistPortForward: boolean = false;
         const pods: Pod[] = await this.k8Factory
           .getK8(config.clusterContext)
           .pods()
@@ -558,6 +563,9 @@ export class ExplorerCommand extends BaseCommand {
           ComponentTypes.Explorer,
           'Explorer',
           config.isChartInstalled, // Reuse existing port if chart is already installed
+          nodeId,
+          persistPortForward,
+          externalAddress,
         );
         await this.remoteConfig.persist();
       },

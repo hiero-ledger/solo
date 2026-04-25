@@ -36,6 +36,7 @@ export interface OneShotSingleDeployConfigClass {
   quiet: boolean;
   rollback: boolean;
   parallelDeploy: boolean;
+  externalAddress: string;
   edgeEnabled: boolean;
   versions: OneShotVersionsObject;
 }
