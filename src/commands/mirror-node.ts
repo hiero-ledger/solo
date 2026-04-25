@@ -64,6 +64,7 @@ import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-deployed-event.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
+import {Duration} from '../core/time/duration.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -196,6 +197,10 @@ enum MirrorNodeCommandType {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
+  private static readonly IMPORTER_INDEXING_MAX_ATTEMPTS: number = 120;
+
+  private static readonly IMPORTER_INDEXING_DELAY: Duration = Duration.ofSeconds(2);
+
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
@@ -305,9 +310,19 @@ export class MirrorNodeCommand extends BaseCommand {
   ): string {
     const configuration: RemoteConfig = this.remoteConfig.configuration;
     const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
+    const sameClusterBlockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = blockNodeSchemas.filter(
+      (blockNode): boolean => blockNode.metadata.cluster === config.clusterReference,
+    );
 
     if (blockNodeSchemas.length === 0) {
       this.logger.debug('No block nodes found in remote config configuration');
+      return '';
+    }
+
+    if (sameClusterBlockNodeSchemas.length === 0) {
+      this.logger.info(
+        `Skipping block node integration for mirror node cluster ${config.clusterReference}; no block node in the same cluster`,
+      );
       return '';
     }
 
@@ -349,7 +364,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const blockNodeFqdnList: {host: string; port: number}[] = [];
 
-    for (const blockNode of blockNodeSchemas) {
+    for (const blockNode of sameClusterBlockNodeSchemas) {
       const id: ComponentId = blockNode.metadata.id;
       const clusterReference: ClusterReferenceName = blockNode.metadata.cluster;
 
@@ -1111,6 +1126,91 @@ export class MirrorNodeCommand extends BaseCommand {
     };
   }
 
+  private waitForImporterToIndexOperatorAccountTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Wait for importer account indexing',
+      skip: ({config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext): boolean =>
+        config.storageType !== constants.StorageType.MINIO_ONLY,
+      task: async ({config}, task): Promise<void> => {
+        const k8: ReturnType<typeof this.k8Factory.getK8> = this.k8Factory.getK8(config.clusterContext);
+        const operatorIdUsing: string =
+          config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
+        const restLabels: string[] = [
+          `app.kubernetes.io/instance=${config.releaseName}`,
+          constants.SOLO_MIRROR_REST_NAME_LABEL,
+        ];
+        const restPods: Pod[] = await k8.pods().list(config.namespace, restLabels);
+
+        if (restPods.length === 0) {
+          throw new SoloError(
+            `No mirror REST pod found for release ${config.releaseName} in namespace ${config.namespace.name}`,
+          );
+        }
+
+        const restPod: Pod = restPods[0];
+        let localPort: number;
+        let received: boolean = false;
+        let lastStatus: string = 'no successful response received from mirror rest';
+
+        try {
+          localPort = await restPod.portForward(
+            constants.MIRROR_NODE_REST_PORT,
+            constants.MIRROR_NODE_REST_PORT,
+            false,
+            false,
+          );
+          const accountQueryUrl: string = `http://localhost:${localPort}/api/v1/accounts/${operatorIdUsing}`;
+          const networkNodesQueryUrl: string = `http://localhost:${localPort}/api/v1/network/nodes?limit=1`;
+          const maxAttempts: number = MirrorNodeCommand.IMPORTER_INDEXING_MAX_ATTEMPTS;
+
+          for (let attempt: number = 1; attempt <= maxAttempts && !received; attempt++) {
+            try {
+              const response: Response = await fetch(accountQueryUrl, {cache: 'no-store'});
+
+              if (response.ok) {
+                const object: {account?: string} = await response.json();
+                received = object.account === operatorIdUsing;
+                if (!received) {
+                  lastStatus = `account mismatch in mirror response (expected ${operatorIdUsing}, received ${object.account ?? 'undefined'})`;
+                }
+              } else {
+                lastStatus = `HTTP ${response.status}`;
+
+                // Some environments do not surface account 0.0.2 immediately; accept importer readiness
+                // once network nodes are available from mirror REST.
+                const networkResponse: Response = await fetch(networkNodesQueryUrl, {cache: 'no-store'});
+                if (networkResponse.ok) {
+                  const networkObject: {nodes?: unknown[]} = await networkResponse.json();
+                  if (Array.isArray(networkObject.nodes) && networkObject.nodes.length > 0) {
+                    received = true;
+                    lastStatus = `network nodes available (count=${networkObject.nodes.length})`;
+                  }
+                }
+              }
+            } catch (error: unknown) {
+              lastStatus = error instanceof Error ? error.message : String(error);
+            }
+
+            task.title = `Wait for importer account indexing - account ${operatorIdUsing}, attempt ${attempt}/${maxAttempts}`;
+            if (!received) {
+              await helpers.sleep(MirrorNodeCommand.IMPORTER_INDEXING_DELAY);
+            }
+          }
+        } finally {
+          if (localPort) {
+            await restPod.stopPortForward(localPort);
+          }
+        }
+
+        if (!received) {
+          throw new SoloError(
+            `Mirror importer did not index operator account ${operatorIdUsing} after ${MirrorNodeCommand.IMPORTER_INDEXING_MAX_ATTEMPTS} attempts (last status: ${lastStatus})`,
+          );
+        }
+      },
+    };
+  }
+
   public async add(argv: ArgvStruct): Promise<boolean> {
     let lease: Lock;
 
@@ -1320,6 +1420,7 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         },
         this.checkPodsAreReadyNodeTask(),
+        this.waitForImporterToIndexOperatorAccountTask(),
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
@@ -1550,6 +1651,7 @@ export class MirrorNodeCommand extends BaseCommand {
         this.initializeSharedPostgresDatabaseTask(), // must run before mirror chart so importer doesn't hold a session during DB creation
         this.enableMirrorNodeTask(MirrorNodeCommandType.UPGRADE),
         this.checkPodsAreReadyNodeTask(),
+        this.waitForImporterToIndexOperatorAccountTask(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
         // {

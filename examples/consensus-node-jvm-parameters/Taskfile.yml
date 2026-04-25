@@ -11,9 +11,13 @@ env:
   ONE_SHOT_WITH_BLOCK_NODE: "true"
 
 vars:
+  ROOT_DIR:
+    sh: git rev-parse --show-toplevel
   DEPLOYMENT: "falcon-deployment"
   CLUSTER_NAME: "falcon-cluster"
   CONTEXT: "kind-falcon-cluster"
+  APP_PROPS_OVERRIDE_FILE: "/tmp/consensus-node-jvm-parameters-application.properties"
+  MERGED_VALUES_FILE: "/tmp/consensus-node-jvm-parameters-falcon-values-merged.yaml"
 
 tasks:
   deploy:
@@ -29,10 +33,33 @@ tasks:
 
       # Solo one-shot falcon deploy
       - cmd: |
+          cp "{{.ROOT_DIR}}/resources/templates/application.properties" "{{.APP_PROPS_OVERRIDE_FILE}}"
+          {
+            echo ""
+            echo "# consensus-node-jvm-parameters overrides"
+            echo "blockStream.streamMode=BOTH"
+            echo "blockStream.writerMode=FILE_AND_GRPC"
+            echo "tss.hintsEnabled=true"
+            echo "tss.historyEnabled=true"
+          } >> "{{.APP_PROPS_OVERRIDE_FILE}}"
+
+          cp "{{ .USER_WORKING_DIR }}/falcon-values.yaml" "{{.MERGED_VALUES_FILE}}"
+          if grep -Eq '^[[:space:]]*#?[[:space:]]*--application-properties:' "{{.MERGED_VALUES_FILE}}"; then
+            sed -E 's|^[[:space:]]*#?[[:space:]]*--application-properties:.*$|  --application-properties: "{{.APP_PROPS_OVERRIDE_FILE}}"|' \
+              "{{.MERGED_VALUES_FILE}}" > "{{.MERGED_VALUES_FILE}}.tmp"
+          else
+            awk '
+              { print }
+              /^network:[[:space:]]*$/ {
+                print "  --application-properties: \"{{.APP_PROPS_OVERRIDE_FILE}}\""
+              }
+            ' "{{.MERGED_VALUES_FILE}}" > "{{.MERGED_VALUES_FILE}}.tmp"
+          fi
+          mv "{{.MERGED_VALUES_FILE}}.tmp" "{{.MERGED_VALUES_FILE}}"
+
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --quiet-mode --dev
-        
-      # Run verification task to check application.properties in the deployed consensus node
+          --values-file {{.MERGED_VALUES_FILE}} \
+          --quiet-mode --dev
       - task: verify
 
   destroy:
@@ -44,6 +71,8 @@ tasks:
       # Delete Kind cluster
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
 
+      # Remove generated overrides
+      - cmd: rm -f {{.APP_PROPS_OVERRIDE_FILE}} {{.MERGED_VALUES_FILE}}
   verify:
     desc: Verify custom application.properties was merged into the consensus node container
     cmds:

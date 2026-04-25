@@ -16,7 +16,7 @@ import * as constants from '../../core/constants.js';
 import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
 
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-  return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
+  return !(path.includes('data/keys') || path.includes('data/config'));
 };
 import {Templates} from '../../core/templates.js';
 import {
@@ -1565,10 +1565,9 @@ export class NodeCommandTasks {
                 );
 
                 const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
-
                 const output: string = await container.execContainer(['cat', hgcaaLogPath]);
 
-                if (output.includes('TSS protocol ready to sign blocks')) {
+                if (output.includes(constants.TSS_SIGNER_READY_MSG)) {
                   await sleep(Duration.ofSeconds(this.soloConfig.tss.timeoutAfterReadySeconds));
                   success = true;
                 } else {
@@ -1578,6 +1577,97 @@ export class NodeCommandTasks {
 
               if (!success) {
                 throw new Error(`Node ${node.name} did not become ready after ${maxAttempts} attempts`);
+              }
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
+  public waitForLedgerIdReady(
+    nodeAliasesProperty: string,
+  ): SoloListrTask<
+    NodeStartContext | NodeAddContext | NodeUpdateContext | NodeDestroyContext | NodeRefreshContext | NodeUpgradeContext
+  > {
+    return {
+      title: 'Wait for ledger ID',
+      skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
+      task: async (
+        {config},
+        task,
+      ): Promise<
+        SoloListr<
+          | NodeStartContext
+          | NodeAddContext
+          | NodeUpdateContext
+          | NodeDestroyContext
+          | NodeRefreshContext
+          | NodeUpgradeContext
+        >
+      > => {
+        const subTasks: SoloListrTask<
+          | NodeStartContext
+          | NodeAddContext
+          | NodeUpdateContext
+          | NodeDestroyContext
+          | NodeRefreshContext
+          | NodeUpgradeContext
+        >[] = [];
+
+        for (const nodeAlias of config[nodeAliasesProperty] as NodeAliases) {
+          const node: Optional<ConsensusNode> = config.consensusNodes.find(
+            (consensusNode: ConsensusNode): boolean => consensusNode.name === nodeAlias,
+          );
+
+          if (!node) {
+            throw new SoloError(`Could not find consensus node ${nodeAlias} while waiting for ledger ID readiness`);
+          }
+
+          subTasks.push({
+            title: `Waiting for node: ${nodeAlias}`,
+            task: async (_, task): Promise<void> => {
+              const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
+              let attempt: number = 0;
+              let success: boolean = false;
+
+              while (!success && attempt < maxAttempts) {
+                attempt++;
+                task.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
+
+                const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                  NamespaceName.of(node.namespace),
+                  node.name,
+                );
+
+                const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
+                const output: string = await container.execContainer(['cat', hgcaaLogPath]);
+
+                // In record-stream-only mode (or when history proofs are disabled), CN won't emit
+                // ledger-id externalization markers, so this gate is not applicable.
+                if (
+                  output.includes('blockStream.streamMode = RECORDS') ||
+                  output.includes('tss.historyEnabled = false')
+                ) {
+                  success = true;
+                  continue;
+                }
+
+                if (
+                  output.includes(constants.LEDGER_ID_SET_MSG) ||
+                  output.includes(constants.LEDGER_ID_EXTERNALIZED_MSG) ||
+                  output.includes(constants.TSS_SIGNER_READY_MSG)
+                ) {
+                  success = true;
+                } else {
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
+                }
+              }
+
+              if (!success) {
+                throw new Error(`Node ${node.name} did not report ledger ID readiness after ${maxAttempts} attempts`);
               }
             },
           });

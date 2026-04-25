@@ -15,6 +15,13 @@ vars:
   SOLO_CLUSTER_NAME: "rapid-fire-cluster"
   SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
+  HELISWAP_PREFUND_START_ACCOUNT: "1001"
+  HELISWAP_PREFUND_END_ACCOUNT: "1300"
+  HELISWAP_PREFUND_HBAR: "200000"
+  HELISWAP_PREFUND_SLEEP_SECONDS: "1"
+  HELISWAP_CREATOR_ACCOUNT_ID: "0.0.1013"
+  HELISWAP_CREATOR_TOP_UP_HBAR: "1000000"
+  HELISWAP_CREATOR_TOP_UP_BURST_COUNT: "3"
 
 tasks:
   deploy:
@@ -113,9 +120,87 @@ tasks:
       # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
+          # Keep funding newly-created rapid-fire accounts while HeliSwap is running.
+          # HeliSwap creates/uses payer accounts during execution, so one-time prefund misses them.
+          # Discover account IDs from both:
+          #   1) K8s account-key secrets (Solo-created accounts)
+          #   2) Numeric account-id range scan (NLG-created accounts such as HeliSwap creator)
+          get_candidate_accounts() {
+            kubectl --context kind-{{ .SOLO_CLUSTER_NAME }} -n {{ .SOLO_NAMESPACE }} get secrets -o jsonpath='{range .items[*]}{.metadata.labels.solo\.hedera\.com/account-id}{"\n"}{end}' \
+              | awk -F'.' 'NF==3 && $1=="0" && $2=="0" && $3 ~ /^[0-9]+$/ && $3 >= 1000 {print $0}' \
+              | sort -u
+          }
+
+          fund_account() {
+            account_id="$1"
+            [ -z "${account_id}" ] && return 0
+
+            if grep -qx "${account_id}" "${funded_ids_file}"; then
+              return 0
+            fi
+
+            if $SOLO_COMMAND ledger account update \
+              --deployment {{ .SOLO_DEPLOYMENT }} \
+              --account-id "${account_id}" \
+              --hbar-amount {{ .HELISWAP_PREFUND_HBAR }} \
+              --dev >/dev/null 2>&1; then
+              echo "${account_id}" >> "${funded_ids_file}"
+              echo "Pre-funded ${account_id} for HeliSwap"
+            fi
+          }
+
+          top_up_creator_account() {
+            if $SOLO_COMMAND ledger account update \
+              --deployment {{ .SOLO_DEPLOYMENT }} \
+              --account-id {{ .HELISWAP_CREATOR_ACCOUNT_ID }} \
+              --hbar-amount {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} \
+              --dev >/dev/null 2>&1; then
+              echo "Topped up HeliSwap creator {{ .HELISWAP_CREATOR_ACCOUNT_ID }}"
+            fi
+          }
+
+          funded_ids_file="$(mktemp /tmp/heliswap-funded-ids.XXXXXX)"
+          touch "${funded_ids_file}"
+
+          # Pre-fund all currently known user accounts once before HeliSwap starts.
+          for account_num in $(seq {{ .HELISWAP_PREFUND_START_ACCOUNT }} {{ .HELISWAP_PREFUND_END_ACCOUNT }}); do
+            fund_account "0.0.${account_num}"
+          done
+          get_candidate_accounts | while read -r account_id; do
+            fund_account "${account_id}"
+          done
+          for _ in $(seq 1 {{ .HELISWAP_CREATOR_TOP_UP_BURST_COUNT }}); do
+            top_up_creator_account
+          done
+
+          (
+            while true; do
+              top_up_creator_account
+              for account_num in $(seq {{ .HELISWAP_PREFUND_START_ACCOUNT }} {{ .HELISWAP_PREFUND_END_ACCOUNT }}); do
+                fund_account "0.0.${account_num}"
+              done
+              get_candidate_accounts | while read -r account_id; do
+                fund_account "${account_id}"
+              done
+              sleep {{ .HELISWAP_PREFUND_SLEEP_SECONDS }}
+            done
+          ) &
+          prefunder_pid=$!
+
+          set +e
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
-          --test HeliSwapLoadTest \
-          --args '"-c 5 -a 10 -R -t 10"'
+            --test HeliSwapLoadTest \
+            --args '"-c 5 -a 10 -R -t 10"'
+          heliswap_exit_code=$?
+          set -e
+
+          kill "${prefunder_pid}" >/dev/null 2>&1 || true
+          wait "${prefunder_pid}" 2>/dev/null || true
+          rm -f "${funded_ids_file}"
+
+          if [ "${heliswap_exit_code}" -ne 0 ]; then
+            exit "${heliswap_exit_code}"
+          fi
 
       # Run load test with the com.hedera.benchmark.LongevityLoadTest class
       # Args: LongevityLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]

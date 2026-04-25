@@ -45,6 +45,7 @@ vars:
 
   # Runtime values file generated with actual local paths
   RUNTIME_VALUES_FILE: "/tmp/one-shot-local-build-runtime-values.yaml"
+  APP_PROPS_OVERRIDE_FILE: "/tmp/one-shot-local-build-application.properties"
 
 tasks:
   checkout-repos:
@@ -63,7 +64,7 @@ tasks:
       - cmd: |
           if [ ! -d "{{.BLOCK_NODE_REPO_DIR}}" ]; then
             git clone https://github.com/hiero-ledger/hiero-block-node.git \
-              --depth 1 --branch {{.BLOCK_NODE_VERSION}} {{.BLOCK_NODE_REPO_DIR}}
+              --depth 1 --branch v{{.BLOCK_NODE_VERSION}} {{.BLOCK_NODE_REPO_DIR}}
           else
             echo "Skipping clone: {{.BLOCK_NODE_REPO_DIR}} already exists"
           fi
@@ -188,10 +189,22 @@ tasks:
     desc: Generate a runtime values YAML file with actual local build and chart paths
     cmds:
       - cmd: |
+          cp "{{.ROOT_DIR}}/resources/templates/application.properties" "{{.APP_PROPS_OVERRIDE_FILE}}"
+          {
+            echo ""
+            echo "# one-shot-local-build overrides"
+            echo "blockStream.streamMode=BOTH"
+            echo "blockStream.writerMode=FILE_AND_GRPC"
+            echo "tss.hintsEnabled=true"
+            echo "tss.historyEnabled=true"
+          } >> "{{.APP_PROPS_OVERRIDE_FILE}}"
+
           echo "CN_VERSION={{.CN_VERSION}}"
           {
             echo "network:"
             echo "  --release-tag: \"{{.CN_VERSION}}\""
+            echo "  --pvcs: true"
+            echo "  --application-properties: \"{{.APP_PROPS_OVERRIDE_FILE}}\""
             echo ""
             echo "setup:"
             echo "  --local-build-path: \"{{.CN_LOCAL_BUILD_PATH}}\""

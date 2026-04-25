@@ -235,6 +235,7 @@ env:
   SOLO_CLUSTER_DUALITY: ${{ (inputs.test-script == 'test-e2e-dual-cluster-full' || inputs.test-script == 'test-e2e-external-database') && 2 || 1 }}
   ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
   STEP_TIMEOUT_MINUTES: '5'
+  TEST_LOCAL_BLOCK_NODE_VERSION: 'v0.28.1'
 
 jobs:
   e2e-test:
@@ -347,7 +348,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
-          java-version: 21.0.1
+          java-version: 25
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
@@ -373,7 +374,7 @@ jobs:
           timeout_minutes: 30
           command: |
             if [ -z "${{ inputs.consensus-node-version }}" ]; then
-                export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+                export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
             else
                 export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
             fi
@@ -400,16 +401,15 @@ jobs:
               SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
             fi
 
-      - name: Build Block Code Locally
-        if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
+      - name: Build Block Node Image
+        if: ${{ runner.os == 'linux' && matrix.example.local-block-node-build && !cancelled() && !failure() }}
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 3
           timeout_minutes: 20
           command: |
-            export TEST_LOCAL_BLOCK_NODE_VERSION=$(grep 'TEST_LOCAL_BLOCK_NODE_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
             cd ..
-            git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch v${TEST_LOCAL_BLOCK_NODE_VERSION}
+            git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch ${{ env.TEST_LOCAL_BLOCK_NODE_VERSION}}
             cd hiero-block-node
             
             # Configure apt to use multiple mirror sources with fallback
@@ -447,7 +447,7 @@ jobs:
                   if [[ "${{ inputs.test-script }}" == "test-e2e-block-node" ]]; then
                     echo "Use default from version.ts for block node test"
                   else
-                    export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+                    export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
                   fi
               fi
           else

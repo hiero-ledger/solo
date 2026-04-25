@@ -6,6 +6,10 @@ livenessProbe:
   initialDelaySeconds: 0
   periodSeconds: 1
   failureThreshold: 60
+startupProbe:
+  initialDelaySeconds: 0
+  periodSeconds: 1
+  failureThreshold: 120
 relay:
   resources:
     requests:

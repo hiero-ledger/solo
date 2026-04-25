@@ -23,6 +23,7 @@ import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-c
 import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
+import {TEST_UPGRADE_FROM_VERSION} from '../../../version-test.js';
 
 const testName: string = 'node-upgrade-test';
 
@@ -80,7 +81,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         ConsensusNodeTest.keys(options);
 
         NetworkTest.deploy(options);
-        ConsensusNodeTest.setup(options);
+
+        ConsensusNodeTest.setup(options, TEST_UPGRADE_FROM_VERSION);
         ConsensusNodeTest.start(options);
         DeploymentTest.info(options);
         DeploymentTest.verifyDeploymentConfigInfo(options);

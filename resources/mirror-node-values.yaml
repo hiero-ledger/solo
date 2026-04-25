@@ -210,8 +210,8 @@ restjava:
       cpu: 0
       memory: 0
     limits:
-      cpu: 500m
-      memory: 500Mi
+      cpu: 2
+      memory: 3096Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -244,7 +244,7 @@ web3:
       memory: 0
     limits:
       cpu: 1000m
-      memory: 145Mi
+      memory: 300Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -301,7 +301,7 @@ monitor:
       memory: 0
     limits:
       cpu: 500m
-      memory: 1000Mi
+      memory: 768Mi
   envFrom:
     - secretRef:
         name: mirror-passwords

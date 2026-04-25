@@ -23,6 +23,7 @@ const originalError = console.error;
 const RETRY_DELAY_MS = 500; // 0.5 seconds
 const CONSENSUS_DELAY_MS = 4000; // 4 seconds
 const MAX_RETRY_COUNT = 90;
+const MAX_SUBMIT_RETRY_COUNT = 10;
 const MIRROR_NETWORK = '127.0.0.1:38081';
 const NETWORK = '127.0.0.1:35211';
 
@@ -173,18 +174,44 @@ async function submitMessageToTopic(context) {
   context.messageSendStart = Date.now();
   console.log(`Starting to send message at: ${new Date(context.messageSendStart).toISOString()}`);
 
-  // send one message
-  let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
-    topicId: context.topicIdString,
-    message: context.testMessage,
-  }).freezeWithSigner(context.wallet);
-  topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(context.wallet);
-  const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(context.wallet);
+  for (let attempt = 1; attempt <= MAX_SUBMIT_RETRY_COUNT; attempt++) {
+    try {
+      // Create a fresh transaction each attempt to avoid stale tx IDs/signatures.
+      let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction()
+        .setTopicId(context.topicIdString)
+        .setMessage(context.testMessage)
+        .freezeWithSigner(context.wallet);
 
-  await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
+      topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(context.wallet);
+      const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(context.wallet);
 
-  const sendReceipt = await sendResponse.getReceiptWithSigner(context.wallet);
-  console.log(`Message sent [topicSequenceNumber: ${sendReceipt.topicSequenceNumber.toString()}]`);
+      await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
+
+      const sendReceipt = await sendResponse.getReceiptWithSigner(context.wallet);
+      console.log(
+        `Message sent [topicSequenceNumber: ${sendReceipt.topicSequenceNumber.toString()}, attempt: ${attempt}/${MAX_SUBMIT_RETRY_COUNT}]`,
+      );
+      return;
+    } catch (error) {
+      const status = error?.status?._code ?? error?.status?.toString?.() ?? '';
+      const message = error?.message ?? String(error);
+      const shouldRetry =
+        message.includes('FAIL_INVALID') ||
+        message.includes('BUSY') ||
+        message.includes('PLATFORM_TRANSACTION_NOT_CREATED') ||
+        message.includes('UNKNOWN') ||
+        status === 23;
+
+      if (!shouldRetry || attempt === MAX_SUBMIT_RETRY_COUNT) {
+        throw error;
+      }
+
+      console.log(
+        `Topic message submit retry ${attempt}/${MAX_SUBMIT_RETRY_COUNT} after transient failure: ${message}`,
+      );
+      await sleep(2000);
+    }
+  }
 }
 
 async function queryMirrorNodeApiForTopic(context) {
