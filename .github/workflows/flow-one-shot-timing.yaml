@@ -17,9 +17,6 @@
 name: "One-Shot Timing Test"
 
 on:
-  schedule:
-    # Skip weekends to reduce noise and focus on testing during active development days
-    - cron: '0 6 * * 1-5'
   workflow_dispatch:
     inputs:
       use-released-solo:

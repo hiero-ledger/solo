@@ -218,22 +218,6 @@ export function renameAndCopyFile(
 }
 
 /**
- * Add debug options to valuesArg used by helm chart
- * @param valuesArgument the valuesArg to update
- * @param debugNodeAlias the node ID to attach the debugger to
- * @param index the index of extraEnv to add the debug options to
- * @returns updated valuesArg
- */
-export function addDebugOptions(valuesArgument: string, debugNodeAlias: NodeAlias, index: number = 0): string {
-  if (debugNodeAlias) {
-    const nodeId: number = Templates.nodeIdFromNodeAlias(debugNodeAlias);
-    valuesArgument += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=JAVA_OPTS"`;
-    valuesArgument += String.raw` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=-agentlib:jdwp=transport=dt_socket\,server=y\,suspend=y\,address=*:${constants.JVM_DEBUG_PORT}"`;
-  }
-  return valuesArgument;
-}
-
-/**
  * Append root.image registry/repository/tag settings for a given node path to a Helm values argument string.
  * @param valuesArgument - existing values argument string (may be empty)
  * @param nodePath - base node path, e.g. `hedera.nodes[0]`

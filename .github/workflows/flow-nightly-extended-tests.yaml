@@ -1,0 +1,225 @@
+##
+# Copyright (C) 2023-2026 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+# Night test checks some non critical functions or features not captured by PR tests
+# or Example tests, such as JVM Debugger
+
+name: "Nightly Extended Tests"
+
+on:
+  schedule:
+    # Run every weekday at 6 AM UTC (covers Central Daylight Time)
+    - cron: '0 6 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "22"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+
+jobs:
+  prepare-setup:
+    name: Prepare Setup
+    runs-on: hiero-solo-linux-medium
+    timeout-minutes: 15
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Setup Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          node-version: ${{ inputs.node-version || '22' }}
+          cache: npm
+
+      - name: Configure npm registry
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
+
+      - name: Install Dependencies
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 10
+          timeout_minutes: 10
+          command: npm ci
+
+  generate_matrix:
+    runs-on: hiero-solo-linux-medium
+    needs:
+      - prepare-setup
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Read JSON and Set Matrix Output
+        id: set_matrix
+        run: |
+          # Install jq (a lightweight and flexible command-line JSON processor)
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          # Read JSON file
+          JSON_CONTENT=$(cat .github/workflows/support/extended_test_matrix.json | jq -c .)
+          
+          echo "JSON_CONTENT: $JSON_CONTENT"
+          
+          # Set the output variable 'matrix' with JSON content
+          echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
+
+  matrix-tests:
+    name: Extended Test (${{ matrix.test.name }})
+    runs-on: hiero-solo-linux-large
+    needs:
+      - generate_matrix
+    timeout-minutes: ${{ matrix.test.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Setup Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          node-version: ${{ inputs.node-version || '22' }}
+          cache: npm
+
+      - name: Configure npm registry
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: echo "registry=https://registry.npmjs.org/" > .npmrc
+
+      - name: Install Dependencies
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        with:
+          max_attempts: 10
+          timeout_minutes: 10
+          command: npm ci
+
+      - name: Run Test (${{ matrix.test.name }})
+        timeout-minutes: ${{ matrix.test.timeout_minutes }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TEST_NAME: ${{ matrix.test.name }}
+          TEST_DESCRIPTION: ${{ matrix.test.description }}
+        run: |
+          echo "Running test: ${{ matrix.test.name }}"
+          echo "Description: ${{ matrix.test.description }}"
+          echo "Type: ${{ matrix.test.type }}"
+          echo "Path: ${{ matrix.test.path }}"
+          
+          if [ "${{ matrix.test.type }}" = "script" ]; then
+            echo "Executing script: ${{ matrix.test.path }}"
+            if [ -f "${{ matrix.test.path }}" ]; then
+              chmod +x "${{ matrix.test.path }}"
+              "${{ matrix.test.path }}"
+            else
+              echo "Error: Script file not found at ${{ matrix.test.path }}"
+              exit 1
+            fi
+          elif [ "${{ matrix.test.type }}" = "workflow" ]; then
+            echo "Triggering workflow: ${{ matrix.test.path }}"
+            # Trigger the workflow using GitHub CLI
+            gh workflow run "${{ matrix.test.path }}" \
+              --field "triggered-by=nightly-extended-tests" \
+              --field "test-name=${{ matrix.test.name }}" || {
+              echo "Error: Failed to trigger workflow ${{ matrix.test.path }}"
+              exit 1
+            }
+            echo "Workflow triggered successfully"
+          else
+            echo "Error: Unknown test type '${{ matrix.test.type }}'"
+            exit 1
+          fi
+
+      - name: Cleanup Kind Clusters
+        if: ${{ always() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          echo "Cleaning up clusters for test: ${{ matrix.test.name }}"
+          for cluster in $(kind get clusters 2>/dev/null); do
+            echo "Deleting cluster: $cluster"
+            kind delete cluster -n "$cluster" || true
+          done
+          rm -rf ~/.solo
+
+      - name: Send Slack Notification on Failure
+        if: ${{ github.ref == 'refs/heads/main' && !cancelled() && failure() }}
+        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
+          SLACK_COLOR: danger
+          SLACK_TITLE: Nightly Extended Test Failed - ${{ matrix.test.name }}
+          SLACK_MESSAGE: |
+            *Test:* ${{ matrix.test.name }}
+            *Description:* ${{ matrix.test.description }}
+            *Type:* ${{ matrix.test.type }}
+            *Branch:* `${{ github.ref_name }}`
+            *Commit:* ${{ github.sha }}
+
+            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
+          SLACK_FOOTER: ${{ github.workflow }}
+
+      - name: Upload Logs to GitHub
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: solo-logs-${{ matrix.test.name }}
+          path: |
+            ~/.solo/logs/*
+            /tmp/solo-node-start.log
+            /tmp/solo-jdwp-probe.log
+            /tmp/solo-${{ matrix.test.name }}*.log
+          if-no-files-found: ignore
