@@ -6,7 +6,8 @@ import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
 import * as util from 'node:util';
-import chalk, {type ChalkInstance} from 'chalk';
+import chalk from 'chalk';
+import {type ChalkInstance} from 'chalk';
 import * as constants from '../constants.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../dependency-injection/container-helper.js';
@@ -131,7 +132,7 @@ export class SoloPinoLogger implements SoloLogger {
   }
 
   public showUser(message: unknown, ...arguments_: unknown[]): void {
-    const formatted = util.format(String(message), ...arguments_.map(String));
+    const formatted: string = util.format(String(message), ...arguments_.map(String));
     console.log(formatted);
     // Mirror existing behavior: also persist to logs at info level
     this.info(formatted);
@@ -139,7 +140,9 @@ export class SoloPinoLogger implements SoloLogger {
 
   public showUserError(error: unknown): void {
     // Build chain of causes (up to 10 deep)
-    const errorObject = error as {message?: unknown; stack?: string; cause?: unknown} | undefined;
+    const errorObject: {message?: unknown; stack?: string; cause?: unknown} | undefined = error as
+      | {message?: unknown; stack?: string; cause?: unknown}
+      | undefined;
     const stack: {message: string; stacktrace?: string}[] = [
       {message: errorObject?.message ? String(errorObject.message) : String(error), stacktrace: errorObject?.stack},
     ];
@@ -148,7 +151,11 @@ export class SoloPinoLogger implements SoloLogger {
       let depth: number = 0;
       let cause: unknown = errorObject.cause;
       while (cause && depth < 10) {
-        const c = cause as {message?: unknown; stack?: string; cause?: unknown};
+        const c: {message?: unknown; stack?: string; cause?: unknown} = cause as {
+          message?: unknown;
+          stack?: string;
+          cause?: unknown;
+        };
         if (c.stack) {
           stack.push({message: c.message ? String(c.message) : String(c), stacktrace: c.stack});
         }

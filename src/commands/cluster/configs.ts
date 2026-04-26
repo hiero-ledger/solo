@@ -47,18 +47,25 @@ export class ClusterCommandConfigs {
     context_: ClusterReferenceConnectContext,
     task: SoloListrTaskWrapper<ClusterReferenceConnectContext>,
   ): Promise<ClusterReferenceConnectConfigClass> {
+    this.configManager.update(argv);
+
     // Apply changes to argv[context] before the config is initiated, because the `context` field is immutable
-    if (!argv[flags.context.name]) {
-      const isQuiet: string = this.configManager.getFlag(flags.quiet);
+    if (!this.configManager.getFlag<string>(flags.context)) {
+      const isQuiet: boolean = this.configManager.getFlag<boolean>(flags.quiet) === true;
       if (isQuiet) {
         argv[flags.context.name] = this.k8Factory.default().contexts().readCurrent();
       } else {
         const kubeContexts: string[] = this.k8Factory.default().contexts().list();
-        argv[flags.context.name] = await flags.context.prompt(task, kubeContexts, argv[flags.clusterRef.name]);
+        argv[flags.context.name] = await flags.context.prompt(
+          task,
+          kubeContexts,
+          this.configManager.getFlag<string>(flags.clusterRef),
+        );
       }
+
+      this.configManager.update(argv);
     }
 
-    this.configManager.update(argv);
     context_.config = this.configManager.getConfig(
       ClusterCommandConfigs.CONNECT_CONFIGS_NAME,
       argv.flags,
@@ -120,7 +127,9 @@ export class ClusterCommandConfigs {
     context_: ClusterReferenceResetContext,
     task: SoloListrTaskWrapper<ClusterReferenceResetContext>,
   ): Promise<ClusterReferenceResetConfigClass> {
-    if (!argv[flags.force.name]) {
+    this.configManager.update(argv);
+
+    if (!this.configManager.getFlag<boolean>(flags.force)) {
       const confirmResult: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
         default: false,
         message: 'Are you sure you would like to uninstall solo-cluster-setup chart?',
@@ -130,8 +139,6 @@ export class ClusterCommandConfigs {
         throw new UserBreak('Aborted application by user prompt');
       }
     }
-
-    this.configManager.update(argv);
 
     context_.config = {
       clusterReference: this.configManager.getFlag(flags.clusterRef),
