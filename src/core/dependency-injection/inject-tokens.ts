@@ -82,6 +82,12 @@ export class InjectTokens {
   public static HomeDirectory: symbol = Symbol.for('HomeDirectory');
   public static OneShotCommand: symbol = Symbol.for('OneShotCommand');
   public static OneShotState: symbol = Symbol.for('OneShotState');
+  public static OneShotDeployOrchestrator: symbol = Symbol.for('OneShotDeployOrchestrator');
+  public static DeployBlockNodeStep: symbol = Symbol.for('DeployBlockNodeStep');
+  public static DeployNetworkPipelineStep: symbol = Symbol.for('DeployNetworkPipelineStep');
+  public static DeployMirrorNodeStep: symbol = Symbol.for('DeployMirrorNodeStep');
+  public static DeployExplorerStep: symbol = Symbol.for('DeployExplorerStep');
+  public static DeployRelayStep: symbol = Symbol.for('DeployRelayStep');
   public static TaskList: symbol = Symbol.for('TaskList');
   public static Commands: symbol = Symbol.for('Commands');
   public static MetricsServer: symbol = Symbol.for('MetricsServer');
