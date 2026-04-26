@@ -44,6 +44,25 @@ export class K8ClientContainer implements Container {
     return this.kubeConfig.getCurrentContext();
   }
 
+  /**
+   * Waits until the pod for this container reference is visible in the API before
+   * `copyTo`, `copyFrom`, or `execContainer`.
+   *
+   * Uses {@link Pods.waitForPodByReference} and maps failures to
+   * {@link IllegalArgumentError} with the pod name.
+   *
+   * @param maxAttempts - forwarded to {@link Pods.waitForPodByReference} (default 20)
+   * @param delayMs - forwarded to {@link Pods.waitForPodByReference} (default 3000 ms)
+   */
+  private async waitForValidPod(maxAttempts: number = 20, delayMs: number = 3000): Promise<void> {
+    const podName: string = this.containerReference.parentReference.name.toString();
+    try {
+      await this.pods.waitForPodByReference(this.containerReference.parentReference, maxAttempts, delayMs);
+    } catch {
+      throw new IllegalArgumentError(`Invalid pod ${podName}`);
+    }
+  }
+
   private async execKubectl(
     arguments_: string[],
     outputPassThroughStream?: stream.PassThrough,
@@ -166,9 +185,7 @@ export class K8ClientContainer implements Container {
     sourcePath = this.toKubectlSafePath(sourcePath);
     destinationDirectory = this.toKubectlSafePath(destinationDirectory);
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForValidPod();
 
     if (!fs.existsSync(destinationDirectory)) {
       throw new SoloError(`invalid destination path: ${destinationDirectory}`);
@@ -216,9 +233,7 @@ export class K8ClientContainer implements Container {
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForValidPod();
 
     if (!(await this.hasDir(destinationDirectory))) {
       throw new SoloError(`invalid destination path: ${destinationDirectory}`);
@@ -291,9 +306,7 @@ export class K8ClientContainer implements Container {
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForValidPod();
 
     if (!cmd) {
       throw new MissingArgumentError('command cannot be empty');

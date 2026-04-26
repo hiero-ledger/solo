@@ -15,8 +15,7 @@
     "kubectl-version": "1.32.2",
     "helm-install": false,
     "helm-version": "3.14.2",
-    "node-version": "24.14.0",
-    "enable_s6_image": false
+    "node-version": "24.14.0"
   },
   {
     "name": "Node Add Local",
@@ -34,8 +33,7 @@
     "kubectl-version": "1.32.2",
     "helm-install": true,
     "helm-version": "3.14.2",
-    "node-version": "22.22.0",
-    "enable_s6_image": false
+    "node-version": "22.22.0"
   },
   {
     "name": "One Shot Single",
@@ -53,8 +51,7 @@
     "kubectl-version": "1.32.2",
     "helm-install": false,
     "helm-version": "3.14.2",
-    "node-version": "24.14.0",
-    "enable_s6_image": true
+    "node-version": "24.14.0"
   },
   {
     "name": "One Shot Single - using Podman",
@@ -72,8 +69,7 @@
     "kubectl-version": "1.32.2",
     "helm-install": true,
     "helm-version": "3.14.2",
-    "node-version": "22.0.0",
-    "enable_s6_image": true
+    "node-version": "22.0.0"
   },
   {
     "name": "Node Upgrade",
@@ -91,8 +87,7 @@
     "kubectl-version": "1.32.2",
     "helm-install": true,
     "helm-version": "3.14.2",
-    "node-version": "22.0.0",
-    "enable_s6_image": false
+    "node-version": "22.0.0"
   },
   {
     "name": "External database new",
@@ -110,8 +105,7 @@
     "kubectl-version": "1.27.3",
     "helm-install": true,
     "helm-version": "3.17.1",
-    "node-version": "22.22.0",
-    "enable_s6_image": true
+    "node-version": "22.22.0"
   },
   {
     "name": "Block Node",
@@ -129,8 +123,7 @@
     "kubectl-version": "1.32.2",
     "helm-install": false,
     "helm-version": "3.14.2",
-    "node-version": "24.14.0",
-    "enable_s6_image": true
+    "node-version": "24.14.0"
   },
   {
     "name": "Standard",
@@ -148,8 +141,7 @@
     "kubectl-version": "1.32.2",
     "helm-install": false,
     "helm-version": "3.14.2",
-    "node-version": "22.22.0",
-    "enable_s6_image": false
+    "node-version": "22.22.0"
   },
   {
     "name": "Integration",
@@ -167,7 +159,6 @@
     "kubectl-version": "1.32.2",
     "helm-install": false,
     "helm-version": "3.14.2",
-    "node-version": "22.0.0",
-    "enable_s6_image": true
+    "node-version": "22.0.0"
   }
 ]

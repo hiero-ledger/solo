@@ -43,4 +43,46 @@ export class K8ClientManifests implements Manifests {
       PatchStrategy.MergePatch,
     );
   }
+
+  public async scaleStatefulSet(namespace: string, statefulSetName: string, replicas: number): Promise<void> {
+    await this.k8sObjectApi.patch(
+      {
+        apiVersion: 'apps/v1',
+        kind: 'StatefulSet',
+        metadata: {
+          namespace,
+          name: statefulSetName,
+        },
+        spec: {
+          replicas,
+        },
+      } as KubernetesObject,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      PatchStrategy.StrategicMergePatch,
+    );
+  }
+
+  public async scaleDeployment(namespace: string, deploymentName: string, replicas: number): Promise<void> {
+    await this.k8sObjectApi.patch(
+      {
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        metadata: {
+          namespace,
+          name: deploymentName,
+        },
+        spec: {
+          replicas,
+        },
+      } as KubernetesObject,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      PatchStrategy.StrategicMergePatch,
+    );
+  }
 }

@@ -46,6 +46,38 @@ export interface Pods {
   ): Promise<Pod[]>;
 
   /**
+   * Wait until a pod with the given reference appears in the Kubernetes API.
+   *
+   * Use this when the exact pod name is known. If the pod must be found by labels
+   * and verified as stable across checks, use {@link waitForStableReadyPod}.
+   *
+   * @param podReference - exact reference of the pod to wait for
+   * @param maxAttempts - maximum number of polling attempts (default 20)
+   * @param delay - milliseconds to wait between attempts (default 3000)
+   */
+  waitForPodByReference(podReference: PodReference, maxAttempts?: number, delay?: number): Promise<void>;
+
+  /**
+   * Wait for the newest ready pod to stay the same across consecutive polls.
+   *
+   * Use this when pod names can change during rolling updates and you need a
+   * stable pod identity before continuing.
+   *
+   * @param namespace - namespace
+   * @param labels - labels used to find the target pod
+   * @param consecutiveStableChecks - required matching polls (default 3)
+   * @param maxAttempts - maximum polling attempts (default 120)
+   * @param delay - delay between checks in ms (default 1000)
+   */
+  waitForStableReadyPod(
+    namespace: NamespaceName,
+    labels: string[],
+    consecutiveStableChecks?: number,
+    maxAttempts?: number,
+    delay?: number,
+  ): Promise<Pod>;
+
+  /**
    * Check if pod's phase is running
    * @param namespace - namespace
    * @param labels - pod labels
@@ -88,6 +120,12 @@ export interface Pods {
     containerCommand: string[],
     startupProbeCommand: string[],
   ): Promise<Pod>;
+
+  /**
+   * Delete a pod by reference
+   * @param podReference - the reference to the pod
+   */
+  delete(podReference: PodReference): Promise<void>;
 
   /**
    * Read logs for the given pod across all containers.

@@ -488,7 +488,10 @@ $SOLO_NETWORK_DESTROY_OUTPUT
 Explore more deployment scenarios in the [Examples section](../examples/):
 
 - [Address Book Configuration](../examples/address-book/)
+- [Consensus Node JVM Parameters](../examples/consensus-node-jvm-parameters/)
+- [Ledger Reset Smoke Test](../examples/ledger-reset-smoke/)
 - [Network with Domain Names](../examples/network-with-domain-names/)
+- [One-Shot Local Build](../examples/one-shot-local-build/)
 - [Local Build with Custom Config](../examples/local-build-with-custom-config/)
 - [State Save and Restore](../examples/state-save-and-restore/)
 - [Multicluster Backup/Restore](../examples/multicluster-backup-restore/)

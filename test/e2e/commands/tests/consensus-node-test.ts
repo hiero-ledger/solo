@@ -858,8 +858,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
   public static PemKill(options: BaseTestOptions): void {
     const {namespace, testName, testLogger} = options;
-    const {checkNetwork, soloConsensusNodeStopArgv, refresh, verifyPodShouldBeRunning, verifyPodShouldNotBeActive} =
-      ConsensusNodeTest;
+    const {checkNetwork, soloConsensusNodeStopArgv, refresh, verifyPodShouldBeRunning} = ConsensusNodeTest;
 
     const nodeAlias: NodeAlias = 'node2';
 
@@ -883,8 +882,9 @@ export class ConsensusNodeTest extends BaseCommandTest {
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
       await verifyPodShouldBeRunning(namespace, nodeAlias, context);
-      await verifyPodShouldNotBeActive(namespace, nodeAlias, context);
-      // stop the node to shut off the auto-restart
+      // With autostart enabled (0.44.0+), killing a pod causes the platform to
+      // auto-restart via the network-node-autostart oneshot when the pod comes back.
+      // Stop it explicitly so we can do a controlled Solo-managed refresh below.
       await main(soloConsensusNodeStopArgv(options, nodeAlias));
 
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs

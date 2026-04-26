@@ -166,7 +166,8 @@ export class BlockNodeTest extends BaseCommandTest {
           nodeAliases,
         ),
       );
-    }).timeout(Duration.ofMinutes(5).toMillis());
+      // Block node add can exceed 5 minutes on CI when image/chart pulls are slow.
+    }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
   public static addExternal(options: BaseTestOptions, address: string, nodeAliases?: NodeAliases): void {
