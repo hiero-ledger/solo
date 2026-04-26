@@ -47,6 +47,9 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {execSync} from 'node:child_process';
+import find from 'find-process';
+import type FindConfig from 'find-process';
+import type ProcessInfo from 'find-process';
 import * as helpers from '../../core/helpers.js';
 import {
   addDebugOptions,
@@ -246,7 +249,7 @@ export class NodeCommandTasks {
     }
 
     // bump field hedera.config.version or use the version passed in
-    const fileBytes: Buffer<ArrayBuffer> = fs.readFileSync(
+    const fileBytes: Buffer = fs.readFileSync(
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'),
     );
     const lines: string[] = fileBytes.toString().split('\n');
@@ -276,7 +279,7 @@ export class NodeCommandTasks {
     deploymentName: DeploymentName,
   ): Promise<string> {
     // get byte value of the zip file
-    const zipBytes: Buffer<ArrayBuffer> = fs.readFileSync(upgradeZipFile);
+    const zipBytes: Buffer = fs.readFileSync(upgradeZipFile);
     const zipHash: string = crypto.createHash('sha384').update(zipBytes).digest('hex');
     this.logger.debug(
       `loaded upgrade zip file [ zipHash = ${zipHash} zipBytes.length = ${zipBytes.length}, zipPath = ${upgradeZipFile}]`,
@@ -4124,6 +4127,62 @@ export class NodeCommandTasks {
         }
       },
     };
+  }
+
+  public reportActivePortForwards(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Report active port-forward processes',
+      task: async (): Promise<void> => {
+        try {
+          const activeProcesses: ProcessInfo[] = await this.findActivePortForwardProcesses();
+          if (activeProcesses.length === 0) {
+            this.logger.showUser('No active port-forward processes found.');
+          } else {
+            this.logger.showUser(`Active port-forward processes (${activeProcesses.length}):`);
+            for (const processInfo of activeProcesses) {
+              this.logger.showUser(`  [PID ${processInfo.pid}] ${processInfo.cmd}`);
+            }
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to list port-forward processes: ${(error as Error).message}`);
+        }
+      },
+    };
+  }
+
+  private async findActivePortForwardProcesses(): Promise<ProcessInfo[]> {
+    const processNames: string[] = [
+      'port-forward',
+      constants.KUBECTL,
+      `${constants.KUBECTL}.exe`,
+      'node',
+      'node.exe',
+      'tsx',
+      'tsx.cmd',
+      'powershell',
+      'powershell.exe',
+    ];
+    const findConfig: FindConfig = {
+      skipSelf: true,
+    };
+
+    const matches: ProcessInfo[][] = await Promise.all(
+      processNames.map(
+        async (processName): Promise<ProcessInfo[]> =>
+          find('name', processName, findConfig).catch((): ProcessInfo[] => []),
+      ),
+    );
+
+    const uniqueByPid: Map<number, ProcessInfo> = new Map<number, ProcessInfo>();
+    for (const processInfo of matches.flat()) {
+      if (!processInfo?.cmd?.includes('port-forward')) {
+        continue;
+      }
+      uniqueByPid.set(processInfo.pid, processInfo);
+    }
+
+    // eslint-disable-next-line unicorn/no-array-sort
+    return [...uniqueByPid.values()].sort((a: ProcessInfo, b: ProcessInfo): number => a.pid - b.pid);
   }
 
   private async downloadPodLogs(
