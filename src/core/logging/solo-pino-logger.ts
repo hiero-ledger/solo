@@ -31,6 +31,9 @@ export class SoloPinoLogger implements SoloLogger {
   private readonly MINOR_LINE_SEPARATOR: string =
     '-------------------------------------------------------------------------------';
 
+  private static readonly MAX_BOX_WIDTH: number = 200;
+  private static readonly MIN_BOX_WIDTH: number = 70;
+
   /**
    * @param logLevel - the log level to use (fatal|error|warn|info|debug|trace)
    * @param developmentMode - if true, show full stack traces in error messages
@@ -137,55 +140,102 @@ export class SoloPinoLogger implements SoloLogger {
     this.info(formatted);
   }
 
-  public showUserError(error: unknown): void {
-    // Build chain of causes (up to 10 deep)
-    const errorObject = error as {message?: unknown; stack?: string; cause?: unknown} | undefined;
-    const stack: {message: string; stacktrace?: string}[] = [
-      {message: errorObject?.message ? String(errorObject.message) : String(error), stacktrace: errorObject?.stack},
-    ];
+  private stripAnsi(text: string): string {
+    // eslint-disable-next-line no-control-regex
+    return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+  }
 
-    if (errorObject?.cause) {
-      let depth: number = 0;
-      let cause: unknown = errorObject.cause;
-      while (cause && depth < 10) {
-        const c = cause as {message?: unknown; stack?: string; cause?: unknown};
-        if (c.stack) {
-          stack.push({message: c.message ? String(c.message) : String(c), stacktrace: c.stack});
-        }
-        cause = c.cause;
-        depth += 1;
-      }
+  public padWithBorder(
+    message: string,
+    chalkColor: (...text: unknown[]) => string = chalk.red,
+    length: number = 83,
+  ): string {
+    const border: string = chalkColor('│');
+    const messageLines: string[] = [];
+    for (const line of message.split('\n')) {
+      const repeats: number = Math.max(0, length - this.stripAnsi(line).length - 4);
+      messageLines.push(`${border} ${line}${' '.repeat(repeats)} ${border}`);
     }
+    return messageLines.join('\n');
+  }
 
-    console.log(chalk.red('*********************************** ERROR *****************************************'));
+  private buildCauseChain(error: Error): Error[] {
+    const chain: Error[] = [error];
+    let cause: unknown = error.cause;
+    let depth: number = 0;
+    while (cause instanceof Error && depth < 10) {
+      chain.push(cause);
+      cause = cause.cause;
+      depth += 1;
+    }
+    return chain;
+  }
+
+  private getFormattedCode(error: Error): string {
+    const formattedCode: string | undefined = error instanceof SoloError ? error.getFormattedCode() : undefined;
+    return formattedCode ? `[${formattedCode}] ` : '';
+  }
+
+  private buildContentLines(error: Error, causeChain: Error[]): string[] {
+    const lines: string[] = [];
     if (this.developmentMode) {
+      let indent: string = ' ';
       let prefix: string = '';
-      let indent: string = '';
-      for (const s of stack) {
-        console.log(indent + prefix + chalk.yellow(String(s.message)));
-        if (s.stacktrace) {
-          // Keep it readable; trim obvious internal noise
-          const formatted: string = String(s.stacktrace)
+      for (const entry of causeChain) {
+        const messageText: string = this.getFormattedCode(entry) + entry.message;
+        lines.push(chalk.red(indent + prefix + messageText));
+        if (entry.stack) {
+          const formatted: string = entry.stack
             .split('\n')
-            .filter((l): boolean => !l.includes('node:internal'))
+            .filter((line: string): boolean => !line.includes('node:internal'))
             .join('\n')
             .trim();
-          console.log(indent + chalk.gray(formatted) + '\n');
+          lines.push(...(indent + formatted).split('\n').map((line: string): string => chalk.gray(line)), '');
         }
         indent += '  ';
-        prefix = 'Caused by: ';
+        prefix += 'Caused by: ';
       }
     } else {
-      const lines: string[] = (error as any)?.message
-        ? String((error as any).message).split('\n')
-        : String(error).split('\n');
-      for (const line of lines) {
-        console.log(chalk.yellow(line));
+      const errorMessage: string = this.getFormattedCode(error) + error.message;
+      lines.push(...errorMessage.split('\n').map((line: string): string => chalk.red(line)));
+    }
+
+    if (error instanceof SoloError) {
+      const documentUrl: string | undefined = error.getDocumentUrl();
+      if (!this.developmentMode) {
+        const troubleshootingSteps: ReadonlyArray<string> | undefined = error.getTroubleshootingSteps();
+        if (troubleshootingSteps && troubleshootingSteps.length > 0) {
+          for (const step of troubleshootingSteps) {
+            lines.push(chalk.cyan('  →') + ' ' + step);
+          }
+        }
+      }
+      if (documentUrl) {
+        lines.push('', chalk.cyan(`Learn more: ${documentUrl}`));
       }
     }
-    console.log(chalk.red('***********************************************************************************'));
+    return lines;
+  }
 
-    // Persist the error with structure
+  private renderErrorBox(lines: string[]): void {
+    const maxContentWidth: number = Math.max(...lines.map((l): number => this.stripAnsi(l).length));
+    const boxWidth: number = Math.min(
+      SoloPinoLogger.MAX_BOX_WIDTH,
+      Math.max(SoloPinoLogger.MIN_BOX_WIDTH, maxContentWidth + 4),
+    );
+    const interiorWidth: number = boxWidth - 4;
+    console.log(chalk.red(`╭─ ERROR ─${'─'.repeat(interiorWidth - 7)}╮`));
+    for (const line of lines) {
+      console.log(this.padWithBorder(line, chalk.red, boxWidth));
+    }
+    console.log(chalk.red(`╰${'─'.repeat(interiorWidth + 2)}╯`));
+  }
+
+  public showUserError(error: unknown): void {
+    const normalizedError: Error = error instanceof Error ? error : new Error(String(error));
+    const causeChain: Error[] = this.buildCauseChain(normalizedError);
+    const lines: string[] = this.buildContentLines(normalizedError, causeChain);
+    this.renderErrorBox(lines);
     this.toPino('error', error, []);
   }
 

@@ -243,6 +243,7 @@ export class Container {
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),
       new ValueContainer(InjectTokens.KeyFormatter, ConfigKeyFormatter.instance()),
       new ValueContainer(InjectTokens.IgnorePodMetrics, constants.IGNORE_POD_METRICS),
+      new ValueContainer(InjectTokens.SoloLocale, constants.SOLO_LOCALE),
     ];
   }
 

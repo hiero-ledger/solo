@@ -18,7 +18,6 @@ import {
   type Shard,
   type SoloListrTask,
 } from '../types/index.js';
-import {ErrorMessages} from '../core/error-messages.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -43,6 +42,7 @@ import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state
 import * as version from '../../version.js';
 import find from 'find-process';
 import type ProcessInfo from 'find-process';
+import {SoloErrors} from '../core/errors/solo-errors.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -152,7 +152,7 @@ export class DeploymentCommand extends BaseCommand {
                 (d: Deployment): boolean => d.name === context_.config.deployment,
               )
             ) {
-              throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
+              throw new SoloErrors.deployment.alreadyExists(context_.config.deployment);
             }
           },
         },
@@ -184,8 +184,8 @@ export class DeploymentCommand extends BaseCommand {
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-      } catch (error: Error | unknown) {
-        throw new SoloError('Error creating deployment', error);
+      } catch (error) {
+        throw new SoloErrors.deployment.createFailed(error);
       }
     }
 
