@@ -36,6 +36,51 @@ export class HelmExecution {
   private exitCodeValue: number | null = null;
 
   /**
+   * Redacts sensitive arguments from a command array.
+   * @param command The command array to redact
+   * @returns A new redacted command array
+   */
+  public static redactCommand(command: string[]): string[] {
+    const redacted: string[] = [];
+    for (let index: number = 0; index < command.length; index++) {
+      const current: string = command[index];
+      if (current === '--password') {
+        redacted.push(current);
+        if (index + 1 < command.length) {
+          redacted.push('******');
+          index++;
+        }
+      } else if (current === '--set' || current === '--set-string' || current === '--set-file') {
+        redacted.push(current);
+        if (index + 1 < command.length) {
+          const value: string = command[index + 1];
+          const eqIndex: number = value.indexOf('=');
+          if (eqIndex === -1) {
+            redacted.push(value);
+          } else {
+            const key: string = value.slice(0, eqIndex);
+            const lowerKey: string = key.toLowerCase();
+            if (
+              lowerKey.includes('password') ||
+              lowerKey.includes('secret') ||
+              lowerKey.includes('token') ||
+              lowerKey.includes('key')
+            ) {
+              redacted.push(`${key}=******`);
+            } else {
+              redacted.push(value);
+            }
+          }
+          index++;
+        }
+      } else {
+        redacted.push(current);
+      }
+    }
+    return redacted;
+  }
+
+  /**
    * Creates a new HelmExecution instance.
    * @param command The command array to execute
    * @param environmentVariables The environment variables to set
@@ -43,7 +88,9 @@ export class HelmExecution {
    */
   public constructor(command: string[], environmentVariables: Record<string, string>, logger?: SoloLogger) {
     this.logger = logger;
-    this.commandLine = command.join(' ');
+
+    const redactedCommand: string[] = HelmExecution.redactCommand(command);
+    this.commandLine = redactedCommand.join(' ');
 
     if (this.logger) {
       this.logger.info(`Executing helm command: ${this.commandLine}`);

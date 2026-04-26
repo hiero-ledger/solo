@@ -61,4 +61,42 @@ describe('ShellRunner', (): void => {
       `Command timed out after ${timeoutMs}ms`,
     );
   }).timeout(Duration.ofSeconds(10).toMillis());
+
+  describe('redactArguments', (): void => {
+    it('should redact --password and its value', (): void => {
+      const arguments_: string[] = ['--password', 'mySecret'];
+      const redacted: string[] = ShellRunner.redactArguments(arguments_);
+      expect(redacted).to.deep.equal(['--password', '******']);
+    });
+
+    it('should redact -p and its value', (): void => {
+      const arguments_: string[] = ['-p', 'mySecret'];
+      const redacted: string[] = ShellRunner.redactArguments(arguments_);
+      expect(redacted).to.deep.equal(['-p', '******']);
+    });
+
+    it('should redact sensitive key=value pairs', (): void => {
+      const arguments_: string[] = [
+        '--set',
+        'global.password=mySecret',
+        'some-token=abc',
+        'my_key=123',
+        'normal=value',
+      ];
+      const redacted: string[] = ShellRunner.redactArguments(arguments_);
+      expect(redacted).to.deep.equal([
+        '--set',
+        'global.password=******',
+        'some-token=******',
+        'my_key=******',
+        'normal=value',
+      ]);
+    });
+
+    it('should not modify unrelated arguments', (): void => {
+      const arguments_: string[] = ['--set', 'global.name=myApp', '--values', 'values.yaml'];
+      const redacted: string[] = ShellRunner.redactArguments(arguments_);
+      expect(redacted).to.deep.equal(['--set', 'global.name=myApp', '--values', 'values.yaml']);
+    });
+  });
 });

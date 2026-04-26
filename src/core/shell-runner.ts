@@ -14,6 +14,42 @@ export class ShellRunner {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
+  /**
+   * Redacts sensitive arguments from a command array.
+   * @param arguments_ The arguments array to redact
+   * @returns A new redacted arguments array
+   */
+  public static redactArguments(arguments_: string[]): string[] {
+    const redacted: string[] = [];
+    for (let index: number = 0; index < arguments_.length; index++) {
+      const current: string = arguments_[index];
+      if (current === '--password' || current === '-p') {
+        redacted.push(current);
+        if (index + 1 < arguments_.length) {
+          redacted.push('******');
+          index++;
+        }
+      } else if (current.includes('=')) {
+        const eqIndex: number = current.indexOf('=');
+        const key: string = current.slice(0, eqIndex);
+        const lowerKey: string = key.toLowerCase();
+        if (
+          lowerKey.includes('password') ||
+          lowerKey.includes('secret') ||
+          lowerKey.includes('token') ||
+          lowerKey.includes('key')
+        ) {
+          redacted.push(`${key}=******`);
+        } else {
+          redacted.push(current);
+        }
+      } else {
+        redacted.push(current);
+      }
+    }
+    return redacted;
+  }
+
   /** Returns a promise that invokes the shell command */
   public async run(
     cmd: string,
@@ -23,7 +59,8 @@ export class ShellRunner {
     environmentVariablesToAppend: Record<string, string> = {},
     timeoutMs?: number,
   ): Promise<string[]> {
-    const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${arguments_.join(' ')}`;
+    const redactedArguments: string[] = ShellRunner.redactArguments(arguments_);
+    const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${redactedArguments.join(' ')}`;
     const callStack: string = new Error(message).stack; // capture the callstack to be included in error
     this.logger.info(message);
 
