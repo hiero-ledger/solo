@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "One Shot Interrupt Destroy"
+name: "One Shot Recovery Scenarios"
 
 on:
   workflow_dispatch:
@@ -41,21 +41,46 @@ permissions:
   actions: read
 
 jobs:
-  test-one-shot-interrupt-destroy:
-    name: Interrupt=${{ matrix.interrupt_seconds }}s
+  generate_matrix:
+    runs-on: hiero-solo-linux-medium
+    outputs:
+      matrix: ${{ steps.set_matrix.outputs.matrix }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Read JSON and Set Matrix Output
+        id: set_matrix
+        run: |
+          TEST_NAME="${{ inputs.test-name }}"
+          if [[ -n "$TEST_NAME" ]]; then
+            JSON_CONTENT=$(cat .github/workflows/support/one-shot-recovery-test-matrix.json | jq -c --arg name "$TEST_NAME" '[.[] | select(.name == $name)]')
+          else
+            JSON_CONTENT=$(cat .github/workflows/support/one-shot-recovery-test-matrix.json | jq -c .)
+          fi
+          echo "JSON_CONTENT: $JSON_CONTENT"
+          echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
+
+  test-one-shot-recovery-scenarios:
+    name: ${{ matrix.name }}
     runs-on: hiero-solo-linux-large
+    needs: generate_matrix
     timeout-minutes: 80
     strategy:
       fail-fast: false
       matrix:
-        interrupt_seconds: [5, 10, 15, 30, 45, 60, 90, 120, 150, 180, 200, 220, 240, 260, 280]
+        include: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
       max-parallel: 2
 
     steps:
       - name: Pre-job Cleanup
         if: always()
         run: |
-          # Remove any Kind clusters and Docker containers left over from a previous run on this runner.
           for cluster in $(kind get clusters 2>/dev/null); do
             docker rm --force --volumes \
               $(docker ps -aq --filter label=io.x-k8s.kind.cluster=$cluster 2>/dev/null) \
@@ -65,7 +90,7 @@ jobs:
           rm -rf ~/.solo
 
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
         with:
           egress-policy: audit
 
@@ -73,13 +98,13 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
           node-version: 22
           cache: npm
 
       - name: Install Dependencies
-        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
+        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 10
           timeout_minutes: 10
@@ -94,15 +119,14 @@ jobs:
       - name: Build Application
         run: task build:compile
 
-      - name: Run Interrupt Redeploy Script
-        timeout-minutes: 30
+      - name: Run Recovery Scenario Script
+        timeout-minutes: 40
         env:
           ONE_SHOT_WITH_BLOCK_NODE: true
         run: |
           export PATH=~/.solo/bin:${PATH}
           export SOLO_COMMAND="npm run solo --"
-          export INTERRUPT_SECONDS="${{ matrix.interrupt_seconds }}"
-          bash .github/workflows/script/one-shot-interrupt-redeploy.sh
+          bash .github/workflows/script/${{ matrix.script }}
 
       - name: Collect Deployment Diagnostics Logs
         if: failure() || cancelled()
@@ -118,7 +142,7 @@ jobs:
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         timeout-minutes: 5
         with:
-          name: solo-logs-${{ matrix.interrupt_seconds }}s
+          name: solo-logs-${{ matrix.script }}
           path: ~/.solo/logs/*
           if-no-files-found: warn
 
@@ -126,9 +150,3 @@ jobs:
         if: always()
         timeout-minutes: 5
         run: for cluster in $(kind get clusters 2>/dev/null); do kind delete cluster -n $cluster 2>/dev/null || true; done; true
-
-  recovery-scenarios:
-    name: Recovery Scenarios
-    uses: ./.github/workflows/flow-one-shot-recovery-scenarios.yaml
-    with:
-      test-name: ${{ inputs.test-name || '' }}

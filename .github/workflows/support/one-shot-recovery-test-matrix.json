@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Interrupt → Redeploy",
+    "script": "one-shot-interrupt-redeploy.sh"
+  },
+  {
+    "name": "Interrupt → Delete Local Config → Redeploy",
+    "script": "one-shot-interrupt-delete-local-redeploy.sh"
+  },
+  {
+    "name": "Interrupt → Delete Cluster → Redeploy",
+    "script": "one-shot-interrupt-delete-cluster-redeploy.sh"
+  },
+  {
+    "name": "Full Deploy → Delete Cluster → Redeploy",
+    "script": "one-shot-full-delete-cluster-redeploy.sh"
+  },
+  {
+    "name": "Full Deploy → Delete Local Config → Redeploy",
+    "script": "one-shot-full-delete-local-redeploy.sh"
+  }
+]

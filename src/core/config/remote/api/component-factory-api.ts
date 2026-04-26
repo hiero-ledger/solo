@@ -36,6 +36,12 @@ export interface ComponentFactoryApi {
 
   createNewBlockNodeComponent(clusterReference: ClusterReferenceName, namespace: NamespaceName): BlockNodeStateSchema;
 
+  createNewBlockNodeComponentWithId(
+    id: ComponentId,
+    clusterReference: ClusterReferenceName,
+    namespace: NamespaceName,
+  ): BlockNodeStateSchema;
+
   createNewConsensusNodeComponent(
     id: ComponentId,
     clusterReference: ClusterReferenceName,

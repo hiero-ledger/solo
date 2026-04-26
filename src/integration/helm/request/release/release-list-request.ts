@@ -11,6 +11,7 @@ export class ReleaseListRequest implements HelmRequest {
     private readonly allNamespaces: boolean,
     private readonly namespace?: string,
     private readonly kubeContext?: string,
+    private readonly includeAll: boolean = false,
   ) {}
 
   public apply(builder: HelmExecutionBuilder): void {
@@ -20,6 +21,10 @@ export class ReleaseListRequest implements HelmRequest {
       builder.flag('--all-namespaces');
     } else if (this.namespace) {
       builder.argument('namespace', this.namespace);
+    }
+
+    if (this.includeAll) {
+      builder.flag('--all');
     }
 
     if (this.kubeContext) {
