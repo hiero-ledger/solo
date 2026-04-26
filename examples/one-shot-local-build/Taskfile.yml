@@ -258,7 +258,8 @@ tasks:
       - cmd: |
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{.RUNTIME_VALUES_FILE}} \
-          --num-consensus-nodes 1
+          --num-consensus-nodes 1 \
+          --metrics-server
 
   destroy:
     desc: Destroy the Solo network and clean up
