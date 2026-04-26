@@ -26,6 +26,10 @@ import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-ref
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
+import {type FacadeMap} from '../../business/runtime-state/collection/facade-map.js';
+import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
+import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
+import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type OneShotState} from '../../core/one-shot-state.js';
@@ -152,10 +156,10 @@ export class ClusterCommandTasks {
       task: async () => {
         await this.localConfig.load();
 
-        const clusterReferences = this.localConfig.configuration.clusterRefs;
-        const clusterList = [];
+        const clusterReferences: FacadeMap<string, StringFacade, string> = this.localConfig.configuration.clusterRefs;
+        const clusterList: string[] = [];
         for (const [clusterName, clusterContext] of clusterReferences) {
-          clusterList.push(`${clusterName}:${clusterContext}`);
+          clusterList.push(`${clusterName}:${clusterContext.toString()}`);
         }
         this.logger.showList('Cluster references and the respective contexts', clusterList);
       },
@@ -166,9 +170,10 @@ export class ClusterCommandTasks {
     return {
       title: 'Get cluster info',
       task: async (context_, task) => {
-        const clusterReference = context_.config.clusterRef;
-        const clusterReferences = this.localConfig.configuration.clusterRefs;
-        const deployments = this.localConfig.configuration.deployments;
+        const clusterReference: string = context_.config.clusterRef;
+        const clusterReferences: FacadeMap<string, StringFacade, string> = this.localConfig.configuration.clusterRefs;
+        const deployments: MutableFacadeArray<Deployment, DeploymentSchema> =
+          this.localConfig.configuration.deployments;
         const context: StringFacade | undefined = clusterReferences.get(clusterReference);
 
         if (!context) {
@@ -349,11 +354,11 @@ export class ClusterCommandTasks {
       title: 'Install cluster charts',
       task: async (context_, task) => {
         // switch to the correct cluster context first
-        const k8 = this.k8Factory.getK8(context_.config.context);
+        const k8: K8 = this.k8Factory.getK8(context_.config.context);
         k8.contexts().updateCurrent(context_.config.context);
 
         // Always install pod-monitor-role ClusterRole first
-        const subtasks = [this.installPodMonitorRole(argv)];
+        const subtasks: SoloListrTask<AnyListrContext>[] = [this.installPodMonitorRole(argv)];
 
         if (context_.config.deployMinio) {
           subtasks.push(this.installMinioOperator(argv));
@@ -363,7 +368,7 @@ export class ClusterCommandTasks {
           subtasks.push(this.installPrometheusStack(argv));
         }
 
-        const result = await task.newListr(subtasks, {concurrent: false});
+        const result: Listr = await task.newListr(subtasks, {concurrent: false});
 
         if (argv.dev) {
           await this.showInstalledChartList(context_.config.clusterSetupNamespace, context_.config.context);
