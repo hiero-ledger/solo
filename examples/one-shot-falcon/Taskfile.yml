@@ -143,6 +143,43 @@ tasks:
       - task: test-refresh
       - task: verify
 
+  prepare-test:
+    desc: Smoke test for `one-shot falcon prepare` (--default end-to-end)
+    vars:
+      PREPARE_OUTPUT: "{{ .USER_WORKING_DIR }}/falcon-values.test.yaml"
+    cmds:
+      # Clean any stale output from previous runs
+      - cmd: rm -f {{ .PREPARE_OUTPUT }}
+
+      # Run `one-shot falcon prepare` end-to-end via `--default`. A true
+      # interactive (pipe-redirect) test is not feasible here: Solo's prompt
+      # helper (`src/commands/flags.ts`) explicitly rejects non-TTY stdin with
+      # "Cannot prompt for input in non-interactive mode", so `yes '' | solo ...`
+      # fails before reaching the wizard. Driving the prompts over a real pty
+      # would require `expect` or `node-pty`, neither of which is a baseline
+      # dependency of this example. The --default path still exercises the
+      # full integration: argv parsing → ConfigManager → Listr → executePrompt
+      # (skipped when --default) → generateFalconValuesYaml → file write.
+      - cmd: |
+          $SOLO_COMMAND one-shot falcon prepare \
+            --default \
+            --output-values-file {{ .PREPARE_OUTPUT }}
+
+      # Verify the file exists and contains all 7 expected top-level sections.
+      - cmd: |
+          set -e
+          test -f {{ .PREPARE_OUTPUT }}
+          for section in network setup consensusNode mirrorNode relayNode blockNode explorerNode; do
+            if ! grep -q "^${section}:" {{ .PREPARE_OUTPUT }}; then
+              echo "ERROR: section '${section}' missing from generated values file" >&2
+              exit 1
+            fi
+          done
+          echo "OK: all 7 sections present in {{ .PREPARE_OUTPUT }}"
+
+      # Clean up to keep example directory tidy
+      - cmd: rm -f {{ .PREPARE_OUTPUT }}
+
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
     cmds:

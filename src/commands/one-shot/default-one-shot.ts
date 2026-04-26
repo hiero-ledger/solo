@@ -31,6 +31,7 @@ import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
 import * as version from '../../../version.js';
 import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
+import {type FalconPrepareConfig} from './falcon-prepare-config.js';
 import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
 import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
@@ -67,6 +68,12 @@ import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import yaml from 'yaml';
 import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
+import {NetworkCommand} from '../network.js';
+import {MirrorNodeCommand} from '../mirror-node.js';
+import {RelayCommand} from '../relay.js';
+import {ExplorerCommand} from '../explorer.js';
+import {BlockNodeCommand} from '../block-node.js';
+import {SETUP_FLAGS as NODE_SETUP_FLAGS, START_FLAGS as NODE_START_FLAGS} from '../node/flags.js';
 import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../../integration/kube/k8.js';
@@ -153,6 +160,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   public static readonly INFO_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.deployment],
+  };
+
+  public static readonly FALCON_PREPARE_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.outputValuesFile, flags.acceptDefaults],
   };
 
   public constructor(
@@ -1873,6 +1885,287 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     }
 
     return true;
+  }
+
+  /**
+   * Flags whose `prompt` functions are invoked by the falcon prepare wizard.
+   * Keeping the list in declaration-order makes the wizard flow match the
+   * CLI help output.
+   */
+  private static readonly FALCON_PREPARE_PROMPTS: CommandFlag[] = [
+    flags.numberOfConsensusNodes,
+    flags.releaseTag,
+    flags.relayReleaseTag,
+    flags.soloChartVersion,
+    flags.mirrorNodeVersion,
+    flags.blockNodeChartVersion,
+    flags.explorerVersion,
+    flags.loadBalancerEnabled,
+    flags.forcePortForward,
+  ];
+
+  public async prepareFalcon(argv: ArgvStruct): Promise<boolean> {
+    this.configManager.update(argv);
+
+    // Resolve output path eagerly so success messages can show the absolute
+    // location (reduces ambiguity when run from a sub-directory).
+    const configuredOutputPath: string =
+      this.configManager.getFlag<string>(flags.outputValuesFile) ?? './falcon-values.yaml';
+    const resolvedOutputPath: string = path.resolve(configuredOutputPath);
+
+    const config: FalconPrepareConfig = {
+      numberOfConsensusNodes: 1,
+      releaseTag: version.HEDERA_PLATFORM_VERSION,
+      mirrorNodeVersion: version.MIRROR_NODE_VERSION,
+      relayRelease: version.HEDERA_JSON_RPC_RELAY_VERSION,
+      blockNodeChartVersion: version.BLOCK_NODE_VERSION,
+      explorerVersion: version.EXPLORER_VERSION,
+      soloChartVersion: version.SOLO_CHART_VERSION,
+      loadBalancer: false,
+      enableMirrorIngress: true,
+      localBuildPath: '',
+      debugNodeAlias: '',
+      enableDevChartMode: false,
+      forcePortForward: true,
+      outputPath: resolvedOutputPath,
+    };
+
+    const acceptDefaults: boolean = this.configManager.getFlag(flags.acceptDefaults) ?? false;
+
+    const tasks: Listr<AnyListrContext, ListrRendererValue, ListrRendererValue> = new Listr(
+      [
+        {
+          title: 'Configure deployment options',
+          skip: (): boolean => acceptDefaults,
+          task: async (_context: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>): Promise<void> => {
+            // Delegate to each flag's own prompt function so validation,
+            // defaults, and copy stay owned by `Flags` (comment #2).
+            await this.configManager.executePrompt(task, DefaultOneShotCommand.FALCON_PREPARE_PROMPTS);
+
+            config.numberOfConsensusNodes =
+              this.configManager.getFlag(flags.numberOfConsensusNodes) ?? config.numberOfConsensusNodes;
+            config.releaseTag = this.configManager.getFlag(flags.releaseTag) ?? config.releaseTag;
+            config.relayRelease = this.configManager.getFlag(flags.relayReleaseTag) ?? config.relayRelease;
+            config.soloChartVersion = this.configManager.getFlag(flags.soloChartVersion) ?? config.soloChartVersion;
+            config.mirrorNodeVersion = this.configManager.getFlag(flags.mirrorNodeVersion) ?? config.mirrorNodeVersion;
+            config.blockNodeChartVersion =
+              this.configManager.getFlag(flags.blockNodeChartVersion) ?? config.blockNodeChartVersion;
+            config.explorerVersion = this.configManager.getFlag(flags.explorerVersion) ?? config.explorerVersion;
+            config.loadBalancer = this.configManager.getFlag(flags.loadBalancerEnabled) ?? config.loadBalancer;
+            config.forcePortForward = this.configManager.getFlag(flags.forcePortForward) ?? config.forcePortForward;
+
+            // Mirror node REST API is split across two instances (JS + Java) and
+            // routed via ingress, so the values file always enables it.
+            // See: PR #3879 review feedback from Ivo-Yankov.
+            config.enableMirrorIngress = true;
+
+            // Helm chart dev mode — intentionally separate from
+            // Flags.devMode (which is a logger verbosity toggle).
+            config.enableDevChartMode = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+              message: 'Enable development chart mode (use local platform build)?',
+              default: false,
+            });
+
+            if (config.enableDevChartMode) {
+              await this.configManager.executePrompt(task, [flags.localBuildPath, flags.debugNodeAlias]);
+              config.localBuildPath = this.configManager.getFlag(flags.localBuildPath) ?? config.localBuildPath;
+              config.debugNodeAlias = this.configManager.getFlag(flags.debugNodeAlias) ?? config.debugNodeAlias;
+            }
+          },
+        },
+        {
+          title: 'Generate values file',
+          task: async (): Promise<void> => {
+            const yamlContent: string = DefaultOneShotCommand.generateFalconValuesYaml(config);
+            fs.writeFileSync(config.outputPath, yamlContent);
+            this.logger.showUser(chalk.green(`\nFalcon values file generated: ${config.outputPath}`));
+            this.logger.showUser(`\nTo deploy, run:\n  solo one-shot falcon deploy --values-file ${config.outputPath}`);
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloError(`Error preparing falcon values file: ${error.message}`, error);
+    }
+
+    return true;
+  }
+
+  /**
+   * Value emitted for a single key inside a falcon values section.
+   */
+  private static readonly FALCON_SECTION_NAMES: readonly string[] = [
+    'network',
+    'setup',
+    'consensusNode',
+    'mirrorNode',
+    'relayNode',
+    'blockNode',
+    'explorerNode',
+  ];
+
+  /**
+   * Operational flags that must never appear in a generated falcon values file.
+   * These are invocation-time concerns (which cluster, which deployment, whether
+   * to prompt, whether to force) rather than chart values, so the per-section
+   * iteration below filters them out before emitting keys.
+   *
+   * Note: `flags.force` and `flags.forceBlockNodeIntegration` share the CLI
+   * name `force`; `flags.valuesFile` and `flags.networkDeploymentValuesFile`
+   * share `values-file`. Blocking by `.name` covers both.
+   */
+  private static readonly FALCON_VALUES_BLOCKED_FLAGS: ReadonlySet<string> = new Set<string>([
+    flags.deployment.name,
+    flags.context.name,
+    flags.clusterRef.name,
+    flags.namespace.name,
+    flags.valuesFile.name,
+    flags.force.name,
+    flags.acceptDefaults.name,
+    flags.quiet.name,
+  ]);
+
+  /**
+   * Builds a falcon values section by iterating the upstream command's flag
+   * list — the **source of truth** for each section's deploy contract. Every
+   * flag becomes a `--{name}` YAML key; values come from `overrides` (keyed by
+   * `CommandFlag.name`) or default to the empty string (which
+   * `appendConfigToArgv` filters out at deploy time).
+   */
+  private static buildFalconSectionFromFlags(
+    flagList: CommandFlags,
+    overrides: ReadonlyMap<string, string | number | boolean | null>,
+  ): Record<string, string | number | boolean | null> {
+    const section: Record<string, string | number | boolean | null> = {};
+    for (const flag of flagList.optional) {
+      if (DefaultOneShotCommand.FALCON_VALUES_BLOCKED_FLAGS.has(flag.name)) {
+        continue;
+      }
+      const key: string = `--${flag.name}`;
+      section[key] = overrides.has(flag.name) ? (overrides.get(flag.name) as string | number | boolean | null) : '';
+    }
+    return section;
+  }
+
+  public static generateFalconValuesYaml(config: FalconPrepareConfig): string {
+    // Each section's flag membership is the **contract** between `falcon prepare`
+    // and `falcon deploy`. We iterate each component command's upstream flag list
+    // (`NetworkCommand.DEPLOY_FLAGS_LIST` etc.) so that additions/renames in the
+    // deploy command propagate here automatically; operational flags are
+    // filtered via `FALCON_VALUES_BLOCKED_FLAGS`. The per-section `overrides`
+    // maps provide opinionated defaults derived from the user's wizard input;
+    // every other flag is emitted as empty string (ignored by
+    // `appendConfigToArgv` at deploy time).
+
+    const networkOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
+      string,
+      string | number | boolean | null
+    >([
+      [flags.soloChartVersion.name, config.soloChartVersion],
+      [flags.debugNodeAlias.name, config.debugNodeAlias],
+      [flags.loadBalancerEnabled.name, config.loadBalancer],
+      [flags.persistentVolumeClaims.name, false],
+      [flags.releaseTag.name, config.releaseTag],
+      [flags.serviceMonitor.name, false],
+      [flags.podLog.name, false],
+    ]);
+
+    const setupOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
+      string,
+      string | number | boolean | null
+    >([
+      [flags.releaseTag.name, config.releaseTag],
+      [flags.localBuildPath.name, config.localBuildPath],
+      [flags.devMode.name, config.enableDevChartMode],
+    ]);
+
+    const consensusNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
+      string,
+      string | number | boolean | null
+    >([
+      [flags.debugNodeAlias.name, config.debugNodeAlias],
+      [flags.forcePortForward.name, config.forcePortForward],
+    ]);
+
+    const mirrorNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
+      string,
+      string | number | boolean | null
+    >([
+      [flags.mirrorNodeVersion.name, config.mirrorNodeVersion],
+      [flags.enableIngress.name, config.enableMirrorIngress],
+      [flags.forcePortForward.name, config.forcePortForward],
+      [flags.pinger.name, true],
+      [flags.useExternalDatabase.name, false],
+    ]);
+
+    const relayNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
+      string,
+      string | number | boolean | null
+    >([
+      [flags.relayReleaseTag.name, config.relayRelease],
+      [flags.replicaCount.name, 1],
+      [flags.forcePortForward.name, config.forcePortForward],
+      // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
+      [flags.mirrorNodeId.name, null],
+    ]);
+
+    const blockNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
+      string,
+      string | number | boolean | null
+    >([
+      [flags.blockNodeChartVersion.name, config.blockNodeChartVersion],
+      [flags.enableIngress.name, false],
+      [flags.devMode.name, config.enableDevChartMode],
+    ]);
+
+    const explorerNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
+      string,
+      string | number | boolean | null
+    >([
+      [flags.soloChartVersion.name, config.soloChartVersion],
+      [flags.explorerVersion.name, config.explorerVersion],
+      [flags.enableIngress.name, true],
+      [flags.enableExplorerTls.name, false],
+      [flags.explorerTlsHostName.name, 'explorer.solo.local'],
+      [flags.tlsClusterIssuerType.name, 'self-signed'],
+      [flags.forcePortForward.name, config.forcePortForward],
+      // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
+      [flags.mirrorNodeId.name, null],
+    ]);
+
+    const valuesObject: Record<string, Record<string, string | number | boolean | null>> = {
+      network: DefaultOneShotCommand.buildFalconSectionFromFlags(NetworkCommand.DEPLOY_FLAGS_LIST, networkOverrides),
+      setup: DefaultOneShotCommand.buildFalconSectionFromFlags(NODE_SETUP_FLAGS, setupOverrides),
+      consensusNode: DefaultOneShotCommand.buildFalconSectionFromFlags(NODE_START_FLAGS, consensusNodeOverrides),
+      mirrorNode: DefaultOneShotCommand.buildFalconSectionFromFlags(
+        MirrorNodeCommand.DEPLOY_FLAGS_LIST,
+        mirrorNodeOverrides,
+      ),
+      relayNode: DefaultOneShotCommand.buildFalconSectionFromFlags(RelayCommand.DEPLOY_FLAGS_LIST, relayNodeOverrides),
+      blockNode: DefaultOneShotCommand.buildFalconSectionFromFlags(BlockNodeCommand.ADD_FLAGS_LIST, blockNodeOverrides),
+      explorerNode: DefaultOneShotCommand.buildFalconSectionFromFlags(
+        ExplorerCommand.DEPLOY_FLAGS_LIST,
+        explorerNodeOverrides,
+      ),
+    };
+
+    const header: string =
+      '# One-Shot Falcon Deployment Configuration\n' +
+      '# Generated by: solo one-shot falcon prepare\n' +
+      '# This file configures all components of the Hiero network deployment\n' +
+      `#\n# Consensus nodes: ${config.numberOfConsensusNodes}\n` +
+      '#\n# Usage:\n' +
+      '#   solo one-shot falcon deploy --values-file ./falcon-values.yaml\n' +
+      '#\n# To disable optional components, pass CLI flags:\n' +
+      '#   --deploy-mirror-node false\n' +
+      '#   --deploy-explorer false\n' +
+      '#   --deploy-relay false\n\n';
+
+    return header + yaml.stringify(valuesObject, {lineWidth: 0});
   }
 
   public async close(): Promise<void> {} // no-op
