@@ -285,40 +285,41 @@ export class ClusterCommandTasks {
   public installMetricsServer(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install metrics-server chart',
-      task: async (context_): Promise<void> => {
+      task: async ({config: {context}}): Promise<void> => {
         const isMetricsServerInstalled: boolean = await this.chartManager.isChartInstalled(
           constants.METRICS_SERVER_NAMESPACE,
           constants.METRICS_SERVER_RELEASE_NAME,
-          context_.config.context,
+          context,
         );
 
         if (isMetricsServerInstalled) {
           this.logger.showUser('⏭️  metrics-server chart already installed, skipping');
-        } else {
+          return;
+        }
+
+        try {
+          await this.chartManager.install(
+            constants.METRICS_SERVER_NAMESPACE,
+            constants.METRICS_SERVER_RELEASE_NAME,
+            constants.METRICS_SERVER_CHART,
+            constants.METRICS_SERVER_CHART,
+            versions.METRICS_SERVER_VERSION,
+            '--set "args[0]=--kubelet-insecure-tls"',
+            context,
+          );
+          this.logger.showUser('✅ metrics-server chart installed successfully');
+        } catch (error) {
+          this.logger.debug('Error installing metrics-server chart', error);
           try {
-            await this.chartManager.install(
+            await this.chartManager.uninstall(
               constants.METRICS_SERVER_NAMESPACE,
               constants.METRICS_SERVER_RELEASE_NAME,
-              constants.METRICS_SERVER_CHART,
-              constants.METRICS_SERVER_CHART,
-              versions.METRICS_SERVER_VERSION,
-              '--set "args[0]=--kubelet-insecure-tls"',
-              context_.config.context,
+              context,
             );
-            this.logger.showUser('✅ metrics-server chart installed successfully');
-          } catch (error) {
-            this.logger.debug('Error installing metrics-server chart', error);
-            try {
-              await this.chartManager.uninstall(
-                constants.METRICS_SERVER_NAMESPACE,
-                constants.METRICS_SERVER_RELEASE_NAME,
-                context_.config.context,
-              );
-            } catch (uninstallError) {
-              this.logger.showUserError(uninstallError);
-            }
-            throw new SoloError('Error installing metrics-server chart', error);
+          } catch (uninstallError) {
+            this.logger.showUserError(uninstallError);
           }
+          throw new SoloError('Error installing metrics-server chart', error);
         }
       },
       skip: ({config: {deployMetricsServer}}): boolean => !deployMetricsServer,
