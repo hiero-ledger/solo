@@ -39,6 +39,7 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {injectable} from 'tsyringe-neo';
 import {Templates} from '../core/templates.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
@@ -51,6 +52,7 @@ import {
   ComponentUpgradeMigrationRules,
   type ComponentUpgradeMigrationStep,
 } from './migrations/component-upgrade-rules.js';
+import {optionFromFlag} from './command-helpers.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -808,16 +810,12 @@ export class BlockNodeCommand extends BaseCommand {
             config.currentVersion =
               this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode)?.toString() ?? '0.0.0';
 
-            if (config.currentVersion !== '0.0.0') {
-              const currentSemVersion: SemanticVersion<string> = new SemanticVersion<string>(config.currentVersion);
-              const targetSemVersion: SemanticVersion<string> = new SemanticVersion<string>(config.upgradeVersion);
-              if (targetSemVersion.lessThanOrEqual(currentSemVersion)) {
-                throw new SoloError(
-                  `Block node upgrade target version ${config.upgradeVersion} is not newer than the current version ${config.currentVersion} stored in remote config. ` +
-                    'Use --upgrade-version to specify a version newer than the currently deployed version.',
-                );
-              }
-            }
+            assertUpgradeVersionNotOlder(
+              'Block node',
+              config.upgradeVersion,
+              this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode),
+              optionFromFlag(flags.upgradeVersion),
+            );
 
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
