@@ -25,9 +25,11 @@ export class DefaultKindClientBuilder implements KindClientBuilder {
     return this;
   }
 
-  public async build(): Promise<KindClient> {
+  public async build(skipVersionCheck?: boolean): Promise<KindClient> {
     const client: DefaultKindClient = new DefaultKindClient(this._executable);
-    await client.checkVersion();
+    if (!skipVersionCheck) {
+      await client.checkVersion();
+    }
     return client;
   }
 }

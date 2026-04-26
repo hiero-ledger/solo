@@ -230,7 +230,7 @@ describe('PodmanDependencyManager', (): void => {
       try {
         await podmanDependencyManager.getVersion('/usr/local/bin/podman');
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('Failed to check podman version');
       }
     });
@@ -240,7 +240,7 @@ describe('PodmanDependencyManager', (): void => {
       try {
         await podmanDependencyManager.getVersion('/usr/local/bin/podman');
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('Failed to check podman version');
       }
     });
@@ -316,7 +316,7 @@ describe('PodmanDependencyManager', (): void => {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
         await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('GitHub API request failed with status 404');
       }
     });
@@ -328,7 +328,7 @@ describe('PodmanDependencyManager', (): void => {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
         await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('No releases found');
       }
     });
@@ -340,7 +340,7 @@ describe('PodmanDependencyManager', (): void => {
         // @ts-expect-error TS2341: Property fetchReleaseInfo is private
         await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
-      } catch (error: any) {
+      } catch (error) {
         expect(error.message).to.include('No matching asset found for');
       }
     });
@@ -367,7 +367,7 @@ describe('PodmanDependencyManager', (): void => {
 
       // Mock fetch for fetchReleaseInfo
       originalFetch = globalThis.fetch;
-      globalThis.fetch = sandbox.stub() as any;
+      globalThis.fetch = sandbox.stub();
       fetchStub = globalThis.fetch as SinonStub;
 
       // Configure fetch to return valid mock response

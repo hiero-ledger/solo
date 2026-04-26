@@ -3884,7 +3884,7 @@ export class NodeCommandTasks {
   public initialize(
     argv: ArgvStruct,
     configInit: ConfigBuilder,
-    lease: Lock | null,
+    lease?: Lock,
     shouldLoadNodeClient: boolean = true,
   ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
@@ -3914,7 +3914,7 @@ export class NodeCommandTasks {
 
         await this.configManager.executePrompt(task, flagsToPrompt);
 
-        const config: any = await configInit(argv, context_, task, shouldLoadNodeClient);
+        const config: AnyListrContext = await configInit(argv, context_, task, shouldLoadNodeClient);
         context_.config = config;
         config.consensusNodes = this.remoteConfig.getConsensusNodes();
         config.contexts = this.remoteConfig.getContexts();
