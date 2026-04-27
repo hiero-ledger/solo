@@ -50,7 +50,7 @@ export class ClusterCommandConfigs {
     this.configManager.update(argv);
 
     // Apply changes to argv[context] before the config is initiated, because the `context` field is immutable
-    if (!this.configManager.getFlag<string>(flags.context)) {
+    if (!this.configManager.getFlag(flags.context)) {
       const isQuiet: boolean = this.configManager.getFlag<boolean>(flags.quiet) === true;
       if (isQuiet) {
         argv[flags.context.name] = this.k8Factory.default().contexts().readCurrent();
@@ -59,7 +59,7 @@ export class ClusterCommandConfigs {
         argv[flags.context.name] = await flags.context.prompt(
           task,
           kubeContexts,
-          this.configManager.getFlag<string>(flags.clusterRef),
+          this.configManager.getFlag(flags.clusterRef),
         );
       }
 
