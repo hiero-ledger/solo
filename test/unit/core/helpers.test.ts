@@ -7,6 +7,9 @@ import {Flags as flags} from '../../../src/commands/flags.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
+import {type ConfigMap} from '../../../src/integration/kube/resources/config-map/config-map.js';
+import yaml from 'yaml';
 
 import * as helpers from '../../../src/core/helpers.js';
 import {helmValuesHelper} from '../../../src/core/helm-values-helper.js';
@@ -187,6 +190,41 @@ describe('Helpers', (): void => {
       } finally {
         fs.rmSync(temporaryDirectory, {recursive: true, force: true});
       }
+  describe('remoteConfigsToDeploymentsTable', (): void => {
+    it('should support clusters as an object map', (): void => {
+      const remoteConfigs: ConfigMap[] = [
+        {
+          namespace: NamespaceName.of('default'),
+          name: 'remote-config',
+          data: {
+            'remote-config-data': yaml.stringify({
+              clusters: {
+                clusterA: {deployment: 'deployment-a'},
+              },
+            }),
+          },
+        },
+      ];
+
+      const rows: string[] = helpers.remoteConfigsToDeploymentsTable(remoteConfigs);
+
+      expect(rows).to.deep.equal(['Namespace : deployment', 'default : deployment-a']);
+    });
+
+    it('should return header only when clusters is missing', (): void => {
+      const remoteConfigs: ConfigMap[] = [
+        {
+          namespace: NamespaceName.of('default'),
+          name: 'remote-config',
+          data: {
+            'remote-config-data': yaml.stringify({}),
+          },
+        },
+      ];
+
+      const rows: string[] = helpers.remoteConfigsToDeploymentsTable(remoteConfigs);
+
+      expect(rows).to.deep.equal(['Namespace : deployment']);
     });
   });
 });

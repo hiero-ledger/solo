@@ -47,6 +47,9 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {execSync} from 'node:child_process';
+import find from 'find-process';
+import type FindConfig from 'find-process';
+import type ProcessInfo from 'find-process';
 import * as helpers from '../../core/helpers.js';
 import {
   addRootImageValues,
@@ -246,7 +249,7 @@ export class NodeCommandTasks {
     }
 
     // bump field hedera.config.version or use the version passed in
-    const fileBytes: Buffer<ArrayBuffer> = fs.readFileSync(
+    const fileBytes: Buffer = fs.readFileSync(
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'),
     );
     const lines: string[] = fileBytes.toString().split('\n');
@@ -276,7 +279,7 @@ export class NodeCommandTasks {
     deploymentName: DeploymentName,
   ): Promise<string> {
     // get byte value of the zip file
-    const zipBytes: Buffer<ArrayBuffer> = fs.readFileSync(upgradeZipFile);
+    const zipBytes: Buffer = fs.readFileSync(upgradeZipFile);
     const zipHash: string = crypto.createHash('sha384').update(zipBytes).digest('hex');
     this.logger.debug(
       `loaded upgrade zip file [ zipHash = ${zipHash} zipBytes.length = ${zipBytes.length}, zipPath = ${upgradeZipFile}]`,
@@ -326,7 +329,7 @@ export class NodeCommandTasks {
     await container.execContainer([
       'bash',
       '-c',
-      `rm -rf ${constants.HEDERA_HAPI_PATH}/data/lib/*.jar ${constants.HEDERA_HAPI_PATH}/data/apps/*.jar`,
+      `rm -rf ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`,
     ]);
 
     await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
@@ -376,6 +379,7 @@ export class NodeCommandTasks {
       if (!fs.existsSync(localDataLibraryBuildPath)) {
         throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
       }
+
       const k8: K8 = this.k8Factory.getK8(context);
 
       subTasks.push({
@@ -1762,15 +1766,13 @@ export class NodeCommandTasks {
   public prepareStagingDirectory(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare staging directory',
-      task: (context_, task): SoloListr<AnyListrContext> => {
-        const config: any = context_.config;
-        const nodeAliases: any = config[nodeAliasesProperty];
+      task: ({config}, task): SoloListr<AnyListrContext> => {
+        const nodeAliases: NodeAliases = config[nodeAliasesProperty];
         const subTasks: SoloListrTask<AnyListrContext>[] = [
           {
             title: 'Create and populate staging directory',
-            task: async (context_): Promise<void> => {
-              const config: any = context_.config;
-              const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            task: async ({config}): Promise<void> => {
+              const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
               const applicationPropertiesPath: string = PathEx.joinWithRealPath(
                 config.cacheDir,
                 'templates',
@@ -1779,7 +1781,6 @@ export class NodeCommandTasks {
 
               const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
               const yamlRoot: AnyObject = {};
-              const emptyDomainNamesMapping: Record<string, IP> = {};
 
               const stagingDirectory: string = Templates.renderStagingDir(
                 this.configManager.getFlag(flags.cacheDir),
@@ -1791,7 +1792,6 @@ export class NodeCommandTasks {
                   consensusNodes,
                   nodeAliases,
                   yamlRoot,
-                  emptyDomainNamesMapping,
                   deploymentName,
                   applicationPropertiesPath,
                 );
@@ -1840,6 +1840,22 @@ export class NodeCommandTasks {
                 config.namespace,
                 nodeAlias,
               );
+
+              for (const directory of [constants.HEDERA_DATA_APPS_DIR, constants.HEDERA_DATA_LIB_DIR]) {
+                const directoryPath: string = `${constants.HEDERA_HAPI_PATH}/${directory}`;
+                const output: string = await container.execContainer([
+                  'bash',
+                  '-c',
+                  `ls "${directoryPath}"/*.jar 2>/dev/null | wc -l`,
+                ]);
+                if (Number.parseInt(output.trim(), 10) === 0) {
+                  throw new SoloError(
+                    `Node '${nodeAlias}': no JAR files found in ${directoryPath}. ` +
+                      'Ensure platform software was copied to the node before starting.',
+                  );
+                }
+              }
+
               await (constants.ENABLE_S6_IMAGE
                 ? container.execContainer([
                     'bash',
@@ -4135,6 +4151,62 @@ export class NodeCommandTasks {
         }
       },
     };
+  }
+
+  public reportActivePortForwards(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Report active port-forward processes',
+      task: async (): Promise<void> => {
+        try {
+          const activeProcesses: ProcessInfo[] = await this.findActivePortForwardProcesses();
+          if (activeProcesses.length === 0) {
+            this.logger.showUser('No active port-forward processes found.');
+          } else {
+            this.logger.showUser(`Active port-forward processes (${activeProcesses.length}):`);
+            for (const processInfo of activeProcesses) {
+              this.logger.showUser(`  [PID ${processInfo.pid}] ${processInfo.cmd}`);
+            }
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to list port-forward processes: ${(error as Error).message}`);
+        }
+      },
+    };
+  }
+
+  private async findActivePortForwardProcesses(): Promise<ProcessInfo[]> {
+    const processNames: string[] = [
+      'port-forward',
+      constants.KUBECTL,
+      `${constants.KUBECTL}.exe`,
+      'node',
+      'node.exe',
+      'tsx',
+      'tsx.cmd',
+      'powershell',
+      'powershell.exe',
+    ];
+    const findConfig: FindConfig = {
+      skipSelf: true,
+    };
+
+    const matches: ProcessInfo[][] = await Promise.all(
+      processNames.map(
+        async (processName): Promise<ProcessInfo[]> =>
+          find('name', processName, findConfig).catch((): ProcessInfo[] => []),
+      ),
+    );
+
+    const uniqueByPid: Map<number, ProcessInfo> = new Map<number, ProcessInfo>();
+    for (const processInfo of matches.flat()) {
+      if (!processInfo?.cmd?.includes('port-forward')) {
+        continue;
+      }
+      uniqueByPid.set(processInfo.pid, processInfo);
+    }
+
+    // eslint-disable-next-line unicorn/no-array-sort
+    return [...uniqueByPid.values()].sort((a: ProcessInfo, b: ProcessInfo): number => a.pid - b.pid);
   }
 
   private async downloadPodLogs(
