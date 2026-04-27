@@ -1083,8 +1083,6 @@ export class MirrorNodeCommand extends BaseCommand {
       skip: ({config}: MirrorNodeDeployContext): boolean => !config.forcePortForward || !config.enableIngress,
       task: async ({config}: MirrorNodeDeployContext): Promise<void> => {
         const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
-        const nodeId: number | undefined = undefined;
-        const persistPortForward: boolean = false;
         const pods: Pod[] = await this.k8Factory
           .getK8(config.clusterContext)
           .pods()

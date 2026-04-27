@@ -26,10 +26,14 @@ if (!NAMESPACE || !POD || !CONTEXT || !PORT_MAP) {
 const MIN_BACKOFF: number = 1; // seconds
 const MAX_BACKOFF: number = 60; // seconds
 const POD_EXISTENCE_POLL_INTERVAL_SECONDS: number = 5;
+const POD_MISSING_EXIT_THRESHOLD: number = 3;
+const CLUSTER_UNAVAILABLE_EXIT_THRESHOLD: number = 3;
 let backoff: number = MIN_BACKOFF;
 let child: ChildProcess | undefined;
 let stopping: boolean = false;
 let exitForMissingTarget: boolean = false;
+let consecutivePodMissingChecks: number = 0;
+let consecutiveClusterUnavailableChecks: number = 0;
 
 interface CommandResult {
   code: number;
@@ -42,13 +46,42 @@ interface ExecuteKubectlOptions {
   trackAsChild: boolean;
 }
 
-function isMissingOriginalPodError(message: string): boolean {
+function isMissingContextOrNamespaceError(message: string): boolean {
+  const errorText: string = message.toLowerCase();
+
+  const missingContext: boolean =
+    (errorText.includes('context') && errorText.includes('does not exist')) ||
+    (errorText.includes('no context exists with the name') && errorText.includes(CONTEXT.toLowerCase()));
+  const missingNamespace: boolean =
+    (errorText.includes('namespaces') && errorText.includes('not found')) ||
+    (errorText.includes('namespace') && errorText.includes('does not exist'));
+
+  return missingContext || missingNamespace;
+}
+
+function isMissingPodError(message: string): boolean {
   const errorText: string = message.toLowerCase();
 
   return (
     errorText.includes('notfound') ||
     (errorText.includes('not found') && (errorText.includes('pods') || errorText.includes('pod')))
   );
+}
+
+function isClusterUnavailableError(message: string): boolean {
+  const errorText: string = message.toLowerCase();
+
+  const genericConnectionFailure: boolean =
+    errorText.includes('unable to connect to the server') ||
+    errorText.includes('the connection to the server') ||
+    errorText.includes('server has asked for the client to provide credentials');
+  const dialTcpFailure: boolean =
+    errorText.includes('dial tcp') &&
+    (errorText.includes('connection refused') ||
+      errorText.includes('no such host') ||
+      errorText.includes('i/o timeout'));
+
+  return genericConnectionFailure || dialTcpFailure;
 }
 
 async function executeKubectl(
@@ -122,19 +155,47 @@ async function shouldExitForMissingTarget(kubectlInstallationDirectory: string):
   );
   if (podResult.code !== 0) {
     const combinedPodError: string = `${podResult.stderr}\n${podResult.stdout}`.trim();
-    if (isMissingOriginalPodError(combinedPodError)) {
+    if (isMissingContextOrNamespaceError(combinedPodError)) {
       console.error(
-        `Stopping persistent port-forward: original pod target is no longer available (${combinedPodError || 'unknown kubectl error'})`,
+        `Stopping persistent port-forward: original target/context is no longer available (${combinedPodError || 'unknown kubectl error'})`,
       );
       return true;
     }
+
+    if (isMissingPodError(combinedPodError)) {
+      consecutivePodMissingChecks += 1;
+      if (consecutivePodMissingChecks >= POD_MISSING_EXIT_THRESHOLD) {
+        console.error(
+          `Stopping persistent port-forward: original pod appears gone after ${consecutivePodMissingChecks} checks (${combinedPodError || 'unknown kubectl error'})`,
+        );
+        return true;
+      }
+      return false;
+    }
+
+    if (isClusterUnavailableError(combinedPodError)) {
+      consecutiveClusterUnavailableChecks += 1;
+      if (consecutiveClusterUnavailableChecks >= CLUSTER_UNAVAILABLE_EXIT_THRESHOLD) {
+        console.error(
+          `Stopping persistent port-forward: cluster appears unavailable after ${consecutiveClusterUnavailableChecks} checks (${combinedPodError || 'unknown kubectl error'})`,
+        );
+        return true;
+      }
+      return false;
+    }
+
+    consecutivePodMissingChecks = 0;
+    consecutiveClusterUnavailableChecks = 0;
+    return false;
   }
 
+  consecutivePodMissingChecks = 0;
+  consecutiveClusterUnavailableChecks = 0;
   return false;
 }
 
 function runKubectl(kubectlInstallationDirectory: string): Promise<number> {
-  const arguments_: string[] = ['port-forward', '-n', NAMESPACE, '--context', CONTEXT];
+  const arguments_: string[] = ['port-forward', '-n', NAMESPACE];
   if (EXTERNAL_ADDRESS) {
     arguments_.push('--address', EXTERNAL_ADDRESS);
   }
