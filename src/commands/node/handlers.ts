@@ -144,7 +144,6 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.prepareGossipEndpoints(),
       this.tasks.prepareGrpcServiceEndpoints(),
       this.tasks.prepareUpgradeZip(),
-      this.tasks.checkExistingNodesStakedAmount(),
     ];
   }
 
@@ -179,6 +178,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
       this.tasks.checkAllNodeProxiesAreActive(),
       this.tasks.waitForLedgerIdReady('allNodeAliases'),
+      this.tasks.checkExistingNodesStakedAmount(),
       this.tasks.waitForTss(),
       this.tasks.stakeNewNode(),
       this.tasks.triggerStakeWeightCalculate<NodeAddContext>(NodeSubcommandType.ADD),
