@@ -33,13 +33,9 @@ export type DiagnosticsReportRunOptions = {
 };
 
 type DiagnosticsReportContext = {
-  startTime: number;
-  zipSearchDirectory: string;
-  analysisDirectory: string;
   zipFilePath?: string;
   issueTitle?: string;
   issueBody?: string;
-  cancelled: boolean;
 };
 
 type FilePathModificationTime = {
@@ -59,29 +55,31 @@ export class DiagnosticsReporter {
   public static async runDiagnosticsReport(options: DiagnosticsReportRunOptions): Promise<void> {
     const {logger, deployment, outputDirectory, soloVersion, isQuiet, collectDebug} = options;
 
-    const tasks: Listr<DiagnosticsReportContext, 'default', 'default'> = new Listr(
+    // collectDebug() runs its own commandAction/Listr2 renderer internally.
+    // It must be called at the top level — not inside a Listr2 task — to avoid
+    // the "ProcessOutput has been already hijacked!" error from nested renderers.
+    const zipSearchDirectory: string = PathEx.join(outputDirectory, '..');
+    const startTime: number = Date.now();
+    const analysisDirectory: string =
+      outputDirectory === constants.SOLO_LOGS_DIR
+        ? PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs')
+        : outputDirectory;
+
+    await collectDebug();
+
+    // Phase 1: verify CLI + build payload (no interactive prompts — Listr2 owns the terminal here)
+    const context: DiagnosticsReportContext = {};
+
+    const prepareTasks: Listr<DiagnosticsReportContext, 'default', 'default'> = new Listr(
       [
         {
-          title: 'Collect diagnostic information',
-          task: async (context_): Promise<void> => {
-            context_.zipSearchDirectory = PathEx.join(outputDirectory, '..');
-            context_.startTime = Date.now();
-            context_.analysisDirectory =
-              outputDirectory === constants.SOLO_LOGS_DIR
-                ? PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs')
-                : outputDirectory;
-            context_.cancelled = false;
-            await collectDebug();
-          },
-        },
-        {
           title: 'Verify GitHub CLI availability',
-          task: async (context_): Promise<void> => {
+          task: async (_context_): Promise<void> => {
             if (!(await DiagnosticsReporter.isGhCliAvailable(logger))) {
               throw new SoloError(
                 'The GitHub CLI (gh) is required for this command but was not found.\n' +
                   'Please install it from https://cli.github.com/ and authenticate with: gh auth login\n' +
-                  `Diagnostic logs are available at: ${context_.analysisDirectory}`,
+                  `Diagnostic logs are available at: ${analysisDirectory}`,
               );
             }
           },
@@ -89,70 +87,66 @@ export class DiagnosticsReporter {
         {
           title: 'Prepare GitHub issue payload',
           task: async (context_): Promise<void> => {
-            context_.zipFilePath = DiagnosticsReporter.findLatestDebugZip(
-              context_.zipSearchDirectory,
-              deployment,
-              context_.startTime,
-            );
+            context_.zipFilePath = DiagnosticsReporter.findLatestDebugZip(zipSearchDirectory, deployment, startTime);
             const timestamp: string = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
             context_.issueTitle = `[Solo v${soloVersion}] Diagnostic Report - ${deployment} - ${timestamp}`;
             context_.issueBody = DiagnosticsReporter.buildIssueBody({
               soloVersion,
               deployment,
               timestamp,
-              analysisDirectory: context_.analysisDirectory,
+              analysisDirectory,
               zipFilePath: context_.zipFilePath,
             });
           },
         },
-        {
-          title: 'Confirm issue creation',
-          task: async (context_): Promise<void> => {
-            if (isQuiet) {
-              return;
-            }
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
 
-            logger.showUser(chalk.cyan('\nReady to create a GitHub issue with the collected diagnostic information.'));
-            logger.showUser(chalk.cyan(`  Issue title: ${context_.issueTitle}`));
-            if (context_.zipFilePath) {
-              logger.showUser(chalk.cyan(`  Debug archive: ${context_.zipFilePath}`));
-            }
-            logger.showUser(
-              chalk.yellow(
-                '\n⚠  Warning: The collected diagnostic archive may contain sensitive node configuration\n' +
-                  '   (TLS certificates, onboard data). Review its contents before sharing publicly.\n' +
-                  '   Private keys under data/keys are NOT included.',
-              ),
-            );
+    await prepareTasks.run(context);
 
-            const confirmed: boolean = await confirmPrompt({
-              message: 'Create a GitHub issue with the diagnostic information?',
-              default: true,
-            });
+    // Phase 2: interactive confirmation — must run OUTSIDE Listr2 so the prompt
+    // can render normally (Listr2 hijacks the terminal while it is running).
+    if (!isQuiet) {
+      logger.showUser(chalk.cyan('\nReady to create a GitHub issue with the collected diagnostic information.'));
+      logger.showUser(chalk.cyan(`  Issue title: ${context.issueTitle}`));
+      if (context.zipFilePath) {
+        logger.showUser(chalk.cyan(`  Debug archive: ${context.zipFilePath}`));
+      }
+      logger.showUser(
+        chalk.red.bold(
+          '\n⚠  Warning: The collected diagnostic archive may contain sensitive node configuration\n' +
+            '   (TLS certificates, onboard data). Review its contents before sharing publicly.\n' +
+            '   Private keys under data/keys are NOT included.',
+        ),
+      );
 
-            if (!confirmed) {
-              context_.cancelled = true;
-              logger.showUser(chalk.yellow('\nIssue creation cancelled.'));
-              logger.showUser(chalk.cyan(`Diagnostic logs are available at: ${context_.analysisDirectory}`));
-              if (context_.zipFilePath) {
-                logger.showUser(chalk.cyan(`Debug archive: ${context_.zipFilePath}`));
-              }
-            }
-          },
-        },
+      const confirmed: boolean = await confirmPrompt({
+        message: 'Create a GitHub issue with the diagnostic information?',
+        default: true,
+      });
+
+      if (!confirmed) {
+        logger.showUser(chalk.yellow('\nIssue creation cancelled.'));
+        logger.showUser(chalk.cyan(`Diagnostic logs are available at: ${analysisDirectory}`));
+        if (context.zipFilePath) {
+          logger.showUser(chalk.cyan(`Debug archive: ${context.zipFilePath}`));
+        }
+        return;
+      }
+    }
+
+    // Phase 3: create the issue (Listr2 again for progress display)
+    const createTasks: Listr<DiagnosticsReportContext, 'default', 'default'> = new Listr(
+      [
         {
           title: 'Create GitHub issue',
-          task: async (context_, task): Promise<void> => {
-            if (context_.cancelled) {
-              task.skip();
-              return;
-            }
-
+          task: async (context_): Promise<void> => {
             await DiagnosticsReporter.createGitHubIssue(
               logger,
               context_.issueTitle ?? '',
               context_.issueBody ?? '',
-              context_.analysisDirectory,
+              analysisDirectory,
               context_.zipFilePath,
             );
           },
@@ -161,12 +155,7 @@ export class DiagnosticsReporter {
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
 
-    await tasks.run({
-      startTime: 0,
-      zipSearchDirectory: '',
-      analysisDirectory: '',
-      cancelled: false,
-    });
+    await createTasks.run(context);
   }
 
   /**
@@ -349,7 +338,15 @@ export class DiagnosticsReporter {
 
       if (zipFilePath && fs.existsSync(zipFilePath)) {
         logger.showUser(chalk.cyan(`  Debug archive: ${zipFilePath}`));
-        logger.showUser(chalk.yellow('  Please attach the debug archive to the issue via the GitHub web interface.'));
+        logger.showUser('');
+        logger.showUser(chalk.bgYellow.black.bold(' ACTION REQUIRED '));
+        logger.showUser(
+          chalk.yellow.bold(
+            `  ⚠  Please attach the debug archive to the GitHub issue:\n` +
+              `     ${zipFilePath}\n` +
+              `  Go to the issue URL above → click "attach files" → upload the zip.`,
+          ),
+        );
       }
 
       return issueUrl;
