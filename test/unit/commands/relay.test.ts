@@ -5,6 +5,7 @@ import {afterEach, beforeEach, describe, it} from 'mocha';
 import sinon from 'sinon';
 import {container} from 'tsyringe-neo';
 import {RelayCommand} from '../../../src/commands/relay.js';
+import {Flags as flags} from '../../../src/commands/flags.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {resetForTest} from '../../test-container.js';
 
@@ -12,6 +13,26 @@ interface RelayCommandInternal {
   prepareNetworkJsonString: (nodeAliases: string[], namespace: NamespaceName, deployment: string) => Promise<string>;
   prepareValuesArgForRelay: (configuration: Record<string, unknown>) => Promise<string>;
 }
+
+const createRelayConfig: (overrides?: Record<string, unknown>) => Record<string, unknown> = (
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> => ({
+  [flags.valuesFile.constName]: '',
+  nodeAliases: ['node1'],
+  [flags.chainId.constName]: '',
+  [flags.relayReleaseTag.constName]: '',
+  [flags.componentImage.constName]: '',
+  [flags.replicaCount.constName]: 1,
+  [flags.operatorId.constName]: '0.0.2',
+  [flags.operatorKey.constName]: 'operator-key',
+  [flags.namespace.constName]: NamespaceName.of('solo-e2e'),
+  [flags.domainName.constName]: undefined,
+  context: 'kind-solo-cluster',
+  releaseName: 'relay-1',
+  [flags.deployment.constName]: 'deployment',
+  [flags.mirrorNamespace.constName]: 'solo-e2e',
+  ...overrides,
+});
 
 describe('RelayCommand unit tests', (): void => {
   let relayCommand: RelayCommand;
@@ -30,22 +51,11 @@ describe('RelayCommand unit tests', (): void => {
 
     sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
-    const valuesArgument: string = await relayCommandInternal.prepareValuesArgForRelay({
-      valuesFile: '',
-      nodeAliases: ['node1'],
-      chainId: '',
-      relayReleaseTag: '0.77.0',
-      componentImage: '',
-      replicaCount: 1,
-      operatorId: '0.0.2',
-      operatorKey: 'operator-key',
-      namespace: NamespaceName.of('solo-e2e'),
-      domainName: undefined,
-      context: 'kind-solo-cluster',
-      releaseName: 'relay-1',
-      deployment: 'deployment',
-      mirrorNamespace: 'solo-e2e',
-    });
+    const valuesArgument: string = await relayCommandInternal.prepareValuesArgForRelay(
+      createRelayConfig({
+        [flags.relayReleaseTag.constName]: '0.77.0',
+      }),
+    );
 
     const relayImageTagMatches: RegExpMatchArray[] = [...valuesArgument.matchAll(/--set relay\.image\.tag=([^\s]+)/g)];
     const webSocketImageTagMatches: RegExpMatchArray[] = [...valuesArgument.matchAll(/--set ws\.image\.tag=([^\s]+)/g)];
@@ -61,22 +71,11 @@ describe('RelayCommand unit tests', (): void => {
 
     sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
-    const valuesArgument: string = await relayCommandInternal.prepareValuesArgForRelay({
-      valuesFile: '',
-      nodeAliases: ['node1'],
-      chainId: '',
-      relayReleaseTag: '',
-      componentImage: 'docker.io/library/v400.0',
-      replicaCount: 1,
-      operatorId: '0.0.2',
-      operatorKey: 'operator-key',
-      namespace: NamespaceName.of('solo-e2e'),
-      domainName: undefined,
-      context: 'kind-solo-cluster',
-      releaseName: 'relay-1',
-      deployment: 'deployment',
-      mirrorNamespace: 'solo-e2e',
-    });
+    const valuesArgument: string = await relayCommandInternal.prepareValuesArgForRelay(
+      createRelayConfig({
+        [flags.componentImage.constName]: 'docker.io/library/v400.0',
+      }),
+    );
 
     expect(valuesArgument).to.include('--set relay.image.registry=docker.io');
     expect(valuesArgument).to.include('--set ws.image.registry=docker.io');
@@ -91,22 +90,11 @@ describe('RelayCommand unit tests', (): void => {
 
     sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
-    const valuesArgument: string = await relayCommandInternal.prepareValuesArgForRelay({
-      valuesFile: '',
-      nodeAliases: ['node1'],
-      chainId: '',
-      relayReleaseTag: '',
-      componentImage: 'redis:7',
-      replicaCount: 1,
-      operatorId: '0.0.2',
-      operatorKey: 'operator-key',
-      namespace: NamespaceName.of('solo-e2e'),
-      domainName: undefined,
-      context: 'kind-solo-cluster',
-      releaseName: 'relay-1',
-      deployment: 'deployment',
-      mirrorNamespace: 'solo-e2e',
-    });
+    const valuesArgument: string = await relayCommandInternal.prepareValuesArgForRelay(
+      createRelayConfig({
+        [flags.componentImage.constName]: 'redis:7',
+      }),
+    );
 
     expect(valuesArgument).to.include('--set relay.image.registry=docker.io');
     expect(valuesArgument).to.include('--set ws.image.registry=docker.io');
@@ -122,22 +110,11 @@ describe('RelayCommand unit tests', (): void => {
     sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
     try {
-      await relayCommandInternal.prepareValuesArgForRelay({
-        valuesFile: '',
-        nodeAliases: ['node1'],
-        chainId: '',
-        relayReleaseTag: '',
-        componentImage: 'latest',
-        replicaCount: 1,
-        operatorId: '0.0.2',
-        operatorKey: 'operator-key',
-        namespace: NamespaceName.of('solo-e2e'),
-        domainName: undefined,
-        context: 'kind-solo-cluster',
-        releaseName: 'relay-1',
-        deployment: 'deployment',
-        mirrorNamespace: 'solo-e2e',
-      });
+      await relayCommandInternal.prepareValuesArgForRelay(
+        createRelayConfig({
+          [flags.componentImage.constName]: 'latest',
+        }),
+      );
       expect.fail('Expected prepareValuesArgForRelay to throw');
     } catch (error) {
       expect(error.message).to.include('Invalid image reference format: latest');
