@@ -12,11 +12,11 @@ function createDefaultConfig(overrides: Partial<FalconPrepareConfig> = {}): Falc
     numberOfConsensusNodes: 1,
     releaseTag: version.HEDERA_PLATFORM_VERSION,
     mirrorNodeVersion: version.MIRROR_NODE_VERSION,
-    relayRelease: version.HEDERA_JSON_RPC_RELAY_VERSION,
-    blockNodeChartVersion: version.BLOCK_NODE_VERSION,
+    relayReleaseTag: version.HEDERA_JSON_RPC_RELAY_VERSION,
+    chartVersion: version.BLOCK_NODE_VERSION,
     explorerVersion: version.EXPLORER_VERSION,
     soloChartVersion: version.SOLO_CHART_VERSION,
-    loadBalancer: false,
+    loadBalancerEnabled: false,
     enableMirrorIngress: true,
     localBuildPath: '',
     debugNodeAlias: '',
@@ -61,7 +61,7 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
     const config: FalconPrepareConfig = createDefaultConfig({
       releaseTag: 'v0.99.0',
       mirrorNodeVersion: 'v0.200.0',
-      relayRelease: '0.50.0',
+      relayReleaseTag: '0.50.0',
     });
     const output: string = DefaultOneShotCommand.generateFalconValuesYaml(config);
     const parsed: Record<string, Record<string, string>> = yaml.parse(output);

@@ -132,7 +132,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               OneShotCommandDefinition.FALCON_PREPARE,
-              'Interactively generates a falcon-values.yaml for use with `falcon deploy`. ' +
+              'Interactively generates a falcon-values.yaml for use with `solo one-shot falcon deploy`. ' +
                 'By default writes to ./falcon-values.yaml in the current working directory; ' +
                 'override with --output-values-file. Pass --default to accept all defaults non-interactively.',
               this.oneShotCommand,

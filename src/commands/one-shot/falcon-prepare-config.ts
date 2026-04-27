@@ -13,11 +13,11 @@ export interface FalconPrepareConfig {
   numberOfConsensusNodes: number;
   releaseTag: string;
   mirrorNodeVersion: string;
-  relayRelease: string;
-  blockNodeChartVersion: string;
+  relayReleaseTag: string;
+  chartVersion: string;
   explorerVersion: string;
   soloChartVersion: string;
-  loadBalancer: boolean;
+  loadBalancerEnabled: boolean;
   enableMirrorIngress: boolean;
   localBuildPath: string;
   debugNodeAlias: string;

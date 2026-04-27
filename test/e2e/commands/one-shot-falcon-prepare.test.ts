@@ -21,20 +21,6 @@ const expectedSections: readonly string[] = [
   'explorerNode',
 ];
 
-/**
- * Build an argv array for `solo one-shot falcon prepare` with `--default`
- * (accepts all defaults non-interactively).
- *
- * This helper does NOT use `BaseCommandTest` from `./tests/base-command-test.ts`
- * because that class transitively imports `test/test-utility.ts`, which in turn
- * imports `keys-test.ts`. `keys-test.ts` extends `BaseCommandTest`, creating a
- * circular dependency that triggers an ES-module TDZ error when this test file
- * is loaded in isolation (e.g. by the dedicated `test-e2e-one-shot-falcon-prepare`
- * task that targets only this file).
- *
- * Since we only need the two trivial helpers (`newArgv` and `--flag.name`),
- * inlining them here keeps the test self-contained and dependency-free.
- */
 function buildPrepareArgv(outputPath: string): string[] {
   return [
     '${PATH}/node',
@@ -48,15 +34,6 @@ function buildPrepareArgv(outputPath: string): string[] {
   ];
 }
 
-/**
- * E2E coverage for `solo one-shot falcon prepare`.
- *
- * Unlike the other one-shot e2e tests, this suite does **not** require a
- * Kubernetes cluster: the prepare command only generates a values file and
- * exits. It exercises the full `main(argv)` path with `--default` so that any
- * regression in argv handling, `configManager.getFlag` wiring, or YAML
- * generation surfaces here rather than in the unit tests alone.
- */
 describe('One Shot Falcon Prepare E2E', (): void => {
   const generatedFiles: string[] = [];
 
@@ -101,5 +78,38 @@ describe('One Shot Falcon Prepare E2E', (): void => {
 
     const parsed: Record<string, unknown> = yaml.parse(fs.readFileSync(outputPath, 'utf8')) as Record<string, unknown>;
     expect(parsed).to.have.all.keys(...expectedSections);
+  });
+
+  it('resolves a relative path against the user working directory (INIT_CWD)', async (): Promise<void> => {
+    // Simulate running Solo from a directory that differs from process.cwd()
+    // (e.g. when invoked via npx / npm run from an external directory).
+    const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'falcon-cwd-'));
+    const relativeName: string = `falcon-values.e2e.${Date.now()}.relative.yaml`;
+    const expectedAbsolutePath: string = path.join(temporaryDirectory, relativeName);
+    generatedFiles.push(expectedAbsolutePath);
+
+    const originalInitCwd: string | undefined = process.env.INIT_CWD;
+    try {
+      // Point INIT_CWD to the temp directory so the relative path resolves there
+      process.env.INIT_CWD = temporaryDirectory;
+
+      await main(buildPrepareArgv(`./${relativeName}`));
+
+      expect(fs.existsSync(expectedAbsolutePath), `expected ${expectedAbsolutePath} to exist`).to.equal(true);
+
+      const parsed: Record<string, unknown> = yaml.parse(fs.readFileSync(expectedAbsolutePath, 'utf8')) as Record<
+        string,
+        unknown
+      >;
+      expect(parsed).to.have.all.keys(...expectedSections);
+    } finally {
+      // Restore original INIT_CWD
+      if (originalInitCwd === undefined) {
+        delete process.env.INIT_CWD;
+      } else {
+        process.env.INIT_CWD = originalInitCwd;
+      }
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+    }
   });
 });

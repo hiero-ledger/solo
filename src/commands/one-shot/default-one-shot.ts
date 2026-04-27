@@ -164,8 +164,24 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public static readonly FALCON_PREPARE_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.outputValuesFile, flags.acceptDefaults],
+    optional: [
+      flags.outputValuesFile,
+      flags.acceptDefaults,
+      flags.numberOfConsensusNodes,
+      flags.releaseTag,
+      flags.relayReleaseTag,
+      flags.soloChartVersion,
+      flags.mirrorNodeVersion,
+      flags.blockNodeChartVersion,
+      flags.explorerVersion,
+      flags.loadBalancerEnabled,
+      flags.forcePortForward,
+      flags.localBuildPath,
+      flags.debugNodeAlias,
+    ],
   };
+
+  private static readonly FALCON_PREPARE_CONFIGS_NAME: string = 'falconPrepareConfigs';
 
   public constructor(
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -1887,80 +1903,51 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return true;
   }
 
-  /**
-   * Flags whose `prompt` functions are invoked by the falcon prepare wizard.
-   * Keeping the list in declaration-order makes the wizard flow match the
-   * CLI help output.
-   */
-  private static readonly FALCON_PREPARE_PROMPTS: CommandFlag[] = [
-    flags.numberOfConsensusNodes,
-    flags.releaseTag,
-    flags.relayReleaseTag,
-    flags.soloChartVersion,
-    flags.mirrorNodeVersion,
-    flags.blockNodeChartVersion,
-    flags.explorerVersion,
-    flags.loadBalancerEnabled,
-    flags.forcePortForward,
-  ];
-
   public async prepareFalcon(argv: ArgvStruct): Promise<boolean> {
     this.configManager.update(argv);
 
-    // Resolve output path eagerly so success messages can show the absolute
-    // location (reduces ambiguity when run from a sub-directory).
+    // Resolve output path against the user's original working directory.
+    // npm/npx may change process.cwd() to the package root, but INIT_CWD
+    // preserves where the user actually invoked the command.
     const configuredOutputPath: string =
       this.configManager.getFlag<string>(flags.outputValuesFile) ?? './falcon-values.yaml';
-    const resolvedOutputPath: string = path.resolve(configuredOutputPath);
-
-    const config: FalconPrepareConfig = {
-      numberOfConsensusNodes: 1,
-      releaseTag: version.HEDERA_PLATFORM_VERSION,
-      mirrorNodeVersion: version.MIRROR_NODE_VERSION,
-      relayRelease: version.HEDERA_JSON_RPC_RELAY_VERSION,
-      blockNodeChartVersion: version.BLOCK_NODE_VERSION,
-      explorerVersion: version.EXPLORER_VERSION,
-      soloChartVersion: version.SOLO_CHART_VERSION,
-      loadBalancer: false,
-      enableMirrorIngress: true,
-      localBuildPath: '',
-      debugNodeAlias: '',
-      enableDevChartMode: false,
-      forcePortForward: true,
-      outputPath: resolvedOutputPath,
-    };
+    const userWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
+    const resolvedOutputPath: string = path.resolve(userWorkingDirectory, configuredOutputPath);
 
     const acceptDefaults: boolean = this.configManager.getFlag(flags.acceptDefaults) ?? false;
+
+    let config: FalconPrepareConfig;
 
     const tasks: Listr<AnyListrContext, ListrRendererValue, ListrRendererValue> = new Listr(
       [
         {
           title: 'Configure deployment options',
-          skip: (): boolean => acceptDefaults,
           task: async (_context: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>): Promise<void> => {
-            // Delegate to each flag's own prompt function so validation,
-            // defaults, and copy stay owned by `Flags` (comment #2).
-            await this.configManager.executePrompt(task, DefaultOneShotCommand.FALCON_PREPARE_PROMPTS);
+            if (acceptDefaults) {
+              flags.disablePrompts(DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST.optional);
+            }
 
-            config.numberOfConsensusNodes =
-              this.configManager.getFlag(flags.numberOfConsensusNodes) ?? config.numberOfConsensusNodes;
-            config.releaseTag = this.configManager.getFlag(flags.releaseTag) ?? config.releaseTag;
-            config.relayRelease = this.configManager.getFlag(flags.relayReleaseTag) ?? config.relayRelease;
-            config.soloChartVersion = this.configManager.getFlag(flags.soloChartVersion) ?? config.soloChartVersion;
-            config.mirrorNodeVersion = this.configManager.getFlag(flags.mirrorNodeVersion) ?? config.mirrorNodeVersion;
-            config.blockNodeChartVersion =
-              this.configManager.getFlag(flags.blockNodeChartVersion) ?? config.blockNodeChartVersion;
-            config.explorerVersion = this.configManager.getFlag(flags.explorerVersion) ?? config.explorerVersion;
-            config.loadBalancer = this.configManager.getFlag(flags.loadBalancerEnabled) ?? config.loadBalancer;
-            config.forcePortForward = this.configManager.getFlag(flags.forcePortForward) ?? config.forcePortForward;
+            const allFlags: CommandFlag[] = [
+              ...DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST.required,
+              ...DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST.optional,
+            ];
 
-            // Mirror node REST API is split across two instances (JS + Java) and
-            // routed via ingress, so the values file always enables it.
-            // See: PR #3879 review feedback from Ivo-Yankov.
+            await this.configManager.executePrompt(task, allFlags);
+
+            config = this.configManager.getConfig(DefaultOneShotCommand.FALCON_PREPARE_CONFIGS_NAME, allFlags, [
+              'enableDevChartMode',
+              'enableMirrorIngress',
+              'outputPath',
+            ]) as FalconPrepareConfig;
+
             config.enableMirrorIngress = true;
+            config.outputPath = resolvedOutputPath;
 
-            // Helm chart dev mode — intentionally separate from
-            // Flags.devMode (which is a logger verbosity toggle).
+            if (acceptDefaults) {
+              config.enableDevChartMode = false;
+              return;
+            }
+
             config.enableDevChartMode = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
               message: 'Enable development chart mode (use local platform build)?',
               default: false,
@@ -1968,8 +1955,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             if (config.enableDevChartMode) {
               await this.configManager.executePrompt(task, [flags.localBuildPath, flags.debugNodeAlias]);
-              config.localBuildPath = this.configManager.getFlag(flags.localBuildPath) ?? config.localBuildPath;
-              config.debugNodeAlias = this.configManager.getFlag(flags.debugNodeAlias) ?? config.debugNodeAlias;
+              config.localBuildPath = this.configManager.getFlag(flags.localBuildPath) ?? '';
+              config.debugNodeAlias = this.configManager.getFlag(flags.debugNodeAlias) ?? '';
             }
           },
         },
@@ -2008,16 +1995,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     'explorerNode',
   ];
 
-  /**
-   * Operational flags that must never appear in a generated falcon values file.
-   * These are invocation-time concerns (which cluster, which deployment, whether
-   * to prompt, whether to force) rather than chart values, so the per-section
-   * iteration below filters them out before emitting keys.
-   *
-   * Note: `flags.force` and `flags.forceBlockNodeIntegration` share the CLI
-   * name `force`; `flags.valuesFile` and `flags.networkDeploymentValuesFile`
-   * share `values-file`. Blocking by `.name` covers both.
-   */
   private static readonly FALCON_VALUES_BLOCKED_FLAGS: ReadonlySet<string> = new Set<string>([
     flags.deployment.name,
     flags.context.name,
@@ -2029,13 +2006,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     flags.quiet.name,
   ]);
 
-  /**
-   * Builds a falcon values section by iterating the upstream command's flag
-   * list — the **source of truth** for each section's deploy contract. Every
-   * flag becomes a `--{name}` YAML key; values come from `overrides` (keyed by
-   * `CommandFlag.name`) or default to the empty string (which
-   * `appendConfigToArgv` filters out at deploy time).
-   */
   private static buildFalconSectionFromFlags(
     flagList: CommandFlags,
     overrides: ReadonlyMap<string, string | number | boolean | null>,
@@ -2052,22 +2022,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public static generateFalconValuesYaml(config: FalconPrepareConfig): string {
-    // Each section's flag membership is the **contract** between `falcon prepare`
-    // and `falcon deploy`. We iterate each component command's upstream flag list
-    // (`NetworkCommand.DEPLOY_FLAGS_LIST` etc.) so that additions/renames in the
-    // deploy command propagate here automatically; operational flags are
-    // filtered via `FALCON_VALUES_BLOCKED_FLAGS`. The per-section `overrides`
-    // maps provide opinionated defaults derived from the user's wizard input;
-    // every other flag is emitted as empty string (ignored by
-    // `appendConfigToArgv` at deploy time).
-
     const networkOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
       string,
       string | number | boolean | null
     >([
       [flags.soloChartVersion.name, config.soloChartVersion],
       [flags.debugNodeAlias.name, config.debugNodeAlias],
-      [flags.loadBalancerEnabled.name, config.loadBalancer],
+      [flags.loadBalancerEnabled.name, config.loadBalancerEnabled],
       [flags.persistentVolumeClaims.name, false],
       [flags.releaseTag.name, config.releaseTag],
       [flags.serviceMonitor.name, false],
@@ -2106,7 +2067,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       string,
       string | number | boolean | null
     >([
-      [flags.relayReleaseTag.name, config.relayRelease],
+      [flags.relayReleaseTag.name, config.relayReleaseTag],
       [flags.replicaCount.name, 1],
       [flags.forcePortForward.name, config.forcePortForward],
       // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
@@ -2117,7 +2078,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       string,
       string | number | boolean | null
     >([
-      [flags.blockNodeChartVersion.name, config.blockNodeChartVersion],
+      [flags.blockNodeChartVersion.name, config.chartVersion],
       [flags.enableIngress.name, false],
       [flags.devMode.name, config.enableDevChartMode],
     ]);
