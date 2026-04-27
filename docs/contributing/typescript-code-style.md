@@ -120,9 +120,9 @@ import {SomeClass, type SomeInterface} from './some-module.js';
 
 When working with filesystem path operations in Solo code:
 
-* Prefer `PathEx` from `src/business/utils/path-ex.ts` instead of direct `node:path` imports.
-* Do not introduce new direct `path.join(...)`, `path.resolve(...)`, `path.relative(...)`, or `path.basename(...)` calls when a `PathEx` equivalent exists.
-* Keep path handling centralized through `PathEx` to preserve consistency and safety guidance in one place.
+- Prefer `PathEx` from `src/business/utils/path-ex.ts` instead of direct `node:path` imports.
+- Do not introduce new direct `path.join(...)`, `path.resolve(...)`, `path.relative(...)`, or `path.basename(...)` calls when a `PathEx` equivalent exists.
+- Keep path handling centralized through `PathEx` to preserve consistency and safety guidance in one place.
 
 ### 3.4 Exports
 
