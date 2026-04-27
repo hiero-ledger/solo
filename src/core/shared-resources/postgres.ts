@@ -83,8 +83,7 @@ export class PostgresSharedResource {
   ): Promise<void> {
     const containerReference: ContainerReference = await this.resolveContainerReference(namespace, context);
     const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-    const version: SemanticVersion<string> = new SemanticVersion<string>(MIRROR_NODE_VERSION.replaceAll('v', ''));
-    const tag: string = `v${version.major}.${version.minor}.${version.patch}`;
+    const tag: string = getMirrorNodeReleaseTag(MIRROR_NODE_VERSION);
 
     // check if path exists recursive PathEx.join(constants.SOLO_CACHE_DIR, 'mirror-node', mirrorRelease, 'init-script.sh')
     if (!fs.existsSync(PathEx.join(SOLO_CACHE_DIR, 'mirror-node', tag))) {
@@ -287,4 +286,8 @@ export class PostgresSharedResource {
       }
     }
   }
+}
+
+export function getMirrorNodeReleaseTag(version: string): string {
+  return new SemanticVersion<string>(version).toPrefixedString();
 }
