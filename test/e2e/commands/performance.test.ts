@@ -106,15 +106,37 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
           // Collect diagnostic logs/JFR before local metrics post-processing so
           // failures there do not skip artifact collection.
-          await preDestroy(endToEndTestSuite);
+          try {
+            await preDestroy(endToEndTestSuite);
+          } catch (error: unknown) {
+            testLogger.error(`${testName}: failed to collect pre-destroy artifacts: ${error}`);
+          }
 
           // read all logged metrics and parse the JSON
           const namespace: string = await getNamespaceFromDeployment();
-          const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
-          const files: string[] = fs.readdirSync(tartgetDirectory);
+          const targetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
+          if (!fs.existsSync(targetDirectory)) {
+            testLogger.info(`${testName}: metrics directory ${targetDirectory} does not exist, skipping aggregation`);
+            testLogger.info(`${testName}: beginning ${testName}: destroy`);
+            await main(soloOneShotDestroy(testName));
+            testLogger.info(`${testName}: finished ${testName}: destroy`);
+            return;
+          }
+
+          const files: string[] = fs
+            .readdirSync(targetDirectory)
+            .filter((fileName: string): boolean => fileName.endsWith('.json'));
+          if (files.length === 0) {
+            testLogger.info(`${testName}: no metrics files found in ${targetDirectory}, skipping aggregation`);
+            testLogger.info(`${testName}: beginning ${testName}: destroy`);
+            await main(soloOneShotDestroy(testName));
+            testLogger.info(`${testName}: finished ${testName}: destroy`);
+            return;
+          }
+
           const allMetrics: Record<string, AggregatedMetrics> = {};
           for (const file of files) {
-            const filePath: string = PathEx.join(tartgetDirectory, file);
+            const filePath: string = PathEx.join(targetDirectory, file);
             const fileContents: string = fs.readFileSync(filePath, 'utf8');
             const fileName: string = file.split('.')[0];
             allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
@@ -122,10 +144,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
           // save the aggregated metrics to a single file
           const aggregatedMetricsFileName: string = 'timeline-metrics.json';
-          const aggregatedMetricsPath: string = PathEx.join(tartgetDirectory, aggregatedMetricsFileName);
+          const aggregatedMetricsPath: string = PathEx.join(targetDirectory, aggregatedMetricsFileName);
           fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
 
-          let maxCpuMetrics: number = 0;
+          let maxCpuMetrics: number = Number.NEGATIVE_INFINITY;
           let maxCpuFile: string = '';
           for (const [fileName, metrics] of Object.entries(allMetrics)) {
             if (metrics.cpuInMillicores > maxCpuMetrics) {
@@ -142,25 +164,23 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           }
 
           // save the file with the max CPU metrics and inject the peak memory value
-          const maxCpuFileName: string = `${maxCpuFile}.json`;
           const namespaceJson: Record<string, unknown> = {
             ...(allMetrics[maxCpuFile] as unknown as Record<string, unknown>),
             peakMemoryInMebibytes: maxMemoryMetrics,
           };
-          fs.writeFileSync(PathEx.join(tartgetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
+          fs.writeFileSync(PathEx.join(targetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
 
           // remove all files except the aggregated and max CPU files
-          const filesToKeep: Set<string> = new Set([maxCpuFileName, aggregatedMetricsFileName]);
+          const filesToKeep: Set<string> = new Set([`${namespace}.json`, aggregatedMetricsFileName]);
           for (const file of files) {
-            const fileName: string = file.split('.')[0];
-            if (!filesToKeep.has(fileName)) {
-              fs.rmSync(PathEx.join(tartgetDirectory, file));
+            if (!filesToKeep.has(file)) {
+              fs.rmSync(PathEx.join(targetDirectory, file));
             }
           }
 
           // copy the maxCpuFile to the main solo logs directory to be accessible by existing scripts
           fs.copyFileSync(
-            PathEx.join(tartgetDirectory, `${namespace}.json`),
+            PathEx.join(targetDirectory, `${namespace}.json`),
             PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
           );
 
