@@ -1,70 +1,45 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {inject, injectable} from 'tsyringe-neo';
+import {type ListrContext, type ListrRendererValue} from 'listr2';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../../../core/dependency-injection/container-helper.js';
+import {type TaskList} from '../../../../core/task-list/task-list.js';
 import {type SoloEventBus} from '../../../../core/events/solo-event-bus.js';
 import {type SoloListr, type SoloListrTask, type SoloListrTaskWrapper} from '../../../../types/index.js';
 import {type OneShotSingleDestroyConfigClass} from '../../one-shot-single-destroy-config-class.js';
 import {type OneShotSingleDestroyContext} from '../../one-shot-single-destroy-context.js';
 import {type OneShotDestroyOrchestrator} from './one-shot-destroy-orchestrator.js';
-import {DestroyExplorerStep} from './destroy-explorer-step.js';
-import {DestroyRelayStep} from './destroy-relay-step.js';
-import {DestroyMirrorNodeStep} from './destroy-mirror-node-step.js';
-import {DestroyBlockNodeStep} from './destroy-block-node-step.js';
-import {DestroyConsensusNodeStep} from './destroy-consensus-node-step.js';
-import {ClusterResetStep} from './cluster-reset-step.js';
-import {ClusterDisconnectStep} from './cluster-disconnect-step.js';
-import {DeploymentDeleteStep} from './deployment-delete-step.js';
 import {Phase} from '../phase.js';
+import {BlockCommandDefinition} from '../../../command-definitions/block-command-definition.js';
+import {ExplorerCommandDefinition} from '../../../command-definitions/explorer-command-definition.js';
+import {RelayCommandDefinition} from '../../../command-definitions/relay-command-definition.js';
+import {MirrorCommandDefinition} from '../../../command-definitions/mirror-command-definition.js';
+import {ConsensusCommandDefinition} from '../../../command-definitions/consensus-command-definition.js';
+import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cluster-reference-command-definition.js';
+import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
+import {invokeSoloCommand} from '../../../command-helpers.js';
+import * as constants from '../../../../core/constants.js';
+import {
+  buildClusterDisconnectArgv,
+  buildClusterResetArgv,
+  buildDeploymentDeleteArgv,
+  buildDestroyBlockNodeArgv,
+  buildDestroyConsensusNodeArgv,
+  buildDestroyExplorerArgv,
+  buildDestroyMirrorNodeArgv,
+  buildDestroyRelayArgv,
+} from './destroy-argv-builders.js';
 
 @injectable()
 export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestrator {
   public constructor(
+    @inject(InjectTokens.TaskList)
+    private readonly taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
     @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
-    @inject(InjectTokens.DestroyExplorerStep) private readonly destroyExplorerStep: DestroyExplorerStep,
-    @inject(InjectTokens.DestroyRelayStep) private readonly destroyRelayStep: DestroyRelayStep,
-    @inject(InjectTokens.DestroyMirrorNodeStep) private readonly destroyMirrorNodeStep: DestroyMirrorNodeStep,
-    @inject(InjectTokens.DestroyBlockNodeStep) private readonly destroyBlockNodeStep: DestroyBlockNodeStep,
-    @inject(InjectTokens.DestroyConsensusNodeStep)
-    private readonly destroyConsensusNodeStep: DestroyConsensusNodeStep,
-    @inject(InjectTokens.ClusterResetStep) private readonly clusterResetStep: ClusterResetStep,
-    @inject(InjectTokens.ClusterDisconnectStep) private readonly clusterDisconnectStep: ClusterDisconnectStep,
-    @inject(InjectTokens.DeploymentDeleteStep) private readonly deploymentDeleteStep: DeploymentDeleteStep,
   ) {
+    this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
-    this.destroyExplorerStep = patchInject(
-      destroyExplorerStep,
-      InjectTokens.DestroyExplorerStep,
-      this.constructor.name,
-    );
-    this.destroyRelayStep = patchInject(destroyRelayStep, InjectTokens.DestroyRelayStep, this.constructor.name);
-    this.destroyMirrorNodeStep = patchInject(
-      destroyMirrorNodeStep,
-      InjectTokens.DestroyMirrorNodeStep,
-      this.constructor.name,
-    );
-    this.destroyBlockNodeStep = patchInject(
-      destroyBlockNodeStep,
-      InjectTokens.DestroyBlockNodeStep,
-      this.constructor.name,
-    );
-    this.destroyConsensusNodeStep = patchInject(
-      destroyConsensusNodeStep,
-      InjectTokens.DestroyConsensusNodeStep,
-      this.constructor.name,
-    );
-    this.clusterResetStep = patchInject(clusterResetStep, InjectTokens.ClusterResetStep, this.constructor.name);
-    this.clusterDisconnectStep = patchInject(
-      clusterDisconnectStep,
-      InjectTokens.ClusterDisconnectStep,
-      this.constructor.name,
-    );
-    this.deploymentDeleteStep = patchInject(
-      deploymentDeleteStep,
-      InjectTokens.DeploymentDeleteStep,
-      this.constructor.name,
-    );
   }
 
   public buildDestroyTaskList(
@@ -74,16 +49,95 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
     const phases: Array<Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>> = [
       Phase.composite(
         'Destroy extended setup',
-        [new Phase('Destroy explorer', this.destroyExplorerStep), new Phase('Destroy relay', this.destroyRelayStep)],
+        [
+          new Phase('Destroy explorer', {
+            asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+              invokeSoloCommand(
+                `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
+                ExplorerCommandDefinition.DESTROY_COMMAND,
+                (): string[] => buildDestroyExplorerArgv(c),
+                this.taskList,
+                (): boolean => !c.hasExplorers,
+              ),
+          }),
+          new Phase('Destroy relay', {
+            asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+              invokeSoloCommand(
+                `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
+                RelayCommandDefinition.DESTROY_COMMAND,
+                (): string[] => buildDestroyRelayArgv(c),
+                this.taskList,
+                (): boolean => !c.hasRelays,
+              ),
+          }),
+        ],
         'concurrent',
         false,
       ),
-      new Phase('Destroy mirror node', this.destroyMirrorNodeStep),
-      new Phase('Destroy block node', this.destroyBlockNodeStep),
-      new Phase('Destroy consensus node', this.destroyConsensusNodeStep),
-      new Phase('Cluster reset', this.clusterResetStep),
-      new Phase('Cluster disconnect', this.clusterDisconnectStep),
-      new Phase('Deployment delete', this.deploymentDeleteStep),
+      new Phase('Destroy mirror node', {
+        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+          invokeSoloCommand(
+            `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
+            MirrorCommandDefinition.DESTROY_COMMAND,
+            (): string[] => buildDestroyMirrorNodeArgv(c),
+            this.taskList,
+            (): boolean => c.skipAll || !c.deployment || !c.hasMirrorNodes,
+          ),
+      }),
+      new Phase('Destroy block node', {
+        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+          invokeSoloCommand(
+            `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
+            BlockCommandDefinition.DESTROY_COMMAND,
+            (): string[] => buildDestroyBlockNodeArgv(c),
+            this.taskList,
+            (): boolean =>
+              c.skipAll ||
+              !c.deployment ||
+              constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+              c.hasBlockNodes === false,
+          ),
+      }),
+      new Phase('Destroy consensus node', {
+        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+          invokeSoloCommand(
+            `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
+            ConsensusCommandDefinition.DESTROY_COMMAND,
+            (): string[] => buildDestroyConsensusNodeArgv(c),
+            this.taskList,
+            (): boolean => c.skipAll || !c.deployment,
+          ),
+      }),
+      new Phase('Cluster reset', {
+        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+          invokeSoloCommand(
+            `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
+            ClusterReferenceCommandDefinition.RESET_COMMAND,
+            (): string[] => buildClusterResetArgv(c),
+            this.taskList,
+            (): boolean => c.skipAll || !c.deployment,
+          ),
+      }),
+      new Phase('Cluster disconnect', {
+        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+          invokeSoloCommand(
+            `solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND}`,
+            ClusterReferenceCommandDefinition.DISCONNECT_COMMAND,
+            (): string[] => buildClusterDisconnectArgv(c),
+            this.taskList,
+            (): boolean => c.skipAll || !c.deployment,
+          ),
+      }),
+      new Phase('Deployment delete', {
+        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+          invokeSoloCommand(
+            `solo ${DeploymentCommandDefinition.DELETE_COMMAND}`,
+            DeploymentCommandDefinition.DELETE_COMMAND,
+            (): string[] => buildDeploymentDeleteArgv(c),
+            this.taskList,
+            (): boolean => !c.deployment,
+          ),
+      }),
     ];
 
     return parentTask.newListr(

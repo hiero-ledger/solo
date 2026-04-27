@@ -3,18 +3,19 @@
 import sinon, {type SinonStub} from 'sinon';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
+import {type ListrContext, type ListrRendererValue} from 'listr2';
 import {DefaultOneShotDeployOrchestrator} from '../../../../../../src/commands/one-shot/orchestrator/deploy/default-one-shot-deploy-orchestrator.js';
-import {type DeployBlockNodeStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-block-node-step.js';
-import {type DeployNetworkPipelineStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-network-pipeline-step.js';
-import {type DeployMirrorNodeStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-mirror-node-step.js';
-import {type DeployExplorerStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-explorer-step.js';
-import {type DeployRelayStep} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-relay-step.js';
 import {type SoloEventBus} from '../../../../../../src/core/events/solo-event-bus.js';
 import {SoloEventType} from '../../../../../../src/core/events/event-types/event-types.js';
 import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
 import {type OneShotSingleDeployContext} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-context.js';
 import {type SoloListrTaskWrapper} from '../../../../../../src/types/index.js';
 import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
+import {type TaskList} from '../../../../../../src/core/task-list/task-list.js';
+import {type AccountManager} from '../../../../../../src/core/account-manager.js';
+import {type LocalConfigRuntimeState} from '../../../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
+import {type SoloLogger} from '../../../../../../src/core/logging/solo-logger.js';
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {
@@ -35,42 +36,29 @@ function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): On
     networkConfiguration: {},
     setupConfiguration: {},
     consensusNodeConfiguration: {},
+    cacheDir: '/tmp/cache',
     ...overrides,
   } as OneShotSingleDeployConfigClass;
 }
 
 describe('DefaultOneShotDeployOrchestrator', (): void => {
   let orchestrator: DefaultOneShotDeployOrchestrator;
-  let blockNodeStepStub: DeployBlockNodeStep;
-  let networkPipelineStepStub: DeployNetworkPipelineStep;
-  let mirrorNodeStepStub: DeployMirrorNodeStep;
-  let explorerStepStub: DeployExplorerStep;
-  let relayStepStub: DeployRelayStep;
+  let taskListStub: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>;
   let eventBusStub: SoloEventBus;
   let waitForStub: SinonStub;
 
   beforeEach((): void => {
-    blockNodeStepStub = {asListrTask: sinon.stub().returns({title: 'block-task'})} as unknown as DeployBlockNodeStep;
-    networkPipelineStepStub = {
-      asListrTask: sinon.stub().returns({title: 'network-task'}),
-    } as unknown as DeployNetworkPipelineStep;
-    mirrorNodeStepStub = {
-      asListrTask: sinon.stub().returns({title: 'mirror-task'}),
-    } as unknown as DeployMirrorNodeStep;
-    explorerStepStub = {
-      asListrTask: sinon.stub().returns({title: 'explorer-task'}),
-    } as unknown as DeployExplorerStep;
-    relayStepStub = {asListrTask: sinon.stub().returns({title: 'relay-task'})} as unknown as DeployRelayStep;
+    taskListStub = {} as TaskList<ListrContext, ListrRendererValue, ListrRendererValue>;
     waitForStub = sinon.stub().resolves({deployment: 'test-deployment'});
     eventBusStub = {waitFor: waitForStub} as unknown as SoloEventBus;
 
     orchestrator = new DefaultOneShotDeployOrchestrator(
+      taskListStub,
       eventBusStub,
-      blockNodeStepStub,
-      networkPipelineStepStub,
-      mirrorNodeStepStub,
-      explorerStepStub,
-      relayStepStub,
+      {} as AccountManager,
+      {} as LocalConfigRuntimeState,
+      {} as RemoteConfigRuntimeStateApi,
+      {} as SoloLogger,
     );
   });
 
@@ -84,9 +72,8 @@ describe('DefaultOneShotDeployOrchestrator', (): void => {
       const parentTaskStub: SoloListrTaskWrapper<OneShotSingleDeployContext> = {
         newListr: newListrStub,
       } as unknown as SoloListrTaskWrapper<OneShotSingleDeployContext>;
-      const config: OneShotSingleDeployConfigClass = makeConfig();
 
-      orchestrator.buildDeployTaskList(config, parentTaskStub);
+      orchestrator.buildDeployTaskList(makeConfig(), parentTaskStub);
 
       expect(newListrStub.calledOnce).to.be.true;
       const tasks: unknown[] = newListrStub.firstCall.args[0] as unknown[];
@@ -108,19 +95,35 @@ describe('DefaultOneShotDeployOrchestrator', (): void => {
       expect((newListrStub.firstCall.args[1] as {concurrent: boolean}).concurrent).to.equal(false);
     });
 
-    it('block, network, and mirror phases delegate their task directly from the step', (): void => {
+    it('block node and mirror node phases have a title and skip function', (): void => {
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const parentTaskStub: SoloListrTaskWrapper<OneShotSingleDeployContext> = {
         newListr: newListrStub,
       } as unknown as SoloListrTaskWrapper<OneShotSingleDeployContext>;
-      const config: OneShotSingleDeployConfigClass = makeConfig();
 
-      orchestrator.buildDeployTaskList(config, parentTaskStub);
+      orchestrator.buildDeployTaskList(makeConfig(), parentTaskStub);
 
       const tasks: unknown[] = newListrStub.firstCall.args[0] as unknown[];
-      expect(tasks[0]).to.deep.equal({title: 'block-task'});
-      expect(tasks[1]).to.deep.equal({title: 'network-task'});
-      expect(tasks[2]).to.deep.equal({title: 'mirror-task'});
+      const blockTask: {title: string; skip: () => boolean} = tasks[0] as {title: string; skip: () => boolean};
+      const mirrorTask: {title: string; skip: () => boolean} = tasks[2] as {title: string; skip: () => boolean};
+      expect(blockTask.title).to.be.a('string').and.not.be.empty;
+      expect(blockTask.skip).to.be.a('function');
+      expect(mirrorTask.title).to.be.a('string').and.not.be.empty;
+      expect(mirrorTask.skip).to.be.a('function');
+    });
+
+    it('network node phase is a composite with title "Deploy network node" and a task function', (): void => {
+      const newListrStub: SinonStub = sinon.stub().returns([]);
+      const parentTaskStub: SoloListrTaskWrapper<OneShotSingleDeployContext> = {
+        newListr: newListrStub,
+      } as unknown as SoloListrTaskWrapper<OneShotSingleDeployContext>;
+
+      orchestrator.buildDeployTaskList(makeConfig(), parentTaskStub);
+
+      const tasks: unknown[] = newListrStub.firstCall.args[0] as unknown[];
+      const networkTask: {title: string; task: () => unknown} = tasks[1] as {title: string; task: () => unknown};
+      expect(networkTask.title).to.equal('Deploy network node');
+      expect(networkTask.task).to.be.a('function');
     });
 
     it('explorer phase wraps with a wait for MirrorNodeDeployed event', async (): Promise<void> => {
@@ -128,9 +131,8 @@ describe('DefaultOneShotDeployOrchestrator', (): void => {
       const parentTaskStub: SoloListrTaskWrapper<OneShotSingleDeployContext> = {
         newListr: newListrStub,
       } as unknown as SoloListrTaskWrapper<OneShotSingleDeployContext>;
-      const config: OneShotSingleDeployConfigClass = makeConfig();
 
-      orchestrator.buildDeployTaskList(config, parentTaskStub);
+      orchestrator.buildDeployTaskList(makeConfig(), parentTaskStub);
 
       const tasks: unknown[] = newListrStub.firstCall.args[0] as unknown[];
       type PhaseTaskShape = {
@@ -157,9 +159,8 @@ describe('DefaultOneShotDeployOrchestrator', (): void => {
       const parentTaskStub: SoloListrTaskWrapper<OneShotSingleDeployContext> = {
         newListr: newListrStub,
       } as unknown as SoloListrTaskWrapper<OneShotSingleDeployContext>;
-      const config: OneShotSingleDeployConfigClass = makeConfig();
 
-      orchestrator.buildDeployTaskList(config, parentTaskStub);
+      orchestrator.buildDeployTaskList(makeConfig(), parentTaskStub);
 
       const tasks: unknown[] = newListrStub.firstCall.args[0] as unknown[];
       type PhaseTaskShape = {

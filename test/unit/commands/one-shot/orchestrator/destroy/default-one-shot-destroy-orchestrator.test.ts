@@ -3,20 +3,14 @@
 import sinon, {type SinonStub} from 'sinon';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
+import {type ListrContext, type ListrRendererValue} from 'listr2';
 import {DefaultOneShotDestroyOrchestrator} from '../../../../../../src/commands/one-shot/orchestrator/destroy/default-one-shot-destroy-orchestrator.js';
-import {type DestroyExplorerStep} from '../../../../../../src/commands/one-shot/orchestrator/destroy/destroy-explorer-step.js';
-import {type DestroyRelayStep} from '../../../../../../src/commands/one-shot/orchestrator/destroy/destroy-relay-step.js';
-import {type DestroyMirrorNodeStep} from '../../../../../../src/commands/one-shot/orchestrator/destroy/destroy-mirror-node-step.js';
-import {type DestroyBlockNodeStep} from '../../../../../../src/commands/one-shot/orchestrator/destroy/destroy-block-node-step.js';
-import {type DestroyConsensusNodeStep} from '../../../../../../src/commands/one-shot/orchestrator/destroy/destroy-consensus-node-step.js';
-import {type ClusterResetStep} from '../../../../../../src/commands/one-shot/orchestrator/destroy/cluster-reset-step.js';
-import {type ClusterDisconnectStep} from '../../../../../../src/commands/one-shot/orchestrator/destroy/cluster-disconnect-step.js';
-import {type DeploymentDeleteStep} from '../../../../../../src/commands/one-shot/orchestrator/destroy/deployment-delete-step.js';
 import {type SoloEventBus} from '../../../../../../src/core/events/solo-event-bus.js';
 import {type OneShotSingleDestroyConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-destroy-config-class.js';
 import {type OneShotSingleDestroyContext} from '../../../../../../src/commands/one-shot/one-shot-single-destroy-context.js';
 import {type SoloListrTaskWrapper} from '../../../../../../src/types/index.js';
 import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
+import {type TaskList} from '../../../../../../src/core/task-list/task-list.js';
 
 function makeConfig(overrides: Partial<OneShotSingleDestroyConfigClass> = {}): OneShotSingleDestroyConfigClass {
   return {
@@ -36,54 +30,14 @@ function makeConfig(overrides: Partial<OneShotSingleDestroyConfigClass> = {}): O
 
 describe('DefaultOneShotDestroyOrchestrator', (): void => {
   let orchestrator: DefaultOneShotDestroyOrchestrator;
-  let destroyExplorerStepStub: DestroyExplorerStep;
-  let destroyRelayStepStub: DestroyRelayStep;
-  let destroyMirrorNodeStepStub: DestroyMirrorNodeStep;
-  let destroyBlockNodeStepStub: DestroyBlockNodeStep;
-  let destroyConsensusNodeStepStub: DestroyConsensusNodeStep;
-  let clusterResetStepStub: ClusterResetStep;
-  let clusterDisconnectStepStub: ClusterDisconnectStep;
-  let deploymentDeleteStepStub: DeploymentDeleteStep;
+  let taskListStub: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>;
   let eventBusStub: SoloEventBus;
 
   beforeEach((): void => {
-    destroyExplorerStepStub = {
-      asListrTask: sinon.stub().returns({title: 'destroy-explorer-task'}),
-    } as unknown as DestroyExplorerStep;
-    destroyRelayStepStub = {
-      asListrTask: sinon.stub().returns({title: 'destroy-relay-task'}),
-    } as unknown as DestroyRelayStep;
-    destroyMirrorNodeStepStub = {
-      asListrTask: sinon.stub().returns({title: 'destroy-mirror-task'}),
-    } as unknown as DestroyMirrorNodeStep;
-    destroyBlockNodeStepStub = {
-      asListrTask: sinon.stub().returns({title: 'destroy-block-task'}),
-    } as unknown as DestroyBlockNodeStep;
-    destroyConsensusNodeStepStub = {
-      asListrTask: sinon.stub().returns({title: 'destroy-consensus-task'}),
-    } as unknown as DestroyConsensusNodeStep;
-    clusterResetStepStub = {
-      asListrTask: sinon.stub().returns({title: 'cluster-reset-task'}),
-    } as unknown as ClusterResetStep;
-    clusterDisconnectStepStub = {
-      asListrTask: sinon.stub().returns({title: 'cluster-disconnect-task'}),
-    } as unknown as ClusterDisconnectStep;
-    deploymentDeleteStepStub = {
-      asListrTask: sinon.stub().returns({title: 'deployment-delete-task'}),
-    } as unknown as DeploymentDeleteStep;
+    taskListStub = {} as TaskList<ListrContext, ListrRendererValue, ListrRendererValue>;
     eventBusStub = {waitFor: sinon.stub()} as unknown as SoloEventBus;
 
-    orchestrator = new DefaultOneShotDestroyOrchestrator(
-      eventBusStub,
-      destroyExplorerStepStub,
-      destroyRelayStepStub,
-      destroyMirrorNodeStepStub,
-      destroyBlockNodeStepStub,
-      destroyConsensusNodeStepStub,
-      clusterResetStepStub,
-      clusterDisconnectStepStub,
-      deploymentDeleteStepStub,
-    );
+    orchestrator = new DefaultOneShotDestroyOrchestrator(taskListStub, eventBusStub);
   });
 
   afterEach((): void => {
@@ -159,7 +113,7 @@ describe('DefaultOneShotDestroyOrchestrator', (): void => {
       expect(options.exitOnError).to.equal(false);
     });
 
-    it('mirror, block, consensus, reset, disconnect, and delete phases delegate directly from their steps', (): void => {
+    it('mirror, block, consensus, reset, disconnect, and delete phases have titles and skip functions', (): void => {
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const parentTaskStub: SoloListrTaskWrapper<OneShotSingleDestroyContext> = {
         newListr: newListrStub,
@@ -168,12 +122,14 @@ describe('DefaultOneShotDestroyOrchestrator', (): void => {
       orchestrator.buildDestroyTaskList(makeConfig(), parentTaskStub);
 
       const tasks: unknown[] = newListrStub.firstCall.args[0] as unknown[];
-      expect(tasks[1]).to.deep.equal({title: 'destroy-mirror-task'});
-      expect(tasks[2]).to.deep.equal({title: 'destroy-block-task'});
-      expect(tasks[3]).to.deep.equal({title: 'destroy-consensus-task'});
-      expect(tasks[4]).to.deep.equal({title: 'cluster-reset-task'});
-      expect(tasks[5]).to.deep.equal({title: 'cluster-disconnect-task'});
-      expect(tasks[6]).to.deep.equal({title: 'deployment-delete-task'});
+      for (const taskIndex of [1, 2, 3, 4, 5, 6]) {
+        const phaseTask: {title: string; skip: () => boolean} = tasks[taskIndex] as {
+          title: string;
+          skip: () => boolean;
+        };
+        expect(phaseTask.title).to.be.a('string').and.not.be.empty;
+        expect(phaseTask.skip).to.be.a('function');
+      }
     });
   });
 });
