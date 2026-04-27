@@ -34,6 +34,7 @@ let stopping: boolean = false;
 let exitForMissingTarget: boolean = false;
 let consecutivePodMissingChecks: number = 0;
 let consecutiveClusterUnavailableChecks: number = 0;
+let targetResource: string = POD;
 
 interface CommandResult {
   code: number;
@@ -66,6 +67,98 @@ function isMissingPodError(message: string): boolean {
     errorText.includes('notfound') ||
     (errorText.includes('not found') && (errorText.includes('pods') || errorText.includes('pod')))
   );
+}
+
+function extractPodName(resource: string): string | undefined {
+  const podPrefix: string = 'pods/';
+  if (!resource.startsWith(podPrefix)) {
+    return undefined;
+  }
+  return resource.slice(podPrefix.length);
+}
+
+function derivePodWorkloadPrefix(podName: string): string {
+  if (!podName.includes('-')) {
+    return podName;
+  }
+
+  const deploymentStyleMatch: RegExpMatchArray | null = podName.match(/^(.*)-[a-f0-9]{9,10}-[a-z0-9]{5}$/);
+  if (deploymentStyleMatch?.[1]) {
+    return deploymentStyleMatch[1];
+  }
+
+  const statefulSetStyleMatch: RegExpMatchArray | null = podName.match(/^(.*)-\d+$/);
+  if (statefulSetStyleMatch?.[1]) {
+    return statefulSetStyleMatch[1];
+  }
+
+  return podName;
+}
+
+async function findReplacementPodResource(kubectlInstallationDirectory: string): Promise<string | undefined> {
+  const currentPodName: string | undefined = extractPodName(targetResource);
+  if (!currentPodName) {
+    return undefined;
+  }
+
+  const workloadPrefix: string = derivePodWorkloadPrefix(currentPodName);
+  const currentPodSegmentCount: number = currentPodName.split('-').length;
+  const runningPodsResult: CommandResult = await executeKubectl(
+    ['--context', CONTEXT, '-n', NAMESPACE, 'get', 'pods', '--field-selector=status.phase=Running', '-o', 'name'],
+    kubectlInstallationDirectory,
+    {captureOutput: true, trackAsChild: false},
+  );
+  if (runningPodsResult.code !== 0) {
+    return undefined;
+  }
+
+  const replacementPodName: string | undefined = runningPodsResult.stdout
+    .split('\n')
+    .map((line: string): string => line.trim())
+    .filter((line: string): boolean => line.startsWith('pod/'))
+    .map((line: string): string => line.replace(/^pod\//, ''))
+    .find(
+      (podName: string): boolean =>
+        podName !== currentPodName &&
+        podName.split('-').length === currentPodSegmentCount &&
+        (podName === workloadPrefix || podName.startsWith(`${workloadPrefix}-`)),
+    );
+
+  if (!replacementPodName) {
+    return undefined;
+  }
+
+  return `pods/${replacementPodName}`;
+}
+
+async function hasReplacementPodCandidate(kubectlInstallationDirectory: string): Promise<boolean> {
+  const currentPodName: string | undefined = extractPodName(targetResource);
+  if (!currentPodName) {
+    return false;
+  }
+
+  const workloadPrefix: string = derivePodWorkloadPrefix(currentPodName);
+  const currentPodSegmentCount: number = currentPodName.split('-').length;
+  const podsResult: CommandResult = await executeKubectl(
+    ['--context', CONTEXT, '-n', NAMESPACE, 'get', 'pods', '-o', 'name'],
+    kubectlInstallationDirectory,
+    {captureOutput: true, trackAsChild: false},
+  );
+  if (podsResult.code !== 0) {
+    return false;
+  }
+
+  return podsResult.stdout
+    .split('\n')
+    .map((line: string): string => line.trim())
+    .filter((line: string): boolean => line.startsWith('pod/'))
+    .map((line: string): string => line.replace(/^pod\//, ''))
+    .some(
+      (podName: string): boolean =>
+        podName !== currentPodName &&
+        podName.split('-').length === currentPodSegmentCount &&
+        (podName === workloadPrefix || podName.startsWith(`${workloadPrefix}-`)),
+    );
 }
 
 function isClusterUnavailableError(message: string): boolean {
@@ -149,7 +242,7 @@ async function executeKubectl(
 async function shouldExitForMissingTarget(kubectlInstallationDirectory: string): Promise<boolean> {
   // The pod argument is the original pod reference this process was started for.
   const podResult: CommandResult = await executeKubectl(
-    ['--context', CONTEXT, '-n', NAMESPACE, 'get', POD, '-o', 'name'],
+    ['--context', CONTEXT, '-n', NAMESPACE, 'get', targetResource, '-o', 'name'],
     kubectlInstallationDirectory,
     {captureOutput: true, trackAsChild: false},
   );
@@ -163,10 +256,30 @@ async function shouldExitForMissingTarget(kubectlInstallationDirectory: string):
     }
 
     if (isMissingPodError(combinedPodError)) {
+      const replacementResource: string | undefined = await findReplacementPodResource(kubectlInstallationDirectory);
+      if (replacementResource) {
+        console.error(`Switching persistent port-forward target from ${targetResource} to ${replacementResource}`);
+        targetResource = replacementResource;
+        consecutivePodMissingChecks = 0;
+        if (child) {
+          try {
+            child.kill('SIGTERM');
+          } catch {
+            // ignore
+          }
+        }
+        return false;
+      }
+
+      if (await hasReplacementPodCandidate(kubectlInstallationDirectory)) {
+        consecutivePodMissingChecks = 0;
+        return false;
+      }
+
       consecutivePodMissingChecks += 1;
       if (consecutivePodMissingChecks >= POD_MISSING_EXIT_THRESHOLD) {
         console.error(
-          `Stopping persistent port-forward: original pod appears gone after ${consecutivePodMissingChecks} checks (${combinedPodError || 'unknown kubectl error'})`,
+          `Stopping persistent port-forward: target pod appears gone after ${consecutivePodMissingChecks} checks (${combinedPodError || 'unknown kubectl error'})`,
         );
         return true;
       }
@@ -204,7 +317,7 @@ function runKubectl(kubectlInstallationDirectory: string): Promise<number> {
   }
 
   const [LOCAL, REMOTE] = PORT_MAP.split(':');
-  arguments_.push(POD, `${LOCAL}:${REMOTE}`);
+  arguments_.push(targetResource, `${LOCAL}:${REMOTE}`);
 
   console.error(`Starting kubectl ${arguments_.join(' ')}`);
 
