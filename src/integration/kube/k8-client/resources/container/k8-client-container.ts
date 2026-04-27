@@ -54,7 +54,7 @@ export class K8ClientContainer implements Container {
    * @param maxAttempts - forwarded to {@link Pods.waitForPodByReference} (default 20)
    * @param delayMs - forwarded to {@link Pods.waitForPodByReference} (default 3000 ms)
    */
-  private async waitForValidPod(maxAttempts: number = 20, delayMs: number = 3000): Promise<void> {
+  private async waitForPod(maxAttempts: number = 20, delayMs: number = 3000): Promise<void> {
     const podName: string = this.containerReference.parentReference.name.toString();
     try {
       await this.pods.waitForPodByReference(this.containerReference.parentReference, maxAttempts, delayMs);
@@ -185,7 +185,7 @@ export class K8ClientContainer implements Container {
     sourcePath = this.toKubectlSafePath(sourcePath);
     destinationDirectory = this.toKubectlSafePath(destinationDirectory);
 
-    await this.waitForValidPod();
+    await this.waitForPod();
 
     if (!fs.existsSync(destinationDirectory)) {
       throw new SoloError(`invalid destination path: ${destinationDirectory}`);
@@ -233,7 +233,7 @@ export class K8ClientContainer implements Container {
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
 
-    await this.waitForValidPod();
+    await this.waitForPod();
 
     if (!(await this.hasDir(destinationDirectory))) {
       throw new SoloError(`invalid destination path: ${destinationDirectory}`);
@@ -306,7 +306,7 @@ export class K8ClientContainer implements Container {
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
 
-    await this.waitForValidPod();
+    await this.waitForPod();
 
     if (!cmd) {
       throw new MissingArgumentError('command cannot be empty');

@@ -170,7 +170,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        latestPod = await this.getSingleNewestStableReadyPod(namespace, labels);
+        latestPod = await this.getNewestReadyPod(namespace, labels);
         const podIdentity: string =
           `${latestPod.podReference?.name.toString() || '<unknown>'}:` +
           `${latestPod.creationTimestamp?.getTime() || 0}`;
@@ -252,7 +252,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     );
   }
 
-  private async getSingleNewestStableReadyPod(namespace: NamespaceName, labels: string[]): Promise<Pod> {
+  private async getNewestReadyPod(namespace: NamespaceName, labels: string[]): Promise<Pod> {
     const pods: Pod[] = await this.list(namespace, labels).then((matchingPods: Pod[]): Pod[] =>
       matchingPods.filter(
         (pod: Pod): boolean => !pod.deletionTimestamp && !!pod.podReference && !!pod.podIp && this.isPodReady(pod),
