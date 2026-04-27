@@ -8,13 +8,7 @@ import {SoloError} from './errors/solo-error.js';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
-import {
-  type AnyObject,
-  type AnyYargs,
-  type AnyListrContext,
-  type NodeAlias,
-  type NodeAliases,
-} from '../types/aliases.js';
+import {type AnyYargs, type AnyListrContext, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {type CommandFlag} from '../types/flag-types.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type Duration} from './time/duration.js';
@@ -602,12 +596,26 @@ export function remoteConfigsToDeploymentsTable(remoteConfigs: ConfigMap[]): str
   if (remoteConfigs.length > 0) {
     rows.push('Namespace : deployment');
     for (const remoteConfig of remoteConfigs) {
-      const remoteConfigData: AnyObject = yaml.parse(remoteConfig.data['remote-config-data']) as Record<
-        string,
-        AnyObject
-      >;
-      for (const cluster of remoteConfigData.clusters) {
-        rows.push(`${remoteConfig.namespace.name} : ${cluster.deployment}`);
+      const remoteConfigData: unknown = yaml.parse(remoteConfig.data?.['remote-config-data']);
+      let clustersData: unknown = undefined;
+      if (typeof remoteConfigData === 'object' && remoteConfigData !== null && 'clusters' in remoteConfigData) {
+        clustersData = (remoteConfigData as Record<string, unknown>).clusters;
+      }
+      const clustersArray: unknown[] = [];
+
+      if (Array.isArray(clustersData)) {
+        clustersArray.push(...clustersData);
+      } else if (typeof clustersData === 'object' && clustersData !== null) {
+        clustersArray.push(...Object.values(clustersData));
+      }
+
+      for (const clusterData of clustersArray) {
+        if (typeof clusterData === 'object' && clusterData !== null && 'deployment' in clusterData) {
+          const deployment: unknown = (clusterData as Record<string, unknown>).deployment;
+          if (typeof deployment === 'string') {
+            rows.push(`${remoteConfig.namespace.name} : ${deployment}`);
+          }
+        }
       }
     }
   }
