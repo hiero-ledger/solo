@@ -1110,8 +1110,8 @@ export class MirrorNodeCommand extends BaseCommand {
           ComponentTypes.MirrorNode,
           'Mirror ingress controller',
           config.isChartInstalled, // Reuse existing port if chart is already installed
-          nodeId,
-          persistPortForward,
+          undefined,
+          true, // persist: auto-restart on failure using persist-port-forward.js
           externalAddress,
         );
         await this.remoteConfig.persist();
@@ -1209,9 +1209,6 @@ export class MirrorNodeCommand extends BaseCommand {
             const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
 
             const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
-
-            config.valuesArg += ` --set web3.config.${chartNamespace}.mirror.web3.opcode.tracer.enabled=true`;
-            config.valuesArg += ` --set web3.config.${chartNamespace}.mirror.web3.evm.network=OTHER`;
 
             for (const module of modules) {
               config.valuesArg += ` --set ${module}.config.${chartNamespace}.mirror.common.realm=${realm}`;

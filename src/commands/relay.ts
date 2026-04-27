@@ -526,8 +526,8 @@ export class RelayCommand extends BaseCommand {
           ComponentTypes.RelayNodes,
           'JSON RPC Relay',
           config.isChartInstalled, // Reuse existing port if chart is already installed
-          nodeId,
-          persistPortForward,
+          undefined,
+          true, // persist: auto-restart on failure using persist-port-forward.js
           externalAddress,
         );
         await this.remoteConfig.persist();
