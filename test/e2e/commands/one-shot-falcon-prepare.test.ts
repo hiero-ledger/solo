@@ -9,6 +9,7 @@ import yaml from 'yaml';
 
 import {main} from '../../../src/index.js';
 import {Flags} from '../../../src/commands/flags.js';
+import {optionFromFlag} from '../../../src/commands/command-helpers.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 
 const expectedSections: readonly string[] = [
@@ -28,8 +29,8 @@ function buildPrepareArgv(outputPath: string): string[] {
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME,
     OneShotCommandDefinition.FALCON_PREPARE,
-    `--${Flags.acceptDefaults.name}`,
-    `--${Flags.outputValuesFile.name}`,
+    optionFromFlag(Flags.acceptDefaults),
+    optionFromFlag(Flags.outputValuesFile),
     outputPath,
   ];
 }

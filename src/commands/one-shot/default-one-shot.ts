@@ -2020,7 +2020,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       if (DefaultOneShotCommand.FALCON_VALUES_BLOCKED_FLAGS.has(flag.name)) {
         continue;
       }
-      const key: string = `--${flag.name}`;
+      const key: string = optionFromFlag(flag);
       section[key] = overrides.has(flag.name) ? (overrides.get(flag.name) as string | number | boolean | null) : '';
     }
     return section;
