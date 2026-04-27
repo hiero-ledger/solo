@@ -190,6 +190,9 @@ describe('Helpers', (): void => {
       } finally {
         fs.rmSync(temporaryDirectory, {recursive: true, force: true});
       }
+    });
+  });
+
   describe('remoteConfigsToDeploymentsTable', (): void => {
     it('should support clusters as an object map', (): void => {
       const remoteConfigs: ConfigMap[] = [
