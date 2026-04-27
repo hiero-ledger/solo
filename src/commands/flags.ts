@@ -1363,7 +1363,7 @@ export class Flags {
     name: 'local-build-path',
     definition: {
       describe: 'path of hedera local repo',
-      defaultValue: '',
+      defaultValue: constants.getEnvironmentVariable('SOLO_LOCAL_BUILD_PATH') || '',
       type: 'string',
     },
     prompt: async function promptLocalBuildPath(
