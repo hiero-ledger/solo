@@ -117,377 +117,429 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     leaseReference: {value?: Lock},
     configReference: {value?: OneShotSingleDeployConfigClass},
   ): SoloListrTask<OneShotSingleDeployContext>[] {
-    let config: OneShotSingleDeployConfigClass | undefined;
+    let config: OneShotSingleDeployConfigClass;
+    const getConfig = (): OneShotSingleDeployConfigClass => config;
 
-    return [
-      {
-        title: 'Initialize',
-        task: async (
-          context_: OneShotSingleDeployContext,
-          task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-        ): Promise<void> => {
-          this.configManager.update(argv);
-          this.oneShotState.activate();
-
-          const edgeEnabled: boolean = this.configManager.getFlag(flags.edgeEnabled);
-          const versions: OneShotVersionsObject = DeployArgvBuilders.resolveOneShotComponentVersions(edgeEnabled);
-
-          this.configManager.setFlag(flags.releaseTag, versions.consensus);
-          this.configManager.setFlag(flags.blockNodeChartVersion, versions.blockNode);
-          this.configManager.setFlag(flags.mirrorNodeVersion, versions.mirror);
-          this.configManager.setFlag(flags.relayReleaseTag, versions.relay);
-          this.configManager.setFlag(flags.explorerVersion, versions.explorer);
-          this.configManager.setFlag(flags.soloChartVersion, versions.soloChart);
-
-          flags.disablePrompts(flagsList.optional);
-
-          const allFlags: CommandFlag[] = [...flagsList.required, ...flagsList.optional];
-
-          await this.configManager.executePrompt(task, allFlags);
-
-          context_.config = this.configManager.getConfig(
-            SINGLE_DEPLOY_CONFIGS_NAME,
-            allFlags,
-          ) as OneShotSingleDeployConfigClass;
-          config = context_.config;
-          configReference.value = config;
-          config.argv = argv;
-
-          config.consensusNodeConfiguration = {};
-          config.mirrorNodeConfiguration = {};
-          config.blockNodeConfiguration = {};
-          config.explorerNodeConfiguration = {};
-          config.relayNodeConfiguration = {};
-          config.networkConfiguration = {};
-          config.setupConfiguration = {};
-          config.versions = versions;
-
-          config.cacheDir ??= constants.SOLO_CACHE_DIR;
-
-          if (config.valuesFile) {
-            const valuesFileContent: string = fs.readFileSync(context_.config.valuesFile, 'utf8');
-            const profileItems: Record<string, object> = yaml.parse(valuesFileContent) as Record<string, object>;
-
-            if (profileItems.network) {
-              config.networkConfiguration = profileItems.network as object;
-            }
-            if (profileItems.setup) {
-              config.setupConfiguration = profileItems.setup as object;
-            }
-            if (profileItems.consensusNode) {
-              config.consensusNodeConfiguration = profileItems.consensusNode as object;
-            }
-            if (profileItems.mirrorNode) {
-              config.mirrorNodeConfiguration = profileItems.mirrorNode as object;
-            }
-            if (profileItems.blockNode) {
-              config.blockNodeConfiguration = profileItems.blockNode as object;
-            }
-            if (profileItems.explorerNode) {
-              config.explorerNodeConfiguration = profileItems.explorerNode as object;
-            }
-            if (profileItems.relayNode) {
-              config.relayNodeConfiguration = profileItems.relayNode as object;
-            }
-          }
-          config.clusterRef = config.clusterRef || 'one-shot';
-          config.context = config.context || this.k8Factory.default().contexts().readCurrent();
-          config.deployment = config.deployment || 'one-shot';
-          config.namespace = config.namespace || NamespaceName.of('one-shot');
-          this.configManager.setFlag(flags.namespace, config.namespace);
-          config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
-          config.force = argv.force as boolean;
-
-          const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
-          const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
-          const cnVersion: SemanticVersion<string> = new SemanticVersion(versions.consensus);
-          if (!config.valuesFile && cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_SMALL_MEMORY)) {
-            const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
-            const overridesDirectory: string = PathEx.join(defaultsDirectory, 'small-memory');
-            const stateOnDiskDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-state-on-disk');
-            const mergedDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-merged');
-            const settingsOverrideFile: string =
-              config.numberOfConsensusNodes > 1 ? 'settings-multinode.txt' : 'settings-single.txt';
-            const useStateOnDisk: boolean = cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_STATE_ON_DISK);
-
-            const settingsMergedPath: string = PathEx.join(mergedDirectory, 'settings.txt');
-            this.concatConfigFiles(
-              PathEx.join(defaultsDirectory, 'settings.txt'),
-              PathEx.join(overridesDirectory, settingsOverrideFile),
-              settingsMergedPath,
-            );
-            config.networkConfiguration['--settings-txt'] = useStateOnDisk
-              ? this.concatConfigFiles(
-                  settingsMergedPath,
-                  PathEx.join(stateOnDiskDirectory, 'settings.txt'),
-                  settingsMergedPath,
-                )
-              : settingsMergedPath;
-
-            config.networkConfiguration['--application-properties'] = this.concatConfigFiles(
-              PathEx.join(defaultsDirectory, 'application.properties'),
-              PathEx.join(overridesDirectory, 'application.properties'),
-              PathEx.join(mergedDirectory, 'application.properties'),
-            );
-
-            config.networkConfiguration['--application-env'] = useStateOnDisk
-              ? PathEx.join(stateOnDiskDirectory, 'application.env')
-              : PathEx.join(overridesDirectory, 'application.env');
-
-            const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
-            if (fs.existsSync(throttlesFile)) {
-              config.networkConfiguration['--genesis-throttles-file'] = throttlesFile;
-            }
-          }
-
-          config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
-          config.deployExplorer = config.deployExplorer === undefined ? true : config.deployExplorer;
-          config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
-
-          context_.createdAccounts = [];
-
-          this.logger.debug(`quiet: ${config.quiet}`);
-        },
-      },
-      {
-        title: 'Acquire deployment lock',
-        task: async (
-          _: OneShotSingleDeployContext,
-          task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-        ): Promise<Listr<OneShotSingleDeployContext>> => {
-          leaseReference.value = await this.leaseManager.create();
-          return ListrLock.newAcquireLockTask(leaseReference.value, task);
-        },
-      },
-      {
-        title: 'Check for other deployments',
-        task: async (
-          _: OneShotSingleDeployContext,
-          task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-        ): Promise<void> => {
-          const existingRemoteConfigs: ConfigMap[] = await this.k8Factory
-            .default()
-            .configMaps()
-            .listForAllNamespaces(Templates.renderConfigMapRemoteConfigLabels());
-          if (existingRemoteConfigs.length > 0) {
-            const existingDeploymentsTable: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);
-            const promptOptions: {default: boolean; message: string} = {
-              default: false,
-              message:
-                '⚠️ Warning: Existing solo deployment detected in cluster.\n\n' +
-                existingDeploymentsTable.join('\n') +
-                '\n\nCreating another deployment will require additional' +
-                ' CPU and memory resources. Do you want to proceed and create another deployment?',
-            };
-            const proceed: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, promptOptions);
-            if (!proceed) {
-              throw new SoloError('Aborted by user');
-            }
-          }
-        },
-        skip: (context_: OneShotSingleDeployContext): boolean =>
-          context_.config.force === true || context_.config.quiet === true,
-      },
-      invokeSoloCommand(
-        `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
-        ClusterReferenceCommandDefinition.CONNECT_COMMAND,
-        (): string[] => DeployArgvBuilders.buildClusterConnectArgv(config),
-        this.taskList,
-      ),
-      invokeSoloCommand(
-        `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
-        DeploymentCommandDefinition.CREATE_COMMAND,
-        (): string[] => DeployArgvBuilders.buildDeploymentCreateArgv(config),
-        this.taskList,
-      ),
-      invokeSoloCommand(
-        `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
-        DeploymentCommandDefinition.ATTACH_COMMAND,
-        (): string[] => DeployArgvBuilders.buildDeploymentAttachArgv(config),
-        this.taskList,
-      ),
-      invokeSoloCommand(
-        `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
-        ClusterReferenceCommandDefinition.SETUP_COMMAND,
-        (): string[] => DeployArgvBuilders.buildClusterSetupArgv(config),
-        this.taskList,
-      ),
-      invokeSoloCommand(
-        `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
-        KeysCommandDefinition.KEYS_COMMAND,
-        (): string[] => DeployArgvBuilders.buildKeysGenerateArgv(config),
-        this.taskList,
-      ),
-      {
-        title: 'Create remote config components',
-        task: async (): Promise<void> => {
-          if (constants.ONE_SHOT_WITH_BLOCK_NODE === 'true') {
-            const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
-              config.clusterRef,
-              config.namespace,
-            );
-            blockNode.metadata.phase = DeploymentPhase.REQUESTED;
-            this.remoteConfig.configuration.components.addNewComponent(
-              blockNode,
-              ComponentTypes.BlockNode,
-              false,
-              true,
-            );
-          }
-
-          if (config.deployExplorer) {
-            const explorer: ExplorerStateSchema = this.componentFactory.createNewExplorerComponent(
-              config.clusterRef,
-              config.namespace,
-            );
-            explorer.metadata.phase = DeploymentPhase.REQUESTED;
-            this.remoteConfig.configuration.components.addNewComponent(explorer, ComponentTypes.Explorer, false, true);
-          }
-
-          if (config.deployMirrorNode) {
-            const mirrorNode: MirrorNodeStateSchema = this.componentFactory.createNewMirrorNodeComponent(
-              config.clusterRef,
-              config.namespace,
-            );
-            mirrorNode.metadata.phase = DeploymentPhase.REQUESTED;
-            this.remoteConfig.configuration.components.addNewComponent(
-              mirrorNode,
-              ComponentTypes.MirrorNode,
-              false,
-              true,
-            );
-          }
-
-          if (config.deployRelay) {
-            const nodeIds: NodeId[] = [];
-            for (const alias of Templates.renderNodeAliasesFromCount(config.numberOfConsensusNodes, 0)) {
-              nodeIds.push(Templates.nodeIdFromNodeAlias(alias));
-            }
-            const relay: RelayNodeStateSchema = this.componentFactory.createNewRelayComponent(
-              config.clusterRef,
-              config.namespace,
-              nodeIds,
-            );
-            relay.metadata.phase = DeploymentPhase.REQUESTED;
-            this.remoteConfig.configuration.components.addNewComponent(relay, ComponentTypes.RelayNodes, false, true);
-          }
-
-          await this.remoteConfig.persist();
-        },
-      },
-      {
-        title: 'Deploy Solo components',
-        task: (
-          _: OneShotSingleDeployContext,
-          task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-        ): SoloListr<OneShotSingleDeployContext> => this.buildDeployPhases(config, task),
-      },
-      {
-        title: 'Finish',
-        task: async (context_: OneShotSingleDeployContext): Promise<void> => {
-          const outputDirectory: string = this.getOneShotOutputDirectory(context_.config.deployment);
-          this.logger.info(`Output directory: ${outputDirectory}`);
-          this.showOneShotUserNotes(context_, PathEx.join(outputDirectory, 'notes'));
-          this.showVersions(PathEx.join(outputDirectory, 'versions'), config);
-          this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
-          this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
-          this.cacheDeploymentName(context_, PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'));
-        },
-      },
-    ];
-  }
-
-  private buildDeployPhases(
-    config: OneShotSingleDeployConfigClass,
-    parentTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-  ): SoloListr<OneShotSingleDeployContext> {
     const phases: Array<Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
-      new Phase('Deploy block node', {
-        asListrTask: (c: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
-            `solo ${BlockCommandDefinition.ADD_COMMAND}`,
-            BlockCommandDefinition.ADD_COMMAND,
-            (): string[] => DeployArgvBuilders.buildBlockNodeArgv(c),
-            this.taskList,
-            (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
-          ),
-      }),
-      Phase.composite('Deploy network node', [
-        new Phase('Deploy consensus node', {
-          asListrTask: (c: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-            invokeSoloCommand(
-              `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
-              ConsensusCommandDefinition.DEPLOY_COMMAND,
-              (): string[] => DeployArgvBuilders.buildConsensusDeployArgv(c),
-              this.taskList,
-            ),
+      new Phase('Initialize', {
+        asListrTask: (_getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+          title: 'Initialize',
+          task: async (
+            context_: OneShotSingleDeployContext,
+            task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+          ): Promise<void> => {
+            this.configManager.update(argv);
+            this.oneShotState.activate();
+
+            const edgeEnabled: boolean = this.configManager.getFlag(flags.edgeEnabled);
+            const versions: OneShotVersionsObject = DeployArgvBuilders.resolveOneShotComponentVersions(edgeEnabled);
+
+            this.configManager.setFlag(flags.releaseTag, versions.consensus);
+            this.configManager.setFlag(flags.blockNodeChartVersion, versions.blockNode);
+            this.configManager.setFlag(flags.mirrorNodeVersion, versions.mirror);
+            this.configManager.setFlag(flags.relayReleaseTag, versions.relay);
+            this.configManager.setFlag(flags.explorerVersion, versions.explorer);
+            this.configManager.setFlag(flags.soloChartVersion, versions.soloChart);
+
+            flags.disablePrompts(flagsList.optional);
+
+            const allFlags: CommandFlag[] = [...flagsList.required, ...flagsList.optional];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            context_.config = this.configManager.getConfig(
+              SINGLE_DEPLOY_CONFIGS_NAME,
+              allFlags,
+            ) as OneShotSingleDeployConfigClass;
+            config = context_.config;
+            configReference.value = config;
+            config.argv = argv;
+
+            config.consensusNodeConfiguration = {};
+            config.mirrorNodeConfiguration = {};
+            config.blockNodeConfiguration = {};
+            config.explorerNodeConfiguration = {};
+            config.relayNodeConfiguration = {};
+            config.networkConfiguration = {};
+            config.setupConfiguration = {};
+            config.versions = versions;
+
+            config.cacheDir ??= constants.SOLO_CACHE_DIR;
+
+            if (config.valuesFile) {
+              const valuesFileContent: string = fs.readFileSync(context_.config.valuesFile, 'utf8');
+              const profileItems: Record<string, object> = yaml.parse(valuesFileContent) as Record<string, object>;
+
+              if (profileItems.network) {
+                config.networkConfiguration = profileItems.network as object;
+              }
+              if (profileItems.setup) {
+                config.setupConfiguration = profileItems.setup as object;
+              }
+              if (profileItems.consensusNode) {
+                config.consensusNodeConfiguration = profileItems.consensusNode as object;
+              }
+              if (profileItems.mirrorNode) {
+                config.mirrorNodeConfiguration = profileItems.mirrorNode as object;
+              }
+              if (profileItems.blockNode) {
+                config.blockNodeConfiguration = profileItems.blockNode as object;
+              }
+              if (profileItems.explorerNode) {
+                config.explorerNodeConfiguration = profileItems.explorerNode as object;
+              }
+              if (profileItems.relayNode) {
+                config.relayNodeConfiguration = profileItems.relayNode as object;
+              }
+            }
+            config.clusterRef = config.clusterRef || 'one-shot';
+            config.context = config.context || this.k8Factory.default().contexts().readCurrent();
+            config.deployment = config.deployment || 'one-shot';
+            config.namespace = config.namespace || NamespaceName.of('one-shot');
+            this.configManager.setFlag(flags.namespace, config.namespace);
+            config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
+            config.force = argv.force as boolean;
+
+            const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
+            const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
+            const cnVersion: SemanticVersion<string> = new SemanticVersion(versions.consensus);
+            if (!config.valuesFile && cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_SMALL_MEMORY)) {
+              const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
+              const overridesDirectory: string = PathEx.join(defaultsDirectory, 'small-memory');
+              const stateOnDiskDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-state-on-disk');
+              const mergedDirectory: string = PathEx.join(defaultsDirectory, 'small-memory-merged');
+              const settingsOverrideFile: string =
+                config.numberOfConsensusNodes > 1 ? 'settings-multinode.txt' : 'settings-single.txt';
+              const useStateOnDisk: boolean = cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_STATE_ON_DISK);
+
+              const settingsMergedPath: string = PathEx.join(mergedDirectory, 'settings.txt');
+              this.concatConfigFiles(
+                PathEx.join(defaultsDirectory, 'settings.txt'),
+                PathEx.join(overridesDirectory, settingsOverrideFile),
+                settingsMergedPath,
+              );
+              config.networkConfiguration['--settings-txt'] = useStateOnDisk
+                ? this.concatConfigFiles(
+                    settingsMergedPath,
+                    PathEx.join(stateOnDiskDirectory, 'settings.txt'),
+                    settingsMergedPath,
+                  )
+                : settingsMergedPath;
+
+              config.networkConfiguration['--application-properties'] = this.concatConfigFiles(
+                PathEx.join(defaultsDirectory, 'application.properties'),
+                PathEx.join(overridesDirectory, 'application.properties'),
+                PathEx.join(mergedDirectory, 'application.properties'),
+              );
+
+              config.networkConfiguration['--application-env'] = useStateOnDisk
+                ? PathEx.join(stateOnDiskDirectory, 'application.env')
+                : PathEx.join(overridesDirectory, 'application.env');
+
+              const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
+              if (fs.existsSync(throttlesFile)) {
+                config.networkConfiguration['--genesis-throttles-file'] = throttlesFile;
+              }
+            }
+
+            config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
+            config.deployExplorer = config.deployExplorer === undefined ? true : config.deployExplorer;
+            config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
+
+            context_.createdAccounts = [];
+
+            this.logger.debug(`quiet: ${config.quiet}`);
+          },
         }),
-        Phase.composite('Setup and start consensus node', [
-          new Phase('Setup consensus node', {
-            asListrTask: (c: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-              invokeSoloCommand(
-                `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
-                ConsensusCommandDefinition.SETUP_COMMAND,
-                (): string[] => DeployArgvBuilders.buildConsensusSetupArgv(c),
-                this.taskList,
-              ),
-          }),
-          new Phase('Start consensus node', {
-            asListrTask: (c: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-              invokeSoloCommand(
-                `solo ${ConsensusCommandDefinition.START_COMMAND}`,
-                ConsensusCommandDefinition.START_COMMAND,
-                (): string[] => DeployArgvBuilders.buildConsensusStartArgv(c),
-                this.taskList,
-              ),
-          }),
-          new Phase('Create accounts', {
-            asListrTask: (c: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-              this.buildCreateAccountsTask(c),
-          }),
-        ]),
-      ]),
-      new Phase('Deploy mirror node', {
-        asListrTask: (c: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+      }),
+      new Phase('Acquire deployment lock', {
+        asListrTask: (_getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+          title: 'Acquire deployment lock',
+          task: async (
+            _: OneShotSingleDeployContext,
+            task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+          ): Promise<Listr<OneShotSingleDeployContext>> => {
+            leaseReference.value = await this.leaseManager.create();
+            return ListrLock.newAcquireLockTask(leaseReference.value, task);
+          },
+        }),
+      }),
+      new Phase('Check for other deployments', {
+        asListrTask: (_getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+          title: 'Check for other deployments',
+          task: async (
+            _: OneShotSingleDeployContext,
+            task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+          ): Promise<void> => {
+            const existingRemoteConfigs: ConfigMap[] = await this.k8Factory
+              .default()
+              .configMaps()
+              .listForAllNamespaces(Templates.renderConfigMapRemoteConfigLabels());
+            if (existingRemoteConfigs.length > 0) {
+              const existingDeploymentsTable: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);
+              const promptOptions: {default: boolean; message: string} = {
+                default: false,
+                message:
+                  '⚠️ Warning: Existing solo deployment detected in cluster.\n\n' +
+                  existingDeploymentsTable.join('\n') +
+                  '\n\nCreating another deployment will require additional' +
+                  ' CPU and memory resources. Do you want to proceed and create another deployment?',
+              };
+              const proceed: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, promptOptions);
+              if (!proceed) {
+                throw new SoloError('Aborted by user');
+              }
+            }
+          },
+          skip: (context_: OneShotSingleDeployContext): boolean =>
+            context_.config.force === true || context_.config.quiet === true,
+        }),
+      }),
+      new Phase('Cluster connect', {
+        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
-            `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
-            MirrorCommandDefinition.ADD_COMMAND,
-            (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(c),
+            `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
+            ClusterReferenceCommandDefinition.CONNECT_COMMAND,
+            (): string[] => DeployArgvBuilders.buildClusterConnectArgv(getConfig_()),
             this.taskList,
-            (): boolean => !c.deployMirrorNode,
           ),
       }),
-      new Phase('Deploy explorer', {
-        asListrTask: (c: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+      new Phase('Deployment create', {
+        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
-            `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
-            ExplorerCommandDefinition.ADD_COMMAND,
-            (): string[] => DeployArgvBuilders.buildExplorerArgv(c),
+            `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
+            DeploymentCommandDefinition.CREATE_COMMAND,
+            (): string[] => DeployArgvBuilders.buildDeploymentCreateArgv(getConfig_()),
             this.taskList,
-            (): boolean => !c.deployExplorer && !c.minimalSetup,
           ),
-      }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
-      new Phase('Deploy JSON-RPC Relay', {
-        asListrTask: (c: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+      }),
+      new Phase('Deployment attach', {
+        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
-            `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-            RelayCommandDefinition.ADD_COMMAND,
-            (): string[] => DeployArgvBuilders.buildRelayArgv(c),
+            `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
+            DeploymentCommandDefinition.ATTACH_COMMAND,
+            (): string[] => DeployArgvBuilders.buildDeploymentAttachArgv(getConfig_()),
             this.taskList,
-            (): boolean => !c.deployRelay && !c.minimalSetup,
           ),
-      })
-        .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
-        .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(5)),
+      }),
+      new Phase('Cluster setup', {
+        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+          invokeSoloCommand(
+            `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
+            ClusterReferenceCommandDefinition.SETUP_COMMAND,
+            (): string[] => DeployArgvBuilders.buildClusterSetupArgv(getConfig_()),
+            this.taskList,
+          ),
+      }),
+      new Phase('Keys generate', {
+        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+          invokeSoloCommand(
+            `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
+            KeysCommandDefinition.KEYS_COMMAND,
+            (): string[] => DeployArgvBuilders.buildKeysGenerateArgv(getConfig_()),
+            this.taskList,
+          ),
+      }),
+      new Phase('Create remote config components', {
+        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+          title: 'Create remote config components',
+          task: async (): Promise<void> => {
+            const deployConfig: OneShotSingleDeployConfigClass = getConfig_();
+            if (constants.ONE_SHOT_WITH_BLOCK_NODE === 'true') {
+              const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
+                deployConfig.clusterRef,
+                deployConfig.namespace,
+              );
+              blockNode.metadata.phase = DeploymentPhase.REQUESTED;
+              this.remoteConfig.configuration.components.addNewComponent(
+                blockNode,
+                ComponentTypes.BlockNode,
+                false,
+                true,
+              );
+            }
+
+            if (deployConfig.deployExplorer) {
+              const explorer: ExplorerStateSchema = this.componentFactory.createNewExplorerComponent(
+                deployConfig.clusterRef,
+                deployConfig.namespace,
+              );
+              explorer.metadata.phase = DeploymentPhase.REQUESTED;
+              this.remoteConfig.configuration.components.addNewComponent(
+                explorer,
+                ComponentTypes.Explorer,
+                false,
+                true,
+              );
+            }
+
+            if (deployConfig.deployMirrorNode) {
+              const mirrorNode: MirrorNodeStateSchema = this.componentFactory.createNewMirrorNodeComponent(
+                deployConfig.clusterRef,
+                deployConfig.namespace,
+              );
+              mirrorNode.metadata.phase = DeploymentPhase.REQUESTED;
+              this.remoteConfig.configuration.components.addNewComponent(
+                mirrorNode,
+                ComponentTypes.MirrorNode,
+                false,
+                true,
+              );
+            }
+
+            if (deployConfig.deployRelay) {
+              const nodeIds: NodeId[] = [];
+              for (const alias of Templates.renderNodeAliasesFromCount(deployConfig.numberOfConsensusNodes, 0)) {
+                nodeIds.push(Templates.nodeIdFromNodeAlias(alias));
+              }
+              const relay: RelayNodeStateSchema = this.componentFactory.createNewRelayComponent(
+                deployConfig.clusterRef,
+                deployConfig.namespace,
+                nodeIds,
+              );
+              relay.metadata.phase = DeploymentPhase.REQUESTED;
+              this.remoteConfig.configuration.components.addNewComponent(relay, ComponentTypes.RelayNodes, false, true);
+            }
+
+            await this.remoteConfig.persist();
+          },
+        }),
+      }),
+      new Phase('Deploy Solo components', {
+        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const deployPhases: Array<Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
+            new Phase('Deploy block node', {
+              asListrTask: (
+                getConfig_: () => OneShotSingleDeployConfigClass,
+              ): SoloListrTask<OneShotSingleDeployContext> =>
+                invokeSoloCommand(
+                  `solo ${BlockCommandDefinition.ADD_COMMAND}`,
+                  BlockCommandDefinition.ADD_COMMAND,
+                  (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig_()),
+                  this.taskList,
+                  (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
+                ),
+            }),
+            Phase.composite('Deploy network node', [
+              new Phase('Deploy consensus node', {
+                asListrTask: (
+                  getConfig_: () => OneShotSingleDeployConfigClass,
+                ): SoloListrTask<OneShotSingleDeployContext> =>
+                  invokeSoloCommand(
+                    `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
+                    ConsensusCommandDefinition.DEPLOY_COMMAND,
+                    (): string[] => DeployArgvBuilders.buildConsensusDeployArgv(getConfig_()),
+                    this.taskList,
+                  ),
+              }),
+              Phase.composite('Setup and start consensus node', [
+                new Phase('Setup consensus node', {
+                  asListrTask: (
+                    getConfig_: () => OneShotSingleDeployConfigClass,
+                  ): SoloListrTask<OneShotSingleDeployContext> =>
+                    invokeSoloCommand(
+                      `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
+                      ConsensusCommandDefinition.SETUP_COMMAND,
+                      (): string[] => DeployArgvBuilders.buildConsensusSetupArgv(getConfig_()),
+                      this.taskList,
+                    ),
+                }),
+                new Phase('Start consensus node', {
+                  asListrTask: (
+                    getConfig_: () => OneShotSingleDeployConfigClass,
+                  ): SoloListrTask<OneShotSingleDeployContext> =>
+                    invokeSoloCommand(
+                      `solo ${ConsensusCommandDefinition.START_COMMAND}`,
+                      ConsensusCommandDefinition.START_COMMAND,
+                      (): string[] => DeployArgvBuilders.buildConsensusStartArgv(getConfig_()),
+                      this.taskList,
+                    ),
+                }),
+                new Phase('Create accounts', {
+                  asListrTask: (
+                    getConfig_: () => OneShotSingleDeployConfigClass,
+                  ): SoloListrTask<OneShotSingleDeployContext> => this.buildCreateAccountsTask(getConfig_()),
+                }),
+              ]),
+            ]),
+            new Phase('Deploy mirror node', {
+              asListrTask: (
+                getConfig_: () => OneShotSingleDeployConfigClass,
+              ): SoloListrTask<OneShotSingleDeployContext> =>
+                invokeSoloCommand(
+                  `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
+                  MirrorCommandDefinition.ADD_COMMAND,
+                  (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig_()),
+                  this.taskList,
+                  (): boolean => !getConfig_().deployMirrorNode,
+                ),
+            }),
+            new Phase('Deploy explorer', {
+              asListrTask: (
+                getConfig_: () => OneShotSingleDeployConfigClass,
+              ): SoloListrTask<OneShotSingleDeployContext> =>
+                invokeSoloCommand(
+                  `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+                  ExplorerCommandDefinition.ADD_COMMAND,
+                  (): string[] => DeployArgvBuilders.buildExplorerArgv(getConfig_()),
+                  this.taskList,
+                  (): boolean => !getConfig_().deployExplorer && !getConfig_().minimalSetup,
+                ),
+            }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
+            new Phase('Deploy JSON-RPC Relay', {
+              asListrTask: (
+                getConfig_: () => OneShotSingleDeployConfigClass,
+              ): SoloListrTask<OneShotSingleDeployContext> =>
+                invokeSoloCommand(
+                  `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                  RelayCommandDefinition.ADD_COMMAND,
+                  (): string[] => DeployArgvBuilders.buildRelayArgv(getConfig_()),
+                  this.taskList,
+                  (): boolean => !getConfig_().deployRelay && !getConfig_().minimalSetup,
+                ),
+            })
+              .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
+              .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(5)),
+          ];
+
+          return {
+            title: 'Deploy Solo components',
+            task: (
+              _: OneShotSingleDeployContext,
+              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+            ): SoloListr<OneShotSingleDeployContext> =>
+              task.newListr(
+                deployPhases.map(
+                  (
+                    phase: Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
+                  ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfig_, this.eventBus),
+                ),
+                {concurrent: getConfig_().parallelDeploy, rendererOptions: {collapseSubtasks: false}},
+              ),
+          };
+        },
+      }),
+      new Phase('Finish', {
+        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+          title: 'Finish',
+          task: async (context_: OneShotSingleDeployContext): Promise<void> => {
+            const deployConfig: OneShotSingleDeployConfigClass = getConfig_();
+            const outputDirectory: string = this.getOneShotOutputDirectory(context_.config.deployment);
+            this.logger.info(`Output directory: ${outputDirectory}`);
+            this.showOneShotUserNotes(context_, PathEx.join(outputDirectory, 'notes'));
+            this.showVersions(PathEx.join(outputDirectory, 'versions'), deployConfig);
+            this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
+            this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
+            this.cacheDeploymentName(context_, PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'));
+          },
+        }),
+      }),
     ];
 
-    return parentTask.newListr(
-      phases.map(
-        (
-          phase: Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
-        ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(config, this.eventBus),
-      ),
-      {concurrent: config.parallelDeploy, rendererOptions: {collapseSubtasks: false}},
+    return phases.map(
+      (
+        phase: Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
+      ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfig, this.eventBus),
     );
   }
 

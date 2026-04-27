@@ -59,14 +59,14 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
     return this;
   }
 
-  public asListrTask(config: TConfig, eventBus: SoloEventBus): SoloListrTask<TContext> {
+  public asListrTask(getConfig: () => TConfig, eventBus: SoloEventBus): SoloListrTask<TContext> {
     if (this.subPhases.length > 0) {
       return {
         title: this.title,
         task: (_: TContext, task: SoloListrTaskWrapper<TContext>): SoloListr<TContext> =>
           task.newListr(
             this.subPhases.map(
-              (phase: Phase<TConfig, TContext>): SoloListrTask<TContext> => phase.asListrTask(config, eventBus),
+              (phase: Phase<TConfig, TContext>): SoloListrTask<TContext> => phase.asListrTask(getConfig, eventBus),
             ),
             {concurrent: this.executionMode === 'concurrent', exitOnError: this.exitOnError},
           ),
@@ -74,7 +74,7 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
     }
 
     if (this.waitConditions.length === 0) {
-      return (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(config);
+      return (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(getConfig);
     }
 
     return {
@@ -83,11 +83,11 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
         for (const {eventType, timeout} of this.waitConditions) {
           await eventBus.waitFor<DeploymentEvent>(
             eventType,
-            (event: DeploymentEvent): boolean => event.deployment === config.deployment,
+            (event: DeploymentEvent): boolean => event.deployment === getConfig().deployment,
             timeout,
           );
         }
-        return task.newListr([(this.step as OrchestratorStep<TConfig, TContext>).asListrTask(config)]);
+        return task.newListr([(this.step as OrchestratorStep<TConfig, TContext>).asListrTask(getConfig)]);
       },
     };
   }

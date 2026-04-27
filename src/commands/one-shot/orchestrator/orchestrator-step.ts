@@ -3,5 +3,5 @@
 import {type SoloListrTask} from '../../../types/index.js';
 
 export interface OrchestratorStep<TConfig, TContext> {
-  asListrTask(config: TConfig): SoloListrTask<TContext>;
+  asListrTask(getConfig: () => TConfig): SoloListrTask<TContext>;
 }

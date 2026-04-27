@@ -44,14 +44,16 @@ describe('Phase', (): void => {
   describe('asListrTask (no wait conditions)', (): void => {
     it('returns the step task directly without wrapping', (): void => {
       const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub);
-      const task: SoloListrTask<SimpleContext> = phase.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = phase.asListrTask(() => config, eventBusStub);
       expect(task).to.equal(stepTaskStub);
-      expect(asListrTaskStub.calledOnceWith(config)).to.be.true;
+      expect(asListrTaskStub.calledOnce).to.be.true;
+      const getConfigArgument: () => SimpleConfig = asListrTaskStub.firstCall.args[0] as () => SimpleConfig;
+      expect(getConfigArgument()).to.equal(config);
     });
 
     it('does not call eventBus.waitFor', (): void => {
       const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub);
-      phase.asListrTask(config, eventBusStub);
+      phase.asListrTask(() => config, eventBusStub);
       expect(waitForStub.called).to.be.false;
     });
   });
@@ -61,7 +63,7 @@ describe('Phase', (): void => {
       const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub).withWaitCondition(
         SoloEventType.MirrorNodeDeployed,
       );
-      const task: SoloListrTask<SimpleContext> = phase.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = phase.asListrTask(() => config, eventBusStub);
       expect(task).to.not.equal(stepTaskStub);
       expect(task).to.have.property('task').that.is.a('function');
     });
@@ -71,7 +73,7 @@ describe('Phase', (): void => {
         SoloEventType.MirrorNodeDeployed,
         Duration.ofMinutes(10),
       );
-      const task: SoloListrTask<SimpleContext> = phase.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = phase.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown> =
         task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown>;
@@ -84,7 +86,7 @@ describe('Phase', (): void => {
       const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub).withWaitCondition(
         SoloEventType.MirrorNodeDeployed,
       );
-      const task: SoloListrTask<SimpleContext> = phase.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = phase.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown> =
         task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown>;
@@ -98,12 +100,14 @@ describe('Phase', (): void => {
       const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub).withWaitCondition(
         SoloEventType.MirrorNodeDeployed,
       );
-      const task: SoloListrTask<SimpleContext> = phase.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = phase.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown> =
         task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown>;
       await taskFunction({}, {newListr: newListrStub} as unknown as SoloListrTaskWrapper<SimpleContext>);
-      expect(asListrTaskStub.calledOnceWith(config)).to.be.true;
+      expect(asListrTaskStub.calledOnce).to.be.true;
+      const getConfigArgument: () => SimpleConfig = asListrTaskStub.firstCall.args[0] as () => SimpleConfig;
+      expect(getConfigArgument()).to.equal(config);
       expect(newListrStub.calledOnce).to.be.true;
     });
   });
@@ -113,7 +117,7 @@ describe('Phase', (): void => {
       const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub)
         .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
         .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(5));
-      const task: SoloListrTask<SimpleContext> = phase.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = phase.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown> =
         task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown>;
@@ -145,13 +149,13 @@ describe('Phase', (): void => {
 
     it('asListrTask returns a wrapper task with a task function, not the child step directly', (): void => {
       const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA, childPhaseB]);
-      const task: SoloListrTask<SimpleContext> = composite.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
       expect(task).to.have.property('task').that.is.a('function');
     });
 
     it('sequential composite passes concurrent: false to newListr', (): void => {
       const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA], 'sequential');
-      const task: SoloListrTask<SimpleContext> = composite.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
         task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;
@@ -161,7 +165,7 @@ describe('Phase', (): void => {
 
     it('concurrent composite passes concurrent: true to newListr', (): void => {
       const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA], 'concurrent');
-      const task: SoloListrTask<SimpleContext> = composite.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
         task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;
@@ -176,7 +180,7 @@ describe('Phase', (): void => {
         'concurrent',
         false,
       );
-      const task: SoloListrTask<SimpleContext> = composite.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
         task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;
@@ -186,7 +190,7 @@ describe('Phase', (): void => {
 
     it('calls each child phase asListrTask with the same config and eventBus', (): void => {
       const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA, childPhaseB]);
-      const task: SoloListrTask<SimpleContext> = composite.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
         task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;
@@ -199,7 +203,7 @@ describe('Phase', (): void => {
 
     it('defaults to sequential execution mode when not specified', (): void => {
       const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA]);
-      const task: SoloListrTask<SimpleContext> = composite.asListrTask(config, eventBusStub);
+      const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
         task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;

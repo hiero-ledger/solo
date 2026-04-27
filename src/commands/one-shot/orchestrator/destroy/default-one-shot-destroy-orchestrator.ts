@@ -75,197 +75,35 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
     leaseReference: {value?: Lock},
   ): SoloListrTask<OneShotSingleDestroyContext>[] {
     let config: OneShotSingleDestroyConfigClass;
+    const getConfig = (): OneShotSingleDestroyConfigClass => config;
     let remoteConfigLoaded: boolean = false;
 
-    return [
-      {
-        title: 'Initialize',
-        task: async (
-          context_: OneShotSingleDestroyContext,
-          task: SoloListrTaskWrapper<OneShotSingleDestroyContext>,
-        ): Promise<void> => {
-          this.configManager.update(argv);
-          this.oneShotState.activate();
-
-          flags.disablePrompts(flagsList.optional);
-
-          const allFlags: CommandFlag[] = [...flagsList.required, ...flagsList.optional];
-
-          await this.configManager.executePrompt(task, allFlags);
-
-          context_.config = this.configManager.getConfig(
-            SINGLE_DESTROY_CONFIGS_NAME,
-            allFlags,
-          ) as OneShotSingleDestroyConfigClass;
-
-          config = context_.config;
-
-          await this.localConfig.load();
-
-          config.cacheDir ??= constants.SOLO_CACHE_DIR;
-
-          if (!config.deployment) {
-            const deployments = this.localConfig.configuration.deployments;
-            if (deployments.length === 0) {
-              this.logger.showUser('No deployments found in local config, have they already been deleted?');
-              config.skipAll = true;
-              return;
-            }
-
-            if (deployments.length > 1) {
-              const selectedDeployment: string = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
-                message: 'Select deployment to destroy',
-                choices: deployments.map((deployment: Deployment): {name: string; value: string} => {
-                  const clusterNames: string[] = deployment.clusters.map((cluster: StringFacade): string =>
-                    cluster.toString(),
-                  );
-                  return {
-                    name: `${deployment.name} (ns: ${deployment.namespace}, clusters: ${clusterNames.join(', ') || 'unknown'})`,
-                    value: deployment.name,
-                  };
-                }),
-              })) as string;
-
-              if (!selectedDeployment) {
-                throw new SoloError('Deployment selection cannot be empty');
-              }
-
-              config.deployment = selectedDeployment;
-            } else {
-              const deployment: Deployment = deployments.get(0);
-              if (!deployment?.name) {
-                throw new SoloError('Invalid deployment configuration: deployment name is missing');
-              }
-              config.deployment = deployment.name;
-            }
-
-            this.configManager.setFlag(flags.deployment, config.deployment);
-          }
-
-          const selectedDeployment: Deployment | undefined = this.localConfig.configuration.deployments.find(
-            (deployment: Deployment): boolean => deployment.name === config.deployment,
-          );
-          if (selectedDeployment?.clusters?.length) {
-            const firstCluster: StringFacade | undefined = selectedDeployment.clusters.find(
-              (cluster: StringFacade): boolean => cluster !== null && cluster !== undefined,
-            );
-            if (firstCluster) {
-              config.clusterRef ??= firstCluster.toString();
-            }
-          }
-
-          config.clusterRef ??= this.localConfig.configuration.clusterRefs.keys().next().value;
-
-          config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
-
-          remoteConfigLoaded = await this.loadRemoteConfigOrWarn(argv);
-          try {
-            config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-          } catch (error) {
-            if ((error as Error).message?.includes('not found in local config')) {
-              this.logger.showUser(
-                `Deployment: ${config.deployment}, not found in local config, has it already been deleted?`,
-              );
-              config.skipAll = true;
-              return;
-            } else {
-              throw error;
-            }
-          }
-
-          try {
-            const kubeContextConnectionSuccessful: boolean = await this.k8Factory
-              .default()
-              .contexts()
-              .testContextConnection(config.context);
-            if (!kubeContextConnectionSuccessful) {
-              config.skipAll = true;
-              return;
-            }
-          } catch (error) {
-            this.logger.error(`Error connecting to cluster with context ${config.context}:`, error);
-          }
-          try {
-            if (config.deployment && config.namespace && config.context) {
-              await this.remoteConfig.loadAndValidate(argv);
-              config.skipAll = false;
-            } else {
-              config.skipAll = true;
-              return;
-            }
-          } catch (error) {
-            if (
-              error instanceof ResourceNotFoundError ||
-              (error as {cause?: unknown}).cause instanceof ResourceNotFoundError ||
-              error instanceof NoKubeConfigContextError ||
-              (error as {cause?: unknown}).cause instanceof NoKubeConfigContextError
-            ) {
-              this.logger.showUser(
-                'Remote config not found. This may indicate that the deployment has already been deleted or there is an issue with the cluster. Proceeding with best effort cleanup.',
-              );
-              this.logger.error('Error loading remote config:', error);
-              config.skipAll = true;
-              return;
-            } else {
-              throw error;
-            }
-          }
-          config.hasExplorers = this.remoteConfig.configuration.components.state.explorers.length > 0;
-          config.hasRelays = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
-          config.hasMirrorNodes = this.remoteConfig.configuration.components.state.mirrorNodes.length > 0;
-          config.hasBlockNodes = remoteConfigLoaded
-            ? this.remoteConfig.configuration.components.state.blockNodes.length > 0
-            : undefined;
-        },
-      },
-      {
-        title: 'Acquire deployment lock',
-        task: async (
-          _: OneShotSingleDestroyContext,
-          task: SoloListrTaskWrapper<OneShotSingleDestroyContext>,
-        ): Promise<Listr<OneShotSingleDestroyContext>> => {
-          leaseReference.value = await this.leaseManager.create();
-          return ListrLock.newAcquireLockTask(leaseReference.value, task);
-        },
-        skip: (): boolean => config.skipAll,
-      },
-      {
-        title: 'Destroy',
-        task: async (
-          context_: OneShotSingleDestroyContext,
-          task: SoloListrTaskWrapper<OneShotSingleDestroyContext>,
-        ): Promise<SoloListr<OneShotSingleDestroyContext>> => this.buildDestroyPhases(config, task),
-        skip: (): boolean => config.skipAll,
-      },
-    ];
-  }
-
-  private buildDestroyPhases(
-    config: OneShotSingleDestroyConfigClass,
-    parentTask: SoloListrTaskWrapper<OneShotSingleDestroyContext>,
-  ): SoloListr<OneShotSingleDestroyContext> {
-    const phases: Array<Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>> = [
+    const destroySubPhases: Array<Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>> = [
       Phase.composite(
         'Destroy extended setup',
         [
           new Phase('Destroy explorer', {
-            asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+            asListrTask: (
+              getConfig_: () => OneShotSingleDestroyConfigClass,
+            ): SoloListrTask<OneShotSingleDestroyContext> =>
               invokeSoloCommand(
                 `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
                 ExplorerCommandDefinition.DESTROY_COMMAND,
-                (): string[] => DestroyArgvBuilders.buildDestroyExplorerArgv(c),
+                (): string[] => DestroyArgvBuilders.buildDestroyExplorerArgv(getConfig_()),
                 this.taskList,
-                (): boolean => !c.hasExplorers,
+                (): boolean => !getConfig_().hasExplorers,
               ),
           }),
           new Phase('Destroy relay', {
-            asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+            asListrTask: (
+              getConfig_: () => OneShotSingleDestroyConfigClass,
+            ): SoloListrTask<OneShotSingleDestroyContext> =>
               invokeSoloCommand(
                 `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
                 RelayCommandDefinition.DESTROY_COMMAND,
-                (): string[] => DestroyArgvBuilders.buildDestroyRelayArgv(c),
+                (): string[] => DestroyArgvBuilders.buildDestroyRelayArgv(getConfig_()),
                 this.taskList,
-                (): boolean => !c.hasRelays,
+                (): boolean => !getConfig_().hasRelays,
               ),
           }),
         ],
@@ -273,78 +111,257 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
         false,
       ),
       new Phase('Destroy mirror node', {
-        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+        asListrTask: (getConfig_: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
             MirrorCommandDefinition.DESTROY_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildDestroyMirrorNodeArgv(c),
+            (): string[] => DestroyArgvBuilders.buildDestroyMirrorNodeArgv(getConfig_()),
             this.taskList,
-            (): boolean => c.skipAll || !c.deployment || !c.hasMirrorNodes,
+            (): boolean => getConfig_().skipAll || !getConfig_().deployment || !getConfig_().hasMirrorNodes,
           ),
       }),
       new Phase('Destroy block node', {
-        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+        asListrTask: (getConfig_: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
             BlockCommandDefinition.DESTROY_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildDestroyBlockNodeArgv(c),
+            (): string[] => DestroyArgvBuilders.buildDestroyBlockNodeArgv(getConfig_()),
             this.taskList,
             (): boolean =>
-              c.skipAll ||
-              !c.deployment ||
+              getConfig_().skipAll ||
+              !getConfig_().deployment ||
               constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
-              c.hasBlockNodes === false,
+              getConfig_().hasBlockNodes === false,
           ),
       }),
       new Phase('Destroy consensus node', {
-        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+        asListrTask: (getConfig_: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
             ConsensusCommandDefinition.DESTROY_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildDestroyConsensusNodeArgv(c),
+            (): string[] => DestroyArgvBuilders.buildDestroyConsensusNodeArgv(getConfig_()),
             this.taskList,
-            (): boolean => c.skipAll || !c.deployment,
+            (): boolean => getConfig_().skipAll || !getConfig_().deployment,
           ),
       }),
       new Phase('Cluster reset', {
-        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+        asListrTask: (getConfig_: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
             ClusterReferenceCommandDefinition.RESET_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildClusterResetArgv(c),
+            (): string[] => DestroyArgvBuilders.buildClusterResetArgv(getConfig_()),
             this.taskList,
-            (): boolean => c.skipAll || !c.deployment,
+            (): boolean => getConfig_().skipAll || !getConfig_().deployment,
           ),
       }),
       new Phase('Cluster disconnect', {
-        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+        asListrTask: (getConfig_: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND}`,
             ClusterReferenceCommandDefinition.DISCONNECT_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildClusterDisconnectArgv(c),
+            (): string[] => DestroyArgvBuilders.buildClusterDisconnectArgv(getConfig_()),
             this.taskList,
-            (): boolean => c.skipAll || !c.deployment,
+            (): boolean => getConfig_().skipAll || !getConfig_().deployment,
           ),
       }),
       new Phase('Deployment delete', {
-        asListrTask: (c: OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+        asListrTask: (getConfig_: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.DELETE_COMMAND}`,
             DeploymentCommandDefinition.DELETE_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildDeploymentDeleteArgv(c),
+            (): string[] => DestroyArgvBuilders.buildDeploymentDeleteArgv(getConfig_()),
             this.taskList,
-            (): boolean => !c.deployment,
+            (): boolean => !getConfig_().deployment,
           ),
       }),
     ];
 
-    return parentTask.newListr(
-      phases.map(
-        (
-          phase: Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>,
-        ): SoloListrTask<OneShotSingleDestroyContext> => phase.asListrTask(config, this.eventBus),
-      ),
-      {concurrent: false, rendererOptions: {collapseSubtasks: false}},
+    const phases: Array<Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>> = [
+      new Phase('Initialize', {
+        asListrTask: (
+          _getConfig: () => OneShotSingleDestroyConfigClass,
+        ): SoloListrTask<OneShotSingleDestroyContext> => ({
+          title: 'Initialize',
+          task: async (
+            context_: OneShotSingleDestroyContext,
+            task: SoloListrTaskWrapper<OneShotSingleDestroyContext>,
+          ): Promise<void> => {
+            this.configManager.update(argv);
+            this.oneShotState.activate();
+
+            flags.disablePrompts(flagsList.optional);
+
+            const allFlags: CommandFlag[] = [...flagsList.required, ...flagsList.optional];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            context_.config = this.configManager.getConfig(
+              SINGLE_DESTROY_CONFIGS_NAME,
+              allFlags,
+            ) as OneShotSingleDestroyConfigClass;
+
+            config = context_.config;
+
+            await this.localConfig.load();
+
+            config.cacheDir ??= constants.SOLO_CACHE_DIR;
+
+            if (!config.deployment) {
+              const deployments = this.localConfig.configuration.deployments;
+              if (deployments.length === 0) {
+                this.logger.showUser('No deployments found in local config, have they already been deleted?');
+                config.skipAll = true;
+                return;
+              }
+
+              if (deployments.length > 1) {
+                const selectedDeployment: string = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+                  message: 'Select deployment to destroy',
+                  choices: deployments.map((deployment: Deployment): {name: string; value: string} => {
+                    const clusterNames: string[] = deployment.clusters.map((cluster: StringFacade): string =>
+                      cluster.toString(),
+                    );
+                    return {
+                      name: `${deployment.name} (ns: ${deployment.namespace}, clusters: ${clusterNames.join(', ') || 'unknown'})`,
+                      value: deployment.name,
+                    };
+                  }),
+                })) as string;
+
+                if (!selectedDeployment) {
+                  throw new SoloError('Deployment selection cannot be empty');
+                }
+
+                config.deployment = selectedDeployment;
+              } else {
+                const deployment: Deployment = deployments.get(0);
+                if (!deployment?.name) {
+                  throw new SoloError('Invalid deployment configuration: deployment name is missing');
+                }
+                config.deployment = deployment.name;
+              }
+
+              this.configManager.setFlag(flags.deployment, config.deployment);
+            }
+
+            const selectedDeployment: Deployment | undefined = this.localConfig.configuration.deployments.find(
+              (deployment: Deployment): boolean => deployment.name === config.deployment,
+            );
+            if (selectedDeployment?.clusters?.length) {
+              const firstCluster: StringFacade | undefined = selectedDeployment.clusters.find(
+                (cluster: StringFacade): boolean => cluster !== null && cluster !== undefined,
+              );
+              if (firstCluster) {
+                config.clusterRef ??= firstCluster.toString();
+              }
+            }
+
+            config.clusterRef ??= this.localConfig.configuration.clusterRefs.keys().next().value;
+
+            config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
+
+            remoteConfigLoaded = await this.loadRemoteConfigOrWarn(argv);
+            try {
+              config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+            } catch (error) {
+              if ((error as Error).message?.includes('not found in local config')) {
+                this.logger.showUser(
+                  `Deployment: ${config.deployment}, not found in local config, has it already been deleted?`,
+                );
+                config.skipAll = true;
+                return;
+              } else {
+                throw error;
+              }
+            }
+
+            try {
+              const kubeContextConnectionSuccessful: boolean = await this.k8Factory
+                .default()
+                .contexts()
+                .testContextConnection(config.context);
+              if (!kubeContextConnectionSuccessful) {
+                config.skipAll = true;
+                return;
+              }
+            } catch (error) {
+              this.logger.error(`Error connecting to cluster with context ${config.context}:`, error);
+            }
+            try {
+              if (config.deployment && config.namespace && config.context) {
+                await this.remoteConfig.loadAndValidate(argv);
+                config.skipAll = false;
+              } else {
+                config.skipAll = true;
+                return;
+              }
+            } catch (error) {
+              if (
+                error instanceof ResourceNotFoundError ||
+                (error as {cause?: unknown}).cause instanceof ResourceNotFoundError ||
+                error instanceof NoKubeConfigContextError ||
+                (error as {cause?: unknown}).cause instanceof NoKubeConfigContextError
+              ) {
+                this.logger.showUser(
+                  'Remote config not found. This may indicate that the deployment has already been deleted or there is an issue with the cluster. Proceeding with best effort cleanup.',
+                );
+                this.logger.error('Error loading remote config:', error);
+                config.skipAll = true;
+                return;
+              } else {
+                throw error;
+              }
+            }
+            config.hasExplorers = this.remoteConfig.configuration.components.state.explorers.length > 0;
+            config.hasRelays = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
+            config.hasMirrorNodes = this.remoteConfig.configuration.components.state.mirrorNodes.length > 0;
+            config.hasBlockNodes = remoteConfigLoaded
+              ? this.remoteConfig.configuration.components.state.blockNodes.length > 0
+              : undefined;
+          },
+        }),
+      }),
+      new Phase('Acquire deployment lock', {
+        asListrTask: (
+          _getConfig: () => OneShotSingleDestroyConfigClass,
+        ): SoloListrTask<OneShotSingleDestroyContext> => ({
+          title: 'Acquire deployment lock',
+          task: async (
+            _: OneShotSingleDestroyContext,
+            task: SoloListrTaskWrapper<OneShotSingleDestroyContext>,
+          ): Promise<Listr<OneShotSingleDestroyContext>> => {
+            leaseReference.value = await this.leaseManager.create();
+            return ListrLock.newAcquireLockTask(leaseReference.value, task);
+          },
+          skip: (): boolean => getConfig().skipAll,
+        }),
+      }),
+      new Phase('Destroy', {
+        asListrTask: (
+          getConfig_: () => OneShotSingleDestroyConfigClass,
+        ): SoloListrTask<OneShotSingleDestroyContext> => ({
+          title: 'Destroy',
+          task: (
+            _: OneShotSingleDestroyContext,
+            task: SoloListrTaskWrapper<OneShotSingleDestroyContext>,
+          ): SoloListr<OneShotSingleDestroyContext> =>
+            task.newListr(
+              destroySubPhases.map(
+                (
+                  phase: Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>,
+                ): SoloListrTask<OneShotSingleDestroyContext> => phase.asListrTask(getConfig_, this.eventBus),
+              ),
+              {concurrent: false, rendererOptions: {collapseSubtasks: false}},
+            ),
+          skip: (): boolean => getConfig().skipAll,
+        }),
+      }),
+    ];
+
+    return phases.map(
+      (
+        phase: Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>,
+      ): SoloListrTask<OneShotSingleDestroyContext> => phase.asListrTask(getConfig, this.eventBus),
     );
   }
 
