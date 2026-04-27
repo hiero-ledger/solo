@@ -2966,6 +2966,7 @@ export class Flags {
     Flags.endpointType,
     Flags.envoyIps,
     Flags.forcePortForward,
+    Flags.externalAddress,
     Flags.generateEcdsaKey,
     Flags.generateGossipKeys,
     Flags.generateTlsKeys,
