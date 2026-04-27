@@ -101,6 +101,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     maxAttempts: number = 10,
     delay: number = 500,
     createdAfter?: Date,
+    excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
     const podReadyCondition: Map<string, string> = new Map<string, string>().set(
       constants.POD_CONDITION_READY,
@@ -108,7 +109,15 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     );
 
     try {
-      return await this.waitForPodConditions(namespace, podReadyCondition, labels, maxAttempts, delay, createdAfter);
+      return await this.waitForPodConditions(
+        namespace,
+        podReadyCondition,
+        labels,
+        maxAttempts,
+        delay,
+        createdAfter,
+        excludeMarkedForDeletion,
+      );
     } catch (error: Error | unknown) {
       throw new SoloError(`Pod with labels [${labels.join(', ')}] not ready [maxAttempts = ${maxAttempts}]`, error);
     }
@@ -118,7 +127,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
    * Wait until the pod identified by `podReference` appears in the Kubernetes API.
    *
    * Use this when the exact pod name is known. If the pod must be discovered by labels,
-   * use {@link waitForStableReadyPod} instead.
+   * use {@link waitForReadyStatus} with an appropriate label selector instead.
    *
    * @param podReference - exact reference of the pod to wait for
    * @param maxAttempts - maximum polling attempts before throwing (default 20 × 3 s = 60 s)
@@ -144,67 +153,6 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   }
 
   /**
-   * Wait for the newest ready pod to remain the same across repeated checks.
-   *
-   * Use this when pod names can change (for example, rolling updates).
-   * Use {@link waitForPodByReference} when the exact pod name is known.
-   *
-   * @param namespace - namespace to search
-   * @param labels - pod label selector
-   * @param [consecutiveStableChecks] - required matching checks (default 3)
-   * @param [maxAttempts] - max polling attempts (default 120)
-   * @param [delay] - delay between attempts in ms (default 1000)
-   * @returns the newest stable ready pod
-   */
-  public async waitForStableReadyPod(
-    namespace: NamespaceName,
-    labels: string[],
-    consecutiveStableChecks: number = 3,
-    maxAttempts: number = 120,
-    delay: number = 1000,
-  ): Promise<Pod> {
-    const startTime: number = Date.now();
-    let previousPodIdentity: string = '';
-    let stableChecks: number = 0;
-    let latestPod: Pod | undefined;
-
-    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        latestPod = await this.getNewestReadyPod(namespace, labels);
-        const podIdentity: string =
-          `${latestPod.podReference?.name.toString() || '<unknown>'}:` +
-          `${latestPod.creationTimestamp?.getTime() || 0}`;
-
-        if (podIdentity === previousPodIdentity) {
-          stableChecks++;
-        } else {
-          previousPodIdentity = podIdentity;
-          stableChecks = 1;
-        }
-
-        if (stableChecks >= consecutiveStableChecks) {
-          const elapsedMs: number = Date.now() - startTime;
-          this.logger.info(
-            `Stable ready pod ${latestPod.podReference?.name.toString() || '<unknown>'} ` +
-              `confirmed in ${elapsedMs} ms [namespace=${namespace.name}, labels=${labels.join(',')}]`,
-          );
-          return latestPod;
-        }
-      } catch {
-        previousPodIdentity = '';
-        stableChecks = 0;
-      }
-
-      await sleep(Duration.ofMillis(delay));
-    }
-
-    throw new SoloError(
-      `Failed to observe a stable ready pod after ${maxAttempts} attempts ` +
-        `[namespace=${namespace.name}, labels=${labels.join(',')}]`,
-    );
-  }
-
-  /**
    * Check pods for conditions
    * @param namespace - namespace
    * @param conditionsMap - a map of conditions and values
@@ -212,6 +160,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
    * @param [maxAttempts] - maximum attempts to check
    * @param [delay] - delay between checks in milliseconds
    * @param [createdAfter] - if provided, only pods created strictly after this date are considered
+   * @param [excludeMarkedForDeletion] - if true, pods with deletionTimestamp are ignored
    */
   private async waitForPodConditions(
     namespace: NamespaceName,
@@ -220,6 +169,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     maxAttempts: number = 10,
     delay: number = 500,
     createdAfter?: Date,
+    excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
     if (!conditionsMap || conditionsMap.size === 0) {
       throw new MissingArgumentError('pod conditions are required');
@@ -249,40 +199,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         return false;
       },
       createdAfter,
-    );
-  }
-
-  private async getNewestReadyPod(namespace: NamespaceName, labels: string[]): Promise<Pod> {
-    const pods: Pod[] = await this.list(namespace, labels).then((matchingPods: Pod[]): Pod[] =>
-      matchingPods.filter(
-        (pod: Pod): boolean => !pod.deletionTimestamp && !!pod.podReference && !!pod.podIp && this.isPodReady(pod),
-      ),
-    );
-
-    if (pods.length === 0) {
-      throw new SoloError(`Expected at least one ready pod not flagged for deletion with labels: ${labels.join(',')}`);
-    }
-
-    const newestCreationTime: number = pods[0].creationTimestamp?.getTime() || 0;
-    const newestPods: Pod[] = pods.filter(
-      (pod: Pod): boolean => (pod.creationTimestamp?.getTime() || 0) === newestCreationTime,
-    );
-
-    if (newestPods.length !== 1) {
-      throw new SoloError(
-        `Expected exactly one newest ready pod, found ${newestPods.length} with labels: ${labels.join(',')}`,
-      );
-    }
-
-    return newestPods[0];
-  }
-
-  private isPodReady(pod: Pod): boolean {
-    return (
-      pod.conditions?.some(
-        (condition): boolean =>
-          condition.type === constants.POD_CONDITION_READY && condition.status === constants.POD_CONDITION_STATUS_TRUE,
-      ) ?? false
+      excludeMarkedForDeletion,
     );
   }
 
@@ -293,6 +210,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     delay: number,
     podItemPredicate?: (items: Pod) => boolean,
     createdAfter?: Date,
+    excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
     const phases: string[] = [constants.POD_PHASE_RUNNING];
     const labelSelector: string = labels ? labels.join(',') : undefined;
@@ -331,11 +249,15 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
             // When a createdAfter cutoff is provided, skip pods that existed before the
             // cutoff (e.g. a terminating predecessor from a recreate migration).
-            const eligibleItems: V1Pod[] = createdAfter
+            const createdAfterEligibleItems: V1Pod[] = createdAfter
               ? sortedItems.filter(
-                  (p): boolean => (p.metadata?.creationTimestamp?.getTime() || 0) > createdAfter.getTime(),
+                  (pod): boolean => (pod.metadata?.creationTimestamp?.getTime() || 0) > createdAfter.getTime(),
                 )
               : sortedItems;
+
+            const eligibleItems: V1Pod[] = excludeMarkedForDeletion
+              ? createdAfterEligibleItems.filter((pod): boolean => !pod.metadata?.deletionTimestamp)
+              : createdAfterEligibleItems;
 
             if (eligibleItems.length > 0) {
               // Only check the newest eligible pod

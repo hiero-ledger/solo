@@ -1860,7 +1860,10 @@ export class NodeCommandTasks {
             task: async (): Promise<void> => {
               const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
-              await this.k8Factory.getK8(context).pods().waitForStableReadyPod(config.namespace, labels);
+              await this.k8Factory
+                .getK8(context)
+                .pods()
+                .waitForReadyStatus(config.namespace, labels, 120, 1000, undefined, true);
 
               const startCommand: string = this.buildStartNetworkNodeCommand();
 

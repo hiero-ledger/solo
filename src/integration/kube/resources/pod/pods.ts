@@ -36,6 +36,7 @@ export interface Pods {
    * @param [maxAttempts] - maximum attempts to check
    * @param [delay] - delay between checks in milliseconds
    * @param [createdAfter] - if provided, only pods created strictly after this date are considered
+   * @param [excludeMarkedForDeletion] - if true, pods with deletionTimestamp are ignored
    */
   waitForReadyStatus(
     namespace: NamespaceName,
@@ -43,39 +44,20 @@ export interface Pods {
     maxAttempts?: number,
     delay?: number,
     createdAfter?: Date,
+    excludeMarkedForDeletion?: boolean,
   ): Promise<Pod[]>;
 
   /**
    * Wait until a pod with the given reference appears in the Kubernetes API.
    *
-   * Use this when the exact pod name is known. If the pod must be found by labels
-   * and verified as stable across checks, use {@link waitForStableReadyPod}.
+   * Use this when the exact pod name is known. If the pod must be found by labels,
+   * use {@link waitForReadyStatus}.
    *
    * @param podReference - exact reference of the pod to wait for
    * @param maxAttempts - maximum number of polling attempts (default 20)
    * @param delay - milliseconds to wait between attempts (default 3000)
    */
   waitForPodByReference(podReference: PodReference, maxAttempts?: number, delay?: number): Promise<void>;
-
-  /**
-   * Wait for the newest ready pod to stay the same across consecutive polls.
-   *
-   * Use this when pod names can change during rolling updates and you need a
-   * stable pod identity before continuing.
-   *
-   * @param namespace - namespace
-   * @param labels - labels used to find the target pod
-   * @param consecutiveStableChecks - required matching polls (default 3)
-   * @param maxAttempts - maximum polling attempts (default 120)
-   * @param delay - delay between checks in ms (default 1000)
-   */
-  waitForStableReadyPod(
-    namespace: NamespaceName,
-    labels: string[],
-    consecutiveStableChecks?: number,
-    maxAttempts?: number,
-    delay?: number,
-  ): Promise<Pod>;
 
   /**
    * Check if pod's phase is running
@@ -85,6 +67,7 @@ export interface Pods {
    * @param delay - delay between checks in milliseconds
    * @param [podItemPredicate] - pod item predicate
    * @param [createdAfter] - if provided, only pods created strictly after this date are considered
+   * @param [excludeMarkedForDeletion] - if true, pods with deletionTimestamp are ignored
    */
   waitForRunningPhase(
     namespace: NamespaceName,
@@ -93,6 +76,7 @@ export interface Pods {
     delay: number,
     podItemPredicate?: (items: Pod) => boolean,
     createdAfter?: Date,
+    excludeMarkedForDeletion?: boolean,
   ): Promise<Pod[]>;
 
   /**
