@@ -260,7 +260,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     );
 
     if (pods.length === 0) {
-      throw new SoloError(`Expected at least one stable ready pod with labels: ${labels.join(',')}`);
+      throw new SoloError(`Expected at least one ready pod not flagged for deletion with labels: ${labels.join(',')}`);
     }
 
     const newestCreationTime: number = pods[0].creationTimestamp?.getTime() || 0;
