@@ -100,26 +100,6 @@ export class NodeCommandHandlers extends CommandHandler {
     return this.nodeConfigManager.getFlag<boolean>(flags.quiet) === true;
   }
 
-  private setResolvedFlags(
-    argv: ArgvStruct,
-    deployment: string,
-    namespace?: ArgvStruct[string],
-    context?: ArgvStruct[string],
-  ): void {
-    argv[flags.deployment.name] = deployment;
-    this.nodeConfigManager.setFlag<string>(flags.deployment, deployment);
-
-    if (namespace !== undefined) {
-      argv[flags.namespace.name] = namespace;
-      this.nodeConfigManager.setFlag(flags.namespace, namespace);
-    }
-
-    if (context !== undefined) {
-      argv[flags.context.name] = context;
-      this.nodeConfigManager.setFlag<string>(flags.context, context as string);
-    }
-  }
-
   private ensureInteractiveSelectionPrompt(): void {
     if (!process.stdout.isTTY || !process.stdin.isTTY) {
       throw new SoloError('Cannot prompt for input in non-interactive mode');
@@ -689,7 +669,9 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
-    await this.resolveDeploymentForLogs(argv);
+    if (!argv[flags.deployment.name]) {
+      argv[flags.deployment.name] = await this.resolveDeploymentForLogs(argv);
+    }
 
     const outputDirectory: string = this.resolveOutputDirectory(argv);
 
@@ -736,10 +718,10 @@ export class NodeCommandHandlers extends CommandHandler {
     return true;
   }
 
-  private async resolveDeploymentForLogs(argv: ArgvStruct): Promise<void> {
+  private async resolveDeploymentForLogs(argv: ArgvStruct): Promise<string> {
     const deploymentFromFlag: string = this.resolveDeploymentFlag(argv);
     if (deploymentFromFlag && deploymentFromFlag.trim()) {
-      return;
+      return deploymentFromFlag;
     }
 
     await this.localConfig.load();
@@ -764,34 +746,32 @@ export class NodeCommandHandlers extends CommandHandler {
 
       const remoteDeploymentNames: string[] = [...remoteDeployments.keys()];
 
-      let selectedFromRemote: string;
       if (remoteDeploymentNames.length === 1) {
-        selectedFromRemote = remoteDeploymentNames[0];
+        const selectedFromRemote: string = remoteDeploymentNames[0];
         this.logger.showUser(`Using deployment from remote config: ${selectedFromRemote}`);
-      } else if (this.resolveQuietFlag(argv)) {
+        return selectedFromRemote;
+      }
+
+      if (this.resolveQuietFlag(argv)) {
         const names: string = remoteDeploymentNames.join(', ');
         throw new SoloError(
           `Multiple deployments found in remote config (${names}). Please provide --${flags.deployment.name}.`,
         );
-      } else {
-        this.ensureInteractiveSelectionPrompt();
-        selectedFromRemote = (await selectPrompt({
-          message: 'Select deployment for diagnostics logs:',
-          choices: remoteDeploymentNames.map((name: string) => ({name, value: name})),
-        })) as string;
-        this.logger.showUser(`Using selected deployment: ${selectedFromRemote}`);
       }
 
-      const remoteInfo: RemoteDeploymentInfo = remoteDeployments.get(selectedFromRemote)!;
-      this.setResolvedFlags(argv, selectedFromRemote, remoteInfo.namespace, remoteInfo.context);
-      return;
+      this.ensureInteractiveSelectionPrompt();
+      const selectedFromRemote: string = (await selectPrompt({
+        message: 'Select deployment for diagnostics logs:',
+        choices: remoteDeploymentNames.map((name: string) => ({name, value: name})),
+      })) as string;
+      this.logger.showUser(`Using selected deployment: ${selectedFromRemote}`);
+      return selectedFromRemote;
     }
 
     if (validDeployments.length === 1) {
-      const deployment: Deployment = validDeployments[0];
-      this.setResolvedFlags(argv, deployment.name);
-      this.logger.showUser(`Using deployment from local config: ${deployment.name}`);
-      return;
+      const deploymentName: string = validDeployments[0].name;
+      this.logger.showUser(`Using deployment from local config: ${deploymentName}`);
+      return deploymentName;
     }
 
     if (this.resolveQuietFlag(argv)) {
@@ -806,13 +786,15 @@ export class NodeCommandHandlers extends CommandHandler {
       message: 'Select deployment for diagnostics logs:',
       choices: validDeployments.map((deployment: Deployment) => ({name: deployment.name, value: deployment.name})),
     })) as string;
-    this.setResolvedFlags(argv, selectedDeployment);
     this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
+    return selectedDeployment;
   }
 
   public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
-    await this.resolveDeploymentForLogs(argv);
+    if (!argv[flags.deployment.name]) {
+      argv[flags.deployment.name] = await this.resolveDeploymentForLogs(argv);
+    }
     const outputDirectory: string = this.resolveOutputDirectory(argv);
     await this.commandAction(
       argv,
@@ -869,7 +851,6 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async connections(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
-    await this.resolveDeploymentForLogs(argv);
 
     await this.commandAction(
       argv,
@@ -904,11 +885,16 @@ export class NodeCommandHandlers extends CommandHandler {
   public async report(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
     // Resolve deployment before calling collectDebug() so it's available for the issue title/body
-    await this.resolveDeploymentForLogs(argv);
+    const deployment: string = argv[flags.deployment.name]
+      ? String(argv[flags.deployment.name])
+      : await this.resolveDeploymentForLogs(argv);
+    if (!argv[flags.deployment.name]) {
+      argv[flags.deployment.name] = deployment;
+    }
 
     await DiagnosticsReporter.runDiagnosticsReport({
       logger: this.logger,
-      deployment: this.resolveDeploymentFlag(argv),
+      deployment,
       outputDirectory: this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR),
       soloVersion: getSoloVersion(),
       isQuiet: this.resolveQuietFlag(argv),
