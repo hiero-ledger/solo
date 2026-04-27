@@ -539,14 +539,12 @@ export class BlockNodeCommand extends BaseCommand {
               blockNodeChartDirectory,
               newBlockNodeComponent,
             } = config;
-            const blockNodeChartSource: {chartName: string; chartRepo: string} =
-              this.resolveBlockNodeChartSource(blockNodeChartDirectory);
 
             await this.chartManager.install(
               namespace,
               releaseName,
-              blockNodeChartSource.chartName,
-              blockNodeChartSource.chartRepo,
+              constants.BLOCK_NODE_CHART,
+              blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
               chartVersion,
               valuesArg,
               context,
@@ -882,15 +880,12 @@ export class BlockNodeCommand extends BaseCommand {
                 );
                 await this.recreateBlockNodeChart(config, stepTargetVersion, step);
               } else {
-                const blockNodeChartSource: {chartName: string; chartRepo: string} = this.resolveBlockNodeChartSource(
-                  config.blockNodeChartDirectory,
-                );
                 try {
                   await this.chartManager.upgrade(
                     namespace,
                     releaseName,
-                    blockNodeChartSource.chartName,
-                    blockNodeChartSource.chartRepo,
+                    constants.BLOCK_NODE_CHART,
+                    config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
                     stepTargetVersion,
                     stepValuesArgument,
                     context,
@@ -1225,9 +1220,6 @@ export class BlockNodeCommand extends BaseCommand {
     step: ComponentUpgradeMigrationStep,
   ): Promise<void> {
     const valuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(config.valuesArg, step.extraCommandArgs);
-    const blockNodeChartSource: {chartName: string; chartRepo: string} = this.resolveBlockNodeChartSource(
-      config.blockNodeChartDirectory,
-    );
     await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
     // Wait for the old pod to be fully terminated before creating the new StatefulSet.
@@ -1243,26 +1235,12 @@ export class BlockNodeCommand extends BaseCommand {
     await this.chartManager.install(
       config.namespace,
       config.releaseName,
-      blockNodeChartSource.chartName,
-      blockNodeChartSource.chartRepo,
+      constants.BLOCK_NODE_CHART,
+      config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
       validatedUpgradeVersion,
       valuesArgument,
       config.context,
     );
-  }
-
-  private resolveBlockNodeChartSource(blockNodeChartDirectory: string): {chartName: string; chartRepo: string} {
-    if (blockNodeChartDirectory?.trim()) {
-      return {chartName: constants.BLOCK_NODE_CHART, chartRepo: blockNodeChartDirectory};
-    }
-
-    const defaultChartRepo: string = constants.BLOCK_NODE_CHART_URL;
-    if (defaultChartRepo.startsWith('oci://') && defaultChartRepo.endsWith(`/${constants.BLOCK_NODE_CHART}`)) {
-      // If the OCI URL already contains the chart name, do not append it again.
-      return {chartName: '', chartRepo: defaultChartRepo};
-    }
-
-    return {chartName: constants.BLOCK_NODE_CHART, chartRepo: defaultChartRepo};
   }
 
   /**
