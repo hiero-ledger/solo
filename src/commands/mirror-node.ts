@@ -363,14 +363,8 @@ export class MirrorNodeCommand extends BaseCommand {
     this.logger.debug('Preparing mirror node values args overrides for block nodes integration');
 
     const blockNodeFqdnList: {host: string; port: number}[] = [];
-    const sortedSameClusterBlockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = [
-      ...sameClusterBlockNodeSchemas,
-    ].toSorted(
-      (left: Readonly<BlockNodeStateSchema>, right: Readonly<BlockNodeStateSchema>): number =>
-        left.metadata.id - right.metadata.id,
-    );
 
-    for (const blockNode of sortedSameClusterBlockNodeSchemas) {
+    for (const blockNode of sameClusterBlockNodeSchemas) {
       const id: ComponentId = blockNode.metadata.id;
       const clusterReference: ClusterReferenceName = blockNode.metadata.cluster;
 
@@ -396,8 +390,6 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const data: {SPRING_PROFILES_ACTIVE: string} & Record<string, string | number> = {
       SPRING_PROFILES_ACTIVE: 'blocknode',
-      HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: 'true',
-      HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: 'false',
     };
 
     for (const [index, node] of blockNodeFqdnList.entries()) {
