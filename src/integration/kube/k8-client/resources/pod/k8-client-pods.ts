@@ -270,7 +270,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
     if (newestPods.length !== 1) {
       throw new SoloError(
-        `Expected exactly one newest stable pod, found ${newestPods.length} with labels: ${labels.join(',')}`,
+        `Expected exactly one newest ready pod, found ${newestPods.length} with labels: ${labels.join(',')}`,
       );
     }
 
