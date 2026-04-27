@@ -40,7 +40,7 @@
     "esm": "3.2.25",
     "figlet": "1.11.0",
     "find-process": "2.1.1",
-    "got": "15.0.2",
+    "got": "15.0.3",
     "http-status-codes": "2.3.0",
     "ip": "2.0.1",
     "js-base64": "3.7.8",
@@ -81,7 +81,7 @@
     "@types/stream-buffers": "3.0.8",
     "@types/ws": "8.18.1",
     "@types/yargs": "17.0.35",
-    "@typescript-eslint/utils": "8.58.2",
+    "@typescript-eslint/utils": "8.59.0",
     "c8": "11.0.0",
     "chai": "6.2.2",
     "chai-as-promised": "8.0.2",
@@ -117,7 +117,7 @@
     "tsx": "4.21.0",
     "typedoc": "0.28.19",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.58.2"
+    "typescript-eslint": "8.59.0"
   },
   "repository": "https://github.com/hiero-ledger/solo",
   "os": [

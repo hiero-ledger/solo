@@ -273,7 +273,7 @@ jobs:
 
       - name: Install wget
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:
           max_attempts: 3
           timeout_minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
@@ -312,7 +312,7 @@ jobs:
 
       - name: Install Dependencies
         id: npm-deps
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:
           max_attempts: 10
           timeout_minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
@@ -367,7 +367,7 @@ jobs:
 
       - name: Build Hedera code locally
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:
           max_attempts: 3
           timeout_minutes: 30
@@ -386,7 +386,7 @@ jobs:
 
       - name: Setup E2E Tests
         if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:
           max_attempts: 3
           timeout_minutes: 10
@@ -402,7 +402,7 @@ jobs:
 
       - name: Build Block Code Locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:
           max_attempts: 3
           timeout_minutes: 20
