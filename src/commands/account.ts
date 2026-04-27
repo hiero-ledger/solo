@@ -737,7 +737,7 @@ export class AccountCommand extends BaseCommand {
                   .containers()
                   .readByRef(redisContainerReference)
                   .execContainer([
-                    'sh',
+                    'bash',
                     '-c',
                     // Credentials are read from the mounted secret file or the REDIS_PASSWORD env var
                     // already present inside the container — never passed as a CLI argument.
