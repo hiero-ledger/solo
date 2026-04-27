@@ -342,9 +342,9 @@ export class DiagnosticsReporter {
         logger.showUser(chalk.bgYellow.black.bold(' ACTION REQUIRED '));
         logger.showUser(
           chalk.yellow.bold(
-            `  ⚠  Please attach the debug archive to the GitHub issue:\n` +
+            '  ⚠  Please attach the debug archive to the GitHub issue:\n' +
               `     ${zipFilePath}\n` +
-              `  Go to the issue URL above → click "attach files" → upload the zip.`,
+              '  Go to the issue URL above → click "attach files" → upload the zip.',
           ),
         );
       }
