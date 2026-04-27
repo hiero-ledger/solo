@@ -1415,7 +1415,7 @@ export class NodeCommandTasks {
 
         context_.config.releaseTag = releaseTag;
 
-        if (localBuildPath === '') {
+        if (!localBuildPath) {
           return this._fetchPlatformSoftware(
             context_.config[aliasesField],
             podRefs,
@@ -2000,9 +2000,10 @@ export class NodeCommandTasks {
         // logs will have a lot of white noise from being behind
         return this._checkNodesProxiesTask(task, context_.config.nodeAliases) as SoloListr<AnyListrContext>;
       }, // NodeStartConfigClass NodeRefreshContext
-      skip: async (context_): Promise<boolean> =>
-        (context_.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== '' &&
-        (context_.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== constants.HEDERA_APP_NAME,
+      skip: async (context_): Promise<boolean> => {
+        const app: string = (context_.config as NodeStartConfigClass | NodeRefreshConfigClass).app;
+        return Boolean(app) && app !== constants.HEDERA_APP_NAME;
+      },
     };
   }
 
@@ -2026,9 +2027,10 @@ export class NodeCommandTasks {
             title: 'Check node proxies are ACTIVE',
             task: (context__, t): SoloListr<AnyListrContext> =>
               this._checkNodesProxiesTask(t, context__.config.nodeAliases) as SoloListr<AnyListrContext>,
-            skip: (context__): boolean =>
-              (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== '' &&
-              (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== constants.HEDERA_APP_NAME,
+            skip: (context__): boolean => {
+              const app: string = (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app;
+              return Boolean(app) && app !== constants.HEDERA_APP_NAME;
+            },
           },
         ];
 
@@ -2111,7 +2113,7 @@ export class NodeCommandTasks {
     return {
       title: 'Add node stakes',
       task: (context_, task): SoloListr<NodeStartContext> | void => {
-        if (context_.config.app === '' || context_.config.app === constants.HEDERA_APP_NAME) {
+        if (!context_.config.app || context_.config.app === constants.HEDERA_APP_NAME) {
           const subTasks: SoloListrTask<NodeStartContext>[] = [];
 
           const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
