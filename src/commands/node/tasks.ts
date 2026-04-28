@@ -2002,7 +2002,7 @@ export class NodeCommandTasks {
       }, // NodeStartConfigClass NodeRefreshContext
       skip: async (context_): Promise<boolean> => {
         const app: string = (context_.config as NodeStartConfigClass | NodeRefreshConfigClass).app;
-        return Boolean(app) && app !== constants.HEDERA_APP_NAME;
+        return app && app !== constants.HEDERA_APP_NAME;
       },
     };
   }
