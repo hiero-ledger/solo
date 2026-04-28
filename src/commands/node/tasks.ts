@@ -1672,6 +1672,26 @@ export class NodeCommandTasks {
                 ) {
                   success = true;
                 } else {
+                  // Fallback: on long-running nodes these ledger-id markers may not be
+                  // present in current hgcaa.log anymore. If the node is already ACTIVE,
+                  // treat it as ready for ledger-id dependent operations.
+                  try {
+                    await this.checkNetworkNodeActiveness(
+                      NamespaceName.of(node.namespace),
+                      node.name,
+                      task as SoloListrTaskWrapper<AnyListrContext>,
+                      `Waiting for node: ${chalk.cyan(node.name)}`,
+                      NodeStatusCodes.ACTIVE,
+                      1,
+                      0,
+                      1000,
+                      node.context,
+                    );
+                    success = true;
+                    continue;
+                  } catch {
+                    // keep retrying until maxAttempts is reached
+                  }
                   await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
                 }
               }
