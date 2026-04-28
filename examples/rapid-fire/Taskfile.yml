@@ -17,6 +17,8 @@ vars:
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
   HELISWAP_PREFUND_START_ACCOUNT: "1001"
   HELISWAP_PREFUND_END_ACCOUNT: "1300"
+  HELISWAP_CREATOR_PREFUND_START_ACCOUNT: "1010"
+  HELISWAP_CREATOR_PREFUND_END_ACCOUNT: "1015"
   HELISWAP_PREFUND_HBAR: "2000000"
   HELISWAP_PREFUND_SLEEP_SECONDS: "1"
   HELISWAP_CREATOR_ACCOUNT_ID: "0.0.1013"
@@ -173,19 +175,11 @@ tasks:
             top_up_creator_account
           done
 
-          (
-            while true; do
-              top_up_creator_account
-              for account_num in $(seq {{ .HELISWAP_PREFUND_START_ACCOUNT }} {{ .HELISWAP_PREFUND_END_ACCOUNT }}); do
-                fund_account "0.0.${account_num}"
-              done
-              get_candidate_accounts | while read -r account_id; do
-                fund_account "${account_id}"
-              done
-              sleep {{ .HELISWAP_PREFUND_SLEEP_SECONDS }}
-            done
-          ) &
-          prefunder_pid=$!
+          # One-time targeted top-up for creator-adjacent accounts used by HeliSwap setup.
+          for account_num in $(seq {{ .HELISWAP_CREATOR_PREFUND_START_ACCOUNT }} {{ .HELISWAP_CREATOR_PREFUND_END_ACCOUNT }}); do
+            fund_account "0.0.${account_num}"
+          done
+          top_up_creator_account
 
           set +e
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
@@ -194,8 +188,6 @@ tasks:
           heliswap_exit_code=$?
           set -e
 
-          kill "${prefunder_pid}" >/dev/null 2>&1 || true
-          wait "${prefunder_pid}" 2>/dev/null || true
           rm -f "${funded_ids_file}"
 
           if [ "${heliswap_exit_code}" -ne 0 ]; then

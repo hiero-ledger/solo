@@ -100,12 +100,12 @@ export class ConsensusNodeTest extends BaseCommandTest {
       deployment,
     );
     if (enableLocalBuildPathTesting) {
-      argv.push(
-        optionFromFlag(Flags.localBuildPath),
-        localBuildPath,
-        optionFromFlag(Flags.releaseTag),
-        localBuildReleaseTag,
-      );
+      argv.push(optionFromFlag(Flags.localBuildPath), localBuildPath);
+    }
+
+    // Allow version-pinned setup in E2E tests even when local-build mode is off.
+    if (localBuildReleaseTag) {
+      argv.push(optionFromFlag(Flags.releaseTag), localBuildReleaseTag);
     }
     argvPushGlobalFlags(argv, testName, true);
     return argv;
