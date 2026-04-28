@@ -153,10 +153,10 @@ jobs:
           ls -la ~/.solo/ || echo "~/.solo/ not found"
           echo "Solo logs directory contents:"
           ls -la ~/.solo/logs/ || echo "~/.solo/logs/ not found"
-          mkdir -p "$(wslpath "$GITHUB_WORKSPACE")/solo-logs"
-          cp -r ~/.solo/logs/. "$(wslpath "$GITHUB_WORKSPACE")/solo-logs/" || echo "Failed to copy logs"
+          mkdir -p "$GITHUB_WORKSPACE/solo-logs"
+          cp -r ~/.solo/logs/. "$GITHUB_WORKSPACE/solo-logs/" || echo "Failed to copy logs"
           echo "Copied files:"
-          ls -la "$(wslpath "$GITHUB_WORKSPACE")/solo-logs/" || echo "No files copied"
+          ls -la "$GITHUB_WORKSPACE/solo-logs/" || echo "No files copied"
 
       - name: Upload Logs
         if: always()
