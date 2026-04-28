@@ -59,7 +59,7 @@ tasks:
 
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{.MERGED_VALUES_FILE}} \
-          --quiet-mode --dev
+          --quiet-mode
       - task: verify
 
   destroy:

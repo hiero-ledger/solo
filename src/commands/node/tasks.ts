@@ -1821,20 +1821,44 @@ export class NodeCommandTasks {
               .setPort(grpcProxyPort);
           }
 
-          let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
-            .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
-            .freezeWith(nodeClient);
+          const maxAttempts: number = 6;
+          let attempt: number = 0;
+          let updated: boolean = false;
+          let currentClient: Client = nodeClient;
+          while (!updated && attempt < maxAttempts) {
+            attempt++;
+            try {
+              let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+                .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
+                .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
+                .freezeWith(currentClient);
 
-          if (adminKey) {
-            updateTransaction = await updateTransaction.sign(adminKey);
-          }
+              if (adminKey) {
+                updateTransaction = await updateTransaction.sign(adminKey);
+              }
 
-          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
-          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+              const transactionResponse: TransactionResponse = await updateTransaction.execute(currentClient);
+              const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(currentClient);
 
-          if (updateTransactionReceipt.status !== Status.Success) {
-            throw new SoloError('Failed to set gRPC web proxy endpoint');
+              if (updateTransactionReceipt.status !== Status.Success) {
+                throw new SoloError('Failed to set gRPC web proxy endpoint');
+              }
+              updated = true;
+            } catch (error) {
+              const errorMessage: string = (error as Error).message ?? String(error);
+              if (!errorMessage.includes('WAITING_FOR_LEDGER_ID') || attempt >= maxAttempts) {
+                throw error;
+              }
+
+              // Refresh to the specific node alias and retry when ledger-id is still propagating.
+              currentClient = await this.accountManager.refreshNodeClient(
+                namespace,
+                this.remoteConfig.getClusterRefs(),
+                nodeAlias,
+                deployment,
+              );
+              await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
+            }
           }
         }
       },
