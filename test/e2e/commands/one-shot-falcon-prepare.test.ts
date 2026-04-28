@@ -11,6 +11,7 @@ import {main} from '../../../src/index.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {optionFromFlag} from '../../../src/commands/command-helpers.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 const expectedSections: readonly string[] = [
   'network',
@@ -39,7 +40,7 @@ describe('One Shot Falcon Prepare E2E', (): void => {
   const generatedFiles: string[] = [];
 
   function trackOutputPath(suffix: string): string {
-    const filePath: string = path.join(os.tmpdir(), `falcon-values.e2e.${Date.now()}.${suffix}.yaml`);
+    const filePath: string = PathEx.join(os.tmpdir(), `falcon-values.e2e.${Date.now()}.${suffix}.yaml`);
     generatedFiles.push(filePath);
     return filePath;
   }
@@ -69,8 +70,8 @@ describe('One Shot Falcon Prepare E2E', (): void => {
     }
   });
 
-  it('respects an absolute --output-values-file path', async (): Promise<void> => {
-    const outputPath: string = path.resolve(trackOutputPath('absolute'));
+  it(`respects an absolute ${optionFromFlag(Flags.outputValuesFile)} path`, async (): Promise<void> => {
+    const outputPath: string = PathEx.resolve(trackOutputPath('absolute'));
     expect(path.isAbsolute(outputPath), 'test path must be absolute').to.equal(true);
 
     await main(buildPrepareArgv(outputPath));
@@ -84,9 +85,9 @@ describe('One Shot Falcon Prepare E2E', (): void => {
   it('resolves a relative path against the user working directory (INIT_CWD)', async (): Promise<void> => {
     // Simulate running Solo from a directory that differs from process.cwd()
     // (e.g. when invoked via npx / npm run from an external directory).
-    const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'falcon-cwd-'));
+    const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'falcon-cwd-'));
     const relativeName: string = `falcon-values.e2e.${Date.now()}.relative.yaml`;
-    const expectedAbsolutePath: string = path.join(temporaryDirectory, relativeName);
+    const expectedAbsolutePath: string = PathEx.join(temporaryDirectory, relativeName);
     generatedFiles.push(expectedAbsolutePath);
 
     const originalInitCwd: string | undefined = process.env.INIT_CWD;

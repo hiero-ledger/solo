@@ -47,6 +47,9 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
   public static readonly MULTIPLE_DESTROY: string = 'destroy';
   public static readonly FALCON_PREPARE: string = 'prepare';
 
+  /** CLI path prefix for falcon subcommands, used in generated comments and log messages. */
+  public static readonly FALCON_COMMAND_PATH: string = `solo ${OneShotCommandDefinition.COMMAND_NAME} ${OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME}`;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
@@ -132,9 +135,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               OneShotCommandDefinition.FALCON_PREPARE,
-              'Interactively generates a falcon-values.yaml for use with `solo one-shot falcon deploy`. ' +
-                'By default writes to ./falcon-values.yaml in the current working directory; ' +
-                'override with --output-values-file. Pass --default to accept all defaults non-interactively.',
+              'Generates a falcon-values.yaml configuration file for solo one-shot falcon deploy.',
               this.oneShotCommand,
               this.oneShotCommand.prepareFalcon,
               DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST,

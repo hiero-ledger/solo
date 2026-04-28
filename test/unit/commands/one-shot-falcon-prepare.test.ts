@@ -3,28 +3,28 @@
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import yaml from 'yaml';
-import * as version from '../../../version.js';
 import {DefaultOneShotCommand} from '../../../src/commands/one-shot/default-one-shot.js';
 import {type FalconPrepareConfig} from '../../../src/commands/one-shot/falcon-prepare-config.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {optionFromFlag} from '../../../src/commands/command-helpers.js';
+import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 
 function createDefaultConfig(overrides: Partial<FalconPrepareConfig> = {}): FalconPrepareConfig {
   return {
     numberOfConsensusNodes: 1,
-    releaseTag: version.HEDERA_PLATFORM_VERSION,
-    mirrorNodeVersion: version.MIRROR_NODE_VERSION,
-    relayReleaseTag: version.HEDERA_JSON_RPC_RELAY_VERSION,
-    chartVersion: version.BLOCK_NODE_VERSION,
-    explorerVersion: version.EXPLORER_VERSION,
-    soloChartVersion: version.SOLO_CHART_VERSION,
-    loadBalancerEnabled: false,
+    releaseTag: Flags.releaseTag.definition.defaultValue as string,
+    mirrorNodeVersion: Flags.mirrorNodeVersion.definition.defaultValue as string,
+    relayReleaseTag: Flags.relayReleaseTag.definition.defaultValue as string,
+    chartVersion: Flags.blockNodeChartVersion.definition.defaultValue as string,
+    explorerVersion: Flags.explorerVersion.definition.defaultValue as string,
+    soloChartVersion: Flags.soloChartVersion.definition.defaultValue as string,
+    loadBalancerEnabled: Flags.loadBalancerEnabled.definition.defaultValue as boolean,
     enableMirrorIngress: true,
-    localBuildPath: '',
-    debugNodeAlias: '',
+    localBuildPath: Flags.localBuildPath.definition.defaultValue as string,
+    debugNodeAlias: Flags.debugNodeAlias.definition.defaultValue as string,
     enableDevChartMode: false,
-    forcePortForward: true,
-    outputPath: './falcon-values.yaml',
+    forcePortForward: Flags.forcePortForward.definition.defaultValue as boolean,
+    outputPath: Flags.outputValuesFile.definition.defaultValue as string,
     ...overrides,
   };
 }
@@ -49,14 +49,26 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
     const output: string = DefaultOneShotCommand.generateFalconValuesYaml(config);
     const parsed: Record<string, Record<string, string>> = yaml.parse(output);
 
-    expect(parsed.network[optionFromFlag(Flags.releaseTag)]).to.equal(version.HEDERA_PLATFORM_VERSION);
-    expect(parsed.setup[optionFromFlag(Flags.releaseTag)]).to.equal(version.HEDERA_PLATFORM_VERSION);
-    expect(parsed.mirrorNode[optionFromFlag(Flags.mirrorNodeVersion)]).to.equal(version.MIRROR_NODE_VERSION);
-    expect(parsed.relayNode[optionFromFlag(Flags.relayReleaseTag)]).to.equal(version.HEDERA_JSON_RPC_RELAY_VERSION);
-    expect(parsed.blockNode[optionFromFlag(Flags.blockNodeChartVersion)]).to.equal(version.BLOCK_NODE_VERSION);
-    expect(parsed.explorerNode[optionFromFlag(Flags.explorerVersion)]).to.equal(version.EXPLORER_VERSION);
-    expect(parsed.network[optionFromFlag(Flags.soloChartVersion)]).to.equal(version.SOLO_CHART_VERSION);
-    expect(parsed.explorerNode[optionFromFlag(Flags.soloChartVersion)]).to.equal(version.SOLO_CHART_VERSION);
+    expect(parsed.network[optionFromFlag(Flags.releaseTag)]).to.equal(Flags.releaseTag.definition.defaultValue);
+    expect(parsed.setup[optionFromFlag(Flags.releaseTag)]).to.equal(Flags.releaseTag.definition.defaultValue);
+    expect(parsed.mirrorNode[optionFromFlag(Flags.mirrorNodeVersion)]).to.equal(
+      Flags.mirrorNodeVersion.definition.defaultValue,
+    );
+    expect(parsed.relayNode[optionFromFlag(Flags.relayReleaseTag)]).to.equal(
+      Flags.relayReleaseTag.definition.defaultValue,
+    );
+    expect(parsed.blockNode[optionFromFlag(Flags.blockNodeChartVersion)]).to.equal(
+      Flags.blockNodeChartVersion.definition.defaultValue,
+    );
+    expect(parsed.explorerNode[optionFromFlag(Flags.explorerVersion)]).to.equal(
+      Flags.explorerVersion.definition.defaultValue,
+    );
+    expect(parsed.network[optionFromFlag(Flags.soloChartVersion)]).to.equal(
+      Flags.soloChartVersion.definition.defaultValue,
+    );
+    expect(parsed.explorerNode[optionFromFlag(Flags.soloChartVersion)]).to.equal(
+      Flags.soloChartVersion.definition.defaultValue,
+    );
   });
 
   it('should apply user-provided version overrides', (): void => {
@@ -126,10 +138,10 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
     const output: string = DefaultOneShotCommand.generateFalconValuesYaml(config);
 
     expect(output).to.match(/^# One-Shot Falcon Deployment Configuration/);
-    expect(output).to.include(`${DefaultOneShotCommand.FALCON_COMMAND_PATH} deploy`);
-    expect(output).to.include(`${optionFromFlag(Flags.valuesFile)}`);
-    expect(output).to.include(`${optionFromFlag(Flags.deployMirrorNode)} false`);
-    expect(output).to.include(`${optionFromFlag(Flags.deployExplorer)} false`);
-    expect(output).to.include(`${optionFromFlag(Flags.deployRelay)} false`);
+    expect(output).to.include(OneShotCommandDefinition.FALCON_COMMAND_PATH + ' deploy');
+    expect(output).to.include(optionFromFlag(Flags.valuesFile));
+    expect(output).to.include(`--no-${Flags.deployMirrorNode.name}`);
+    expect(output).to.include(`--no-${Flags.deployExplorer.name}`);
+    expect(output).to.include(`--no-${Flags.deployRelay.name}`);
   });
 });

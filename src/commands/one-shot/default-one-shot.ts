@@ -32,6 +32,7 @@ import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-
 import * as version from '../../../version.js';
 import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
 import {type FalconPrepareConfig} from './falcon-prepare-config.js';
+import {OneShotCommandDefinition} from '../command-definitions/one-shot-command-definition.js';
 import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
 import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
@@ -104,9 +105,6 @@ import {ApplicationVersionsSchema} from '../../data/schema/model/common/applicat
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
-  /** CLI path prefix for falcon subcommands, used in generated comments and log messages. */
-  public static readonly FALCON_COMMAND_PATH: string = 'solo one-shot falcon';
-
   private static readonly SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
   private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
@@ -1958,8 +1956,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             if (config.enableDevChartMode) {
               await this.configManager.executePrompt(task, [flags.localBuildPath, flags.debugNodeAlias]);
-              config.localBuildPath = this.configManager.getFlag(flags.localBuildPath) ?? '';
-              config.debugNodeAlias = this.configManager.getFlag(flags.debugNodeAlias) ?? '';
+              config.localBuildPath = this.configManager.getFlag(flags.localBuildPath);
+              config.debugNodeAlias = this.configManager.getFlag(flags.debugNodeAlias);
             }
           },
         },
@@ -1970,7 +1968,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             fs.writeFileSync(config.outputPath, yamlContent);
             this.logger.showUser(chalk.green(`\nFalcon values file generated: ${config.outputPath}`));
             this.logger.showUser(
-              `\nTo deploy, run:\n  ${DefaultOneShotCommand.FALCON_COMMAND_PATH} deploy ${optionFromFlag(flags.valuesFile)} ${config.outputPath}`,
+              `\nTo deploy, run:\n  ${OneShotCommandDefinition.FALCON_COMMAND_PATH} deploy ${optionFromFlag(flags.valuesFile)} ${config.outputPath}`,
             );
           },
         },
@@ -2034,10 +2032,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       [flags.soloChartVersion.name, config.soloChartVersion],
       [flags.debugNodeAlias.name, config.debugNodeAlias],
       [flags.loadBalancerEnabled.name, config.loadBalancerEnabled],
-      [flags.persistentVolumeClaims.name, false],
+      [flags.persistentVolumeClaims.name, flags.persistentVolumeClaims.definition.defaultValue],
       [flags.releaseTag.name, config.releaseTag],
-      [flags.serviceMonitor.name, false],
-      [flags.podLog.name, false],
+      [flags.serviceMonitor.name, flags.serviceMonitor.definition.defaultValue],
+      [flags.podLog.name, flags.podLog.definition.defaultValue],
     ]);
 
     const setupOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
@@ -2065,7 +2063,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       [flags.enableIngress.name, config.enableMirrorIngress],
       [flags.forcePortForward.name, config.forcePortForward],
       [flags.pinger.name, true],
-      [flags.useExternalDatabase.name, false],
+      [flags.useExternalDatabase.name, flags.useExternalDatabase.definition.defaultValue],
     ]);
 
     const relayNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
@@ -2073,7 +2071,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       string | number | boolean | null
     >([
       [flags.relayReleaseTag.name, config.relayReleaseTag],
-      [flags.replicaCount.name, 1],
+      [flags.replicaCount.name, flags.replicaCount.definition.defaultValue],
       [flags.forcePortForward.name, config.forcePortForward],
       // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
       [flags.mirrorNodeId.name, null],
@@ -2084,7 +2082,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       string | number | boolean | null
     >([
       [flags.blockNodeChartVersion.name, config.chartVersion],
-      [flags.enableIngress.name, false],
+      [flags.enableIngress.name, flags.enableIngress.definition.defaultValue],
       [flags.devMode.name, config.enableDevChartMode],
     ]);
 
@@ -2095,9 +2093,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       [flags.soloChartVersion.name, config.soloChartVersion],
       [flags.explorerVersion.name, config.explorerVersion],
       [flags.enableIngress.name, true],
-      [flags.enableExplorerTls.name, false],
-      [flags.explorerTlsHostName.name, 'explorer.solo.local'],
-      [flags.tlsClusterIssuerType.name, 'self-signed'],
+      [flags.enableExplorerTls.name, flags.enableExplorerTls.definition.defaultValue],
+      [flags.explorerTlsHostName.name, flags.explorerTlsHostName.definition.defaultValue],
+      [flags.tlsClusterIssuerType.name, flags.tlsClusterIssuerType.definition.defaultValue],
       [flags.forcePortForward.name, config.forcePortForward],
       // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
       [flags.mirrorNodeId.name, null],
@@ -2121,15 +2119,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
     const header: string =
       '# One-Shot Falcon Deployment Configuration\n' +
-      `# Generated by: ${DefaultOneShotCommand.FALCON_COMMAND_PATH} prepare\n` +
+      `# Generated by: ${OneShotCommandDefinition.FALCON_COMMAND_PATH} prepare\n` +
       '# This file configures all components of the Hiero network deployment\n' +
       `#\n# Consensus nodes: ${config.numberOfConsensusNodes}\n` +
       '#\n# Usage:\n' +
-      `#   ${DefaultOneShotCommand.FALCON_COMMAND_PATH} deploy ${optionFromFlag(flags.valuesFile)} ./falcon-values.yaml\n` +
+      `#   ${OneShotCommandDefinition.FALCON_COMMAND_PATH} deploy ${optionFromFlag(flags.valuesFile)} ./falcon-values.yaml\n` +
       '#\n# To disable optional components, pass CLI flags:\n' +
-      `#   ${optionFromFlag(flags.deployMirrorNode)} false\n` +
-      `#   ${optionFromFlag(flags.deployExplorer)} false\n` +
-      `#   ${optionFromFlag(flags.deployRelay)} false\n\n`;
+      `#   --no-${flags.deployMirrorNode.name}\n` +
+      `#   --no-${flags.deployExplorer.name}\n` +
+      `#   --no-${flags.deployRelay.name}\n\n`;
 
     return header + yaml.stringify(valuesObject, {lineWidth: 0});
   }
