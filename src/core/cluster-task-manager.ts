@@ -129,7 +129,7 @@ export class ClusterTaskManager extends ShellRunner {
           await this.sudoRun(
             onSudoRequested,
             onSudoGranted,
-            `mkdir -p /usr/lib/cni && curl -fsSL "${cniUrl}" | tar -xz -C /usr/lib/cni/`,
+            `bash -c 'mkdir -p /usr/lib/cni && curl -fsSL "${cniUrl}" | tar -xz -C /usr/lib/cni/'`,
           );
         },
       } as SoloListrTask<InitContext>,
