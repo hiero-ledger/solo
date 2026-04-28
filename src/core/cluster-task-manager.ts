@@ -116,23 +116,23 @@ export class ClusterTaskManager extends ShellRunner {
         title: 'Creating local cluster...',
         task: async (_context: InitContext, task: SoloListrTaskWrapper<InitContext>): Promise<void> => {
           void _context;
-          const whichPodman: string[] = await this.run('which podman');
-          const podmanPath: string = whichPodman.join('').replace('/podman', '');
+          const sudoPath: string =
+            `${this.podmanInstallationDirectory}${path.delimiter}` +
+            `${this.kindInstallationDirectory}${path.delimiter}${process.env.PATH}`;
           const sudoRunOptions: [string[], boolean?, boolean?, Record<string, string>?] = [
             [],
             undefined,
             undefined,
-            {
-              PATH:
-                `${this.podmanInstallationDirectory}${path.delimiter}` +
-                `${this.kindInstallationDirectory}${path.delimiter}${process.env.PATH}`,
-            },
+            {PATH: sudoPath},
           ];
           const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
           await this.sudoRun(
             onSudoRequested,
             onSudoGranted,
-            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" kind create cluster --image "${constants.KIND_NODE_IMAGE}" --config "${constants.KIND_CLUSTER_CONFIG_FILE}"`,
+            // Use `env` so sudo passes KIND_EXPERIMENTAL_PROVIDER and a full PATH (including kind's
+            // install dir) to the subprocess — sudo's secure_path would otherwise prevent it from
+            // finding the kind binary at its non-standard location.
+            `env KIND_EXPERIMENTAL_PROVIDER=podman PATH="${sudoPath}" ${this.kindInstallationDirectory}/kind create cluster --image "${constants.KIND_NODE_IMAGE}" --config "${constants.KIND_CLUSTER_CONFIG_FILE}"`,
             ...sudoRunOptions,
           );
 
