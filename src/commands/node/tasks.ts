@@ -694,6 +694,36 @@ export class NodeCommandTasks {
           config.keysDir,
           config.curDate,
         );
+        for (const nodeAlias of nodeAliases) {
+          subTasks.push({
+            title: `Ensure agreement gossip keys for node: ${chalk.yellow(nodeAlias)}`,
+            task: async (): Promise<void> => {
+              const signingPrivate = PathEx.join(
+                config.keysDir,
+                Templates.renderGossipPemPrivateKeyFile(nodeAlias, constants.SIGNING_KEY_PREFIX),
+              );
+              const signingPublic = PathEx.join(
+                config.keysDir,
+                Templates.renderGossipPemPublicKeyFile(nodeAlias, constants.SIGNING_KEY_PREFIX),
+              );
+              const agreementPrivate = PathEx.join(
+                config.keysDir,
+                Templates.renderGossipPemPrivateKeyFile(nodeAlias, constants.AGREEMENT_KEY_PREFIX),
+              );
+              const agreementPublic = PathEx.join(
+                config.keysDir,
+                Templates.renderGossipPemPublicKeyFile(nodeAlias, constants.AGREEMENT_KEY_PREFIX),
+              );
+
+              if (!fs.existsSync(agreementPrivate) && fs.existsSync(signingPrivate)) {
+                fs.copyFileSync(signingPrivate, agreementPrivate);
+              }
+              if (!fs.existsSync(agreementPublic) && fs.existsSync(signingPublic)) {
+                fs.copyFileSync(signingPublic, agreementPublic);
+              }
+            },
+          });
+        }
         // set up the sub-tasks
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
@@ -1085,7 +1115,11 @@ export class NodeCommandTasks {
         const signedKeyFiles: TDirectoryData[] = await k8Container
           .listDir(keyDirectory)
           .then((files: TDirectoryData[]): TDirectoryData[] =>
-            files.filter((file: TDirectoryData): boolean => file.name.startsWith(constants.SIGNING_KEY_PREFIX)),
+            files.filter(
+              (file: TDirectoryData): boolean =>
+                file.name.startsWith(`${constants.SIGNING_KEY_PREFIX}-`) ||
+                file.name.startsWith(`${constants.AGREEMENT_KEY_PREFIX}-`),
+            ),
           );
 
         await k8Container.execContainer([

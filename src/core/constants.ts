@@ -368,6 +368,7 @@ export const LISTR_DEFAULT_OPTIONS: {
 };
 
 export const SIGNING_KEY_PREFIX: string = 's';
+export const AGREEMENT_KEY_PREFIX: string = 'a';
 export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
 export const LOCAL_HOST: string = '127.0.0.1';

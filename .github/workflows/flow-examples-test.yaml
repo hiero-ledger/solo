@@ -381,6 +381,9 @@ jobs:
               fi
               wait "${TASK_PID}" 2>/dev/null || true
             fi
+            echo "Task was cancelled/timed out. Collecting deployment diagnostics logs..."
+            cd ../..
+            npm run solo-test -- deployment diagnostics logs -q --dev || true
             exit 130
           }
           trap cleanup SIGTERM SIGINT

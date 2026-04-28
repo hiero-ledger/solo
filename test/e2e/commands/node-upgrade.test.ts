@@ -80,7 +80,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.addCluster(options);
         ConsensusNodeTest.keys(options);
 
-        NetworkTest.deploy(options);
+        NetworkTest.deploy(options, TEST_UPGRADE_FROM_VERSION);
 
         ConsensusNodeTest.setup(options, TEST_UPGRADE_FROM_VERSION);
         ConsensusNodeTest.start(options);

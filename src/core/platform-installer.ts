@@ -238,24 +238,37 @@ export class PlatformInstaller {
     }
 
     try {
-      // copy private keys for the node
-      const sourceFiles = [
-        PathEx.joinWithRealPath(
+      const sourceFiles: string[] = [];
+      const keyPrefixes: string[] = [constants.SIGNING_KEY_PREFIX, constants.AGREEMENT_KEY_PREFIX];
+
+      // Copy this node's private keys (signing + agreement when available).
+      for (const keyPrefix of keyPrefixes) {
+        const privateKeyFile = PathEx.join(
           stagingDirectory,
           'keys',
-          Templates.renderGossipPemPrivateKeyFile(consensusNode.name as NodeAlias),
-        ),
-      ];
+          Templates.renderGossipPemPrivateKeyFile(consensusNode.name as NodeAlias, keyPrefix),
+        );
+        if (fs.existsSync(privateKeyFile)) {
+          sourceFiles.push(privateKeyFile);
+        }
+      }
 
-      // copy all public keys for all nodes
-      for (const consensusNode of consensusNodes) {
-        sourceFiles.push(
-          PathEx.joinWithRealPath(
+      // copy all public keys for all nodes (signing + agreement when available)
+      for (const node of consensusNodes) {
+        for (const keyPrefix of keyPrefixes) {
+          const publicKeyFile = PathEx.join(
             stagingDirectory,
             'keys',
-            Templates.renderGossipPemPublicKeyFile(consensusNode.name as NodeAlias),
-          ),
-        );
+            Templates.renderGossipPemPublicKeyFile(node.name as NodeAlias, keyPrefix),
+          );
+          if (fs.existsSync(publicKeyFile)) {
+            sourceFiles.push(publicKeyFile);
+          }
+        }
+      }
+
+      if (sourceFiles.length === 0) {
+        throw new SoloError(`no gossip key files were found in staging directory for node '${consensusNode.name}'`);
       }
 
       const data = {};

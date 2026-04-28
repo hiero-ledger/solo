@@ -24,6 +24,7 @@ export class NetworkTest extends BaseCommandTest {
     enableLocalBuildPathTesting: boolean,
     localBuildReleaseTag: string,
     loadBalancerEnabled: boolean,
+    releaseTagOverride?: string,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
 
@@ -44,14 +45,16 @@ export class NetworkTest extends BaseCommandTest {
       argv.push(optionFromFlag(Flags.loadBalancerEnabled));
     }
 
-    if (enableLocalBuildPathTesting) {
+    if (releaseTagOverride) {
+      argv.push(optionFromFlag(Flags.releaseTag), releaseTagOverride);
+    } else if (enableLocalBuildPathTesting) {
       argv.push(optionFromFlag(Flags.releaseTag), localBuildReleaseTag);
     }
     argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
-  public static deploy(options: BaseTestOptions): void {
+  public static deploy(options: BaseTestOptions, releaseTagOverride?: string): void {
     const {
       testName,
       deployment,
@@ -73,6 +76,7 @@ export class NetworkTest extends BaseCommandTest {
           enableLocalBuildPathTesting,
           localBuildReleaseTag,
           loadBalancerEnabled,
+          releaseTagOverride,
         ),
       );
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
