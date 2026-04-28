@@ -1,11 +1,17 @@
 readinessProbe:
   initialDelaySeconds: 0
   periodSeconds: 1
-  failureThreshold: 60
+  failureThreshold: 120
+  timeoutSeconds: 2
 livenessProbe:
   initialDelaySeconds: 0
-  periodSeconds: 1
+  periodSeconds: 5
   failureThreshold: 60
+startupProbe:
+  initialDelaySeconds: 0
+  periodSeconds: 1
+  failureThreshold: 240
+  timeoutSeconds: 2
 relay:
   resources:
     requests:
