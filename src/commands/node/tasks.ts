@@ -831,6 +831,17 @@ export class NodeCommandTasks {
 
           context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
+        // Refresh to a single-node client before file upload so we do not route to a
+        // lagging node that still returns WAITING_FOR_LEDGER_ID precheck.
+        if (Array.isArray(config.existingNodeAliases) && config.existingNodeAliases.length > 0) {
+          config.nodeClient = await this.accountManager.refreshNodeClient(
+            config.namespace,
+            this.remoteConfig.getClusterRefs(),
+            config.existingNodeAliases[0],
+            this.configManager.getFlag<DeploymentName>(flags.deployment),
+          );
+        }
+
         context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
@@ -1672,6 +1683,16 @@ export class NodeCommandTasks {
                 ) {
                   success = true;
                 } else {
+                  // Post-upgrade/restart, ledger-id markers may not appear in hgcaa.log
+                  // for every node. If platform status reached ACTIVE in swirlds.log,
+                  // treat ledger-id readiness as satisfied.
+                  const swirldsLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/swirlds.log`;
+                  const swirldsOutput: string = await container.execContainer(['cat', swirldsLogPath]);
+                  if (/\bACTIVE\b/.test(swirldsOutput)) {
+                    success = true;
+                    continue;
+                  }
+
                   // Fallback: on long-running nodes these ledger-id markers may not be
                   // present in current hgcaa.log anymore. If the node is already ACTIVE,
                   // treat it as ready for ledger-id dependent operations.

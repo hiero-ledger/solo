@@ -298,10 +298,7 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
-  argv.push(
-    optionFromFlag(Flags.deployment),
-    deployment,
-  );
+  argv.push(optionFromFlag(Flags.deployment), deployment);
   return argv;
 }
 
