@@ -12,6 +12,9 @@ import {
   type V1PodList,
   V1PodSpec,
   V1Probe,
+  type V1ContainerStatus,
+  type V1ContainerStateWaiting,
+  type V1ContainerStateTerminated,
 } from '@kubernetes/client-node';
 import {type Pods} from '../../../resources/pod/pods.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
@@ -210,6 +213,14 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                   (p): boolean => (p.metadata?.creationTimestamp?.getTime() || 0) > createdAfter.getTime(),
                 )
               : sortedItems;
+
+            // Fail fast if any eligible pod has a non-recoverable container error (e.g. ImagePullBackOff, OOMKilled)
+            for (const item of eligibleItems) {
+              const fatalError: string | undefined = K8ClientPods.detectFatalContainerError(item);
+              if (fatalError) {
+                return reject(new SoloError(fatalError));
+              }
+            }
 
             if (eligibleItems.length > 0) {
               // Only check the newest eligible pod
@@ -489,5 +500,56 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     }
     // Plain number (bytes)
     return Math.round(Number.parseFloat(quantity) / (1024 * 1024));
+  }
+
+  /**
+   * Inspect a V1Pod's container statuses for non-recoverable error states and return a descriptive
+   * error message if one is detected, or undefined if no fatal error is present.
+   *
+   * Covered states:
+   * - Waiting: ImagePullBackOff, ErrImagePull, InvalidImageName, ImageInspectError,
+   *            RegistryUnavailable (image unavailable in registry)
+   * - Terminated: OOMKilled (container killed due to out-of-memory)
+   */
+  private static detectFatalContainerError(pod: V1Pod): string | undefined {
+    const fatalWaitingReasons: ReadonlySet<string> = new Set([
+      'ImagePullBackOff',
+      'ErrImagePull',
+      'InvalidImageName',
+      'ImageInspectError',
+      'RegistryUnavailable',
+    ]);
+
+    const fatalTerminatedReasons: ReadonlySet<string> = new Set(['OOMKilled']);
+
+    const podName: string = pod.metadata?.name ?? '<unknown>';
+
+    const allContainerStatuses: V1ContainerStatus[] = [
+      ...(pod.status?.initContainerStatuses ?? []),
+      ...(pod.status?.containerStatuses ?? []),
+    ];
+
+    for (const containerStatus of allContainerStatuses) {
+      const containerName: string = containerStatus.name ?? '<unknown>';
+
+      const waitingState: V1ContainerStateWaiting | undefined = containerStatus.state?.waiting;
+      if (waitingState?.reason && fatalWaitingReasons.has(waitingState.reason)) {
+        const detail: string = waitingState.message ? `: ${waitingState.message}` : '';
+        return (
+          `Pod "${podName}" container "${containerName}" is in a non-recoverable state: ` +
+          `${waitingState.reason}${detail}`
+        );
+      }
+
+      const terminatedState: V1ContainerStateTerminated | undefined = containerStatus.state?.terminated;
+      if (terminatedState?.reason && fatalTerminatedReasons.has(terminatedState.reason)) {
+        return (
+          `Pod "${podName}" container "${containerName}" was terminated due to: ` +
+          `${terminatedState.reason} (exit code ${terminatedState.exitCode ?? 'unknown'})`
+        );
+      }
+    }
+
+    return undefined;
   }
 }
