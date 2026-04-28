@@ -18,7 +18,7 @@ import {patchInject} from '../../../../core/dependency-injection/container-helpe
 import {type TaskList} from '../../../../core/task-list/task-list.js';
 import {type SoloEventBus} from '../../../../core/events/solo-event-bus.js';
 import {SoloEventType} from '../../../../core/events/event-types/event-types.js';
-import {type SoloListr, type SoloListrTask, type SoloListrTaskWrapper} from '../../../../types/index.js';
+import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../types/index.js';
 import {type Realm, type Shard} from '../../../../types/index.js';
 import {type AccountManager} from '../../../../core/account-manager.js';
 import {type LocalConfigRuntimeState} from '../../../../business/runtime-state/config/local/local-config-runtime-state.js';
@@ -43,7 +43,7 @@ import {
   type SystemAccount,
 } from '../../predefined-accounts.js';
 import {type OneShotDeployOrchestrator} from './one-shot-deploy-orchestrator.js';
-import {Phase} from '../phase.js';
+import {type ExecutionMode, Phase} from '../phase.js';
 import {BlockCommandDefinition} from '../../../command-definitions/block-command-definition.js';
 import {MirrorCommandDefinition} from '../../../command-definitions/mirror-command-definition.js';
 import {ExplorerCommandDefinition} from '../../../command-definitions/explorer-command-definition.js';
@@ -406,120 +406,107 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           },
         }),
       }),
-      new Phase('Deploy Solo components', {
-        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const deployPhases: Array<Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
-            new Phase('Deploy block node', {
+      Phase.composite(
+        'Deploy Solo components',
+        [
+          new Phase('Deploy block node', {
+            asListrTask: (
+              getConfig_: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> =>
+              invokeSoloCommand(
+                `solo ${BlockCommandDefinition.ADD_COMMAND}`,
+                BlockCommandDefinition.ADD_COMMAND,
+                (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig_()),
+                this.taskList,
+                (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
+              ),
+          }),
+          Phase.composite('Deploy network node', [
+            new Phase('Deploy consensus node', {
               asListrTask: (
                 getConfig_: () => OneShotSingleDeployConfigClass,
               ): SoloListrTask<OneShotSingleDeployContext> =>
                 invokeSoloCommand(
-                  `solo ${BlockCommandDefinition.ADD_COMMAND}`,
-                  BlockCommandDefinition.ADD_COMMAND,
-                  (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig_()),
+                  `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
+                  ConsensusCommandDefinition.DEPLOY_COMMAND,
+                  (): string[] => DeployArgvBuilders.buildConsensusDeployArgv(getConfig_()),
                   this.taskList,
-                  (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
                 ),
             }),
-            Phase.composite('Deploy network node', [
-              new Phase('Deploy consensus node', {
+            Phase.composite('Setup and start consensus node', [
+              new Phase('Setup consensus node', {
                 asListrTask: (
                   getConfig_: () => OneShotSingleDeployConfigClass,
                 ): SoloListrTask<OneShotSingleDeployContext> =>
                   invokeSoloCommand(
-                    `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
-                    ConsensusCommandDefinition.DEPLOY_COMMAND,
-                    (): string[] => DeployArgvBuilders.buildConsensusDeployArgv(getConfig_()),
+                    `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
+                    ConsensusCommandDefinition.SETUP_COMMAND,
+                    (): string[] => DeployArgvBuilders.buildConsensusSetupArgv(getConfig_()),
                     this.taskList,
                   ),
               }),
-              Phase.composite('Setup and start consensus node', [
-                new Phase('Setup consensus node', {
-                  asListrTask: (
-                    getConfig_: () => OneShotSingleDeployConfigClass,
-                  ): SoloListrTask<OneShotSingleDeployContext> =>
-                    invokeSoloCommand(
-                      `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
-                      ConsensusCommandDefinition.SETUP_COMMAND,
-                      (): string[] => DeployArgvBuilders.buildConsensusSetupArgv(getConfig_()),
-                      this.taskList,
-                    ),
-                }),
-                new Phase('Start consensus node', {
-                  asListrTask: (
-                    getConfig_: () => OneShotSingleDeployConfigClass,
-                  ): SoloListrTask<OneShotSingleDeployContext> =>
-                    invokeSoloCommand(
-                      `solo ${ConsensusCommandDefinition.START_COMMAND}`,
-                      ConsensusCommandDefinition.START_COMMAND,
-                      (): string[] => DeployArgvBuilders.buildConsensusStartArgv(getConfig_()),
-                      this.taskList,
-                    ),
-                }),
-                new Phase('Create accounts', {
-                  asListrTask: (
-                    getConfig_: () => OneShotSingleDeployConfigClass,
-                  ): SoloListrTask<OneShotSingleDeployContext> => this.buildCreateAccountsTask(getConfig_()),
-                }),
-              ]),
+              new Phase('Start consensus node', {
+                asListrTask: (
+                  getConfig_: () => OneShotSingleDeployConfigClass,
+                ): SoloListrTask<OneShotSingleDeployContext> =>
+                  invokeSoloCommand(
+                    `solo ${ConsensusCommandDefinition.START_COMMAND}`,
+                    ConsensusCommandDefinition.START_COMMAND,
+                    (): string[] => DeployArgvBuilders.buildConsensusStartArgv(getConfig_()),
+                    this.taskList,
+                  ),
+              }),
+              new Phase('Create accounts', {
+                asListrTask: (
+                  getConfig_: () => OneShotSingleDeployConfigClass,
+                ): SoloListrTask<OneShotSingleDeployContext> => this.buildCreateAccountsTask(getConfig_()),
+              }),
             ]),
-            new Phase('Deploy mirror node', {
-              asListrTask: (
-                getConfig_: () => OneShotSingleDeployConfigClass,
-              ): SoloListrTask<OneShotSingleDeployContext> =>
-                invokeSoloCommand(
-                  `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
-                  MirrorCommandDefinition.ADD_COMMAND,
-                  (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig_()),
-                  this.taskList,
-                  (): boolean => !getConfig_().deployMirrorNode,
-                ),
-            }),
-            new Phase('Deploy explorer', {
-              asListrTask: (
-                getConfig_: () => OneShotSingleDeployConfigClass,
-              ): SoloListrTask<OneShotSingleDeployContext> =>
-                invokeSoloCommand(
-                  `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
-                  ExplorerCommandDefinition.ADD_COMMAND,
-                  (): string[] => DeployArgvBuilders.buildExplorerArgv(getConfig_()),
-                  this.taskList,
-                  (): boolean => !getConfig_().deployExplorer && !getConfig_().minimalSetup,
-                ),
-            }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
-            new Phase('Deploy JSON-RPC Relay', {
-              asListrTask: (
-                getConfig_: () => OneShotSingleDeployConfigClass,
-              ): SoloListrTask<OneShotSingleDeployContext> =>
-                invokeSoloCommand(
-                  `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-                  RelayCommandDefinition.ADD_COMMAND,
-                  (): string[] => DeployArgvBuilders.buildRelayArgv(getConfig_()),
-                  this.taskList,
-                  (): boolean => !getConfig_().deployRelay && !getConfig_().minimalSetup,
-                ),
-            })
-              .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
-              .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(5)),
-          ];
-
-          return {
-            title: 'Deploy Solo components',
-            task: (
-              _: OneShotSingleDeployContext,
-              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-            ): SoloListr<OneShotSingleDeployContext> =>
-              task.newListr(
-                deployPhases.map(
-                  (
-                    phase: Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
-                  ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfig_, this.eventBus),
-                ),
-                {concurrent: getConfig_().parallelDeploy, rendererOptions: {collapseSubtasks: false}},
+          ]),
+          new Phase('Deploy mirror node', {
+            asListrTask: (
+              getConfig_: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> =>
+              invokeSoloCommand(
+                `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
+                MirrorCommandDefinition.ADD_COMMAND,
+                (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig_()),
+                this.taskList,
+                (): boolean => !getConfig_().deployMirrorNode,
               ),
-          };
-        },
-      }),
+          }),
+          new Phase('Deploy explorer', {
+            asListrTask: (
+              getConfig_: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> =>
+              invokeSoloCommand(
+                `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
+                ExplorerCommandDefinition.ADD_COMMAND,
+                (): string[] => DeployArgvBuilders.buildExplorerArgv(getConfig_()),
+                this.taskList,
+                (): boolean => !getConfig_().deployExplorer && !getConfig_().minimalSetup,
+              ),
+          }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
+          new Phase('Deploy JSON-RPC Relay', {
+            asListrTask: (
+              getConfig_: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> =>
+              invokeSoloCommand(
+                `solo ${RelayCommandDefinition.ADD_COMMAND}`,
+                RelayCommandDefinition.ADD_COMMAND,
+                (): string[] => DeployArgvBuilders.buildRelayArgv(getConfig_()),
+                this.taskList,
+                (): boolean => !getConfig_().deployRelay && !getConfig_().minimalSetup,
+              ),
+          })
+            .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
+            .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(5)),
+        ],
+        (getConfig_: () => OneShotSingleDeployConfigClass): ExecutionMode =>
+          getConfig_().parallelDeploy ? Phase.EXECUTION_MODE.CONCURRENT : Phase.EXECUTION_MODE.SEQUENTIAL,
+        true,
+        {collapseSubtasks: false},
+      ),
       new Phase('Finish', {
         asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Finish',

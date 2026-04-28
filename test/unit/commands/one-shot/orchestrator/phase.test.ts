@@ -3,7 +3,7 @@
 import sinon, {type SinonStub} from 'sinon';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
-import {Phase, type ExecutionMode} from '../../../../../src/commands/one-shot/orchestrator/phase.js';
+import {Phase} from '../../../../../src/commands/one-shot/orchestrator/phase.js';
 import {type OrchestratorStep} from '../../../../../src/commands/one-shot/orchestrator/orchestrator-step.js';
 import {type SoloEventBus} from '../../../../../src/core/events/solo-event-bus.js';
 import {SoloEventType} from '../../../../../src/core/events/event-types/event-types.js';
@@ -154,7 +154,11 @@ describe('Phase', (): void => {
     });
 
     it('sequential composite passes concurrent: false to newListr', (): void => {
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA], 'sequential');
+      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite(
+        'parent',
+        [childPhaseA],
+        Phase.EXECUTION_MODE.SEQUENTIAL,
+      );
       const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
@@ -164,7 +168,11 @@ describe('Phase', (): void => {
     });
 
     it('concurrent composite passes concurrent: true to newListr', (): void => {
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA], 'concurrent');
+      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite(
+        'parent',
+        [childPhaseA],
+        Phase.EXECUTION_MODE.CONCURRENT,
+      );
       const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
@@ -177,7 +185,7 @@ describe('Phase', (): void => {
       const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite(
         'parent',
         [childPhaseA],
-        'concurrent',
+        Phase.EXECUTION_MODE.CONCURRENT,
         false,
       );
       const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
@@ -211,11 +219,55 @@ describe('Phase', (): void => {
       expect((newListrStub.firstCall.args[1] as {concurrent: boolean}).concurrent).to.equal(false);
     });
 
-    it('ExecutionMode type covers sequential and concurrent', (): void => {
-      const sequential: ExecutionMode = 'sequential';
-      const concurrent: ExecutionMode = 'concurrent';
-      expect(sequential).to.equal('sequential');
-      expect(concurrent).to.equal('concurrent');
+    it('rendererOptions are passed to newListr when provided', (): void => {
+      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite(
+        'parent',
+        [childPhaseA],
+        Phase.EXECUTION_MODE.SEQUENTIAL,
+        true,
+        {collapseSubtasks: false},
+      );
+      const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
+      const newListrStub: SinonStub = sinon.stub().returns([]);
+      const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
+        task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;
+      taskFunction({}, {newListr: newListrStub} as unknown as SoloListrTaskWrapper<SimpleContext>);
+      expect((newListrStub.firstCall.args[1] as {rendererOptions: unknown}).rendererOptions).to.deep.equal({
+        collapseSubtasks: false,
+      });
+    });
+
+    it('dynamic executionMode function determines concurrent flag at task execution time', (): void => {
+      const executionModeStub: SinonStub = sinon.stub().returns(Phase.EXECUTION_MODE.CONCURRENT);
+      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA], executionModeStub);
+      const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
+      const newListrStub: SinonStub = sinon.stub().returns([]);
+      const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
+        task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;
+      taskFunction({}, {newListr: newListrStub} as unknown as SoloListrTaskWrapper<SimpleContext>);
+      expect(executionModeStub.calledOnce).to.be.true;
+      const getConfigArgument: () => SimpleConfig = executionModeStub.firstCall.args[0] as () => SimpleConfig;
+      expect(getConfigArgument()).to.equal(config);
+      expect((newListrStub.firstCall.args[1] as {concurrent: boolean}).concurrent).to.equal(true);
+    });
+
+    it('skip function on composite is evaluated with getConfig at task execution time', (): void => {
+      const skipStub: SinonStub = sinon.stub().returns(true);
+      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite(
+        'parent',
+        [childPhaseA],
+        Phase.EXECUTION_MODE.SEQUENTIAL,
+        true,
+        undefined,
+        skipStub,
+      );
+      const task: SoloListrTask<SimpleContext> = composite.asListrTask(() => config, eventBusStub);
+      expect(task).to.have.property('skip').that.is.a('function');
+      const skipResult: boolean = (task.skip as () => boolean)();
+      expect(skipStub.calledOnce).to.be.true;
+      const getConfigArgument: () => SimpleConfig = skipStub.firstCall.args[0] as () => SimpleConfig;
+      expect(getConfigArgument()).to.equal(config);
+      expect(skipResult).to.be.true;
     });
   });
 });

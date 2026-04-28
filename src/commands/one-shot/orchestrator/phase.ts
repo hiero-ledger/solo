@@ -20,30 +20,51 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
   private readonly title: string;
   private readonly step: OrchestratorStep<TConfig, TContext> | undefined;
   private readonly subPhases: ReadonlyArray<Phase<TConfig, TContext>>;
-  private readonly executionMode: ExecutionMode;
+  private readonly executionMode: ExecutionMode | ((getConfig: () => TConfig) => ExecutionMode);
   private readonly exitOnError: boolean;
+  private readonly rendererOptions: object | undefined;
+  private readonly skipFunction: ((getConfig: () => TConfig) => boolean) | undefined;
+
+  public static EXECUTION_MODE: {SEQUENTIAL: ExecutionMode; CONCURRENT: ExecutionMode} = {
+    SEQUENTIAL: 'sequential',
+    CONCURRENT: 'concurrent',
+  };
 
   public constructor(
     title: string,
     step: OrchestratorStep<TConfig, TContext> | undefined,
     subPhases: ReadonlyArray<Phase<TConfig, TContext>> = [],
-    executionMode: ExecutionMode = 'sequential',
+    executionMode: ExecutionMode | ((getConfig: () => TConfig) => ExecutionMode) = Phase.EXECUTION_MODE.SEQUENTIAL,
     exitOnError: boolean = true,
+    rendererOptions?: object,
+    skipFunction?: (getConfig: () => TConfig) => boolean,
   ) {
     this.title = title;
     this.step = step;
     this.subPhases = subPhases;
     this.executionMode = executionMode;
     this.exitOnError = exitOnError;
+    this.rendererOptions = rendererOptions;
+    this.skipFunction = skipFunction;
   }
 
   public static composite<TConfig extends {deployment: string}, TContext>(
     title: string,
     subPhases: ReadonlyArray<Phase<TConfig, TContext>>,
-    executionMode: ExecutionMode = 'sequential',
+    executionMode: ExecutionMode | ((getConfig: () => TConfig) => ExecutionMode) = Phase.EXECUTION_MODE.SEQUENTIAL,
     exitOnError: boolean = true,
+    rendererOptions?: object,
+    skipFunction?: (getConfig: () => TConfig) => boolean,
   ): Phase<TConfig, TContext> {
-    return new Phase<TConfig, TContext>(title, undefined, subPhases, executionMode, exitOnError);
+    return new Phase<TConfig, TContext>(
+      title,
+      undefined,
+      subPhases,
+      executionMode,
+      exitOnError,
+      rendererOptions,
+      skipFunction,
+    );
   }
 
   public withWaitCondition(eventType: SoloEventType, timeout: Duration = Duration.ofMinutes(5)): this {
@@ -55,13 +76,27 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
     if (this.subPhases.length > 0) {
       return {
         title: this.title,
-        task: (_: TContext, task: SoloListrTaskWrapper<TContext>): SoloListr<TContext> =>
-          task.newListr(
+        ...(this.skipFunction
+          ? {
+              skip: (): boolean => (this.skipFunction as (getConfig: () => TConfig) => boolean)(getConfig),
+            }
+          : {}),
+        task: (_: TContext, task: SoloListrTaskWrapper<TContext>): SoloListr<TContext> => {
+          const isConcurrent: boolean =
+            typeof this.executionMode === 'function'
+              ? this.executionMode(getConfig) === Phase.EXECUTION_MODE.CONCURRENT
+              : this.executionMode === Phase.EXECUTION_MODE.CONCURRENT;
+          return task.newListr(
             this.subPhases.map(
               (phase: Phase<TConfig, TContext>): SoloListrTask<TContext> => phase.asListrTask(getConfig, eventBus),
             ),
-            {concurrent: this.executionMode === 'concurrent', exitOnError: this.exitOnError},
-          ),
+            {
+              concurrent: isConcurrent,
+              exitOnError: this.exitOnError,
+              ...(this.rendererOptions ? {rendererOptions: this.rendererOptions} : {}),
+            },
+          );
+        },
       };
     }
 

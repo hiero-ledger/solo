@@ -8,7 +8,7 @@ import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.
 import {patchInject} from '../../../../core/dependency-injection/container-helper.js';
 import {type TaskList} from '../../../../core/task-list/task-list.js';
 import {type SoloEventBus} from '../../../../core/events/solo-event-bus.js';
-import {type SoloListr, type SoloListrTask, type SoloListrTaskWrapper} from '../../../../types/index.js';
+import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../types/index.js';
 import {type OneShotSingleDestroyConfigClass} from '../../one-shot-single-destroy-config-class.js';
 import {type OneShotSingleDestroyContext} from '../../one-shot-single-destroy-context.js';
 import {type OneShotDestroyOrchestrator} from './one-shot-destroy-orchestrator.js';
@@ -108,7 +108,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
               ),
           }),
         ],
-        'concurrent',
+        Phase.EXECUTION_MODE.CONCURRENT,
         false,
       ),
       new Phase('Destroy mirror node', {
@@ -337,26 +337,14 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
           skip: (): boolean => getConfig().skipAll,
         }),
       }),
-      new Phase('Destroy', {
-        asListrTask: (
-          getConfig_: () => OneShotSingleDestroyConfigClass,
-        ): SoloListrTask<OneShotSingleDestroyContext> => ({
-          title: 'Destroy',
-          task: (
-            _: OneShotSingleDestroyContext,
-            task: SoloListrTaskWrapper<OneShotSingleDestroyContext>,
-          ): SoloListr<OneShotSingleDestroyContext> =>
-            task.newListr(
-              destroySubPhases.map(
-                (
-                  phase: Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>,
-                ): SoloListrTask<OneShotSingleDestroyContext> => phase.asListrTask(getConfig_, this.eventBus),
-              ),
-              {concurrent: false, rendererOptions: {collapseSubtasks: false}},
-            ),
-          skip: (): boolean => getConfig().skipAll,
-        }),
-      }),
+      Phase.composite(
+        'Destroy',
+        destroySubPhases,
+        Phase.EXECUTION_MODE.SEQUENTIAL,
+        false,
+        {collapseSubtasks: false},
+        (): boolean => getConfig().skipAll,
+      ),
     ];
 
     return new Pipeline<OneShotSingleDestroyContext>(
