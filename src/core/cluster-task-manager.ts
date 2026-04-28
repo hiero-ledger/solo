@@ -150,10 +150,11 @@ export class ClusterTaskManager extends ShellRunner {
           await this.sudoRun(
             onSudoRequested,
             onSudoGranted,
-            // Use `env` so sudo passes KIND_EXPERIMENTAL_PROVIDER and a full PATH (including kind's
-            // install dir) to the subprocess — sudo's secure_path would otherwise prevent it from
-            // finding the kind binary at its non-standard location.
-            `env KIND_EXPERIMENTAL_PROVIDER=podman PATH="${sudoPath}" ${this.kindInstallationDirectory}/kind create cluster --image "${constants.KIND_NODE_IMAGE}" --config "${constants.KIND_CLUSTER_CONFIG_FILE}"`,
+            // Use `env` so sudo passes KIND_EXPERIMENTAL_PROVIDER and the full PATH to the
+            // subprocess — sudo's secure_path would otherwise strip it.  Use bare `kind` so the
+            // binary is resolved from sudoPath, which covers both the local install dir
+            // (~/.solo/bin) and any system-wide install (e.g. /usr/local/bin on CI runners).
+            `env KIND_EXPERIMENTAL_PROVIDER=podman PATH="${sudoPath}" kind create cluster --image "${constants.KIND_NODE_IMAGE}" --config "${constants.KIND_CLUSTER_CONFIG_FILE}"`,
             ...sudoRunOptions,
           );
 
