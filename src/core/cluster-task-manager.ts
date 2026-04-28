@@ -10,6 +10,7 @@ import {InitContext} from '../commands/init/init-context.js';
 import {AptGetPackageManager} from './package-managers/apt-get-package-manager.js';
 import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
+import * as version from '../../version.js';
 import {getTemporaryDirectory} from './helpers.js';
 import fs from 'node:fs';
 import * as yaml from 'yaml';
@@ -108,8 +109,28 @@ export class ClusterTaskManager extends ShellRunner {
           } catch {
             this.logger.info('Podman not found, installing Podman via apt-get...');
             const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);
-            await this.sudoRun(onSudoRequested, onSudoGranted, 'apt-get install -y podman containernetworking-plugins');
+            await this.sudoRun(onSudoRequested, onSudoGranted, 'apt-get install -y podman');
           }
+        },
+      } as SoloListrTask<InitContext>,
+      {
+        title: 'Install CNI plugins...',
+        task: async (): Promise<void> => {
+          const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);
+          const unameOutput: string[] = await this.run('uname -m');
+          const unameArch: string = unameOutput.join('').trim();
+          const archMap: Record<string, string> = {x86_64: 'amd64', aarch64: 'arm64'};
+          const cniArch: string = archMap[unameArch] ?? unameArch;
+          const cniUrl: string =
+            `https://github.com/containernetworking/plugins/releases/download/${version.CNI_PLUGINS_VERSION}/` +
+            `cni-plugins-linux-${cniArch}-${version.CNI_PLUGINS_VERSION}.tgz`;
+          // Ubuntu 22.04 ships CNI plugins v0.9.x which do not support CNI spec "1.0.0" (used by
+          // kind). Download v1.5.1+ directly and overwrite the apt-installed plugins in /usr/lib/cni/.
+          await this.sudoRun(
+            onSudoRequested,
+            onSudoGranted,
+            `mkdir -p /usr/lib/cni && curl -fsSL "${cniUrl}" | tar -xz -C /usr/lib/cni/`,
+          );
         },
       } as SoloListrTask<InitContext>,
       {
