@@ -219,16 +219,19 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           );
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
-        it('HCSLoadTest', async (): Promise<void> => {
-          logEvent('Starting HCSLoadTest');
-          await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
-        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
-
         it('SmartContractLoadTest', async (): Promise<void> => {
+          // Smart contract setup is sensitive to transient query latency under residual load.
+          // Give the network a short stabilization window and run this test before HCS.
+          await sleep(Duration.ofSeconds(20));
           logEvent('Starting SmartContractLoadTest');
           await main(
             soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
           );
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+        it('HCSLoadTest', async (): Promise<void> => {
+          logEvent('Starting HCSLoadTest');
+          await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
