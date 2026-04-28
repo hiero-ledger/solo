@@ -726,7 +726,8 @@ export class Flags {
         'NOTE: This only provides the Helm chart templates — it does NOT make the chart images available to the cluster. ' +
         'All container images referenced by the chart must already be pullable (e.g. published to a registry or loaded ' +
         'into the cluster with `kind load docker-image`). Using a local branch chart with SNAPSHOT image tags will ' +
-        'cause pods to fail with ImagePullBackOff unless those images have been built and pushed.',
+        'cause pods to fail with ImagePullBackOff unless those images have been built and pushed to a registry or ' +
+        'loaded into the cluster.',
       defaultValue: '',
       type: 'string',
     },

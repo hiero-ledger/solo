@@ -511,7 +511,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
    *            RegistryUnavailable (image unavailable in registry)
    * - Terminated: OOMKilled (container killed due to out-of-memory)
    */
-  private static detectFatalContainerError(pod: V1Pod): string | undefined {
+  public static detectFatalContainerError(pod: V1Pod): string | undefined {
     const fatalWaitingReasons: ReadonlySet<string> = new Set([
       'ImagePullBackOff',
       'ErrImagePull',
