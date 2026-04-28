@@ -7,7 +7,7 @@ import {type ListrContext, type ListrRendererValue} from 'listr2';
 import {DefaultOneShotDestroyOrchestrator} from '../../../../../../src/commands/one-shot/orchestrator/destroy/default-one-shot-destroy-orchestrator.js';
 import {type SoloEventBus} from '../../../../../../src/core/events/solo-event-bus.js';
 import {type OneShotSingleDestroyContext} from '../../../../../../src/commands/one-shot/one-shot-single-destroy-context.js';
-import {type SoloListrTask} from '../../../../../../src/types/index.js';
+import {type Pipeline} from '../../../../../../src/commands/one-shot/orchestrator/pipeline.js';
 import {type TaskList} from '../../../../../../src/core/task-list/task-list.js';
 import {type ConfigManager} from '../../../../../../src/core/config-manager.js';
 import {type OneShotState} from '../../../../../../src/core/one-shot-state.js';
@@ -42,7 +42,7 @@ describe('DefaultOneShotDestroyOrchestrator', (): void => {
   });
 
   describe('buildDestroyPipeline', (): void => {
-    function buildTasks(): SoloListrTask<OneShotSingleDestroyContext>[] {
+    function buildPipeline(): Pipeline<OneShotSingleDestroyContext> {
       return orchestrator.buildDestroyPipeline(
         {} as ArgvStruct,
         {required: [], optional: []} as CommandFlags,
@@ -51,28 +51,28 @@ describe('DefaultOneShotDestroyOrchestrator', (): void => {
     }
 
     it('returns exactly 3 tasks', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDestroyContext>[] = buildTasks();
-      expect(tasks).to.have.length(3);
+      const pipeline: Pipeline<OneShotSingleDestroyContext> = buildPipeline();
+      expect(pipeline.tasks).to.have.length(3);
     });
 
     it('Initialize is first and has a task function', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDestroyContext>[] = buildTasks();
-      expect(tasks[0].title).to.equal('Initialize');
-      expect(tasks[0].task).to.be.a('function');
+      const pipeline: Pipeline<OneShotSingleDestroyContext> = buildPipeline();
+      expect(pipeline.tasks[0].title).to.equal('Initialize');
+      expect(pipeline.tasks[0].task).to.be.a('function');
     });
 
     it('Acquire deployment lock is second and has a task function and skip function', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDestroyContext>[] = buildTasks();
-      expect(tasks[1].title).to.equal('Acquire deployment lock');
-      expect(tasks[1].task).to.be.a('function');
-      expect(tasks[1].skip).to.be.a('function');
+      const pipeline: Pipeline<OneShotSingleDestroyContext> = buildPipeline();
+      expect(pipeline.tasks[1].title).to.equal('Acquire deployment lock');
+      expect(pipeline.tasks[1].task).to.be.a('function');
+      expect(pipeline.tasks[1].skip).to.be.a('function');
     });
 
     it('Destroy is third and has a task function and skip function', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDestroyContext>[] = buildTasks();
-      expect(tasks[2].title).to.equal('Destroy');
-      expect(tasks[2].task).to.be.a('function');
-      expect(tasks[2].skip).to.be.a('function');
+      const pipeline: Pipeline<OneShotSingleDestroyContext> = buildPipeline();
+      expect(pipeline.tasks[2].title).to.equal('Destroy');
+      expect(pipeline.tasks[2].task).to.be.a('function');
+      expect(pipeline.tasks[2].skip).to.be.a('function');
     });
   });
 });

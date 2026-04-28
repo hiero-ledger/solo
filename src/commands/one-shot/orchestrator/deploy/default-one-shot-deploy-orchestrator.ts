@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {inject, injectable} from 'tsyringe-neo';
-import {type Listr, type ListrContext, type ListrRendererValue} from 'listr2';
+import {type Listr, type ListrBaseClassOptions, type ListrContext, type ListrRendererValue} from 'listr2';
 import {
   AccountId,
   type Client,
@@ -79,6 +79,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
 import {DeployArgvBuilders} from './deploy-argv-builders.js';
+import {Pipeline} from '../pipeline.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
@@ -116,7 +117,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     flagsList: CommandFlags,
     leaseReference: {value?: Lock},
     configReference: {value?: OneShotSingleDeployConfigClass},
-  ): SoloListrTask<OneShotSingleDeployContext>[] {
+  ): Pipeline<OneShotSingleDeployContext> {
     let config: OneShotSingleDeployConfigClass;
     const getConfig = (): OneShotSingleDeployConfigClass => config;
 
@@ -536,10 +537,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       }),
     ];
 
-    return phases.map(
-      (
-        phase: Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
-      ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfig, this.eventBus),
+    return new Pipeline<OneShotSingleDeployContext>(
+      phases.map(
+        (
+          phase: Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
+        ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfig, this.eventBus),
+      ),
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDeployContext>,
     );
   }
 

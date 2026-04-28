@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {inject, injectable} from 'tsyringe-neo';
-import {type Listr, type ListrContext, type ListrRendererValue} from 'listr2';
+import {type Listr, type ListrBaseClassOptions, type ListrContext, type ListrRendererValue} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {select as selectPrompt} from '@inquirer/prompts';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
@@ -41,6 +41,7 @@ import {NoKubeConfigContextError} from '../../../../business/runtime-state/error
 import {type Deployment} from '../../../../business/runtime-state/config/local/deployment.js';
 import {type StringFacade} from '../../../../business/runtime-state/facade/string-facade.js';
 import {DestroyArgvBuilders} from './destroy-argv-builders.js';
+import {Pipeline} from '../pipeline.js';
 
 const SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
@@ -73,7 +74,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
     argv: ArgvStruct,
     flagsList: CommandFlags,
     leaseReference: {value?: Lock},
-  ): SoloListrTask<OneShotSingleDestroyContext>[] {
+  ): Pipeline<OneShotSingleDestroyContext> {
     let config: OneShotSingleDestroyConfigClass;
     const getConfig = (): OneShotSingleDestroyConfigClass => config;
     let remoteConfigLoaded: boolean = false;
@@ -358,10 +359,13 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
       }),
     ];
 
-    return phases.map(
-      (
-        phase: Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>,
-      ): SoloListrTask<OneShotSingleDestroyContext> => phase.asListrTask(getConfig, this.eventBus),
+    return new Pipeline<OneShotSingleDestroyContext>(
+      phases.map(
+        (
+          phase: Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>,
+        ): SoloListrTask<OneShotSingleDestroyContext> => phase.asListrTask(getConfig, this.eventBus),
+      ),
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDestroyContext>,
     );
   }
 

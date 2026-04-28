@@ -8,7 +8,7 @@ import {DefaultOneShotDeployOrchestrator} from '../../../../../../src/commands/o
 import {type SoloEventBus} from '../../../../../../src/core/events/solo-event-bus.js';
 import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
 import {type OneShotSingleDeployContext} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-context.js';
-import {type SoloListrTask} from '../../../../../../src/types/index.js';
+import {type Pipeline} from '../../../../../../src/commands/one-shot/orchestrator/pipeline.js';
 import {type TaskList} from '../../../../../../src/core/task-list/task-list.js';
 import {type AccountManager} from '../../../../../../src/core/account-manager.js';
 import {type LocalConfigRuntimeState} from '../../../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
@@ -47,7 +47,7 @@ describe('DefaultOneShotDeployOrchestrator', (): void => {
   });
 
   describe('buildDeployPipeline', (): void => {
-    function buildTasks(): SoloListrTask<OneShotSingleDeployContext>[] {
+    function buildPipeline(): Pipeline<OneShotSingleDeployContext> {
       return orchestrator.buildDeployPipeline(
         {} as ArgvStruct,
         {required: [], optional: []} as CommandFlags,
@@ -57,25 +57,25 @@ describe('DefaultOneShotDeployOrchestrator', (): void => {
     }
 
     it('returns exactly 11 tasks', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDeployContext>[] = buildTasks();
-      expect(tasks).to.have.length(11);
+      const pipeline: Pipeline<OneShotSingleDeployContext> = buildPipeline();
+      expect(pipeline.tasks).to.have.length(11);
     });
 
     it('Initialize is first and has a task function', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDeployContext>[] = buildTasks();
-      expect(tasks[0].title).to.equal('Initialize');
-      expect(tasks[0].task).to.be.a('function');
+      const pipeline: Pipeline<OneShotSingleDeployContext> = buildPipeline();
+      expect(pipeline.tasks[0].title).to.equal('Initialize');
+      expect(pipeline.tasks[0].task).to.be.a('function');
     });
 
     it('Acquire deployment lock is second and has a task function', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDeployContext>[] = buildTasks();
-      expect(tasks[1].title).to.equal('Acquire deployment lock');
-      expect(tasks[1].task).to.be.a('function');
+      const pipeline: Pipeline<OneShotSingleDeployContext> = buildPipeline();
+      expect(pipeline.tasks[1].title).to.equal('Acquire deployment lock');
+      expect(pipeline.tasks[1].task).to.be.a('function');
     });
 
     it('Check for other deployments skips when force is true', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDeployContext>[] = buildTasks();
-      const skipFunction: ((context_: OneShotSingleDeployContext) => boolean) | undefined = tasks[2].skip as (
+      const pipeline: Pipeline<OneShotSingleDeployContext> = buildPipeline();
+      const skipFunction: ((context_: OneShotSingleDeployContext) => boolean) | undefined = pipeline.tasks[2].skip as (
         context_: OneShotSingleDeployContext,
       ) => boolean;
       expect(skipFunction).to.be.a('function');
@@ -83,8 +83,8 @@ describe('DefaultOneShotDeployOrchestrator', (): void => {
     });
 
     it('Check for other deployments skips when quiet is true', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDeployContext>[] = buildTasks();
-      const skipFunction: ((context_: OneShotSingleDeployContext) => boolean) | undefined = tasks[2].skip as (
+      const pipeline: Pipeline<OneShotSingleDeployContext> = buildPipeline();
+      const skipFunction: ((context_: OneShotSingleDeployContext) => boolean) | undefined = pipeline.tasks[2].skip as (
         context_: OneShotSingleDeployContext,
       ) => boolean;
       expect(skipFunction).to.be.a('function');
@@ -92,37 +92,37 @@ describe('DefaultOneShotDeployOrchestrator', (): void => {
     });
 
     it('Check for other deployments does not skip when force and quiet are false', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDeployContext>[] = buildTasks();
-      const skipFunction: ((context_: OneShotSingleDeployContext) => boolean) | undefined = tasks[2].skip as (
+      const pipeline: Pipeline<OneShotSingleDeployContext> = buildPipeline();
+      const skipFunction: ((context_: OneShotSingleDeployContext) => boolean) | undefined = pipeline.tasks[2].skip as (
         context_: OneShotSingleDeployContext,
       ) => boolean;
       expect(skipFunction({config: {force: false, quiet: false}} as OneShotSingleDeployContext)).to.be.false;
     });
 
     it('setup invokeSoloCommand tasks are at indices 3-7 and each have a title and task', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDeployContext>[] = buildTasks();
+      const pipeline: Pipeline<OneShotSingleDeployContext> = buildPipeline();
       for (const index of [3, 4, 5, 6, 7]) {
-        expect(tasks[index].title).to.be.a('string').and.not.be.empty;
-        expect(tasks[index].task).to.be.a('function');
+        expect(pipeline.tasks[index].title).to.be.a('string').and.not.be.empty;
+        expect(pipeline.tasks[index].task).to.be.a('function');
       }
     });
 
     it('Create remote config components is at index 8 and has a task function', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDeployContext>[] = buildTasks();
-      expect(tasks[8].title).to.equal('Create remote config components');
-      expect(tasks[8].task).to.be.a('function');
+      const pipeline: Pipeline<OneShotSingleDeployContext> = buildPipeline();
+      expect(pipeline.tasks[8].title).to.equal('Create remote config components');
+      expect(pipeline.tasks[8].task).to.be.a('function');
     });
 
     it('Deploy Solo components is at index 9 and has a task function', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDeployContext>[] = buildTasks();
-      expect(tasks[9].title).to.equal('Deploy Solo components');
-      expect(tasks[9].task).to.be.a('function');
+      const pipeline: Pipeline<OneShotSingleDeployContext> = buildPipeline();
+      expect(pipeline.tasks[9].title).to.equal('Deploy Solo components');
+      expect(pipeline.tasks[9].task).to.be.a('function');
     });
 
     it('Finish is last and has a task function', (): void => {
-      const tasks: SoloListrTask<OneShotSingleDeployContext>[] = buildTasks();
-      expect(tasks[10].title).to.equal('Finish');
-      expect(tasks[10].task).to.be.a('function');
+      const pipeline: Pipeline<OneShotSingleDeployContext> = buildPipeline();
+      expect(pipeline.tasks[10].title).to.equal('Finish');
+      expect(pipeline.tasks[10].task).to.be.a('function');
     });
   });
 });

@@ -23,14 +23,6 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
   private readonly executionMode: ExecutionMode;
   private readonly exitOnError: boolean;
 
-  public constructor(title: string, step: OrchestratorStep<TConfig, TContext>);
-  public constructor(
-    title: string,
-    step: OrchestratorStep<TConfig, TContext> | undefined,
-    subPhases: ReadonlyArray<Phase<TConfig, TContext>>,
-    executionMode: ExecutionMode,
-    exitOnError: boolean,
-  );
   public constructor(
     title: string,
     step: OrchestratorStep<TConfig, TContext> | undefined,

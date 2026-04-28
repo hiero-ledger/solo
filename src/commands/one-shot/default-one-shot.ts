@@ -12,8 +12,6 @@ import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {OneShotCommand} from './one-shot.js';
 import {type OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
-import {type OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
-import {type OneShotSingleDestroyContext} from './one-shot-single-destroy-context.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import fs from 'node:fs';
@@ -37,10 +35,6 @@ import {type ApplicationVersionsSchema} from '../../data/schema/model/common/app
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
-  private static readonly SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
-
-  private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
-
   private _isRollback: boolean = false;
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
@@ -187,12 +181,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     const leaseReference: {value?: Lock} = {};
     const configReference: {value?: OneShotSingleDeployConfigClass} = {};
-    const tasks: SoloListr<OneShotSingleDeployContext> = this.taskList.newOneShotSingleDeployTaskList(
-      this.deployOrchestrator.buildDeployPipeline(argv, flagsList, leaseReference, configReference),
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
-    );
     try {
-      await tasks.run();
+      await this.deployOrchestrator.buildDeployPipeline(argv, flagsList, leaseReference, configReference).run();
     } catch (error) {
       await this.performRollback(error, configReference.value);
     } finally {
@@ -232,12 +222,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private async destroyInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     const leaseReference: {value?: Lock} = {};
-    const tasks: SoloListr<OneShotSingleDestroyContext> = this.taskList.newOneShotSingleDestroyTaskList(
-      this.destroyOrchestrator.buildDestroyPipeline(argv, flagsList, leaseReference),
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
-    );
     try {
-      await tasks.run();
+      await this.destroyOrchestrator.buildDestroyPipeline(argv, flagsList, leaseReference).run();
     } catch (error) {
       throw new SoloError(`Error destroying Solo in one-shot mode: ${error.message}`, error);
     } finally {
