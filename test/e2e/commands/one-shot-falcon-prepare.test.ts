@@ -12,6 +12,7 @@ import {Flags} from '../../../src/commands/flags.js';
 import {optionFromFlag} from '../../../src/commands/command-helpers.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {SOLO_CACHE_DIR} from '../../../src/core/constants.js';
 
 const expectedSections: readonly string[] = [
   'network',
@@ -23,7 +24,7 @@ const expectedSections: readonly string[] = [
   'explorerNode',
 ];
 
-function buildPrepareArgv(outputPath: string): string[] {
+function buildBasePrepareArgv(): string[] {
   return [
     '${PATH}/node',
     '${SOLO_ROOT}/solo.ts',
@@ -31,9 +32,11 @@ function buildPrepareArgv(outputPath: string): string[] {
     OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME,
     OneShotCommandDefinition.FALCON_PREPARE,
     optionFromFlag(Flags.acceptDefaults),
-    optionFromFlag(Flags.outputValuesFile),
-    outputPath,
   ];
+}
+
+function buildPrepareArgv(outputPath: string): string[] {
+  return [...buildBasePrepareArgv(), optionFromFlag(Flags.outputValuesFile), outputPath];
 }
 
 describe('One Shot Falcon Prepare E2E', (): void => {
@@ -54,14 +57,15 @@ describe('One Shot Falcon Prepare E2E', (): void => {
     }
   });
 
-  it('generates a valid values file with --default and all 7 sections', async (): Promise<void> => {
-    const outputPath: string = trackOutputPath('default');
+  it('generates a valid values file at the default path under SOLO_CACHE_DIR', async (): Promise<void> => {
+    const defaultOutputPath: string = PathEx.join(SOLO_CACHE_DIR, 'falcon-values.yaml');
+    generatedFiles.push(defaultOutputPath);
 
-    await main(buildPrepareArgv(outputPath));
+    await main(buildBasePrepareArgv());
 
-    expect(fs.existsSync(outputPath), `expected ${outputPath} to exist`).to.equal(true);
+    expect(fs.existsSync(defaultOutputPath), `expected ${defaultOutputPath} to exist`).to.equal(true);
 
-    const contents: string = fs.readFileSync(outputPath, 'utf8');
+    const contents: string = fs.readFileSync(defaultOutputPath, 'utf8');
     expect(contents).to.match(/^# One-Shot Falcon Deployment Configuration/);
 
     const parsed: Record<string, unknown> = yaml.parse(contents) as Record<string, unknown>;

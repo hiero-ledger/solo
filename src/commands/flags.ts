@@ -319,8 +319,8 @@ export class Flags {
     definition: {
       describe:
         'Output path for the generated falcon values YAML file. ' +
-        'Relative paths are resolved against the current working directory.',
-      defaultValue: './falcon-values.yaml',
+        'Defaults to ~/.solo/cache/falcon-values.yaml. Relative paths are resolved against the current working directory.',
+      defaultValue: PathEx.join(constants.SOLO_CACHE_DIR, 'falcon-values.yaml'),
       type: 'string',
     },
     prompt: undefined,

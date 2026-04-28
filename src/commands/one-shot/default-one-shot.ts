@@ -1909,13 +1909,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   public async prepareFalcon(argv: ArgvStruct): Promise<boolean> {
     this.configManager.update(argv);
 
-    // Resolve output path against the user's original working directory.
-    // npm/npx may change process.cwd() to the package root, but INIT_CWD
-    // preserves where the user actually invoked the command.
     const configuredOutputPath: string =
-      this.configManager.getFlag<string>(flags.outputValuesFile) ?? './falcon-values.yaml';
-    const userWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
-    const resolvedOutputPath: string = path.resolve(userWorkingDirectory, configuredOutputPath);
+      this.configManager.getFlag<string>(flags.outputValuesFile) ??
+      (flags.outputValuesFile.definition.defaultValue as string);
+    const resolvedOutputPath: string = path.isAbsolute(configuredOutputPath)
+      ? configuredOutputPath
+      : path.resolve(process.env.INIT_CWD || process.cwd(), configuredOutputPath);
 
     const acceptDefaults: boolean = this.configManager.getFlag(flags.acceptDefaults) ?? false;
 
