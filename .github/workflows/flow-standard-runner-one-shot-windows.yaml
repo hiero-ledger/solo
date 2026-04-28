@@ -146,8 +146,17 @@ jobs:
         shell: wsl-bash {0}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
+          echo "HOME=${HOME}"
+          echo "Searching for solo.log:"
+          find / -name "solo.log" 2>/dev/null || echo "solo.log not found anywhere"
+          echo "Solo home directory contents:"
+          ls -la ~/.solo/ || echo "~/.solo/ not found"
+          echo "Solo logs directory contents:"
+          ls -la ~/.solo/logs/ || echo "~/.solo/logs/ not found"
           mkdir -p "$(wslpath "$GITHUB_WORKSPACE")/solo-logs"
-          cp -r ~/.solo/logs/. "$(wslpath "$GITHUB_WORKSPACE")/solo-logs/" || true
+          cp -r ~/.solo/logs/. "$(wslpath "$GITHUB_WORKSPACE")/solo-logs/" || echo "Failed to copy logs"
+          echo "Copied files:"
+          ls -la "$(wslpath "$GITHUB_WORKSPACE")/solo-logs/" || echo "No files copied"
 
       - name: Upload Logs
         if: always()
