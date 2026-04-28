@@ -3,7 +3,6 @@
 import {inject, injectable} from 'tsyringe-neo';
 import {ShellRunner} from './shell-runner.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
-import {BrewPackageManager} from './package-managers/brew-package-manager.js';
 import {OsPackageManager} from './package-managers/os-package-manager.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {PodmanMode, SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
@@ -31,7 +30,6 @@ import {type GitClient} from '../integration/git/git-client.js';
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
   public constructor(
-    @inject(InjectTokens.BrewPackageManager) protected readonly brewPackageManager: BrewPackageManager,
     @inject(InjectTokens.OsPackageManager) protected readonly osPackageManager: OsPackageManager,
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.PodmanDependencyManager) protected readonly podmanDependencyManager: PodmanDependencyManager,
@@ -44,7 +42,6 @@ export class ClusterTaskManager extends ShellRunner {
   ) {
     super();
 
-    this.brewPackageManager = patchInject(brewPackageManager, InjectTokens.BrewPackageManager, ClusterTaskManager.name);
     this.osPackageManager = patchInject(osPackageManager, InjectTokens.OsPackageManager, ClusterTaskManager.name);
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, ClusterTaskManager.name);
     this.podmanDependencyManager = patchInject(
@@ -103,28 +100,15 @@ export class ClusterTaskManager extends ShellRunner {
         },
       },
       {
-        title: 'Install brew...',
-        task: async (): Promise<void> => {
-          const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
-          if (!brewInstalled) {
-            this.logger.info('Homebrew not found, installing Homebrew...');
-            if (!(await this.brewPackageManager.install())) {
-              throw new SoloError('Failed to install Homebrew');
-            }
-          }
-        },
-      },
-      {
         title: 'Install podman...',
         task: async (): Promise<void> => {
           try {
             const podmanVersion: string[] = await this.run('podman --version');
             this.logger.info(`Podman already installed: ${podmanVersion}`);
           } catch {
-            this.logger.info('Podman not found, installing Podman...');
-            await this.brewPackageManager.installPackages(['podman']);
-            const brewBin: string[] = await this.run('which podman');
-            process.env.PATH = `${process.env.PATH}:${brewBin.join('').replace('/podman', '')}`;
+            this.logger.info('Podman not found, installing Podman via apt-get...');
+            const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);
+            await this.sudoRun(onSudoRequested, onSudoGranted, 'apt-get install -y podman');
           }
         },
       } as SoloListrTask<InitContext>,
