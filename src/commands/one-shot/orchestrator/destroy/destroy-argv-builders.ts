@@ -12,10 +12,6 @@ import {Flags} from '../../../flags.js';
 import {argvPushGlobalFlags, newArgv, optionFromFlag} from '../../../command-helpers.js';
 
 export class DestroyArgvBuilders {
-  private constructor() {
-    throw new Error('This class cannot be instantiated');
-  }
-
   public static buildDestroyExplorerArgv(config: OneShotSingleDestroyConfigClass): string[] {
     const argv: string[] = newArgv();
     argv.push(

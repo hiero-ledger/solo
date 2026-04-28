@@ -247,7 +247,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return true;
   }
 
-  public async info(_argv: ArgvStruct): Promise<boolean> {
+  public async info(): Promise<boolean> {
     const tasks: SoloListr<OneShotInfoContext> = new Listr(
       [
         {

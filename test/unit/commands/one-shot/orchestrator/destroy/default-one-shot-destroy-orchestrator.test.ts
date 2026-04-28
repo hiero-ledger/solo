@@ -22,6 +22,13 @@ import {type Lock} from '../../../../../../src/core/lock/lock.js';
 
 describe('DefaultOneShotDestroyOrchestrator', (): void => {
   let orchestrator: DefaultOneShotDestroyOrchestrator;
+  function buildPipeline(): Pipeline<OneShotSingleDestroyContext> {
+    return orchestrator.buildDestroyPipeline(
+      {} as ArgvStruct,
+      {required: [], optional: []} as CommandFlags,
+      {} as {value?: Lock},
+    );
+  }
 
   beforeEach((): void => {
     orchestrator = new DefaultOneShotDestroyOrchestrator(
@@ -42,14 +49,6 @@ describe('DefaultOneShotDestroyOrchestrator', (): void => {
   });
 
   describe('buildDestroyPipeline', (): void => {
-    function buildPipeline(): Pipeline<OneShotSingleDestroyContext> {
-      return orchestrator.buildDestroyPipeline(
-        {} as ArgvStruct,
-        {required: [], optional: []} as CommandFlags,
-        {} as {value?: Lock},
-      );
-    }
-
     it('returns exactly 3 tasks', (): void => {
       const pipeline: Pipeline<OneShotSingleDestroyContext> = buildPipeline();
       expect(pipeline.tasks).to.have.length(3);

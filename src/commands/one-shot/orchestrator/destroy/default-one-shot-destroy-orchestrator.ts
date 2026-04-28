@@ -42,6 +42,8 @@ import {type Deployment} from '../../../../business/runtime-state/config/local/d
 import {type StringFacade} from '../../../../business/runtime-state/facade/string-facade.js';
 import {DestroyArgvBuilders} from './destroy-argv-builders.js';
 import {Pipeline} from '../pipeline.js';
+import {MutableFacadeArray} from '../../../../business/runtime-state/collection/mutable-facade-array.js';
+import {DeploymentSchema} from '../../../../data/schema/model/local/deployment-schema.js';
 
 const SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
@@ -76,7 +78,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
     leaseReference: {value?: Lock},
   ): Pipeline<OneShotSingleDestroyContext> {
     let config: OneShotSingleDestroyConfigClass;
-    const getConfig = (): OneShotSingleDestroyConfigClass => config;
+    const getConfig: () => OneShotSingleDestroyConfigClass = (): OneShotSingleDestroyConfigClass => config;
     let remoteConfigLoaded: boolean = false;
 
     const destroySubPhases: Array<Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>> = [
@@ -179,9 +181,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
 
     const phases: Array<Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>> = [
       new Phase('Initialize', {
-        asListrTask: (
-          _getConfig: () => OneShotSingleDestroyConfigClass,
-        ): SoloListrTask<OneShotSingleDestroyContext> => ({
+        asListrTask: (): SoloListrTask<OneShotSingleDestroyContext> => ({
           title: 'Initialize',
           task: async (
             context_: OneShotSingleDestroyContext,
@@ -208,7 +208,8 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
             config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
             if (!config.deployment) {
-              const deployments = this.localConfig.configuration.deployments;
+              const deployments: MutableFacadeArray<Deployment, DeploymentSchema> =
+                this.localConfig.configuration.deployments;
               if (deployments.length === 0) {
                 this.logger.showUser('No deployments found in local config, have they already been deleted?');
                 config.skipAll = true;
@@ -323,9 +324,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
         }),
       }),
       new Phase('Acquire deployment lock', {
-        asListrTask: (
-          _getConfig: () => OneShotSingleDestroyConfigClass,
-        ): SoloListrTask<OneShotSingleDestroyContext> => ({
+        asListrTask: (): SoloListrTask<OneShotSingleDestroyContext> => ({
           title: 'Acquire deployment lock',
           task: async (
             _: OneShotSingleDestroyContext,

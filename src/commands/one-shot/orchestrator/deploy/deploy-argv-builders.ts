@@ -21,10 +21,6 @@ import {type AnyObject} from '../../../../types/aliases.js';
 const MIRROR_NODE_ID: number = 1;
 
 export class DeployArgvBuilders {
-  private constructor() {
-    throw new Error('This class cannot be instantiated');
-  }
-
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
     const argv: string[] = newArgv();
     argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), optionFromFlag(Flags.deployment), config.deployment);

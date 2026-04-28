@@ -119,11 +119,11 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     configReference: {value?: OneShotSingleDeployConfigClass},
   ): Pipeline<OneShotSingleDeployContext> {
     let config: OneShotSingleDeployConfigClass;
-    const getConfig = (): OneShotSingleDeployConfigClass => config;
+    const getConfig: () => OneShotSingleDeployConfigClass = (): OneShotSingleDeployConfigClass => config;
 
     const phases: Array<Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
       new Phase('Initialize', {
-        asListrTask: (_getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+        asListrTask: (): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Initialize',
           task: async (
             context_: OneShotSingleDeployContext,
@@ -254,7 +254,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         }),
       }),
       new Phase('Acquire deployment lock', {
-        asListrTask: (_getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+        asListrTask: (): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Acquire deployment lock',
           task: async (
             _: OneShotSingleDeployContext,
@@ -266,7 +266,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         }),
       }),
       new Phase('Check for other deployments', {
-        asListrTask: (_getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+        asListrTask: (): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Check for other deployments',
           task: async (
             _: OneShotSingleDeployContext,
