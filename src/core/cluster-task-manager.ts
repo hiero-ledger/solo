@@ -108,7 +108,7 @@ export class ClusterTaskManager extends ShellRunner {
           } catch {
             this.logger.info('Podman not found, installing Podman via apt-get...');
             const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);
-            await this.sudoRun(onSudoRequested, onSudoGranted, 'apt-get install -y podman');
+            await this.sudoRun(onSudoRequested, onSudoGranted, 'apt-get install -y podman containernetworking-plugins');
           }
         },
       } as SoloListrTask<InitContext>,
