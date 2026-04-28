@@ -308,7 +308,7 @@ export class ClusterCommandTasks {
             constants.METRICS_SERVER_CHART,
             constants.METRICS_SERVER_CHART,
             versions.METRICS_SERVER_VERSION,
-            '--set "args[0]=--kubelet-insecure-tls"',
+            constants.METRICS_SERVER_INSTALL_ARGS,
             context,
           );
           this.logger.showUser('✅ metrics-server chart installed successfully');
@@ -491,9 +491,9 @@ export class ClusterCommandTasks {
             constants.METRICS_SERVER_RELEASE_NAME,
             context,
           );
-          this.logger.showUser('✅ metrics-server chart uninstalled successfully');
+          this.logger.showUser('Metrics-server chart uninstalled successfully');
         } else {
-          this.logger.showUser('⏭️  metrics-server chart not installed, skipping');
+          this.logger.showUser('Metrics-server chart not installed, skipping');
         }
       },
     };
