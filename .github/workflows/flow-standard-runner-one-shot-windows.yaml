@@ -114,6 +114,7 @@ jobs:
             response=$(curl -sf http://localhost:38081/api/v1/accounts 2>/dev/null || true)
             if echo "${response}" | grep -q '"accounts"'; then
               echo "Mirror REST API is up and returned accounts."
+              echo "${response}"
               exit 0
             fi
             echo "Attempt ${i}/30: not ready yet, retrying in 10s..."
