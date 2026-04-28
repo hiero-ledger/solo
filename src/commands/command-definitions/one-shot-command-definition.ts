@@ -47,9 +47,6 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
   public static readonly MULTIPLE_DESTROY: string = 'destroy';
   public static readonly FALCON_PREPARE: string = 'prepare';
 
-  /** CLI path prefix for falcon subcommands, used in generated comments and log messages. */
-  public static readonly FALCON_COMMAND_PATH: string = `solo ${OneShotCommandDefinition.COMMAND_NAME} ${OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME}`;
-
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(

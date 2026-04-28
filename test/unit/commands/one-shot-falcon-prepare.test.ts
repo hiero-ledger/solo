@@ -7,7 +7,6 @@ import {DefaultOneShotCommand} from '../../../src/commands/one-shot/default-one-
 import {type FalconPrepareConfig} from '../../../src/commands/one-shot/falcon-prepare-config.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {optionFromFlag} from '../../../src/commands/command-helpers.js';
-import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 
 function createDefaultConfig(overrides: Partial<FalconPrepareConfig> = {}): FalconPrepareConfig {
   return {
@@ -138,7 +137,7 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
     const output: string = DefaultOneShotCommand.generateFalconValuesYaml(config);
 
     expect(output).to.match(/^# One-Shot Falcon Deployment Configuration/);
-    expect(output).to.include(OneShotCommandDefinition.FALCON_COMMAND_PATH + ' deploy');
+    expect(output).to.include(DefaultOneShotCommand.FALCON_COMMAND_PATH + ' deploy');
     expect(output).to.include(optionFromFlag(Flags.valuesFile));
     expect(output).to.include(`--no-${Flags.deployMirrorNode.name}`);
     expect(output).to.include(`--no-${Flags.deployExplorer.name}`);
