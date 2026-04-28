@@ -877,6 +877,13 @@ export class NodeCommandTasks {
       task: async ({config}): Promise<void> => {
         // Transfer some hbar to the node for staking purpose
         const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+        await this.accountManager.loadNodeClient(
+          config.namespace,
+          this.remoteConfig.getClusterRefs(),
+          deploymentName,
+          this.configManager.getFlag<boolean>(flags.forcePortForward),
+        );
+
         const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
           config.existingNodeAliases,
           deploymentName,

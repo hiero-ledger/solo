@@ -135,6 +135,7 @@ export class NodeCommandHandlers extends CommandHandler {
       // this.validateSingleNodeState({excludedPhases: []}),
       this.tasks.checkPVCsEnabled(),
       this.tasks.identifyExistingNodes(),
+      this.tasks.waitForLedgerIdReady('existingNodeAliases'),
       this.tasks.determineNewNodeAccountNumber(),
       this.tasks.copyGrpcTlsCertificates(),
       this.tasks.generateGossipKey(),
