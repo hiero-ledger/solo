@@ -164,6 +164,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: standard-runner-one-shot-windows-logs
-          path: ${{ github.workspace }}/solo-logs/*
+          path: ${{ github.workspace }}/solo-logs
           overwrite: true
           if-no-files-found: warn
