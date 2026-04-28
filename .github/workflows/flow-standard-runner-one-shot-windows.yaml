@@ -37,7 +37,7 @@ concurrency:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
-  WSLENV: GITHUB_WORKSPACE/p
+  WSLENV: GITHUB_WORKSPACE/p:CI
 
 jobs:
   standard-runner-one-shot-windows:
@@ -148,7 +148,7 @@ jobs:
         run: |
           echo "HOME=${HOME}"
           echo "Searching for solo.log:"
-          find / -name "solo.log" 2>/dev/null || echo "solo.log not found anywhere"
+          find ~/.solo /tmp /root -name "solo.log" 2>/dev/null || echo "solo.log not found in expected locations"
           echo "Solo home directory contents:"
           ls -la ~/.solo/ || echo "~/.solo/ not found"
           echo "Solo logs directory contents:"
