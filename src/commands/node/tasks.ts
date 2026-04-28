@@ -2029,7 +2029,7 @@ export class NodeCommandTasks {
               this._checkNodesProxiesTask(t, context__.config[nodeAliasesProperty]) as SoloListr<AnyListrContext>,
             skip: (context__): boolean => {
               const app: string = (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app;
-              return Boolean(app) && app !== constants.HEDERA_APP_NAME;
+              return app && app !== constants.HEDERA_APP_NAME;
             },
           },
         ];
