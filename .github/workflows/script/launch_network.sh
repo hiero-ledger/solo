@@ -221,19 +221,7 @@ ps -ef |grep port-forward
 # HEDERA_PLATFORM_VERSION is no longer a hardcoded value in version.ts,
 export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
-UPGRADE_APP_PROPS_FILE="/tmp/solo-upgrade-application.properties"
-cp "resources/templates/application.properties" "${UPGRADE_APP_PROPS_FILE}"
-{
-  echo ""
-  echo "# launch_network.sh post-upgrade readiness overrides"
-  echo "blockStream.streamMode=BOTH"
-  echo "blockStream.writerMode=FILE_AND_GRPC"
-  echo "tss.hintsEnabled=true"
-  echo "tss.historyEnabled=true"
-} >> "${UPGRADE_APP_PROPS_FILE}"
-echo "Using application.properties override for consensus upgrade: ${UPGRADE_APP_PROPS_FILE}"
-npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" --application-properties "${UPGRADE_APP_PROPS_FILE}" -q --dev
-echo "Waiting for consensus nodes to be ready after upgrade..."
+npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
