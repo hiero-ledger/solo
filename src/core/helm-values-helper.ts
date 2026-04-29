@@ -17,7 +17,7 @@ import yaml from 'yaml';
 export class HelmValuesHelper {
   public constructor() {}
 
-  public buildPerNodeExtraEnvironmentValuesStructure(
+  private buildPerNodeExtraEnvironmentValuesStructure(
     consensusNodes: ConsensusNode[],
     options: PerNodeExtraEnvironmentOptions = {},
   ): PerNodeExtraEnvironmentValues {
