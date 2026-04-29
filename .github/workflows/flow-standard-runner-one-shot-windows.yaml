@@ -66,9 +66,12 @@ jobs:
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          & "$env:ProgramFiles\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
-          Start-Sleep -Seconds 15
+          Write-Host "Docker location:"
+          Get-Command docker | Select-Object -ExpandProperty Source
+          Write-Host "Docker info:"
           docker info
+          Write-Host "Searching for DockerCli.exe:"
+          Get-ChildItem -Path "C:\", "$env:ProgramFiles", "$env:LOCALAPPDATA" -Recurse -Filter "DockerCli.exe" -ErrorAction SilentlyContinue | Select-Object FullName
 
       - name: Install Dependencies
         shell: pwsh
