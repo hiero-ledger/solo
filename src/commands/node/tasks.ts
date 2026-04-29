@@ -1841,10 +1841,7 @@ export class NodeCommandTasks {
           {
             title: 'Copy Gossip keys to staging',
             task: async (): Promise<void> => {
-              const targetVersion: string =
-                config.upgradeVersion ??
-                config.releaseTag ??
-                HEDERA_PLATFORM_VERSION;
+              const targetVersion: string = config.upgradeVersion ?? config.releaseTag ?? HEDERA_PLATFORM_VERSION;
               const includeAgreementKeys: boolean = new SemanticVersion<string>(targetVersion).greaterThanOrEqual(
                 versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_AGREEMENT_GOSSIP_CERTS,
               );
