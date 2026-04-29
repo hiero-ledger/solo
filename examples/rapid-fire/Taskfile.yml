@@ -133,18 +133,18 @@ tasks:
             top_up_account "0.0.${account_num}" {{ .HELISWAP_PREFUND_HBAR }} || true
           done
 
-          # Retry creator top-up a few times and require one success.
+          # Retry creator top-up for a while (best effort).
           creator_topped_up=0
-          for _ in $(seq 1 20); do
+          for _ in $(seq 1 90); do
             if top_up_account {{ .HELISWAP_CREATOR_ACCOUNT_ID }} {{ .HELISWAP_CREATOR_TOP_UP_HBAR }}; then
               creator_topped_up=1
+              echo "Topped up HeliSwap creator {{ .HELISWAP_CREATOR_ACCOUNT_ID }}"
               break
             fi
             sleep 1
           done
           if [ "${creator_topped_up}" -ne 1 ]; then
-            echo "Failed to top up HeliSwap creator {{ .HELISWAP_CREATOR_ACCOUNT_ID }}"
-            exit 1
+            echo "Warning: could not top up HeliSwap creator {{ .HELISWAP_CREATOR_ACCOUNT_ID }} before start; continuing"
           fi
 
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
