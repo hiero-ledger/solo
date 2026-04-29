@@ -31,6 +31,7 @@ import * as constants from '../../../src/core/constants.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
+import {SoloDeploymentChartValidationTest} from '../integration/charts/solo-deployment-chart-validation-test.js';
 
 const minimalSetup: boolean = process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true';
 
@@ -91,6 +92,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         await main(soloOneShotShowDeployment(testName, deployment));
         testLogger.info(`${testName}: finished ${testName}: show deployment`);
       }).timeout(Duration.ofMinutes(5).toMillis());
+
+      if (options.minimalSetup) {
+        SoloDeploymentChartValidationTest.validate(options, options.namespace.name);
+      }
 
       it('Should perform a simple TransferTransaction', async (): Promise<void> => {
         // These should be set in your environment or test config
