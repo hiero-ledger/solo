@@ -496,6 +496,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly componentImage: CommandFlag = {
+    constName: 'componentImage',
+    name: 'component-image',
+    definition: {
+      describe: 'Full Docker image reference override (e.g. ghcr.io/org/image:tag, docker.io/library/redis:7, redis:7)',
+      defaultValue: '',
+      type: 'string',
+      alias: 'relay-image',
+    },
+    prompt: undefined,
+  };
+
   public static readonly relayReleaseTag: CommandFlag = {
     constName: 'relayReleaseTag',
     name: 'relay-release',
@@ -2998,6 +3010,7 @@ export class Flags {
     Flags.quiet,
     Flags.output,
     Flags.imageTag,
+    Flags.componentImage,
     Flags.relayReleaseTag,
     Flags.releaseTag,
     Flags.upgradeVersion,
