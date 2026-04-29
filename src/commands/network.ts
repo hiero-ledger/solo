@@ -1015,6 +1015,13 @@ export class NetworkCommand extends BaseCommand {
     const CRD_URL: string =
       `https://api.github.com/repos/grafana/alloy/contents/${CRD_FILE_PATH}` +
       `?ref=${versions.GRAFANA_PODLOGS_CRD_VERSION}`;
+    const CRD_RAW_URL: string = `https://raw.githubusercontent.com/grafana/alloy/${versions.GRAFANA_PODLOGS_CRD_VERSION}/${CRD_FILE_PATH}`;
+    const LOCAL_CRD_FILE: string = PathEx.join(
+      constants.ROOT_DIR,
+      'resources',
+      'crds',
+      `monitoring.grafana.com_podlogs-${versions.GRAFANA_PODLOGS_CRD_VERSION}.yaml`,
+    );
 
     for (const context of contexts as string[]) {
       const exists: boolean = await this.crdExists(context, PODLOGS_CRD);
@@ -1036,26 +1043,45 @@ export class NetworkCommand extends BaseCommand {
       // ensuring we only make one network request per job even if multiple contexts need
       // the CRD installed.
       if (!fs.existsSync(temporaryFile)) {
-        // The GitHub Contents API returns a JSON envelope; the file content is base64-encoded
-        // inside the "content" field.  We request application/vnd.github.v3+json so the
-        // response is always the metadata+content JSON object rather than the raw bytes
-        // (the raw media type bypasses the API rate-limit accounting we want).
-        const headers: Record<string, string> = {Accept: 'application/vnd.github.v3+json'};
-        if (process.env.GITHUB_TOKEN) {
-          headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
-        }
-        const response: Response = await fetch(CRD_URL, {headers});
+        // Prefer a vendored CRD file to avoid external network/rate-limit failures in CI.
+        if (fs.existsSync(LOCAL_CRD_FILE)) {
+          fs.copyFileSync(LOCAL_CRD_FILE, temporaryFile);
+          this.logger.debug(`Using local PodLogs CRD file: ${LOCAL_CRD_FILE}`);
+        } else {
+          const downloadErrors: string[] = [];
 
-        if (!response.ok) {
-          throw new Error(`Failed to download CRD YAML: ${response.status} ${response.statusText}`);
-        }
+          // Attempt #1: GitHub Contents API.
+          // The response is a JSON envelope with base64 content.
+          const apiHeaders: Record<string, string> = {Accept: 'application/vnd.github.v3+json'};
+          if (process.env.GITHUB_TOKEN) {
+            apiHeaders['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+          }
+          const apiResponse: Response = await fetch(CRD_URL, {headers: apiHeaders});
 
-        // The "content" field contains the file's base64 content with newline characters
-        // inserted every 60 characters by GitHub.  Strip all whitespace before decoding
-        // so Buffer.from() receives a clean base64 string.
-        const json: {content: string} = (await response.json()) as {content: string};
-        const yamlContent: string = Buffer.from(json.content.replaceAll(/\s/g, ''), 'base64').toString('utf8');
-        fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
+          if (apiResponse.ok) {
+            const json: {content: string} = (await apiResponse.json()) as {content: string};
+            const yamlContent: string = Buffer.from(json.content.replaceAll(/\s/g, ''), 'base64').toString('utf8');
+            fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
+          } else {
+            const apiError: string = `${apiResponse.status} ${apiResponse.statusText}`.trim();
+            downloadErrors.push(`GitHub API: ${apiError}`);
+            this.logger.warn(`Failed to download PodLogs CRD from GitHub API (${apiError}), trying raw URL fallback.`);
+
+            // Attempt #2: raw.githubusercontent.com fallback.
+            const rawHeaders: Record<string, string> = {};
+            if (process.env.GITHUB_TOKEN) {
+              rawHeaders['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+            }
+            const rawResponse: Response = await fetch(CRD_RAW_URL, {headers: rawHeaders});
+            if (!rawResponse.ok) {
+              const rawError: string = `${rawResponse.status} ${rawResponse.statusText}`.trim();
+              downloadErrors.push(`Raw URL: ${rawError}`);
+              throw new Error(`Failed to download CRD YAML (${downloadErrors.join('; ')})`);
+            }
+            const yamlContent: string = await rawResponse.text();
+            fs.writeFileSync(temporaryFile, yamlContent, 'utf8');
+          }
+        }
       }
 
       await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);

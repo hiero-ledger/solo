@@ -65,6 +65,7 @@ import {SharedResourceManager} from '../core/shared-resources/shared-resource-ma
 import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-deployed-event.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 import {Duration} from '../core/time/duration.js';
+import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -82,6 +83,7 @@ interface MirrorNodeDeployConfigClass {
   valuesArg: string;
   quiet: boolean;
   mirrorNodeVersion: string;
+  componentImage: string;
   pinger: boolean;
   operatorId: string;
   operatorKey: string;
@@ -132,6 +134,7 @@ interface MirrorNodeUpgradeConfigClass {
   valuesArg: string;
   quiet: boolean;
   mirrorNodeVersion: string;
+  componentImage: string;
   pinger: boolean;
   operatorId: string;
   operatorKey: string;
@@ -239,6 +242,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.mirrorNodeVersion,
+      flags.componentImage,
       flags.pinger,
       flags.useExternalDatabase,
       flags.operatorId,
@@ -276,6 +280,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.mirrorNodeVersion,
+      flags.componentImage,
       flags.pinger,
       flags.useExternalDatabase,
       flags.operatorId,
@@ -434,6 +439,30 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
     const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
+
+    if (config.componentImage) {
+      const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
+      valuesArgument += helpers.populateHelmArguments({
+        'importer.image.registry': parsedImageReference.registry,
+        'grpc.image.registry': parsedImageReference.registry,
+        'rest.image.registry': parsedImageReference.registry,
+        'restjava.image.registry': parsedImageReference.registry,
+        'web3.image.registry': parsedImageReference.registry,
+        'monitor.image.registry': parsedImageReference.registry,
+        'importer.image.repository': parsedImageReference.repository,
+        'grpc.image.repository': parsedImageReference.repository,
+        'rest.image.repository': parsedImageReference.repository,
+        'restjava.image.repository': parsedImageReference.repository,
+        'web3.image.repository': parsedImageReference.repository,
+        'monitor.image.repository': parsedImageReference.repository,
+        'importer.image.tag': parsedImageReference.tag,
+        'grpc.image.tag': parsedImageReference.tag,
+        'rest.image.tag': parsedImageReference.tag,
+        'restjava.image.tag': parsedImageReference.tag,
+        'web3.image.tag': parsedImageReference.tag,
+        'monitor.image.tag': parsedImageReference.tag,
+      });
+    }
 
     if (config.storageBucket) {
       valuesArgument += ` --set importer.config.${chartNamespace}.mirror.importer.downloader.bucketName=${config.storageBucket}`;
