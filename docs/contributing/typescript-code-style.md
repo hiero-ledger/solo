@@ -116,6 +116,14 @@ import {SomeClass, type SomeInterface} from './some-module.js';
 > bundlers with tree-shaking. They also reduce the risk of circular-dependency issues at runtime
 > since modules that contain only type imports do not create a runtime dependency edge.
 
+#### 3.3.5 Path utilities
+
+When working with filesystem path operations in Solo code:
+
+- Prefer `PathEx` from `src/business/utils/path-ex.ts` instead of direct `node:path` imports.
+- Do not introduce new direct `path.join(...)`, `path.resolve(...)`, `path.relative(...)`, or `path.basename(...)` calls when a `PathEx` equivalent exists.
+- Keep path handling centralized through `PathEx` to preserve consistency and safety guidance in one place.
+
 ### 3.4 Exports
 
 #### 3.4.1 Use named exports
