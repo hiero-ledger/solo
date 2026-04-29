@@ -111,6 +111,8 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     try {
       return await this.waitForPodConditions(namespace, podReadyCondition, labels, maxAttempts, delay, createdAfter);
     } catch (error: Error | unknown) {
+      const errorMessage: string = error instanceof Error ? error.message : String(error);
+      this.logger.showUser(`Pod readiness check failed: ${errorMessage}`);
       throw new SoloError(`Pod with labels [${labels.join(', ')}] not ready [maxAttempts = ${maxAttempts}]`, error);
     }
   }
