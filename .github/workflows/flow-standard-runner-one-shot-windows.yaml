@@ -62,6 +62,14 @@ jobs:
           choco install go-task -y
           task --version
 
+      - name: Switch Docker to Linux Container Mode
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          & "$env:ProgramFiles\Docker\Docker\DockerCli.exe" -SwitchLinuxEngine
+          Start-Sleep -Seconds 15
+          docker info
+
       - name: Install Dependencies
         shell: pwsh
         timeout-minutes: 15
