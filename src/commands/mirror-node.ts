@@ -256,6 +256,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.forcePortForward,
+      flags.externalAddress,
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
       flags.parallelDeploy,
@@ -294,6 +295,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.forcePortForward,
+      flags.externalAddress,
       flags.id,
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
@@ -1109,6 +1111,7 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Enable port forwarding for mirror ingress controller',
       skip: ({config}: MirrorNodeDeployContext): boolean => !config.forcePortForward || !config.enableIngress,
       task: async ({config}: MirrorNodeDeployContext): Promise<void> => {
+        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const pods: Pod[] = await this.k8Factory
           .getK8(config.clusterContext)
           .pods()
@@ -1136,6 +1139,7 @@ export class MirrorNodeCommand extends BaseCommand {
           config.isChartInstalled, // Reuse existing port if chart is already installed
           undefined,
           true, // persist: auto-restart on failure using persist-port-forward.js
+          externalAddress,
         );
         await this.remoteConfig.persist();
       },

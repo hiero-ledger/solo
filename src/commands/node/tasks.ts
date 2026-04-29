@@ -1881,6 +1881,7 @@ export class NodeCommandTasks {
     return {
       title: 'Enable port forwarding for debug port and/or GRPC port',
       task: async ({config}): Promise<void> => {
+        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
         const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
@@ -1890,7 +1891,7 @@ export class NodeCommandTasks {
           this.logger.showUser('Enable port forwarding for JVM debugger');
           this.logger.debug(`Enable port forwarding for JVM debugger on pod ${pod.podReference.name}`);
 
-          await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true);
+          await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true, externalAddress);
         }
 
         if (config.forcePortForward && enablePortForwardHaProxy) {
@@ -1932,6 +1933,7 @@ export class NodeCommandTasks {
               config.isChartInstalled, // Reuse existing port if chart is already installed
               nodeId,
               true, // persist: auto-restart on failure using persist-port-forward.js
+              externalAddress,
             );
           }
           await this.remoteConfig.persist();
