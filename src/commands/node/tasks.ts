@@ -1844,7 +1844,7 @@ export class NodeCommandTasks {
               const targetVersion: string =
                 config.upgradeVersion ??
                 config.releaseTag ??
-                this.remoteConfig.configuration.versions.consensusNode.toString();
+                HEDERA_PLATFORM_VERSION;
               const includeAgreementKeys: boolean = new SemanticVersion<string>(targetVersion).greaterThanOrEqual(
                 versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_AGREEMENT_GOSSIP_CERTS,
               );
