@@ -12,7 +12,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 // eslint-disable-next-line unicorn/no-unreadable-array-destructuring
-const [, , NAMESPACE, POD, CONTEXT, PORT_MAP, KUBECTL_EXECUTABLE, KUBECTL_INSTALLATION_DIRECTORY] = process.argv;
+const [, , NAMESPACE, POD, CONTEXT, PORT_MAP, KUBECTL_EXECUTABLE, KUBECTL_INSTALLATION_DIRECTORY, EXTERNAL_ADDRESS] =
+  process.argv;
 
 if (!NAMESPACE || !POD || !CONTEXT || !PORT_MAP) {
   console.error(
@@ -25,10 +26,15 @@ if (!NAMESPACE || !POD || !CONTEXT || !PORT_MAP) {
 const MIN_BACKOFF: number = 1; // seconds
 const MAX_BACKOFF: number = 60; // seconds
 const POD_EXISTENCE_POLL_INTERVAL_SECONDS: number = 5;
+const POD_MISSING_EXIT_THRESHOLD: number = 3;
+const CLUSTER_UNAVAILABLE_EXIT_THRESHOLD: number = 3;
 let backoff: number = MIN_BACKOFF;
 let child: ChildProcess | undefined;
 let stopping: boolean = false;
 let exitForMissingTarget: boolean = false;
+let consecutivePodMissingChecks: number = 0;
+let consecutiveClusterUnavailableChecks: number = 0;
+let targetResource: string = POD;
 
 interface CommandResult {
   code: number;
@@ -41,13 +47,134 @@ interface ExecuteKubectlOptions {
   trackAsChild: boolean;
 }
 
-function isMissingOriginalPodError(message: string): boolean {
+function isMissingContextOrNamespaceError(message: string): boolean {
+  const errorText: string = message.toLowerCase();
+
+  const missingContext: boolean =
+    (errorText.includes('context') && errorText.includes('does not exist')) ||
+    (errorText.includes('no context exists with the name') && errorText.includes(CONTEXT.toLowerCase()));
+  const missingNamespace: boolean =
+    (errorText.includes('namespaces') && errorText.includes('not found')) ||
+    (errorText.includes('namespace') && errorText.includes('does not exist'));
+
+  return missingContext || missingNamespace;
+}
+
+function isMissingPodError(message: string): boolean {
   const errorText: string = message.toLowerCase();
 
   return (
     errorText.includes('notfound') ||
     (errorText.includes('not found') && (errorText.includes('pods') || errorText.includes('pod')))
   );
+}
+
+function extractPodName(resource: string): string | undefined {
+  const podPrefix: string = 'pods/';
+  if (!resource.startsWith(podPrefix)) {
+    return undefined;
+  }
+  return resource.slice(podPrefix.length);
+}
+
+function derivePodWorkloadPrefix(podName: string): string {
+  if (!podName.includes('-')) {
+    return podName;
+  }
+
+  const deploymentStyleMatch: RegExpMatchArray | null = podName.match(/^(.*)-[a-f0-9]{9,10}-[a-z0-9]{5}$/);
+  if (deploymentStyleMatch?.[1]) {
+    return deploymentStyleMatch[1];
+  }
+
+  const statefulSetStyleMatch: RegExpMatchArray | null = podName.match(/^(.*)-\d+$/);
+  if (statefulSetStyleMatch?.[1]) {
+    return statefulSetStyleMatch[1];
+  }
+
+  return podName;
+}
+
+async function findReplacementPodResource(kubectlInstallationDirectory: string): Promise<string | undefined> {
+  const currentPodName: string | undefined = extractPodName(targetResource);
+  if (!currentPodName) {
+    return undefined;
+  }
+
+  const workloadPrefix: string = derivePodWorkloadPrefix(currentPodName);
+  const currentPodSegmentCount: number = currentPodName.split('-').length;
+  const runningPodsResult: CommandResult = await executeKubectl(
+    ['--context', CONTEXT, '-n', NAMESPACE, 'get', 'pods', '--field-selector=status.phase=Running', '-o', 'name'],
+    kubectlInstallationDirectory,
+    {captureOutput: true, trackAsChild: false},
+  );
+  if (runningPodsResult.code !== 0) {
+    return undefined;
+  }
+
+  const replacementPodName: string | undefined = runningPodsResult.stdout
+    .split('\n')
+    .map((line: string): string => line.trim())
+    .filter((line: string): boolean => line.startsWith('pod/'))
+    .map((line: string): string => line.replace(/^pod\//, ''))
+    .find(
+      (podName: string): boolean =>
+        podName !== currentPodName &&
+        podName.split('-').length === currentPodSegmentCount &&
+        (podName === workloadPrefix || podName.startsWith(`${workloadPrefix}-`)),
+    );
+
+  if (!replacementPodName) {
+    return undefined;
+  }
+
+  return `pods/${replacementPodName}`;
+}
+
+async function hasReplacementPodCandidate(kubectlInstallationDirectory: string): Promise<boolean> {
+  const currentPodName: string | undefined = extractPodName(targetResource);
+  if (!currentPodName) {
+    return false;
+  }
+
+  const workloadPrefix: string = derivePodWorkloadPrefix(currentPodName);
+  const currentPodSegmentCount: number = currentPodName.split('-').length;
+  const podsResult: CommandResult = await executeKubectl(
+    ['--context', CONTEXT, '-n', NAMESPACE, 'get', 'pods', '-o', 'name'],
+    kubectlInstallationDirectory,
+    {captureOutput: true, trackAsChild: false},
+  );
+  if (podsResult.code !== 0) {
+    return false;
+  }
+
+  return podsResult.stdout
+    .split('\n')
+    .map((line: string): string => line.trim())
+    .filter((line: string): boolean => line.startsWith('pod/'))
+    .map((line: string): string => line.replace(/^pod\//, ''))
+    .some(
+      (podName: string): boolean =>
+        podName !== currentPodName &&
+        podName.split('-').length === currentPodSegmentCount &&
+        (podName === workloadPrefix || podName.startsWith(`${workloadPrefix}-`)),
+    );
+}
+
+function isClusterUnavailableError(message: string): boolean {
+  const errorText: string = message.toLowerCase();
+
+  const genericConnectionFailure: boolean =
+    errorText.includes('unable to connect to the server') ||
+    errorText.includes('the connection to the server') ||
+    errorText.includes('server has asked for the client to provide credentials');
+  const dialTcpFailure: boolean =
+    errorText.includes('dial tcp') &&
+    (errorText.includes('connection refused') ||
+      errorText.includes('no such host') ||
+      errorText.includes('i/o timeout'));
+
+  return genericConnectionFailure || dialTcpFailure;
 }
 
 async function executeKubectl(
@@ -115,27 +242,82 @@ async function executeKubectl(
 async function shouldExitForMissingTarget(kubectlInstallationDirectory: string): Promise<boolean> {
   // The pod argument is the original pod reference this process was started for.
   const podResult: CommandResult = await executeKubectl(
-    ['--context', CONTEXT, '-n', NAMESPACE, 'get', POD, '-o', 'name'],
+    ['--context', CONTEXT, '-n', NAMESPACE, 'get', targetResource, '-o', 'name'],
     kubectlInstallationDirectory,
     {captureOutput: true, trackAsChild: false},
   );
   if (podResult.code !== 0) {
     const combinedPodError: string = `${podResult.stderr}\n${podResult.stdout}`.trim();
-    if (isMissingOriginalPodError(combinedPodError)) {
+    if (isMissingContextOrNamespaceError(combinedPodError)) {
       console.error(
-        `Stopping persistent port-forward: original pod target is no longer available (${combinedPodError || 'unknown kubectl error'})`,
+        `Stopping persistent port-forward: original target/context is no longer available (${combinedPodError || 'unknown kubectl error'})`,
       );
       return true;
     }
+
+    if (isMissingPodError(combinedPodError)) {
+      const replacementResource: string | undefined = await findReplacementPodResource(kubectlInstallationDirectory);
+      if (replacementResource) {
+        console.error(`Switching persistent port-forward target from ${targetResource} to ${replacementResource}`);
+        targetResource = replacementResource;
+        consecutivePodMissingChecks = 0;
+        if (child) {
+          try {
+            child.kill('SIGTERM');
+          } catch {
+            // ignore
+          }
+        }
+        return false;
+      }
+
+      if (await hasReplacementPodCandidate(kubectlInstallationDirectory)) {
+        consecutivePodMissingChecks = 0;
+        return false;
+      }
+
+      consecutivePodMissingChecks += 1;
+      if (consecutivePodMissingChecks >= POD_MISSING_EXIT_THRESHOLD) {
+        console.error(
+          `Stopping persistent port-forward: target pod appears gone after ${consecutivePodMissingChecks} checks (${combinedPodError || 'unknown kubectl error'})`,
+        );
+        return true;
+      }
+      return false;
+    }
+
+    if (isClusterUnavailableError(combinedPodError)) {
+      consecutiveClusterUnavailableChecks += 1;
+      if (consecutiveClusterUnavailableChecks >= CLUSTER_UNAVAILABLE_EXIT_THRESHOLD) {
+        console.error(
+          `Stopping persistent port-forward: cluster appears unavailable after ${consecutiveClusterUnavailableChecks} checks (${combinedPodError || 'unknown kubectl error'})`,
+        );
+        return true;
+      }
+      return false;
+    }
+
+    consecutivePodMissingChecks = 0;
+    consecutiveClusterUnavailableChecks = 0;
+    return false;
   }
 
+  consecutivePodMissingChecks = 0;
+  consecutiveClusterUnavailableChecks = 0;
   return false;
 }
 
 function runKubectl(kubectlInstallationDirectory: string): Promise<number> {
-  const arguments_: string[] = ['port-forward', '-n', NAMESPACE, '--context', CONTEXT];
+  const arguments_: string[] = ['port-forward', '-n', NAMESPACE];
+  if (EXTERNAL_ADDRESS) {
+    arguments_.push('--address', EXTERNAL_ADDRESS);
+  }
+  if (CONTEXT) {
+    arguments_.push('--context', CONTEXT);
+  }
+
   const [LOCAL, REMOTE] = PORT_MAP.split(':');
-  arguments_.push(POD, `${LOCAL}:${REMOTE}`);
+  arguments_.push(targetResource, `${LOCAL}:${REMOTE}`);
 
   console.error(`Starting kubectl ${arguments_.join(' ')}`);
 
