@@ -390,6 +390,15 @@ Namespace imports are `lowerCamelCase` while files may be `snake_case`.
 
 `CONSTANT_CASE` is for global constants and signals “do not modify”, even if not deeply frozen.
 
+#### 5.2.6 Command flag references
+
+When referencing command flags in code and tests:
+
+- Do not hardcode flag keys as string literals when a `flags` constant exists.
+- For config-object keys, use `flags.<flag>.constName` (for example, `[flags.deployment.constName]`).
+- For argv/CLI option names, use `flags.<flag>.name` (for example, `argv[flags.deployment.name]`).
+- Avoid string literals such as `'deployment'`, `'nodeAliasesUnparsed'`, and `'--deployment'` in places where `flags` constants are available.
+
 ---
 
 ## 6. Type system
