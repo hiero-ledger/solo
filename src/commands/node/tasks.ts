@@ -3433,7 +3433,7 @@ export class NodeCommandTasks {
           versions.S6_NODE_IMAGE_VERSION,
         );
       }
-      // TSS wraps extraEnv is now handled via generateExtraEnvironmentValuesFile()
+      // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
     }
   }
 
