@@ -478,7 +478,11 @@ export class KeyManager {
         keysDirectory,
         constants.AGREEMENT_KEY_PREFIX,
       );
-      this.copyNodeKeysToStaging(agreementKeyFiles, stagingKeysDirectory);
+      // Agreement keys are optional for older/generated-once environments.
+      // Copy them when present so newer CN versions can use them.
+      if (fs.existsSync(agreementKeyFiles.privateKeyFile) && fs.existsSync(agreementKeyFiles.certificateFile)) {
+        this.copyNodeKeysToStaging(agreementKeyFiles, stagingKeysDirectory);
+      }
     }
   }
 

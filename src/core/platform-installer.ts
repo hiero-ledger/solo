@@ -444,6 +444,49 @@ export class PlatformInstaller {
     // TODO: temporarily disable this until we add logic to only set this when the user provides the node override gossip endpoints for each node they want to override
     // const nodeOverridesYaml = [PathEx.joinWithRealPath(stagingDirectory, constants.NODE_OVERRIDE_FILE)];
     // await this.copyFiles(podReference, nodeOverridesYaml, `${constants.HEDERA_HAPI_PATH}/data/config`, undefined, context);
+
+    // Keep node key material in sync after restarts/upgrades. This ensures consensus nodes
+    // always have both signing and agreement key files expected by newer CN versions.
+    const stagingKeysDirectory: string = PathEx.joinWithRealPath(stagingDirectory, 'keys');
+    if (fs.existsSync(stagingKeysDirectory)) {
+      const keyFilesToCopy: string[] = this.getStagingKeyFilesForNode(stagingKeysDirectory, `${podReference.name}`);
+      if (keyFilesToCopy.length > 0) {
+        await this.copyFiles(
+          podReference,
+          keyFilesToCopy,
+          `${constants.HEDERA_HAPI_PATH}/data/keys`,
+          undefined,
+          context,
+        );
+      }
+    }
+  }
+
+  private getStagingKeyFilesForNode(stagingKeysDirectory: string, podName: string): string[] {
+    const nodeAliasMatch: RegExpMatchArray | null = podName.match(/^network-(.+)-\d+$/);
+    if (!nodeAliasMatch || !nodeAliasMatch[1]) {
+      return [];
+    }
+    const nodeAlias: string = nodeAliasMatch[1];
+
+    const files: string[] = fs.readdirSync(stagingKeysDirectory);
+    const selected: string[] = [];
+
+    for (const file of files) {
+      const isPublicGossip: boolean = file.startsWith(`${constants.SIGNING_KEY_PREFIX}-public-`) || file.startsWith(
+        `${constants.AGREEMENT_KEY_PREFIX}-public-`,
+      );
+      const isPrivateForNode: boolean =
+        file === `${constants.SIGNING_KEY_PREFIX}-private-${nodeAlias}.pem` ||
+        file === `${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem`;
+
+      if (!isPublicGossip && !isPrivateForNode) {
+        continue;
+      }
+      selected.push(PathEx.joinWithRealPath(stagingKeysDirectory, file));
+    }
+
+    return selected;
   }
 
   /**
