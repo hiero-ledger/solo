@@ -358,7 +358,7 @@ jobs:
           fi
 
       - name: Post Pod Memory Categories to Slack
-        if: ${{ !cancelled() && steps.pod-categories.outputs.content != '' }}
+        if: ${{ success() && github.repository == 'hiero-ledger/solo' && steps.pod-categories.outputs.content != '' }}
         uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
