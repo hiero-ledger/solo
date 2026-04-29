@@ -19,21 +19,15 @@ name: "Performance Test Solo Deployment"
 on:
   workflow_dispatch:
   workflow_call:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
   push:
     branches:
       - main
       - 'release/*'
 concurrency:
-  # One run per PR or per branch. A new push cancels any in-progress run for
-  # the same PR/branch, saving runner resources. workflow_dispatch runs are
-  # not cancelled — each manual trigger gets its own group via run_id.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'auto' }}
+  # One run per branch. A new push cancels any in-progress run for the same
+  # branch, saving runner resources. workflow_dispatch runs are not cancelled —
+  # each manual trigger gets its own group via run_id.
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'auto' }}
   cancel-in-progress: true
 
 defaults:
@@ -51,9 +45,7 @@ env:
 
 jobs:
   performance-test:
-    if: >
-      ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false ||
-      startsWith(github.event.pull_request.title, 'trunk-merge') && !cancelled() && !failure() }}
+    if: ${{ !cancelled() && !failure() }}
     timeout-minutes: 90
     runs-on: hiero-solo-linux-large
     steps:
