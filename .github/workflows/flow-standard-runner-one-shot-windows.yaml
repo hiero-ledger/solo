@@ -16,8 +16,9 @@
 
 name: "Standard Runner One-Shot Deploy (Windows)"
 # The purpose of this workflow is to verify that Solo can successfully deploy a network
-# using the one-shot single deploy command on a standard GitHub-hosted Windows runner via WSL2.
-# Solo on Windows requires WSL2 (Ubuntu) as documented. This workflow mirrors that setup.
+# using the one-shot single deploy command on a standard GitHub-hosted Windows runner.
+# Solo runs natively on Windows (PowerShell), with Docker Desktop using the WSL2 backend
+# (required by Kind for Linux containers). This mirrors the documented Windows setup.
 # This acts as a compatibility gate: if Solo stops working on Windows standard runners, this job fails.
 
 on:
@@ -37,7 +38,6 @@ concurrency:
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
-  WSLENV: GITHUB_WORKSPACE/p:CI
 
 jobs:
   standard-runner-one-shot-windows:
@@ -49,114 +49,73 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
-      - name: Setup WSL2 (Ubuntu)
-        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
+      - name: Setup Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          distribution: Ubuntu-22.04
-          additional-packages: curl git
+          node-version: '22'
 
-      - name: Install Node.js 22 in WSL2
-        shell: wsl-bash {0}
+      - name: Install Task
+        shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          set -euo pipefail
-          curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-          sudo apt-get install -y nodejs
-          node --version
-          npm --version
-
-      - name: Install Task in WSL2
-        shell: wsl-bash {0}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          set -euo pipefail
-          sudo sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+          choco install go-task -y
           task --version
 
-      - name: Copy Source to WSL2 Filesystem
-        shell: wsl-bash {0}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          set -euo pipefail
-          cp -r "$GITHUB_WORKSPACE" ~/solo
-
       - name: Install Dependencies
-        shell: wsl-bash {0}
+        shell: pwsh
         timeout-minutes: 15
-        run: |
-          set -euo pipefail
-          cd ~/solo
-          npm ci
+        run: npm ci
 
       - name: Compile Project
-        shell: wsl-bash {0}
+        shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          set -euo pipefail
-          cd ~/solo
-          task build:compile
+        run: task build:compile
 
       - name: One-Shot Single Deploy
-        shell: wsl-bash {0}
+        shell: pwsh
         timeout-minutes: 70
         run: |
-          set -euo pipefail
-          cd ~/solo
-          export PATH=~/.solo/bin:${PATH}
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
           npm run solo -- one-shot single deploy
 
       - name: Verify Mirror REST API
-        shell: wsl-bash {0}
+        shell: pwsh
         timeout-minutes: 10
         run: |
-          echo "Checking mirror node REST API at http://localhost:38081/api/v1/accounts ..."
-          for i in $(seq 1 30); do
-            response=$(curl -sf http://localhost:38081/api/v1/accounts 2>/dev/null || true)
-            if echo "${response}" | grep -q '"accounts"'; then
-              echo "Mirror REST API is up and returned accounts."
-              echo "${response}"
-              exit 0
-            fi
-            echo "Attempt ${i}/30: not ready yet, retrying in 10s..."
-            sleep 10
-          done
-          echo "ERROR: Mirror REST API did not become available after 5 minutes."
+          Write-Host "Checking mirror node REST API at http://localhost:38081/api/v1/accounts ..."
+          for ($i = 1; $i -le 30; $i++) {
+            try {
+              $response = Invoke-RestMethod -Uri "http://localhost:38081/api/v1/accounts" -ErrorAction Stop
+              if ($response.accounts) {
+                Write-Host "Mirror REST API is up and returned accounts."
+                Write-Host ($response | ConvertTo-Json -Depth 5)
+                exit 0
+              }
+            } catch {
+              # not ready yet
+            }
+            Write-Host "Attempt $i/30: not ready yet, retrying in 10s..."
+            Start-Sleep -Seconds 10
+          }
+          Write-Error "ERROR: Mirror REST API did not become available after 5 minutes."
           exit 1
 
       - name: Collect Diagnostics on Failure
         if: ${{ failure() }}
-        shell: wsl-bash {0}
+        shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          cd ~/solo
-          export PATH=~/.solo/bin:${PATH}
-          npm run solo -- deployment diagnostics logs -q --dev || true
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- deployment diagnostics logs -q --dev; $true
 
       - name: One-Shot Single Destroy
         if: always()
-        shell: wsl-bash {0}
+        shell: pwsh
         timeout-minutes: 15
         run: |
-          cd ~/solo
-          export PATH=~/.solo/bin:${PATH}
-          npm run solo -- one-shot single destroy --quiet-mode || true
-
-      - name: Copy Logs to Windows Workspace
-        if: always()
-        shell: wsl-bash {0}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          echo "HOME=${HOME}"
-          echo "Searching for solo.log:"
-          find ~/.solo /tmp /root -name "solo.log" 2>/dev/null || echo "solo.log not found in expected locations"
-          echo "Solo home directory contents:"
-          ls -la ~/.solo/ || echo "~/.solo/ not found"
-          echo "Solo logs directory contents:"
-          ls -la ~/.solo/logs/ || echo "~/.solo/logs/ not found"
-          mkdir -p "$GITHUB_WORKSPACE/solo-logs"
-          cp -r ~/.solo/logs/. "$GITHUB_WORKSPACE/solo-logs/" || echo "Failed to copy logs"
-          echo "Copied files:"
-          ls -la "$GITHUB_WORKSPACE/solo-logs/" || echo "No files copied"
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- one-shot single destroy --quiet-mode; $true
 
       - name: Upload Logs
         if: always()
@@ -164,6 +123,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: standard-runner-one-shot-windows-logs
-          path: ${{ github.workspace }}/solo-logs
+          path: ${{ env.USERPROFILE }}\.solo\logs
           overwrite: true
           if-no-files-found: warn
