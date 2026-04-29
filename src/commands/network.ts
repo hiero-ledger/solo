@@ -570,7 +570,7 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    // All extraEnv customizations (wraps, debug, JAVA_MAIN_CLASS) are now handled
+    // All extraEnv customizations (wraps, debug, JAVA_MAIN_CLASS) are handled
     // via generateExtraEnvironmentValuesFile() in prepareValuesArgMap() to avoid Helm --set replacement issues
 
     if (
