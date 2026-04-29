@@ -170,6 +170,16 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly externalAddress: CommandFlag = {
+    constName: 'externalAddress',
+    name: 'external-address',
+    definition: {
+      describe: 'Bind address for kubectl port-forward (for example 127.0.0.1 or 0.0.0.0)',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   // list of common flags across commands. command specific flags are defined in the command's module.
   public static readonly clusterRef: CommandFlag = {
     constName: 'clusterRef',
@@ -2968,6 +2978,7 @@ export class Flags {
     Flags.endpointType,
     Flags.envoyIps,
     Flags.forcePortForward,
+    Flags.externalAddress,
     Flags.generateEcdsaKey,
     Flags.generateGossipKeys,
     Flags.generateTlsKeys,
