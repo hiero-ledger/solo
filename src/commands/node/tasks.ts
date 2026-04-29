@@ -1067,11 +1067,7 @@ export class NodeCommandTasks {
         const signedKeyFiles: TDirectoryData[] = await k8Container
           .listDir(keyDirectory)
           .then((files: TDirectoryData[]): TDirectoryData[] =>
-            files.filter(
-              (file: TDirectoryData): boolean =>
-                file.name.startsWith(`${constants.SIGNING_KEY_PREFIX}-`) ||
-                file.name.startsWith('a-'),
-            ),
+            files.filter((file: TDirectoryData): boolean => file.name.startsWith(constants.SIGNING_KEY_PREFIX)),
           );
 
         await k8Container.execContainer([
