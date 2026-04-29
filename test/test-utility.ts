@@ -467,31 +467,10 @@ export async function createAccount(
   expect(accountManager._nodeClient).not.to.be.null;
   const privateKey: PrivateKey = PrivateKey.generate();
   const amount: number = 100;
-  const maxAttempts: number = 12;
-  const retryDelay: Duration = Duration.ofSeconds(5);
-  let newAccount: TransactionResponse | undefined;
-  for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      newAccount = await new AccountCreateTransaction()
-        .setKey(privateKey)
-        .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
-        .execute(accountManager._nodeClient);
-      break;
-    } catch (error: unknown) {
-      const isWaitingForLedgerId: boolean = error instanceof Error && error.message.includes('WAITING_FOR_LEDGER_ID');
-      if (!isWaitingForLedgerId || attempt === maxAttempts) {
-        throw error;
-      }
-
-      logger.info(
-        `Account creation got WAITING_FOR_LEDGER_ID; retrying attempt ${attempt + 1}/${maxAttempts} in ${retryDelay.seconds}s`,
-      );
-      await sleep(retryDelay);
-    }
-  }
-  if (!newAccount) {
-    throw new Error('Account creation failed: missing transaction response after retries');
-  }
+  const newAccount: TransactionResponse = await new AccountCreateTransaction()
+    .setKey(privateKey)
+    .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
+    .execute(accountManager._nodeClient);
 
   // Get the new account ID
   const getReceipt: TransactionReceipt = await newAccount.getReceipt(accountManager._nodeClient);

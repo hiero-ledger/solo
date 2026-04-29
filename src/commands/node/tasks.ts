@@ -861,17 +861,6 @@ export class NodeCommandTasks {
 
           context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
-        // Refresh to a single-node client before file upload so we do not route to a
-        // lagging node that still returns WAITING_FOR_LEDGER_ID precheck.
-        if (Array.isArray(config.existingNodeAliases) && config.existingNodeAliases.length > 0) {
-          config.nodeClient = await this.accountManager.refreshNodeClient(
-            config.namespace,
-            this.remoteConfig.getClusterRefs(),
-            config.existingNodeAliases[0],
-            this.configManager.getFlag<DeploymentName>(flags.deployment),
-          );
-        }
-
         context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
     };
@@ -1642,127 +1631,6 @@ export class NodeCommandTasks {
     };
   }
 
-  public waitForLedgerIdReady(
-    nodeAliasesProperty: string,
-  ): SoloListrTask<
-    NodeStartContext | NodeAddContext | NodeUpdateContext | NodeDestroyContext | NodeRefreshContext | NodeUpgradeContext
-  > {
-    return {
-      title: 'Wait for ledger ID',
-      skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
-      task: async (
-        {config},
-        task,
-      ): Promise<
-        SoloListr<
-          | NodeStartContext
-          | NodeAddContext
-          | NodeUpdateContext
-          | NodeDestroyContext
-          | NodeRefreshContext
-          | NodeUpgradeContext
-        >
-      > => {
-        const subTasks: SoloListrTask<
-          | NodeStartContext
-          | NodeAddContext
-          | NodeUpdateContext
-          | NodeDestroyContext
-          | NodeRefreshContext
-          | NodeUpgradeContext
-        >[] = [];
-
-        for (const nodeAlias of config[nodeAliasesProperty] as NodeAliases) {
-          const node: Optional<ConsensusNode> = config.consensusNodes.find(
-            (consensusNode: ConsensusNode): boolean => consensusNode.name === nodeAlias,
-          );
-
-          if (!node) {
-            throw new SoloError(`Could not find consensus node ${nodeAlias} while waiting for ledger ID readiness`);
-          }
-
-          subTasks.push({
-            title: `Waiting for node: ${nodeAlias}`,
-            task: async (_, task): Promise<void> => {
-              const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
-              let attempt: number = 0;
-              let success: boolean = false;
-
-              while (!success && attempt < maxAttempts) {
-                attempt++;
-                task.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
-
-                const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
-                  NamespaceName.of(node.namespace),
-                  node.name,
-                );
-
-                const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
-                const output: string = await container.execContainer(['cat', hgcaaLogPath]);
-
-                // In record-stream-only mode (or when history proofs are disabled), CN won't emit
-                // ledger-id externalization markers, so this gate is not applicable.
-                if (
-                  output.includes('blockStream.streamMode = RECORDS') ||
-                  output.includes('tss.historyEnabled = false')
-                ) {
-                  success = true;
-                  continue;
-                }
-
-                if (
-                  output.includes(constants.LEDGER_ID_SET_MSG) ||
-                  output.includes(constants.LEDGER_ID_EXTERNALIZED_MSG) ||
-                  output.includes(constants.TSS_SIGNER_READY_MSG)
-                ) {
-                  success = true;
-                } else {
-                  // Post-upgrade/restart, ledger-id markers may not appear in hgcaa.log
-                  // for every node. If platform status reached ACTIVE in swirlds.log,
-                  // treat ledger-id readiness as satisfied.
-                  const swirldsLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/swirlds.log`;
-                  const swirldsOutput: string = await container.execContainer(['cat', swirldsLogPath]);
-                  if (/\bACTIVE\b/.test(swirldsOutput)) {
-                    success = true;
-                    continue;
-                  }
-
-                  // Fallback: on long-running nodes these ledger-id markers may not be
-                  // present in current hgcaa.log anymore. If the node is already ACTIVE,
-                  // treat it as ready for ledger-id dependent operations.
-                  try {
-                    await this.checkNetworkNodeActiveness(
-                      NamespaceName.of(node.namespace),
-                      node.name,
-                      task as SoloListrTaskWrapper<AnyListrContext>,
-                      `Waiting for node: ${chalk.cyan(node.name)}`,
-                      NodeStatusCodes.ACTIVE,
-                      1,
-                      0,
-                      1000,
-                      node.context,
-                    );
-                    success = true;
-                    continue;
-                  } catch {
-                    // keep retrying until maxAttempts is reached
-                  }
-                  await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
-                }
-              }
-
-              if (!success) {
-                throw new Error(`Node ${node.name} did not report ledger ID readiness after ${maxAttempts} attempts`);
-              }
-            },
-          });
-        }
-
-        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
-      },
-    };
-  }
-
   public setGrpcWebEndpoint(
     nodeAliasesProperty: string,
     subcommandType: NodeSubcommandType,
@@ -1855,44 +1723,20 @@ export class NodeCommandTasks {
               .setPort(grpcProxyPort);
           }
 
-          const maxAttempts: number = 6;
-          let attempt: number = 0;
-          let updated: boolean = false;
-          let currentClient: Client = nodeClient;
-          while (!updated && attempt < maxAttempts) {
-            attempt++;
-            try {
-              let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
-                .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
-                .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
-                .freezeWith(currentClient);
+          let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
+            .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
+            .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
+            .freezeWith(nodeClient);
 
-              if (adminKey) {
-                updateTransaction = await updateTransaction.sign(adminKey);
-              }
+          if (adminKey) {
+            updateTransaction = await updateTransaction.sign(adminKey);
+          }
 
-              const transactionResponse: TransactionResponse = await updateTransaction.execute(currentClient);
-              const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(currentClient);
+          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
+          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
 
-              if (updateTransactionReceipt.status !== Status.Success) {
-                throw new SoloError('Failed to set gRPC web proxy endpoint');
-              }
-              updated = true;
-            } catch (error) {
-              const errorMessage: string = (error as Error).message ?? String(error);
-              if (!errorMessage.includes('WAITING_FOR_LEDGER_ID') || attempt >= maxAttempts) {
-                throw error;
-              }
-
-              // Refresh to the specific node alias and retry when ledger-id is still propagating.
-              currentClient = await this.accountManager.refreshNodeClient(
-                namespace,
-                this.remoteConfig.getClusterRefs(),
-                nodeAlias,
-                deployment,
-              );
-              await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
-            }
+          if (updateTransactionReceipt.status !== Status.Success) {
+            throw new SoloError('Failed to set gRPC web proxy endpoint');
           }
         }
       },
