@@ -1997,6 +1997,18 @@ export class NodeCommandTasks {
           {
             title: 'Copy Gossip keys to staging',
             task: async (): Promise<void> => {
+              const releaseTag: string = config.releaseTag ?? this.remoteConfig.configuration.versions.consensusNode;
+              const includeAgreementKeys: boolean = new SemanticVersion<string>(releaseTag).greaterThanOrEqual(
+                '0.74.0',
+              );
+              if (includeAgreementKeys) {
+                this.keyManager.copyGossipKeysToStagingWithAgreementKeys(
+                  config.keysDir,
+                  config.stagingKeysDir,
+                  nodeAliases,
+                );
+                return;
+              }
               this.keyManager.copyGossipKeysToStaging(config.keysDir, config.stagingKeysDir, nodeAliases);
             },
           },

@@ -462,7 +462,17 @@ export class KeyManager {
         constants.SIGNING_KEY_PREFIX,
       );
       this.copyNodeKeysToStaging(signingKeyFiles, stagingKeysDirectory);
+    }
+  }
 
+  copyGossipKeysToStagingWithAgreementKeys(
+    keysDirectory: string,
+    stagingKeysDirectory: string,
+    nodeAliases: NodeAliases,
+  ): void {
+    this.copyGossipKeysToStaging(keysDirectory, stagingKeysDirectory, nodeAliases);
+
+    for (const nodeAlias of nodeAliases) {
       const agreementKeyFiles: PrivateKeyAndCertificateObject = this.prepareNodeKeyFilePaths(
         nodeAlias,
         keysDirectory,

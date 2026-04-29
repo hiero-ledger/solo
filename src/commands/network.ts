@@ -1253,7 +1253,14 @@ export class NetworkCommand extends BaseCommand {
               [
                 {
                   title: 'Copy Gossip keys to staging',
-                  task: ({config: {keysDir, stagingKeysDir, nodeAliases}}): void => {
+                  task: ({config: {keysDir, stagingKeysDir, nodeAliases, releaseTag}}): void => {
+                    const includeAgreementKeys: boolean = new SemanticVersion<string>(releaseTag).greaterThanOrEqual(
+                      '0.74.0',
+                    );
+                    if (includeAgreementKeys) {
+                      this.keyManager.copyGossipKeysToStagingWithAgreementKeys(keysDir, stagingKeysDir, nodeAliases);
+                      return;
+                    }
                     this.keyManager.copyGossipKeysToStaging(keysDir, stagingKeysDir, nodeAliases);
                   },
                 },
