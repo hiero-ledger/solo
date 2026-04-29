@@ -31,6 +31,22 @@ function makeConsensusNode(name: NodeAlias, nodeId: number): ConsensusNode {
   );
 }
 
+function generateAndParse(
+  nodes: ConsensusNode[],
+  options: Parameters<typeof helmValuesHelper.generateExtraEnvironmentValuesFile>[1],
+): {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}; blockNodesJson?: string}[]}} {
+  const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'test-gen-env-'));
+  try {
+    const filePath: string = helmValuesHelper.generateExtraEnvironmentValuesFile(nodes, options, temporaryDirectory);
+    const content: string = fs.readFileSync(filePath, 'utf8');
+    return yaml.parse(content) as {
+      hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}; blockNodesJson?: string}[]};
+    };
+  } finally {
+    fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+  }
+}
+
 describe('Helpers', (): void => {
   each([
     {input: '', output: []},
@@ -69,26 +85,6 @@ describe('Helpers', (): void => {
   });
 
   describe('generateExtraEnvironmentValuesFile', (): void => {
-    function generateAndParse(
-      nodes: ConsensusNode[],
-      options: Parameters<typeof helmValuesHelper.generateExtraEnvironmentValuesFile>[1],
-    ): {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}; blockNodesJson?: string}[]}} {
-      const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'test-gen-env-'));
-      try {
-        const filePath: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
-          nodes,
-          options,
-          temporaryDirectory,
-        );
-        const content: string = fs.readFileSync(filePath, 'utf8');
-        return yaml.parse(content) as {
-          hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}; blockNodesJson?: string}[]};
-        };
-      } finally {
-        fs.rmSync(temporaryDirectory, {recursive: true, force: true});
-      }
-    }
-
     it('should sanitize -Xms/-Xmx from JAVA_OPTS coming from baseExtraEnvironmentVariables', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
       const result: {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}}[]}} = generateAndParse(

@@ -6,7 +6,7 @@ import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
 import * as util from 'node:util';
-import chalk, {type ChalkInstance} from 'chalk';
+import chalk from 'chalk';
 import * as constants from '../constants.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../dependency-injection/container-helper.js';
@@ -15,6 +15,8 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
 import {SoloError} from '../errors/solo-error.js';
 import {MessageLevel} from './message-level.js';
+
+type ChalkColor = typeof chalk.red;
 
 /**
  * Pino-based implementation of the SoloLogger interface.
@@ -262,8 +264,8 @@ export class SoloPinoLogger implements SoloLogger {
       return;
     }
 
-    let titleColor: ChalkInstance;
-    let textColor: ChalkInstance;
+    let titleColor: ChalkColor;
+    let textColor: ChalkColor;
     switch (messageLevel) {
       case MessageLevel.ERROR: {
         titleColor = chalk.red;

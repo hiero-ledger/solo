@@ -7,6 +7,7 @@ import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
+import {type K8} from '../../../src/integration/kube/k8.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type DeploymentCommand} from '../../../src/commands/deployment.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
@@ -18,6 +19,9 @@ import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
 
 describe('DeploymentCommand unit tests', (): void => {
+  type K8StubbedMethods = Pick<K8, 'namespaces' | 'configMaps' | 'contexts' | 'clusters' | 'leases'>;
+  type K8FactoryStubbedMethods = K8Factory & {getK8: SinonStub; default: SinonStub};
+
   const namespace: NamespaceName = NamespaceName.of('solo-e2e');
   const deploymentName: string = 'deployment';
 
@@ -26,7 +30,7 @@ describe('DeploymentCommand unit tests', (): void => {
   let realK8Factory: K8Factory;
   let namespacesStub: SinonStub;
   let configMapsStub: SinonStub;
-  let k8Stub: SinonStub;
+  let k8Stub: K8StubbedMethods;
 
   before((): void => {
     realK8Factory = container.resolve(InjectTokens.K8Factory);
@@ -35,27 +39,28 @@ describe('DeploymentCommand unit tests', (): void => {
   beforeEach(async (): Promise<void> => {
     namespacesStub = sinon.stub();
     configMapsStub = sinon.stub();
-    k8Stub = sinon.stub() as any;
+    k8Stub = {} as K8StubbedMethods;
+    const factoryStubbed: K8FactoryStubbedMethods = k8FactoryStub as K8FactoryStubbedMethods;
 
-    (k8FactoryStub as any).getK8 = sinon.stub().returns(k8Stub);
-    (k8FactoryStub as any).default = sinon.stub().returns(k8Stub);
-    (k8Stub as any).namespaces = sinon.stub().returns({
+    factoryStubbed.getK8 = sinon.stub().returns(k8Stub);
+    factoryStubbed.default = sinon.stub().returns(k8Stub);
+    k8Stub.namespaces = sinon.stub().returns({
       has: namespacesStub,
       list: sinon.stub().resolves([]),
     });
-    (k8Stub as any).configMaps = sinon.stub().returns({
+    k8Stub.configMaps = sinon.stub().returns({
       exists: configMapsStub,
       listForAllNamespaces: sinon.stub().resolves([]),
     });
-    (k8Stub as any).contexts = sinon.stub().returns({
+    k8Stub.contexts = sinon.stub().returns({
       readCurrent: sinon
         .stub()
         .returns(new K8Client(undefined, realK8Factory.default().getKubectlExecutablePath()).contexts().readCurrent()),
     });
-    (k8Stub as any).clusters = sinon.stub().returns({
+    k8Stub.clusters = sinon.stub().returns({
       readCurrent: sinon.stub().returns(realK8Factory.default().clusters().readCurrent()),
     });
-    (k8Stub as any).leases = sinon.stub().returns({
+    k8Stub.leases = sinon.stub().returns({
       read: sinon.stub().rejects(new Error('not found')),
       create: sinon.stub().resolves(),
       delete: sinon.stub().resolves(),
@@ -98,7 +103,7 @@ describe('DeploymentCommand unit tests', (): void => {
 
     it('should detect stale local config and clean up when cluster connection fails', async (): Promise<void> => {
       // Simulate cluster connection failure (e.g., Kind cluster was deleted)
-      (k8Stub as any).namespaces = sinon.stub().returns({
+      k8Stub.namespaces = sinon.stub().returns({
         has: sinon.stub().rejects(new Error('connection refused - cluster no longer exists')),
         list: sinon.stub().rejects(new Error('connection refused')),
       });

@@ -265,6 +265,28 @@ export function addSaveContextParser(context_: AnyListrContext): Record<string, 
   return exportedContext;
 }
 
+type AddLoadContext = AnyListrContext & {
+  config: NodeAddConfigClass;
+  signingCertDer: Uint8Array;
+  gossipEndpoints: ServiceEndpoint[];
+  grpcServiceEndpoints: ServiceEndpoint[];
+  adminKey: PrivateKey;
+  tlsCertHash: unknown;
+  upgradeZipHash: unknown;
+  newNode: unknown;
+};
+
+type AddLoadContextData = {
+  signingCertDer: string;
+  gossipEndpoints: string[];
+  grpcServiceEndpoints: string[];
+  adminKey: string;
+  newNode: {name: NodeAlias};
+  existingNodeAliases: NodeAliases;
+  tlsCertHash: unknown;
+  upgradeZipHash: unknown;
+};
+
 /**
  * Initializes objects in the context from a provided string
  * Contains fields needed for adding a new node through separate commands
@@ -272,9 +294,11 @@ export function addSaveContextParser(context_: AnyListrContext): Record<string, 
  * @param ctxData - data in string format
  * @returns file writable object
  */
-export function addLoadContextParser(context_: any, contextData: any): void {
-  const config: any = context_.config;
-  context_.signingCertDer = new Uint8Array(contextData.signingCertDer.split(','));
+export function addLoadContextParser(context_: AddLoadContext, contextData: AddLoadContextData): void {
+  const config: NodeAddConfigClass = context_.config;
+  context_.signingCertDer = new Uint8Array(
+    contextData.signingCertDer.split(',').map((value: string): number => Number.parseInt(value, 10)),
+  );
   context_.gossipEndpoints = prepareEndpoints(
     context_.config.endpointType,
     contextData.gossipEndpoints,
@@ -291,7 +315,11 @@ export function addLoadContextParser(context_: any, contextData: any): void {
   config.allNodeAliases = [...config.existingNodeAliases, contextData.newNode.name];
   config.newNodeAliases = [contextData.newNode.name];
 
-  const fieldsToImport: string[] = ['tlsCertHash', 'upgradeZipHash', 'newNode'];
+  const fieldsToImport: Array<'tlsCertHash' | 'upgradeZipHash' | 'newNode'> = [
+    'tlsCertHash',
+    'upgradeZipHash',
+    'newNode',
+  ];
 
   for (const property of fieldsToImport) {
     context_[property] = contextData[property];

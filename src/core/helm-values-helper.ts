@@ -129,42 +129,42 @@ export class HelmValuesHelper {
     return filePaths;
   }
 
-  private parseValuesFile(filePath: string): Record<string, unknown> | null {
+  private parseValuesFile(filePath: string): Record<string, unknown> | undefined {
     let content: string;
     try {
       content = fs.readFileSync(filePath, 'utf8');
     } catch {
-      return null;
+      return undefined;
     }
 
     let parsedValues: unknown;
     try {
       parsedValues = yaml.parse(content);
     } catch {
-      return null;
+      return undefined;
     }
 
     if (!parsedValues || typeof parsedValues !== 'object') {
-      return null;
+      return undefined;
     }
 
     return parsedValues as Record<string, unknown>;
   }
 
-  private readHederaNodes(valuesFilePath: string): unknown[] | null {
-    const parsedRecord: Record<string, unknown> | null = this.parseValuesFile(valuesFilePath);
+  private readHederaNodes(valuesFilePath: string): unknown[] | undefined {
+    const parsedRecord: Record<string, unknown> | undefined = this.parseValuesFile(valuesFilePath);
     if (!parsedRecord) {
-      return null;
+      return undefined;
     }
 
     const hederaSection: unknown = parsedRecord.hedera;
     if (!hederaSection || typeof hederaSection !== 'object') {
-      return null;
+      return undefined;
     }
 
     const nodesArray: unknown = (hederaSection as Record<string, unknown>).nodes;
     if (!Array.isArray(nodesArray)) {
-      return null;
+      return undefined;
     }
 
     return nodesArray;
@@ -177,7 +177,7 @@ export class HelmValuesHelper {
     const result: Record<NodeAlias, EnvironmentVariable[]> = {};
 
     for (const filePath of filePaths) {
-      const parsedRecord: Record<string, unknown> | null = this.parseValuesFile(filePath);
+      const parsedRecord: Record<string, unknown> | undefined = this.parseValuesFile(filePath);
       if (!parsedRecord) {
         continue;
       }

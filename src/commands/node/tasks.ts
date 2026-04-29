@@ -3322,7 +3322,7 @@ export class NodeCommandTasks {
               }
             }
 
-            const clusterLocalNodeIndices = clusterNodeIndexMap[clusterReference];
+            const clusterLocalNodeIndices: Record<NodeId, number> | undefined = clusterNodeIndexMap[clusterReference];
             const indexedConsensusNodes: Array<ConsensusNode | undefined> = [];
             const unindexedConsensusNodes: ConsensusNode[] = [];
             for (const consensusNode of consensusNodes) {
