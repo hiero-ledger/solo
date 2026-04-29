@@ -1999,7 +1999,7 @@ export class NodeCommandTasks {
             task: async (): Promise<void> => {
               const releaseTag: string = config.releaseTag ?? this.remoteConfig.configuration.versions.consensusNode;
               const includeAgreementKeys: boolean = new SemanticVersion<string>(releaseTag).greaterThanOrEqual(
-                '0.74.0',
+                versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_AGREEMENT_GOSSIP_CERTS,
               );
               if (includeAgreementKeys) {
                 this.keyManager.copyGossipKeysToStagingWithAgreementKeys(
