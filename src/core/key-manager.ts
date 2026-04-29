@@ -100,7 +100,11 @@ export class KeyManager {
    * @param nodeAlias
    * @param keysDirectory - directory where keys and certs are stored
    */
-  prepareNodeKeyFilePaths(nodeAlias: NodeAlias, keysDirectory: string): PrivateKeyAndCertificateObject {
+  prepareNodeKeyFilePaths(
+    nodeAlias: NodeAlias,
+    keysDirectory: string,
+    keyPrefix: string = constants.SIGNING_KEY_PREFIX,
+  ): PrivateKeyAndCertificateObject {
     if (!nodeAlias) {
       throw new MissingArgumentError('nodeAlias is required');
     }
@@ -108,8 +112,8 @@ export class KeyManager {
       throw new MissingArgumentError('keysDirectory is required');
     }
 
-    const keyFile: string = PathEx.join(keysDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
-    const certFile: string = PathEx.join(keysDirectory, Templates.renderGossipPemPublicKeyFile(nodeAlias));
+    const keyFile: string = PathEx.join(keysDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias, keyPrefix));
+    const certFile: string = PathEx.join(keysDirectory, Templates.renderGossipPemPublicKeyFile(nodeAlias, keyPrefix));
 
     return {
       privateKeyFile: keyFile,
@@ -452,8 +456,19 @@ export class KeyManager {
   copyGossipKeysToStaging(keysDirectory: string, stagingKeysDirectory: string, nodeAliases: NodeAliases): void {
     // copy gossip keys to the staging
     for (const nodeAlias of nodeAliases) {
-      const signingKeyFiles: PrivateKeyAndCertificateObject = this.prepareNodeKeyFilePaths(nodeAlias, keysDirectory);
+      const signingKeyFiles: PrivateKeyAndCertificateObject = this.prepareNodeKeyFilePaths(
+        nodeAlias,
+        keysDirectory,
+        constants.SIGNING_KEY_PREFIX,
+      );
       this.copyNodeKeysToStaging(signingKeyFiles, stagingKeysDirectory);
+
+      const agreementKeyFiles: PrivateKeyAndCertificateObject = this.prepareNodeKeyFilePaths(
+        nodeAlias,
+        keysDirectory,
+        constants.AGREEMENT_KEY_PREFIX,
+      );
+      this.copyNodeKeysToStaging(agreementKeyFiles, stagingKeysDirectory);
     }
   }
 
