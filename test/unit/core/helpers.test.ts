@@ -68,15 +68,37 @@ describe('Helpers', (): void => {
     expect(byteString).to.equal('wKgAAQ==');
   });
 
-  describe('buildPerNodeExtraEnvironmentValuesStructure', (): void => {
+  describe('generateExtraEnvironmentValuesFile', (): void => {
+    function generateAndParse(
+      nodes: ConsensusNode[],
+      options: Parameters<typeof helmValuesHelper.generateExtraEnvironmentValuesFile>[1],
+    ): {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}; blockNodesJson?: string}[]}} {
+      const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'test-gen-env-'));
+      try {
+        const filePath: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
+          nodes,
+          options,
+          temporaryDirectory,
+        );
+        const content: string = fs.readFileSync(filePath, 'utf8');
+        return yaml.parse(content) as {
+          hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}; blockNodesJson?: string}[]};
+        };
+      } finally {
+        fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+      }
+    }
+
     it('should sanitize -Xms/-Xmx from JAVA_OPTS coming from baseExtraEnvironmentVariables', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const result: ReturnType<typeof helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure> =
-        helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure([node], {
+      const result: {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}}[]}} = generateAndParse(
+        [node],
+        {
           baseExtraEnvironmentVariables: {
             node1: [{name: 'JAVA_OPTS', value: '-Xms256m -Xmx2g -Dfoo=bar'}],
           },
-        });
+        },
+      );
       const javaOptions: string | undefined = result.hedera.nodes[0].root?.extraEnv.find(
         (environmentEntry: {name: string; value: string}): boolean => environmentEntry.name === 'JAVA_OPTS',
       )?.value;
@@ -85,13 +107,15 @@ describe('Helpers', (): void => {
 
     it('should sanitize -Xms/-Xmx from JAVA_OPTS after debug-node prepend adds base value with heap flags', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const result: ReturnType<typeof helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure> =
-        helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure([node], {
+      const result: {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}}[]}} = generateAndParse(
+        [node],
+        {
           debugNodeAlias: 'node1',
           baseExtraEnvironmentVariables: {
             node1: [{name: 'JAVA_OPTS', value: '-Xms512m -Xmx4g -Dfoo=bar'}],
           },
-        });
+        },
+      );
       const javaOptions: string | undefined = result.hedera.nodes[0].root?.extraEnv.find(
         (environmentEntry: {name: string; value: string}): boolean => environmentEntry.name === 'JAVA_OPTS',
       )?.value;
@@ -104,12 +128,14 @@ describe('Helpers', (): void => {
 
     it('should sanitize -Xms/-Xmx from JAVA_OPTS coming from additionalEnvironmentVariables', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const result: ReturnType<typeof helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure> =
-        helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure([node], {
+      const result: {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}}[]}} = generateAndParse(
+        [node],
+        {
           additionalEnvironmentVariables: {
             node1: [{name: 'JAVA_OPTS', value: '-Xms128m -Xmx1g -Dbaz=qux'}],
           },
-        });
+        },
+      );
       const javaOptions: string | undefined = result.hedera.nodes[0].root?.extraEnv.find(
         (environmentEntry: {name: string; value: string}): boolean => environmentEntry.name === 'JAVA_OPTS',
       )?.value;
@@ -119,23 +145,21 @@ describe('Helpers', (): void => {
     it('should preserve blockNodesJson from additionalNodeValues in the output structure', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
       const blockNodesJsonContent: string = JSON.stringify({blockNodes: [{host: 'localhost', port: 8080}]});
-      const result: ReturnType<typeof helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure> =
-        helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure([node], {
-          additionalNodeValues: {
-            node1: {name: 'node1', nodeId: 0, accountId: '0.0.3', blockNodesJson: blockNodesJsonContent},
-          },
-        });
+      const result: {hedera: {nodes: {blockNodesJson?: string}[]}} = generateAndParse([node], {
+        additionalNodeValues: {
+          node1: {name: 'node1', nodeId: 0, accountId: '0.0.3', blockNodesJson: blockNodesJsonContent},
+        },
+      });
       expect(result.hedera.nodes[0].blockNodesJson).to.equal(blockNodesJsonContent);
     });
 
     it('should not include blockNodesJson in output when not provided', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const result: ReturnType<typeof helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure> =
-        helmValuesHelper.buildPerNodeExtraEnvironmentValuesStructure([node], {
-          additionalNodeValues: {
-            node1: {name: 'node1', nodeId: 0, accountId: '0.0.3'},
-          },
-        });
+      const result: {hedera: {nodes: {blockNodesJson?: string}[]}} = generateAndParse([node], {
+        additionalNodeValues: {
+          node1: {name: 'node1', nodeId: 0, accountId: '0.0.3'},
+        },
+      });
       expect(result.hedera.nodes[0].blockNodesJson).to.be.undefined;
     });
   });
