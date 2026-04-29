@@ -95,7 +95,7 @@ grpc:
       memory: 0
     limits:
       cpu: 500m
-      memory: 200Mi
+      memory: 120Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -169,7 +169,7 @@ rest:
       memory: 0
     limits:
       cpu: 500m
-      memory: 120Mi
+      memory: 100Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -208,7 +208,7 @@ restjava:
       memory: 0
     limits:
       cpu: 2
-      memory: 3096Mi
+      memory: 200Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -241,7 +241,7 @@ web3:
       memory: 0
     limits:
       cpu: 1000m
-      memory: 300Mi
+      memory: 200Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1

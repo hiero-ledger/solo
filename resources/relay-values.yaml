@@ -1,20 +1,23 @@
-readinessProbe:
-  initialDelaySeconds: 0
-  periodSeconds: 1
-  failureThreshold: 60
-livenessProbe:
-  initialDelaySeconds: 0
-  periodSeconds: 1
-  failureThreshold: 60
-startupProbe:
-  initialDelaySeconds: 0
-  periodSeconds: 1
-  failureThreshold: 120
+
 relay:
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 0
+      memory: 0
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 200Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 120
+relay-ws:
+  enabled: false
