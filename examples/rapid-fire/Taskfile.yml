@@ -17,7 +17,7 @@ vars:
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
   HELISWAP_PREFUND_HBAR: "2000000"
   HELISWAP_CREATOR_ACCOUNT_ID: "0.0.1013"
-  HELISWAP_CREATOR_TOP_UP_HBAR: "100000000"
+  HELISWAP_CREATOR_TOP_UP_HBAR: "5000000000"
 
 tasks:
   deploy:
@@ -116,8 +116,8 @@ tasks:
       # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
-          # Continuously top up likely HeliSwap payer accounts while the test runs.
-          # This avoids timing races where creator account is created after one-shot prefunding.
+          # Solo commands hold a lock, so concurrent top-up while load runs is unreliable.
+          # Perform deterministic pre-funding with large balances before starting HeliSwap.
           top_up_account() {
             account_id="$1"
             amount="$2"
@@ -128,45 +128,28 @@ tasks:
               --quiet-mode --dev >/dev/null 2>&1
           }
 
-          keep_funding() {
-            # Bounded loop to avoid hangs if test process is interrupted.
-            for _ in $(seq 1 240); do
-              # Creator used by HeliSwap setup (from CI failures).
-              top_up_account {{ .HELISWAP_CREATOR_ACCOUNT_ID }} {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} || true
+          # Pre-fund likely benchmark accounts.
+          for account_num in $(seq 1010 1025); do
+            top_up_account "0.0.${account_num}" {{ .HELISWAP_PREFUND_HBAR }} || true
+          done
 
-              # Neighbor accounts often used during setup/account creation in benchmark.
-              for account_num in $(seq 1010 1025); do
-                top_up_account "0.0.${account_num}" {{ .HELISWAP_PREFUND_HBAR }} || true
-              done
+          # Retry creator top-up a few times and require one success.
+          creator_topped_up=0
+          for _ in $(seq 1 20); do
+            if top_up_account {{ .HELISWAP_CREATOR_ACCOUNT_ID }} {{ .HELISWAP_CREATOR_TOP_UP_HBAR }}; then
+              creator_topped_up=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "${creator_topped_up}" -ne 1 ]; then
+            echo "Failed to top up HeliSwap creator {{ .HELISWAP_CREATOR_ACCOUNT_ID }}"
+            exit 1
+          fi
 
-              # Exit as soon as load process finishes.
-              if ! kill -0 "${heliswap_pid}" 2>/dev/null; then
-                return 0
-              fi
-              sleep 2
-            done
-            return 0
-          }
-
-          set +e
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
             --test HeliSwapLoadTest \
-            --args '"-c 5 -a 10 -R -t 10"' &
-          heliswap_pid=$!
-
-          keep_funding &
-          funder_pid=$!
-
-          wait "${heliswap_pid}"
-          heliswap_exit_code=$?
-
-          kill "${funder_pid}" >/dev/null 2>&1 || true
-          wait "${funder_pid}" >/dev/null 2>&1 || true
-          set -e
-
-          if [ "${heliswap_exit_code}" -ne 0 ]; then
-            exit "${heliswap_exit_code}"
-          fi
+            --args '"-c 5 -a 10 -R -t 10"'
 
       # Run load test with the com.hedera.benchmark.LongevityLoadTest class
       # Args: LongevityLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
