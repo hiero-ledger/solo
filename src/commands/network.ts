@@ -1258,7 +1258,15 @@ export class NetworkCommand extends BaseCommand {
                       versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_AGREEMENT_GOSSIP_CERTS,
                     );
                     if (includeAgreementKeys) {
-                      this.keyManager.copyGossipKeysToStagingWithAgreementKeys(keysDir, stagingKeysDir, nodeAliases);
+                      if (typeof this.keyManager.copyGossipKeysToStagingWithAgreementKeys === 'function') {
+                        this.keyManager.copyGossipKeysToStagingWithAgreementKeys(
+                          keysDir,
+                          stagingKeysDir,
+                          nodeAliases,
+                        );
+                      } else {
+                        this.keyManager.copyGossipKeysToStaging(keysDir, stagingKeysDir, nodeAliases);
+                      }
                       return;
                     }
                     this.keyManager.copyGossipKeysToStaging(keysDir, stagingKeysDir, nodeAliases);
