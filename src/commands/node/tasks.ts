@@ -1997,8 +1997,11 @@ export class NodeCommandTasks {
           {
             title: 'Copy Gossip keys to staging',
             task: async (): Promise<void> => {
-              const releaseTag: string = config.releaseTag ?? this.remoteConfig.configuration.versions.consensusNode;
-              const includeAgreementKeys: boolean = new SemanticVersion<string>(releaseTag).greaterThanOrEqual(
+              const targetVersion: string =
+                config.upgradeVersion ??
+                config.releaseTag ??
+                this.remoteConfig.configuration.versions.consensusNode.toString();
+              const includeAgreementKeys: boolean = new SemanticVersion<string>(targetVersion).greaterThanOrEqual(
                 versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_AGREEMENT_GOSSIP_CERTS,
               );
               if (includeAgreementKeys) {
