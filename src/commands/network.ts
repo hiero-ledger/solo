@@ -1259,11 +1259,7 @@ export class NetworkCommand extends BaseCommand {
                     );
                     if (includeAgreementKeys) {
                       if (typeof this.keyManager.copyGossipKeysToStagingWithAgreementKeys === 'function') {
-                        this.keyManager.copyGossipKeysToStagingWithAgreementKeys(
-                          keysDir,
-                          stagingKeysDir,
-                          nodeAliases,
-                        );
+                        this.keyManager.copyGossipKeysToStagingWithAgreementKeys(keysDir, stagingKeysDir, nodeAliases);
                       } else {
                         this.keyManager.copyGossipKeysToStaging(keysDir, stagingKeysDir, nodeAliases);
                       }

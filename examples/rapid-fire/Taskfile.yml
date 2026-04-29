@@ -142,16 +142,16 @@ tasks:
             fund_account_once "${account_id}"
           done
 
-          # Top up HeliSwap creator once with large balance.
-          if ! $SOLO_COMMAND ledger account update \
+          # Top up HeliSwap creator once with large balance (best effort; account may not exist yet).
+          if $SOLO_COMMAND ledger account update \
             --deployment {{ .SOLO_DEPLOYMENT }} \
             --account-id {{ .HELISWAP_CREATOR_ACCOUNT_ID }} \
             --hbar-amount {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} \
             --quiet-mode --dev >/dev/null 2>&1; then
-            echo "Failed to top up HeliSwap creator account {{ .HELISWAP_CREATOR_ACCOUNT_ID }}"
-            exit 1
+            echo "Topped up HeliSwap creator {{ .HELISWAP_CREATOR_ACCOUNT_ID }}"
+          else
+            echo "Skipped creator top-up (account not ready yet): {{ .HELISWAP_CREATOR_ACCOUNT_ID }}"
           fi
-          echo "Topped up HeliSwap creator {{ .HELISWAP_CREATOR_ACCOUNT_ID }}"
 
           set +e
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
