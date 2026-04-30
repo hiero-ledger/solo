@@ -74,7 +74,13 @@ import {RelayCommand} from '../relay.js';
 import {ExplorerCommand} from '../explorer.js';
 import {BlockNodeCommand} from '../block-node.js';
 import {SETUP_FLAGS as NODE_SETUP_FLAGS, START_FLAGS as NODE_START_FLAGS} from '../node/flags.js';
-import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
+import {
+  argvPushGlobalFlags,
+  invokeSoloCommand,
+  negatedOptionFromFlag,
+  newArgv,
+  optionFromFlag,
+} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {Templates} from '../../core/templates.js';
@@ -102,9 +108,24 @@ import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-s
 import {OneShotInfoContext} from './one-shot-info-context.js';
 import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
 
+/** Primitive value type used in falcon override maps. */
+type FalconOverrideValue = string | number | boolean | null;
+
+/** Map of flag names to override values for a falcon values section. */
+type FalconOverrideMap = ReadonlyMap<string, FalconOverrideValue>;
+
+/** Creates a [flag.name, value] entry for use in a FalconOverrideMap. */
+function flagEntry(flag: CommandFlag, value: FalconOverrideValue): [string, FalconOverrideValue] {
+  return [flag.name, value];
+}
+
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
-  /** CLI path prefix for falcon subcommands, used in generated comments and log messages. */
+  /**
+   * CLI path prefix for falcon subcommands, used in generated comments and log messages.
+   * Lives here instead of OneShotCommandDefinition to avoid a circular import
+   * (OneShotCommandDefinition already imports DefaultOneShotCommand).
+   */
   public static readonly FALCON_COMMAND_PATH: string = 'solo one-shot falcon';
 
   private static readonly SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
@@ -1909,14 +1930,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   public async prepareFalcon(argv: ArgvStruct): Promise<boolean> {
     this.configManager.update(argv);
 
-    const configuredOutputPath: string =
-      this.configManager.getFlag<string>(flags.outputValuesFile) ??
-      (flags.outputValuesFile.definition.defaultValue as string);
+    const configuredOutputPath: string = this.configManager.getFlag<string>(flags.outputValuesFile);
     const resolvedOutputPath: string = path.isAbsolute(configuredOutputPath)
       ? configuredOutputPath
-      : path.resolve(process.env.INIT_CWD || process.cwd(), configuredOutputPath);
+      : PathEx.resolve(process.env.INIT_CWD || process.cwd(), configuredOutputPath);
 
-    const acceptDefaults: boolean = this.configManager.getFlag(flags.acceptDefaults) ?? false;
+    const acceptDefaults: boolean = this.configManager.getFlag(flags.acceptDefaults);
 
     let config: FalconPrepareConfig;
 
@@ -2012,97 +2031,76 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private static buildFalconSectionFromFlags(
     flagList: CommandFlags,
-    overrides: ReadonlyMap<string, string | number | boolean | null>,
-  ): Record<string, string | number | boolean | null> {
-    const section: Record<string, string | number | boolean | null> = {};
+    overrides: FalconOverrideMap,
+  ): Record<string, FalconOverrideValue> {
+    const section: Record<string, FalconOverrideValue> = {};
     for (const flag of flagList.optional) {
       if (DefaultOneShotCommand.FALCON_VALUES_BLOCKED_FLAGS.has(flag.name)) {
         continue;
       }
       const key: string = optionFromFlag(flag);
-      section[key] = overrides.has(flag.name) ? (overrides.get(flag.name) as string | number | boolean | null) : '';
+      section[key] = overrides.has(flag.name) ? (overrides.get(flag.name) as FalconOverrideValue) : '';
     }
     return section;
   }
 
   public static generateFalconValuesYaml(config: FalconPrepareConfig): string {
-    const networkOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
-      string,
-      string | number | boolean | null
-    >([
-      [flags.soloChartVersion.name, config.soloChartVersion],
-      [flags.debugNodeAlias.name, config.debugNodeAlias],
-      [flags.loadBalancerEnabled.name, config.loadBalancerEnabled],
-      [flags.persistentVolumeClaims.name, flags.persistentVolumeClaims.definition.defaultValue],
-      [flags.releaseTag.name, config.releaseTag],
-      [flags.serviceMonitor.name, flags.serviceMonitor.definition.defaultValue],
-      [flags.podLog.name, flags.podLog.definition.defaultValue],
+    const networkOverrides: FalconOverrideMap = new Map([
+      flagEntry(flags.soloChartVersion, config.soloChartVersion),
+      flagEntry(flags.debugNodeAlias, config.debugNodeAlias),
+      flagEntry(flags.loadBalancerEnabled, config.loadBalancerEnabled),
+      flagEntry(flags.persistentVolumeClaims, flags.persistentVolumeClaims.definition.defaultValue),
+      flagEntry(flags.releaseTag, config.releaseTag),
+      flagEntry(flags.serviceMonitor, flags.serviceMonitor.definition.defaultValue),
+      flagEntry(flags.podLog, flags.podLog.definition.defaultValue),
     ]);
 
-    const setupOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
-      string,
-      string | number | boolean | null
-    >([
-      [flags.releaseTag.name, config.releaseTag],
-      [flags.localBuildPath.name, config.localBuildPath],
-      [flags.devMode.name, config.enableDevChartMode],
+    const setupOverrides: FalconOverrideMap = new Map([
+      flagEntry(flags.releaseTag, config.releaseTag),
+      flagEntry(flags.localBuildPath, config.localBuildPath),
+      flagEntry(flags.devMode, config.enableDevChartMode),
     ]);
 
-    const consensusNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
-      string,
-      string | number | boolean | null
-    >([
-      [flags.debugNodeAlias.name, config.debugNodeAlias],
-      [flags.forcePortForward.name, config.forcePortForward],
+    const consensusNodeOverrides: FalconOverrideMap = new Map([
+      flagEntry(flags.debugNodeAlias, config.debugNodeAlias),
+      flagEntry(flags.forcePortForward, config.forcePortForward),
     ]);
 
-    const mirrorNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
-      string,
-      string | number | boolean | null
-    >([
-      [flags.mirrorNodeVersion.name, config.mirrorNodeVersion],
-      [flags.enableIngress.name, config.enableMirrorIngress],
-      [flags.forcePortForward.name, config.forcePortForward],
-      [flags.pinger.name, true],
-      [flags.useExternalDatabase.name, flags.useExternalDatabase.definition.defaultValue],
+    const mirrorNodeOverrides: FalconOverrideMap = new Map([
+      flagEntry(flags.mirrorNodeVersion, config.mirrorNodeVersion),
+      flagEntry(flags.enableIngress, config.enableMirrorIngress),
+      flagEntry(flags.forcePortForward, config.forcePortForward),
+      flagEntry(flags.pinger, true),
+      flagEntry(flags.useExternalDatabase, flags.useExternalDatabase.definition.defaultValue),
     ]);
 
-    const relayNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
-      string,
-      string | number | boolean | null
-    >([
-      [flags.relayReleaseTag.name, config.relayReleaseTag],
-      [flags.replicaCount.name, flags.replicaCount.definition.defaultValue],
-      [flags.forcePortForward.name, config.forcePortForward],
+    const relayNodeOverrides: FalconOverrideMap = new Map([
+      flagEntry(flags.relayReleaseTag, config.relayReleaseTag),
+      flagEntry(flags.replicaCount, flags.replicaCount.definition.defaultValue),
+      flagEntry(flags.forcePortForward, config.forcePortForward),
       // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
-      [flags.mirrorNodeId.name, null],
+      flagEntry(flags.mirrorNodeId, null),
     ]);
 
-    const blockNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
-      string,
-      string | number | boolean | null
-    >([
-      [flags.blockNodeChartVersion.name, config.chartVersion],
-      [flags.enableIngress.name, flags.enableIngress.definition.defaultValue],
-      [flags.devMode.name, config.enableDevChartMode],
+    const blockNodeOverrides: FalconOverrideMap = new Map([
+      flagEntry(flags.blockNodeChartVersion, config.chartVersion),
+      flagEntry(flags.enableIngress, flags.enableIngress.definition.defaultValue),
+      flagEntry(flags.devMode, config.enableDevChartMode),
     ]);
 
-    const explorerNodeOverrides: ReadonlyMap<string, string | number | boolean | null> = new Map<
-      string,
-      string | number | boolean | null
-    >([
-      [flags.soloChartVersion.name, config.soloChartVersion],
-      [flags.explorerVersion.name, config.explorerVersion],
-      [flags.enableIngress.name, true],
-      [flags.enableExplorerTls.name, flags.enableExplorerTls.definition.defaultValue],
-      [flags.explorerTlsHostName.name, flags.explorerTlsHostName.definition.defaultValue],
-      [flags.tlsClusterIssuerType.name, flags.tlsClusterIssuerType.definition.defaultValue],
-      [flags.forcePortForward.name, config.forcePortForward],
+    const explorerNodeOverrides: FalconOverrideMap = new Map([
+      flagEntry(flags.soloChartVersion, config.soloChartVersion),
+      flagEntry(flags.explorerVersion, config.explorerVersion),
+      flagEntry(flags.enableIngress, true),
+      flagEntry(flags.enableExplorerTls, flags.enableExplorerTls.definition.defaultValue),
+      flagEntry(flags.explorerTlsHostName, flags.explorerTlsHostName.definition.defaultValue),
+      flagEntry(flags.tlsClusterIssuerType, flags.tlsClusterIssuerType.definition.defaultValue),
+      flagEntry(flags.forcePortForward, config.forcePortForward),
       // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
-      [flags.mirrorNodeId.name, null],
+      flagEntry(flags.mirrorNodeId, null),
     ]);
 
-    const valuesObject: Record<string, Record<string, string | number | boolean | null>> = {
+    const valuesObject: Record<string, Record<string, FalconOverrideValue>> = {
       network: DefaultOneShotCommand.buildFalconSectionFromFlags(NetworkCommand.DEPLOY_FLAGS_LIST, networkOverrides),
       setup: DefaultOneShotCommand.buildFalconSectionFromFlags(NODE_SETUP_FLAGS, setupOverrides),
       consensusNode: DefaultOneShotCommand.buildFalconSectionFromFlags(NODE_START_FLAGS, consensusNodeOverrides),
@@ -2124,11 +2122,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       '# This file configures all components of the Hiero network deployment\n' +
       `#\n# Consensus nodes: ${config.numberOfConsensusNodes}\n` +
       '#\n# Usage:\n' +
-      `#   ${DefaultOneShotCommand.FALCON_COMMAND_PATH} deploy ${optionFromFlag(flags.valuesFile)} ./falcon-values.yaml\n` +
+      `#   ${DefaultOneShotCommand.FALCON_COMMAND_PATH} deploy ${optionFromFlag(flags.valuesFile)} <path-to-this-file>\n` +
       '#\n# To disable optional components, pass CLI flags:\n' +
-      `#   --no-${flags.deployMirrorNode.name}\n` +
-      `#   --no-${flags.deployExplorer.name}\n` +
-      `#   --no-${flags.deployRelay.name}\n\n`;
+      `#   ${negatedOptionFromFlag(flags.deployMirrorNode)}\n` +
+      `#   ${negatedOptionFromFlag(flags.deployExplorer)}\n` +
+      `#   ${negatedOptionFromFlag(flags.deployRelay)}\n\n`;
 
     return header + yaml.stringify(valuesObject, {lineWidth: 0});
   }

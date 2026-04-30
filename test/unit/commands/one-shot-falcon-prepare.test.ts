@@ -6,7 +6,7 @@ import yaml from 'yaml';
 import {DefaultOneShotCommand} from '../../../src/commands/one-shot/default-one-shot.js';
 import {type FalconPrepareConfig} from '../../../src/commands/one-shot/falcon-prepare-config.js';
 import {Flags} from '../../../src/commands/flags.js';
-import {optionFromFlag} from '../../../src/commands/command-helpers.js';
+import {negatedOptionFromFlag, optionFromFlag} from '../../../src/commands/command-helpers.js';
 
 function createDefaultConfig(overrides: Partial<FalconPrepareConfig> = {}): FalconPrepareConfig {
   return {
@@ -139,8 +139,8 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
     expect(output).to.match(/^# One-Shot Falcon Deployment Configuration/);
     expect(output).to.include(DefaultOneShotCommand.FALCON_COMMAND_PATH + ' deploy');
     expect(output).to.include(optionFromFlag(Flags.valuesFile));
-    expect(output).to.include(`--no-${Flags.deployMirrorNode.name}`);
-    expect(output).to.include(`--no-${Flags.deployExplorer.name}`);
-    expect(output).to.include(`--no-${Flags.deployRelay.name}`);
+    expect(output).to.include(negatedOptionFromFlag(Flags.deployMirrorNode));
+    expect(output).to.include(negatedOptionFromFlag(Flags.deployExplorer));
+    expect(output).to.include(negatedOptionFromFlag(Flags.deployRelay));
   });
 });

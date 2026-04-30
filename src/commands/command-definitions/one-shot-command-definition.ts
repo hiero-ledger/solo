@@ -132,7 +132,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               OneShotCommandDefinition.FALCON_PREPARE,
-              'Generates a falcon-values.yaml configuration file for solo one-shot falcon deploy.',
+              'Generates a configuration file for falcon deployment.',
               this.oneShotCommand,
               this.oneShotCommand.prepareFalcon,
               DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST,

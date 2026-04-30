@@ -21,6 +21,15 @@ export function optionFromFlag(flag: CommandFlag): string {
 }
 
 /**
+ * Helper function to convert a flag object to a negated CLI option string
+ * @param flag - The command flag
+ * @returns Negated CLI option string (e.g., '--no-deploy-mirror-node')
+ */
+export function negatedOptionFromFlag(flag: CommandFlag): string {
+  return `--no-${flag.name}`;
+}
+
+/**
  * Helper function to create base argv array for command execution
  * @returns Base argv array
  */
