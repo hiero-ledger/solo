@@ -2836,18 +2836,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly heliswapCreatorTopUpHbar: CommandFlag = {
-    constName: 'heliswapCreatorTopUpHbar',
-    name: 'heliswap-creator-top-up-hbar',
-    definition: {
-      describe:
-        'Amount of HBAR to transfer to the HeliSwap creator account (0.0.1013) once it appears during HeliSwapLoadTest setup. Set to 0 to disable.',
-      type: 'number',
-      defaultValue: 0,
-    },
-    prompt: undefined,
-  };
-
   // --------------- One Shot --------------- //
 
   // A minimal setup deployment with 1 consensus node and 1 mirror node
