@@ -231,7 +231,6 @@ export class NodeCommandTasks {
     this.soloConfig = SoloConfig.getConfig(configProvider);
   }
 
-
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
@@ -1075,9 +1074,7 @@ export class NodeCommandTasks {
         const signedKeyFiles: TDirectoryData[] = await k8Container
           .listDir(keyDirectory)
           .then((files: TDirectoryData[]): TDirectoryData[] =>
-            files.filter(
-              (file: TDirectoryData): boolean => file.name.startsWith(`${constants.SIGNING_KEY_PREFIX}-`),
-            ),
+            files.filter((file: TDirectoryData): boolean => file.name.startsWith(`${constants.SIGNING_KEY_PREFIX}-`)),
           );
 
         await k8Container.execContainer([
