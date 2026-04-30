@@ -185,7 +185,6 @@ describe('NetworkCommand unit tests', (): void => {
       options.keyManager = container.resolve<KeyManager>(InjectTokens.KeyManager);
       options.keyManager.prepareTlsKeyFilePaths = sinon.stub();
       options.keyManager.copyGossipKeysToStaging = sinon.stub();
-      options.keyManager.copyGossipKeysToStagingWithAgreementKeys = sinon.stub();
       options.keyManager.copyNodeKeysToStaging = sinon.stub();
 
       options.platformInstaller = platformInstallerStub;

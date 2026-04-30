@@ -60,18 +60,12 @@ export class Templates {
     return `https://raw.githubusercontent.com/hiero-ledger/hiero-mirror-node/refs/tags/${release}/importer/src/main/resources/db/scripts/init.sh`;
   }
 
-  public static renderGossipPemPrivateKeyFile(
-    nodeAlias: NodeAlias,
-    keyPrefix: string = constants.SIGNING_KEY_PREFIX,
-  ): string {
-    return `${keyPrefix}-private-${nodeAlias}.pem`;
+  public static renderGossipPemPrivateKeyFile(nodeAlias: NodeAlias): string {
+    return `${constants.SIGNING_KEY_PREFIX}-private-${nodeAlias}.pem`;
   }
 
-  public static renderGossipPemPublicKeyFile(
-    nodeAlias: NodeAlias,
-    keyPrefix: string = constants.SIGNING_KEY_PREFIX,
-  ): string {
-    return `${keyPrefix}-public-${nodeAlias}.pem`;
+  public static renderGossipPemPublicKeyFile(nodeAlias: NodeAlias): string {
+    return `${constants.SIGNING_KEY_PREFIX}-public-${nodeAlias}.pem`;
   }
 
   public static renderTLSPemPrivateKeyFile(nodeAlias: NodeAlias): string {

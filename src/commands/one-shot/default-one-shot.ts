@@ -114,7 +114,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.minimalSetup,
       flags.rollback,
       flags.parallelDeploy,
-      flags.externalAddress,
     ],
   };
 
@@ -143,7 +142,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployRelay,
       flags.rollback,
       flags.parallelDeploy,
-      flags.externalAddress,
     ],
   };
 
@@ -629,13 +627,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             task: (_, task): SoloListr<OneShotSingleDeployContext> => {
               // Network node pipeline: deploy network node, then setup, start consensus node, and account generation
               // Must be sequential
-              const deployNetworkNodeTask: {
-                title: string;
-                task: (
-                  _: any,
-                  networkNodeTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                ) => Promise<SoloListr<OneShotSingleDeployContext>>;
-              } = {
+              const deployNetworkNodeTask = {
                 title: 'Deploy network node',
                 task: async (_, networkNodeTask): Promise<SoloListr<OneShotSingleDeployContext>> => {
                   return networkNodeTask.newListr(
@@ -690,10 +682,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                     optionFromFlag(Flags.deployment),
                                     config.deployment,
                                   );
-                                  this.appendConfigToArgv(argv, {
-                                    [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
-                                    ...config.consensusNodeConfiguration,
-                                  });
+                                  this.appendConfigToArgv(argv, config.consensusNodeConfiguration);
                                   return argvPushGlobalFlags(argv);
                                 },
                                 this.taskList,
@@ -757,7 +746,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                           subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
                                         ): Promise<void> => {
                                           await helpers.sleep(Duration.ofMillis(100 * index));
-                                          const createdAccount = await this.accountManager.createNewAccount(
+
+                                          const createdAccount: {
+                                            accountId: string;
+                                            privateKey: string;
+                                            publicKey: string;
+                                            balance: number;
+                                            accountAlias?: string;
+                                          } = await this.accountManager.createNewAccount(
                                             context_.config.namespace,
                                             account.privateKey,
                                             account.balance.to(HbarUnit.Hbar).toNumber(),
@@ -844,7 +840,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       // Append HikariCP limits file without mutating the shared config object.
                       const mirrorExistingValuesFile: string = config.mirrorNodeConfiguration?.['--values-file'];
                       const mirrorLocalConfig: AnyObject = {
-                        [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         ...config.mirrorNodeConfiguration,
                         '--values-file': mirrorExistingValuesFile
                           ? `${mirrorExistingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
@@ -874,7 +869,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         config.clusterRef,
                       );
                       this.appendConfigToArgv(argv, {
-                        [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         [optionFromFlag(Flags.explorerVersion)]: config.versions.explorer,
                         [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
                         [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
@@ -910,7 +904,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         'node1',
                       );
                       this.appendConfigToArgv(argv, {
-                        [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
                         [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
                         ...config.relayNodeConfiguration,
@@ -1608,7 +1601,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return true;
   }
 
-  public async info(): Promise<boolean> {
+  public async info(_argv: ArgvStruct): Promise<boolean> {
     const tasks: SoloListr<OneShotInfoContext> = new Listr(
       [
         {

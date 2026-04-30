@@ -24,9 +24,6 @@ on_exit() {
   if [[ -n "${RENDERED_KIND_CLUSTER_CONFIG_FILE:-}" && -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}" ]]; then
     rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
   fi
-  if [[ -n "${UPGRADE_APP_PROPS_FILE:-}" && -f "${UPGRADE_APP_PROPS_FILE}" ]]; then
-    rm -f "${UPGRADE_APP_PROPS_FILE}"
-  fi
 
   if [[ ${rc} -ne 0 ]]; then
     echo "Test failed, current port forward process: "
@@ -93,8 +90,8 @@ echo "::endgroup::"
 
 echo "::group::Launch solo using released Solo version ${releaseTag}"
 
-export PREV_CONSENSUS_NODE_VERSION=$(grep 'TEST_UPGRADE_FROM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
-echo "Consensus Node Version: ${PREV_CONSENSUS_NODE_VERSION}"
+export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+echo "Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 solo init --dev
 
 
@@ -105,8 +102,8 @@ solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLO
 solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
 
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --chart-version "${PREV_BLOCK_VERSION}"
-solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${PREV_CONSENSUS_NODE_VERSION}" -q --dev
-solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${PREV_CONSENSUS_NODE_VERSION}" -q --dev
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q --dev
 solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
@@ -153,8 +150,8 @@ unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 
 # using new solo to redeploy solo deployment chart to new version
-npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${PREV_CONSENSUS_NODE_VERSION}" -q --dev
-npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${PREV_CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 
 # force mirror component restarts to pick up secret/config changes due to solo chart upgrade.
 # deployment naming varies by chart version (e.g. mirror-* vs mirror-1-*), so discover dynamically.
@@ -219,9 +216,9 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade 
 ps -ef |grep port-forward
 # Upgrade to latest version
 # HEDERA_PLATFORM_VERSION is no longer a hardcoded value in version.ts,
-export PREV_CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
-echo "Upgrade to Consensus Node Version: ${PREV_CONSENSUS_NODE_VERSION}"
-npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${PREV_CONSENSUS_NODE_VERSION}" -q --dev
+export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
+echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
+npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
