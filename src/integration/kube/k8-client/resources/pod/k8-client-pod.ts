@@ -95,6 +95,7 @@ export class K8ClientPod implements Pod {
    * @param podPort The pod port to forward to
    * @param reuse - if true, reuse the port number from previous port forward operation
    * @param persist - if true, errors in port-forwarding will restart the port-forwarding, even after ts process has ended
+   * @param isRetry
    * @returns Promise resolving to the port forwarder server when not detached,
    *          or the port number (which may differ from localPort if it was in use) when detached
    */
@@ -103,9 +104,11 @@ export class K8ClientPod implements Pod {
     podPort: number,
     reuse?: boolean,
     persist: boolean = false,
+    externalAddress?: string,
     isRetry: boolean = false,
   ): Promise<number> {
     let availablePort: number = localPort;
+    const localBindAddress: string = externalAddress || constants.LOCAL_HOST;
 
     try {
       // first use http.request(url[, options][, callback]) GET method against localhost:localPort to kill any pre-existing
@@ -192,7 +195,7 @@ export class K8ClientPod implements Pod {
         this.logger.showUser(chalk.yellow(`Using available port ${availablePort}`));
       }
       this.logger.debug(
-        `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}`,
+        `Creating port-forwarder for ${this.podReference.name}:${podPort} -> ${localBindAddress}:${availablePort}`,
       );
 
       this.logger.warn(
@@ -225,6 +228,7 @@ export class K8ClientPod implements Pod {
           `${availablePort}:${podPort}`,
           constants.KUBECTL,
           this.kubectlInstallationDirectory,
+          localBindAddress,
           '&',
         ];
       } else {
@@ -233,6 +237,8 @@ export class K8ClientPod implements Pod {
           'port-forward',
           '-n',
           this.podReference.namespace.name,
+          '--address',
+          localBindAddress,
           '--context',
           this.kubeConfig.currentContext,
           `pods/${this.podReference.name}`,
@@ -284,10 +290,10 @@ export class K8ClientPod implements Pod {
         await new ShellRunner().run('net start winnat');
         this.logger.warn('Restarted WinNAT service to recover from port forwarding failure on Windows');
         await sleep(Duration.ofSeconds(5)); // wait a bit for the service to restart before retrying
-        return await this.portForward(localPort, podPort, reuse, persist, true);
+        return await this.portForward(localPort, podPort, reuse, persist, externalAddress, true);
       }
 
-      const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${constants.LOCAL_HOST}:${availablePort}]: ${error.message}`;
+      const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${localBindAddress}:${availablePort}]: ${error.message}`;
       throw new SoloError(message, error);
     }
   }

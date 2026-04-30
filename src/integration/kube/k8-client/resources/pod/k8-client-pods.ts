@@ -13,6 +13,9 @@ import {
   type V1PodList,
   V1PodSpec,
   V1Probe,
+  type V1ContainerStatus,
+  type V1ContainerStateWaiting,
+  type V1ContainerStateTerminated,
 } from '@kubernetes/client-node';
 import {type Pods} from '../../../resources/pod/pods.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
@@ -35,6 +38,63 @@ import {ResourceType} from '../../../resources/resource-type.js';
 import {type PodMetricsItem} from '../../../resources/pod/pod-metrics-item.js';
 import yaml from 'yaml';
 import {sleep} from '../../../../../core/helpers.js';
+
+/**
+ * Waiting reasons for container states that are non-recoverable (image unavailable in registry).
+ */
+const FATAL_WAITING_REASONS: ReadonlySet<string> = new Set([
+  'ImagePullBackOff',
+  'ErrImagePull',
+  'InvalidImageName',
+  'ImageInspectError',
+  'RegistryUnavailable',
+]);
+
+/**
+ * Terminated reasons for container states that are non-recoverable (e.g. out-of-memory kill).
+ */
+const FATAL_TERMINATED_REASONS: ReadonlySet<string> = new Set(['OOMKilled']);
+
+/**
+ * Inspect a V1Pod's container statuses for non-recoverable error states and return a descriptive
+ * error message if one is detected, or undefined if no fatal error is present.
+ *
+ * Covered states:
+ * - Waiting: ImagePullBackOff, ErrImagePull, InvalidImageName, ImageInspectError,
+ *            RegistryUnavailable (image unavailable in registry)
+ * - Terminated: OOMKilled (container killed due to out-of-memory)
+ */
+export function detectFatalContainerError(pod: V1Pod): string | undefined {
+  const podName: string = pod.metadata?.name ?? '<unknown>';
+
+  const allContainerStatuses: V1ContainerStatus[] = [
+    ...(pod.status?.initContainerStatuses ?? []),
+    ...(pod.status?.containerStatuses ?? []),
+  ];
+
+  for (const containerStatus of allContainerStatuses) {
+    const containerName: string = containerStatus.name ?? '<unknown>';
+
+    const waitingState: V1ContainerStateWaiting | undefined = containerStatus.state?.waiting;
+    if (waitingState?.reason && FATAL_WAITING_REASONS.has(waitingState.reason)) {
+      const detail: string = waitingState.message ? `: ${waitingState.message}` : '';
+      return (
+        `Pod "${podName}" container "${containerName}" is in a non-recoverable state: ` +
+        `${waitingState.reason}${detail}`
+      );
+    }
+
+    const terminatedState: V1ContainerStateTerminated | undefined = containerStatus.state?.terminated;
+    if (terminatedState?.reason && FATAL_TERMINATED_REASONS.has(terminatedState.reason)) {
+      return (
+        `Pod "${podName}" container "${containerName}" was terminated due to: ` +
+        `${terminatedState.reason} (exit code ${terminatedState.exitCode ?? 'unknown'})`
+      );
+    }
+  }
+
+  return undefined;
+}
 
 export class K8ClientPods extends K8ClientBase implements Pods {
   private readonly logger: SoloLogger;
@@ -119,6 +179,8 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         excludeMarkedForDeletion,
       );
     } catch (error: Error | unknown) {
+      const errorMessage: string = error instanceof Error ? error.message : String(error);
+      this.logger.showUser(`Pod readiness check failed: ${errorMessage}`);
       throw new SoloError(`Pod with labels [${labels.join(', ')}] not ready [maxAttempts = ${maxAttempts}]`, error);
     }
   }
@@ -258,6 +320,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
             const eligibleItems: V1Pod[] = excludeMarkedForDeletion
               ? createdAfterEligibleItems.filter((pod): boolean => !pod.metadata?.deletionTimestamp)
               : createdAfterEligibleItems;
+            // Fail fast if any eligible pod has a non-recoverable container error (e.g. ImagePullBackOff, OOMKilled)
+            for (const item of eligibleItems) {
+              const fatalError: string | undefined = detectFatalContainerError(item);
+              if (fatalError) {
+                return reject(new SoloError(fatalError));
+              }
+            }
 
             if (eligibleItems.length > 0) {
               // Only check the newest eligible pod
