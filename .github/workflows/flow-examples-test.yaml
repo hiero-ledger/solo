@@ -400,12 +400,13 @@ jobs:
           TASK_PGID=""
           trap - SIGTERM SIGINT
 
-          if [ "${TASK_RC}" -ne 0 ]; then
-            echo "Task failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
-            cd ../..
-            npm run solo-test -- deployment diagnostics logs -q --dev || true
-            cd "examples/${{ matrix.example.directory }}"
+          echo "Always collecting deployment diagnostics logs after task completion..."
+          cd ../..
+          npm run solo-test -- deployment diagnostics logs -q --dev || true
+          cd "examples/${{ matrix.example.directory }}"
 
+          if [ "${TASK_RC}" -ne 0 ]; then
+            echo "Task failed with exit code ${TASK_RC}."
             exit "${TASK_RC}"
           fi
 
