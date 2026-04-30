@@ -17,7 +17,7 @@ vars:
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
   HELISWAP_PREFUND_HBAR: "2000000"
   HELISWAP_CREATOR_ACCOUNT_ID: "0.0.1013"
-  HELISWAP_CREATOR_TOP_UP_HBAR: "5000000000"
+  HELISWAP_CREATOR_TOP_UP_HBAR: "50000"
 
 tasks:
   deploy:
@@ -116,37 +116,29 @@ tasks:
       # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
-          # Pre-fund the creator account before launching. The account may not exist
-          # yet (it is created by the benchmark during setup), so this attempt is
-          # best-effort. The keep_funding loop below tops it up as soon as it appears.
-          $SOLO_COMMAND ledger account update \
-            --deployment {{ .SOLO_DEPLOYMENT }} \
-            --account-id {{ .HELISWAP_CREATOR_ACCOUNT_ID }} \
-            --hbar-amount {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} \
-            --quiet-mode --dev >/dev/null 2>&1 || true
-
-          set +e
-          keep_funding() {
-            while true; do
-              $SOLO_COMMAND ledger account update \
+          # Pre-fund the creator account before launching. Retry up to 30 times
+          # (with a 2s pause) in case the account has not yet appeared on-chain.
+          FUNDED=false
+          for i in $(seq 1 30); do
+            if $SOLO_COMMAND ledger account update \
                 --deployment {{ .SOLO_DEPLOYMENT }} \
                 --account-id {{ .HELISWAP_CREATOR_ACCOUNT_ID }} \
                 --hbar-amount {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} \
-                --quiet-mode --dev >/dev/null 2>&1 || true
-              sleep 2
-            done
-          }
-          keep_funding &
-          FUNDING_PID=$!
+                --quiet-mode --dev >/dev/null 2>&1; then
+              echo "Pre-funded {{ .HELISWAP_CREATOR_ACCOUNT_ID }} with {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} HBAR (attempt ${i})"
+              FUNDED=true
+              break
+            fi
+            echo "Waiting for {{ .HELISWAP_CREATOR_ACCOUNT_ID }} to appear (attempt ${i}/30)..."
+            sleep 2
+          done
+          if [ "${FUNDED}" != "true" ]; then
+            echo "WARNING: could not pre-fund {{ .HELISWAP_CREATOR_ACCOUNT_ID }} after 30 attempts"
+          fi
 
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
             --test HeliSwapLoadTest \
             --args '"-c 5 -a 10 -R -t 10"'
-          LOAD_EXIT=$?
-
-          kill "${FUNDING_PID}" 2>/dev/null || true
-          set -e
-          exit ${LOAD_EXIT}
 
       # Run load test with the com.hedera.benchmark.LongevityLoadTest class
       # Args: LongevityLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
