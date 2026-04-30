@@ -233,19 +233,20 @@ tasks:
           kubectl exec network-node2-0 -n {{ .NAMESPACE }} -c root-container -- \
           ls /opt/hgcapp/services-hedera/HapiApp2.0/output
       - cmd: |
-          # Use first node's state file for all nodes
-          FIRST_NODE=$(echo {{ .NODE_ALIASES }} | cut -d',' -f1)
-          FIRST_NODE_STATE_FILE="network-${FIRST_NODE}-0-state.zip"
-          STATE_FILE_PATH="{{ .STATE_SAVE_DIR }}/{{ .NAMESPACE }}/${FIRST_NODE_STATE_FILE}"
-          
-          if [ ! -f "${STATE_FILE_PATH}" ]; then
-            echo "⚠️  State file not found: ${STATE_FILE_PATH}"
-            exit 1
-          fi
-          
-          echo "Using ${FIRST_NODE_STATE_FILE} for all nodes..."
-          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
-            --state-file "${STATE_FILE_PATH}"
+          # Start each node with its own saved state file.
+          for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
+            NODE_STATE_FILE="network-${node}-0-state.zip"
+            STATE_FILE_PATH="{{ .STATE_SAVE_DIR }}/{{ .NAMESPACE }}/${NODE_STATE_FILE}"
+
+            if [ ! -f "${STATE_FILE_PATH}" ]; then
+              echo "⚠️  State file not found for ${node}: ${STATE_FILE_PATH}"
+              exit 1
+            fi
+
+            echo "Starting ${node} using ${NODE_STATE_FILE}..."
+            $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases "${node}" \
+              --state-file "${STATE_FILE_PATH}"
+          done
       - cmd: echo "✅ Nodes started with restored state"
 
   restore-database:
