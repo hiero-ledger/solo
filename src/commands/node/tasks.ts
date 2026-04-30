@@ -231,100 +231,6 @@ export class NodeCommandTasks {
     this.soloConfig = SoloConfig.getConfig(configProvider);
   }
 
-  private buildAgreementKeysSyncScript(
-    nodeAlias: NodeAlias,
-    allAliases: NodeAliases,
-    options?: {backgroundLoop?: boolean},
-  ): string {
-    const backgroundLoop: boolean = options?.backgroundLoop ?? false;
-    const keyCopyLines: string[] = [
-      `cp -f "$UPGRADE_KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem" "$KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem" 2>/dev/null || true`,
-      ...allAliases.map(
-        alias =>
-          `cp -f "$UPGRADE_KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-public-${alias}.pem" "$KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-public-${alias}.pem" 2>/dev/null || true`,
-      ),
-    ];
-
-    if (!backgroundLoop) {
-      return [
-        'set -e',
-        `KEYS_DIR="${constants.HEDERA_HAPI_PATH}/data/keys"`,
-        `UPGRADE_KEYS_DIR="${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys"`,
-        'if [ -d "$KEYS_DIR" ] && [ -d "$UPGRADE_KEYS_DIR" ]; then',
-        ...keyCopyLines.map(line => `  ${line}`),
-        'fi',
-      ].join('\n');
-    }
-
-    return [
-      'set -e',
-      `KEYS_DIR="${constants.HEDERA_HAPI_PATH}/data/keys"`,
-      `UPGRADE_KEYS_DIR="${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys"`,
-      `PID_FILE="/tmp/solo-agreement-keys-sync-${nodeAlias}.pid"`,
-      'if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then',
-      '  exit 0',
-      'fi',
-      '{',
-      '  while true; do',
-      '    if [ -d "$KEYS_DIR" ] && [ -d "$UPGRADE_KEYS_DIR" ]; then',
-      ...keyCopyLines.map(line => `      ${line}`),
-      '    fi',
-      '    sleep 1',
-      '  done',
-      `} >/tmp/solo-agreement-keys-sync-${nodeAlias}.log 2>&1 &`,
-      'echo $! > "$PID_FILE"',
-    ].join('\n');
-  }
-
-  private async syncAgreementKeysOnce(
-    container: Container,
-    nodeAlias: NodeAlias,
-    allAliases: NodeAliases,
-  ): Promise<void> {
-    const script: string = this.buildAgreementKeysSyncScript(nodeAlias, allAliases);
-    await container.execContainer(['bash', '-c', script]);
-  }
-
-  private async startAgreementKeysSyncLoop(
-    container: Container,
-    nodeAlias: NodeAlias,
-    allAliases: NodeAliases,
-  ): Promise<void> {
-    const script: string = this.buildAgreementKeysSyncScript(nodeAlias, allAliases, {backgroundLoop: true});
-    await container.execContainer(['bash', '-c', script]);
-  }
-
-  private buildKeySnapshotScript(
-    nodeAlias: NodeAlias,
-    phase: string,
-    runtimeKeysDirectory: string,
-    upgradeKeysDirectory: string,
-  ): string {
-    return [
-      'set +e',
-      `PHASE="${phase}"`,
-      'log() {',
-      '  local msg="$1"',
-      `  printf "[key-snapshot][phase=%s][node=\${CONSENSUS_NODE_ALIAS:-${nodeAlias}}][ts=%s] %s\\n" "$PHASE" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg"`,
-      '}',
-      `log "runtime-dir=${runtimeKeysDirectory}"`,
-      `log "upgrade-dir=${upgradeKeysDirectory}"`,
-      `log "runtime-ls"; ls -la "${runtimeKeysDirectory}" 2>&1 || true`,
-      `log "upgrade-ls"; ls -la "${upgradeKeysDirectory}" 2>&1 || true`,
-      `log "runtime-sha256"; (cd "${runtimeKeysDirectory}" && find . -maxdepth 1 -type f -name "*.pem" -print0 | sort -z | xargs -0 sha256sum) 2>&1 || true`,
-      `log "upgrade-sha256"; (cd "${upgradeKeysDirectory}" && find . -maxdepth 1 -type f -name "*.pem" -print0 | sort -z | xargs -0 sha256sum) 2>&1 || true`,
-      `log "runtime-stat"; stat -c "%n %U:%G %a %s" "${runtimeKeysDirectory}"/*.pem 2>&1 || true`,
-      `log "upgrade-stat"; stat -c "%n %U:%G %a %s" "${upgradeKeysDirectory}"/*.pem 2>&1 || true`,
-    ].join('\n');
-  }
-
-  private async captureKeySnapshot(container: Container, nodeAlias: NodeAlias, phase: string): Promise<void> {
-    const runtimeKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
-    const upgradeKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
-    const script: string = this.buildKeySnapshotScript(nodeAlias, phase, runtimeKeysDirectory, upgradeKeysDirectory);
-    const output: string = await container.execContainer(['bash', '-c', script]);
-    this.logger.showUser(output);
-  }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
@@ -680,19 +586,6 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
-        // Keep agreement cert/key files present while node is starting.
-        // Some runtime paths can drop a-* files after init on dual-cluster node-add flows.
-        try {
-          const nodeContainer: Container = await new K8Helper(context).getConsensusNodeRootContainer(
-            namespace,
-            nodeAlias,
-          );
-          const allAliases: NodeAliases = consensusNodes.map(node => node.name);
-          await this.syncAgreementKeysOnce(nodeContainer, nodeAlias, allAliases);
-        } catch {
-          // Best effort only; status polling should continue.
-        }
-
         const response: string = await container
           .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
           .getNetworkNodePodStatus(podReference, context);
@@ -1183,9 +1076,7 @@ export class NodeCommandTasks {
           .listDir(keyDirectory)
           .then((files: TDirectoryData[]): TDirectoryData[] =>
             files.filter(
-              (file: TDirectoryData): boolean =>
-                file.name.startsWith(`${constants.SIGNING_KEY_PREFIX}-`) ||
-                file.name.startsWith(`${constants.AGREEMENT_KEY_PREFIX}-`),
+              (file: TDirectoryData): boolean => file.name.startsWith(`${constants.SIGNING_KEY_PREFIX}-`),
             ),
           );
 
@@ -1919,11 +1810,7 @@ export class NodeCommandTasks {
           {
             title: 'Copy Gossip keys to staging',
             task: async (): Promise<void> => {
-              this.keyManager.copyGossipKeysToStagingWithAgreementKeys(
-                config.keysDir,
-                config.stagingKeysDir,
-                nodeAliases,
-              );
+              this.keyManager.copyGossipKeysToStaging(config.keysDir, config.stagingKeysDir, nodeAliases);
             },
           },
           {
@@ -1978,16 +1865,6 @@ export class NodeCommandTasks {
                 }
               }
 
-              // Ensure agreement gossip cert/key files exist before startup.
-              // This protects node start in flows where runtime state contains only signing certs.
-              await this.syncAgreementKeysOnce(container, nodeAlias, nodeAliases);
-
-              const isNewNodeInAddFlow: boolean =
-                Array.isArray(config.newNodeAliases) && config.newNodeAliases.includes(nodeAlias);
-              if (isNewNodeInAddFlow) {
-                await this.captureKeySnapshot(container, nodeAlias, 'pre-start');
-              }
-
               await (constants.ENABLE_S6_IMAGE
                 ? container.execContainer([
                     'bash',
@@ -1999,14 +1876,6 @@ export class NodeCommandTasks {
                     '-c',
                     'systemctl stop network-node || true && systemctl enable --now network-node',
                   ]));
-
-              if (isNewNodeInAddFlow) {
-                await this.captureKeySnapshot(container, nodeAlias, 'post-start-immediate');
-                // Keep agreement files present throughout startup for node-add new node only.
-                // This handles repeated runtime rewrites of data/keys observed in dual-cluster add flows.
-                await this.startAgreementKeysSyncLoop(container, nodeAlias, nodeAliases);
-                await this.captureKeySnapshot(container, nodeAlias, 'post-sync-loop-launch');
-              }
             },
           });
         }
@@ -3917,122 +3786,6 @@ export class NodeCommandTasks {
       title,
       task: async (): Promise<void> => {
         await sleep(Duration.ofMillis(milliseconds));
-      },
-    };
-  }
-
-  public debugNodeKeyDirs(title: string, nodeAliasField: string = 'nodeAlias'): SoloListrTask<AnyListrContext> {
-    return {
-      title,
-      task: async ({config}): Promise<void> => {
-        const escapedStepName: string = title.replaceAll(String.raw`'`, String.raw`'"'"'`);
-        const nodeAlias: NodeAlias | undefined = config[nodeAliasField];
-        if (!nodeAlias) {
-          this.logger.showUser(`[debug-keys][step=${title}] skipped: config.${nodeAliasField} is empty`);
-          return;
-        }
-
-        try {
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
-            config.namespace,
-            nodeAlias,
-          );
-
-          const runtimeKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
-          const upgradeKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
-
-          const command: string = [
-            'set +e',
-            `STEP='${escapedStepName}'`,
-            'log() {',
-            '  local msg="$1"',
-            String.raw`  printf "[debug-keys][step=%s][ts=%s] %s\n" "$STEP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg"`,
-            '}',
-            `log "node=${nodeAlias}"`,
-            `log "ls ${runtimeKeysDirectory}"`,
-            `ls -l ${runtimeKeysDirectory} 2>&1 || true`,
-            `log "ls ${upgradeKeysDirectory}"`,
-            `ls -l ${upgradeKeysDirectory} 2>&1 || true`,
-            `log "missing-a-private? $(test -f ${runtimeKeysDirectory}/${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem; echo $?)"`,
-          ].join('\n');
-
-          const output: string = await container.execContainer(['bash', '-c', command]);
-          this.logger.showUser(output);
-        } catch (error: any) {
-          this.logger.showUser(
-            `[debug-keys][step=${title}] skipped for node ${nodeAlias}: ${error?.message ?? 'unable to inspect key directories'}`,
-          );
-        }
-      },
-    };
-  }
-
-  public traceAgreementKeyLifecycle(
-    title: string,
-    nodeAliasField: string = 'nodeAlias',
-    durationSeconds: number = 180,
-  ): SoloListrTask<AnyListrContext> {
-    return {
-      title,
-      task: async ({config}): Promise<void> => {
-        const escapedStepName: string = title.replaceAll(String.raw`'`, String.raw`'"'"'`);
-        const nodeAlias: NodeAlias | undefined = config[nodeAliasField];
-        if (!nodeAlias) {
-          this.logger.showUser(`[trace-keys][step=${title}] skipped: config.${nodeAliasField} is empty`);
-          return;
-        }
-
-        try {
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
-            config.namespace,
-            nodeAlias,
-          );
-
-          const runtimeKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
-          const upgradeKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
-          const agreementPrivateKeyName: string = `${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem`;
-
-          const command: string = [
-            'set +e',
-            `STEP='${escapedStepName}'`,
-            'log() {',
-            '  local msg="$1"',
-            String.raw`  printf "[trace-keys][step=%s][ts=%s] %s\n" "$STEP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg"`,
-            '}',
-            `log "node=${nodeAlias} duration=${durationSeconds}s"`,
-            `for i in $(seq 1 ${durationSeconds}); do`,
-            `  if [ ! -f "${runtimeKeysDirectory}/${agreementPrivateKeyName}" ]; then`,
-            '    log "agreement private key missing in runtime keys dir"',
-            '    log "detected missing key state"',
-            `    log "ls runtime keys (${runtimeKeysDirectory})"`,
-            `    ls -l "${runtimeKeysDirectory}" 2>&1 || true`,
-            `    log "ls upgrade keys (${upgradeKeysDirectory})"`,
-            `    ls -l "${upgradeKeysDirectory}" 2>&1 || true`,
-            '    log "process snapshot"',
-            '    ps -ef 2>&1 || true',
-            '    log "recent swirlds-sdk logs"',
-            `    ls -1 ${constants.HEDERA_HAPI_PATH}/output/swirlds-sdk-*.log 2>/dev/null | sort -V | tail -n 2 | while read -r f; do`,
-            '      echo "--- ${f}"',
-            '      tail -n 80 "${f}" 2>&1 || true',
-            '    done',
-            '    break',
-            '  fi',
-            '  sleep 1',
-            'done',
-            `if [ -f "${runtimeKeysDirectory}/${agreementPrivateKeyName}" ]; then`,
-            '  log "agreement private key remained present for full trace window"',
-            'fi',
-          ].join('\n');
-
-          const output: string = await container.execContainer(['bash', '-c', command]);
-          this.logger.showUser(output);
-        } catch (error: any) {
-          this.logger.showUser(
-            `[trace-keys][step=${title}] skipped for node ${nodeAlias}: ${error?.message ?? 'unable to trace agreement key lifecycle'}`,
-          );
-        }
       },
     };
   }
