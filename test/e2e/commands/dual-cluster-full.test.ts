@@ -96,9 +96,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         ConsensusNodeTest.setup(options);
         ConsensusNodeTest.start(options, true);
 
-        // // Use dual-cluster specific values file with higher memory limits
-        // MirrorNodeTest.add({...options, valuesFile: dualClusterValuesFile});
-        // MirrorNodeTest.pullAddressBook(options);
+        // Use dual-cluster specific values file with higher memory limits
+        MirrorNodeTest.add({...options, valuesFile: dualClusterValuesFile});
+        MirrorNodeTest.pullAddressBook(options);
 
         // ConsensusNodeTest.PemStop(options);
         // ConsensusNodeTest.PemKill(options);
