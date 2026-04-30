@@ -6,7 +6,7 @@ relay:
       memory: 0
     limits:
       cpu: 500m
-      memory: 200Mi
+      memory: 250Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
