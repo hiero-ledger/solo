@@ -34,7 +34,7 @@ importer:
       memory: 0
     limits:
       cpu: 1000m
-      memory: 525Mi
+      memory: 180Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -301,7 +301,7 @@ monitor:
       memory: 0
     limits:
       cpu: 500m
-      memory: 768Mi
+      memory: 1000Mi
   envFrom:
     - secretRef:
         name: mirror-passwords
