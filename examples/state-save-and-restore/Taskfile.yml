@@ -215,7 +215,6 @@ tasks:
     cmds:
       - task: destroy-database
       - task: deploy-external-database
-      - task: stop-network
       - task: deploy-network-with-state
       - task: restore-database
       - task: verify-state

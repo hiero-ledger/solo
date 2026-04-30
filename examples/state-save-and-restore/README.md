@@ -171,15 +171,14 @@ The `init.sh` script sets up the PostgreSQL database with:
 
 1. **Database Recreation**: Deploys fresh PostgreSQL and runs `init.sh` to create database structure (database, schemas, roles, users, extensions)
 2. **Database Restore**: Imports database dump which drops and recreates tables with all data
-3. **Consensus Stop**: Stops existing consensus nodes before restore so state can be replaced safely
-4. **Stable Service Validation**: Verifies per-node service DNS names are resolvable (`network-<node>-svc.<namespace>.svc.cluster.local`)
-5. **Restore Input Build**: Builds `./saved-states/restore-input/states/<cluster-ref>/<namespace>/` and copies each node's state zip
-6. **State Upload and Start**: Starts all nodes together with `solo consensus node start --state-file ./saved-states/restore-input`
+3. **Stable Service Validation**: Verifies per-node service DNS names are resolvable (`network-<node>-svc.<namespace>.svc.cluster.local`)
+4. **Restore Input Build**: Builds `./saved-states/restore-input/states/<cluster-ref>/<namespace>/` and copies each node's state zip
+5. **State Upload and Start**: Starts all nodes together with `solo consensus node start --state-file ./saved-states/restore-input`
    * State files are extracted to `data/saved/`
    * Cleanup: Only the latest/biggest round is kept, older rounds are automatically deleted to save disk space
    * Node ID Renaming: Directory paths containing node IDs are automatically renamed to match each target node
-7. **Mirror Node**: Deploys mirror node connected to restored database and seeds initial data
-8. **Verification**: Checks that restored state matches original
+6. **Mirror Node**: Deploys mirror node connected to restored database and seeds initial data
+7. **Verification**: Checks that restored state matches original
 
 ## Notes
 
