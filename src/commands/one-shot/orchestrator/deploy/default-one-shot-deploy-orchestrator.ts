@@ -249,8 +249,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
 
             context_.createdAccounts = [];
-
-            this.logger.debug(`quiet: ${config.quiet}`);
           },
         }),
       }),
