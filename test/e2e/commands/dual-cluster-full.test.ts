@@ -100,8 +100,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         MirrorNodeTest.add({...options, valuesFile: dualClusterValuesFile});
         MirrorNodeTest.pullAddressBook(options);
 
-        // ConsensusNodeTest.PemStop(options);
-        // ConsensusNodeTest.PemKill(options);
+        ConsensusNodeTest.PemStop(options);
+        ConsensusNodeTest.PemKill(options);
 
         ConsensusNodeTest.add(options);
         // ConsensusNodeTest.update(options);
