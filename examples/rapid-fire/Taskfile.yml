@@ -116,25 +116,19 @@ tasks:
       # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
-          # Pre-fund the creator account before launching. Retry up to 30 times
-          # (with a 2s pause) in case the account has not yet appeared on-chain.
-          FUNDED=false
-          for i in $(seq 1 30); do
-            if $SOLO_COMMAND ledger account update \
-                --deployment {{ .SOLO_DEPLOYMENT }} \
-                --account-id {{ .HELISWAP_CREATOR_ACCOUNT_ID }} \
-                --hbar-amount {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} \
-                --quiet-mode --dev >/dev/null 2>&1; then
-              echo "Pre-funded {{ .HELISWAP_CREATOR_ACCOUNT_ID }} with {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} HBAR (attempt ${i})"
-              FUNDED=true
-              break
-            fi
-            echo "Waiting for {{ .HELISWAP_CREATOR_ACCOUNT_ID }} to appear (attempt ${i}/30)..."
-            sleep 2
-          done
-          if [ "${FUNDED}" != "true" ]; then
-            echo "WARNING: could not pre-fund {{ .HELISWAP_CREATOR_ACCOUNT_ID }} after 30 attempts"
-          fi
+          # Kill any stale kubectl port-forward processes left over from the previous
+          # load test so that the upcoming ledger account update can open a fresh one.
+          pkill -f "kubectl.*port-forward" 2>/dev/null || true
+          sleep 2
+
+          # Pre-fund the creator account. Log Solo output on failure so we can
+          # diagnose why the transfer is rejected.
+          echo "--- pre-funding {{ .HELISWAP_CREATOR_ACCOUNT_ID }} ---"
+          $SOLO_COMMAND ledger account update \
+            --deployment {{ .SOLO_DEPLOYMENT }} \
+            --account-id {{ .HELISWAP_CREATOR_ACCOUNT_ID }} \
+            --hbar-amount {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} \
+            --dev && echo "Pre-funded {{ .HELISWAP_CREATOR_ACCOUNT_ID }}" || echo "WARNING: pre-fund failed (will continue)"
 
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
             --test HeliSwapLoadTest \
