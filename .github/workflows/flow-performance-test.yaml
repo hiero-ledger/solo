@@ -357,25 +357,6 @@ jobs:
             } >> $GITHUB_OUTPUT
           fi
 
-      - name: Post Pod Memory Categories to Slack
-        if: ${{ !cancelled() && steps.pod-categories.outputs.content != '' }}
-        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
-          SLACK_MSG_AUTHOR: Release Engineering
-          SLACK_COLOR: good
-          SLACK_TITLE: "Performance Test — Pod Memory by Category"
-          SLACK_MESSAGE: |
-            *Branch:* `${{ github.ref_name }}`  *Commit:* `${{ github.sha }}`
-
-            ```
-            ${{ steps.pod-categories.outputs.content }}
-            ```
-
-            :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>
-          SLACK_FOOTER: ${{ github.workflow }}
-
       - name: Move JVM Memory Usage Data to Metrics Directory
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
