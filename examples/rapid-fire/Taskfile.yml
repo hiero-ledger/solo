@@ -15,8 +15,6 @@ vars:
   SOLO_CLUSTER_NAME: "rapid-fire-cluster"
   SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
-  HELISWAP_PREFUND_HBAR: "2000000"
-  HELISWAP_CREATOR_ACCOUNT_ID: "0.0.1013"
   HELISWAP_CREATOR_TOP_UP_HBAR: "50000"
 
 tasks:
@@ -116,22 +114,9 @@ tasks:
       # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
-          # Kill any stale kubectl port-forward processes left over from the previous
-          # load test so that the upcoming ledger account update can open a fresh one.
-          pkill -f "kubectl.*port-forward" 2>/dev/null || true
-          sleep 2
-
-          # Pre-fund the creator account. Log Solo output on failure so we can
-          # diagnose why the transfer is rejected.
-          echo "--- pre-funding {{ .HELISWAP_CREATOR_ACCOUNT_ID }} ---"
-          $SOLO_COMMAND ledger account update \
-            --deployment {{ .SOLO_DEPLOYMENT }} \
-            --account-id {{ .HELISWAP_CREATOR_ACCOUNT_ID }} \
-            --hbar-amount {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} \
-            --dev && echo "Pre-funded {{ .HELISWAP_CREATOR_ACCOUNT_ID }}" || echo "WARNING: pre-fund failed (will continue)"
-
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
             --test HeliSwapLoadTest \
+            --heliswap-creator-top-up-hbar {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} \
             --args '"-c 5 -a 10 -R -t 10"'
 
       # Run load test with the com.hedera.benchmark.LongevityLoadTest class

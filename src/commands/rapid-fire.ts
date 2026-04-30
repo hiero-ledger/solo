@@ -18,8 +18,12 @@ import {
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {injectable} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
+import {type AccountId} from '@hiero-ledger/sdk';
 import {NETWORK_LOAD_GENERATOR_CHART_VERSION} from '../../version.js';
+import {type AccountManager} from '../core/account-manager.js';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
 import * as helpers from '../core/helpers.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
@@ -43,6 +47,7 @@ interface RapidFireStartConfigClass {
   performanceTest: string;
   packageName: string;
   maxTps: number;
+  heliswapCreatorTopUpHbar: number;
 }
 
 interface RapidFireStopConfigClass {
@@ -76,8 +81,9 @@ export enum NLGTestClass {
 
 @injectable()
 export class RapidFireCommand extends BaseCommand {
-  public constructor() {
+  public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
+    this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
   private static readonly CRYPTO_TRANSFER_START_CONFIG_NAME: string = 'cryptoTransferStartConfig';
@@ -93,6 +99,7 @@ export class RapidFireCommand extends BaseCommand {
       flags.javaHeap,
       flags.packageName,
       flags.maxTps,
+      flags.heliswapCreatorTopUpHbar,
     ],
   };
 
@@ -111,6 +118,42 @@ export class RapidFireCommand extends BaseCommand {
       context_.config.namespace,
       constants.NETWORK_LOAD_GENERATOR_RELEASE_NAME,
       context_.config.context,
+    );
+  }
+
+  /**
+   * Polls until account 0.0.1013 (the HeliSwap creator) is created by the benchmark,
+   * then transfers the specified amount of HBAR from the treasury to fund it.
+   * Intended to be fired as a background coroutine concurrently with the Java benchmark.
+   */
+  private async topUpHeliSwapCreator(deployment: DeploymentName, amount: number): Promise<void> {
+    const creatorAccountId: string = '0.0.1013';
+    const maxPollAttempts: number = 60;
+    const pollIntervalMilliseconds: number = 1000;
+    const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
+
+    for (let attempt: number = 0; attempt < maxPollAttempts; attempt++) {
+      await new Promise<void>((resolve: () => void) => {
+        setTimeout(resolve, pollIntervalMilliseconds);
+      });
+      try {
+        await this.accountManager.accountInfoQuery(creatorAccountId);
+      } catch {
+        // Account does not exist yet — keep polling
+        continue;
+      }
+      // Account exists — fund it and return
+      try {
+        await this.accountManager.transferAmount(treasuryAccountId, creatorAccountId, amount);
+        this.logger.info(`HeliSwap creator account ${creatorAccountId} topped up with ${amount} HBAR`);
+      } catch (error) {
+        this.logger.warn(`Failed to top up HeliSwap creator account ${creatorAccountId}: ${(error as Error).message}`);
+      }
+      return;
+    }
+
+    this.logger.warn(
+      `HeliSwap creator account ${creatorAccountId} did not appear after ${maxPollAttempts} poll attempts`,
     );
   }
 
@@ -212,15 +255,24 @@ export class RapidFireCommand extends BaseCommand {
         context_: RapidFireStartContext,
         task: SoloListrTaskWrapper<RapidFireStartContext>,
       ): Promise<void> => {
-        const {performanceTest, packageName} = context_.config;
+        const {performanceTest, packageName, heliswapCreatorTopUpHbar, deployment, namespace} = context_.config;
         const testClass: string = `${packageName}.${performanceTest}`;
         task.title = `Start performance load test: ${testClass}`;
+
+        const needsHeliSwapTopUp: boolean =
+          performanceTest === NLGTestClass.HeliSwapLoadTest && heliswapCreatorTopUpHbar > 0;
+
+        if (needsHeliSwapTopUp) {
+          await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment, false);
+        }
+
         const nlgPods: Pod[] = await this.k8Factory
           .getK8(context_.config.context)
           .pods()
           .list(context_.config.namespace, constants.NETWORK_LOAD_GENERATOR_POD_LABELS);
         const k8Containers: Containers = this.k8Factory.getK8(context_.config.context).containers();
 
+        let topUpFired: boolean = false;
         for (const pod of nlgPods) {
           const containerReference = ContainerReference.of(
             pod.podReference,
@@ -239,6 +291,10 @@ export class RapidFireCommand extends BaseCommand {
           try {
             if (!this.oneShotState.isActive()) {
               await leaseReference.lease?.release();
+            }
+            if (needsHeliSwapTopUp && !topUpFired) {
+              void this.topUpHeliSwapCreator(deployment, heliswapCreatorTopUpHbar);
+              topUpFired = true;
             }
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
             let commandString = `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`;

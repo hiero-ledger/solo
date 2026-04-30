@@ -473,9 +473,9 @@ export class PlatformInstaller {
     const selected: string[] = [];
 
     for (const file of files) {
-      const isPublicGossip: boolean = file.startsWith(`${constants.SIGNING_KEY_PREFIX}-public-`) || file.startsWith(
-        `${constants.AGREEMENT_KEY_PREFIX}-public-`,
-      );
+      const isPublicGossip: boolean =
+        file.startsWith(`${constants.SIGNING_KEY_PREFIX}-public-`) ||
+        file.startsWith(`${constants.AGREEMENT_KEY_PREFIX}-public-`);
       const isPrivateForNode: boolean =
         file === `${constants.SIGNING_KEY_PREFIX}-private-${nodeAlias}.pem` ||
         file === `${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem`;
