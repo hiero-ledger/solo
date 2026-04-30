@@ -3895,18 +3895,33 @@ export class NodeCommandTasks {
         const retryDelayMillis: number = 3000;
 
         for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-          const addressBookBase64: string = await this.accountManager.prepareAddressBookBase64(
-            config.namespace,
-            clusterReferences,
-            config.deployment,
-            '',
-            '',
-            false,
-          );
+          let addressBookBase64 = '';
+          let addressBookBytes: Buffer = Buffer.alloc(0);
+          let nodeAddresses: any[] = [];
 
-          const addressBookBytes: Buffer = Buffer.from(addressBookBase64, 'base64');
-          const addressBook = proto.NodeAddressBook.decode(addressBookBytes) as any;
-          const nodeAddresses: any[] = addressBook?.nodeAddress ?? [];
+          try {
+            addressBookBase64 = await this.accountManager.prepareAddressBookBase64(
+              config.namespace,
+              clusterReferences,
+              config.deployment,
+              '',
+              '',
+              false,
+            );
+
+            addressBookBytes = Buffer.from(addressBookBase64, 'base64');
+            const addressBook = proto.NodeAddressBook.decode(addressBookBytes) as any;
+            nodeAddresses = addressBook?.nodeAddress ?? [];
+          } catch (error) {
+            this.logger.debug(
+              `Roster read/decode failed for ${nodeAlias} at attempt ${attempt}/${maxAttempts}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            if (attempt < maxAttempts) {
+              await sleep(Duration.ofMillis(retryDelayMillis));
+              continue;
+            }
+            throw error;
+          }
 
           const matchingNode = nodeAddresses.find((entry: any): boolean => {
             const descriptionMatches: boolean = entry?.description === nodeAlias;
@@ -3916,19 +3931,35 @@ export class NodeCommandTasks {
 
           const hasGossipCertificate: boolean = !!matchingNode?.RSA_PubKey;
           const rosterNodeIds: number[] = nodeAddresses.map((entry: any): number => Number(entry?.nodeId));
+          const addressBookHash: string = crypto.createHash('sha256').update(addressBookBytes).digest('hex').slice(0, 16);
+          const nodeSummary: string = nodeAddresses
+            .map((entry: any): string => {
+              const nodeId: number = Number(entry?.nodeId);
+              const description: string = String(entry?.description ?? '');
+              const certLength: number = entry?.RSA_PubKey ? Buffer.from(entry.RSA_PubKey).length : 0;
+              return `{id=${nodeId},desc=${description},hasCert=${certLength > 0},certLen=${certLength}}`;
+            })
+            .join(', ');
 
           if (matchingNode && hasGossipCertificate) {
             this.logger.debug(
-              `Roster contains node ${nodeAlias} (nodeId=${expectedNodeId}) with gossip certificate after attempt ${attempt}/${maxAttempts}`,
+              `Roster contains node ${nodeAlias} (nodeId=${expectedNodeId}) with gossip certificate after attempt ${attempt}/${maxAttempts}; ` +
+                `addressBookBytes=${addressBookBytes.length}, addressBookHash=${addressBookHash}, nodes=[${nodeSummary}]`,
             );
             return;
           }
+
+          const matchingNodeCertLength: number = matchingNode?.RSA_PubKey ? Buffer.from(matchingNode.RSA_PubKey).length : 0;
+          const matchingNodeDesc: string = String(matchingNode?.description ?? '');
+          const matchingNodeId: number = Number(matchingNode?.nodeId ?? -1);
 
           if (attempt < maxAttempts) {
             this.logger.debug(
               `Roster not ready for ${nodeAlias} (nodeId=${expectedNodeId}) at attempt ${attempt}/${maxAttempts}; ` +
                 `matchedNode=${!!matchingNode}, hasGossipCertificate=${hasGossipCertificate}, ` +
-                `rosterNodeIds=[${rosterNodeIds.join(',')}], retrying in ${retryDelayMillis}ms`,
+                `matchingNode={id=${matchingNodeId},desc=${matchingNodeDesc},certLen=${matchingNodeCertLength}}, ` +
+                `rosterNodeIds=[${rosterNodeIds.join(',')}], addressBookBytes=${addressBookBytes.length}, ` +
+                `addressBookHash=${addressBookHash}, nodes=[${nodeSummary}], retrying in ${retryDelayMillis}ms`,
             );
             await sleep(Duration.ofMillis(retryDelayMillis));
           }
