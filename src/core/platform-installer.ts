@@ -445,8 +445,9 @@ export class PlatformInstaller {
     // const nodeOverridesYaml = [PathEx.joinWithRealPath(stagingDirectory, constants.NODE_OVERRIDE_FILE)];
     // await this.copyFiles(podReference, nodeOverridesYaml, `${constants.HEDERA_HAPI_PATH}/data/config`, undefined, context);
 
-    // Keep node key material in sync after restarts/upgrades. This ensures consensus nodes
-    // always have both signing and agreement key files expected by newer CN versions.
+    // Keep runtime and upgrade key locations aligned with staging keys.
+    // Node runtime can prune agreement keys from data/keys, so we also seed
+    // upgrade/current/data/keys as a canonical recovery source.
     const stagingKeysDirectory: string = PathEx.joinWithRealPath(stagingDirectory, 'keys');
     if (fs.existsSync(stagingKeysDirectory)) {
       const keyFilesToCopy: string[] = this.getStagingKeyFilesForNode(stagingKeysDirectory, `${podReference.name}`);
@@ -455,6 +456,13 @@ export class PlatformInstaller {
           podReference,
           keyFilesToCopy,
           `${constants.HEDERA_HAPI_PATH}/data/keys`,
+          undefined,
+          context,
+        );
+        await this.copyFiles(
+          podReference,
+          keyFilesToCopy,
+          `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`,
           undefined,
           context,
         );
@@ -483,6 +491,7 @@ export class PlatformInstaller {
       if (!isPublicGossip && !isPrivateForNode) {
         continue;
       }
+
       selected.push(PathEx.joinWithRealPath(stagingKeysDirectory, file));
     }
 

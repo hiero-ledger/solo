@@ -585,6 +585,34 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
+        // Keep agreement cert/key files present while node is starting.
+        // Some runtime paths can drop a-* files after init on dual-cluster node-add flows.
+        try {
+          const nodeContainer: Container = await new K8Helper(context).getConsensusNodeRootContainer(
+            namespace,
+            nodeAlias,
+          );
+          const allAliases: NodeAliases = consensusNodes.map(node => node.name);
+          const ensureAgreementFilesScript: string = [
+            'set -e',
+            `KEYS_DIR="${constants.HEDERA_HAPI_PATH}/data/keys"`,
+            `UPGRADE_KEYS_DIR="${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys"`,
+            'if [ -d "$KEYS_DIR" ]; then',
+            // Prefer canonical keys from upgrade/current/data/keys when available.
+            '  if [ -d "$UPGRADE_KEYS_DIR" ]; then',
+            `    cp -f "$UPGRADE_KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem" "$KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem" 2>/dev/null || true`,
+            ...allAliases.map(
+              alias =>
+                `    cp -f "$UPGRADE_KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-public-${alias}.pem" "$KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-public-${alias}.pem" 2>/dev/null || true`,
+            ),
+            '  fi',
+            'fi',
+          ].join('\n');
+          await nodeContainer.execContainer(['bash', '-c', ensureAgreementFilesScript]);
+        } catch {
+          // Best effort only; status polling should continue.
+        }
+
         const response: string = await container
           .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
           .getNetworkNodePodStatus(podReference, context);
@@ -694,36 +722,6 @@ export class NodeCommandTasks {
           config.keysDir,
           config.curDate,
         );
-        for (const nodeAlias of nodeAliases) {
-          subTasks.push({
-            title: `Ensure agreement gossip keys for node: ${chalk.yellow(nodeAlias)}`,
-            task: async (): Promise<void> => {
-              const signingPrivate = PathEx.join(
-                config.keysDir,
-                Templates.renderGossipPemPrivateKeyFile(nodeAlias, constants.SIGNING_KEY_PREFIX),
-              );
-              const signingPublic = PathEx.join(
-                config.keysDir,
-                Templates.renderGossipPemPublicKeyFile(nodeAlias, constants.SIGNING_KEY_PREFIX),
-              );
-              const agreementPrivate = PathEx.join(
-                config.keysDir,
-                Templates.renderGossipPemPrivateKeyFile(nodeAlias, constants.AGREEMENT_KEY_PREFIX),
-              );
-              const agreementPublic = PathEx.join(
-                config.keysDir,
-                Templates.renderGossipPemPublicKeyFile(nodeAlias, constants.AGREEMENT_KEY_PREFIX),
-              );
-
-              if (!fs.existsSync(agreementPrivate) && fs.existsSync(signingPrivate)) {
-                fs.copyFileSync(signingPrivate, agreementPrivate);
-              }
-              if (!fs.existsSync(agreementPublic) && fs.existsSync(signingPublic)) {
-                fs.copyFileSync(signingPublic, agreementPublic);
-              }
-            },
-          });
-        }
         // set up the sub-tasks
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
@@ -1900,6 +1898,25 @@ export class NodeCommandTasks {
                 }
               }
 
+              // Ensure agreement gossip cert/key files exist before startup.
+              // This protects node start in flows where runtime state contains only signing certs.
+              const ensureAgreementFilesScript: string = [
+                'set -e',
+                `KEYS_DIR="${constants.HEDERA_HAPI_PATH}/data/keys"`,
+                `UPGRADE_KEYS_DIR="${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys"`,
+                'if [ -d "$KEYS_DIR" ]; then',
+                // Prefer canonical keys from upgrade/current/data/keys when available.
+                '  if [ -d "$UPGRADE_KEYS_DIR" ]; then',
+                `    cp -f "$UPGRADE_KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem" "$KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem" 2>/dev/null || true`,
+                ...nodeAliases.map(
+                  alias =>
+                    `    cp -f "$UPGRADE_KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-public-${alias}.pem" "$KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-public-${alias}.pem" 2>/dev/null || true`,
+                ),
+                '  fi',
+                'fi',
+              ].join('\n');
+              await container.execContainer(['bash', '-c', ensureAgreementFilesScript]);
+
               await (constants.ENABLE_S6_IMAGE
                 ? container.execContainer([
                     'bash',
@@ -1911,6 +1928,36 @@ export class NodeCommandTasks {
                     '-c',
                     'systemctl stop network-node || true && systemctl enable --now network-node',
                   ]));
+
+              const isNewNodeInAddFlow: boolean =
+                Array.isArray(config.newNodeAliases) && config.newNodeAliases.includes(nodeAlias);
+              if (isNewNodeInAddFlow) {
+                // Keep agreement files present throughout startup for node-add new node only.
+                // This handles repeated runtime rewrites of data/keys observed in dual-cluster add flows.
+                const stabilizeAgreementFilesScript: string = [
+                  'set -e',
+                  `KEYS_DIR="${constants.HEDERA_HAPI_PATH}/data/keys"`,
+                  `UPGRADE_KEYS_DIR="${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys"`,
+                  `PID_FILE="/tmp/solo-agreement-keys-sync-${nodeAlias}.pid"`,
+                  'if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then',
+                  '  exit 0',
+                  'fi',
+                  '{',
+                  '  while true; do',
+                  '    if [ -d "$KEYS_DIR" ] && [ -d "$UPGRADE_KEYS_DIR" ]; then',
+                  `      cp -f "$UPGRADE_KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem" "$KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem" 2>/dev/null || true`,
+                  ...nodeAliases.map(
+                    alias =>
+                      `      cp -f "$UPGRADE_KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-public-${alias}.pem" "$KEYS_DIR/${constants.AGREEMENT_KEY_PREFIX}-public-${alias}.pem" 2>/dev/null || true`,
+                  ),
+                  '    fi',
+                  '    sleep 1',
+                  '  done',
+                  `} >/tmp/solo-agreement-keys-sync-${nodeAlias}.log 2>&1 &`,
+                  'echo $! > "$PID_FILE"',
+                ].join('\n');
+                await container.execContainer(['bash', '-c', stabilizeAgreementFilesScript]);
+              }
             },
           });
         }
@@ -3002,6 +3049,91 @@ export class NodeCommandTasks {
     };
   }
 
+  public ensureExistingNodesHaveMultipleGossipEndpoints(): SoloListrTask<NodeAddContext> {
+    return {
+      title: 'Ensure existing nodes have multiple gossip endpoints',
+      task: async (context_): Promise<void> => {
+        const config: any = context_.config;
+
+        for (const nodeAlias of config.existingNodeAliases as NodeAliases) {
+          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const k8: K8 = this.k8Factory.getK8(context);
+          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+
+          const internalEndpoint: string =
+            `${helpers.getInternalAddress(config.releaseTag, config.namespace, nodeAlias)}:` +
+            `${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`;
+
+          const consensusNode: ConsensusNode = config.consensusNodes.find(
+            (node: ConsensusNode): boolean => node.name === nodeAlias,
+          );
+          if (!consensusNode) {
+            throw new SoloError(`consensus node '${nodeAlias}' not found in config`);
+          }
+
+          const externalEndpointAddress: Address = await Address.getExternalAddress(
+            new ConsensusNode(
+              consensusNode.name,
+              consensusNode.nodeId,
+              consensusNode.namespace,
+              consensusNode.cluster,
+              consensusNode.context,
+              consensusNode.dnsBaseDomain,
+              consensusNode.dnsConsensusNodePattern,
+              consensusNode.fullyQualifiedDomainName,
+              [],
+              [],
+            ),
+            k8,
+            +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+          );
+
+          const endpoints: string[] = [...new Set([internalEndpoint, externalEndpointAddress.formattedAddress()])];
+          if (endpoints.length < 2) {
+            this.logger.warn(
+              `Skipping gossip endpoint update for node '${nodeAlias}': fewer than 2 unique endpoints`,
+              {
+                nodeAlias,
+                endpoints,
+              },
+            );
+            continue;
+          }
+
+          try {
+            const gossipEndpoints: ServiceEndpoint[] = prepareEndpoints(
+              config.endpointType,
+              endpoints,
+              constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
+            );
+
+            const tx: NodeUpdateTransaction = new NodeUpdateTransaction()
+              .setNodeId(Long.fromString(nodeId.toString()))
+              .setGossipEndpoints(gossipEndpoints)
+              .freezeWith(config.nodeClient);
+
+            const signedTx: NodeUpdateTransaction = await tx.sign(config.adminKey);
+            const txResp: TransactionResponse = await signedTx.execute(config.nodeClient);
+            const receipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
+            if (receipt.status !== Status.Success) {
+              this.logger.warn(`Gossip endpoint update returned non-success for node '${nodeAlias}'`, {
+                nodeAlias,
+                status: receipt.status.toString(),
+                endpoints,
+              });
+            }
+          } catch (error) {
+            this.logger.warn(`Skipping failed gossip endpoint update for node '${nodeAlias}'`, {
+              nodeAlias,
+              endpoints,
+              error: (error as Error).message,
+            });
+          }
+        }
+      },
+    };
+  }
+
   public refreshNodeList(): SoloListrTask<NodeDestroyContext> {
     return {
       title: 'Refresh node alias list',
@@ -3742,6 +3874,126 @@ export class NodeCommandTasks {
       title,
       task: async (): Promise<void> => {
         await sleep(Duration.ofMillis(milliseconds));
+      },
+    };
+  }
+
+  public debugNodeKeyDirs(title: string, nodeAliasField: string = 'nodeAlias'): SoloListrTask<AnyListrContext> {
+    return {
+      title,
+      task: async ({config}): Promise<void> => {
+        const escapedStepName: string = title.replaceAll("'", `'\"'\"'`);
+        const nodeAlias: NodeAlias | undefined = config[nodeAliasField];
+        if (!nodeAlias) {
+          this.logger.showUser(
+            `[debug-keys][step=${title}] skipped: config.${nodeAliasField} is empty`,
+          );
+          return;
+        }
+
+        try {
+          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
+            config.namespace,
+            nodeAlias,
+          );
+
+          const runtimeKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+          const upgradeKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
+
+          const command: string = [
+            'set +e',
+            `STEP='${escapedStepName}'`,
+            'log() {',
+            '  local msg="$1"',
+            '  printf "[debug-keys][step=%s][ts=%s] %s\\n" "$STEP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg"',
+            '}',
+            `log "node=${nodeAlias}"`,
+            `log "ls ${runtimeKeysDirectory}"`,
+            `ls -l ${runtimeKeysDirectory} 2>&1 || true`,
+            `log "ls ${upgradeKeysDirectory}"`,
+            `ls -l ${upgradeKeysDirectory} 2>&1 || true`,
+            `log "missing-a-private? $(test -f ${runtimeKeysDirectory}/${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem; echo $?)"`,
+          ].join('\n');
+
+          const output: string = await container.execContainer(['bash', '-c', command]);
+          this.logger.showUser(output);
+        } catch (error: any) {
+          this.logger.showUser(
+            `[debug-keys][step=${title}] skipped for node ${nodeAlias}: ${error?.message ?? 'unable to inspect key directories'}`,
+          );
+        }
+      },
+    };
+  }
+
+  public traceAgreementKeyLifecycle(
+    title: string,
+    nodeAliasField: string = 'nodeAlias',
+    durationSeconds: number = 180,
+  ): SoloListrTask<AnyListrContext> {
+    return {
+      title,
+      task: async ({config}): Promise<void> => {
+        const escapedStepName: string = title.replaceAll("'", `'\"'\"'`);
+        const nodeAlias: NodeAlias | undefined = config[nodeAliasField];
+        if (!nodeAlias) {
+          this.logger.showUser(
+            `[trace-keys][step=${title}] skipped: config.${nodeAliasField} is empty`,
+          );
+          return;
+        }
+
+        try {
+          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
+            config.namespace,
+            nodeAlias,
+          );
+
+          const runtimeKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+          const upgradeKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
+          const agreementPrivateKeyName: string = `${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem`;
+
+          const command: string = [
+            'set +e',
+            `STEP='${escapedStepName}'`,
+            'log() {',
+            '  local msg="$1"',
+            '  printf "[trace-keys][step=%s][ts=%s] %s\\n" "$STEP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg"',
+            '}',
+            `log "node=${nodeAlias} duration=${durationSeconds}s"`,
+            `for i in $(seq 1 ${durationSeconds}); do`,
+            `  if [ ! -f "${runtimeKeysDirectory}/${agreementPrivateKeyName}" ]; then`,
+            '    log "agreement private key missing in runtime keys dir"',
+            '    log "detected missing key state"',
+            `    log "ls runtime keys (${runtimeKeysDirectory})"`,
+            `    ls -l "${runtimeKeysDirectory}" 2>&1 || true`,
+            `    log "ls upgrade keys (${upgradeKeysDirectory})"`,
+            `    ls -l "${upgradeKeysDirectory}" 2>&1 || true`,
+            '    log "process snapshot"',
+            '    ps -ef 2>&1 || true',
+            '    log "recent swirlds-sdk logs"',
+            `    ls -1 ${constants.HEDERA_HAPI_PATH}/output/swirlds-sdk-*.log 2>/dev/null | sort -V | tail -n 2 | while read -r f; do`,
+            '      echo "--- ${f}"',
+            '      tail -n 80 "${f}" 2>&1 || true',
+            '    done',
+            '    break',
+            '  fi',
+            '  sleep 1',
+            'done',
+            `if [ -f "${runtimeKeysDirectory}/${agreementPrivateKeyName}" ]; then`,
+            '  log "agreement private key remained present for full trace window"',
+            'fi',
+          ].join('\n');
+
+          const output: string = await container.execContainer(['bash', '-c', command]);
+          this.logger.showUser(output);
+        } catch (error: any) {
+          this.logger.showUser(
+            `[trace-keys][step=${title}] skipped for node ${nodeAlias}: ${error?.message ?? 'unable to trace agreement key lifecycle'}`,
+          );
+        }
       },
     };
   }
