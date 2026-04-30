@@ -3891,7 +3891,7 @@ export class NodeCommandTasks {
         const nodeAlias: NodeAlias = config[nodeAliasFieldName];
         const expectedNodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
-        const maxAttempts: number = 10;
+        const maxAttempts: number = 60;
         const retryDelayMillis: number = 3000;
 
         for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
@@ -3915,6 +3915,7 @@ export class NodeCommandTasks {
           });
 
           const hasGossipCertificate: boolean = !!matchingNode?.RSA_PubKey;
+          const rosterNodeIds: number[] = nodeAddresses.map((entry: any): number => Number(entry?.nodeId));
 
           if (matchingNode && hasGossipCertificate) {
             this.logger.debug(
@@ -3925,7 +3926,9 @@ export class NodeCommandTasks {
 
           if (attempt < maxAttempts) {
             this.logger.debug(
-              `Roster is not updated for ${nodeAlias} yet (attempt ${attempt}/${maxAttempts}); retrying in ${retryDelayMillis}ms`,
+              `Roster not ready for ${nodeAlias} (nodeId=${expectedNodeId}) at attempt ${attempt}/${maxAttempts}; ` +
+                `matchedNode=${!!matchingNode}, hasGossipCertificate=${hasGossipCertificate}, ` +
+                `rosterNodeIds=[${rosterNodeIds.join(',')}], retrying in ${retryDelayMillis}ms`,
             );
             await sleep(Duration.ofMillis(retryDelayMillis));
           }

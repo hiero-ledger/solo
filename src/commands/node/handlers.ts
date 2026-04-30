@@ -151,7 +151,6 @@ export class NodeCommandHandlers extends CommandHandler {
   private addSubmitTransactionsTasks(): SoloListrTask<NodeAddContext>[] {
     return [
       this.tasks.sendNodeCreateTransaction(),
-      this.tasks.waitForRosterNodeCertificate(),
       this.tasks.sendPrepareUpgradeTransaction() as SoloListrTask<NodeAddContext>,
       this.tasks.sendFreezeUpgradeTransaction() as SoloListrTask<NodeAddContext>,
     ];
@@ -178,6 +177,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
+      this.tasks.waitForRosterNodeCertificate(),
       this.tasks.checkAllNodeProxiesAreActive(),
       this.tasks.waitForTss(),
       this.tasks.stakeNewNode(),
@@ -202,7 +202,6 @@ export class NodeCommandHandlers extends CommandHandler {
   private updateSubmitTransactionsTasks(): SoloListrTask<NodeUpdateContext>[] {
     return [
       this.tasks.sendNodeUpdateTransaction(),
-      this.tasks.waitForRosterNodeCertificate(),
       this.tasks.sendPrepareUpgradeTransaction() as SoloListrTask<NodeUpdateContext>,
       this.tasks.sendFreezeUpgradeTransaction() as SoloListrTask<NodeUpdateContext>,
     ];
@@ -263,6 +262,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
+      this.tasks.waitForRosterNodeCertificate(),
       this.tasks.checkAllNodeProxiesAreActive(),
       this.tasks.finalize(),
     ];
