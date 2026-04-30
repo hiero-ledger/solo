@@ -38,7 +38,7 @@ ideal for CI/CD pipelines, automated testing, and complex deployment scenarios.
 
 ### Preparing a Falcon Configuration
 
-Instead of writing a values file by hand, use the interactive wizard to generate one:
+You can either create a values file manually or use the interactive wizard to generate one:
 
 ```bash
 solo one-shot falcon prepare
