@@ -233,20 +233,30 @@ tasks:
           kubectl exec network-node2-0 -n {{ .NAMESPACE }} -c root-container -- \
           ls /opt/hgcapp/services-hedera/HapiApp2.0/output
       - cmd: |
-          # Start each node with its own saved state file.
+          # Build the directory layout expected by Solo for per-node state restore:
+          # <input>/states/<cluster-ref>/<namespace>/network-<node>-0-state.zip
+          RESTORE_INPUT_DIR="{{ .STATE_SAVE_DIR }}/restore-input"
+          RESTORE_STATES_DIR="${RESTORE_INPUT_DIR}/states/{{ .CLUSTER_REF }}/{{ .NAMESPACE }}"
+          rm -rf "${RESTORE_INPUT_DIR}"
+          mkdir -p "${RESTORE_STATES_DIR}"
+
           for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
             NODE_STATE_FILE="network-${node}-0-state.zip"
-            STATE_FILE_PATH="{{ .STATE_SAVE_DIR }}/{{ .NAMESPACE }}/${NODE_STATE_FILE}"
+            SRC_STATE_FILE_PATH="{{ .STATE_SAVE_DIR }}/{{ .NAMESPACE }}/${NODE_STATE_FILE}"
+            DEST_STATE_FILE_PATH="${RESTORE_STATES_DIR}/${NODE_STATE_FILE}"
 
-            if [ ! -f "${STATE_FILE_PATH}" ]; then
-              echo "⚠️  State file not found for ${node}: ${STATE_FILE_PATH}"
+            if [ ! -f "${SRC_STATE_FILE_PATH}" ]; then
+              echo "⚠️  State file not found for ${node}: ${SRC_STATE_FILE_PATH}"
               exit 1
             fi
 
-            echo "Starting ${node} using ${NODE_STATE_FILE}..."
-            $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases "${node}" \
-              --state-file "${STATE_FILE_PATH}"
+            cp "${SRC_STATE_FILE_PATH}" "${DEST_STATE_FILE_PATH}"
+            echo "Prepared state for ${node}: ${DEST_STATE_FILE_PATH}"
           done
+
+          # Start all nodes together so they can transition to ACTIVE as a group.
+          $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
+            --state-file "${RESTORE_INPUT_DIR}"
       - cmd: echo "✅ Nodes started with restored state"
 
   restore-database:
