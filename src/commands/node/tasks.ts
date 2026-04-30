@@ -877,13 +877,6 @@ export class NodeCommandTasks {
       task: async ({config}): Promise<void> => {
         // Transfer some hbar to the node for staking purpose
         const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
-        await this.accountManager.loadNodeClient(
-          config.namespace,
-          this.remoteConfig.getClusterRefs(),
-          deploymentName,
-          this.configManager.getFlag<boolean>(flags.forcePortForward),
-        );
-
         const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
           config.existingNodeAliases,
           deploymentName,
@@ -1887,7 +1880,6 @@ export class NodeCommandTasks {
     return {
       title: 'Enable port forwarding for debug port and/or GRPC port',
       task: async ({config}): Promise<void> => {
-        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
         const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
@@ -1897,7 +1889,7 @@ export class NodeCommandTasks {
           this.logger.showUser('Enable port forwarding for JVM debugger');
           this.logger.debug(`Enable port forwarding for JVM debugger on pod ${pod.podReference.name}`);
 
-          await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true, externalAddress);
+          await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true);
         }
 
         if (config.forcePortForward && enablePortForwardHaProxy) {
@@ -1939,7 +1931,6 @@ export class NodeCommandTasks {
               config.isChartInstalled, // Reuse existing port if chart is already installed
               nodeId,
               true, // persist: auto-restart on failure using persist-port-forward.js
-              externalAddress,
             );
           }
           await this.remoteConfig.persist();
@@ -2962,85 +2953,6 @@ export class NodeCommandTasks {
           endpoints,
           constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
         );
-      },
-    };
-  }
-
-  public ensureExistingNodesHaveMultipleGossipEndpoints(): SoloListrTask<NodeAddContext> {
-    return {
-      title: 'Ensure existing nodes have multiple gossip endpoints',
-      task: async (context_): Promise<void> => {
-        const config: any = context_.config;
-
-        for (const nodeAlias of config.existingNodeAliases as NodeAliases) {
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const k8: K8 = this.k8Factory.getK8(context);
-          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
-
-          const internalEndpoint: string =
-            `${helpers.getInternalAddress(config.releaseTag, config.namespace, nodeAlias)}:` +
-            `${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`;
-
-          const consensusNode: ConsensusNode = config.consensusNodes.find(
-            (node: ConsensusNode): boolean => node.name === nodeAlias,
-          );
-          if (!consensusNode) {
-            throw new SoloError(`consensus node '${nodeAlias}' not found in config`);
-          }
-
-          const externalEndpointAddress: Address = await Address.getExternalAddress(
-            new ConsensusNode(
-              consensusNode.name,
-              consensusNode.nodeId,
-              consensusNode.namespace,
-              consensusNode.cluster,
-              consensusNode.context,
-              consensusNode.dnsBaseDomain,
-              consensusNode.dnsConsensusNodePattern,
-              consensusNode.fullyQualifiedDomainName,
-              [],
-              [],
-            ),
-            k8,
-            +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
-          );
-
-          const endpoints: string[] = [...new Set([internalEndpoint, externalEndpointAddress.formattedAddress()])];
-          if (endpoints.length < 2) {
-            this.logger.warn(`Skipping gossip endpoint update for node '${nodeAlias}': fewer than 2 unique endpoints`);
-            continue;
-          }
-
-          try {
-            const gossipEndpoints: ServiceEndpoint[] = prepareEndpoints(
-              config.endpointType,
-              endpoints,
-              constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
-            );
-
-            const tx: NodeUpdateTransaction = new NodeUpdateTransaction()
-              .setNodeId(Long.fromString(nodeId.toString()))
-              .setGossipEndpoints(gossipEndpoints)
-              .freezeWith(config.nodeClient);
-
-            const signedTx: NodeUpdateTransaction = await tx.sign(config.adminKey);
-            const txResp: TransactionResponse = await signedTx.execute(config.nodeClient);
-            const receipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
-            if (receipt.status !== Status.Success) {
-              this.logger.warn(`Gossip endpoint update returned non-success for node '${nodeAlias}'`, {
-                nodeAlias,
-                status: receipt.status.toString(),
-                endpoints,
-              });
-            }
-          } catch (error) {
-            this.logger.warn(`Skipping failed gossip endpoint update for node '${nodeAlias}'`, {
-              nodeAlias,
-              endpoints,
-              error: (error as Error).message,
-            });
-          }
-        }
       },
     };
   }

@@ -173,48 +173,18 @@ async function submitMessageToTopic(context) {
   context.messageSendStart = Date.now();
   console.log(`Starting to send message at: ${new Date(context.messageSendStart).toISOString()}`);
 
-  const maxAttempts = 5;
-  const retryDelayMs = 1500;
-  let lastError = null;
+  // send one message
+  let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
+    topicId: context.topicIdString,
+    message: context.testMessage,
+  }).freezeWithSigner(context.wallet);
+  topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(context.wallet);
+  const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(context.wallet);
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      // Rebuild transaction each attempt so we always use a fresh transaction ID/signature set.
-      let topicMessageSubmitTransaction = await new TopicMessageSubmitTransaction({
-        topicId: context.topicIdString,
-        message: context.testMessage,
-      }).freezeWithSigner(context.wallet);
-      topicMessageSubmitTransaction = await topicMessageSubmitTransaction.signWithSigner(context.wallet);
-      const sendResponse = await topicMessageSubmitTransaction.executeWithSigner(context.wallet);
+  await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
 
-      await sleep(CONSENSUS_DELAY_MS); // wait for consensus on write transactions
-
-      const sendReceipt = await sendResponse.getReceiptWithSigner(context.wallet);
-      console.log(`Message sent [topicSequenceNumber: ${sendReceipt.topicSequenceNumber.toString()}]`);
-      return;
-    } catch (error) {
-      lastError = error;
-      const errorText = error?.toString?.() ?? `${error}`;
-      const isRetryable =
-        errorText.includes('FAIL_INVALID') ||
-        errorText.includes('BUSY') ||
-        errorText.includes('PLATFORM_TRANSACTION_NOT_CREATED') ||
-        errorText.includes('UNAVAILABLE');
-
-      if (!isRetryable || attempt === maxAttempts) {
-        throw error;
-      }
-
-      console.log(
-        `Topic submit attempt ${attempt}/${maxAttempts} failed with retryable precheck; retrying in ${retryDelayMs}ms`,
-      );
-      await sleep(retryDelayMs);
-    }
-  }
-
-  if (lastError) {
-    throw lastError;
-  }
+  const sendReceipt = await sendResponse.getReceiptWithSigner(context.wallet);
+  console.log(`Message sent [topicSequenceNumber: ${sendReceipt.topicSequenceNumber.toString()}]`);
 }
 
 async function queryMirrorNodeApiForTopic(context) {

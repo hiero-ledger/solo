@@ -151,7 +151,6 @@ export class NodeCommandHandlers extends CommandHandler {
   private addSubmitTransactionsTasks(): SoloListrTask<NodeAddContext>[] {
     return [
       this.tasks.sendNodeCreateTransaction(),
-      this.tasks.ensureExistingNodesHaveMultipleGossipEndpoints(),
       this.tasks.sendPrepareUpgradeTransaction() as SoloListrTask<NodeAddContext>,
       this.tasks.sendFreezeUpgradeTransaction() as SoloListrTask<NodeAddContext>,
     ];
