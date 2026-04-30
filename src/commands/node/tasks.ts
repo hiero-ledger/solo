@@ -3090,13 +3090,7 @@ export class NodeCommandTasks {
 
           const endpoints: string[] = [...new Set([internalEndpoint, externalEndpointAddress.formattedAddress()])];
           if (endpoints.length < 2) {
-            this.logger.warn(
-              `Skipping gossip endpoint update for node '${nodeAlias}': fewer than 2 unique endpoints`,
-              {
-                nodeAlias,
-                endpoints,
-              },
-            );
+            this.logger.warn(`Skipping gossip endpoint update for node '${nodeAlias}': fewer than 2 unique endpoints`);
             continue;
           }
 
@@ -3882,12 +3876,10 @@ export class NodeCommandTasks {
     return {
       title,
       task: async ({config}): Promise<void> => {
-        const escapedStepName: string = title.replaceAll("'", `'\"'\"'`);
+        const escapedStepName: string = title.replaceAll(String.raw`'`, String.raw`'"'"'`);
         const nodeAlias: NodeAlias | undefined = config[nodeAliasField];
         if (!nodeAlias) {
-          this.logger.showUser(
-            `[debug-keys][step=${title}] skipped: config.${nodeAliasField} is empty`,
-          );
+          this.logger.showUser(`[debug-keys][step=${title}] skipped: config.${nodeAliasField} is empty`);
           return;
         }
 
@@ -3906,7 +3898,7 @@ export class NodeCommandTasks {
             `STEP='${escapedStepName}'`,
             'log() {',
             '  local msg="$1"',
-            '  printf "[debug-keys][step=%s][ts=%s] %s\\n" "$STEP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg"',
+            String.raw`  printf "[debug-keys][step=%s][ts=%s] %s\n" "$STEP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg"`,
             '}',
             `log "node=${nodeAlias}"`,
             `log "ls ${runtimeKeysDirectory}"`,
@@ -3935,12 +3927,10 @@ export class NodeCommandTasks {
     return {
       title,
       task: async ({config}): Promise<void> => {
-        const escapedStepName: string = title.replaceAll("'", `'\"'\"'`);
+        const escapedStepName: string = title.replaceAll(String.raw`'`, String.raw`'"'"'`);
         const nodeAlias: NodeAlias | undefined = config[nodeAliasField];
         if (!nodeAlias) {
-          this.logger.showUser(
-            `[trace-keys][step=${title}] skipped: config.${nodeAliasField} is empty`,
-          );
+          this.logger.showUser(`[trace-keys][step=${title}] skipped: config.${nodeAliasField} is empty`);
           return;
         }
 
@@ -3960,7 +3950,7 @@ export class NodeCommandTasks {
             `STEP='${escapedStepName}'`,
             'log() {',
             '  local msg="$1"',
-            '  printf "[trace-keys][step=%s][ts=%s] %s\\n" "$STEP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg"',
+            String.raw`  printf "[trace-keys][step=%s][ts=%s] %s\n" "$STEP" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$msg"`,
             '}',
             `log "node=${nodeAlias} duration=${durationSeconds}s"`,
             `for i in $(seq 1 ${durationSeconds}); do`,
