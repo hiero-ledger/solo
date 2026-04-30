@@ -255,6 +255,7 @@ Only use `this` in class constructors/methods, functions with an explicit `this`
 - Exception: single-line `if (x) x.doFoo();` is allowed.
 - Prefer `for (... of ...)` for arrays.
 - `for (... in ...)` is only for dict-style objects and must guard with `hasOwnProperty`.
+- Prefer truthy/falsy checks for string presence in conditionals (for example, `if (!localBuildPath)` and `if (app)`), instead of comparing to `''`.
 
 ### 4.9 Exception handling
 
