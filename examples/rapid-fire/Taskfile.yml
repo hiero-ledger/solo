@@ -15,7 +15,6 @@ vars:
   SOLO_CLUSTER_NAME: "rapid-fire-cluster"
   SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
-  HELISWAP_CREATOR_TOP_UP_HBAR: "50000"
   APPLICATION_PROPERTIES: "{{ .TASKFILE_DIR }}/application.properties"
   APPLICATION_PROPERTIES_FLAG: "--application-properties {{.APPLICATION_PROPERTIES}}"
 
@@ -117,9 +116,8 @@ tasks:
       # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
-            --test HeliSwapLoadTest \
-            --heliswap-creator-top-up-hbar {{ .HELISWAP_CREATOR_TOP_UP_HBAR }} \
-            --args '"-c 5 -a 10 -R -t 10"'
+          --test HeliSwapLoadTest \
+          --args '"-c 5 -a 10 -R -t 10"'
 
       # Run load test with the com.hedera.benchmark.LongevityLoadTest class
       # Args: LongevityLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
