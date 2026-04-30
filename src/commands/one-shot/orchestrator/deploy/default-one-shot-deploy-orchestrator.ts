@@ -43,7 +43,8 @@ import {
   type SystemAccount,
 } from '../../predefined-accounts.js';
 import {type OneShotDeployOrchestrator} from './one-shot-deploy-orchestrator.js';
-import {type ExecutionMode, Phase} from '../phase.js';
+import {Phase} from '../phase.js';
+import {type ExecutionMode} from '../execution-mode.js';
 import {BlockCommandDefinition} from '../../../command-definitions/block-command-definition.js';
 import {MirrorCommandDefinition} from '../../../command-definitions/mirror-command-definition.js';
 import {ExplorerCommandDefinition} from '../../../command-definitions/explorer-command-definition.js';
@@ -52,7 +53,7 @@ import {ConsensusCommandDefinition} from '../../../command-definitions/consensus
 import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
-import {invokeSoloCommand} from '../../../command-helpers.js';
+import {invokeSoloCommand, optionFromFlag} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
 import * as constants from '../../../../core/constants.js';
 import * as helpers from '../../../../core/helpers.js';
@@ -80,6 +81,7 @@ import path from 'node:path';
 import yaml from 'yaml';
 import {DeployArgvBuilders} from './deploy-argv-builders.js';
 import {Pipeline} from '../pipeline.js';
+import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DISK} from '../../../../../version.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
@@ -119,7 +121,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     configReference: {value?: OneShotSingleDeployConfigClass},
   ): Pipeline<OneShotSingleDeployContext> {
     let config: OneShotSingleDeployConfigClass;
-    const getConfig: () => OneShotSingleDeployConfigClass = (): OneShotSingleDeployConfigClass => config;
+    const getConfigGlobal: () => OneShotSingleDeployConfigClass = (): OneShotSingleDeployConfigClass => config;
 
     const phases: Array<Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
       new Phase('Initialize', {
@@ -193,16 +195,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 config.relayNodeConfiguration = profileItems.relayNode as object;
               }
             }
-            config.clusterRef = config.clusterRef || 'one-shot';
-            config.context = config.context || this.k8Factory.default().contexts().readCurrent();
-            config.deployment = config.deployment || 'one-shot';
-            config.namespace = config.namespace || NamespaceName.of('one-shot');
+            config.clusterRef ||= 'one-shot';
+            config.context ||= this.k8Factory.default().contexts().readCurrent();
+            config.deployment ||= 'one-shot';
+            config.namespace ||= NamespaceName.of('one-shot');
             this.configManager.setFlag(flags.namespace, config.namespace);
-            config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
+            config.numberOfConsensusNodes ||= 1;
             config.force = argv.force as boolean;
 
-            const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
-            const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
             const cnVersion: SemanticVersion<string> = new SemanticVersion(versions.consensus);
             if (!config.valuesFile && cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_SMALL_MEMORY)) {
               const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');
@@ -219,7 +219,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 PathEx.join(overridesDirectory, settingsOverrideFile),
                 settingsMergedPath,
               );
-              config.networkConfiguration['--settings-txt'] = useStateOnDisk
+              config.networkConfiguration[optionFromFlag(flags.settingTxt)] = useStateOnDisk
                 ? this.concatConfigFiles(
                     settingsMergedPath,
                     PathEx.join(stateOnDiskDirectory, 'settings.txt'),
@@ -227,19 +227,20 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   )
                 : settingsMergedPath;
 
-              config.networkConfiguration['--application-properties'] = this.concatConfigFiles(
+              config.networkConfiguration[optionFromFlag(flags.applicationProperties)] = this.concatConfigFiles(
                 PathEx.join(defaultsDirectory, 'application.properties'),
                 PathEx.join(overridesDirectory, 'application.properties'),
                 PathEx.join(mergedDirectory, 'application.properties'),
               );
 
-              config.networkConfiguration['--application-env'] = useStateOnDisk
-                ? PathEx.join(stateOnDiskDirectory, 'application.env')
-                : PathEx.join(overridesDirectory, 'application.env');
+              config.networkConfiguration[optionFromFlag(flags.applicationEnv)] = PathEx.join(
+                useStateOnDisk ? stateOnDiskDirectory : overridesDirectory,
+                'application.env',
+              );
 
               const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
               if (fs.existsSync(throttlesFile)) {
-                config.networkConfiguration['--genesis-throttles-file'] = throttlesFile;
+                config.networkConfiguration[optionFromFlag(flags.genesisThrottlesFile)] = throttlesFile;
               }
             }
 
@@ -297,55 +298,55 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         }),
       }),
       new Phase('Cluster connect', {
-        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
             ClusterReferenceCommandDefinition.CONNECT_COMMAND,
-            (): string[] => DeployArgvBuilders.buildClusterConnectArgv(getConfig_()),
+            (): string[] => DeployArgvBuilders.buildClusterConnectArgv(getConfig()),
             this.taskList,
           ),
       }),
       new Phase('Deployment create', {
-        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
             DeploymentCommandDefinition.CREATE_COMMAND,
-            (): string[] => DeployArgvBuilders.buildDeploymentCreateArgv(getConfig_()),
+            (): string[] => DeployArgvBuilders.buildDeploymentCreateArgv(getConfig()),
             this.taskList,
           ),
       }),
       new Phase('Deployment attach', {
-        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
             DeploymentCommandDefinition.ATTACH_COMMAND,
-            (): string[] => DeployArgvBuilders.buildDeploymentAttachArgv(getConfig_()),
+            (): string[] => DeployArgvBuilders.buildDeploymentAttachArgv(getConfig()),
             this.taskList,
           ),
       }),
       new Phase('Cluster setup', {
-        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
             ClusterReferenceCommandDefinition.SETUP_COMMAND,
-            (): string[] => DeployArgvBuilders.buildClusterSetupArgv(getConfig_()),
+            (): string[] => DeployArgvBuilders.buildClusterSetupArgv(getConfig()),
             this.taskList,
           ),
       }),
       new Phase('Keys generate', {
-        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
             `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
             KeysCommandDefinition.KEYS_COMMAND,
-            (): string[] => DeployArgvBuilders.buildKeysGenerateArgv(getConfig_()),
+            (): string[] => DeployArgvBuilders.buildKeysGenerateArgv(getConfig()),
             this.taskList,
           ),
       }),
       new Phase('Create remote config components', {
-        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Create remote config components',
           task: async (): Promise<void> => {
-            const deployConfig: OneShotSingleDeployConfigClass = getConfig_();
+            const deployConfig: OneShotSingleDeployConfigClass = getConfig();
             if (constants.ONE_SHOT_WITH_BLOCK_NODE === 'true') {
               const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
                 deployConfig.clusterRef,
@@ -410,13 +411,11 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         'Deploy Solo components',
         [
           new Phase('Deploy block node', {
-            asListrTask: (
-              getConfig_: () => OneShotSingleDeployConfigClass,
-            ): SoloListrTask<OneShotSingleDeployContext> =>
+            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
                 `solo ${BlockCommandDefinition.ADD_COMMAND}`,
                 BlockCommandDefinition.ADD_COMMAND,
-                (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig_()),
+                (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
                 this.taskList,
                 (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
               ),
@@ -424,94 +423,88 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           Phase.composite('Deploy network node', [
             new Phase('Deploy consensus node', {
               asListrTask: (
-                getConfig_: () => OneShotSingleDeployConfigClass,
+                getConfig: () => OneShotSingleDeployConfigClass,
               ): SoloListrTask<OneShotSingleDeployContext> =>
                 invokeSoloCommand(
                   `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
                   ConsensusCommandDefinition.DEPLOY_COMMAND,
-                  (): string[] => DeployArgvBuilders.buildConsensusDeployArgv(getConfig_()),
+                  (): string[] => DeployArgvBuilders.buildConsensusDeployArgv(getConfig()),
                   this.taskList,
                 ),
             }),
             Phase.composite('Setup and start consensus node', [
               new Phase('Setup consensus node', {
                 asListrTask: (
-                  getConfig_: () => OneShotSingleDeployConfigClass,
+                  getConfig: () => OneShotSingleDeployConfigClass,
                 ): SoloListrTask<OneShotSingleDeployContext> =>
                   invokeSoloCommand(
                     `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
                     ConsensusCommandDefinition.SETUP_COMMAND,
-                    (): string[] => DeployArgvBuilders.buildConsensusSetupArgv(getConfig_()),
+                    (): string[] => DeployArgvBuilders.buildConsensusSetupArgv(getConfig()),
                     this.taskList,
                   ),
               }),
               new Phase('Start consensus node', {
                 asListrTask: (
-                  getConfig_: () => OneShotSingleDeployConfigClass,
+                  getConfig: () => OneShotSingleDeployConfigClass,
                 ): SoloListrTask<OneShotSingleDeployContext> =>
                   invokeSoloCommand(
                     `solo ${ConsensusCommandDefinition.START_COMMAND}`,
                     ConsensusCommandDefinition.START_COMMAND,
-                    (): string[] => DeployArgvBuilders.buildConsensusStartArgv(getConfig_()),
+                    (): string[] => DeployArgvBuilders.buildConsensusStartArgv(getConfig()),
                     this.taskList,
                   ),
               }),
               new Phase('Create accounts', {
                 asListrTask: (
-                  getConfig_: () => OneShotSingleDeployConfigClass,
-                ): SoloListrTask<OneShotSingleDeployContext> => this.buildCreateAccountsTask(getConfig_()),
+                  getConfig: () => OneShotSingleDeployConfigClass,
+                ): SoloListrTask<OneShotSingleDeployContext> => this.buildCreateAccountsTask(getConfig()),
               }),
             ]),
           ]),
           new Phase('Deploy mirror node', {
-            asListrTask: (
-              getConfig_: () => OneShotSingleDeployConfigClass,
-            ): SoloListrTask<OneShotSingleDeployContext> =>
+            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
                 `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
                 MirrorCommandDefinition.ADD_COMMAND,
-                (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig_()),
+                (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig_().deployMirrorNode,
+                (): boolean => !getConfig().deployMirrorNode,
               ),
           }),
           new Phase('Deploy explorer', {
-            asListrTask: (
-              getConfig_: () => OneShotSingleDeployConfigClass,
-            ): SoloListrTask<OneShotSingleDeployContext> =>
+            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
                 `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
                 ExplorerCommandDefinition.ADD_COMMAND,
-                (): string[] => DeployArgvBuilders.buildExplorerArgv(getConfig_()),
+                (): string[] => DeployArgvBuilders.buildExplorerArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig_().deployExplorer && !getConfig_().minimalSetup,
+                (): boolean => !getConfig().deployExplorer && !getConfig().minimalSetup,
               ),
           }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
           new Phase('Deploy JSON-RPC Relay', {
-            asListrTask: (
-              getConfig_: () => OneShotSingleDeployConfigClass,
-            ): SoloListrTask<OneShotSingleDeployContext> =>
+            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
                 `solo ${RelayCommandDefinition.ADD_COMMAND}`,
                 RelayCommandDefinition.ADD_COMMAND,
-                (): string[] => DeployArgvBuilders.buildRelayArgv(getConfig_()),
+                (): string[] => DeployArgvBuilders.buildRelayArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig_().deployRelay && !getConfig_().minimalSetup,
+                (): boolean => !getConfig().deployRelay && !getConfig().minimalSetup,
               ),
           })
             .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
             .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(5)),
         ],
-        (getConfig_: () => OneShotSingleDeployConfigClass): ExecutionMode =>
-          getConfig_().parallelDeploy ? Phase.EXECUTION_MODE.CONCURRENT : Phase.EXECUTION_MODE.SEQUENTIAL,
+        (getConfig: () => OneShotSingleDeployConfigClass): ExecutionMode =>
+          getConfig().parallelDeploy ? Phase.EXECUTION_MODE.CONCURRENT : Phase.EXECUTION_MODE.SEQUENTIAL,
         true,
         {collapseSubtasks: false},
       ),
       new Phase('Finish', {
-        asListrTask: (getConfig_: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Finish',
           task: async (context_: OneShotSingleDeployContext): Promise<void> => {
-            const deployConfig: OneShotSingleDeployConfigClass = getConfig_();
+            const deployConfig: OneShotSingleDeployConfigClass = getConfig();
             const outputDirectory: string = this.getOneShotOutputDirectory(context_.config.deployment);
             this.logger.info(`Output directory: ${outputDirectory}`);
             this.showOneShotUserNotes(context_, PathEx.join(outputDirectory, 'notes'));
@@ -528,7 +521,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       phases.map(
         (
           phase: Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
-        ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfig, this.eventBus),
+        ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfigGlobal, this.eventBus),
       ),
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDeployContext>,
     );

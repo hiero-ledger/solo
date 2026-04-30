@@ -6,7 +6,16 @@ import {type CommandFlags} from '../../../../types/flag-types.js';
 import {type ArgvStruct} from '../../../../types/aliases.js';
 import {type Pipeline} from '../pipeline.js';
 
+/**
+ * Interface for the One-Shot Destroy Orchestrator, responsible for building the destruction pipeline for one-shot destroy commands.
+ */
 export interface OneShotDestroyOrchestrator {
+  /**
+   * Builds the destruction pipeline for a one-shot destroy command.
+   * @param argv
+   * @param flagsList
+   * @param leaseReference
+   */
   buildDestroyPipeline(
     argv: ArgvStruct,
     flagsList: CommandFlags,

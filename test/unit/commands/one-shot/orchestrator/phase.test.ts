@@ -9,9 +9,10 @@ import {type SoloEventBus} from '../../../../../src/core/events/solo-event-bus.j
 import {SoloEventType} from '../../../../../src/core/events/event-types/event-types.js';
 import {Duration} from '../../../../../src/core/time/duration.js';
 import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../../src/types/index.js';
+import {type AnyObject} from '../../../../../src/types/aliases.js';
 
 type SimpleConfig = {deployment: string};
-type SimpleContext = object;
+type SimpleContext = AnyObject;
 
 describe('Phase', (): void => {
   let stepTaskStub: SoloListrTask<SimpleContext>;

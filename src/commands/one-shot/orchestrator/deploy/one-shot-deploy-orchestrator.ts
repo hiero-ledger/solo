@@ -7,7 +7,17 @@ import {type CommandFlags} from '../../../../types/flag-types.js';
 import {type ArgvStruct} from '../../../../types/aliases.js';
 import {type Pipeline} from '../pipeline.js';
 
+/**
+ * Interface for the One-Shot Deploy Orchestrator, responsible for building the deployment pipeline for one-shot deploy commands.
+ */
 export interface OneShotDeployOrchestrator {
+  /**
+   * Builds the deployment pipeline for a one-shot deploy command.
+   * @param argv
+   * @param flagsList
+   * @param leaseReference
+   * @param configReference
+   */
   buildDeployPipeline(
     argv: ArgvStruct,
     flagsList: CommandFlags,

@@ -5,6 +5,7 @@ import {type AnySoloEvent, type SoloEventType} from '../../../core/events/event-
 import {type SoloEventBus} from '../../../core/events/solo-event-bus.js';
 import {Duration} from '../../../core/time/duration.js';
 import {type OrchestratorStep} from './orchestrator-step.js';
+import {ExecutionMode} from './execution-mode.js';
 
 type DeploymentEvent = AnySoloEvent & {deployment: string};
 
@@ -13,40 +14,24 @@ type WaitCondition = {
   timeout: Duration;
 };
 
-export type ExecutionMode = 'sequential' | 'concurrent';
-
 export class Phase<TConfig extends {deployment: string}, TContext> {
   private readonly waitConditions: WaitCondition[] = [];
-  private readonly title: string;
-  private readonly step: OrchestratorStep<TConfig, TContext> | undefined;
-  private readonly subPhases: ReadonlyArray<Phase<TConfig, TContext>>;
-  private readonly executionMode: ExecutionMode | ((getConfig: () => TConfig) => ExecutionMode);
-  private readonly exitOnError: boolean;
-  private readonly rendererOptions: object | undefined;
-  private readonly skipFunction: ((getConfig: () => TConfig) => boolean) | undefined;
 
   public static EXECUTION_MODE: {SEQUENTIAL: ExecutionMode; CONCURRENT: ExecutionMode} = {
-    SEQUENTIAL: 'sequential',
-    CONCURRENT: 'concurrent',
+    SEQUENTIAL: ExecutionMode.SEQUENTIAL,
+    CONCURRENT: ExecutionMode.CONCURRENT,
   };
 
   public constructor(
-    title: string,
-    step: OrchestratorStep<TConfig, TContext> | undefined,
-    subPhases: ReadonlyArray<Phase<TConfig, TContext>> = [],
-    executionMode: ExecutionMode | ((getConfig: () => TConfig) => ExecutionMode) = Phase.EXECUTION_MODE.SEQUENTIAL,
-    exitOnError: boolean = true,
-    rendererOptions?: object,
-    skipFunction?: (getConfig: () => TConfig) => boolean,
-  ) {
-    this.title = title;
-    this.step = step;
-    this.subPhases = subPhases;
-    this.executionMode = executionMode;
-    this.exitOnError = exitOnError;
-    this.rendererOptions = rendererOptions;
-    this.skipFunction = skipFunction;
-  }
+    private readonly title: string,
+    private readonly step: OrchestratorStep<TConfig, TContext> | undefined,
+    private readonly subPhases: ReadonlyArray<Phase<TConfig, TContext>> = [],
+    private readonly executionMode: ExecutionMode | ((getConfig: () => TConfig) => ExecutionMode) = Phase.EXECUTION_MODE
+      .SEQUENTIAL,
+    private readonly exitOnError: boolean = true,
+    private readonly rendererOptions?: object,
+    private readonly skipFunction?: (getConfig: () => TConfig) => boolean,
+  ) {}
 
   public static composite<TConfig extends {deployment: string}, TContext>(
     title: string,
@@ -76,11 +61,7 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
     if (this.subPhases.length > 0) {
       return {
         title: this.title,
-        ...(this.skipFunction
-          ? {
-              skip: (): boolean => (this.skipFunction as (getConfig: () => TConfig) => boolean)(getConfig),
-            }
-          : {}),
+        skip: this.skipFunction ? this.skipFunction(getConfig) : false,
         task: (_: TContext, task: SoloListrTaskWrapper<TContext>): SoloListr<TContext> => {
           const isConcurrent: boolean =
             typeof this.executionMode === 'function'
