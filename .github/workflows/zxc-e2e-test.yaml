@@ -374,7 +374,7 @@ jobs:
           timeout_minutes: 30
           command: |
             if [ -z "${{ inputs.consensus-node-version }}" ]; then
-                export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
+                export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
             else
                 export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
             fi
@@ -447,7 +447,7 @@ jobs:
                   if [[ "${{ inputs.test-script }}" == "test-e2e-block-node" ]]; then
                     echo "Use default from version.ts for block node test"
                   else
-                    export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
+                    export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
                   fi
               fi
           else

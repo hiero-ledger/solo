@@ -138,11 +138,11 @@ jobs:
         id: versions
         run: |
           # Read defaults from version.ts and allow input overrides
-          DEFAULT_CN=$(awk -F"'" '/^export const HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_BN=$(awk -F"'" '/^export const BLOCK_NODE_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_MN=$(awk -F"'" '/^export const MIRROR_NODE_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_RELAY=$(awk -F"'" '/^export const HEDERA_JSON_RPC_RELAY_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_EXPLORER=$(awk -F"'" '/^export const EXPLORER_VERSION/ {print $(NF-1); exit}' version.ts)
+          DEFAULT_CN=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
+          DEFAULT_BN=$(awk -v RS=';' '/export const BLOCK_NODE_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
+          DEFAULT_MN=$(awk -v RS=';' '/export const MIRROR_NODE_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
+          DEFAULT_RELAY=$(awk -v RS=';' '/export const HEDERA_JSON_RPC_RELAY_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
+          DEFAULT_EXPLORER=$(awk -v RS=';' '/export const EXPLORER_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
 
           CN_VERSION="${{ inputs.consensus-node-version }}"
           BN_VERSION="${{ inputs.block-node-version }}"
