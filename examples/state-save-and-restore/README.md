@@ -171,7 +171,7 @@ The `init.sh` script sets up the PostgreSQL database with:
 
 1. **Database Recreation**: Deploys fresh PostgreSQL and runs `init.sh` to create database structure (database, schemas, roles, users, extensions)
 2. **Database Restore**: Imports database dump which drops and recreates tables with all data
-3. **Network Recreation**: Creates new network with identical configuration
+3. **Consensus Stop**: Stops existing consensus nodes before restore so state can be replaced safely
 4. **Stable Service Validation**: Verifies per-node service DNS names are resolvable (`network-<node>-svc.<namespace>.svc.cluster.local`)
 5. **Restore Input Build**: Builds `./saved-states/restore-input/states/<cluster-ref>/<namespace>/` and copies each node's state zip
 6. **State Upload and Start**: Starts all nodes together with `solo consensus node start --state-file ./saved-states/restore-input`
@@ -188,7 +188,7 @@ The `init.sh` script sets up the PostgreSQL database with:
 * External PostgreSQL database provides data persistence and queryability
 * State restoration maintains transaction history and account balances
 * Mirror node will resume from the restored state point
-* **Per-node State Restore**: Uses each node's own state zip and starts all nodes together
+* **Per-node State Restore**: Uses each node's own state zip and starts all nodes together on the existing network pods
 * Stable per-node service names are validated before restore start
 * Database dump includes all mirror node data (transactions, accounts, etc.)
 

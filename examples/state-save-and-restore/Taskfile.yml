@@ -215,6 +215,7 @@ tasks:
     cmds:
       - task: destroy-database
       - task: deploy-external-database
+      - task: stop-network
       - task: deploy-network-with-state
       - task: restore-database
       - task: verify-state
@@ -224,8 +225,10 @@ tasks:
     desc: Deploy network and upload saved state
     cmds:
       - cmd: echo "Deploying network with saved state..."
-      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: |
+          echo "Reusing existing consensus network pods for restore to keep service IPs stable..."
+          kubectl get pod network-node1-0 -n {{ .NAMESPACE }} >/dev/null
+          kubectl get pod network-node2-0 -n {{ .NAMESPACE }} >/dev/null
       - cmd: |
           echo "Validating stable per-node service DNS names..."
           for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
