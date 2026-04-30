@@ -311,7 +311,7 @@ export class ClusterCommandTasks {
             constants.METRICS_SERVER_INSTALL_ARGS,
             context,
           );
-          this.logger.showUser('✅ metrics-server chart installed successfully');
+          this.logger.showUser('metrics-server chart installed successfully');
         } catch (error) {
           this.logger.debug('Error installing metrics-server chart', error);
           try {
