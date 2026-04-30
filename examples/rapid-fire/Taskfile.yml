@@ -16,6 +16,8 @@ vars:
   SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
   HELISWAP_CREATOR_TOP_UP_HBAR: "50000"
+  APPLICATION_PROPERTIES: "{{ .TASKFILE_DIR }}/application.properties"
+  APPLICATION_PROPERTIES_FLAG: "--application-properties {{.APPLICATION_PROPERTIES}}"
 
 tasks:
   deploy:
