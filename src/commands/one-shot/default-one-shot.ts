@@ -48,6 +48,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.minimalSetup,
       flags.rollback,
       flags.parallelDeploy,
+      flags.externalAddress,
     ],
   };
 
@@ -76,6 +77,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployRelay,
       flags.rollback,
       flags.parallelDeploy,
+      flags.externalAddress,
     ],
   };
 
