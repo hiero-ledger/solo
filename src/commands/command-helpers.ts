@@ -160,7 +160,7 @@ export function appendConfigToArgv(argv: string[], configSection: AnyObject): vo
     return;
   }
   for (const [key, value] of Object.entries(configSection)) {
-    if (value !== undefined && value !== null && value !== '' && key !== '--deployment') {
+    if (value !== undefined && value !== null && value !== '' && key !== optionFromFlag(flags.deployment)) {
       argv.push(`${key}`, value.toString());
     }
   }
