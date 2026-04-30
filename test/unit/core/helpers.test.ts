@@ -4,6 +4,9 @@ import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import each from 'mocha-each';
 import {Flags as flags} from '../../../src/commands/flags.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
+import {type ConfigMap} from '../../../src/integration/kube/resources/config-map/config-map.js';
+import yaml from 'yaml';
 
 import * as helpers from '../../../src/core/helpers.js';
 
@@ -42,5 +45,43 @@ describe('Helpers', (): void => {
     const ipV4Address: string = '192.168.0.1';
     const byteString: string = helpers.ipV4ToBase64(ipV4Address);
     expect(byteString).to.equal('wKgAAQ==');
+  });
+
+  describe('remoteConfigsToDeploymentsTable', (): void => {
+    it('should support clusters as an object map', (): void => {
+      const remoteConfigs: ConfigMap[] = [
+        {
+          namespace: NamespaceName.of('default'),
+          name: 'remote-config',
+          data: {
+            'remote-config-data': yaml.stringify({
+              clusters: {
+                clusterA: {deployment: 'deployment-a'},
+              },
+            }),
+          },
+        },
+      ];
+
+      const rows: string[] = helpers.remoteConfigsToDeploymentsTable(remoteConfigs);
+
+      expect(rows).to.deep.equal(['Namespace : deployment', 'default : deployment-a']);
+    });
+
+    it('should return header only when clusters is missing', (): void => {
+      const remoteConfigs: ConfigMap[] = [
+        {
+          namespace: NamespaceName.of('default'),
+          name: 'remote-config',
+          data: {
+            'remote-config-data': yaml.stringify({}),
+          },
+        },
+      ];
+
+      const rows: string[] = helpers.remoteConfigsToDeploymentsTable(remoteConfigs);
+
+      expect(rows).to.deep.equal(['Namespace : deployment']);
+    });
   });
 });
