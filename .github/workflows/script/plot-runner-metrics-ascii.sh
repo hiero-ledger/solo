@@ -193,7 +193,10 @@ else
   fi
 
   # Category aggregation — uses full (untruncated) pod list
-  # Excludes: metallb-system namespace, network-load-generator pods and metrics-server pods
+  # Excludes from total/category summary:
+  # - metallb-system namespace
+  # - network-load-generator pods
+  # - metrics-server pods
   # Categories:
   #   mirror   — mirror-* pods + solo-shared-resources-postgres/redis
   #   relay    — relay* pods (relay, relay-ws)

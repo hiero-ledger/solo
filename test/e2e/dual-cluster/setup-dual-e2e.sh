@@ -145,7 +145,7 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
 
     kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
   else
-    echo "Skipping metallb install for single-cluster test run"
+    echo "Skipping metallb install (single-cluster or explicitly disabled via SOLO_SKIP_METALLB)"
   fi
 
   # Deploy the diagnostics container if not running in CI
