@@ -109,11 +109,9 @@ export class Address {
           }
         }
 
-        // When no LoadBalancer IP is available (e.g., Kind/NodePort), use the cluster IP
-        // to avoid placing an FQDN in gossip endpoints (which causes GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN).
-        if (svc.spec?.clusterIP && svc.spec.clusterIP !== 'None') {
-          return new Address(port, svc.spec.clusterIP);
-        }
+        // Do not use Service clusterIP as fallback here.
+        // clusterIP values are ephemeral across redeploy/restore cycles and can strand
+        // restored nodes with stale gossip endpoints.
       }
     } catch {
       // Ignore and use FQDN
