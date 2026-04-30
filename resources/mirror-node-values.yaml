@@ -15,6 +15,9 @@ redis:
 # importer is a component of the hiero mirror node
 # config for subchart hiero-mirror/importer
 importer:
+  image:
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/importer
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
