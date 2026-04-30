@@ -88,7 +88,7 @@ export const S6_NODE_IMAGE_REPOSITORY: string =
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
 export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
   ? ignorePodMetricsEnvironment.split(',')
-  : ['network-load-generator'];
+  : ['network-load-generator', 'metrics-server'];
 
 export const HEDERA_NODE_SIDECARS: string[] = [
   'recordStreamUploader',

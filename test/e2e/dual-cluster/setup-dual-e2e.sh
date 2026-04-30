@@ -137,8 +137,8 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   # Wait for metrics server to be ready
   kubectl wait --for=condition=available --timeout=300s deployment/metrics-server -n kube-system
 
-  # Only install metallb when running multi-cluster (metalLB is unnecessary for our single-cluster KinD E2E)
-  if [[ "${SOLO_CLUSTER_DUALITY}" -gt 1 ]]; then
+  # Install metallb only for multi-cluster unless explicitly skipped
+  if [[ "${SOLO_CLUSTER_DUALITY}" -gt 1 && "${SOLO_SKIP_METALLB}" != "1" ]]; then
     helm upgrade --install metallb metallb/metallb \
       --namespace metallb-system --create-namespace --atomic --wait \
       --set speaker.frr.enabled=true
