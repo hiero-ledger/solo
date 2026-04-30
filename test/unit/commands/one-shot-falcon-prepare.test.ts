@@ -6,6 +6,7 @@ import yaml from 'yaml';
 import {DefaultOneShotCommand} from '../../../src/commands/one-shot/default-one-shot.js';
 import {type FalconPrepareConfig} from '../../../src/commands/one-shot/falcon-prepare-config.js';
 import {Flags} from '../../../src/commands/flags.js';
+import {type CommandFlag} from '../../../src/types/flag-types.js';
 import {negatedOptionFromFlag, optionFromFlag} from '../../../src/commands/command-helpers.js';
 
 function createDefaultConfig(overrides: Partial<FalconPrepareConfig> = {}): FalconPrepareConfig {
@@ -48,26 +49,22 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
     const output: string = DefaultOneShotCommand.generateFalconValuesYaml(config);
     const parsed: Record<string, Record<string, string>> = yaml.parse(output);
 
-    expect(parsed.network[optionFromFlag(Flags.releaseTag)]).to.equal(Flags.releaseTag.definition.defaultValue);
-    expect(parsed.setup[optionFromFlag(Flags.releaseTag)]).to.equal(Flags.releaseTag.definition.defaultValue);
-    expect(parsed.mirrorNode[optionFromFlag(Flags.mirrorNodeVersion)]).to.equal(
-      Flags.mirrorNodeVersion.definition.defaultValue,
-    );
-    expect(parsed.relayNode[optionFromFlag(Flags.relayReleaseTag)]).to.equal(
-      Flags.relayReleaseTag.definition.defaultValue,
-    );
-    expect(parsed.blockNode[optionFromFlag(Flags.blockNodeChartVersion)]).to.equal(
-      Flags.blockNodeChartVersion.definition.defaultValue,
-    );
-    expect(parsed.explorerNode[optionFromFlag(Flags.explorerVersion)]).to.equal(
-      Flags.explorerVersion.definition.defaultValue,
-    );
-    expect(parsed.network[optionFromFlag(Flags.soloChartVersion)]).to.equal(
-      Flags.soloChartVersion.definition.defaultValue,
-    );
-    expect(parsed.explorerNode[optionFromFlag(Flags.soloChartVersion)]).to.equal(
-      Flags.soloChartVersion.definition.defaultValue,
-    );
+    function expectFlagValue(
+      section: Record<string, string>,
+      flag: CommandFlag,
+      expected: string | number | boolean,
+    ): void {
+      expect(section[optionFromFlag(flag)], `${optionFromFlag(flag)} in section`).to.equal(expected);
+    }
+
+    expectFlagValue(parsed.network, Flags.releaseTag, Flags.releaseTag.definition.defaultValue);
+    expectFlagValue(parsed.setup, Flags.releaseTag, Flags.releaseTag.definition.defaultValue);
+    expectFlagValue(parsed.mirrorNode, Flags.mirrorNodeVersion, Flags.mirrorNodeVersion.definition.defaultValue);
+    expectFlagValue(parsed.relayNode, Flags.relayReleaseTag, Flags.relayReleaseTag.definition.defaultValue);
+    expectFlagValue(parsed.blockNode, Flags.blockNodeChartVersion, Flags.blockNodeChartVersion.definition.defaultValue);
+    expectFlagValue(parsed.explorerNode, Flags.explorerVersion, Flags.explorerVersion.definition.defaultValue);
+    expectFlagValue(parsed.network, Flags.soloChartVersion, Flags.soloChartVersion.definition.defaultValue);
+    expectFlagValue(parsed.explorerNode, Flags.soloChartVersion, Flags.soloChartVersion.definition.defaultValue);
   });
 
   it('should apply user-provided version overrides', (): void => {
