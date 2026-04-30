@@ -55,6 +55,7 @@ export class DeployArgvBuilders {
     // Append HikariCP limits file without mutating the shared config object.
     const mirrorExistingValuesFile: string = config.mirrorNodeConfiguration?.['--values-file'];
     const mirrorLocalConfig: AnyObject = {
+      [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
       ...config.mirrorNodeConfiguration,
       '--values-file': mirrorExistingValuesFile
         ? `${mirrorExistingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
@@ -74,6 +75,7 @@ export class DeployArgvBuilders {
       config.clusterRef,
     );
     appendConfigToArgv(argv, {
+      [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
       [optionFromFlag(Flags.explorerVersion)]: config.versions.explorer,
       [optionFromFlag(Flags.mirrorNodeId)]: MIRROR_NODE_ID,
       [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
@@ -94,6 +96,7 @@ export class DeployArgvBuilders {
       'node1',
     );
     appendConfigToArgv(argv, {
+      [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
       [optionFromFlag(Flags.mirrorNodeId)]: MIRROR_NODE_ID,
       [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
       ...config.relayNodeConfiguration,
@@ -132,7 +135,10 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.deployment),
       config.deployment,
     );
-    appendConfigToArgv(argv, config.consensusNodeConfiguration);
+    appendConfigToArgv(argv, {
+      [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
+      ...config.consensusNodeConfiguration,
+    });
     return argvPushGlobalFlags(argv);
   }
 
