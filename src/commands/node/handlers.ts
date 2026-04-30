@@ -151,6 +151,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private addSubmitTransactionsTasks(): SoloListrTask<NodeAddContext>[] {
     return [
       this.tasks.sendNodeCreateTransaction(),
+      this.tasks.waitForRosterNodeCertificate(),
       this.tasks.sendPrepareUpgradeTransaction() as SoloListrTask<NodeAddContext>,
       this.tasks.sendFreezeUpgradeTransaction() as SoloListrTask<NodeAddContext>,
     ];
@@ -201,6 +202,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private updateSubmitTransactionsTasks(): SoloListrTask<NodeUpdateContext>[] {
     return [
       this.tasks.sendNodeUpdateTransaction(),
+      this.tasks.waitForRosterNodeCertificate(),
       this.tasks.sendPrepareUpgradeTransaction() as SoloListrTask<NodeUpdateContext>,
       this.tasks.sendFreezeUpgradeTransaction() as SoloListrTask<NodeUpdateContext>,
     ];

@@ -178,6 +178,7 @@ import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templat
 import {type ConfigProvider} from '../../data/configuration/api/config-provider.js';
 import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.js';
 import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
+import {proto} from '@hiero-ledger/proto';
 
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
@@ -3876,6 +3877,63 @@ export class NodeCommandTasks {
         } catch (error) {
           throw new SoloError(`Error adding node to network: ${error.message}`, error);
         }
+      },
+    };
+  }
+
+  public waitForRosterNodeCertificate(
+    nodeAliasFieldName: 'nodeAlias' = 'nodeAlias',
+  ): SoloListrTask<NodeAddContext | NodeUpdateContext> {
+    return {
+      title: 'Wait for roster update with gossip certificate',
+      task: async (context_): Promise<void> => {
+        const config: NodeAddConfigClass | NodeUpdateConfigClass = context_.config;
+        const nodeAlias: NodeAlias = config[nodeAliasFieldName];
+        const expectedNodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+        const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+        const maxAttempts: number = 10;
+        const retryDelayMillis: number = 3000;
+
+        for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+          const addressBookBase64: string = await this.accountManager.prepareAddressBookBase64(
+            config.namespace,
+            clusterReferences,
+            config.deployment,
+            '',
+            '',
+            false,
+          );
+
+          const addressBookBytes: Buffer = Buffer.from(addressBookBase64, 'base64');
+          const addressBook = proto.NodeAddressBook.decode(addressBookBytes) as any;
+          const nodeAddresses: any[] = addressBook?.nodeAddress ?? [];
+
+          const matchingNode = nodeAddresses.find((entry: any): boolean => {
+            const descriptionMatches: boolean = entry?.description === nodeAlias;
+            const nodeIdMatches: boolean = Number(entry?.nodeId) === expectedNodeId;
+            return descriptionMatches || nodeIdMatches;
+          });
+
+          const hasGossipCertificate: boolean = !!matchingNode?.RSA_PubKey;
+
+          if (matchingNode && hasGossipCertificate) {
+            this.logger.debug(
+              `Roster contains node ${nodeAlias} (nodeId=${expectedNodeId}) with gossip certificate after attempt ${attempt}/${maxAttempts}`,
+            );
+            return;
+          }
+
+          if (attempt < maxAttempts) {
+            this.logger.debug(
+              `Roster is not updated for ${nodeAlias} yet (attempt ${attempt}/${maxAttempts}); retrying in ${retryDelayMillis}ms`,
+            );
+            await sleep(Duration.ofMillis(retryDelayMillis));
+          }
+        }
+
+        throw new SoloError(
+          `Roster did not include node ${nodeAlias} (nodeId=${expectedNodeId}) with gossip certificate after ${maxAttempts} attempts`,
+        );
       },
     };
   }
