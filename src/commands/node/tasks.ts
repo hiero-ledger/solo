@@ -1294,15 +1294,12 @@ export class NodeCommandTasks {
 
           // Determine the state file to use
           let zipFile: string;
-          if (
-            stateFileDirectory &&
-            fs.existsSync(stateFileDirectory) &&
-            fs.statSync(stateFileDirectory).isDirectory()
-          ) {
+          const stateInputPath: string = stateFileDirectory || config.stateFile;
+          if (stateInputPath && fs.existsSync(stateInputPath) && fs.statSync(stateInputPath).isDirectory()) {
             // It's a directory - find the state file for this specific pod
             const podName: any = podReference.name.name;
             const statesDirectory: string = PathEx.join(
-              stateFileDirectory,
+              stateInputPath,
               'states',
               clusterReference,
               config.namespace.name,
@@ -1326,7 +1323,7 @@ export class NodeCommandTasks {
             this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
           } else {
             // It's a single file or use default from config
-            zipFile = stateFileDirectory || config.stateFile;
+            zipFile = stateInputPath;
           }
 
           this.logger.debug(`Uploading state files to pod ${podReference.name}`);
