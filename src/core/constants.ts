@@ -26,7 +26,7 @@ export const SOLO_HOME_DIR: string =
 export const SOLO_LOGS_DIR: string = PathEx.join(SOLO_HOME_DIR, 'logs');
 export const SOLO_CACHE_DIR: string = getEnvironmentVariable('SOLO_CACHE_DIR') || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR: string = PathEx.join(SOLO_CACHE_DIR, 'values-files');
-export const SOLO_LOG_LEVEL: string = getEnvironmentVariable('SOLO_LOG_LEVEL') || 'info';
+export const SOLO_LOG_LEVEL: string = getEnvironmentVariable('SOLO_LOG_LEVEL') || 'debug';
 export const DEFAULT_NAMESPACE: NamespaceName = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE: NamespaceName = NamespaceName.of('cert-manager');
 export const HELM: string = 'helm';
@@ -47,7 +47,7 @@ export const KIND_NODE_IMAGE: string =
   'kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211';
 
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
-export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
+export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || true;
 export const ENABLE_S6_IMAGE: boolean = getEnvironmentVariable('ENABLE_S6_IMAGE') === 'true' || true;
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
@@ -193,6 +193,7 @@ export const SOLO_HEDERA_MIRROR_IMPORTER: string[] = [
 // Component label selectors for pod discovery
 export const SOLO_RELAY_NAME_LABEL: string = 'app.kubernetes.io/name=relay';
 export const SOLO_MIRROR_IMPORTER_NAME_LABEL: string = 'app.kubernetes.io/name=importer';
+export const SOLO_MIRROR_PINGER_NAME_LABEL: string = 'app.kubernetes.io/name=pinger';
 export const SOLO_MIRROR_GRPC_NAME_LABEL: string = 'app.kubernetes.io/name=grpc';
 export const SOLO_MIRROR_MONITOR_NAME_LABEL: string = 'app.kubernetes.io/name=monitor';
 export const SOLO_MIRROR_REST_NAME_LABEL: string = 'app.kubernetes.io/name=rest';

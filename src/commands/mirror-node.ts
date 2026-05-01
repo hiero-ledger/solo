@@ -1351,8 +1351,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
+              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.senderAccountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.recipientAccountId=${pingerRecipientAccountId}`;
               config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_ID=${operatorId}`;
+              config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_TO_ACCOUNT_ID=${pingerRecipientAccountId}`;
 
               if (config.operatorKey) {
                 this.logger.info('Using provided operator key');
@@ -1609,8 +1613,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
+              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.senderAccountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.recipientAccountId=${pingerRecipientAccountId}`;
               config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_ID=${operatorId}`;
+              config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_TO_ACCOUNT_ID=${pingerRecipientAccountId}`;
 
               if (config.operatorKey) {
                 this.logger.info('Using provided operator key');
