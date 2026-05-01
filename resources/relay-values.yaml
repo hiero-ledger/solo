@@ -21,5 +21,3 @@ relay:
     limits:
       cpu: 500m
       memory: 250Mi
-ws:
-  enabled: false
