@@ -938,7 +938,8 @@ export class ConsensusNodeTest extends BaseCommandTest {
       refresh,
       verifyPodShouldNotBeActive,
       verifyPodShouldBeRunning,
-      soloNodeStartArgv, soloConsensusNodeStopArgv,
+      soloNodeStartArgv,
+      soloConsensusNodeStopArgv,
     } = ConsensusNodeTest;
 
     const nodeAlias: NodeAlias = 'node2';
@@ -959,7 +960,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
       await checkNetwork(testName, namespace, testLogger);
 
-      await main(soloNodeStartArgv(testName, deployment, undefined, false));
+      await main(soloNodeStartArgv(testName, deployment, consensusNodesCount, undefined, false));
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20));
     }).timeout(Duration.ofMinutes(10).toMillis());
