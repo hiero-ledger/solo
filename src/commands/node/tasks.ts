@@ -1585,15 +1585,23 @@ export class NodeCommandTasks {
           'did not become TSS ready',
           1,
           this.soloConfig.tss.timeoutAfterReadySeconds,
+          true, // TSS ready is logged once at startup; check absolute presence, not new occurrence
         ) as SoloListr<NodeStartContext>,
     };
   }
 
   /**
-   * Polls hgcaa.log on each of the given nodes until `logMessage` appears at least
-   * `requiredNewCount` times more than when the subtask first successfully reads the log.
-   * The baseline-count approach avoids false-positives from messages already present in
-   * the log (e.g. the genesis hinTS completion logged as construction #1).
+   * Polls hgcaa.log on each of the given nodes until the success condition is met.
+   *
+   * Two modes:
+   * - Baseline mode (default, `absoluteCount = false`): succeeds when `logMessage` appears
+   *   at least `requiredCount` times MORE than it did on the first successful read.
+   *   Avoids false-positives from messages already present in the log (e.g. the genesis
+   *   hinTS completion logged as construction #1).
+   * - Absolute mode (`absoluteCount = true`): succeeds when `logMessage` appears at least
+   *   `requiredCount` times in total. Use this for messages that are logged exactly once
+   *   at startup (e.g. "TSS protocol ready to sign blocks").
+   *
    * Container acquisition is retried inside the loop so this works for nodes that were
    * just started and may not be accessible yet.
    */
@@ -1602,8 +1610,9 @@ export class NodeCommandTasks {
     consensusNodes: ConsensusNode[],
     logMessage: string,
     errorSuffix: string,
-    requiredNewCount: number = 1,
+    requiredCount: number = 1,
     postSuccessDelaySeconds: number = 0,
+    absoluteCount: boolean = false,
   ): SoloListr<AnyListrContext> {
     const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
     const countOccurrences = (output: string): number =>
@@ -1629,9 +1638,17 @@ export class NodeCommandTasks {
               );
               const currentCount: number = countOccurrences(await nodeContainer.execContainer(['cat', hgcaaLogPath]));
 
-              if (baselineCount === undefined) {
+              if (absoluteCount) {
+                if (currentCount >= requiredCount) {
+                  if (postSuccessDelaySeconds > 0) {
+                    await sleep(Duration.ofSeconds(postSuccessDelaySeconds));
+                  }
+                  success = true;
+                  break;
+                }
+              } else if (baselineCount === undefined) {
                 baselineCount = currentCount;
-              } else if (currentCount >= baselineCount + requiredNewCount) {
+              } else if (currentCount >= baselineCount + requiredCount) {
                 if (postSuccessDelaySeconds > 0) {
                   await sleep(Duration.ofSeconds(postSuccessDelaySeconds));
                 }
