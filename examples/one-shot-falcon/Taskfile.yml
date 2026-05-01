@@ -17,6 +17,10 @@ vars:
   TEMP_DIR: "{{ .USER_WORKING_DIR }}/.tmp"
   KILLED_PORT_FILE: "{{ .TEMP_DIR }}/killed_port.txt"
   EXPECTED_PORT_COUNT_FILE: "{{ .TEMP_DIR }}/expected_port_count.txt"
+  RELEASE_TAG:
+    sh: |
+      awk -v RS=';' '/HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/{s=$0;v="";while(match(s,/'"'"'[^'"'"']*'"'"'/)){v=substr(s,RSTART+1,RLENGTH-2);s=substr(s,RSTART+RLENGTH)};if(v!="")print v}' \
+        "$(git rev-parse --show-toplevel)/version.ts"
 
 tasks:
   deploy:
@@ -39,26 +43,41 @@ tasks:
 
       # Solo one-shot falcon deploy
       - cmd: |
+          RESOLVED=$(mktemp /tmp/falcon-values-XXXX.yaml)
+          SOLO_RELEASE_TAG="{{ .RELEASE_TAG }}" SOLO_RELEASE_TAG_NO_V="{{ .RELEASE_TAG | trimPrefix "v" }}" \
+            envsubst '${SOLO_RELEASE_TAG} ${SOLO_RELEASE_TAG_NO_V}' \
+            < {{ .USER_WORKING_DIR }}/falcon-values.yaml > "${RESOLVED}"
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 --no-rollback
+            --values-file "${RESOLVED}" --num-consensus-nodes 2 --no-rollback
+          rm -f "${RESOLVED}"
 
   deploy-minimal:
     desc: Deploy with consensus and mirror node only (without explorer and relay)
     cmds:
       # Solo one-shot falcon deploy with disabled components
       - cmd: |
+          RESOLVED=$(mktemp /tmp/falcon-values-XXXX.yaml)
+          SOLO_RELEASE_TAG="{{ .RELEASE_TAG }}" SOLO_RELEASE_TAG_NO_V="{{ .RELEASE_TAG | trimPrefix "v" }}" \
+            envsubst '${SOLO_RELEASE_TAG} ${SOLO_RELEASE_TAG_NO_V}' \
+            < {{ .USER_WORKING_DIR }}/falcon-values.yaml > "${RESOLVED}"
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
-          --deploy-explorer=false --deploy-relay=false
+            --values-file "${RESOLVED}" --num-consensus-nodes 2 \
+            --deploy-explorer=false --deploy-relay=false
+          rm -f "${RESOLVED}"
 
   deploy-consensus-only:
     desc: Deploy consensus nodes only (without mirror, explorer, and relay)
     cmds:
       # Solo one-shot falcon deploy with only consensus nodes
       - cmd: |
+          RESOLVED=$(mktemp /tmp/falcon-values-XXXX.yaml)
+          SOLO_RELEASE_TAG="{{ .RELEASE_TAG }}" SOLO_RELEASE_TAG_NO_V="{{ .RELEASE_TAG | trimPrefix "v" }}" \
+            envsubst '${SOLO_RELEASE_TAG} ${SOLO_RELEASE_TAG_NO_V}' \
+            < {{ .USER_WORKING_DIR }}/falcon-values.yaml > "${RESOLVED}"
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
-          --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
+            --values-file "${RESOLVED}" --num-consensus-nodes 2 \
+            --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
+          rm -f "${RESOLVED}"
 
   test-refresh:
     desc: Kill one port-forward, then run deployment refresh port-forwards

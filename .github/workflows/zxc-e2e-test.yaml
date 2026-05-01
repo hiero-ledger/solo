@@ -235,7 +235,6 @@ env:
   SOLO_CLUSTER_DUALITY: ${{ (inputs.test-script == 'test-e2e-dual-cluster-full' || inputs.test-script == 'test-e2e-external-database') && 2 || 1 }}
   ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
   STEP_TIMEOUT_MINUTES: '5'
-  TEST_LOCAL_BLOCK_NODE_VERSION: 'v0.28.1'
 
 jobs:
   e2e-test:
@@ -408,8 +407,10 @@ jobs:
           max_attempts: 3
           timeout_minutes: 20
           command: |
+            TEST_LOCAL_BLOCK_NODE_VERSION=$(awk -v RS=';' '/PREV_BLOCK_NODE_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/{s=$0;v="";while(match(s,/'"'"'[^'"'"']*'"'"'/)){v=substr(s,RSTART+1,RLENGTH-2);s=substr(s,RSTART+RLENGTH)};if(v!="")print v}' version-test.ts)
+            echo "Using PREV_BLOCK_NODE_VERSION: ${TEST_LOCAL_BLOCK_NODE_VERSION}"
             cd ..
-            git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch ${{ env.TEST_LOCAL_BLOCK_NODE_VERSION}}
+            git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch ${TEST_LOCAL_BLOCK_NODE_VERSION}
             cd hiero-block-node
             
             # Configure apt to use multiple mirror sources with fallback
@@ -429,7 +430,7 @@ jobs:
             
             ./gradlew :block-node-app:createDockerImage
             timeout 30 kind get clusters
-            kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
+            kind load docker-image "block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION}" --name ${{ inputs.cluster-name }}-c1
             ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
             cd ../solo
 

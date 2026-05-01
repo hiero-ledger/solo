@@ -26,7 +26,7 @@ export const SOLO_HOME_DIR: string =
 export const SOLO_LOGS_DIR: string = PathEx.join(SOLO_HOME_DIR, 'logs');
 export const SOLO_CACHE_DIR: string = getEnvironmentVariable('SOLO_CACHE_DIR') || PathEx.join(SOLO_HOME_DIR, 'cache');
 export const SOLO_VALUES_DIR: string = PathEx.join(SOLO_CACHE_DIR, 'values-files');
-export const SOLO_LOG_LEVEL: string = getEnvironmentVariable('SOLO_LOG_LEVEL') || 'debug';
+export const SOLO_LOG_LEVEL: string = getEnvironmentVariable('SOLO_LOG_LEVEL') || 'info';
 export const DEFAULT_NAMESPACE: NamespaceName = NamespaceName.of('default');
 export const DEFAULT_CERT_MANAGER_NAMESPACE: NamespaceName = NamespaceName.of('cert-manager');
 export const HELM: string = 'helm';
@@ -302,7 +302,7 @@ export const HINTS_CEREMONY_COMPLETE_MSG: string = 'Completed hinTS scheme for c
 export const HINTS_CONSTRUCTION_HANDOFF_MSG: string = 'Updated hinTS construction in signing context to #';
 export const LEDGER_ID_SET_MSG: string = 'Set ledger id to';
 export const LEDGER_ID_EXTERNALIZED_MSG: string = 'Externalizing ledger id';
-export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'true';
+export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
 export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
 
 export const CONTAINER_COPY_MAX_ATTEMPTS: number = +getEnvironmentVariable('CONTAINER_COPY_MAX_ATTEMPTS') || 3;
@@ -456,7 +456,6 @@ export const JSON_RPC_RELAY_LOCAL_PORT: number = +getEnvironmentVariable('JSON_R
 export const EXPLORER_PORT: number = +getEnvironmentVariable('EXPLORER_PORT') || 8080;
 export const EXPLORER_LOCAL_PORT: number = +getEnvironmentVariable('EXPLORER_LOCAL_PORT') || 38_080;
 export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 38_081;
-export const MIRROR_NODE_REST_PORT: number = +getEnvironmentVariable('MIRROR_NODE_REST_PORT') || 5551;
 export const LOCAL_BUILD_COPY_RETRY: number = +getEnvironmentVariable('LOCAL_BUILD_COPY_RETRY') || 3;
 
 export const LOAD_BALANCER_CHECK_DELAY_SECS: number = +getEnvironmentVariable('LOAD_BALANCER_CHECK_DELAY_SECS') || 5;
