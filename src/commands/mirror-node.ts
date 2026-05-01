@@ -1183,7 +1183,7 @@ export class MirrorNodeCommand extends BaseCommand {
         }
 
         const restPod: Pod = restPods[0];
-        let localPort: number;
+        let localPort: number | undefined;
         let received: boolean = false;
         let lastStatus: string = 'no successful response received from mirror rest';
 
