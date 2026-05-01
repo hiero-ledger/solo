@@ -45,8 +45,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withConsensusNodesCount(2)
   .withLoadBalancerEnabled(true)
   .withPinger(true)
-  .withRealm(0)
-  .withShard(0)
+  .withRealm(3)
+  .withShard(2)
   .withServiceMonitor(true)
   .withPodLog(true)
   .withTestSuiteCallback(
@@ -90,7 +90,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.verifyDeploymentConfigInfo(options);
         ConsensusNodeTest.keys(options);
 
-        // BlockNodeTest.add(options);
+        BlockNodeTest.add(options);
 
         NetworkTest.deploy(options);
         ConsensusNodeTest.setup(options);
@@ -104,11 +104,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         ConsensusNodeTest.PemKill(options);
 
         ConsensusNodeTest.add(options);
-        // ConsensusNodeTest.update(options);
-        // ConsensusNodeTest.destroy(options);
+        ConsensusNodeTest.update(options);
+        ConsensusNodeTest.destroy(options);
 
-        // ExplorerTest.add(options);
-        // RelayTest.add(options);
+        ExplorerTest.add(options);
+        RelayTest.add(options);
 
         it('Should write log metrics', async (): Promise<void> => {
           await new MetricsServerImpl().logMetrics(
@@ -119,6 +119,14 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             contexts,
           );
         });
+
+        if (destroyEnabled()) {
+          BlockNodeTest.destroy(options);
+          RelayTest.destroy(options);
+          ExplorerTest.destroy(options);
+          MirrorNodeTest.destroy(options);
+          NetworkTest.destroy(options);
+        }
       }).timeout(Duration.ofMinutes(30).toMillis());
     },
   )
