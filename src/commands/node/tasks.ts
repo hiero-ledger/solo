@@ -1669,7 +1669,9 @@ export class NodeCommandTasks {
         // When source nodes hold ≤ 2/3 of the new roster's weight (equal-weight case:
         // existing * 3 <= total * 2), the platform uses InertHintsController and never
         // logs a ceremony completion message — skip the wait to avoid a guaranteed timeout.
-        return config.existingNodeAliases.length * 3 <= config.consensusNodes.length * 2;
+        // Use allNodeAliases (includes new node pushed by determineNewNodeAccountNumber)
+        // rather than consensusNodes (only populated from remote config, excludes new node).
+        return config.existingNodeAliases.length * 3 <= config.allNodeAliases.length * 2;
       },
       task: ({config}, task): SoloListr<NodeAddContext> => {
         const existingNodes: ConsensusNode[] = config.consensusNodes.filter((node: ConsensusNode): boolean =>
@@ -1697,7 +1699,7 @@ export class NodeCommandTasks {
         }
         // Same InertHintsController guard: when the ceremony is inert, neither the
         // ceremony completion nor the construction handoff message will ever appear.
-        return config.existingNodeAliases.length * 3 <= config.consensusNodes.length * 2;
+        return config.existingNodeAliases.length * 3 <= config.allNodeAliases.length * 2;
       },
       task: ({config}, task): SoloListr<NodeAddContext> => {
         const existingNodes: ConsensusNode[] = config.consensusNodes.filter((node: ConsensusNode): boolean =>
