@@ -1356,6 +1356,7 @@ export class MirrorNodeCommand extends BaseCommand {
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.senderAccountId=${operatorId}`;
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.recipientAccountId=${pingerRecipientAccountId}`;
               config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_ID=${operatorId}`;
+              config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_TO_ACCOUNT_ID=${pingerRecipientAccountId}`;
 
               if (config.operatorKey) {
                 this.logger.info('Using provided operator key');
@@ -1617,6 +1618,7 @@ export class MirrorNodeCommand extends BaseCommand {
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.senderAccountId=${operatorId}`;
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.recipientAccountId=${pingerRecipientAccountId}`;
               config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_ID=${operatorId}`;
+              config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_TO_ACCOUNT_ID=${pingerRecipientAccountId}`;
 
               if (config.operatorKey) {
                 this.logger.info('Using provided operator key');
