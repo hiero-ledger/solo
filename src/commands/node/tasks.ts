@@ -1659,9 +1659,18 @@ export class NodeCommandTasks {
   public waitForHintsCeremonyComplete(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Wait for hinTS ceremony to complete before freeze',
-      skip: (): boolean =>
-        !this.remoteConfig.configuration.state.tssEnabled ||
-        this.remoteConfig.configuration.state.blockNodes.length === 0,
+      skip: ({config}: NodeAddContext): boolean => {
+        if (
+          !this.remoteConfig.configuration.state.tssEnabled ||
+          this.remoteConfig.configuration.state.blockNodes.length === 0
+        ) {
+          return true;
+        }
+        // When source nodes hold ≤ 2/3 of the new roster's weight (equal-weight case:
+        // existing * 3 <= total * 2), the platform uses InertHintsController and never
+        // logs a ceremony completion message — skip the wait to avoid a guaranteed timeout.
+        return config.existingNodeAliases.length * 3 <= config.consensusNodes.length * 2;
+      },
       task: ({config}, task): SoloListr<NodeAddContext> => {
         const existingNodes: ConsensusNode[] = config.consensusNodes.filter((node: ConsensusNode): boolean =>
           config.existingNodeAliases.includes(node.name),
@@ -1679,9 +1688,17 @@ export class NodeCommandTasks {
   public waitForHintsConstructionHandoff(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Wait for active roster update with new node gossip certificate',
-      skip: (): boolean =>
-        !this.remoteConfig.configuration.state.tssEnabled ||
-        this.remoteConfig.configuration.state.blockNodes.length === 0,
+      skip: ({config}: NodeAddContext): boolean => {
+        if (
+          !this.remoteConfig.configuration.state.tssEnabled ||
+          this.remoteConfig.configuration.state.blockNodes.length === 0
+        ) {
+          return true;
+        }
+        // Same InertHintsController guard: when the ceremony is inert, neither the
+        // ceremony completion nor the construction handoff message will ever appear.
+        return config.existingNodeAliases.length * 3 <= config.consensusNodes.length * 2;
+      },
       task: ({config}, task): SoloListr<NodeAddContext> => {
         const existingNodes: ConsensusNode[] = config.consensusNodes.filter((node: ConsensusNode): boolean =>
           config.existingNodeAliases.includes(node.name),

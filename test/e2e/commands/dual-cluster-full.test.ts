@@ -84,7 +84,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.verifyDeploymentConfigInfo(options);
         ConsensusNodeTest.keys(options);
 
-        // BlockNodeTest.add(options);  // disabled: 2→3 equal-weight transition uses InertHintsController; hinTS ceremony never completes with block nodes
+        BlockNodeTest.add(options);
 
         NetworkTest.deploy(options);
         ConsensusNodeTest.setup(options);
