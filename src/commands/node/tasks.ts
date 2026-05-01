@@ -244,11 +244,7 @@ export class NodeCommandTasks {
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
-  private async _prepareUpgradeZip(
-    stagingDirectory: string,
-    upgradeVersion: string,
-    disableTssHints: boolean = false,
-  ): Promise<string> {
+  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion: string): Promise<string> {
     // we build a mock upgrade.zip file as we really don't need to upgrade the network
     // also the platform zip file is ~80Mb in size requiring a lot of transactions since the max
     // transaction size is 6Kb and in practice we need to send the file as 4Kb chunks.
@@ -258,9 +254,6 @@ export class NodeCommandTasks {
     if (!fs.existsSync(upgradeConfigDirectory)) {
       fs.mkdirSync(upgradeConfigDirectory, {recursive: true});
     }
-
-    // Keys that prevent roster adoption when tss.hintsEnabled is set but InertHintsController is used
-    const tssHintsKeys: Set<string> = new Set(['tss.hintsEnabled', 'tss.historyEnabled', 'tss.forceMockSignatures']);
 
     // bump field hedera.config.version or use the version passed in
     const fileBytes: Buffer = fs.readFileSync(
@@ -275,9 +268,6 @@ export class NodeCommandTasks {
         if (parts[0] === 'hedera.config.version') {
           const version: string = upgradeVersion ?? String(Number.parseInt(parts[1]) + 1);
           line = `hedera.config.version=${version}`;
-        }
-        if (disableTssHints && tssHintsKeys.has(parts[0])) {
-          continue;
         }
         newLines.push(line);
       }
@@ -841,25 +831,7 @@ export class NodeCommandTasks {
             .readByRef(containerReference)
             .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
 
-          // When InertHintsController is used (source nodes ≤ 2/3 of new roster weight),
-          // tss.hintsEnabled=true blocks V054RosterSchema from adopting the candidate roster
-          // because there is no hinTS ceremony proof. Strip those settings from the upgrade zip
-          // unless SOLO_REPRODUCE_INERT_HINTS_BUG is set (to reproduce the CN error).
-          const existingCount: number = config.existingNodeAliases?.length ?? 0;
-          const totalCount: number = config.allNodeAliases?.length ?? existingCount;
-          const disableTssHints: boolean =
-            !constants.REPRODUCE_INERT_HINTS_BUG &&
-            this.remoteConfig.isLoaded() &&
-            this.remoteConfig.configuration.state.tssEnabled &&
-            this.remoteConfig.configuration.state.blockNodes.length > 0 &&
-            existingCount > 0 &&
-            totalCount > existingCount &&
-            existingCount * 3 <= totalCount * 2;
-          context_.upgradeZipFile = await this._prepareUpgradeZip(
-            config.stagingDir,
-            config.upgradeVersion,
-            disableTssHints,
-          );
+          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
         context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
@@ -1097,7 +1069,7 @@ export class NodeCommandTasks {
         const signedKeyFiles: TDirectoryData[] = await k8Container
           .listDir(keyDirectory)
           .then((files: TDirectoryData[]): TDirectoryData[] =>
-            files.filter((file: TDirectoryData): boolean => file.name.startsWith(`${constants.SIGNING_KEY_PREFIX}-`)),
+            files.filter((file: TDirectoryData): boolean => file.name.startsWith(constants.SIGNING_KEY_PREFIX)),
           );
 
         await k8Container.execContainer([
@@ -1589,156 +1561,47 @@ export class NodeCommandTasks {
     return {
       title: 'Wait for TSS',
       skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
-      task: ({config}, task): SoloListr<NodeStartContext> =>
-        this.waitForLogMessageOnNodes(
-          task,
-          config.consensusNodes,
-          constants.TSS_SIGNER_READY_MSG,
-          'did not become TSS ready',
-          1,
-          this.soloConfig.tss.timeoutAfterReadySeconds,
-          true, // TSS ready is logged once at startup; check absolute presence, not new occurrence
-        ) as SoloListr<NodeStartContext>,
-    };
-  }
+      task: async ({config}, task): Promise<SoloListr<NodeStartContext>> => {
+        const subTasks: SoloListrTask<NodeStartContext>[] = [];
 
-  /**
-   * Polls hgcaa.log on each of the given nodes until the success condition is met.
-   *
-   * Two modes:
-   * - Baseline mode (default, `absoluteCount = false`): succeeds when `logMessage` appears
-   *   at least `requiredCount` times MORE than it did on the first successful read.
-   *   Avoids false-positives from messages already present in the log (e.g. the genesis
-   *   hinTS completion logged as construction #1).
-   * - Absolute mode (`absoluteCount = true`): succeeds when `logMessage` appears at least
-   *   `requiredCount` times in total. Use this for messages that are logged exactly once
-   *   at startup (e.g. "TSS protocol ready to sign blocks").
-   *
-   * Container acquisition is retried inside the loop so this works for nodes that were
-   * just started and may not be accessible yet.
-   */
-  private waitForLogMessageOnNodes(
-    task: SoloListrTaskWrapper<AnyListrContext>,
-    consensusNodes: ConsensusNode[],
-    logMessage: string,
-    errorSuffix: string,
-    requiredCount: number = 1,
-    postSuccessDelaySeconds: number = 0,
-    absoluteCount: boolean = false,
-  ): SoloListr<AnyListrContext> {
-    const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
-    const countOccurrences = (output: string): number =>
-      output.split('\n').filter((line: string): boolean => line.includes(logMessage)).length;
+        for (const node of config.consensusNodes) {
+          subTasks.push({
+            title: `Waiting for node: ${node.name}`,
+            task: async (_, task): Promise<void> => {
+              const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
+              let attempt: number = 0;
+              let success: boolean = false;
 
-    const subTasks: SoloListrTask<AnyListrContext>[] = consensusNodes.map(
-      (node: ConsensusNode): SoloListrTask<AnyListrContext> => ({
-        title: `Waiting for node: ${node.name}`,
-        task: async (_, nodeTask): Promise<void> => {
-          const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
-          let baselineCount: number | undefined;
-          let attempt: number = 0;
-          let success: boolean = false;
+              while (!success && attempt < maxAttempts) {
+                attempt++;
 
-          while (!success && attempt < maxAttempts) {
-            attempt++;
-            nodeTask.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
+                task.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
 
-            try {
-              const nodeContainer: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
-                NamespaceName.of(node.namespace),
-                node.name,
-              );
-              const currentCount: number = countOccurrences(await nodeContainer.execContainer(['cat', hgcaaLogPath]));
+                const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                  NamespaceName.of(node.namespace),
+                  node.name,
+                );
 
-              if (absoluteCount) {
-                if (currentCount >= requiredCount) {
-                  if (postSuccessDelaySeconds > 0) {
-                    await sleep(Duration.ofSeconds(postSuccessDelaySeconds));
-                  }
+                const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
+
+                const output: string = await container.execContainer(['cat', hgcaaLogPath]);
+
+                if (output.includes('TSS protocol ready to sign blocks')) {
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.timeoutAfterReadySeconds));
                   success = true;
-                  break;
+                } else {
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
                 }
-              } else if (baselineCount === undefined) {
-                baselineCount = currentCount;
-              } else if (currentCount >= baselineCount + requiredCount) {
-                if (postSuccessDelaySeconds > 0) {
-                  await sleep(Duration.ofSeconds(postSuccessDelaySeconds));
-                }
-                success = true;
-                break;
               }
-            } catch (error) {
-              this.logger.debug(`waitForLogMessageOnNodes: ${node.name}: attempt ${attempt}/${maxAttempts}: ${error}`);
-            }
 
-            await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
-          }
-
-          if (!success) {
-            throw new SoloError(`Node ${node.name} ${errorSuffix} after ${maxAttempts} attempts`);
-          }
-        },
-      }),
-    );
-
-    return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
-  }
-
-  public waitForHintsCeremonyComplete(): SoloListrTask<NodeAddContext> {
-    return {
-      title: 'Wait for hinTS ceremony to complete before freeze',
-      skip: ({config}: NodeAddContext): boolean => {
-        if (
-          !this.remoteConfig.configuration.state.tssEnabled ||
-          this.remoteConfig.configuration.state.blockNodes.length === 0
-        ) {
-          return true;
+              if (!success) {
+                throw new Error(`Node ${node.name} did not become ready after ${maxAttempts} attempts`);
+              }
+            },
+          });
         }
-        // When source nodes hold ≤ 2/3 of the new roster's weight (equal-weight case:
-        // existing * 3 <= total * 2), the platform uses InertHintsController and never
-        // logs a ceremony completion message — skip the wait to avoid a guaranteed timeout.
-        // Use allNodeAliases (includes new node pushed by determineNewNodeAccountNumber)
-        // rather than consensusNodes (only populated from remote config, excludes new node).
-        return config.existingNodeAliases.length * 3 <= config.allNodeAliases.length * 2;
-      },
-      task: ({config}, task): SoloListr<NodeAddContext> => {
-        const existingNodes: ConsensusNode[] = config.consensusNodes.filter((node: ConsensusNode): boolean =>
-          config.existingNodeAliases.includes(node.name),
-        );
-        return this.waitForLogMessageOnNodes(
-          task,
-          existingNodes,
-          constants.HINTS_CEREMONY_COMPLETE_MSG,
-          'hinTS ceremony did not complete',
-        ) as SoloListr<NodeAddContext>;
-      },
-    };
-  }
 
-  public waitForHintsConstructionHandoff(): SoloListrTask<NodeAddContext> {
-    return {
-      title: 'Wait for active roster update with new node gossip certificate',
-      skip: ({config}: NodeAddContext): boolean => {
-        if (
-          !this.remoteConfig.configuration.state.tssEnabled ||
-          this.remoteConfig.configuration.state.blockNodes.length === 0
-        ) {
-          return true;
-        }
-        // Same InertHintsController guard: when the ceremony is inert, neither the
-        // ceremony completion nor the construction handoff message will ever appear.
-        return config.existingNodeAliases.length * 3 <= config.allNodeAliases.length * 2;
-      },
-      task: ({config}, task): SoloListr<NodeAddContext> => {
-        const existingNodes: ConsensusNode[] = config.consensusNodes.filter((node: ConsensusNode): boolean =>
-          config.existingNodeAliases.includes(node.name),
-        );
-        return this.waitForLogMessageOnNodes(
-          task,
-          existingNodes,
-          constants.HINTS_CONSTRUCTION_HANDOFF_MSG,
-          'hinTS construction handoff not seen — candidate roster may not have been adopted; the new node cannot start safely',
-        ) as SoloListr<NodeAddContext>;
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
       },
     };
   }
