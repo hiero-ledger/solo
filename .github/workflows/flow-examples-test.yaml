@@ -124,7 +124,7 @@ jobs:
           else
             echo "Non-trunk merge queue context detected (${EVENT_NAME}:${REF_NAME})."
             echo "Using concatenated matrix from standard + trunkio files."
-            SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${STANDARD_MATRIX_FILE}" "${TRUNK_MATRIX_FILE}")
+            SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${TRUNK_MATRIX_FILE}" "${STANDARD_MATRIX_FILE}")
           fi
           
           if [ -n "$EXAMPLE_DIR" ]; then
