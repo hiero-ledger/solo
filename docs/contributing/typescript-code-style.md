@@ -257,6 +257,20 @@ Only use `this` in class constructors/methods, functions with an explicit `this`
 - `for (... in ...)` is only for dict-style objects and must guard with `hasOwnProperty`.
 - Prefer truthy/falsy checks for string presence in conditionals (for example, `if (!localBuildPath)` and `if (app)`), instead of comparing to `''`.
 
+#### 4.8.1 Prefer logical assignment for fallback writes
+
+When assigning a fallback value only when the current value is falsy, prefer `||=` over an `if` block.
+
+```typescript
+// Avoid
+if (argv[flags.context.name]) {
+  argv[flags.context.name] = this.configManager.getFlag<Context>(flags.context);
+}
+
+// Prefer
+argv[flags.context.name] ||= this.configManager.getFlag<Context>(flags.context);
+```
+
 ### 4.9 Exception handling
 
 - Instantiate errors using `new Error()`.
