@@ -19,10 +19,14 @@ vars:
   CLUSTER_REFERENCE: "kind-version-upgrade-test-cluster"
 
   # Previous versions (current minus one)
-  PREV_CN_VERSION: "v0.72.0"
-  PREV_MIRROR_VERSION: "v0.150.0"
-  PREV_EXPLORER_VERSION: "25.1.1"
-  PREV_RELAY_VERSION: "0.72.0"
+  PREV_CN_VERSION:
+    sh: sed -n "s/.*TEST_UPGRADE_FROM_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+  PREV_MIRROR_VERSION:
+    sh: sed -n "s/.*PREV_MIRROR_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+  PREV_EXPLORER_VERSION:
+    sh: sed -n "s/.*PREV_EXPLORER_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+  PREV_RELAY_VERSION:
+    sh: sed -n "s/.*PREV_RELAY_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
   PREV_BLOCK_VERSION:
     sh: sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
 

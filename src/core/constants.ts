@@ -49,13 +49,6 @@ export const KIND_NODE_IMAGE: string =
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 export const ENABLE_S6_IMAGE: boolean = getEnvironmentVariable('ENABLE_S6_IMAGE') === 'true' || true;
-// When true, Solo skips the hinTS ceremony wait steps but keeps tss.hintsEnabled in the upgrade
-// zip, which causes V054RosterSchema to reject the candidate roster on small networks (1→2 or
-// 2→3 node transitions where InertHintsController is used).  The new node then fails to start
-// with KEY_LOADING_FAILED / "no certificate found".  Use this to reproduce the CN bug without
-// the test hanging at the ceremony wait.
-export const REPRODUCE_INERT_HINTS_BUG: boolean = getEnvironmentVariable('SOLO_REPRODUCE_INERT_HINTS_BUG') === 'true';
-
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
 export const SOLO_REMOTE_CONFIGMAP_DATA_KEY: string = 'remote-config-data';
@@ -297,11 +290,6 @@ export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOUR
 export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'cleanup-state-rounds.sh');
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
-export const TSS_SIGNER_READY_MSG: string = 'TSS protocol ready to sign blocks';
-export const HINTS_CEREMONY_COMPLETE_MSG: string = 'Completed hinTS scheme for construction #';
-export const HINTS_CONSTRUCTION_HANDOFF_MSG: string = 'Updated hinTS construction in signing context to #';
-export const LEDGER_ID_SET_MSG: string = 'Set ledger id to';
-export const LEDGER_ID_EXTERNALIZED_MSG: string = 'Externalizing ledger id';
 export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
 export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
 

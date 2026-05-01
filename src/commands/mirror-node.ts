@@ -200,10 +200,6 @@ enum MirrorNodeCommandType {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
-  private static readonly IMPORTER_INDEXING_MAX_ATTEMPTS: number = 120;
-
-  private static readonly IMPORTER_INDEXING_DELAY: Duration = Duration.ofSeconds(2);
-
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
