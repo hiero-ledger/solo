@@ -14,6 +14,7 @@ import {ReleaseItem} from '../../integration/helm/model/release/release-item.js'
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
 import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import AdmZip from 'adm-zip';
 
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
   return !(path.includes('data/keys') || path.includes('data/config'));
@@ -71,6 +72,7 @@ import * as versions from '../../../version.js';
 import {
   HEDERA_PLATFORM_VERSION,
   MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
   needsConfigTxtForConsensusVersion,
 } from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
@@ -3705,8 +3707,18 @@ export class NodeCommandTasks {
   public downloadLastState(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Download last state from an existing node',
-      task: async ({config}): Promise<void> => {
+      task: async ({config}, task): Promise<void> => {
         const {consensusNodes, namespace, stagingDir}: any = config;
+        const nodeAlias: NodeAlias | undefined = config.nodeAlias;
+        const currentVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
+        const tssVersionRequirement: SemanticVersion<string> = new SemanticVersion<string>(
+          MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+        );
+        const shouldWaitForSavedStateRoster: boolean =
+          !!nodeAlias && currentVersion.greaterThanOrEqual(tssVersionRequirement);
+        const expectedNodeId: NodeId | undefined = nodeAlias ? Templates.nodeIdFromNodeAlias(nodeAlias) : undefined;
+        const maxAttempts: number = shouldWaitForSavedStateRoster ? 60 : 1;
+        const retryDelayMillis: number = 3000;
 
         // TODO: currently only supports downloading from the first existing node
         const node: ConsensusNode = consensusNodes[0];
@@ -3719,20 +3731,69 @@ export class NodeCommandTasks {
 
         // Use the -X to archive for cross-platform compatibility
         const archiveCommand: string =
-          'cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
+          'rm -f "../${states[0]}.zip" && cd "${states[0]}" && zip -rX "${states[0]}.zip" . >/dev/null && sleep 1 && cd ../ && mv -f "${states[0]}/${states[0]}.zip" "${states[0]}.zip"';
 
-        // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
-        const zipFileName: string = await container.execContainer([
-          'bash',
-          '-c',
-          `cd ${upgradeDirectory} && mapfile -t states < <(ls -1 . | sort -nr) && ${archiveCommand} && echo -n \${states[0]}.zip`,
-        ]);
+        for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+          // zip the contents of the newest folder on node1 within /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/com.hedera.services.ServicesMain/0/123/
+          const zipFileName: string = await container.execContainer([
+            'bash',
+            '-c',
+            `cd ${upgradeDirectory} && mapfile -t states < <(ls -1 . | sort -nr) && ${archiveCommand} && echo -n \${states[0]}.zip`,
+          ]);
 
-        this.logger.debug(`state zip file to download is = ${zipFileName}`);
+          this.logger.debug(`state zip file to download is = ${zipFileName}`);
 
-        await container.copyFrom(`${upgradeDirectory}/${zipFileName}`, stagingDir);
+          await container.copyFrom(`${upgradeDirectory}/${zipFileName}`, stagingDir);
 
-        config.lastStateZipPath = PathEx.joinWithRealPath(stagingDir, zipFileName);
+          config.lastStateZipPath = PathEx.joinWithRealPath(stagingDir, zipFileName);
+
+          if (!shouldWaitForSavedStateRoster || expectedNodeId === undefined || !nodeAlias) {
+            return;
+          }
+
+          const zipFile: AdmZip = new AdmZip(config.lastStateZipPath);
+          const rosterEntry: AdmZip.IZipEntry | null = zipFile.getEntry('currentRoster.json');
+
+          if (rosterEntry) {
+            const rosterJson: string = zipFile.readFile(rosterEntry)?.toString('utf8') ?? '';
+            const roster: {
+              rosterEntries?: Array<{nodeId?: string | number; gossipCaCertificate?: string}>;
+            } = JSON.parse(rosterJson) as {
+              rosterEntries?: Array<{nodeId?: string | number; gossipCaCertificate?: string}>;
+            };
+            const matchingNode: {nodeId?: string | number; gossipCaCertificate?: string} | undefined =
+              roster.rosterEntries?.find((entry): boolean => {
+                return Number(entry.nodeId) === expectedNodeId;
+              });
+            const hasGossipCertificate: boolean = !!matchingNode?.gossipCaCertificate;
+
+            if (hasGossipCertificate) {
+              this.logger.debug(
+                `Saved state ${zipFileName} includes node ${nodeAlias} (nodeId=${expectedNodeId}) with gossip certificate at attempt ${attempt}/${maxAttempts}`,
+              );
+              return;
+            }
+
+            const rosterNodeIds: number[] = (roster.rosterEntries ?? []).map((entry): number => Number(entry.nodeId));
+            this.logger.debug(
+              `Saved state ${zipFileName} missing gossip certificate for node ${nodeAlias} (nodeId=${expectedNodeId}) at attempt ${attempt}/${maxAttempts}; roster nodeIds=${rosterNodeIds.join(',')}`,
+            );
+          } else {
+            this.logger.debug(
+              `Saved state ${zipFileName} does not contain currentRoster.json at attempt ${attempt}/${maxAttempts}`,
+            );
+          }
+
+          task.title = `Download last state from an existing node, attempt ${attempt}/${maxAttempts}`;
+
+          if (attempt < maxAttempts) {
+            await sleep(Duration.ofMillis(retryDelayMillis));
+          }
+        }
+
+        throw new SoloError(
+          `Latest saved state did not include node ${nodeAlias} (nodeId=${expectedNodeId}) with gossip certificate after ${maxAttempts} attempts`,
+        );
       },
     };
   }
@@ -3886,6 +3947,13 @@ export class NodeCommandTasks {
   ): SoloListrTask<NodeAddContext | NodeUpdateContext> {
     return {
       title: 'Wait for roster update with gossip certificate',
+      skip: (): boolean => {
+        const currentVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
+        const versionRequirement: SemanticVersion<string> = new SemanticVersion<string>(
+          MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+        );
+        return currentVersion.lessThan(versionRequirement);
+      },
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass | NodeUpdateConfigClass = context_.config;
         const nodeAlias: NodeAlias | undefined = config[nodeAliasFieldName];
