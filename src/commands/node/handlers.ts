@@ -169,15 +169,21 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.populateServiceMap(),
       this.tasks.fetchPlatformSoftware('allNodeAliases'),
-      this.tasks.downloadLastState(),
-      this.tasks.uploadStateToNewNode(),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
       this.tasks.updateBlockNodesJson(),
       this.tasks.addWrapsLib(),
-      this.tasks.startNodes('allNodeAliases'),
+      // Start existing nodes first so the network can adopt the new roster before
+      // node3 boots from a saved state that may not yet include its gossip cert.
+      this.tasks.startNodes('existingNodeAliases'),
+      this.tasks.checkAllNodesAreActive('existingNodeAliases'),
+      this.tasks.waitForRosterNodeCertificate(),
+      // Refresh the saved state only after the restarted network has adopted the
+      // updated roster; node3 must load from that newer state on startup.
+      this.tasks.downloadLastState(),
+      this.tasks.uploadStateToNewNode(),
+      this.tasks.startNodes('newNodeAliases'),
       this.tasks.enablePortForwarding(),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
-      this.tasks.waitForRosterNodeCertificate(),
       this.tasks.checkAllNodeProxiesAreActive(),
       this.tasks.waitForTss(),
       this.tasks.stakeNewNode(),
