@@ -241,18 +241,26 @@ export class MirrorNodeTest extends BaseCommandTest {
       expect(secondData.transactions).to.not.be.undefined;
       expect(secondData.transactions.length).to.be.gt(0);
 
-      // if pinger is enabled, the first transaction in the first response should not equal the first transaction in the second response
-      // if pinger is disabled, the first transaction in the first response should equal the first transaction in the second response
-      // if there is more than one transaction in the second response, compare to the second transaction instead of the first
-      let secondTransactionIndex: number = 0;
-      if (secondData.transactions.length > 1) {
-        secondTransactionIndex = 1;
-      }
-
       if (pingerIsEnabled) {
-        expect(firstData.transactions[0]).to.not.deep.equal(secondData.transactions[secondTransactionIndex]);
+        // Compare snapshots as sets so the check is resilient when the top row remains the same.
+        const firstSnapshotTxIds: Set<string> = new Set(
+          firstData.transactions
+            .map((transaction: {transaction_id?: string}): string | undefined => transaction?.transaction_id)
+            .filter((transactionId: string | undefined): transactionId is string => !!transactionId),
+        );
+        const secondSnapshotHasNewTx: boolean = secondData.transactions.some(
+          (transaction: {transaction_id?: string}): boolean => {
+            const transactionId: string | undefined = transaction?.transaction_id;
+            return !!transactionId && !firstSnapshotTxIds.has(transactionId);
+          },
+        );
+
+        expect(
+          secondSnapshotHasNewTx,
+          'expected second mirror snapshot to include at least one new transaction id when pinger is enabled',
+        ).to.equal(true);
       } else {
-        expect(firstData.transactions[0]).to.deep.equal(secondData.transactions[secondTransactionIndex]);
+        expect(firstData.transactions[0]).to.deep.equal(secondData.transactions[0]);
       }
     } finally {
       if (portForwarder) {

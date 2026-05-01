@@ -3888,16 +3888,22 @@ export class NodeCommandTasks {
       title: 'Wait for roster update with gossip certificate',
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass | NodeUpdateConfigClass = context_.config;
-        const nodeAlias: NodeAlias = config[nodeAliasFieldName];
+        const nodeAlias: NodeAlias | undefined = config[nodeAliasFieldName];
+        if (!nodeAlias) {
+          this.logger.debug(
+            `Skipping roster gossip-certificate wait because '${nodeAliasFieldName}' is not set on config for this command flow`,
+          );
+          return;
+        }
         const expectedNodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
         const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
         const maxAttempts: number = 60;
         const retryDelayMillis: number = 3000;
 
         for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-          let addressBookBase64 = '';
+          let addressBookBase64: string = '';
           let addressBookBytes: Buffer = Buffer.alloc(0);
-          let nodeAddresses: any[] = [];
+          let nodeAddresses: proto.INodeAddress[] = [];
 
           try {
             addressBookBase64 = await this.accountManager.prepareAddressBookBase64(
@@ -3910,7 +3916,7 @@ export class NodeCommandTasks {
             );
 
             addressBookBytes = Buffer.from(addressBookBase64, 'base64');
-            const addressBook = proto.NodeAddressBook.decode(addressBookBytes) as any;
+            const addressBook: proto.NodeAddressBook = proto.NodeAddressBook.decode(addressBookBytes);
             nodeAddresses = addressBook?.nodeAddress ?? [];
           } catch (error) {
             this.logger.debug(
@@ -3923,17 +3929,25 @@ export class NodeCommandTasks {
             throw error;
           }
 
-          const matchingNode = nodeAddresses.find((entry: any): boolean => {
-            const descriptionMatches: boolean = entry?.description === nodeAlias;
-            const nodeIdMatches: boolean = Number(entry?.nodeId) === expectedNodeId;
-            return descriptionMatches || nodeIdMatches;
-          });
+          const matchingNode: proto.INodeAddress | undefined = nodeAddresses.find(
+            (entry: proto.INodeAddress): boolean => {
+              const descriptionMatches: boolean = entry?.description === nodeAlias;
+              const nodeIdMatches: boolean = Number(entry?.nodeId) === expectedNodeId;
+              return descriptionMatches || nodeIdMatches;
+            },
+          );
 
           const hasGossipCertificate: boolean = !!matchingNode?.RSA_PubKey;
-          const rosterNodeIds: number[] = nodeAddresses.map((entry: any): number => Number(entry?.nodeId));
-          const addressBookHash: string = crypto.createHash('sha256').update(addressBookBytes).digest('hex').slice(0, 16);
+          const rosterNodeIds: number[] = nodeAddresses.map((entry: proto.INodeAddress): number =>
+            Number(entry?.nodeId),
+          );
+          const addressBookHash: string = crypto
+            .createHash('sha256')
+            .update(addressBookBytes)
+            .digest('hex')
+            .slice(0, 16);
           const nodeSummary: string = nodeAddresses
-            .map((entry: any): string => {
+            .map((entry: proto.INodeAddress): string => {
               const nodeId: number = Number(entry?.nodeId);
               const description: string = String(entry?.description ?? '');
               const certLength: number = entry?.RSA_PubKey ? Buffer.from(entry.RSA_PubKey).length : 0;
@@ -3949,7 +3963,9 @@ export class NodeCommandTasks {
             return;
           }
 
-          const matchingNodeCertLength: number = matchingNode?.RSA_PubKey ? Buffer.from(matchingNode.RSA_PubKey).length : 0;
+          const matchingNodeCertLength: number = matchingNode?.RSA_PubKey
+            ? Buffer.from(matchingNode.RSA_PubKey).length
+            : 0;
           const matchingNodeDesc: string = String(matchingNode?.description ?? '');
           const matchingNodeId: number = Number(matchingNode?.nodeId ?? -1);
 
@@ -4141,6 +4157,7 @@ export class NodeCommandTasks {
         const componentLabelConfigs: Array<{name: string; labels: string[]}> = [
           {name: 'consensus node', labels: ['solo.hedera.com/type=network-node']},
           {name: 'mirror importer', labels: [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL]},
+          {name: 'mirror pinger', labels: [constants.SOLO_MIRROR_PINGER_NAME_LABEL]},
           {name: 'mirror grpc', labels: [constants.SOLO_MIRROR_GRPC_NAME_LABEL]},
           {name: 'mirror monitor', labels: [constants.SOLO_MIRROR_MONITOR_NAME_LABEL]},
           {name: 'mirror rest', labels: [constants.SOLO_MIRROR_REST_NAME_LABEL]},
