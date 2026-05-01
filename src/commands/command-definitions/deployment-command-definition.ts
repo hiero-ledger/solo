@@ -57,6 +57,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly CONFIG_CREATE: string = 'create';
   public static readonly CONFIG_DELETE: string = 'delete';
   public static readonly CONFIG_INFO: string = 'info';
+  public static readonly CONFIG_PORTS: string = 'ports';
 
   public static readonly DIAGNOSTICS_ALL: string = 'all';
   public static readonly DIAGNOSTICS_ANALYZE: string = 'analyze';
@@ -142,6 +143,16 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.deploymentCommand,
               this.deploymentCommand.showDeploymentStatus,
               DeploymentCommand.SHOW_STATUS_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.CONFIG_PORTS,
+              'List all port-forwards for a deployment. JSON and YAMl output formats, create files containing the data',
+              this.deploymentCommand,
+              this.deploymentCommand.ports,
+              DeploymentCommand.PORTS_FLAGS_LIST,
               [],
             ),
           ),
