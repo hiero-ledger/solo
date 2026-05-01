@@ -1621,6 +1621,58 @@ export class NodeCommandTasks {
     };
   }
 
+  public waitForActiveRosterUpdate(): SoloListrTask<NodeAddContext> {
+    return {
+      title: 'Wait for active roster to include new node',
+      skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
+      task: async ({config}, task): Promise<SoloListr<NodeAddContext>> => {
+        const subTasks: SoloListrTask<NodeAddContext>[] = [];
+
+        const existingConsensusNodes: ConsensusNode[] = config.consensusNodes.filter((node: ConsensusNode): boolean =>
+          config.existingNodeAliases.includes(node.name),
+        );
+
+        for (const node of existingConsensusNodes) {
+          subTasks.push({
+            title: `Waiting for node: ${node.name}`,
+            task: async (_, nodeTask): Promise<void> => {
+              const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
+              let attempt: number = 0;
+              let success: boolean = false;
+
+              while (!success && attempt < maxAttempts) {
+                attempt++;
+
+                nodeTask.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
+
+                const nodeContainer: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                  NamespaceName.of(node.namespace),
+                  node.name,
+                );
+
+                const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
+                const output: string = await nodeContainer.execContainer(['cat', hgcaaLogPath]);
+
+                if (output.includes(constants.TSS_SIGNER_READY_MSG)) {
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.timeoutAfterReadySeconds));
+                  success = true;
+                } else {
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
+                }
+              }
+
+              if (!success) {
+                throw new SoloError(`Node ${node.name} TSS not ready after ${maxAttempts} attempts`);
+              }
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
   public setGrpcWebEndpoint(
     nodeAliasesProperty: string,
     subcommandType: NodeSubcommandType,
