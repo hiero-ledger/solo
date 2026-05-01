@@ -620,7 +620,12 @@ export class ProfileManager {
       // Guard
     }
 
-    const hasDeployedBlockNodes: boolean = this.remoteConfig.configuration.components.state.blockNodes.length > 0;
+    let hasDeployedBlockNodes: boolean = false;
+    try {
+      hasDeployedBlockNodes = this.remoteConfig.configuration.components.state.blockNodes.length > 0;
+    } catch {
+      // Guard
+    }
 
     // hinTS/history require BLOCK_STREAM mode (only active when block nodes are deployed).
     // In RECORDS mode these flags block roster adoption without providing any benefit.
