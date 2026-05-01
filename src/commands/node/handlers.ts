@@ -151,6 +151,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private addSubmitTransactionsTasks(): SoloListrTask<NodeAddContext>[] {
     return [
       this.tasks.sendNodeCreateTransaction(),
+      this.tasks.waitForHintsCeremonyComplete(),
       this.tasks.sendPrepareUpgradeTransaction() as SoloListrTask<NodeAddContext>,
       this.tasks.sendFreezeUpgradeTransaction() as SoloListrTask<NodeAddContext>,
     ];
@@ -176,8 +177,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.addWrapsLib(),
       this.tasks.startNodes('existingNodeAliases'),
       this.tasks.enablePortForwarding(),
-      this.tasks.checkAllNodesAreActive('existingNodeAliases'),
-      this.tasks.waitForActiveRosterUpdate(),
+      this.tasks.waitForHintsConstructionHandoff(),
       this.tasks.startNodes('newNodeAliases'),
       this.tasks.checkAllNodesAreActive('allNodeAliases'),
       this.tasks.checkAllNodeProxiesAreActive(),
