@@ -1459,7 +1459,6 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         },
         this.checkPodsAreReadyNodeTask(),
-        this.waitForImporterToIndexOperatorAccountTask(),
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
@@ -1694,7 +1693,6 @@ export class MirrorNodeCommand extends BaseCommand {
         this.initializeSharedPostgresDatabaseTask(), // must run before mirror chart so importer doesn't hold a session during DB creation
         this.enableMirrorNodeTask(MirrorNodeCommandType.UPGRADE),
         this.checkPodsAreReadyNodeTask(),
-        this.waitForImporterToIndexOperatorAccountTask(),
         this.enablePortForwardingTask(),
         // TODO only show this if we are not running in quick-start mode
         // {
