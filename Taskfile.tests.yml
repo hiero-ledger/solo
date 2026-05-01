@@ -2,7 +2,7 @@ version: 3
 vars:
   cross_env: npx cross-env
   mocha_bin: npx mocha
-  c8_bin: npx c8
+  c8_bin: "node {{.TASKFILE_DIR}}/node_modules/c8/bin/c8.js"
 
   test_prefix: "{{ .cross_env }} MOCHA_SUITE_NAME"
   reporter_prefix: "{{ .c8_bin }} --report-dir"

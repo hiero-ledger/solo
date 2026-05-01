@@ -606,24 +606,25 @@ export class ProfileManager {
       lines.push(`hedera.shard=${shard}`);
     }
 
-    if (this.remoteConfig.isLoaded()) {
-      const remoteConfiguration = this.remoteConfig.configuration!;
-      const releaseTag: SemanticVersion<string> = remoteConfiguration.versions.consensusNode;
-      const tssEnabled: boolean = remoteConfiguration.state.tssEnabled;
-      const hasDeployedBlockNodes: boolean = remoteConfiguration.components.state.blockNodes.length > 0;
+    let releaseTag: SemanticVersion<string> = new SemanticVersion<string>(versions.HEDERA_PLATFORM_VERSION);
+    try {
+      releaseTag = this.remoteConfig.configuration.versions.consensusNode;
+    } catch {
+      // Guard
+    }
 
-      // hinTS/history require BLOCK_STREAM mode (only active when block nodes are deployed).
-      // In RECORDS mode these flags block roster adoption without providing any benefit.
-      if (
-        !releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) &&
-        tssEnabled &&
-        hasDeployedBlockNodes
-      ) {
-        lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.forceMockSignatures=false');
+    let tssEnabled: boolean = false;
+    try {
+      tssEnabled = this.remoteConfig.configuration.state.tssEnabled;
+    } catch {
+      // Guard
+    }
 
-        if (remoteConfiguration.state.wrapsEnabled) {
-          lines.push('tss.wrapsEnabled=true');
-        }
+    if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
+      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.forceMockSignatures=false');
+
+      if (this.remoteConfig.configuration.state.wrapsEnabled) {
+        lines.push('tss.wrapsEnabled=true');
       }
     }
 
