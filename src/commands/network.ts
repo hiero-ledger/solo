@@ -12,7 +12,6 @@ import * as constants from '../core/constants.js';
 import {getEnvironmentVariable} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
-  addDebugOptions,
   addRootImageValues,
   createAndCopyBlockNodeJsonFileForConsensusNode,
   parseNodeAliases,
@@ -21,6 +20,8 @@ import {
   showVersionBanner,
   sleep,
 } from '../core/helpers.js';
+import {helmValuesHelper} from '../core/helm-values-helper.js';
+import {type PerNodeIdentity} from '../types/helm-values.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,14 +29,7 @@ import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
-import {
-  type AnyListrContext,
-  type ArgvStruct,
-  type IP,
-  type NodeAlias,
-  type NodeAliases,
-  type NodeId,
-} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
@@ -448,10 +442,106 @@ export class NetworkCommand extends BaseCommand {
       [constants.SOLO_DEPLOYMENT_VALUES_FILE],
     );
 
+    // Generate per-cluster extraEnv values files to avoid passing the global node list to every
+    // cluster's Helm upgrade (in multi-cluster deployments each cluster has its own node subset).
+    // Each file carries only the nodes that belong to the target cluster, preventing Helm's
+    // array-replacement semantics from inserting nodes from other clusters.
+    const perClusterExtraEnvironmentValuesFiles: Record<ClusterReferenceName, string> = {};
+    const needsExtraEnvironment: boolean =
+      config.wrapsEnabled || !!config.debugNodeAlias || config.app !== constants.HEDERA_APP_NAME; // JAVA_MAIN_CLASS for tools/local builds
+
+    if (needsExtraEnvironment) {
+      const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
+      const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
+
+      for (const clusterReference of Object.keys(valuesFiles)) {
+        // Only include nodes belonging to this cluster so the generated hedera.nodes array
+        // matches the cluster-specific node set and does not overwrite nodes in other clusters.
+        // Sort deterministically by nodeId so per-node Helm values align with the chart's
+        // expected node ordering regardless of upstream object iteration order.
+        const clusterConsensusNodes: ConsensusNode[] = config.consensusNodes
+          .filter((node): boolean => node.cluster === clusterReference)
+          // eslint-disable-next-line unicorn/no-array-sort
+          .sort((left, right): number => left.nodeId - right.nodeId);
+        if (clusterConsensusNodes.length === 0) {
+          continue;
+        }
+
+        const additionalNodeValues: Record<
+          NodeAlias,
+          {name: NodeAlias; nodeId: number; accountId: string; blockNodesJson?: string}
+        > = {};
+
+        // Preserve blockNodesJson from the per-cluster profile values file so that it is not
+        // silently dropped when the extraEnv values file replaces the hedera.nodes array.
+        const clusterProfileValuesFile: string | undefined = this.profileValuesFile?.[clusterReference];
+        const nodeIdentityMap: Record<NodeAlias, PerNodeIdentity> = clusterProfileValuesFile
+          ? helmValuesHelper.extractPerNodeIdentityFromValuesFile(clusterProfileValuesFile, clusterConsensusNodes)
+          : {};
+        const blockNodesJsonMap: Record<NodeAlias, string> = clusterProfileValuesFile
+          ? helmValuesHelper.extractPerNodeBlockNodesJsonFromValuesFile(clusterProfileValuesFile, clusterConsensusNodes)
+          : {};
+
+        for (const consensusNode of clusterConsensusNodes) {
+          const identity: PerNodeIdentity = nodeIdentityMap[consensusNode.name] ?? {};
+          additionalNodeValues[consensusNode.name] = {
+            name: identity.name ?? consensusNode.name,
+            nodeId: identity.nodeId ?? consensusNode.nodeId,
+            // Prefer the accountId recorded in the profile values file (set by the account
+            // manager using the deployment's configured start account ID) over the computed
+            // default, so custom account IDs assigned via node transactions are preserved.
+            accountId:
+              identity.accountId ?? `${shard}.${realm}.${constants.DEFAULT_START_ID_NUMBER + consensusNode.nodeId}`,
+          };
+          if (blockNodesJsonMap[consensusNode.name]) {
+            additionalNodeValues[consensusNode.name].blockNodesJson = blockNodesJsonMap[consensusNode.name];
+          }
+        }
+
+        // Collect extraEnv entries already present in this cluster's values files so that the
+        // generated file can include them and avoid Helm array replacement silently dropping
+        // env vars set by user-provided values files.
+        const existingValuesFilePaths: string[] = helmValuesHelper.parseValuesFilePaths(valuesFiles[clusterReference]);
+
+        const clusterExtraEnvironmentValuesFile: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
+          clusterConsensusNodes,
+          {
+            wrapsEnabled: config.wrapsEnabled,
+            tss: this.soloConfig.tss,
+            debugNodeAlias: config.debugNodeAlias,
+            useJavaMainClass: config.app !== constants.HEDERA_APP_NAME,
+            additionalNodeValues,
+            baseExtraEnvironmentVariables: helmValuesHelper.extractExtraEnvironmentFromValuesFiles(
+              existingValuesFilePaths,
+              clusterConsensusNodes,
+            ),
+          },
+          config.cacheDir,
+        );
+
+        perClusterExtraEnvironmentValuesFiles[clusterReference] = clusterExtraEnvironmentValuesFile;
+        this.logger.debug(
+          `Created per-cluster extraEnv values file for ${clusterReference}: ${clusterExtraEnvironmentValuesFile}`,
+        );
+      }
+    }
+
     for (const clusterReference of Object.keys(valuesFiles)) {
-      valuesArgumentMap[clusterReference] = valuesArguments[clusterReference] + valuesFiles[clusterReference];
+      // Keep --set flags last so they override values files. This is critical when we also
+      // provide per-node extraEnv via a values file (e.g. --debug-node-alias), because a later
+      // values file can replace array elements and drop fields like node labels/account IDs.
+      let valuesArgument: string = valuesFiles[clusterReference];
+
+      // Add per-cluster extraEnv values file if any extraEnv customizations are needed
+      if (perClusterExtraEnvironmentValuesFiles[clusterReference]) {
+        valuesArgument += ` --values "${perClusterExtraEnvironmentValuesFiles[clusterReference]}"`;
+      }
+
+      valuesArgument += valuesArguments[clusterReference];
+
+      valuesArgumentMap[clusterReference] = valuesArgument;
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
-        valuesArg: valuesArgumentMap,
+        valuesArgument: valuesArgumentMap[clusterReference],
       });
     }
 
@@ -465,7 +555,6 @@ export class NetworkCommand extends BaseCommand {
   private prepareValuesArg(config: NetworkDeployConfigClass): Record<ClusterReferenceName, string> {
     const valuesArguments: Record<ClusterReferenceName, string> = {};
     const clusterReferences: ClusterReferenceName[] = [];
-    let extraEnvironmentIndex: number = 0;
 
     // initialize the valueArgs
     for (const consensusNode of config.consensusNodes) {
@@ -474,50 +563,15 @@ export class NetworkCommand extends BaseCommand {
         clusterReferences.push(consensusNode.cluster);
       }
 
-      // set the extraEnv settings on the nodes for running with a local build or tool
-      if (config.app === constants.HEDERA_APP_NAME) {
-        // make sure each cluster has an empty string for the valuesArg
+      // Initialize empty valuesArg for each cluster
+      // All extraEnv logic (JAVA_MAIN_CLASS, TSS wraps, debug) is now handled via values files
+      if (!valuesArguments[consensusNode.cluster]) {
         valuesArguments[consensusNode.cluster] = '';
-      } else {
-        let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].name=JAVA_MAIN_CLASS"`;
-        valuesArgument += ` --set "hedera.nodes[${consensusNode.nodeId}].root.extraEnv[0].value=com.swirlds.platform.Browser"`;
-        valuesArguments[consensusNode.cluster] = valuesArgument;
-
-        extraEnvironmentIndex = 1; // used to add the debug options when using a tool or local build of hedera
       }
     }
 
-    if (config.wrapsEnabled) {
-      for (const consensusNode of config.consensusNodes) {
-        const cluster: ClusterReferenceName = consensusNode.cluster;
-        const index: number = extraEnvironmentIndex;
-        const nodeId: NodeId = consensusNode.nodeId;
-
-        valuesArguments[cluster] +=
-          ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-        const wraps: Wraps = this.soloConfig.tss.wraps;
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-        valuesArguments[cluster] += ` --set "hedera.nodes[${nodeId}].root.extraEnv[${index}].value=${path}"`;
-      }
-
-      extraEnvironmentIndex = 2;
-    }
-
-    // add debug options to the debug node
-    for (const consensusNode of config.consensusNodes) {
-      if (consensusNode.name !== config.debugNodeAlias) {
-        continue;
-      }
-
-      valuesArguments[consensusNode.cluster] = addDebugOptions(
-        valuesArguments[consensusNode.cluster],
-        config.debugNodeAlias,
-        extraEnvironmentIndex,
-      );
-    }
+    // All extraEnv customizations (wraps, debug, JAVA_MAIN_CLASS) are handled
+    // via generateExtraEnvironmentValuesFile() in prepareValuesArgMap() to avoid Helm --set replacement issues
 
     if (
       config.storageType === constants.StorageType.AWS_AND_GCS ||
@@ -1241,6 +1295,9 @@ export class NetworkCommand extends BaseCommand {
             this.remoteConfig.configuration.state.wrapsEnabled = wrapsEnabled;
 
             if (wrapsEnabled && new SemanticVersion<string>(currentVersion).lessThan(minimumVersion)) {
+              this.logger.showUser(
+                `Consensus node version ${currentVersion} does not support TSS or Wraps. Please upgrade to version ${minimumVersion} or later to enable these features.`,
+              );
               throw new SoloError(
                 `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
               );
