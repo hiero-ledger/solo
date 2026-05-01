@@ -113,6 +113,11 @@ on:
         type: string
         required: false
         default: "22"
+      dual-cluster-node-count:
+        description: "Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):"
+        type: number
+        required: false
+        default: 3
       test-timeout-minutes:
         description: "Test Timeout (minutes):"
         type: number
@@ -210,6 +215,11 @@ on:
         type: boolean
         required: false
         default: false
+      dual-cluster-node-count:
+        description: "Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):"
+        type: number
+        required: false
+        default: 3
       test-timeout-minutes:
         description: "Test Timeout (minutes):"
         type: number
@@ -454,7 +464,8 @@ jobs:
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
-          
+          echo SOLO_DUAL_CLUSTER_NODE_COUNT=${{ inputs.dual-cluster-node-count || 3 }} >> .env
+
           if [[ "${{ inputs.custom-job-label }}" != "One Shot Single - using Podman" ]]; then
             # Verify cluster connectivity before running tests
             echo "Verifying cluster connectivity..."
