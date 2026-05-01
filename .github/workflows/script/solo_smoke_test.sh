@@ -58,14 +58,8 @@ function setup_smart_contract_test ()
   "
 
   # Increase ERC20 suite timeout to reduce relay/mirror propagation flakes on CI.
-  node -e "
-    const fs = require('fs');
-    const p = 'test/openzeppelin/ERC-20/ERC20.js';
-    let c = fs.readFileSync(p, 'utf8');
-    c = c.replace('const DEFAULT_TIMEOUT = 30000;', 'const DEFAULT_TIMEOUT = 120000;');
-    fs.writeFileSync(p, c);
-    console.log('Patched ERC20 default timeout to 120000ms');
-  "
+  sed -i 's/const DEFAULT_TIMEOUT = 30000;/const DEFAULT_TIMEOUT = 120000;/' test/openzeppelin/ERC-20/ERC20.js
+  echo "Patched ERC20 default timeout to 120000ms"
   cd -
 }
 
