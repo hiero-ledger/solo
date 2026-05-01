@@ -75,10 +75,7 @@ export const POST_HIERO_MIGRATION_MIRROR_NODE_VERSION: string = '0.130.0';
 export const MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION: string = '0.152.0';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS: string = 'v0.74.0-0';
-<<<<<<< copilot/bump-consensus-node-version
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_AGREEMENT_GOSSIP_CERTS: string = '0.74.0-0';
-=======
->>>>>>> main
 export const MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.29.0-0';
 export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.150.0-0';
 
