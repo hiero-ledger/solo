@@ -23,7 +23,8 @@ vars:
   PREV_MIRROR_VERSION: "v0.150.0"
   PREV_EXPLORER_VERSION: "25.1.1"
   PREV_RELAY_VERSION: "0.72.0"
-  PREV_BLOCK_VERSION: "v0.28.1"
+  PREV_BLOCK_VERSION:
+    sh: sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
 
   # Current versions to upgrade to
   CURRENT_MIRROR_VERSION: "v0.152.0"
