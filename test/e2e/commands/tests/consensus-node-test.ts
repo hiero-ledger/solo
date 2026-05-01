@@ -779,7 +779,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       fs.writeFileSync(testApplicationPropertiesPath, updatedContent);
 
       // Set the consensus node version in remote config to TEST_UPGRADE_FROM_VERSION
-      // so the downgrade guard allows upgrading to TEST_UPGRADE_VERSION (which must be newer).
+      // so the downgrade guard allows upgrading to TEST_UPGRADE_TO_VERSION (which must be newer).
       remoteConfig.configuration.versions.consensusNode = new SemanticVersion<string>(TEST_UPGRADE_FROM_VERSION);
       await remoteConfig.persist();
 
