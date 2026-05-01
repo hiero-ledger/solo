@@ -620,7 +620,11 @@ export class ProfileManager {
       // Guard
     }
 
-    if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
+    const hasDeployedBlockNodes: boolean = this.remoteConfig.configuration.components.state.blockNodes.length > 0;
+
+    // hinTS/history require BLOCK_STREAM mode (only active when block nodes are deployed).
+    // In RECORDS mode these flags block roster adoption without providing any benefit.
+    if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled && hasDeployedBlockNodes) {
       lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.forceMockSignatures=false');
 
       if (this.remoteConfig.configuration.state.wrapsEnabled) {
