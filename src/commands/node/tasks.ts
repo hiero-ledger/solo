@@ -1577,46 +1577,120 @@ export class NodeCommandTasks {
     return {
       title: 'Wait for TSS',
       skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
-      task: async ({config}, task): Promise<SoloListr<NodeStartContext>> => {
-        const subTasks: SoloListrTask<NodeStartContext>[] = [];
+      task: ({config}, task): SoloListr<NodeStartContext> =>
+        this.waitForLogMessageOnNodes(
+          task,
+          config.consensusNodes,
+          constants.TSS_SIGNER_READY_MSG,
+          'did not become TSS ready',
+          1,
+          this.soloConfig.tss.timeoutAfterReadySeconds,
+        ) as SoloListr<NodeStartContext>,
+    };
+  }
 
-        for (const node of config.consensusNodes) {
-          subTasks.push({
-            title: `Waiting for node: ${node.name}`,
-            task: async (_, task): Promise<void> => {
-              const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
-              let attempt: number = 0;
-              let success: boolean = false;
+  /**
+   * Polls hgcaa.log on each of the given nodes until `logMessage` appears at least
+   * `requiredNewCount` times more than when the subtask first successfully reads the log.
+   * The baseline-count approach avoids false-positives from messages already present in
+   * the log (e.g. the genesis hinTS completion logged as construction #1).
+   * Container acquisition is retried inside the loop so this works for nodes that were
+   * just started and may not be accessible yet.
+   */
+  private waitForLogMessageOnNodes(
+    task: SoloListrTaskWrapper<AnyListrContext>,
+    consensusNodes: ConsensusNode[],
+    logMessage: string,
+    errorSuffix: string,
+    requiredNewCount: number = 1,
+    postSuccessDelaySeconds: number = 0,
+  ): SoloListr<AnyListrContext> {
+    const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
+    const countOccurrences = (output: string): number =>
+      output.split('\n').filter((line: string): boolean => line.includes(logMessage)).length;
 
-              while (!success && attempt < maxAttempts) {
-                attempt++;
+    const subTasks: SoloListrTask<AnyListrContext>[] = consensusNodes.map(
+      (node: ConsensusNode): SoloListrTask<AnyListrContext> => ({
+        title: `Waiting for node: ${node.name}`,
+        task: async (_, nodeTask): Promise<void> => {
+          const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
+          let baselineCount: number | undefined;
+          let attempt: number = 0;
+          let success: boolean = false;
 
-                task.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
+          while (!success && attempt < maxAttempts) {
+            attempt++;
+            nodeTask.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
 
-                const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
-                  NamespaceName.of(node.namespace),
-                  node.name,
-                );
+            try {
+              const nodeContainer: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                NamespaceName.of(node.namespace),
+                node.name,
+              );
+              const currentCount: number = countOccurrences(await nodeContainer.execContainer(['cat', hgcaaLogPath]));
 
-                const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
-                const output: string = await container.execContainer(['cat', hgcaaLogPath]);
-
-                if (output.includes(constants.TSS_SIGNER_READY_MSG)) {
-                  await sleep(Duration.ofSeconds(this.soloConfig.tss.timeoutAfterReadySeconds));
-                  success = true;
-                } else {
-                  await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
+              if (baselineCount === undefined) {
+                baselineCount = currentCount;
+              } else if (currentCount >= baselineCount + requiredNewCount) {
+                if (postSuccessDelaySeconds > 0) {
+                  await sleep(Duration.ofSeconds(postSuccessDelaySeconds));
                 }
+                success = true;
+                break;
               }
+            } catch (error) {
+              this.logger.debug(`waitForLogMessageOnNodes: ${node.name}: attempt ${attempt}/${maxAttempts}: ${error}`);
+            }
 
-              if (!success) {
-                throw new Error(`Node ${node.name} did not become ready after ${maxAttempts} attempts`);
-              }
-            },
-          });
-        }
+            await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
+          }
 
-        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+          if (!success) {
+            throw new SoloError(`Node ${node.name} ${errorSuffix} after ${maxAttempts} attempts`);
+          }
+        },
+      }),
+    );
+
+    return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+  }
+
+  public waitForHintsCeremonyComplete(): SoloListrTask<NodeAddContext> {
+    return {
+      title: 'Wait for hinTS ceremony to complete before freeze',
+      skip: (): boolean =>
+        !this.remoteConfig.configuration.state.tssEnabled ||
+        this.remoteConfig.configuration.state.blockNodes.length === 0,
+      task: ({config}, task): SoloListr<NodeAddContext> => {
+        const existingNodes: ConsensusNode[] = config.consensusNodes.filter((node: ConsensusNode): boolean =>
+          config.existingNodeAliases.includes(node.name),
+        );
+        return this.waitForLogMessageOnNodes(
+          task,
+          existingNodes,
+          constants.HINTS_CEREMONY_COMPLETE_MSG,
+          'hinTS ceremony did not complete',
+        ) as SoloListr<NodeAddContext>;
+      },
+    };
+  }
+
+  public waitForHintsConstructionHandoff(): SoloListrTask<NodeAddContext> {
+    return {
+      title: 'Wait for active roster update with new node gossip certificate',
+      skip: (): boolean =>
+        !this.remoteConfig.configuration.state.tssEnabled ||
+        this.remoteConfig.configuration.state.blockNodes.length === 0,
+      task: ({config}, task): SoloListr<NodeAddContext> => {
+        const existingNodes: ConsensusNode[] = config.consensusNodes.filter((node: ConsensusNode): boolean =>
+          config.existingNodeAliases.includes(node.name),
+        );
+        return this.waitForLogMessageOnNodes(
+          task,
+          existingNodes,
+          constants.HINTS_CONSTRUCTION_HANDOFF_MSG,
+          'hinTS construction handoff not seen — candidate roster may not have been adopted; the new node cannot start safely',
+        ) as SoloListr<NodeAddContext>;
       },
     };
   }
