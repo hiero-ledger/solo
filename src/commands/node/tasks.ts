@@ -244,7 +244,11 @@ export class NodeCommandTasks {
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
-  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion: string): Promise<string> {
+  private async _prepareUpgradeZip(
+    stagingDirectory: string,
+    upgradeVersion: string,
+    disableTssHints: boolean = false,
+  ): Promise<string> {
     // we build a mock upgrade.zip file as we really don't need to upgrade the network
     // also the platform zip file is ~80Mb in size requiring a lot of transactions since the max
     // transaction size is 6Kb and in practice we need to send the file as 4Kb chunks.
@@ -254,6 +258,9 @@ export class NodeCommandTasks {
     if (!fs.existsSync(upgradeConfigDirectory)) {
       fs.mkdirSync(upgradeConfigDirectory, {recursive: true});
     }
+
+    // Keys that prevent roster adoption when tss.hintsEnabled is set but InertHintsController is used
+    const tssHintsKeys: Set<string> = new Set(['tss.hintsEnabled', 'tss.historyEnabled', 'tss.forceMockSignatures']);
 
     // bump field hedera.config.version or use the version passed in
     const fileBytes: Buffer = fs.readFileSync(
@@ -268,6 +275,9 @@ export class NodeCommandTasks {
         if (parts[0] === 'hedera.config.version') {
           const version: string = upgradeVersion ?? String(Number.parseInt(parts[1]) + 1);
           line = `hedera.config.version=${version}`;
+        }
+        if (disableTssHints && tssHintsKeys.has(parts[0])) {
+          continue;
         }
         newLines.push(line);
       }
@@ -831,7 +841,23 @@ export class NodeCommandTasks {
             .readByRef(containerReference)
             .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
 
-          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
+          // When InertHintsController is used (source nodes ≤ 2/3 of new roster weight),
+          // tss.hintsEnabled=true blocks V054RosterSchema from adopting the candidate roster
+          // because there is no hinTS ceremony proof. Strip those settings from the upgrade zip.
+          const existingCount: number = config.existingNodeAliases?.length ?? 0;
+          const totalCount: number = config.allNodeAliases?.length ?? existingCount;
+          const disableTssHints: boolean =
+            this.remoteConfig.isLoaded() &&
+            this.remoteConfig.configuration.state.tssEnabled &&
+            this.remoteConfig.configuration.state.blockNodes.length > 0 &&
+            existingCount > 0 &&
+            totalCount > existingCount &&
+            existingCount * 3 <= totalCount * 2;
+          context_.upgradeZipFile = await this._prepareUpgradeZip(
+            config.stagingDir,
+            config.upgradeVersion,
+            disableTssHints,
+          );
         }
         context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
