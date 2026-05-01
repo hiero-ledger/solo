@@ -6,7 +6,7 @@ import sinon, {type SinonSpyCall} from 'sinon';
 import fs from 'node:fs';
 import * as Base64 from 'js-base64';
 
-import {PostgresSharedResource} from '../../../../src/core/shared-resources/postgres.js';
+import {getMirrorNodeReleaseTag, PostgresSharedResource} from '../../../../src/core/shared-resources/postgres.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {type HelmClient} from '../../../../src/integration/helm/helm-client.js';
@@ -295,6 +295,16 @@ describe('PostgresSharedResource', (): void => {
       await expect(postgres.initializeMirrorNode(namespace, context)).to.be.rejectedWith(
         'Failed to download Mirror Node Postgres init script',
       );
+    });
+  });
+
+  describe('getMirrorNodeReleaseTag()', (): void => {
+    it('preserves pre-release suffixes', (): void => {
+      expect(getMirrorNodeReleaseTag('v0.153.0-rc2')).to.equal('v0.153.0-rc2');
+    });
+
+    it('adds v prefix when missing', (): void => {
+      expect(getMirrorNodeReleaseTag('0.153.0-rc2')).to.equal('v0.153.0-rc2');
     });
   });
 });

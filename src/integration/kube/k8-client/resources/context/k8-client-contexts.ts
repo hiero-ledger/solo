@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Contexts} from '../../../resources/context/contexts.js';
-import {type KubeConfig, CoreV1Api} from '@kubernetes/client-node';
+import {type KubeConfig, CoreV1Api, type V1NamespaceList} from '@kubernetes/client-node';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 
 export class K8ClientContexts implements Contexts {
@@ -35,7 +35,7 @@ export class K8ClientContexts implements Contexts {
 
     const temporaryKubeClient: CoreV1Api = this.kubeConfig.makeApiClient(CoreV1Api);
     try {
-      const result: any = await temporaryKubeClient.listNamespace();
+      const result: V1NamespaceList = await temporaryKubeClient.listNamespace();
       if (result?.items) {
         this.kubeConfig.setCurrentContext(originalContextName);
         return true;

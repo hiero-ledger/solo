@@ -14,8 +14,10 @@ import {
   type Context,
   type DeploymentName,
   type Optional,
+  type PortForwardConfig,
   type Realm,
   type Shard,
+  type SoloListr,
   type SoloListrTask,
 } from '../types/index.js';
 import {ErrorMessages} from '../core/error-messages.js';
@@ -43,6 +45,10 @@ import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state
 import * as version from '../../version.js';
 import find from 'find-process';
 import type ProcessInfo from 'find-process';
+import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
+import yaml from 'yaml';
+import {PathEx} from '../business/utils/path-ex.js';
+import fs from 'node:fs/promises';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -111,6 +117,11 @@ export class DeploymentCommand extends BaseCommand {
     optional: [flags.quiet],
   };
 
+  public static PORTS_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.clusterRef, flags.quiet, flags.output, flags.cacheDir],
+  };
+
   /**
    * Create new deployment inside the local config
    */
@@ -152,7 +163,54 @@ export class DeploymentCommand extends BaseCommand {
                 (d: Deployment): boolean => d.name === context_.config.deployment,
               )
             ) {
-              throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
+              const deploymentName: DeploymentName = context_.config.deployment;
+              const existingDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
+              const deploymentNamespace: NamespaceName = NamespaceName.of(existingDeployment.namespace);
+              const clusterReferences: FacadeArray<StringFacade, string> = existingDeployment.clusters;
+
+              let deploymentExistsInCluster: boolean = false;
+
+              for (const clusterReferenceFacade of clusterReferences) {
+                const clusterReference: string = clusterReferenceFacade.toString();
+                const clusterContext: Optional<string> = this.localConfig.configuration.clusterRefs
+                  .get(clusterReference)
+                  ?.toString();
+
+                if (clusterContext) {
+                  try {
+                    const k8: K8 = this.k8Factory.getK8(clusterContext);
+                    const namespaceExists: boolean = await k8.namespaces().has(deploymentNamespace);
+                    if (namespaceExists) {
+                      const remoteConfigExists: boolean = await k8
+                        .configMaps()
+                        .exists(deploymentNamespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+                      if (remoteConfigExists) {
+                        deploymentExistsInCluster = true;
+                        break;
+                      }
+                    }
+                  } catch (error: unknown) {
+                    this.logger.debug(
+                      `Could not connect to cluster context '${clusterContext}' for deployment '${deploymentName}': ${error instanceof Error ? error.message : String(error)}. Treating as stale.`,
+                    );
+                  }
+                }
+              }
+
+              if (deploymentExistsInCluster) {
+                throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(deploymentName));
+              }
+
+              // Local config is stale - deployment does not actually exist in any cluster
+              this.logger.showUser(
+                chalk.yellow(
+                  `\nLocal config shows deployment '${deploymentName}' exists, ` +
+                    'but no matching resources were found in the cluster. ' +
+                    'Cleaning up stale local config and proceeding with fresh deployment.',
+                ),
+              );
+              this.localConfig.configuration.deployments.remove(existingDeployment);
+              await this.localConfig.persist();
             }
           },
         },
@@ -345,7 +403,7 @@ export class DeploymentCommand extends BaseCommand {
       config: Config;
     }
 
-    const tasks: Listr<Context, 'default', 'default'> = new Listr(
+    const tasks: SoloListr<Context> = new Listr(
       [
         {
           title: 'Initialize',
@@ -442,6 +500,193 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   public async close(): Promise<void> {} // no-op
+
+  public async ports(argv: ArgvStruct): Promise<boolean> {
+    interface PortEntry {
+      componentId: number;
+      localPort: number;
+      podPort: number;
+    }
+
+    interface PortsReport {
+      deployment: DeploymentName;
+      clusterReference: ClusterReferenceName;
+      namespace: string;
+      services: {
+        consensusNodeGrpc: PortEntry[];
+        mirrorNodeRest: PortEntry[];
+        jsonRpcRelay: PortEntry[];
+        explorer: PortEntry[];
+        blockNode: PortEntry[];
+      };
+    }
+
+    interface Config {
+      quiet: boolean;
+      namespace: NamespaceName;
+      deployment: DeploymentName;
+      clusterReference: ClusterReferenceName;
+      deploymentConfig: Deployment;
+      output: 'json' | 'yaml' | 'wide';
+      cacheDirectory: string;
+    }
+
+    interface PortsContext {
+      config: Config;
+    }
+
+    const tasks: SoloListr<PortsContext> = new Listr(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_): Promise<void> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+
+            this.configManager.update(argv);
+
+            const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            const deploymentConfig: Deployment = this.localConfig.configuration.deploymentByName(deployment);
+            if (!deploymentConfig) {
+              throw new SoloError(`Deployment ${deployment} not found in local config`);
+            }
+
+            let output: 'json' | 'yaml' | 'wide' = 'wide';
+
+            const rawOutput: string = this.configManager.getFlag(flags.output);
+            switch (rawOutput) {
+              case '': {
+                output = 'wide';
+                break;
+              }
+              case 'json':
+              case 'yaml':
+              case 'wide': {
+                output = rawOutput;
+                break;
+              }
+              default: {
+                throw new SoloError(`Invalid output format: ${rawOutput}. Allowed values: json, yaml, wide`);
+              }
+            }
+
+            context_.config = {
+              clusterReference: this.getClusterReference(),
+              quiet: this.configManager.getFlag<boolean>(flags.quiet),
+              deployment,
+              deploymentConfig,
+              namespace: NamespaceName.of(deploymentConfig.namespace),
+              output,
+              cacheDirectory: this.configManager.getFlag(flags.cacheDir),
+            };
+          },
+        },
+        {
+          title: 'List deployment port-forwards',
+          task: async ({config}, task): Promise<void> => {
+            const {deployment, namespace, clusterReference, output} = config;
+            const state: DeploymentStateSchema = this.remoteConfig.configuration.state;
+
+            const collectEntries: (components: BaseStateSchema[]) => PortEntry[] = (
+              components: BaseStateSchema[],
+            ): PortEntry[] => {
+              const entries: PortEntry[] = [];
+
+              for (const component of components) {
+                const portForwardConfigs: PortForwardConfig[] = component.metadata?.portForwardConfigs || [];
+
+                for (const portForwardConfig of portForwardConfigs) {
+                  entries.push({
+                    componentId: component.metadata.id,
+                    localPort: portForwardConfig.localPort,
+                    podPort: portForwardConfig.podPort,
+                  });
+                }
+              }
+
+              return entries;
+            };
+
+            const report: PortsReport = {
+              deployment,
+              clusterReference,
+              namespace: namespace.name,
+              services: {
+                consensusNodeGrpc: collectEntries(state.haProxies || []),
+                mirrorNodeRest: collectEntries(state.mirrorNodes || []),
+                jsonRpcRelay: collectEntries(state.relayNodes || []),
+                explorer: collectEntries(state.explorers || []),
+                blockNode: collectEntries(state.blockNodes || []),
+              },
+            };
+
+            const targetDirectory: string = PathEx.join(config.cacheDirectory, 'output');
+            await fs.mkdir(targetDirectory, {recursive: true});
+
+            if (output === 'json') {
+              const targetFile: string = PathEx.join(targetDirectory, 'forwarded-ports.json');
+              const jsonData: string = JSON.stringify(report, undefined, 2);
+
+              await fs.writeFile(targetFile, jsonData, 'utf8');
+              this.logger.showUser(`Ports data file written to: ${targetFile}`);
+              this.logger.showUser(jsonData);
+            } else if (output === 'yaml') {
+              const targetFile: string = PathEx.join(targetDirectory, 'forwarded-ports.yaml');
+              const yamlData: string = yaml.stringify(report);
+
+              await fs.writeFile(targetFile, yamlData, 'utf8');
+              this.logger.showUser(`Ports data file written to: ${targetFile}`);
+              this.logger.showUser(yamlData);
+            } else {
+              this.logger.showUser(chalk.cyan(`\n=== Port-forwards for deployment: ${deployment} ===`));
+              this.logger.showUser(`Cluster: ${clusterReference}`);
+              this.logger.showUser(`Namespace: ${namespace.name}`);
+
+              const serviceGroups: {title: string; entries: PortEntry[]}[] = [
+                {title: 'Consensus node gRPC', entries: report.services.consensusNodeGrpc},
+                {title: 'Mirror node REST', entries: report.services.mirrorNodeRest},
+                {title: 'JSON-RPC relay', entries: report.services.jsonRpcRelay},
+                {title: 'Explorer', entries: report.services.explorer},
+                {title: 'Block node', entries: report.services.blockNode},
+              ];
+
+              let foundAnyPortForwards: boolean = false;
+
+              for (const {title, entries} of serviceGroups) {
+                if (entries.length === 0) {
+                  continue;
+                }
+
+                foundAnyPortForwards = true;
+                this.logger.showList(
+                  title,
+                  entries.map(
+                    (entry): string =>
+                      `component ${entry.componentId}: localhost:${entry.localPort} -> pod:${entry.podPort}`,
+                  ),
+                );
+              }
+
+              if (!foundAnyPortForwards) {
+                this.logger.showUser(chalk.yellow('No port-forwards configured in remote config'));
+              }
+            }
+
+            task.title = `Listed port-forwards for deployment ${deployment}`;
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloError('Error listing deployment ports', error);
+    }
+
+    return true;
+  }
 
   /**
    * Initializes and populates the config and context for 'deployment cluster attach'
@@ -752,7 +997,7 @@ export class DeploymentCommand extends BaseCommand {
       context?: string;
     }
 
-    const tasks: Listr<RefreshContext, 'default', 'default'> = new Listr(
+    const tasks: SoloListr<RefreshContext> = new Listr(
       [
         {
           title: 'Initialize',
@@ -892,11 +1137,8 @@ export class DeploymentCommand extends BaseCommand {
                         // - localPort: the port to forward to on localhost
                         // - podPort: the port on the pod to forward from
                         // - reuse: true = reuse the configured port number
-                        // - persist: false = temporary port-forward (will not restart on failure)
-                        await k8Client
-                          .pods()
-                          .readByReference(podReference)
-                          .portForward(localPort, podPort, true, false);
+                        // - persist: true = persistent port-forward (will restart on failure)
+                        await k8Client.pods().readByReference(podReference).portForward(localPort, podPort, true, true);
 
                         const restoredDetail: string = `  ↳ Restored port forward for ${componentLabel}`;
                         this.logger.showUser(chalk.green(restoredDetail));
@@ -977,7 +1219,7 @@ export class DeploymentCommand extends BaseCommand {
       deployments: Deployment[];
     }
 
-    const tasks: Listr<PortStatusContext, 'default', 'default'> = new Listr(
+    const tasks: SoloListr<PortStatusContext> = new Listr(
       [
         {
           title: 'Initialize',
