@@ -490,7 +490,7 @@ export class MirrorNodeTest extends BaseCommandTest {
 
       const stdOut: string[] = await new ShellRunner().run(`curl http://localhost:${srv}/api/v1/network/nodes`);
 
-      const addressBook: AnyObject = JSON.parse(stdOut[0]);
+      const addressBook: AnyObject = JSON.parse(stdOut.join(''));
 
       expect(addressBook.nodes.length).to.be.greaterThan(0);
 
