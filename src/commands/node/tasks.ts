@@ -843,10 +843,12 @@ export class NodeCommandTasks {
 
           // When InertHintsController is used (source nodes ≤ 2/3 of new roster weight),
           // tss.hintsEnabled=true blocks V054RosterSchema from adopting the candidate roster
-          // because there is no hinTS ceremony proof. Strip those settings from the upgrade zip.
+          // because there is no hinTS ceremony proof. Strip those settings from the upgrade zip
+          // unless SOLO_REPRODUCE_INERT_HINTS_BUG is set (to reproduce the CN error).
           const existingCount: number = config.existingNodeAliases?.length ?? 0;
           const totalCount: number = config.allNodeAliases?.length ?? existingCount;
           const disableTssHints: boolean =
+            !constants.REPRODUCE_INERT_HINTS_BUG &&
             this.remoteConfig.isLoaded() &&
             this.remoteConfig.configuration.state.tssEnabled &&
             this.remoteConfig.configuration.state.blockNodes.length > 0 &&

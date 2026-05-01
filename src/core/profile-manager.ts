@@ -607,7 +607,6 @@ export class ProfileManager {
     }
 
     if (this.remoteConfig.isLoaded()) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const remoteConfiguration = this.remoteConfig.configuration!;
       const releaseTag: SemanticVersion<string> = remoteConfiguration.versions.consensusNode;
       const tssEnabled: boolean = remoteConfiguration.state.tssEnabled;

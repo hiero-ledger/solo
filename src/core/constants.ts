@@ -49,6 +49,12 @@ export const KIND_NODE_IMAGE: string =
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 export const ENABLE_S6_IMAGE: boolean = getEnvironmentVariable('ENABLE_S6_IMAGE') === 'true' || true;
+// When true, Solo skips the hinTS ceremony wait steps but keeps tss.hintsEnabled in the upgrade
+// zip, which causes V054RosterSchema to reject the candidate roster on small networks (1→2 or
+// 2→3 node transitions where InertHintsController is used).  The new node then fails to start
+// with KEY_LOADING_FAILED / "no certificate found".  Use this to reproduce the CN bug without
+// the test hanging at the ceremony wait.
+export const REPRODUCE_INERT_HINTS_BUG: boolean = getEnvironmentVariable('SOLO_REPRODUCE_INERT_HINTS_BUG') === 'true';
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
