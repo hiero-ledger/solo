@@ -57,9 +57,6 @@ function setup_smart_contract_test ()
     console.log('Patched utils/constants.js with Solo port-forward addresses');
   "
 
-  # Increase ERC20 suite timeout to reduce relay/mirror propagation flakes on CI.
-  sed -i 's/const DEFAULT_TIMEOUT = 30000;/const DEFAULT_TIMEOUT = 120000;/' test/openzeppelin/ERC-20/ERC20.js
-  echo "Patched ERC20 default timeout to 120000ms"
   cd -
 }
 
