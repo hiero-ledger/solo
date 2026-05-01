@@ -111,8 +111,17 @@ export class DeploymentTest extends BaseCommandTest {
       expect(Object.entries(consensusNodes).length, `consensus node count should be ${consensusNodesCount}`).to.equal(
         consensusNodesCount,
       );
+      // Verify each cluster received the expected number of nodes (not a fixed index mapping).
+      const nodeCountsByCluster: Map<string, number> = new Map();
+      for (const node of Object.values(consensusNodes)) {
+        const cluster: string = node.metadata.cluster;
+        nodeCountsByCluster.set(cluster, (nodeCountsByCluster.get(cluster) ?? 0) + 1);
+      }
       for (const [index, element] of clusterReferenceNameArray.entries()) {
-        expect(consensusNodes[index].metadata.cluster).to.equal(element);
+        expect(
+          nodeCountsByCluster.get(element) ?? 0,
+          `cluster ${element} should have ${nodeCountsPerCluster[index]} node(s)`,
+        ).to.equal(nodeCountsPerCluster[index]);
       }
       testLogger.info(`${testName}: finished solo deployment cluster attach`);
     });

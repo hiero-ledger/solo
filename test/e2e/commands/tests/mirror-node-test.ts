@@ -484,25 +484,26 @@ export class MirrorNodeTest extends BaseCommandTest {
   }
 
   public static pullAddressBook(options: BaseTestOptions): void {
+    const {consensusNodesCount} = options;
     it('should pull address book from mirror node', async (): Promise<void> => {
       const srv: number = await MirrorNodeTest.forwardRestServicePort(options.contexts, options.namespace);
 
       const stdOut: string[] = await new ShellRunner().run(`curl http://localhost:${srv}/api/v1/network/nodes`);
 
-      const addressBook: AnyObject = JSON.parse(stdOut[0]);
+      const addressBook: AnyObject = JSON.parse(stdOut.join(''));
 
       expect(addressBook.nodes.length).to.be.greaterThan(0);
 
-      const node1: AnyObject = addressBook.nodes.find((node: AnyObject): boolean => node.node_id === 0);
+      // Validate first alpha node (always node1, node_id=0).
+      const alphaNode: AnyObject = addressBook.nodes.find((node: AnyObject): boolean => node.node_id === 0);
+      expect(alphaNode.grpc_proxy_endpoint.domain_name).to.equal(ConsensusNodeTest.alphaClusterGrpcWebAddress);
+      expect(alphaNode.grpc_proxy_endpoint.port).to.equal(ConsensusNodeTest.baseGrpcWebPort);
 
-      // Validate Node 1 data
-      expect(node1.grpc_proxy_endpoint.domain_name).to.equal(ConsensusNodeTest.firstNodeCustomGrpcWebEndpointAddress);
-      expect(node1.grpc_proxy_endpoint.port).to.equal(ConsensusNodeTest.firstNodeCustomGrpcWebEndpointPort);
-
-      const node2: AnyObject = addressBook.nodes.find((node: AnyObject): boolean => node.node_id === 1);
-      // Validate Node 2 data
-      expect(node2.grpc_proxy_endpoint.domain_name).to.equal(ConsensusNodeTest.secondNodeCustomGrpcWebEndpointAddress);
-      expect(node2.grpc_proxy_endpoint.port).to.equal(ConsensusNodeTest.secondNodeCustomGrpcWebEndpointPort);
+      // Validate first beta node (node_id = ceil(N/2), i.e. the first node in cluster-beta).
+      const alphaCount: number = Math.ceil(consensusNodesCount / 2);
+      const betaNode: AnyObject = addressBook.nodes.find((node: AnyObject): boolean => node.node_id === alphaCount);
+      expect(betaNode.grpc_proxy_endpoint.domain_name).to.equal(ConsensusNodeTest.betaClusterGrpcWebAddress);
+      expect(betaNode.grpc_proxy_endpoint.port).to.equal(ConsensusNodeTest.baseGrpcWebPort + alphaCount);
 
       await MirrorNodeTest.stopPortForward(options.contexts, srv);
     });

@@ -36,13 +36,17 @@ const dualClusterValuesFile: string = PathEx.joinWithRealPath(
   'mirror-node-values-dual-cluster-minimal.yaml',
 );
 
+const consensusNodesCount: number = process.env['SOLO_DUAL_CLUSTER_NODE_COUNT']
+  ? Number.parseInt(process.env['SOLO_DUAL_CLUSTER_NODE_COUNT'], 10)
+  : 3;
+
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName('Dual Cluster Full E2E Test Suite')
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(2)
-  .withConsensusNodesCount(2)
+  .withConsensusNodesCount(consensusNodesCount)
   .withLoadBalancerEnabled(true)
   .withPinger(true)
   .withShard(3)
