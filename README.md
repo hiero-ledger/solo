@@ -55,11 +55,11 @@ Or via npm (requires Node.js >= 22.0.0):
 npm install -g @hashgraph/solo@latest
 ```
 
-For detailed platform-specific instructions, see the [Solo User Guide](https://solo.hiero.org/main/docs/solo-user-guide/).
+For detailed platform-specific instructions, see the [Solo User Guide](https://solo.hiero.org/docs/simple-solo-setup/).
 
 ## Documentation
 If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
-[solo docs](https://solo.hiero.org/main/docs/solo-user-guide/#one-shot-deployment))
+[solo docs](https://solo.hiero.org/docs/simple-solo-setup/quickstart/#deploy-a-local-network-one-shot)
 
 ## Contributing
 
