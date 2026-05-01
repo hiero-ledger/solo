@@ -46,8 +46,8 @@ Alternatively, you can use the following command to download hgcaa.log and
 swirlds.log for further analysis.
 
 ```bash
-# download logs as zip file from node1 and save in default ~/.solo/logs/<namespace>/<timestamp/
-solo consensus diagnostics all --deployment solo-deployment
+# download logs as zip file from node1 and save in default ~/.solo/logs/<namespace>/<timestamp>
+solo deployment diagnostics all --deployment solo-deployment
 ```
 
 ### 2. Using IntelliJ remote debug with Solo
@@ -128,11 +128,11 @@ solo deployment config create --namespace "${SOLO_NAMESPACE}" --deployment "${SO
 solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 3
 solo keys consensus generate --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys -i node1,node2,node3
 
-solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --pvcs true
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --pvcs
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 
-solo consensus node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --debug-node-alias node4 --local-build-path ../hiero-consensus-node/hedera-node/data --pvcs true
+solo consensus node add --deployment "${SOLO_DEPLOYMENT}" --gossip-keys --tls-keys --debug-node-alias node4 --local-build-path ../hiero-consensus-node/hedera-node/data --pvcs
 ```
 
 Example 3: attach a JVM debugger with the consensus node update operation
@@ -158,7 +158,7 @@ solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,n
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 
-solo consensus node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node2 --local-build-path ../hiero-consensus-node/hedera-node/data --new-account-number 0.0.7 --gossip-public-key ./s-public-node2.pem --gossip-private-key ./s-private-node2.pem --release-tag v0.59.5
+solo consensus node update --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node2 --local-build-path ../hiero-consensus-node/hedera-node/data --new-account-number 0.0.7 --gossip-public-key ./s-public-node2.pem --gossip-private-key ./s-private-node2.pem --release-tag v0.71.0
 ```
 
 Example 4: attach a JVM debugger with the node delete operation
@@ -184,7 +184,7 @@ solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,n
 solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3 --local-build-path ../hiero-consensus-node/hedera-node/data
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 
-solo consensus node destroy --deployment "${SOLO_DEPLOYMENT}" --node-alias node2  --debug-node-alias node3 --local-build-path ../hiero-consensus-node/hedera-node/data
+solo consensus node destroy --deployment "${SOLO_DEPLOYMENT}" --node-alias node2 --debug-node-alias node3 --local-build-path ../hiero-consensus-node/hedera-node/data
 ```
 
 ### 3. Save and reuse network state files
@@ -233,7 +233,7 @@ solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i node1,node2,node3
 solo consensus node stop --deployment "${SOLO_DEPLOYMENT}"
 
-solo consensus node states -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
+solo consensus state download -i node1,node2,node3 --deployment "${SOLO_DEPLOYMENT}"
 
 # start network with pre-existing state files
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" --state-file network-node1-0-state.zip

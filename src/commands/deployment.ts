@@ -163,7 +163,54 @@ export class DeploymentCommand extends BaseCommand {
                 (d: Deployment): boolean => d.name === context_.config.deployment,
               )
             ) {
-              throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(context_.config.deployment));
+              const deploymentName: DeploymentName = context_.config.deployment;
+              const existingDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
+              const deploymentNamespace: NamespaceName = NamespaceName.of(existingDeployment.namespace);
+              const clusterReferences: FacadeArray<StringFacade, string> = existingDeployment.clusters;
+
+              let deploymentExistsInCluster: boolean = false;
+
+              for (const clusterReferenceFacade of clusterReferences) {
+                const clusterReference: string = clusterReferenceFacade.toString();
+                const clusterContext: Optional<string> = this.localConfig.configuration.clusterRefs
+                  .get(clusterReference)
+                  ?.toString();
+
+                if (clusterContext) {
+                  try {
+                    const k8: K8 = this.k8Factory.getK8(clusterContext);
+                    const namespaceExists: boolean = await k8.namespaces().has(deploymentNamespace);
+                    if (namespaceExists) {
+                      const remoteConfigExists: boolean = await k8
+                        .configMaps()
+                        .exists(deploymentNamespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+                      if (remoteConfigExists) {
+                        deploymentExistsInCluster = true;
+                        break;
+                      }
+                    }
+                  } catch (error: unknown) {
+                    this.logger.debug(
+                      `Could not connect to cluster context '${clusterContext}' for deployment '${deploymentName}': ${error instanceof Error ? error.message : String(error)}. Treating as stale.`,
+                    );
+                  }
+                }
+              }
+
+              if (deploymentExistsInCluster) {
+                throw new SoloError(ErrorMessages.DEPLOYMENT_NAME_ALREADY_EXISTS(deploymentName));
+              }
+
+              // Local config is stale - deployment does not actually exist in any cluster
+              this.logger.showUser(
+                chalk.yellow(
+                  `\nLocal config shows deployment '${deploymentName}' exists, ` +
+                    'but no matching resources were found in the cluster. ' +
+                    'Cleaning up stale local config and proceeding with fresh deployment.',
+                ),
+              );
+              this.localConfig.configuration.deployments.remove(existingDeployment);
+              await this.localConfig.persist();
             }
           },
         },
