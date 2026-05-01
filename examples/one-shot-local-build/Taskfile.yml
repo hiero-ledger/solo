@@ -192,6 +192,7 @@ tasks:
           {
             echo "network:"
             echo "  --release-tag: \"{{.CN_VERSION}}\""
+            echo "  --pvcs\"
             echo ""
             echo "setup:"
             echo "  --local-build-path: \"{{.CN_LOCAL_BUILD_PATH}}\""
