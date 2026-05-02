@@ -71,8 +71,8 @@ describe('NetworkCommand unit tests', (): void => {
     }
 
     fs.copyFileSync(
-      PathEx.joinWithRealPath(sourceDirectory, 'application.properties'),
-      PathEx.join(destinationDirectory, 'application.properties'),
+      PathEx.joinWithRealPath(sourceDirectory, constants.APPLICATION_PROPERTIES),
+      PathEx.join(destinationDirectory, constants.APPLICATION_PROPERTIES),
     );
   });
 
