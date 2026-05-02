@@ -220,12 +220,8 @@ tasks:
   backup:
     desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
     cmds:
+      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
       - cmd: |
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
-          else
-            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
-          fi
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
       - cmd: echo "✅ Backup completed successfully"
