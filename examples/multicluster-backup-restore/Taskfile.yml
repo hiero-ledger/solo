@@ -366,6 +366,22 @@ tasks:
             sleep 3
           done
 
+      - cmd: |
+          export SOLO_DEPLOYMENT="{{ .DEPLOYMENT }}"
+          export SOLO_NAMESPACE="{{ .NAMESPACE }}"
+          export REALM_NUM="{{ .REALM }}"
+          export SHARD_NUM="{{ .SHARD }}"
+
+          if [ "$(node -p "process.platform")" = "win32" ]; then
+            echo "Skipping solo smoke test on Windows: .github/workflows/script/solo_smoke_test.sh is POSIX shell."
+          elif git rev-parse --show-toplevel >/dev/null 2>&1; then
+            REPO_ROOT="$(git rev-parse --show-toplevel)"
+            echo "Running solo smoke test from repo root: ${REPO_ROOT}"
+            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
+          else
+            echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
+          fi
+
       - cmd: echo "✅ Network verification completed - restored network is operational!"
 
   # ==================== Cleanup Tasks ====================
