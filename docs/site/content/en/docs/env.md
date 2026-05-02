@@ -74,7 +74,7 @@ User can configure the following environment variables to customize the behavior
 | `LOCAL_BUILD_COPY_RETRY`                           | The number of times to retry local build copy operations.                                                                       | `3`                                                                                                                         |
 | `LOAD_BALANCER_CHECK_DELAY_SECS`                   | The delay in seconds between load balancer status checks.                                                                       | `5`                                                                                                                         |
 | `LOAD_BALANCER_CHECK_MAX_ATTEMPTS`                 | The maximum number of attempts to check load balancer status.                                                                   | `60`                                                                                                                        |
-| `IGNORE_POD_METRICS`                               | Comma-separated list of pod metric names to ignore during health checks.                                                        | ``(empty — no metrics ignored)                                                                                             |
+| `IGNORE_POD_METRICS`                               | Comma-separated list of pod metric names to ignore during health checks.                                                        | `` (empty — no metrics ignored)                                                                                             |
 | `ENABLE_S6_IMAGE`                                  | Use the S6-based consensus node image when set to `true`.                                                                       | `true`                                                                                                                      |
 | `SOLO_S6_NODE_IMAGE_REGISTRY`                      | Container registry for the S6-based consensus node image.                                                                       | `ghcr.io`                                                                                                                   |
 | `SOLO_S6_NODE_IMAGE_REPOSITORY`                    | Image repository path for the S6-based consensus node image.                                                                    | `hashgraph/solo-containers/ubi8-s6-java25`                                                                                  |
@@ -114,7 +114,7 @@ User can configure the following environment variables to customize the behavior
 | `MIRROR_NODE_PINGER_TPS`                           | The transactions per second to set the Mirror Node monitor pinger to, 0 means disable.                                          | `5`                                                                                                                         |
 | `BLOCK_STREAM_STREAM_MODE`                         | The blockStream.streamMode for consensus node's application-properties, used only when block node is deployed.                  | `BOTH`                                                                                                                      |
 | `BLOCK_STREAM_WRITER_MODE`                         | The blockStream.writerMode for consensus node's application-properties, used only when block node is deployed.                  | `FILE_AND_GRPC`                                                                                                             |
-| `JAVA_FLIGHT_RECORDER_CONFIGURATION`               | Path to a JFR configuration file to be uploaded to the consensus nodes. Can be used as a substitute for the `--jfr-config` flag |``                                                                                                                          |
+| `JAVA_FLIGHT_RECORDER_CONFIGURATION`               | Path to a JFR configuration file to be uploaded to the consensus nodes. Can be used as a substitute for the `--jfr-config` flag | ``                                                                                                                          |
 | `TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS`      | The number of seconds to wait after triggering stake weight calculation.                                                        | `60`                                                                                                                        |
 
 ## Config-System Override Variables
@@ -134,47 +134,47 @@ nesting levels with `_`, and prepend `SOLO_`. For example, `helmChart.directory`
 | Environment Variable                                        | Description                                                                                  | Default Value                                  |
 |-------------------------------------------------------------|----------------------------------------------------------------------------------------------|------------------------------------------------|
 | `SOLO_HELM-CHART_NAME`                                      | Helm chart name for the Solo deployment chart.                                               | `solo-deployment`                              |
-| `SOLO_HELM-CHART_NAMESPACE`                                 | Kubernetes namespace for the Solo deployment chart.                                          | ``(set by CLI)                                |
+| `SOLO_HELM-CHART_NAMESPACE`                                 | Kubernetes namespace for the Solo deployment chart.                                          | `` (set by CLI)                                |
 | `SOLO_HELM-CHART_RELEASE`                                   | Helm release name for the Solo deployment chart.                                             | `solo-deployment`                              |
 | `SOLO_HELM-CHART_REPOSITORY`                                | Helm repository URL for the Solo deployment chart.                                           | `oci://ghcr.io/hashgraph/solo-charts`          |
-| `SOLO_HELM-CHART_DIRECTORY`                                 | Local directory path for the Solo deployment chart (overrides repository when set).          |`` (empty — uses repository)                   |
-| `SOLO_HELM-CHART_VERSION`                                   | Version of the Solo deployment chart.                                                        | ``(set by CLI or `version.ts`)                |
-| `SOLO_HELM-CHART_LABEL-SELECTOR`                            | Label selector for Solo deployment chart pods.                                               |`` (empty)                                     |
-| `SOLO_HELM-CHART_CONTAINER-NAME`                            | Container name within the Solo deployment chart pods.                                        | ``(empty)                                     |
-| `SOLO_HELM-CHART_INGRESS-CLASS-NAME`                        | Ingress class name for the Solo deployment chart.                                            |`` (empty)                                     |
-| `SOLO_HELM-CHART_INGRESS-CONTROLLER-NAME`                   | Ingress controller name for the Solo deployment chart.                                       | ``(empty)                                     |
-| `SOLO_HELM-CHART_INGRESS-CONTROLLER-PREFIX`                 | Ingress controller annotation prefix for the Solo deployment chart.                          |`` (empty)                                     |
+| `SOLO_HELM-CHART_DIRECTORY`                                 | Local directory path for the Solo deployment chart (overrides repository when set).          | `` (empty — uses repository)                   |
+| `SOLO_HELM-CHART_VERSION`                                   | Version of the Solo deployment chart.                                                        | `` (set by CLI or `version.ts`)                |
+| `SOLO_HELM-CHART_LABEL-SELECTOR`                            | Label selector for Solo deployment chart pods.                                               | `` (empty)                                     |
+| `SOLO_HELM-CHART_CONTAINER-NAME`                            | Container name within the Solo deployment chart pods.                                        | `` (empty)                                     |
+| `SOLO_HELM-CHART_INGRESS-CLASS-NAME`                        | Ingress class name for the Solo deployment chart.                                            | `` (empty)                                     |
+| `SOLO_HELM-CHART_INGRESS-CONTROLLER-NAME`                   | Ingress controller name for the Solo deployment chart.                                       | `` (empty)                                     |
+| `SOLO_HELM-CHART_INGRESS-CONTROLLER-PREFIX`                 | Ingress controller annotation prefix for the Solo deployment chart.                          | `` (empty)                                     |
 
 ### Ingress Controller Helm Chart (`ingressControllerHelmChart`)
 
 | Environment Variable                                        | Description                                                                                  | Default Value                                  |
 |-------------------------------------------------------------|----------------------------------------------------------------------------------------------|------------------------------------------------|
 | `SOLO_INGRESS-CONTROLLER-HELM-CHART_NAME`                   | Helm chart name for the ingress controller.                                                  | `haproxy-ingress`                              |
-| `SOLO_INGRESS-CONTROLLER-HELM-CHART_NAMESPACE`              | Kubernetes namespace for the ingress controller.                                             | ``(set by CLI)                                |
+| `SOLO_INGRESS-CONTROLLER-HELM-CHART_NAMESPACE`              | Kubernetes namespace for the ingress controller.                                             | `` (set by CLI)                                |
 | `SOLO_INGRESS-CONTROLLER-HELM-CHART_RELEASE`                | Helm release name for the ingress controller.                                                | `haproxy-ingress`                              |
 | `SOLO_INGRESS-CONTROLLER-HELM-CHART_REPOSITORY`             | Helm repository URL for the ingress controller.                                              | `https://haproxy-ingress.github.io/charts`     |
-| `SOLO_INGRESS-CONTROLLER-HELM-CHART_DIRECTORY`              | Local directory path for the ingress controller chart (overrides repository when set).       |`` (empty — uses repository)                   |
-| `SOLO_INGRESS-CONTROLLER-HELM-CHART_VERSION`                | Version of the ingress controller chart.                                                     | ``(set by CLI or `version.ts`)                |
-| `SOLO_INGRESS-CONTROLLER-HELM-CHART_LABEL-SELECTOR`         | Label selector for ingress controller pods.                                                  |`` (empty)                                     |
-| `SOLO_INGRESS-CONTROLLER-HELM-CHART_CONTAINER-NAME`         | Container name within ingress controller pods.                                               | ``(empty)                                     |
-| `SOLO_INGRESS-CONTROLLER-HELM-CHART_INGRESS-CLASS-NAME`     | Ingress class name for the ingress controller.                                               |`` (empty)                                     |
-| `SOLO_INGRESS-CONTROLLER-HELM-CHART_INGRESS-CONTROLLER-NAME` | Ingress controller name.                                                                    | ``(empty)                                     |
-| `SOLO_INGRESS-CONTROLLER-HELM-CHART_INGRESS-CONTROLLER-PREFIX` | Ingress controller annotation prefix.                                                     |`` (empty)                                     |
+| `SOLO_INGRESS-CONTROLLER-HELM-CHART_DIRECTORY`              | Local directory path for the ingress controller chart (overrides repository when set).       | `` (empty — uses repository)                   |
+| `SOLO_INGRESS-CONTROLLER-HELM-CHART_VERSION`                | Version of the ingress controller chart.                                                     | `` (set by CLI or `version.ts`)                |
+| `SOLO_INGRESS-CONTROLLER-HELM-CHART_LABEL-SELECTOR`         | Label selector for ingress controller pods.                                                  | `` (empty)                                     |
+| `SOLO_INGRESS-CONTROLLER-HELM-CHART_CONTAINER-NAME`         | Container name within ingress controller pods.                                               | `` (empty)                                     |
+| `SOLO_INGRESS-CONTROLLER-HELM-CHART_INGRESS-CLASS-NAME`     | Ingress class name for the ingress controller.                                               | `` (empty)                                     |
+| `SOLO_INGRESS-CONTROLLER-HELM-CHART_INGRESS-CONTROLLER-NAME` | Ingress controller name.                                                                    | `` (empty)                                     |
+| `SOLO_INGRESS-CONTROLLER-HELM-CHART_INGRESS-CONTROLLER-PREFIX` | Ingress controller annotation prefix.                                                     | `` (empty)                                     |
 
 ### Cluster Setup Helm Chart (`clusterSetupHelmChart`)
 
 | Environment Variable                                        | Description                                                                                  | Default Value                                  |
 |-------------------------------------------------------------|----------------------------------------------------------------------------------------------|------------------------------------------------|
 | `SOLO_CLUSTER-SETUP-HELM-CHART_NAME`                        | Helm chart name for the cluster setup chart.                                                 | `solo-cluster-setup`                           |
-| `SOLO_CLUSTER-SETUP-HELM-CHART_NAMESPACE`                   | Kubernetes namespace for the cluster setup chart.                                            | ``(set by CLI)                                |
+| `SOLO_CLUSTER-SETUP-HELM-CHART_NAMESPACE`                   | Kubernetes namespace for the cluster setup chart.                                            | `` (set by CLI)                                |
 | `SOLO_CLUSTER-SETUP-HELM-CHART_RELEASE`                     | Helm release name for the cluster setup chart.                                               | `solo-cluster-setup`                           |
 | `SOLO_CLUSTER-SETUP-HELM-CHART_REPOSITORY`                  | Helm repository URL for the cluster setup chart.                                             | `oci://ghcr.io/hashgraph/solo-charts`          |
-| `SOLO_CLUSTER-SETUP-HELM-CHART_DIRECTORY`                   | Local directory path for the cluster setup chart (overrides repository when set).            |`` (empty — uses repository)                   |
-| `SOLO_CLUSTER-SETUP-HELM-CHART_VERSION`                     | Version of the cluster setup chart.                                                          | ``(set by CLI or `version.ts`)                |
-| `SOLO_CLUSTER-SETUP-HELM-CHART_LABEL-SELECTOR`              | Label selector for cluster setup pods.                                                       |`` (empty)                                     |
-| `SOLO_CLUSTER-SETUP-HELM-CHART_CONTAINER-NAME`              | Container name within cluster setup pods.                                                    | ``(empty)                                     |
-| `SOLO_CLUSTER-SETUP-HELM-CHART_INGRESS-CLASS-NAME`          | Ingress class name for the cluster setup chart.                                              |`` (empty)                                     |
-| `SOLO_CLUSTER-SETUP-HELM-CHART_INGRESS-CONTROLLER-NAME`     | Ingress controller name for the cluster setup chart.                                         | \`\` (empty)                                     |
+| `SOLO_CLUSTER-SETUP-HELM-CHART_DIRECTORY`                   | Local directory path for the cluster setup chart (overrides repository when set).            | `` (empty — uses repository)                   |
+| `SOLO_CLUSTER-SETUP-HELM-CHART_VERSION`                     | Version of the cluster setup chart.                                                          | `` (set by CLI or `version.ts`)                |
+| `SOLO_CLUSTER-SETUP-HELM-CHART_LABEL-SELECTOR`              | Label selector for cluster setup pods.                                                       | `` (empty)                                     |
+| `SOLO_CLUSTER-SETUP-HELM-CHART_CONTAINER-NAME`              | Container name within cluster setup pods.                                                    | `` (empty)                                     |
+| `SOLO_CLUSTER-SETUP-HELM-CHART_INGRESS-CLASS-NAME`          | Ingress class name for the cluster setup chart.                                              | `` (empty)                                     |
+| `SOLO_CLUSTER-SETUP-HELM-CHART_INGRESS-CONTROLLER-NAME`     | Ingress controller name for the cluster setup chart.                                         | `` (empty)                                     |
 | `SOLO_CLUSTER-SETUP-HELM-CHART_INGRESS-CONTROLLER-PREFIX`   | Ingress controller annotation prefix for the cluster setup chart.                            | `haproxy-ingress.github.io/controller/`        |
 
 ### Cert Manager Helm Chart (`certManagerHelmChart`)
@@ -185,13 +185,13 @@ nesting levels with `_`, and prepend `SOLO_`. For example, `helmChart.directory`
 | `SOLO_CERT-MANAGER-HELM-CHART_NAMESPACE`                    | Kubernetes namespace for the cert-manager chart.                                             | `cert-manager`                                 |
 | `SOLO_CERT-MANAGER-HELM-CHART_RELEASE`                      | Helm release name for the cert-manager chart.                                                | `solo-cert-manager`                            |
 | `SOLO_CERT-MANAGER-HELM-CHART_REPOSITORY`                   | Helm repository URL for the cert-manager chart.                                              | `oci://ghcr.io/hashgraph/solo-charts`          |
-| `SOLO_CERT-MANAGER-HELM-CHART_DIRECTORY`                    | Local directory path for the cert-manager chart (overrides repository when set).             | ``(empty — uses repository)                   |
-| `SOLO_CERT-MANAGER-HELM-CHART_VERSION`                      | Version of the cert-manager chart.                                                           |`` (set by CLI or `version.ts`)                |
-| `SOLO_CERT-MANAGER-HELM-CHART_LABEL-SELECTOR`               | Label selector for cert-manager pods.                                                        | ``(empty)                                     |
-| `SOLO_CERT-MANAGER-HELM-CHART_CONTAINER-NAME`               | Container name within cert-manager pods.                                                     |`` (empty)                                     |
-| `SOLO_CERT-MANAGER-HELM-CHART_INGRESS-CLASS-NAME`           | Ingress class name for the cert-manager chart.                                               | ``(empty)                                     |
-| `SOLO_CERT-MANAGER-HELM-CHART_INGRESS-CONTROLLER-NAME`      | Ingress controller name for the cert-manager chart.                                          |`` (empty)                                     |
-| `SOLO_CERT-MANAGER-HELM-CHART_INGRESS-CONTROLLER-PREFIX`    | Ingress controller annotation prefix for the cert-manager chart.                             | \`\` (empty)                                     |
+| `SOLO_CERT-MANAGER-HELM-CHART_DIRECTORY`                    | Local directory path for the cert-manager chart (overrides repository when set).             | `` (empty — uses repository)                   |
+| `SOLO_CERT-MANAGER-HELM-CHART_VERSION`                      | Version of the cert-manager chart.                                                           | `` (set by CLI or `version.ts`)                |
+| `SOLO_CERT-MANAGER-HELM-CHART_LABEL-SELECTOR`               | Label selector for cert-manager pods.                                                        | `` (empty)                                     |
+| `SOLO_CERT-MANAGER-HELM-CHART_CONTAINER-NAME`               | Container name within cert-manager pods.                                                     | `` (empty)                                     |
+| `SOLO_CERT-MANAGER-HELM-CHART_INGRESS-CLASS-NAME`           | Ingress class name for the cert-manager chart.                                               | `` (empty)                                     |
+| `SOLO_CERT-MANAGER-HELM-CHART_INGRESS-CONTROLLER-NAME`      | Ingress controller name for the cert-manager chart.                                          | `` (empty)                                     |
+| `SOLO_CERT-MANAGER-HELM-CHART_INGRESS-CONTROLLER-PREFIX`    | Ingress controller annotation prefix for the cert-manager chart.                             | `` (empty)                                     |
 
 ### TSS Configuration (`tss`)
 
