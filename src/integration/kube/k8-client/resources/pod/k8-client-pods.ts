@@ -284,8 +284,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
               const podName: string = item.metadata?.name ?? '<unknown>';
               if (fatalError) {
                 const previous: {count: number; error: string} | undefined = fatalErrorStreakByPod.get(podName);
-                const nextCount: number =
-                  previous?.error === fatalError ? previous.count + 1 : 1;
+                const nextCount: number = previous?.error === fatalError ? previous.count + 1 : 1;
                 fatalErrorStreakByPod.set(podName, {count: nextCount, error: fatalError});
 
                 if (nextCount >= FATAL_ERROR_RETRY_THRESHOLD) {
