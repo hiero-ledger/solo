@@ -193,11 +193,9 @@ jobs:
             fi
           elif [ "${{ matrix.test.type }}" = "workflow" ]; then
             echo "Triggering workflow: ${{ matrix.test.path }}"
-            # Trigger the workflow using GitHub CLI
             CMD=(
               gh workflow run "${{ matrix.test.path }}"
-              --field "triggered-by=nightly-extended-tests"
-              --field "test-name=${{ matrix.test.name }}"
+              --ref "${GITHUB_REF_NAME}"
             )
 
             INPUTS_JSON='${{ matrix.test.workflow_inputs_json || '' }}'
