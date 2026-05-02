@@ -192,7 +192,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       return;
     }
     for (const [key, value] of Object.entries(configSection)) {
-      if (value !== undefined && value !== null && value !== StringEx.EMPTY && key !== '--deployment') {
+      if (
+        value !== undefined &&
+        value !== null &&
+        value !== StringEx.EMPTY &&
+        key !== flags.getFormattedFlagKey(Flags.deployment)
+      ) {
         argv.push(`${key}`, value.toString());
       }
     }
@@ -382,7 +387,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   settingsMergedPath,
                 );
                 // For CN >= 0.73.0, append state-on-disk settings
-                config.networkConfiguration['--settings-txt'] = useStateOnDisk
+                config.networkConfiguration[flags.getFormattedFlagKey(flags.settingTxt)] = useStateOnDisk
                   ? this.concatConfigFiles(
                       settingsMergedPath,
                       PathEx.join(stateOnDiskDirectory, 'settings.txt'),
@@ -390,21 +395,35 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                     )
                   : settingsMergedPath;
 
-                config.networkConfiguration['--application-properties'] = this.concatConfigFiles(
-                  PathEx.join(defaultsDirectory, 'application.properties'),
-                  PathEx.join(overridesDirectory, 'application.properties'),
-                  PathEx.join(mergedDirectory, 'application.properties'),
-                );
+                config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationProperties)] =
+                  this.concatConfigFiles(
+                    PathEx.join(defaultsDirectory, 'application.properties'),
+                    PathEx.join(overridesDirectory, 'application.properties'),
+                    PathEx.join(mergedDirectory, 'application.properties'),
+                  );
 
                 // For CN >= 0.73.0, use state-on-disk application.env instead of default small-memory
-                config.networkConfiguration['--application-env'] = useStateOnDisk
+                config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationEnv)] = useStateOnDisk
                   ? PathEx.join(stateOnDiskDirectory, 'application.env')
                   : PathEx.join(overridesDirectory, 'application.env');
 
                 const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
                 if (fs.existsSync(throttlesFile)) {
-                  config.networkConfiguration['--genesis-throttles-file'] = throttlesFile;
+                  config.networkConfiguration[flags.getFormattedFlagKey(flags.genesisThrottlesFile)] = throttlesFile;
                 }
+              }
+
+              // Auto-enable PVCs in network configuration when --local-build-path is used in setup configuration.
+              // Node PVCs are required to persist custom JARs across pod restarts.
+              if (
+                config.setupConfiguration[flags.getFormattedFlagKey(flags.localBuildPath)] &&
+                !config.networkConfiguration[flags.getFormattedFlagKey(flags.persistentVolumeClaims)]
+              ) {
+                this.logger.info(
+                  'Auto-enabling PVCs in network configuration because --local-build-path is set in setup. ' +
+                    'Node PVCs are required to persist custom JARs across pod restarts.',
+                );
+                config.networkConfiguration[flags.getFormattedFlagKey(flags.persistentVolumeClaims)] = 'true';
               }
 
               // Initialize deployment toggles with defaults if not specified
@@ -812,10 +831,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       // Build a local copy with the dev image values file appended, without mutating
                       // config.blockNodeConfiguration — it may be an alias for another section's object
                       // (e.g. via YAML anchors), causing the values file to leak into other commands.
-                      const blockExistingValuesFile: string = config.blockNodeConfiguration?.['--values-file'];
+                      const blockExistingValuesFile: string =
+                        config.blockNodeConfiguration?.[flags.getFormattedFlagKey(Flags.valuesFile)];
                       const blockLocalConfig: AnyObject = {
                         ...config.blockNodeConfiguration,
-                        '--values-file': blockExistingValuesFile
+                        [flags.getFormattedFlagKey(Flags.valuesFile)]: blockExistingValuesFile
                           ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
                           : constants.BLOCK_NODE_SOLO_DEV_FILE,
                       };
@@ -843,11 +863,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         config.parallelDeploy.toString(),
                       );
                       // Append HikariCP limits file without mutating the shared config object.
-                      const mirrorExistingValuesFile: string = config.mirrorNodeConfiguration?.['--values-file'];
+                      const mirrorExistingValuesFile: string =
+                        config.mirrorNodeConfiguration?.[flags.getFormattedFlagKey(Flags.valuesFile)];
                       const mirrorLocalConfig: AnyObject = {
                         [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         ...config.mirrorNodeConfiguration,
-                        '--values-file': mirrorExistingValuesFile
+                        [flags.getFormattedFlagKey(Flags.valuesFile)]: mirrorExistingValuesFile
                           ? `${mirrorExistingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
                           : constants.MIRROR_NODE_HIKARI_LIMITS_FILE,
                       };
