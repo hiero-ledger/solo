@@ -170,9 +170,17 @@ jobs:
           elif [ "${{ matrix.test.type }}" = "workflow" ]; then
             echo "Triggering workflow: ${{ matrix.test.path }}"
             # Trigger the workflow using GitHub CLI
-            gh workflow run "${{ matrix.test.path }}" \
-              --field "triggered-by=nightly-extended-tests" \
-              --field "test-name=${{ matrix.test.name }}" || {
+            CMD=(
+              gh workflow run "${{ matrix.test.path }}"
+              --field "triggered-by=nightly-extended-tests"
+              --field "test-name=${{ matrix.test.name }}"
+            )
+
+            if [ -n "${{ matrix.test.inputs && matrix.test.inputs['consensus-node-version'] || '' }}" ]; then
+              CMD+=(--field "consensus-node-version=${{ matrix.test.inputs['consensus-node-version'] }}")
+            fi
+
+            "${CMD[@]}" || {
               echo "Error: Failed to trigger workflow ${{ matrix.test.path }}"
               exit 1
             }
