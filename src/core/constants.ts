@@ -296,6 +296,11 @@ export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_
 export const CONTAINER_COPY_MAX_ATTEMPTS: number = +getEnvironmentVariable('CONTAINER_COPY_MAX_ATTEMPTS') || 3;
 export const CONTAINER_COPY_BACKOFF_MS: number = +getEnvironmentVariable('CONTAINER_COPY_BACKOFF_MS') || 300;
 
+export const CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS') || 10;
+export const CHECK_WRAPS_DIRECTORY_BACKOFF_MS: number =
+  +getEnvironmentVariable('CHECK_WRAPS_DIRECTORY_BACKOFF_MS') || 2000;
+
 /**
  * Listr related
  * @returns a object that defines the default color options
