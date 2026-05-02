@@ -684,6 +684,7 @@ export class NodeCommandHandlers extends CommandHandler {
         getSoloRemoteConfigMapTask(this.k8Factory, this.logger, outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
+        this.tasks.reportActivePortForwards(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading logs from nodes',
