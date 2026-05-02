@@ -58,15 +58,15 @@ tasks:
       - task: restore-config
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} || true
+            {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           else
-            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} || true
+            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           fi
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 120s {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+            {{ .TIMEOUT_COMMAND }} 120s {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           else
-            {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+            {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           fi
       - task: verify
 
@@ -166,11 +166,10 @@ tasks:
       # Start nodes
       - cmd: echo "▶️  Starting consensus nodes..."
       - cmd: |
-          # Kill the start command if it hangs for more than 60 seconds
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           else
-            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           fi
 
       # Install PostgreSQL on Cluster 2
@@ -220,7 +219,12 @@ tasks:
   backup:
     desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
     cmds:
-      - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+      - cmd: |
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 120s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+          else
+            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+          fi
       - cmd: |
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
@@ -257,14 +261,12 @@ tasks:
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
               --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
-              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
+              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
           else
             $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
               --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
-              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
+              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
           fi
-          --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
-          --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
           # keep a copy of zip file for debugging
           cp {{ .ZIP_INPUT_FILE }} ~/.solo/logs
 
@@ -315,11 +317,10 @@ tasks:
     cmds:
       # freeze first before restoring
       - cmd: |
-          # freeze before restore
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+            {{ .TIMEOUT_COMMAND }} 120s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
-            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
