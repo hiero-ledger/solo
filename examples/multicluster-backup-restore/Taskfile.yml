@@ -347,9 +347,9 @@ tasks:
       - cmd: echo "🔎 Verifying restored state (checking account 3.2.3)..."
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3 || echo "⚠️  Account verification may have failed"
+            {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3
           else
-            $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3 || echo "⚠️  Account verification may have failed"
+            $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3
           fi
 
       - cmd: echo "💰 Testing with new transactions..."
@@ -357,9 +357,9 @@ tasks:
           for i in 1 2 3; do
             echo "  Creating new account $i/3 on restored network..."
             if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-              {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50 || echo "⚠️  Transaction test may have failed"
+              {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
             else
-              $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50 || echo "⚠️  Transaction test may have failed"
+              $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
             fi
             sleep 3
           done
