@@ -99,8 +99,8 @@ jobs:
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
           
-          # Read JSON file
-          JSON_CONTENT=$(cat .github/workflows/support/extended-test-matrix.json | jq -c .)
+          # Read JSON test array
+          JSON_CONTENT=$(jq -c '.tests' .github/workflows/support/extended-test-matrix.json)
           
           echo "JSON_CONTENT: $JSON_CONTENT"
           
