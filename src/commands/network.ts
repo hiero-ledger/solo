@@ -77,6 +77,7 @@ import {NetworkDeployedEvent} from '../core/events/event-types/network-deployed-
 import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
 
 export interface NetworkDeployConfigClass {
+  localBuildPath: string;
   isUpgrade: boolean;
   applicationEnv: string;
   chainId: string;
@@ -243,6 +244,7 @@ export class NetworkCommand extends BaseCommand {
       flags.wrapsEnabled,
       flags.wrapsKeyPath,
       flags.tssEnabled,
+      flags.localBuildPath,
     ],
   };
 
@@ -807,6 +809,7 @@ export class NetworkCommand extends BaseCommand {
       flags.gcsBucketPrefix,
       flags.nodeAliasesUnparsed,
       flags.domainNames,
+      flags.localBuildPath,
     ];
 
     // disable the prompts that we don't want to prompt the user for
@@ -843,6 +846,14 @@ export class NetworkCommand extends BaseCommand {
         'singleUseServiceMonitor',
       ],
     ) as NetworkDeployConfigClass;
+
+    if (config.localBuildPath) {
+      this.logger.info(
+        'Auto-enabling PVCs because --local-build-path is set. ' +
+          'Node PVCs are required to persist custom JARs across pod restarts.',
+      );
+      config.persistentVolumeClaims = 'true';
+    }
 
     const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);

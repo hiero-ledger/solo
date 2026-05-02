@@ -354,5 +354,39 @@ describe('NetworkCommand unit tests', (): void => {
         sinon.restore();
       }
     });
+
+    it('Should auto-enable PVCs when --local-build-path is set', async (): Promise<void> => {
+      try {
+        argv.setArg(flags.localBuildPath, '/some/local/build/path');
+        argv.setArg(flags.persistentVolumeClaims, false);
+
+        const task: SinonStub = sinon.stub();
+
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
+
+        options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
+        const stubbedClusterReferences: ClusterReferences = new Map<string, string>([['cluster', 'context1']]);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // @ts-expect-error - to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+        networkCommand.configManager.update(argv.build());
+
+        // @ts-expect-error - to access private method
+        const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
+
+        expect(config.localBuildPath).to.equal('/some/local/build/path');
+        expect(config.persistentVolumeClaims).to.equal('true');
+      } finally {
+        argv.setArg(flags.localBuildPath, undefined);
+        argv.setArg(flags.persistentVolumeClaims, false);
+        sinon.restore();
+      }
+    });
   });
 });
