@@ -38,6 +38,7 @@ defaults:
 permissions:
   contents: read
   actions: write
+  pull-requests: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
