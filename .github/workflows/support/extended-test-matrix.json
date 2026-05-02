@@ -8,26 +8,11 @@
       "timeout_minutes": 20
     },
     {
-      "name": "one-shot-timing",
-      "type": "workflow",
-      "path": ".github/workflows/flow-one-shot-timing.yaml",
-      "description": "One-shot timing performance test",
-      "timeout_minutes": 40
-    },
-    {
       "name": "reproduce-stale-config",
       "type": "script",
       "path": ".github/workflows/script/reproduce-stale-config.sh",
       "description": "Reproduce stale local-config handling and verify recovery behavior",
       "timeout_minutes": 10
-    },
-    {
-      "name": "flow-performance-test",
-      "type": "workflow",
-      "path": ".github/workflows/flow-performance-test.yaml",
-      "description": "Performance test workflow",
-      "timeout_minutes": 90,
-      "workflow_inputs_json": "{\"consensus-node-version\":\"v0.74.0-rc1\"}"
     }
   ]
 }

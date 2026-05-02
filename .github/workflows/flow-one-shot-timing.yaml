@@ -59,6 +59,48 @@ on:
         type: number
         required: false
         default: 3
+  workflow_call:
+    inputs:
+      use-released-solo:
+        description: "Use latest released Solo CLI (true) or build from source (false)"
+        type: boolean
+        required: false
+        default: false
+      use-local-build:
+        description: "Build consensus node from source using --local-build-path"
+        type: boolean
+        required: false
+        default: false
+      consensus-node-version:
+        description: "Consensus node version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      block-node-version:
+        description: "Block node chart version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      mirror-node-version:
+        description: "Mirror node version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      relay-version:
+        description: "JSON RPC Relay version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      explorer-version:
+        description: "Explorer version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      cycles:
+        description: "Number of cold/warm cycles to run"
+        type: number
+        required: false
+        default: 3
 
 defaults:
   run:

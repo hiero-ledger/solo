@@ -99,12 +99,12 @@ jobs:
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
           
-          # Read JSON test array
-          JSON_CONTENT=$(jq -c '.tests' .github/workflows/support/extended-test-matrix.json)
+          # Read script-only test array for matrix runner.
+          JSON_CONTENT=$(jq -c '.tests | map(select(.type == "script"))' .github/workflows/support/extended-test-matrix.json)
           
           echo "JSON_CONTENT: $JSON_CONTENT"
           
-          # Set the output variable 'matrix' with JSON content
+          # Set workflow outputs.
           echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
 
   matrix-tests:
@@ -182,36 +182,12 @@ jobs:
           echo "Type: ${{ matrix.test.type }}"
           echo "Path: ${{ matrix.test.path }}"
           
-          if [ "${{ matrix.test.type }}" = "script" ]; then
-            echo "Executing script: ${{ matrix.test.path }}"
-            if [ -f "${{ matrix.test.path }}" ]; then
-              chmod +x "${{ matrix.test.path }}"
-              "${{ matrix.test.path }}"
-            else
-              echo "Error: Script file not found at ${{ matrix.test.path }}"
-              exit 1
-            fi
-          elif [ "${{ matrix.test.type }}" = "workflow" ]; then
-            echo "Triggering workflow: ${{ matrix.test.path }}"
-            CMD=(
-              gh workflow run "${{ matrix.test.path }}"
-              --ref "${GITHUB_REF_NAME}"
-            )
-
-            INPUTS_JSON='${{ matrix.test.workflow_inputs_json || '' }}'
-            if [ -n "${INPUTS_JSON}" ]; then
-              while IFS= read -r kv; do
-                CMD+=(--field "${kv}")
-              done < <(echo "${INPUTS_JSON}" | jq -r 'to_entries[] | "\(.key)=\(.value)"')
-            fi
-
-            "${CMD[@]}" || {
-              echo "Error: Failed to trigger workflow ${{ matrix.test.path }}"
-              exit 1
-            }
-            echo "Workflow triggered successfully"
+          echo "Executing script: ${{ matrix.test.path }}"
+          if [ -f "${{ matrix.test.path }}" ]; then
+            chmod +x "${{ matrix.test.path }}"
+            "${{ matrix.test.path }}"
           else
-            echo "Error: Unknown test type '${{ matrix.test.type }}'"
+            echo "Error: Script file not found at ${{ matrix.test.path }}"
             exit 1
           fi
 
@@ -256,3 +232,19 @@ jobs:
             /tmp/solo-jdwp-probe.log
             /tmp/solo-${{ matrix.test.name }}*.log
           if-no-files-found: ignore
+
+  one-shot-timing:
+    name: Extended Test (one-shot-timing)
+    needs:
+      - generate_matrix
+    uses: ./.github/workflows/flow-one-shot-timing.yaml
+    secrets: inherit
+
+  flow-performance-test:
+    name: Extended Test (flow-performance-test)
+    needs:
+      - generate_matrix
+    uses: ./.github/workflows/flow-performance-test.yaml
+    with:
+      consensus-node-version: v0.74.0.rc.1
+    secrets: inherit
