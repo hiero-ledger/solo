@@ -407,6 +407,16 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 }
               }
 
+              // Auto-enable PVCs in network configuration when --local-build-path is used in setup configuration.
+              // Node PVCs are required to persist custom JARs across pod restarts.
+              if (config.setupConfiguration['--local-build-path'] && !config.networkConfiguration['--pvcs']) {
+                this.logger.info(
+                  'Auto-enabling PVCs in network configuration because --local-build-path is set in setup. ' +
+                    'Node PVCs are required to persist custom JARs across pod restarts.',
+                );
+                config.networkConfiguration['--pvcs'] = 'true';
+              }
+
               // Initialize deployment toggles with defaults if not specified
               config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
               config.deployExplorer = config.deployExplorer === undefined ? true : config.deployExplorer;
