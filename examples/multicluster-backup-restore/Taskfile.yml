@@ -58,13 +58,13 @@ tasks:
       - task: restore-config
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
+            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           else
             {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           fi
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 120s {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           else
             {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           fi
@@ -221,7 +221,7 @@ tasks:
     cmds:
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 120s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+            {{ .TIMEOUT_COMMAND }} 40s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
             $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
@@ -318,7 +318,7 @@ tasks:
       # freeze first before restoring
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 120s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+            {{ .TIMEOUT_COMMAND }} 40s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
             $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
