@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Solo (`@hiero-ledger/solo`) is a CLI tool for deploying and managing private Hedera Networks on Kubernetes. It orchestrates consensus nodes, mirror nodes, block explorers, and JSON-RPC relays via Helm charts on Kind clusters.
 
-- **Language:** TypeScript (ES2022, ESM)
-- **Runtime:** Node.js >= 22.0.0
-- **CLI Framework:** Yargs with Listr2 for task execution
+* **Language:** TypeScript (ES2022, ESM)
+* **Runtime:** Node.js >= 22.0.0
+* **CLI Framework:** Yargs with Listr2 for task execution
 
 ## Common Commands
 
@@ -42,6 +42,7 @@ npm run solo-test -- <COMMAND> <ARGS>
 ```
 
 To run a single unit test file directly:
+
 ```bash
 npx mocha 'test/unit/path/to/test.ts'
 ```
@@ -68,11 +69,11 @@ The codebase follows a layered, command-driven architecture with dependency inje
 
 ### Key Patterns
 
-- **Dependency Injection:** Services registered via `InjectTokens` enum; `@inject()` decorators on constructors. The DI container is initialized in `src/core/dependency-injection/`.
-- **Task Execution:** All long-running operations are Listr2 task arrays, enabling progress rendering and cancellation.
-- **Configuration:** Local (in-memory) and Remote (Kubernetes ConfigMap) config providers; validated against JSON schemas with migration support.
-- **Error Hierarchy:** `SoloError` (base), `SilentBreak` (exit without display), specialized errors in `src/core/errors/`.
-- **Component Versions:** Managed in `version.ts` at the repo root.
+* **Dependency Injection:** Services registered via `InjectTokens` enum; `@inject()` decorators on constructors. The DI container is initialized in `src/core/dependency-injection/`.
+* **Task Execution:** All long-running operations are Listr2 task arrays, enabling progress rendering and cancellation.
+* **Configuration:** Local (in-memory) and Remote (Kubernetes ConfigMap) config providers; validated against JSON schemas with migration support.
+* **Error Hierarchy:** `SoloError` (base), `SilentBreak` (exit without display), specialized errors in `src/core/errors/`.
+* **Component Versions:** Managed in `version.ts` at the repo root.
 
 ## Environment Variable Documentation
 
@@ -110,21 +111,21 @@ Follow the project's TypeScript style guide at [`docs/contributing/typescript-co
 
 Before writing or modifying code, review these configuration files to avoid lint and formatting issues:
 
-- **`.prettierrc.json`** — formatting rules (indentation, quotes, line length, etc.)
-- **`eslint.config.mjs`** — linting rules and TypeScript-specific restrictions
-- **`.remarkrc.mjs`** — Markdown linting rules (applies to `.md` files)
+* **`.prettierrc.json`** — formatting rules (indentation, quotes, line length, etc.)
+* **`eslint.config.mjs`** — linting rules and TypeScript-specific restrictions
+* **`.remarkrc.mjs`** — Markdown linting rules (applies to `.md` files)
 
 Key rules enforced as ESLint **errors** (not warnings):
 
-- **`import type`** — When all identifiers in an import are used only as types, use
+* **`import type`** — When all identifiers in an import are used only as types, use
   `import type {Foo} from '...'`. For mixed imports, use the inline form:
   `import {SomeClass, type SomeInterface} from '...'`. See §3.3.4 of the TypeScript style guide.
-- **Abbreviations** — `unicorn/prevent-abbreviations` bans common short names (`fn`, `vars`,
+* **Abbreviations** — `unicorn/prevent-abbreviations` bans common short names (`fn`, `vars`,
   `envVar`, `cb`, `err`, `opts`, etc.) in identifiers **and file names**. See §5.1.2 of the
   TypeScript style guide for the full substitution list.
-- **Explicit types** — Every variable declaration and every callback (including `it()` / `describe()`
+* **Explicit types** — Every variable declaration and every callback (including `it()` / `describe()`
   callbacks in tests) must have an explicit type annotation. See §6.1 and §6.1.1 of the style guide.
-- **One class/interface per file** — Each exported class or interface must be in its own file, named
+* **One class/interface per file** — Each exported class or interface must be in its own file, named
   in kebab-case to match the class/interface name. See §3.5 of the style guide.
 
 Run `task format` to auto-fix formatting and lint issues before committing. Note that
@@ -133,6 +134,6 @@ and missing type annotations must be fixed manually** — they appear as errors 
 
 ## PR Requirements
 
-- **DCO sign-off** on all commits (`git commit -s`)
-- **Cryptographically signed commits** (GPG or SSH — must show "Verified" on GitHub)
-- **Conventional Commit PR titles:** `feat:`, `fix:`, `docs:`, `chore:`, etc.
+* **DCO sign-off** on all commits (`git commit -s`)
+* **Cryptographically signed commits** (GPG or SSH — must show "Verified" on GitHub)
+* **Conventional Commit PR titles:** `feat:`, `fix:`, `docs:`, `chore:`, etc.

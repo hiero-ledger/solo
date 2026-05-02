@@ -11,10 +11,11 @@ This guide covers advanced deployment scenarios for users who need more control 
 ## Prerequisites
 
 Before using advanced deployment options, ensure you have completed the [Solo User Guide](solo-user-guide.md) and have:
-- Solo installed (`solo --version`)
-- Docker running with adequate resources
-- kubectl configured
-- A Kind cluster created
+
+* Solo installed (`solo --version`)
+* Docker running with adequate resources
+* kubectl configured
+* A Kind cluster created
 
 Set up your environment variables if not already done:
 
@@ -322,10 +323,10 @@ solo cluster-ref config connect --cluster-ref <cluster-ref-name> --context <cont
 
 ### Remote Cluster Requirements
 
-- Kubernetes 1.24 or higher
-- Sufficient resources for network components
-- Network access to pull container images
-- Storage class available for persistent volumes
+* Kubernetes 1.24 or higher
+* Sufficient resources for network components
+* Network access to pull container images
+* Storage class available for persistent volumes
 
 ## Adding Nodes to an Existing Network
 
@@ -487,8 +488,8 @@ $SOLO_NETWORK_DESTROY_OUTPUT
 
 Explore more deployment scenarios in the [Examples section](../examples/):
 
-- [Address Book Configuration](../examples/address-book/)
-- [Network with Domain Names](../examples/network-with-domain-names/)
-- [Local Build with Custom Config](../examples/local-build-with-custom-config/)
-- [State Save and Restore](../examples/state-save-and-restore/)
-- [Multicluster Backup/Restore](../examples/multicluster-backup-restore/)
+* [Address Book Configuration](../examples/address-book/)
+* [Network with Domain Names](../examples/network-with-domain-names/)
+* [Local Build with Custom Config](../examples/local-build-with-custom-config/)
+* [State Save and Restore](../examples/state-save-and-restore/)
+* [Multicluster Backup/Restore](../examples/multicluster-backup-restore/)

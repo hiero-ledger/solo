@@ -10,7 +10,7 @@ The `solo one-shot single deploy` and `solo one-shot falcon deploy` commands orc
 
 This plan introduces a single lease held by the one-shot parent and restructures the task flow into parallel phases where dependency ordering allows.
 
----
+***
 
 ## Recent Changes Affecting This Plan
 
@@ -28,7 +28,7 @@ Since the original analysis, the following commits have landed on `main`:
 
 6. **Destroy flow expanded** — now includes `cluster-ref reset`, `cluster-ref disconnect`, `deployment delete`, and `delete cache folder` steps in addition to the component destroys.
 
----
+***
 
 ## Current Sequential Flow (both `single deploy` and `falcon deploy`)
 
@@ -75,7 +75,7 @@ Since the original analysis, the following commits have landed on `main`:
 
 **File**: `src/commands/one-shot/default-one-shot.ts` (`destroyInternal()`, lines 793-1033)
 
----
+***
 
 ## Component Dependency Graph
 
@@ -95,22 +95,25 @@ Relay add (13b) ─────┘
 Create accounts (14): needs consensus running, does NOT need mirror/explorer/relay
 ```
 
----
+***
 
 ## Concurrency Constraints
 
 ### Constraint 1: ConfigManager Singleton
+
 `ConfigManager` is a DI singleton. Each sub-command's Initialize task calls `this.configManager.update(argv)`, which **globally overwrites** flag values. Two concurrent sub-commands calling `update()` would corrupt each other's config. **Sub-commands that call configManager.update() cannot run concurrently.**
 
 **Note**: `argvPushGlobalFlags()` (command-helpers.ts:38) now also reads from ConfigManager at call time via `container.resolve<ConfigManager>()`, adding another read-time dependency on the singleton.
 
 ### Constraint 2: RemoteConfig Singleton
+
 `RemoteConfigRuntimeState` is a DI singleton. Its `persist()` method serializes the in-memory state to a K8s ConfigMap. It does a read-modify-write cycle. Two concurrent `persist()` calls would race (last writer wins, potentially losing the other's changes).
 
 ### Constraint 3: Create Accounts Is Safe
+
 The "Create Accounts" task (step 14) is an **inline task** in `default-one-shot.ts` -- it does NOT call `configManager.update()` and does NOT call `remoteConfig.persist()`. It only calls `accountManager.loadNodeClient()` and `accountManager.createNewAccount()`. It is safe to run concurrently with other operations.
 
----
+***
 
 ## Proposed Parallelized Flow
 
@@ -176,11 +179,12 @@ Sequential Phase D: Finish
 
 **Additional savings from Phase 2: ~1-3 minutes** (block add overlaps with consensus setup).
 
----
+***
 
 ## Implementation Details
 
 ### Work Item 1: Add `oneShotMode` Internal Flag
+
 **File**: `src/commands/flags.ts`
 
 Add a hidden, internal-only boolean flag that signals sub-commands are running inside one-shot and should skip lease acquisition:
@@ -200,16 +204,18 @@ static readonly oneShotMode: CommandFlag = {
 
 **Estimate**: 0.5 days
 
----
+***
 
 ### Work Item 2: Single Lease in One-Shot
+
 **File**: `src/commands/one-shot/default-one-shot.ts`
 
 Modify `deployInternal()`:
-- In the Initialize task, after `this.configManager.update(argv)`, set `this.configManager.setFlag(flags.oneShotMode, true)`
-- Add a new task after Initialize: **"Acquire deployment lock"** that creates and acquires a single lease
-- In the `finally` block, release the lease and reset `oneShotMode` to false
-- Apply the same pattern to `destroyInternal()`
+
+* In the Initialize task, after `this.configManager.update(argv)`, set `this.configManager.setFlag(flags.oneShotMode, true)`
+* Add a new task after Initialize: **"Acquire deployment lock"** that creates and acquires a single lease
+* In the `finally` block, release the lease and reset `oneShotMode` to false
+* Apply the same pattern to `destroyInternal()`
 
 ```typescript
 // In Initialize task (after line 135):
@@ -242,20 +248,23 @@ finally {
 
 **Estimate**: 1 day
 
----
+***
 
 ### Work Item 3: Guard Lease Acquisition in Sub-Commands
+
 **Files** (8 files, ~25 locations total):
-- `src/commands/block-node.ts` (5 methods: add, destroy, upgrade, addExternal, deleteExternal — lines 395, 462, 607, 644, 700, 739, 821, 861, 899, 926)
-- `src/commands/mirror-node.ts` (3 methods: add, upgrade, destroy — lines 885, 1047, 1098, 1249, 1306, 1352)
-- `src/commands/relay.ts` (3 methods: add, upgrade, destroy — lines 515, 574, 628, 683, 726, 764)
-- `src/commands/explorer.ts` (3 methods: add, upgrade, destroy — lines 571, 620, 672, 718, 762, 796)
-- `src/commands/network.ts` (2 methods: deploy, destroy — lines 986, 989, 1485, 1511)
-- `src/commands/node/tasks.ts` (2 locations — lines 1155, 3402)
-- `src/commands/cluster/tasks.ts` (1 location — line 426)
-- `src/commands/rapid-fire.ts` (4 locations — lines 268, 296, 322, 345)
+
+* `src/commands/block-node.ts` (5 methods: add, destroy, upgrade, addExternal, deleteExternal — lines 395, 462, 607, 644, 700, 739, 821, 861, 899, 926)
+* `src/commands/mirror-node.ts` (3 methods: add, upgrade, destroy — lines 885, 1047, 1098, 1249, 1306, 1352)
+* `src/commands/relay.ts` (3 methods: add, upgrade, destroy — lines 515, 574, 628, 683, 726, 764)
+* `src/commands/explorer.ts` (3 methods: add, upgrade, destroy — lines 571, 620, 672, 718, 762, 796)
+* `src/commands/network.ts` (2 methods: deploy, destroy — lines 986, 989, 1485, 1511)
+* `src/commands/node/tasks.ts` (2 locations — lines 1155, 3402)
+* `src/commands/cluster/tasks.ts` (1 location — line 426)
+* `src/commands/rapid-fire.ts` (4 locations — lines 268, 296, 322, 345)
 
 In each Initialize task, wrap lease creation:
+
 ```typescript
 if (!this.configManager.getFlag(flags.oneShotMode)) {
   lease = await this.leaseManager.create();
@@ -264,6 +273,7 @@ if (!this.configManager.getFlag(flags.oneShotMode)) {
 ```
 
 In each `commandAction` call or `isRoot()` branch, skip lease release when in one-shot mode:
+
 ```typescript
 // In registerCloseFunction / finally blocks:
 if (!this.configManager.getFlag(flags.oneShotMode) && lease) {
@@ -275,9 +285,10 @@ Also guard `src/core/command-handler.ts` lease release logic (lines 52-53, 62).
 
 **Estimate**: 2-3 days
 
----
+***
 
 ### Work Item 4: Restructure Deploy Task List for Parallelism
+
 **File**: `src/commands/one-shot/default-one-shot.ts`
 
 Replace the flat task array (steps 12-14) with a parallel group structure. The new deployment toggles (`deployMirrorNode`, `deployExplorer`, `deployRelay`) must be respected in the skip callbacks:
@@ -329,15 +340,17 @@ Replace the flat task array (steps 12-14) with a parallel group structure. The n
 
 **Estimate**: 2-3 days
 
----
+***
 
 ### Work Item 5: Parallel Destroy Flow
+
 **File**: `src/commands/one-shot/default-one-shot.ts`
 
 Apply the same single-lease pattern to `destroyInternal()`:
-- Acquire single lease in Initialize
-- Parallelize explorer destroy + relay destroy (`concurrent: true`)
-- Release lease in finally
+
+* Acquire single lease in Initialize
+* Parallelize explorer destroy + relay destroy (`concurrent: true`)
+* Release lease in finally
 
 ```
 Current destroy (lines 793-1033):
@@ -355,20 +368,23 @@ Proposed:
 
 **Estimate**: 1 day
 
----
+***
 
 ### Work Item 6: Unit & Integration Tests
+
 **Files**:
-- `test/e2e/commands/one-shot-single.test.ts` -- verify parallel deploy completes successfully
-- Add new unit tests for `oneShotMode` flag behavior
-- Add tests verifying lease is NOT acquired by sub-commands when flag is set
-- Test with deployment toggles (`--deploy-mirror-node=false`, etc.) to verify parallelization works with skipped components
+
+* `test/e2e/commands/one-shot-single.test.ts` -- verify parallel deploy completes successfully
+* Add new unit tests for `oneShotMode` flag behavior
+* Add tests verifying lease is NOT acquired by sub-commands when flag is set
+* Test with deployment toggles (`--deploy-mirror-node=false`, etc.) to verify parallelization works with skipped components
 
 **Estimate**: 2-3 days
 
----
+***
 
 ### Work Item 7 (Phase 2): ConfigManager Scope Isolation
+
 **File**: `src/core/config-manager.ts`
 
 Add snapshot/restore capability so concurrent sub-commands get isolated config views:
@@ -384,9 +400,10 @@ Wrap `subTaskSoloCommand()` with snapshot/restore when in one-shot mode. Also en
 
 **Estimate**: 2-3 days
 
----
+***
 
 ### Work Item 8 (Phase 2): RemoteConfig Persist Mutex
+
 **File**: `src/business/runtime-state/config/remote/remote-config-runtime-state.ts`
 
 Add a simple async mutex around `persist()` to prevent concurrent ConfigMap writes:
@@ -411,12 +428,14 @@ This enables safe concurrent remote config modifications in Phase 2, allowing bl
 
 **Estimate**: 1-2 days
 
----
+***
 
 ### Work Item 9 (Phase 2): Block Add Parallel with Consensus Setup
+
 **File**: `src/commands/one-shot/default-one-shot.ts`
 
 Restructure Phase B:
+
 ```typescript
 // consensus deploy (sequential)
 // then parallel: [block add || consensus setup]
@@ -425,7 +444,7 @@ Restructure Phase B:
 
 **Estimate**: 2-3 days (including Phase 2 tests)
 
----
+***
 
 ## Engineer Time Estimates Summary
 
@@ -457,12 +476,12 @@ Restructure Phase B:
 
 ## Error Handling
 
-- If mirror add fails, explorer/relay are **not started** (they're sequential after mirror within Pipeline A)
-- If create accounts fails (Pipeline B), Pipeline A continues -- mirror/explorer/relay are independent
-- If explorer fails, relay still runs (they're concurrent, Listr2 default is `exitOnError: true` per-task but sibling tasks complete)
-- The parent parallel group reports failure if either pipeline fails
-- The single lease is **always released** in the `finally` block regardless of errors
-- Component deployment toggles (`deployMirrorNode`, `deployExplorer`, `deployRelay`) are respected — skipped components don't affect parallelization
+* If mirror add fails, explorer/relay are **not started** (they're sequential after mirror within Pipeline A)
+* If create accounts fails (Pipeline B), Pipeline A continues -- mirror/explorer/relay are independent
+* If explorer fails, relay still runs (they're concurrent, Listr2 default is `exitOnError: true` per-task but sibling tasks complete)
+* The parent parallel group reports failure if either pipeline fails
+* The single lease is **always released** in the `finally` block regardless of errors
+* Component deployment toggles (`deployMirrorNode`, `deployExplorer`, `deployRelay`) are respected — skipped components don't affect parallelization
 
 ## Verification
 
@@ -476,20 +495,20 @@ Restructure Phase B:
 
 ## Critical Files
 
-- `src/commands/one-shot/default-one-shot.ts` -- Primary orchestration (restructure task list, add single lease)
-- `src/commands/one-shot/one-shot-single-deploy-config-class.ts` -- Config interface (has deployment toggles)
-- `src/commands/flags.ts` -- Add `oneShotMode` internal flag (note: `deployMirrorNode`, `deployExplorer`, `deployRelay` already added)
-- `src/commands/command-helpers.ts` -- `argvPushGlobalFlags()` reads ConfigManager (constraint for Phase 2)
-- `src/commands/block-node.ts` -- Guard lease acquisition (5 methods, 10 locations)
-- `src/commands/mirror-node.ts` -- Guard lease acquisition (3 methods, 6 locations)
-- `src/commands/relay.ts` -- Guard lease acquisition (3 methods, 6 locations)
-- `src/commands/explorer.ts` -- Guard lease acquisition (3 methods, 6 locations)
-- `src/commands/network.ts` -- Guard lease acquisition (2 methods, 4 locations)
-- `src/commands/node/tasks.ts` -- Guard lease acquisition (2 locations)
-- `src/commands/cluster/tasks.ts` -- Guard lease acquisition (1 location)
-- `src/commands/rapid-fire.ts` -- Guard lease acquisition (4 locations)
-- `src/core/command-handler.ts` -- Guard lease release in `commandAction()` (2 locations)
-- `src/core/lock/listr-lock.ts` -- No changes needed
-- `src/core/lock/lock-manager.ts` -- No changes needed
-- `src/core/config-manager.ts` -- Phase 2: add snapshot/restore
-- `src/business/runtime-state/config/remote/remote-config-runtime-state.ts` -- Phase 2: add persist mutex
+* `src/commands/one-shot/default-one-shot.ts` -- Primary orchestration (restructure task list, add single lease)
+* `src/commands/one-shot/one-shot-single-deploy-config-class.ts` -- Config interface (has deployment toggles)
+* `src/commands/flags.ts` -- Add `oneShotMode` internal flag (note: `deployMirrorNode`, `deployExplorer`, `deployRelay` already added)
+* `src/commands/command-helpers.ts` -- `argvPushGlobalFlags()` reads ConfigManager (constraint for Phase 2)
+* `src/commands/block-node.ts` -- Guard lease acquisition (5 methods, 10 locations)
+* `src/commands/mirror-node.ts` -- Guard lease acquisition (3 methods, 6 locations)
+* `src/commands/relay.ts` -- Guard lease acquisition (3 methods, 6 locations)
+* `src/commands/explorer.ts` -- Guard lease acquisition (3 methods, 6 locations)
+* `src/commands/network.ts` -- Guard lease acquisition (2 methods, 4 locations)
+* `src/commands/node/tasks.ts` -- Guard lease acquisition (2 locations)
+* `src/commands/cluster/tasks.ts` -- Guard lease acquisition (1 location)
+* `src/commands/rapid-fire.ts` -- Guard lease acquisition (4 locations)
+* `src/core/command-handler.ts` -- Guard lease release in `commandAction()` (2 locations)
+* `src/core/lock/listr-lock.ts` -- No changes needed
+* `src/core/lock/lock-manager.ts` -- No changes needed
+* `src/core/config-manager.ts` -- Phase 2: add snapshot/restore
+* `src/business/runtime-state/config/remote/remote-config-runtime-state.ts` -- Phase 2: add persist mutex

@@ -36,9 +36,10 @@ kubectl describe pod -n "${SOLO_NAMESPACE}" <pod-name>
 #### Resource Allocation
 
 Ensure Docker has adequate resources:
-- **Memory**: At least 12 GB (16 GB recommended)
-- **CPU**: At least 6 cores (8 recommended)
-- **Disk**: At least 20 GB free
+
+* **Memory**: At least 12 GB (16 GB recommended)
+* **CPU**: At least 6 cores (8 recommended)
+* **Disk**: At least 20 GB free
 
 On Docker Desktop, check: **Settings > Resources**
 
@@ -138,13 +139,13 @@ Since [Node.js 12.7.0](https://nodejs.org/en/blog/release/v12.7.0), Node.js read
 
 A couple of things to be aware of:
 
-- **cgroup v2 environments**: many modern Linux distributions enable cgroup v2 by default, and [Kubernetes 1.25 brought cgroup v2 support to GA](https://kubernetes.io/blog/2022/08/31/cgroupv2-ga-1-25/). Older Node.js versions may not correctly detect the container limit under cgroup v2 and could silently fall back to the host's physical memory, allocating a much larger heap than intended. This was improved in at least **Node.js 20.3.0**, which upgraded libuv to 1.45.0.
-- When `--max-old-space-size` is explicitly set (as in Solo's default config), it **overrides** the auto-sizing entirely — the cgroup-based detection only kicks in when no explicit value is provided.
+* **cgroup v2 environments**: many modern Linux distributions enable cgroup v2 by default, and [Kubernetes 1.25 brought cgroup v2 support to GA](https://kubernetes.io/blog/2022/08/31/cgroupv2-ga-1-25/). Older Node.js versions may not correctly detect the container limit under cgroup v2 and could silently fall back to the host's physical memory, allocating a much larger heap than intended. This was improved in at least **Node.js 20.3.0**, which upgraded libuv to 1.45.0.
+* When `--max-old-space-size` is explicitly set (as in Solo's default config), it **overrides** the auto-sizing entirely — the cgroup-based detection only kicks in when no explicit value is provided.
 
 This means:
 
-- If you increase only the pod memory limit (e.g., to 256Mi) but leave `NODE_OPTIONS` unchanged, old space stays at 66 MB
-- If you remove `NODE_OPTIONS`, Node.js will attempt to auto-size old space based on the container limit (roughly ~128 MB for a 256Mi pod on a modern Node.js version)
+* If you increase only the pod memory limit (e.g., to 256Mi) but leave `NODE_OPTIONS` unchanged, old space stays at 66 MB
+* If you remove `NODE_OPTIONS`, Node.js will attempt to auto-size old space based on the container limit (roughly ~128 MB for a 256Mi pod on a modern Node.js version)
 
 #### Adjusting Memory for Heavier Workloads
 
@@ -293,29 +294,32 @@ kubectl logs -n "${SOLO_NAMESPACE}" <pod-name>
 
 ### 2. Documentation
 
-- [Solo User Guide](solo-user-guide.md) - Basic setup and usage
-- [Advanced Deployments](advanced-deployments.md) - Complex deployment scenarios
-- [FAQ](faq.md) - Common questions and answers
-- [CLI Commands](solo-commands.md) - Complete command reference
+* [Solo User Guide](solo-user-guide.md) - Basic setup and usage
+* [Advanced Deployments](advanced-deployments.md) - Complex deployment scenarios
+* [FAQ](faq.md) - Common questions and answers
+* [CLI Commands](solo-commands.md) - Complete command reference
 
 ### 3. GitHub Issues
 
 Report bugs or request features:
-- **Repository**: https://github.com/hiero-ledger/solo/issues
+
+* **Repository**: https://github.com/hiero-ledger/solo/issues
 
 When opening an issue, include:
-- Solo version (`solo --version`)
-- Operating system and version
-- Docker/Kubernetes versions
-- Steps to reproduce the issue
-- Relevant log output
-- Any error messages
+
+* Solo version (`solo --version`)
+* Operating system and version
+* Docker/Kubernetes versions
+* Steps to reproduce the issue
+* Relevant log output
+* Any error messages
 
 ### 4. Community Support
 
 Join the community for discussions and help:
-- **Hedera Discord**: Look for the `#solo` channel
-- **Hiero Community**: https://hiero.org/community
+
+* **Hedera Discord**: Look for the `#solo` channel
+* **Hiero Community**: https://hiero.org/community
 
 ## Frequently Asked Questions
 
@@ -344,15 +348,17 @@ solo --version -o json
 ### Where are my keys stored?
 
 Keys are stored in `~/.solo/cache/keys/`. This directory contains:
-- TLS certificates (`hedera-node*.crt`, `hedera-node*.key`)
-- Signing keys (`s-private-node*.pem`, `s-public-node*.pem`)
+
+* TLS certificates (`hedera-node*.crt`, `hedera-node*.key`)
+* Signing keys (`s-private-node*.pem`, `s-public-node*.pem`)
 
 ### How do I connect my application to the local network?
 
 Use these endpoints:
-- **gRPC (Hedera SDK)**: `localhost:35211`, Node ID: `0.0.3`
-- **JSON RPC (Ethereum tools)**: `http://localhost:37546`
-- **Mirror Node REST**: `http://localhost:5551/api/v1/`
+
+* **gRPC (Hedera SDK)**: `localhost:35211`, Node ID: `0.0.3`
+* **JSON RPC (Ethereum tools)**: `http://localhost:37546`
+* **Mirror Node REST**: `http://localhost:5551/api/v1/`
 
 ### Can I run Solo on a remote server?
 

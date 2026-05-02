@@ -2,11 +2,11 @@
 
 This document branches from:
 
-- **Google TypeScript Style Guide**: https://google.github.io/styleguide/tsguide.html
+* **Google TypeScript Style Guide**: https://google.github.io/styleguide/tsguide.html
 
 It is intended to be a single, standalone reference.
 
----
+***
 
 ## 1. Authority and applicability
 
@@ -14,16 +14,16 @@ It is intended to be a single, standalone reference.
 
 This guide uses RFC 2119 terminology:
 
-- **must / must not**: required
-- **should / should not**: recommended
-- **may**: optional
-- **prefer / avoid**: correspond to should / should not
+* **must / must not**: required
+* **should / should not**: recommended
+* **may**: optional
+* **prefer / avoid**: correspond to should / should not
 
 ### 1.2 Scope
 
 Applies to all source code written in TypeScript and developed with intent to be part of Hiero-Ledger Solo projects.
 
----
+***
 
 ## 2. Source file basics
 
@@ -47,7 +47,7 @@ For remaining non-ASCII characters, use the actual Unicode character (e.g. `∞`
 
 Use **120 characters per line**.
 
----
+***
 
 ## 3. Source file structure
 
@@ -64,7 +64,7 @@ Exactly one blank line separates each section that is present.
 
 License or copyright information is **required** in all source code files.
 
-- An **SPDX license identifier** must be present.
+* An **SPDX license identifier** must be present.
 
 ### 3.2 `@fileoverview` JSDoc
 
@@ -74,21 +74,21 @@ A file may have a top-level `@fileoverview` JSDoc. If present, it may provide a 
 
 There are four variants of import statements in ES6 and TypeScript:
 
-- **module import**: `import * as foo from '...';` (TypeScript imports)
-- **named import**: `import {SomeThing} from '...';` (TypeScript imports)
-- **default import**: `import SomeThing from '...';` (only for other external code that requires them)
-- **side-effect import**: `import '...';` (only to import libraries for their side-effects on load)
+* **module import**: `import * as foo from '...';` (TypeScript imports)
+* **named import**: `import {SomeThing} from '...';` (TypeScript imports)
+* **default import**: `import SomeThing from '...';` (only for other external code that requires them)
+* **side-effect import**: `import '...';` (only to import libraries for their side-effects on load)
 
 #### 3.3.1 Import paths
 
-- TypeScript code must use paths to import other TypeScript code.
-- Prefer relative imports (`./foo`) rather than absolute imports (`path/to/foo`) when referring to files within the same logical project.
-- Consider limiting deep parent traversals (`../../../`).
+* TypeScript code must use paths to import other TypeScript code.
+* Prefer relative imports (`./foo`) rather than absolute imports (`path/to/foo`) when referring to files within the same logical project.
+* Consider limiting deep parent traversals (`../../../`).
 
 #### 3.3.2 Namespace versus named imports
 
-- Prefer **named imports** for frequently used symbols or clear names (e.g. `describe`, `it`).
-- Prefer **namespace imports** when using many different symbols from large APIs.
+* Prefer **named imports** for frequently used symbols or clear names (e.g. `describe`, `it`).
+* Prefer **namespace imports** when using many different symbols from large APIs.
 
 #### 3.3.3 Renaming imports
 
@@ -146,7 +146,7 @@ Each exported interface and class should be in its own file with the file name i
 
 Rationale: helps prevent circular dependencies and makes items easier to find.
 
----
+***
 
 ## 4. Language features
 
@@ -154,10 +154,10 @@ Rationale: helps prevent circular dependencies and makes items easier to find.
 
 #### 4.1.1 Use `const` and `let`
 
-- Always use `const` or `let`.
-- Use `const` by default.
-- Never use `var`.
-- Variables must not be used before their declaration.
+* Always use `const` or `let`.
+* Use `const` by default.
+* Never use `var`.
+* Variables must not be used before their declaration.
 
 #### 4.1.2 One variable per declaration
 
@@ -165,64 +165,64 @@ Do not use `let a = 1, b = 2;`.
 
 ### 4.2 Array literals
 
-- Do not use the `Array()` constructor.
-- Do not define properties on arrays other than numeric indices and `length`.
-- Spread syntax is allowed for shallow copy/concatenation, but only spread iterables.
-- Array destructuring is allowed; omit unused elements.
+* Do not use the `Array()` constructor.
+* Do not define properties on arrays other than numeric indices and `length`.
+* Spread syntax is allowed for shallow copy/concatenation, but only spread iterables.
+* Array destructuring is allowed; omit unused elements.
 
 ### 4.3 Object literals
 
-- Do not use the `Object` constructor.
-- Do not use unfiltered `for (... in ...)` over objects.
-- Use `Object.keys`, `Object.values`, `Object.entries` with `for (... of ...)` or filter with `hasOwnProperty`.
-- Spread syntax is allowed for shallow copies, but only spread objects (not arrays or primitives).
+* Do not use the `Object` constructor.
+* Do not use unfiltered `for (... in ...)` over objects.
+* Use `Object.keys`, `Object.values`, `Object.entries` with `for (... of ...)` or filter with `hasOwnProperty`.
+* Spread syntax is allowed for shallow copies, but only spread objects (not arrays or primitives).
 
 ### 4.4 Classes
 
 #### 4.4.1 Class declarations
 
-- Class declarations must not be terminated with semicolons.
-- Class expressions used as statements must end with a semicolon.
+* Class declarations must not be terminated with semicolons.
+* Class expressions used as statements must end with a semicolon.
 
 #### 4.4.2 Class method declarations
 
-- Do not use semicolons between methods.
-- Separate methods by a single blank line.
+* Do not use semicolons between methods.
+* Separate methods by a single blank line.
 
 #### 4.4.3 Static methods
 
-- Avoid private static methods when module-local functions suffice.
-- Do not rely on dynamic dispatch of static methods.
-- Avoid static `this` references.
+* Avoid private static methods when module-local functions suffice.
+* Do not rely on dynamic dispatch of static methods.
+* Avoid static `this` references.
 
 #### 4.4.4 Constructors
 
-- Always use parentheses in constructor calls: `new Foo()`.
-- Avoid unnecessary constructors.
-- Separate constructor from surrounding code by a single blank line.
+* Always use parentheses in constructor calls: `new Foo()`.
+* Avoid unnecessary constructors.
+* Separate constructor from surrounding code by a single blank line.
 
 #### 4.4.5 Class members
 
-- Do not use `#private` fields. Use TypeScript visibility modifiers.
-- Use `readonly` for properties not reassigned outside the constructor.
-- Prefer parameter properties when appropriate.
-- Initialize fields at declaration when possible.
+* Do not use `#private` fields. Use TypeScript visibility modifiers.
+* Use `readonly` for properties not reassigned outside the constructor.
+* Prefer parameter properties when appropriate.
+* Initialize fields at declaration when possible.
 
 #### 4.4.6 Visibility
 
-- Limit symbol visibility as much as possible.
-- TypeScript symbols are public by default.
-- Always specify `public`, `private`, and `protected` modifiers.
-- Default to `private` first, then relax visibility only when needed.
+* Limit symbol visibility as much as possible.
+* TypeScript symbols are public by default.
+* Always specify `public`, `private`, and `protected` modifiers.
+* Default to `private` first, then relax visibility only when needed.
 
 ### 4.5 Functions
 
-- Prefer function declarations for named functions.
-- Do not use function expressions; use arrow functions instead.
-- Use concise arrow bodies only when the return value is actually used.
-- Avoid rebinding `this`; prefer arrow functions and explicit parameters.
-- Prefer passing arrow functions as callbacks when higher-order functions might pass unexpected arguments.
-- Avoid arrow function properties on classes except for cases like uninstallable event handlers.
+* Prefer function declarations for named functions.
+* Do not use function expressions; use arrow functions instead.
+* Use concise arrow bodies only when the return value is actually used.
+* Avoid rebinding `this`; prefer arrow functions and explicit parameters.
+* Prefer passing arrow functions as callbacks when higher-order functions might pass unexpected arguments.
+* Avoid arrow function properties on classes except for cases like uninstallable event handlers.
 
 ### 4.6 `this`
 
@@ -232,89 +232,89 @@ Only use `this` in class constructors/methods, functions with an explicit `this`
 
 #### 4.7.1 String literals
 
-- Use single quotes.
-- Do not use line continuations inside string literals.
-- Prefer template literals over complex concatenation.
+* Use single quotes.
+* Do not use line continuations inside string literals.
+* Prefer template literals over complex concatenation.
 
 #### 4.7.2 Number literals
 
-- Use `0x`, `0o`, `0b` lowercase prefixes.
-- Never include a leading zero unless it is immediately followed by `x`, `o`, or `b`.
+* Use `0x`, `0o`, `0b` lowercase prefixes.
+* Never include a leading zero unless it is immediately followed by `x`, `o`, or `b`.
 
 #### 4.7.3 Type coercion
 
-- Use `String()` and `Boolean()` (no `new`), template literals, or `!!` to coerce.
-- Do not convert enum values to booleans using `Boolean()`/`!!` or implicit coercion; compare explicitly.
-- Use `Number()` to parse numeric values and validate for `NaN`/non-finite values as needed.
-- Do not use unary `+` for string-to-number coercion.
-- Do not use `parseInt`/`parseFloat` except parsing non-base-10 strings, and validate inputs first.
+* Use `String()` and `Boolean()` (no `new`), template literals, or `!!` to coerce.
+* Do not convert enum values to booleans using `Boolean()`/`!!` or implicit coercion; compare explicitly.
+* Use `Number()` to parse numeric values and validate for `NaN`/non-finite values as needed.
+* Do not use unary `+` for string-to-number coercion.
+* Do not use `parseInt`/`parseFloat` except parsing non-base-10 strings, and validate inputs first.
 
 ### 4.8 Control structures
 
-- Always use braced blocks for control flow statements.
-- Exception: single-line `if (x) x.doFoo();` is allowed.
-- Prefer `for (... of ...)` for arrays.
-- `for (... in ...)` is only for dict-style objects and must guard with `hasOwnProperty`.
+* Always use braced blocks for control flow statements.
+* Exception: single-line `if (x) x.doFoo();` is allowed.
+* Prefer `for (... of ...)` for arrays.
+* `for (... in ...)` is only for dict-style objects and must guard with `hasOwnProperty`.
 
 ### 4.9 Exception handling
 
-- Instantiate errors using `new Error()`.
-- Only throw `Error` (or subclasses).
-- Assume caught errors are `Error`; use narrowing when `unknown`.
-- Empty catch blocks are strongly discouraged; explain with a comment if truly needed.
-- Keep try blocks focused.
+* Instantiate errors using `new Error()`.
+* Only throw `Error` (or subclasses).
+* Assume caught errors are `Error`; use narrowing when `unknown`.
+* Empty catch blocks are strongly discouraged; explain with a comment if truly needed.
+* Keep try blocks focused.
 
 ### 4.10 Switch statements
 
-- All switches must have a `default` group, and it must be last.
-- No fallthrough for non-empty case groups.
+* All switches must have a `default` group, and it must be last.
+* No fallthrough for non-empty case groups.
 
 ### 4.11 Equality checks
 
-- Always use `===` and `!==`.
-- Exception: comparison to literal `null` may use `==` or `!=` to cover both `null` and `undefined`.
+* Always use `===` and `!==`.
+* Exception: comparison to literal `null` may use `==` or `!=` to cover both `null` and `undefined`.
 
 ### 4.12 Type and non-nullability assertions
 
-- Avoid `as` assertions and `!` non-null assertions unless there is an obvious/explicit reason.
-- Prefer runtime checks.
-- Type assertions must use `as` syntax (not angle brackets).
-- For unsafe “double assertions”, cast through `unknown`.
-- For object literals, prefer type annotations (`: Foo`) over `as Foo`.
+* Avoid `as` assertions and `!` non-null assertions unless there is an obvious/explicit reason.
+* Prefer runtime checks.
+* Type assertions must use `as` syntax (not angle brackets).
+* For unsafe “double assertions”, cast through `unknown`.
+* For object literals, prefer type annotations (`: Foo`) over `as Foo`.
 
 ### 4.13 Decorators
 
-- Do not define new decorators.
-- Only use framework decorators (e.g. Angular, Polymer).
-- No empty lines between a decorator and the decorated symbol.
+* Do not define new decorators.
+* Only use framework decorators (e.g. Angular, Polymer).
+* No empty lines between a decorator and the decorated symbol.
 
 ### 4.14 Disallowed features
 
-- Do not instantiate wrapper objects: `new String`, `new Boolean`, `new Number`.
-- Do not rely on Automatic Semicolon Insertion. End statements with semicolons.
-- Do not use `const enum`.
-- No `debugger` statements.
-- Do not use `with`.
-- Do not use `eval` or `Function(...string)` except code loaders.
-- Do not use non-standard ECMAScript or Web Platform features.
-- Never modify built-in objects.
+* Do not instantiate wrapper objects: `new String`, `new Boolean`, `new Number`.
+* Do not rely on Automatic Semicolon Insertion. End statements with semicolons.
+* Do not use `const enum`.
+* No `debugger` statements.
+* Do not use `with`.
+* Do not use `eval` or `Function(...string)` except code loaders.
+* Do not use non-standard ECMAScript or Web Platform features.
+* Never modify built-in objects.
 
----
+***
 
 ## 5. Naming
 
 ### 5.1 Identifiers
 
-- Use only ASCII letters, digits, underscores (constants and structured test names), and rarely `$`.
+* Use only ASCII letters, digits, underscores (constants and structured test names), and rarely `$`.
 
 #### 5.1.1 Naming style
 
-- Do not decorate names with type information included in the type.
-- Do not use trailing or leading underscores for private properties or methods.
-- Exception: underscore prefix is allowed for private variables when using `get` and `set` keywords for getter/setter methods.
-- When using the `of` and `from` prefixes for method names:
-  - use `of` for simple object creation
-  - use `from` for transformation
+* Do not decorate names with type information included in the type.
+* Do not use trailing or leading underscores for private properties or methods.
+* Exception: underscore prefix is allowed for private variables when using `get` and `set` keywords for getter/setter methods.
+* When using the `of` and `from` prefixes for method names:
+  * use `of` for simple object creation
+  * use `from` for transformation
 
 #### 5.1.2 Descriptive names
 
@@ -366,9 +366,9 @@ Treat acronyms as words: `loadHttpUrl`, not `loadHTTPURL`.
 
 ### 5.2 Rules by identifier type
 
-- `UpperCamelCase`: class / interface / type / enum / decorator / type parameters / component functions in TSX / JSXElement type parameter
-- `lowerCamelCase`: variable / parameter / function / method / property / module alias
-- `CONSTANT_CASE`: global constant values, including enum values (see constants section)
+* `UpperCamelCase`: class / interface / type / enum / decorator / type parameters / component functions in TSX / JSXElement type parameter
+* `lowerCamelCase`: variable / parameter / function / method / property / module alias
+* `CONSTANT_CASE`: global constant values, including enum values (see constants section)
 
 #### 5.2.1 Type parameters
 
@@ -390,24 +390,24 @@ Namespace imports are `lowerCamelCase` while files may be `snake_case`.
 
 `CONSTANT_CASE` is for global constants and signals “do not modify”, even if not deeply frozen.
 
----
+***
 
 ## 6. Type system
 
 ### 6.1 Type inference
 
-- Add explicit types to avoid generics inferring `unknown` (e.g. empty collections).
-- Always specify the type for declarations.
-  - Rationale: improves readability without an IDE (code review, GitHub, text editor), improves type checking, and can speed compile time.
-- This applies equally in test files: every `const` / `let` must carry an explicit type annotation,
+* Add explicit types to avoid generics inferring `unknown` (e.g. empty collections).
+* Always specify the type for declarations.
+  * Rationale: improves readability without an IDE (code review, GitHub, text editor), improves type checking, and can speed compile time.
+* This applies equally in test files: every `const` / `let` must carry an explicit type annotation,
   and every callback passed to `describe()` / `it()` / `beforeEach()` / `afterEach()` must declare
   its return type (`: void` for synchronous, `: Promise<void>` for async).
 
 #### 6.1.1 Return types
 
-- Always specify return types.
-  - Rationale: readability, stronger checking, and improved compile-time performance.
-- Arrow functions passed as callbacks are not exempt. Use `(): void =>` for synchronous callbacks
+* Always specify return types.
+  * Rationale: readability, stronger checking, and improved compile-time performance.
+* Arrow functions passed as callbacks are not exempt. Use `(): void =>` for synchronous callbacks
   and `async (): Promise<void> =>` for asynchronous callbacks:
 
 ```typescript
@@ -426,8 +426,8 @@ describe('my suite', () => {
 
 ### 6.2 `undefined` and `null`
 
-- Use either `undefined` or `null` depending on context.
-- Do not bake `|null` or `|undefined` into type aliases.
+* Use either `undefined` or `null` depending on context.
+* Do not bake `|null` or `|undefined` into type aliases.
 
 #### 6.2.1 Prefer optional over `|undefined`
 
@@ -435,8 +435,8 @@ Prefer optional parameters/fields with `?` instead of explicit `|undefined`.
 
 ### 6.3 Use structural types
 
-- Use interfaces to define structural types.
-- For structural implementations, annotate the type at the declaration site.
+* Use interfaces to define structural types.
+* For structural implementations, annotate the type at the declaration site.
 
 ### 6.4 Prefer interfaces over type literal aliases
 
@@ -444,13 +444,13 @@ For object types, prefer `interface` over `type` literal alias.
 
 ### 6.5 Array type
 
-- Prefer `T[]` and `readonly T[]` for simple element types.
-- Use `Array<T>` for complex element types.
+* Prefer `T[]` and `readonly T[]` for simple element types.
+* Use `Array<T>` for complex element types.
 
 ### 6.6 Index signatures
 
-- Prefer `Map`/`Set` over `{[k: string]: T}` when possible.
-- When using index signatures, provide meaningful key labels.
+* Prefer `Map`/`Set` over `{[k: string]: T}` when possible.
+* When using index signatures, provide meaningful key labels.
 
 ### 6.7 Mapped and conditional types
 
@@ -460,9 +460,9 @@ May be used, but prefer the simplest construct. Interfaces and explicit property
 
 Avoid `any`. Prefer:
 
-- a more specific type
-- `unknown`
-- a documented, suppressed lint warning (e.g. tests)
+* a more specific type
+* `unknown`
+* a documented, suppressed lint warning (e.g. tests)
 
 ### 6.9 `{}` type
 
@@ -480,7 +480,7 @@ Do not use `String`, `Boolean`, `Number`, `Object` types. Use `string`, `boolean
 
 Avoid creating APIs with return-type-only generics.
 
----
+***
 
 ## 7. Toolchain requirements
 
@@ -490,21 +490,21 @@ All TypeScript files must pass type checking.
 
 #### 7.1.1 `@ts-ignore`
 
-- Do not use `@ts-ignore` (these are warnings in Hedera systems and are being removed and turned into errors).
-- Instead, use `@ts-expect-error` and provide the error being ignored as the description (or a strong explanation).
+* Do not use `@ts-ignore` (these are warnings in Hedera systems and are being removed and turned into errors).
+* Instead, use `@ts-expect-error` and provide the error being ignored as the description (or a strong explanation).
 
 ### 7.2 Conformance
 
 Adhere to applicable conformance rules (e.g. security patterns like avoiding `eval` and unsafe DOM assignment).
 
----
+***
 
 ## 8. Comments and documentation (Google)
 
 ### 8.1 JSDoc vs comments
 
-- Use `/** ... */` JSDoc for documentation consumers should read.
-- Use `// ...` for implementation comments.
+* Use `/** ... */` JSDoc for documentation consumers should read.
+* Use `// ...` for implementation comments.
 
 ### 8.2 Multi-line comments
 
@@ -512,11 +512,11 @@ Use multiple `//` lines, not `/* */` block comments.
 
 ### 8.3 JSDoc formatting
 
-- JSDoc is written in Markdown.
-- Use Markdown lists where appropriate.
-- Most tags occupy their own line.
-- Line-wrapped block tags are indented four spaces.
-- Do not indent wrapped `@desc` or `@fileoverview` descriptions.
+* JSDoc is written in Markdown.
+* Use Markdown lists where appropriate.
+* Most tags occupy their own line.
+* Line-wrapped block tags are indented four spaces.
+* Do not indent wrapped `@desc` or `@fileoverview` descriptions.
 
 ### 8.4 Document top-level exports
 
@@ -530,13 +530,13 @@ Do not add types in `@param`/`@return` or tags like `@private`, `@override`, etc
 
 Use parameter name comments when meaning is unclear:
 
-- `someFunction(obviousParam, /* shouldRender= */ true, /* name= */ 'hello');`
+* `someFunction(obviousParam, /* shouldRender= */ true, /* name= */ 'hello');`
 
 ### 8.7 Place documentation prior to decorators
 
 JSDoc must come before decorators; never place JSDoc between decorator and decorated statement.
 
----
+***
 
 ## 9. Policies: consistency and refactoring (Google)
 
@@ -546,8 +546,8 @@ If a style question is not settled, follow existing style within the file; other
 
 ### 9.2 Reformatting existing code
 
-- Do not require full restyling of old files unless significant changes are being made.
-- Avoid opportunistic style churn in unrelated CLs.
+* Do not require full restyling of old files unless significant changes are being made.
+* Avoid opportunistic style churn in unrelated CLs.
 
 ### 9.3 Deprecation
 
@@ -557,8 +557,8 @@ Use `@deprecated` with clear migration instructions.
 
 Generated code is mostly exempt, but identifiers referenced from hand-written code must follow naming requirements.
 
----
+***
 
 # References
 
-- Google TypeScript Style Guide: https://google.github.io/styleguide/tsguide.html
+* Google TypeScript Style Guide: https://google.github.io/styleguide/tsguide.html
