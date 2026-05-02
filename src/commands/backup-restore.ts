@@ -776,6 +776,8 @@ export class BackupRestoreCommand extends BaseCommand {
           );
         },
       },
+      // Block nodes deploy tasks (one per block node)
+      ...this.buildBlockNodeTasks(),
       // Consensus network deploy task
       {
         title: 'Deploy consensus network',
@@ -826,8 +828,6 @@ export class BackupRestoreCommand extends BaseCommand {
           );
         },
       },
-      // Block nodes deploy tasks (one per block node)
-      ...this.buildBlockNodeTasks(),
       // Consensus node setup task
       {
         title: 'Setup consensus nodes',
