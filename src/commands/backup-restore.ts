@@ -855,6 +855,33 @@ export class BackupRestoreCommand extends BaseCommand {
           );
         },
       },
+      // Consensus node start task — required so mirror/relay/explorer deployment
+      // can connect to the network; CN will be restarted by restore-config after
+      // the backed-up state is loaded, at which point the block node pod is also
+      // restarted to clear any genesis-phase blocks accumulated here.
+      {
+        title: 'Start consensus nodes',
+        skip: (context_: any): boolean =>
+          !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
+        task: async (context_: any, taskListWrapper: any) => {
+          return CommandHelpers.subTaskSoloCommand(
+            ConsensusCommandDefinition.START_COMMAND,
+            taskListWrapper,
+            (): string[] => {
+              const argv: string[] = CommandHelpers.newArgv();
+              argv.push(
+                ...ConsensusCommandDefinition.START_COMMAND.split(' '),
+                CommandHelpers.optionFromFlag(flags.deployment),
+                context_.deployment,
+                CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
+                context_.nodeAliases,
+              );
+              return CommandHelpers.argvPushGlobalFlags(argv);
+            },
+            this.taskList,
+          );
+        },
+      },
       ...this.buildMirrorNodeTasks(),
       ...this.buildRelayNodeTasks(),
       ...this.buildExplorerTasks(),
