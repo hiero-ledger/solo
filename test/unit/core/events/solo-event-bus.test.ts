@@ -5,7 +5,7 @@ import {expect} from 'chai';
 import {describe, it, beforeEach} from 'mocha';
 import {type SoloEventBus} from '../../../../src/core/events/solo-event-bus.js';
 import {DefaultSoloEventBus} from '../../../../src/core/events/default-solo-event-bus.js';
-import {SoloEventType} from '../../../../src/core/events/event-types/event-types.js';
+import {SoloEventType} from '../../../../src/core/events/event-types/solo-event.js';
 import {NetworkDeployedEvent} from '../../../../src/core/events/event-types/network-deployed-event.js';
 import {MirrorNodeDeployedEvent} from '../../../../src/core/events/event-types/mirror-node-deployed-event.js';
 import {container} from 'tsyringe-neo';

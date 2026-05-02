@@ -2,7 +2,8 @@
 
 import {EventEmitter as NodeEventEmitter} from 'node:events';
 import {inject, injectable} from 'tsyringe-neo';
-import {type AnySoloEvent, type SoloEventType} from './event-types/event-types.js';
+import {SoloEventType} from './event-types/solo-event.js';
+import {AnySoloEvent} from './event-types/solo-event-type.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {type SoloLogger} from '../logging/solo-logger.js';

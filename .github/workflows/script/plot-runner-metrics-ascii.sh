@@ -193,7 +193,10 @@ else
   fi
 
   # Category aggregation — uses full (untruncated) pod list
-  # Excludes: metallb-system namespace, network-load-generator pods
+  # Excludes from total/category summary:
+  # - metallb-system namespace
+  # - network-load-generator pods
+  # - metrics-server pods
   # Categories:
   #   mirror   — mirror-* pods + solo-shared-resources-postgres/redis
   #   relay    — relay* pods (relay, relay-ws)
@@ -209,6 +212,7 @@ else
       # Strip trailing pod hash suffixes for pattern matching but keep original label
       [[ "$_ns" == "metallb-system" ]] && continue
       [[ "$_pod" == network-load-generator* ]] && continue
+      [[ "$_pod" == metrics-server* ]] && continue
       _mem="${_mem//[^0-9]/}"
       [[ -z "$_mem" ]] && continue
       cat_total=$((cat_total + _mem))
