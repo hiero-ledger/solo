@@ -39,6 +39,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
     pinger: boolean,
+    valuesFile?: string,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = MirrorNodeTest;
 
@@ -56,6 +57,10 @@ export class MirrorNodeTest extends BaseCommandTest {
 
     if (pinger) {
       argv.push(optionFromFlag(Flags.pinger));
+    }
+
+    if (valuesFile) {
+      argv.push(optionFromFlag(Flags.valuesFile), valuesFile);
     }
 
     argvPushGlobalFlags(argv, testName, true, true);
@@ -267,11 +272,12 @@ export class MirrorNodeTest extends BaseCommandTest {
       createdAccountIds,
       consensusNodesCount,
       pinger,
+      valuesFile,
     } = options;
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
     it(`${testName}: mirror node add`, async (): Promise<void> => {
-      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger));
+      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger, valuesFile));
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,
@@ -358,12 +364,19 @@ export class MirrorNodeTest extends BaseCommandTest {
       createdAccountIds,
       consensusNodesCount,
       pinger,
+      valuesFile,
     } = options;
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus, optionFromFlag} =
       MirrorNodeTest;
 
     it(`${testName}: mirror node deploy with external database`, async (): Promise<void> => {
-      const argv: string[] = soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger);
+      const argv: string[] = soloMirrorNodeDeployArgv(
+        testName,
+        deployment,
+        clusterReferenceNameArray[1],
+        pinger,
+        valuesFile,
+      );
 
       process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME = 'true';
 

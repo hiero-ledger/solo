@@ -170,6 +170,16 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly externalAddress: CommandFlag = {
+    constName: 'externalAddress',
+    name: 'external-address',
+    definition: {
+      describe: 'Bind address for kubectl port-forward (for example 127.0.0.1 or 0.0.0.0)',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   // list of common flags across commands. command specific flags are defined in the command's module.
   public static readonly clusterRef: CommandFlag = {
     constName: 'clusterRef',
@@ -496,6 +506,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly componentImage: CommandFlag = {
+    constName: 'componentImage',
+    name: 'component-image',
+    definition: {
+      describe: 'Full Docker image reference override (e.g. ghcr.io/org/image:tag, docker.io/library/redis:7, redis:7)',
+      defaultValue: '',
+      type: 'string',
+      alias: 'relay-image',
+    },
+    prompt: undefined,
+  };
+
   public static readonly relayReleaseTag: CommandFlag = {
     constName: 'relayReleaseTag',
     name: 'relay-release',
@@ -721,7 +743,13 @@ export class Flags {
     constName: 'mirrorNodeChartDirectory',
     name: 'mirror-node-chart-dir',
     definition: {
-      describe: 'Mirror node local chart directory path (e.g. ~/hiero-mirror-node/charts)',
+      describe:
+        'Mirror node local chart directory path (e.g. ~/hiero-mirror-node/charts). ' +
+        'NOTE: This only provides the Helm chart templates — it does NOT make the chart images available to the cluster. ' +
+        'All container images referenced by the chart must already be pullable (e.g. published to a registry or loaded ' +
+        'into the cluster with `kind load docker-image`). Using a local branch chart with SNAPSHOT image tags will ' +
+        'cause pods to fail with ImagePullBackOff unless those images have been built and pushed to a registry or ' +
+        'loaded into the cluster.',
       defaultValue: '',
       type: 'string',
     },
@@ -1314,7 +1342,7 @@ export class Flags {
     name: 'local-build-path',
     definition: {
       describe: 'path of hedera local repo',
-      defaultValue: '',
+      defaultValue: constants.getEnvironmentVariable('SOLO_LOCAL_BUILD_PATH') || '',
       type: 'string',
     },
     prompt: undefined,
@@ -2956,6 +2984,7 @@ export class Flags {
     Flags.endpointType,
     Flags.envoyIps,
     Flags.forcePortForward,
+    Flags.externalAddress,
     Flags.generateEcdsaKey,
     Flags.generateGossipKeys,
     Flags.generateTlsKeys,
@@ -2998,6 +3027,7 @@ export class Flags {
     Flags.quiet,
     Flags.output,
     Flags.imageTag,
+    Flags.componentImage,
     Flags.relayReleaseTag,
     Flags.releaseTag,
     Flags.upgradeVersion,

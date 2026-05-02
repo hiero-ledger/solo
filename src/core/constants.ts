@@ -255,6 +255,22 @@ export const BLOCK_NODE_SOLO_DEV_FILE: string = PathEx.joinWithRealPath(RESOURCE
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
 export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
+
+/* vars MIRROR_NODE_OLD_.* can be removed once minimum mirrornode version support is 0.152.0.
+ * These variables will only be applied if the MIRROR_NODE_VERSION < 0.152.0
+ * */
+export const MIRROR_NODE_OLD_IMAGE_REGISTRY: string =
+  getEnvironmentVariable('MIRROR_NODE_OLD_IMAGE_REGISTRY') || 'gcr.io';
+export const MIRROR_NODE_OLD_IMAGE_REPO_ROOT: string =
+  getEnvironmentVariable('MIRROR_NODE_OLD_IMAGE_REPO_ROOT') || 'mirrornode/hedera-mirror-';
+export const MIRROR_NODE_OLD_MEMORY_REST: string = getEnvironmentVariable('MIRROR_NODE_OLD_MEMORY_REST') || '200Mi';
+export const MIRROR_NODE_OLD_MEMORY_RESTJAVA: string =
+  getEnvironmentVariable('MIRROR_NODE_OLD_MEMORY_RESTJAVA') || '500Mi';
+export const MIRROR_NODE_OLD_MEMORY_WEB3: string = getEnvironmentVariable('MIRROR_NODE_OLD_MEMORY_WEB3') || '1000Mi';
+export const MIRROR_NODE_OLD_MEMORY_IMPORTER: string =
+  getEnvironmentVariable('MIRROR_NODE_OLD_MEMORY_IMPORTER') || '2000Mi';
+export const MIRROR_NODE_OLD_MEMORY_GRPC: string = getEnvironmentVariable('MIRROR_NODE_OLD_MEMORY_GRPC') || '1000Mi';
+
 export const MIRROR_NODE_HIKARI_LIMITS_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-node-hikari-limits.yaml',
@@ -279,6 +295,11 @@ export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_
 
 export const CONTAINER_COPY_MAX_ATTEMPTS: number = +getEnvironmentVariable('CONTAINER_COPY_MAX_ATTEMPTS') || 3;
 export const CONTAINER_COPY_BACKOFF_MS: number = +getEnvironmentVariable('CONTAINER_COPY_BACKOFF_MS') || 300;
+
+export const CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS') || 10;
+export const CHECK_WRAPS_DIRECTORY_BACKOFF_MS: number =
+  +getEnvironmentVariable('CHECK_WRAPS_DIRECTORY_BACKOFF_MS') || 2000;
 
 /**
  * Listr related

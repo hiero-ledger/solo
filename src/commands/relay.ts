@@ -44,6 +44,7 @@ import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
+import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 
@@ -74,6 +75,7 @@ interface RelayDeployConfigClass {
   operatorId: string;
   operatorKey: string;
   relayReleaseTag: string;
+  componentImage: string;
   replicaCount: number;
   valuesFile: string;
   isChartInstalled: boolean;
@@ -110,6 +112,7 @@ interface RelayUpgradeConfigClass {
   operatorId: string;
   operatorKey: string;
   relayReleaseTag: string;
+  componentImage: string;
   replicaCount: number;
   valuesFile: string;
   isChartInstalled: boolean;
@@ -173,10 +176,12 @@ export class RelayCommand extends BaseCommand {
       flags.operatorKey,
       flags.quiet,
       flags.relayReleaseTag,
+      flags.componentImage,
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
+      flags.externalAddress,
       flags.cacheDir,
       flags.devMode,
 
@@ -198,10 +203,12 @@ export class RelayCommand extends BaseCommand {
       flags.operatorKey,
       flags.quiet,
       flags.relayReleaseTag,
+      flags.componentImage,
       flags.replicaCount,
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
+      flags.externalAddress,
       flags.cacheDir,
       flags.id,
       flags.devMode,
@@ -222,6 +229,7 @@ export class RelayCommand extends BaseCommand {
     nodeAliases,
     chainId,
     relayReleaseTag,
+    componentImage,
     replicaCount,
     operatorId,
     operatorKey,
@@ -253,6 +261,16 @@ export class RelayCommand extends BaseCommand {
       relayReleaseTag = SemanticVersion.getValidSemanticVersion(relayReleaseTag, false, 'Relay release');
       valuesArgument += ` --set relay.image.tag=${relayReleaseTag}`;
       valuesArgument += ` --set ws.image.tag=${relayReleaseTag}`;
+    }
+
+    if (componentImage) {
+      const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(componentImage);
+      valuesArgument += ` --set relay.image.registry=${parsedImageReference.registry}`;
+      valuesArgument += ` --set ws.image.registry=${parsedImageReference.registry}`;
+      valuesArgument += ` --set relay.image.repository=${parsedImageReference.repository}`;
+      valuesArgument += ` --set ws.image.repository=${parsedImageReference.repository}`;
+      valuesArgument += ` --set relay.image.tag=${parsedImageReference.tag}`;
+      valuesArgument += ` --set ws.image.tag=${parsedImageReference.tag}`;
     }
 
     if (replicaCount) {
@@ -482,6 +500,7 @@ export class RelayCommand extends BaseCommand {
       title: 'Enable port forwarding for relay node',
       skip: ({config}: RelayDeployContext | RelayUpgradeContext): boolean => !config.forcePortForward,
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const pods: Pod[] = await this.k8Factory
           .getK8(config.context)
           .pods()
@@ -495,9 +514,21 @@ export class RelayCommand extends BaseCommand {
         }
 
         const podReference: PodReference = pods[0].podReference;
-        const clusterReference: string =
-          (this.configManager.getFlag<string>(flags.clusterRef) as string) ??
-          this.k8Factory.default().clusters().readCurrent();
+        const clusterReference: string = this.getClusterReference();
+
+        // always kill pre-existing port forward process first otherwise after upgrade
+        // the old port forward process tied with old relay pod will still be running and cause issues
+        await this.remoteConfig.configuration.components.stopPortForwards(
+          clusterReference,
+          podReference,
+          constants.JSON_RPC_RELAY_PORT, // Pod port
+          constants.JSON_RPC_RELAY_LOCAL_PORT, // Local port
+          this.k8Factory.getK8(config.context),
+          this.logger,
+          ComponentTypes.RelayNodes,
+          'JSON RPC Relay',
+        );
+        await this.remoteConfig.persist();
 
         await this.remoteConfig.configuration.components.managePortForward(
           clusterReference,
@@ -509,6 +540,9 @@ export class RelayCommand extends BaseCommand {
           ComponentTypes.RelayNodes,
           'JSON RPC Relay',
           config.isChartInstalled, // Reuse existing port if chart is already installed
+          undefined,
+          true, // persist: auto-restart on failure using persist-port-forward.js
+          externalAddress,
         );
         await this.remoteConfig.persist();
       },

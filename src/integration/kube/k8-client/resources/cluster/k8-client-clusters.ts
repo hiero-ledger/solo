@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Clusters} from '../../../resources/cluster/clusters.js';
-import {type KubeConfig} from '@kubernetes/client-node';
+import {type Cluster, type KubeConfig} from '@kubernetes/client-node';
 import {IllegalArgumentError} from '../../../../../core/errors/illegal-argument-error.js';
 
 export class K8ClientClusters implements Clusters {
@@ -21,7 +21,7 @@ export class K8ClientClusters implements Clusters {
   }
 
   public readCurrent(): string {
-    const currentCluster = this.kubeConfig.getCurrentCluster();
+    const currentCluster: Cluster = this.kubeConfig.getCurrentCluster();
     return currentCluster ? currentCluster.name : '';
   }
 }

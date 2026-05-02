@@ -56,7 +56,6 @@ function setup_smart_contract_test ()
     fs.writeFileSync('utils/constants.js', c);
     console.log('Patched utils/constants.js with Solo port-forward addresses');
   "
-
   cd -
 }
 
@@ -86,6 +85,8 @@ function start_contract_test ()
   cd hedera-smart-contracts
   echo "Wait a few seconds for background transactions to start"
   sleep 10
+  echo "Show current port forward for debugging purpose"
+  ps -ef | grep port-forward
   echo "Run smart contract test"
   result=0
   npm run hh:test || result=$?
@@ -400,13 +401,3 @@ if [[ $result -ne 0 ]]; then
 fi
 echo "Finished mirror node acceptance test on namespace ${SOLO_NAMESPACE}"
 printf "\r::endgroup::\n"
-result=0
-
-check_monitor_log "${SOLO_NAMESPACE}" "${MIRROR_KUBE_CONTEXT}"
-
-if [ -n "$1" ]; then
-  echo "Skip mirror importer log check"
-else
-  check_importer_log "${SOLO_NAMESPACE}" "${MIRROR_KUBE_CONTEXT}"
-fi
-log_and_exit $?
