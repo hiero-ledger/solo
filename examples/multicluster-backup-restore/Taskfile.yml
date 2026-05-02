@@ -327,6 +327,7 @@ tasks:
           # restart pod to make new configMaps/Secrets effective
           kubectl delete pod network-node1-0 -n external-database-test --context kind-solo-e2e-c1
           kubectl delete pod network-node2-0 -n external-database-test --context kind-solo-e2e-c2
+          kubectl delete pod block-node-1-0 -n external-database-test --context kind-solo-e2e-c2 || true
 
 
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}

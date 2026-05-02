@@ -855,30 +855,6 @@ export class BackupRestoreCommand extends BaseCommand {
           );
         },
       },
-      // Consensus node start task
-      {
-        title: 'Start consensus nodes',
-        skip: (context_: any): boolean =>
-          !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
-        task: async (context_, taskListWrapper) => {
-          return CommandHelpers.subTaskSoloCommand(
-            ConsensusCommandDefinition.START_COMMAND,
-            taskListWrapper,
-            (): string[] => {
-              const argv: string[] = CommandHelpers.newArgv();
-              argv.push(
-                ...ConsensusCommandDefinition.START_COMMAND.split(' '),
-                CommandHelpers.optionFromFlag(flags.deployment),
-                context_.deployment,
-                CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
-                context_.nodeAliases,
-              );
-              return CommandHelpers.argvPushGlobalFlags(argv);
-            },
-            this.taskList,
-          );
-        },
-      },
       ...this.buildMirrorNodeTasks(),
       ...this.buildRelayNodeTasks(),
       ...this.buildExplorerTasks(),
