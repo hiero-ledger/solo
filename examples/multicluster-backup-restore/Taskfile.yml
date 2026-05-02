@@ -221,7 +221,7 @@ tasks:
     cmds:
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 40s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
             $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
@@ -318,7 +318,7 @@ tasks:
       # freeze first before restoring
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 40s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
             $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
