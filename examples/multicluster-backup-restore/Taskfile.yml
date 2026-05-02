@@ -62,6 +62,12 @@ tasks:
           else
             {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} || true
           fi
+      - cmd: |
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 120s {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+          else
+            {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+          fi
       - task: verify
 
   initial-deploy:
