@@ -64,7 +64,6 @@ import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-deployed-event.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
-import {Duration} from '../core/time/duration.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 // Port forwarding is now a method on the components object
 
