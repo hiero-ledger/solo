@@ -29,8 +29,8 @@ vars:
   ZIP_PASSWORD: "xxxx"
   ZIP_INPUT_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
   SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
-  SHARD: "0"
-  REALM: "0"
+  SHARD: "3"
+  REALM: "2"
 
   POSTGRES_USERNAME: "postgres"
   POSTGRES_PASSWORD: "XXXXXXX"
@@ -58,9 +58,15 @@ tasks:
       - task: restore-config
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} || true
+            {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           else
-            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} || true
+            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
+          fi
+      - cmd: |
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+          else
+            {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           fi
       - task: verify
 
@@ -149,6 +155,10 @@ tasks:
       - cmd: echo "🔑 Generating consensus keys..."
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
+      # Deploy Block Node on Cluster 2 (before consensus network deploy so CN starts with blockStream.streamMode=BOTH)
+      - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
+
       # Deploy consensus network
       - cmd: echo "🚀 Deploying consensus network..."
       - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs
@@ -160,11 +170,10 @@ tasks:
       # Start nodes
       - cmd: echo "▶️  Starting consensus nodes..."
       - cmd: |
-          # Kill the start command if it hangs for more than 60 seconds
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           else
-            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev || true
+            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           fi
 
       # Install PostgreSQL on Cluster 2
@@ -180,10 +189,6 @@ tasks:
             --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
             --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
             --enable-ingress --pinger -q --dev --values-file examples/multicluster-backup-restore/mirror-node-values-dual-cluster-minimal.yaml
-
-      # Deploy Block Node on Cluster 2
-      - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
 
       # Deploy Explorer on Cluster 2
       - cmd: echo "🔍 Deploying Explorer on Cluster 2..."
@@ -216,10 +221,11 @@ tasks:
     cmds:
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
-            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
+      - cmd: |
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
       - cmd: echo "✅ Backup completed successfully"
@@ -255,14 +261,12 @@ tasks:
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
               --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
-              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
+              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
           else
             $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
               --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
-              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
+              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
           fi
-          --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
-          --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }} || true
           # keep a copy of zip file for debugging
           cp {{ .ZIP_INPUT_FILE }} ~/.solo/logs
 
@@ -313,17 +317,17 @@ tasks:
     cmds:
       # freeze first before restoring
       - cmd: |
-          # freeze before restore
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
-            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }} || true
+            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
           # restart pod to make new configMaps/Secrets effective
           kubectl delete pod network-node1-0 -n external-database-test --context kind-solo-e2e-c1
           kubectl delete pod network-node2-0 -n external-database-test --context kind-solo-e2e-c2
+          kubectl delete pod block-node-1-0 -n external-database-test --context kind-solo-e2e-c2 || true
 
 
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
@@ -343,15 +347,40 @@ tasks:
     desc: Verify restored network functionality
     cmds:
       - cmd: echo "🔎 Verifying restored state (checking account 3.2.3)..."
-      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3 || echo "⚠️  Account verification may have failed"
+      - cmd: |
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3
+          else
+            $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3
+          fi
 
       - cmd: echo "💰 Testing with new transactions..."
       - cmd: |
           for i in 1 2 3; do
             echo "  Creating new account $i/3 on restored network..."
-            $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50 || echo "⚠️  Transaction test may have failed"
+            if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+              {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
+            else
+              $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
+            fi
             sleep 3
           done
+
+      - cmd: |
+          export SOLO_DEPLOYMENT="{{ .DEPLOYMENT }}"
+          export SOLO_NAMESPACE="{{ .NAMESPACE }}"
+          export REALM_NUM="{{ .REALM }}"
+          export SHARD_NUM="{{ .SHARD }}"
+
+          if [ "$(node -p "process.platform")" = "win32" ]; then
+            echo "Skipping solo smoke test on Windows: .github/workflows/script/solo_smoke_test.sh is POSIX shell."
+          elif git rev-parse --show-toplevel >/dev/null 2>&1; then
+            REPO_ROOT="$(git rev-parse --show-toplevel)"
+            echo "Running solo smoke test from repo root: ${REPO_ROOT}"
+            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
+          else
+            echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
+          fi
 
       - cmd: echo "✅ Network verification completed - restored network is operational!"
 

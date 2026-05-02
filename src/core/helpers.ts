@@ -875,7 +875,6 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
   }
 
   await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
-    ['applicationProperties']: lines.join('\n'),
     [constants.APPLICATION_PROPERTIES]: lines.join('\n'),
   });
 

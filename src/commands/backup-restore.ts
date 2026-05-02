@@ -776,6 +776,8 @@ export class BackupRestoreCommand extends BaseCommand {
           );
         },
       },
+      // Block nodes deploy tasks (one per block node)
+      ...this.buildBlockNodeTasks(),
       // Consensus network deploy task
       {
         title: 'Deploy consensus network',
@@ -826,8 +828,6 @@ export class BackupRestoreCommand extends BaseCommand {
           );
         },
       },
-      // Block nodes deploy tasks (one per block node)
-      ...this.buildBlockNodeTasks(),
       // Consensus node setup task
       {
         title: 'Setup consensus nodes',
@@ -855,12 +855,15 @@ export class BackupRestoreCommand extends BaseCommand {
           );
         },
       },
-      // Consensus node start task
+      // Consensus node start task — required so mirror/relay/explorer deployment
+      // can connect to the network; CN will be restarted by restore-config after
+      // the backed-up state is loaded, at which point the block node pod is also
+      // restarted to clear any genesis-phase blocks accumulated here.
       {
         title: 'Start consensus nodes',
         skip: (context_: any): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
-        task: async (context_, taskListWrapper) => {
+        task: async (context_: any, taskListWrapper: any) => {
           return CommandHelpers.subTaskSoloCommand(
             ConsensusCommandDefinition.START_COMMAND,
             taskListWrapper,
