@@ -29,8 +29,8 @@ vars:
   ZIP_PASSWORD: "xxxx"
   ZIP_INPUT_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
   SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
-  SHARD: "0"
-  REALM: "0"
+  SHARD: "3"
+  REALM: "2"
 
   POSTGRES_USERNAME: "postgres"
   POSTGRES_PASSWORD: "XXXXXXX"
@@ -345,12 +345,12 @@ tasks:
   verify:
     desc: Verify restored network functionality
     cmds:
-      - cmd: echo "🔎 Verifying restored state (checking genesis treasury account 0.0.2)..."
+      - cmd: echo "🔎 Verifying restored state (checking account 3.2.3)..."
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 0.0.2
+            {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3
           else
-            $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 0.0.2
+            $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3
           fi
 
       - cmd: echo "💰 Testing with new transactions..."
