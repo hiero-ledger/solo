@@ -67,12 +67,14 @@ tasks:
         {{else}}
         npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log
         {{end}}
-      - npx dpdm ./solo.ts
+      - npx dpdm --exit-code circular:1 ./solo.ts
       - npx typedoc --emit none
 
   format:
     desc: "Run all checks with auto-fix (lint, circular dependencies, typedoc)"
-    deps: [build]
+    # Keep format independent from build:lint so eslint --fix can run before non-fix lint checks.
+    # We still compile first to catch TypeScript errors early.
+    deps: [build:compile]
     sources:
       - src/**/*.ts
       - test/**/*.ts
