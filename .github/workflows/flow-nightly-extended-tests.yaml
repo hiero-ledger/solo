@@ -37,7 +37,7 @@ defaults:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -146,10 +146,34 @@ jobs:
           timeout_minutes: 10
           command: npm ci
 
+      - name: Install jq
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@8489d0d7bf2110e44a330d8db821786e6e8c8d73 # pinned to v4.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: "v1.31.4"
+
+      - name: Setup Kind
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
       - name: Run Test (${{ matrix.test.name }})
         timeout-minutes: ${{ matrix.test.timeout_minutes }}
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN != '' && secrets.GH_ACCESS_TOKEN || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN != '' && secrets.GH_ACCESS_TOKEN || github.token }}
           TEST_NAME: ${{ matrix.test.name }}
           TEST_DESCRIPTION: ${{ matrix.test.description }}
         run: |
