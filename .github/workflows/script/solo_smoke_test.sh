@@ -19,7 +19,7 @@ function clone_smart_contract_repo ()
     echo "Directory hedera-smart-contracts exists."
   else
     echo "Directory hedera-smart-contracts does not exist."
-    git clone https://github.com/hashgraph/hedera-smart-contracts --branch only-erc20-tests-v3
+    git clone https://github.com/hashgraph/hedera-smart-contracts --branch only-erc20-tests-v4
   fi
 }
 
@@ -56,6 +56,7 @@ function setup_smart_contract_test ()
     fs.writeFileSync('utils/constants.js', c);
     console.log('Patched utils/constants.js with Solo port-forward addresses');
   "
+
   cd -
 }
 

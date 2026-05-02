@@ -140,7 +140,7 @@ tasks:
     desc: "Runs the external database example test without coverage (used for local development)"
     cmd: |
         if [ -z "$CONSENSUS_NODE_VERSION" ]; then
-          export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
+          export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
         fi
         cd examples/external-database-test
         task default
@@ -167,8 +167,19 @@ tasks:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Performance Test\"
         {{ .reporter_prefix }}='coverage/e2e-performance'
-        {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts' 
+        {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts'
         {{ .reporter_options_prefix }}-e2e-performance.xml"
+
+  test-e2e-small-memory-load:
+    desc: "Runs E2E Small Memory Load test — CN v0.73 with NLG v0.14.0 throttle-protected load"
+    env:
+      CONSENSUS_NODE_VERSION: v0.73.0-rc.1
+      NETWORK_LOAD_GENERATOR_CHART_VERSION: "0.14.0"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E Small Memory Load Test\"
+        {{ .reporter_prefix }}='coverage/e2e-small-memory-load'
+        {{ .mocha_bin }} 'test/e2e/commands/small-memory-load.test.ts'
+        {{ .reporter_options_prefix }}-e2e-small-memory-load.xml"
 
   test-example-node-create-transaction:
     desc: "Runs the node create transaction example test without coverage (used for local development)"

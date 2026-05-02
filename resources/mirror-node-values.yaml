@@ -34,7 +34,7 @@ importer:
       memory: 0
     limits:
       cpu: 1000m
-      memory: 300Mi
+      memory: 220Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -98,7 +98,7 @@ grpc:
       memory: 0
     limits:
       cpu: 500m
-      memory: 200Mi
+      memory: 120Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -119,7 +119,7 @@ pinger:
       memory: 0
     limits:
       cpu: 100m
-      memory: 15Mi
+      memory: 20Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -172,7 +172,7 @@ rest:
       memory: 0
     limits:
       cpu: 500m
-      memory: 120Mi
+      memory: 100Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -210,8 +210,8 @@ restjava:
       cpu: 0
       memory: 0
     limits:
-      cpu: 500m
-      memory: 500Mi
+      cpu: 2
+      memory: 200Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1

@@ -159,7 +159,7 @@ jobs:
       fail-fast: false
       matrix:
         example: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
-      max-parallel: 3
+      max-parallel: 4
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
@@ -215,7 +215,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
-          java-version: 21.0.1
+          java-version: 25
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
@@ -240,6 +240,7 @@ jobs:
             cd ../solo
 
       - name: Build Application
+        if: ${{ !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
@@ -361,7 +362,7 @@ jobs:
           # test immediately rather than waiting up to 45 minutes for it to finish
           # on its own.
           echo "Starting task..."
-          export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
+          export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' ../../version.ts)
           TASK_PID=""
           TASK_PGID=""
           TASK_RC=0
@@ -380,6 +381,9 @@ jobs:
               fi
               wait "${TASK_PID}" 2>/dev/null || true
             fi
+            echo "Task was cancelled/timed out. Collecting deployment diagnostics logs..."
+            cd ../..
+            npm run solo-test -- deployment diagnostics logs -q --dev || true
             exit 130
           }
           trap cleanup SIGTERM SIGINT
@@ -396,12 +400,13 @@ jobs:
           TASK_PGID=""
           trap - SIGTERM SIGINT
 
-          if [ "${TASK_RC}" -ne 0 ]; then
-            echo "Task failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
-            cd ../..
-            npm run solo-test -- deployment diagnostics logs -q --dev || true
-            cd "examples/${{ matrix.example.directory }}"
+          echo "Always collecting deployment diagnostics logs after task completion..."
+          cd ../..
+          npm run solo-test -- deployment diagnostics logs -q --dev || true
+          cd "examples/${{ matrix.example.directory }}"
 
+          if [ "${TASK_RC}" -ne 0 ]; then
+            echo "Task failed with exit code ${TASK_RC}."
             exit "${TASK_RC}"
           fi
 

@@ -4155,6 +4155,7 @@ export class NodeCommandTasks {
         const componentLabelConfigs: Array<{name: string; labels: string[]}> = [
           {name: 'consensus node', labels: ['solo.hedera.com/type=network-node']},
           {name: 'mirror importer', labels: [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL]},
+          {name: 'mirror pinger', labels: [constants.SOLO_MIRROR_PINGER_NAME_LABEL]},
           {name: 'mirror grpc', labels: [constants.SOLO_MIRROR_GRPC_NAME_LABEL]},
           {name: 'mirror monitor', labels: [constants.SOLO_MIRROR_MONITOR_NAME_LABEL]},
           {name: 'mirror rest', labels: [constants.SOLO_MIRROR_REST_NAME_LABEL]},

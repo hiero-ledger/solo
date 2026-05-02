@@ -50,6 +50,7 @@ import {Lock} from '../core/lock/lock.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Base64} from 'js-base64';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
@@ -64,6 +65,7 @@ import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-deployed-event.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
+import {optionFromFlag} from './command-helpers.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 // Port forwarding is now a method on the components object
 
@@ -312,9 +314,19 @@ export class MirrorNodeCommand extends BaseCommand {
   ): string {
     const configuration: RemoteConfig = this.remoteConfig.configuration;
     const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
+    const sameClusterBlockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = blockNodeSchemas.filter(
+      (blockNode): boolean => blockNode.metadata.cluster === config.clusterReference,
+    );
 
     if (blockNodeSchemas.length === 0) {
       this.logger.debug('No block nodes found in remote config configuration');
+      return '';
+    }
+
+    if (sameClusterBlockNodeSchemas.length === 0) {
+      this.logger.info(
+        `Skipping block node integration for mirror node cluster ${config.clusterReference}; no block node in the same cluster`,
+      );
       return '';
     }
 
@@ -356,7 +368,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const blockNodeFqdnList: {host: string; port: number}[] = [];
 
-    for (const blockNode of blockNodeSchemas) {
+    for (const blockNode of sameClusterBlockNodeSchemas) {
       const id: ComponentId = blockNode.metadata.id;
       const clusterReference: ClusterReferenceName = blockNode.metadata.cluster;
 
@@ -1251,8 +1263,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
+              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.senderAccountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.recipientAccountId=${pingerRecipientAccountId}`;
               config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_ID=${operatorId}`;
+              config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_TO_ACCOUNT_ID=${pingerRecipientAccountId}`;
 
               if (config.operatorKey) {
                 this.logger.info('Using provided operator key');
@@ -1443,20 +1459,12 @@ export class MirrorNodeCommand extends BaseCommand {
             config.isLegacyChartInstalled = isLegacyChartInstalled;
             config.installSharedResources = false;
 
-            const currentMirrorNodeVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
-              ComponentTypes.MirrorNode,
+            assertUpgradeVersionNotOlder(
+              'Mirror node',
+              config.mirrorNodeVersion,
+              this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode),
+              optionFromFlag(flags.mirrorNodeVersion),
             );
-            if (currentMirrorNodeVersion && !currentMirrorNodeVersion.equals('0.0.0')) {
-              const targetMirrorNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
-                config.mirrorNodeVersion,
-              );
-              if (targetMirrorNodeVersion.lessThanOrEqual(currentMirrorNodeVersion)) {
-                throw new SoloError(
-                  `Mirror node upgrade target version ${config.mirrorNodeVersion} is not newer than the current version ${currentMirrorNodeVersion.toString()} stored in remote config. ` +
-                    'Use --mirror-node-version to specify a version newer than the currently deployed version.',
-                );
-              }
-            }
 
             context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               context_.config.soloChartVersion,
@@ -1508,8 +1516,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
+              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.senderAccountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.recipientAccountId=${pingerRecipientAccountId}`;
               config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_ID=${operatorId}`;
+              config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_TO_ACCOUNT_ID=${pingerRecipientAccountId}`;
 
               if (config.operatorKey) {
                 this.logger.info('Using provided operator key');
