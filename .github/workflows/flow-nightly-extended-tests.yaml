@@ -176,8 +176,11 @@ jobs:
               --field "test-name=${{ matrix.test.name }}"
             )
 
-            if [ -n "${{ matrix.test.inputs && matrix.test.inputs['consensus-node-version'] || '' }}" ]; then
-              CMD+=(--field "consensus-node-version=${{ matrix.test.inputs['consensus-node-version'] }}")
+            INPUTS_JSON='${{ matrix.test.workflow_inputs_json || '' }}'
+            if [ -n "${INPUTS_JSON}" ]; then
+              while IFS= read -r kv; do
+                CMD+=(--field "${kv}")
+              done < <(echo "${INPUTS_JSON}" | jq -r 'to_entries[] | "\(.key)=\(.value)"')
             fi
 
             "${CMD[@]}" || {

@@ -27,9 +27,7 @@
       "path": ".github/workflows/flow-performance-test.yaml",
       "description": "Performance test workflow",
       "timeout_minutes": 90,
-      "inputs": {
-        "consensus-node-version": "v0.74.0-rc1"
-      }
+      "workflow_inputs_json": "{\"consensus-node-version\":\"v0.74.0-rc1\"}"
     }
   ]
 }
