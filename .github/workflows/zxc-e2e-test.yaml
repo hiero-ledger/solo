@@ -273,7 +273,7 @@ jobs:
 
       - name: Install wget
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:
           max_attempts: 3
           timeout_minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
@@ -312,7 +312,7 @@ jobs:
 
       - name: Install Dependencies
         id: npm-deps
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:
           max_attempts: 10
           timeout_minutes: ${{ env.STEP_TIMEOUT_MINUTES }}
@@ -367,7 +367,7 @@ jobs:
 
       - name: Build Hedera code locally
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:
           max_attempts: 3
           timeout_minutes: 30
@@ -381,12 +381,12 @@ jobs:
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
             cd hiero-consensus-node
             ls -ltr
-            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info
+            ${{ env.CG_EXEC }} ./gradlew assemble --stacktrace --info || exit 1
             cd ../solo
 
       - name: Setup E2E Tests
         if: ${{ inputs.custom-job-label != 'One Shot Single - using Podman' && !cancelled() && !failure() }}
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:
           max_attempts: 3
           timeout_minutes: 10
@@ -402,7 +402,7 @@ jobs:
 
       - name: Build Block Code Locally
         if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
-        uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
         with:
           max_attempts: 3
           timeout_minutes: 20
@@ -563,21 +563,22 @@ jobs:
           METRICS_FILE="$HOME/.solo/logs/runner-metrics.jsonl"
           CHART_FILE="$HOME/.solo/logs/runner-metrics-ascii.txt"
           
-          if [[ -f "$METRICS_FILE" ]]; then
-            echo "Generating ASCII chart from metrics..."
+          DATA_POINTS=$(wc -l < "$METRICS_FILE" 2>/dev/null | tr -d ' ' || echo "0")
+          if [[ -f "$METRICS_FILE" && "$DATA_POINTS" -gt 0 ]]; then
+            echo "Generating ASCII chart from ${DATA_POINTS} data points..."
             ./.github/workflows/script/plot-runner-metrics-ascii.sh "$METRICS_FILE" "$CHART_FILE"
-          
-            if [[ -f "$CHART_FILE" ]]; then
+
+            if [[ -f "$CHART_FILE" && -s "$CHART_FILE" ]]; then
               echo "chart_generated=true" >> $GITHUB_OUTPUT
               echo "chart_file=$CHART_FILE" >> $GITHUB_OUTPUT
               echo "✅ ASCII chart generated successfully"
             else
               echo "chart_generated=false" >> $GITHUB_OUTPUT
-              echo "⚠️  ASCII chart generation failed"
+              echo "⚠️  ASCII chart generation produced no output"
             fi
           else
             echo "chart_generated=false" >> $GITHUB_OUTPUT
-            echo "ℹ️  No metrics file found, skipping chart generation"
+            echo "ℹ️  No metrics data collected (${DATA_POINTS} data points), skipping chart generation"
           fi
 
       - name: Write Log Metrics Message File
@@ -621,16 +622,11 @@ jobs:
           
           echo "log_file=$LOG_FILE" >> $GITHUB_OUTPUT
 
-      - name: Comment PR with Log Metrics
-        if: >-
-          ${{ github.event_name == 'pull_request' && steps.log-metrics-file.conclusion == 'success' &&
-          github.event.pull_request.head.repo.fork == false && !cancelled() && !failure() }}
-        uses: step-security/actions-comment-pull-request@7f6021194300cf361f7ba99a346c4daa6cab809b # v3.0.1
+      - name: Write Log Metrics to Workflow Summary
+        if: ${{ !cancelled() && steps.log-metrics-file.conclusion == 'success' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        with:
-          mode: recreate
-          file-path: ${{ steps.log-metrics-file.outputs.log_file }}
-          comment-tag: log-metrics-${{ inputs.test-script }}
+        run: |
+          cat "${{ steps.log-metrics-file.outputs.log_file }}" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
