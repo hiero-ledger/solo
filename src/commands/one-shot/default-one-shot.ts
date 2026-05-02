@@ -84,7 +84,7 @@ import {MirrorNodeStateSchema} from '../../data/schema/model/remote/state/mirror
 import {ExplorerStateSchema} from '../../data/schema/model/remote/state/explorer-state-schema.js';
 import {BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
-import {SoloEventType} from '../../core/events/event-types/event-types.js';
+import {SoloEventType} from '../../core/events/event-types/solo-event.js';
 import {MirrorNodeDeployedEvent} from '../../core/events/event-types/mirror-node-deployed-event.js';
 import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
@@ -397,9 +397,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
                 config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationProperties)] =
                   this.concatConfigFiles(
-                    PathEx.join(defaultsDirectory, 'application.properties'),
-                    PathEx.join(overridesDirectory, 'application.properties'),
-                    PathEx.join(mergedDirectory, 'application.properties'),
+                    PathEx.join(defaultsDirectory, constants.APPLICATION_PROPERTIES),
+                    PathEx.join(overridesDirectory, constants.APPLICATION_PROPERTIES),
+                    PathEx.join(mergedDirectory, constants.APPLICATION_PROPERTIES),
                   );
 
                 // For CN >= 0.73.0, use state-on-disk application.env instead of default small-memory

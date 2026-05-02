@@ -70,6 +70,7 @@ export const HEDERA_DATA_APPS_DIR: string = 'data/apps';
 export const HEDERA_DATA_LIB_DIR: string = 'data/lib';
 export const HEDERA_USER_HOME_DIR: string = '/home/hedera';
 export const HEDERA_APP_NAME: string = 'HederaNode.jar';
+export const APPLICATION_PROPERTIES: string = 'application.properties';
 export const HEDERA_BUILDS_URL: string = 'https://builds.hedera.com';
 export const HEDERA_NODE_INTERNAL_GOSSIP_PORT: string =
   getEnvironmentVariable('SOLO_NODE_INTERNAL_GOSSIP_PORT') || '50111';

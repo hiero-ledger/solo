@@ -53,6 +53,16 @@ const FATAL_WAITING_REASONS: ReadonlySet<string> = new Set([
  */
 const FATAL_TERMINATED_REASONS: ReadonlySet<string> = new Set(['OOMKilled']);
 const FATAL_ERROR_RETRY_THRESHOLD: number = 3;
+const NON_RECOVERABLE_IMAGE_PULL_PATTERNS: ReadonlyArray<RegExp> = [
+  /not found/i,
+  /manifest unknown/i,
+  /pull access denied/i,
+  /requested access to the resource is denied/i,
+  /insufficient_scope/i,
+  /unauthorized/i,
+  /authentication required/i,
+  /invalid reference format/i,
+];
 
 /**
  * Inspect a V1Pod's container statuses for non-recoverable error states and return a descriptive
@@ -76,6 +86,14 @@ export function detectFatalContainerError(pod: V1Pod): string | undefined {
 
     const waitingState: V1ContainerStateWaiting | undefined = containerStatus.state?.waiting;
     if (waitingState?.reason && FATAL_WAITING_REASONS.has(waitingState.reason)) {
+      if (
+        (waitingState.reason === 'ErrImagePull' ||
+          waitingState.reason === 'ImagePullBackOff' ||
+          waitingState.reason === 'ImageInspectError') &&
+        !isNonRecoverableImagePullError(waitingState.message)
+      ) {
+        continue;
+      }
       const detail: string = waitingState.message ? `: ${waitingState.message}` : '';
       return (
         `Pod "${podName}" container "${containerName}" is in a non-recoverable state: ` +
@@ -93,6 +111,13 @@ export function detectFatalContainerError(pod: V1Pod): string | undefined {
   }
 
   return undefined;
+}
+
+function isNonRecoverableImagePullError(message?: string): boolean {
+  if (!message) {
+    return false;
+  }
+  return NON_RECOVERABLE_IMAGE_PULL_PATTERNS.some((pattern): boolean => pattern.test(message));
 }
 
 export class K8ClientPods extends K8ClientBase implements Pods {
