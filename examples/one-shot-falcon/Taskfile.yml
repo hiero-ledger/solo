@@ -43,7 +43,7 @@ tasks:
 
       # Solo one-shot falcon deploy
       - cmd: |
-          RESOLVED=$(mktemp /tmp/falcon-values-XXXX.yaml)
+          RESOLVED=$(mktemp /tmp/falcon-values-XXXXXX)
           RELEASE_TAG="{{ .RELEASE_TAG }}"
           sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
               -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
@@ -57,7 +57,7 @@ tasks:
     cmds:
       # Solo one-shot falcon deploy with disabled components
       - cmd: |
-          RESOLVED=$(mktemp /tmp/falcon-values-XXXX.yaml)
+          RESOLVED=$(mktemp /tmp/falcon-values-XXXXXX)
           RELEASE_TAG="{{ .RELEASE_TAG }}"
           sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
               -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
@@ -72,7 +72,7 @@ tasks:
     cmds:
       # Solo one-shot falcon deploy with only consensus nodes
       - cmd: |
-          RESOLVED=$(mktemp /tmp/falcon-values-XXXX.yaml)
+          RESOLVED=$(mktemp /tmp/falcon-values-XXXXXX)
           RELEASE_TAG="{{ .RELEASE_TAG }}"
           sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
               -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
