@@ -59,6 +59,35 @@ tasks:
       - task: restore-network
       - task: restore-config
       - cmd: |
+          echo "Resetting block node data so CN can stream from restored block height..."
+          # Scale down block node so its PVC data can be safely cleared
+          kubectl scale statefulset block-node-1 \
+            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=0
+          kubectl wait --for=delete pod/block-node-1-0 \
+            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=60s || true
+
+          # Clear block node PVC data with a temporary busybox pod.
+          # Genesis blocks from the restore-network phase are still in the PVCs.
+          # If left in place, CN (which resumes at the backed-up block height) cannot
+          # stream to the block node because the block node would demand the next
+          # sequential block after the genesis tip — a block CN no longer has.
+          # Clearing makes the block node fresh so it accepts CN's first streamed block.
+          kubectl run bn-data-reset --restart=Never \
+            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+            --image=busybox \
+            --overrides='{"spec":{"containers":[{"name":"bn-data-reset","image":"busybox","command":["sh","-c","rm -rf /live/* /archive/* /verify/* && echo done"],"volumeMounts":[{"name":"live","mountPath":"/live"},{"name":"archive","mountPath":"/archive"},{"name":"verify","mountPath":"/verify"}]}],"volumes":[{"name":"live","persistentVolumeClaim":{"claimName":"live-storage-block-node-1-0"}},{"name":"archive","persistentVolumeClaim":{"claimName":"archive-storage-block-node-1-0"}},{"name":"verify","persistentVolumeClaim":{"claimName":"verification-storage-block-node-1-0"}}],"restartPolicy":"Never"}}'
+          kubectl wait --for=condition=completed pod/bn-data-reset \
+            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=60s
+          kubectl delete pod bn-data-reset \
+            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
+
+          # Scale block node back up - it starts fresh with no blocks
+          kubectl scale statefulset block-node-1 \
+            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=1
+          kubectl wait --for=condition=ready pod/block-node-1-0 \
+            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s
+          echo "✅ Block node reset - will accept blocks from CN after consensus node start"
+      - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           else
