@@ -52,6 +52,8 @@ tasks:
       - task: initial-deploy
       - task: generate-transactions
       - task: backup
+      - cmd: |
+          $SOLO_COMMAND deployment diagnostics debug --deployment {{ .DEPLOYMENT }} --dev || true
       - task: destroy-cluster
       - task: restore-clusters
       - task: restore-network
