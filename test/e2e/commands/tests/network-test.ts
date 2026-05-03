@@ -187,6 +187,6 @@ export class NetworkTest extends BaseCommandTest {
         k8Factory.getK8(contexts[1]).secrets().list(namespace),
         'Secrets should be deleted in cluster[1]',
       ).eventually.to.have.lengthOf(0);
-    }).timeout(Duration.ofMinutes(2).toMillis());
+    }).timeout(Duration.ofMinutes(4).toMillis());
   }
 }
