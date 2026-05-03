@@ -324,11 +324,22 @@ tasks:
           fi
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
-          # restart pod to make new configMaps/Secrets effective
-          kubectl delete pod network-node1-0 -n external-database-test --context kind-solo-e2e-c1
-          kubectl delete pod network-node2-0 -n external-database-test --context kind-solo-e2e-c2
-          kubectl delete pod block-node-1-0 -n external-database-test --context kind-solo-e2e-c2 || true
+          # Restart Redis so it picks up the restored password secret (restore-network deploys
+          # Redis with a new random password; restore-config restores the backup's old secret,
+          # so Redis must restart to use the correct credentials again).
+          kubectl delete pod solo-shared-resources-redis-node-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
 
+          # Restart CN pods to make new configMaps/Secrets effective
+          kubectl delete pod network-node1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1
+          kubectl delete pod network-node2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
+
+          # Clear block node persistent storage: genesis-phase blocks accumulated during
+          # restore-network (0-72) would create a gap after CN restarts at the backed-up
+          # block height. Scale down, delete data PVCs, scale back up for a clean start.
+          kubectl scale statefulset block-node-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=0
+          kubectl delete pvc live-storage-block-node-1-0 archive-storage-block-node-1-0 verification-storage-block-node-1-0 \
+            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --ignore-not-found
+          kubectl scale statefulset block-node-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=1
 
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
