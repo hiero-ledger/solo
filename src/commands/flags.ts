@@ -1337,6 +1337,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly localAddressBook: CommandFlag = {
+    constName: 'localAddressBook',
+    name: 'local-address-book',
+    definition: {
+      describe: 'Build address book from local key files instead of querying a live consensus node',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly localBuildPath: CommandFlag = {
     constName: 'localBuildPath',
     name: 'local-build-path',
@@ -3004,6 +3015,7 @@ export class Flags {
     Flags.explorerVersion,
     Flags.inputDir,
     Flags.loadBalancerEnabled,
+    Flags.localAddressBook,
     Flags.localBuildPath,
     Flags.log4j2Xml,
     Flags.metallbConfig,
