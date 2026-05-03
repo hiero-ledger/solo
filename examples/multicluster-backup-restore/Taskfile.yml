@@ -229,9 +229,9 @@ tasks:
           fi
 
       # After freeze, wait for the block node to stop advancing: all in-flight
-      # blocks from CN must be flushed to PVCs before backup.  Poll getBlock
-      # (via a temporary port-forward) until the latest block number is stable
-      # for 3 consecutive 5-second checks, then close the port-forward.
+      # blocks from CN must be flushed to PVCs before backup.  Poll serverStatus
+      # (via a temporary port-forward) until lastAvailableBlock is stable for
+      # 3 consecutive 5-second checks, then close the port-forward.
       - cmd: |
           echo "Waiting for block node to stabilize after CN freeze..."
           REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -245,15 +245,14 @@ tasks:
           LAST_BLOCK="-2"
           STABLE_COUNT=0
           while [ "${STABLE_COUNT}" -lt 3 ]; do
-            CURRENT_BLOCK=$(grpcurl -plaintext \
-              -import-path "{{ .USER_WORKING_DIR }}" \
+            CURRENT_BLOCK=$({{ .TIMEOUT_COMMAND }} 10 grpcurl -plaintext \
               -import-path "${PROTO_DIR}" \
-              -proto "block_access_service.proto" \
-              -d '{"retrieveLatest": true}' \
+              -proto "block/block_service.proto" \
+              -d '{}' \
               localhost:40840 \
-              org.hiero.block.api.BlockAccessService/getBlock 2>/dev/null | \
-              jq -r '.block.items[0].blockHeader.number // "-1"' 2>/dev/null || echo "-1")
-            echo "  Block node latest block: ${CURRENT_BLOCK}"
+              com.hedera.hapi.block.BlockNodeService/serverStatus 2>/dev/null | \
+              jq -r '.lastAvailableBlock // "-1"' 2>/dev/null || echo "-1")
+            echo "  Block node lastAvailableBlock: ${CURRENT_BLOCK}"
             if [ "${CURRENT_BLOCK}" = "${LAST_BLOCK}" ]; then
               STABLE_COUNT=$((STABLE_COUNT + 1))
             else
