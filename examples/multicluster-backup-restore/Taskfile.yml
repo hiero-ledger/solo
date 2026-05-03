@@ -315,8 +315,37 @@ tasks:
   restore-config:
     desc: Restore configuration and state from backup
     cmds:
-      # freeze first before restoring
+      # restore-config is called TWICE intentionally.
+      #
+      # Pass 1 – import backed-up K8s resources into the cluster:
+      #   Freeze CN so it stops producing blocks, then run restore-config which:
+      #     (a) imports all backed-up ConfigMaps and Secrets into K8s,
+      #     (b) waits for CN pods to be ready, then
+      #     (c) uploads saved-state files into the running pod filesystems.
+      #   After pass 1 the cluster has the correct secrets/configmaps, but the
+      #   running pods were started with the OLD secrets (from restore-network).
+      #
+      # Pod restarts – apply the restored secrets/configmaps:
+      #   • Redis: restore-network deployed Redis with a freshly generated password
+      #     stored in a new K8s secret.  restore-config just overwrote that secret
+      #     with the backed-up password.  Redis must restart to pick up the correct
+      #     credential; otherwise mirror-grpc and mirror-importer see WRONGPASS.
+      #   • CN pods: must restart to pick up the restored ConfigMaps/Secrets.
+      #     After restart the pod ephemeral filesystem is wiped, erasing the
+      #     state files uploaded in pass 1.
+      #   • Block node: restore-network ran CN from genesis, which streamed blocks
+      #     0-N to the block node's PVCs.  After CN restarts at the backed-up height
+      #     (M > N) those genesis blocks create a permanent gap that the block node
+      #     rejects.  The StatefulSet must be scaled to zero so the data PVCs can be
+      #     deleted; scaling back to 1 creates fresh PVCs and CN streams blocks from
+      #     the restored height into a clean block node.
+      #
+      # Pass 2 – re-upload state files into the restarted pods:
+      #   Because CN pod restarts wiped the ephemeral filesystem, the state files
+      #   are gone.  Pass 2 waits for the new pods to be ready and re-uploads the
+      #   state files so CN resumes from the backed-up block height, not genesis.
       - cmd: |
+          # --- Pass 1: import backed-up ConfigMaps, Secrets, and state files ---
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
@@ -324,23 +353,34 @@ tasks:
           fi
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
-          # Restart Redis so it picks up the restored password secret (restore-network deploys
-          # Redis with a new random password; restore-config restores the backup's old secret,
-          # so Redis must restart to use the correct credentials again).
+          # --- Pod restarts: apply restored secrets/configmaps ---
+
+          # Restart Redis: restore-network deployed it with a new random password;
+          # restore-config overwrote the secret with the backup password, so Redis
+          # must restart to use the correct credential (fixes mirror WRONGPASS errors).
           kubectl delete pod solo-shared-resources-redis-node-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
 
-          # Restart CN pods to make new configMaps/Secrets effective
+          # Restart CN pods so they start up with the restored ConfigMaps/Secrets.
+          # NOTE: this wipes the pod ephemeral filesystem — state files uploaded in
+          # pass 1 are lost and must be re-uploaded in pass 2 below.
           kubectl delete pod network-node1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1
           kubectl delete pod network-node2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
 
-          # Clear block node persistent storage: genesis-phase blocks accumulated during
-          # restore-network (0-72) would create a gap after CN restarts at the backed-up
-          # block height. Scale down, delete data PVCs, scale back up for a clean start.
+          # Clear block node PVCs: genesis-phase blocks written during restore-network
+          # remain on the persistent volumes after a simple pod restart.  Scale the
+          # StatefulSet to 0 to release the PVCs, delete the three data volumes
+          # (live, archive, verification), then scale back to 1.  The StatefulSet
+          # controller will provision fresh PVCs and CN will stream blocks from the
+          # restored height into the clean block node — no gap.
           kubectl scale statefulset block-node-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=0
           kubectl delete pvc live-storage-block-node-1-0 archive-storage-block-node-1-0 verification-storage-block-node-1-0 \
             -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --ignore-not-found
           kubectl scale statefulset block-node-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=1
 
+          # --- Pass 2: re-upload state files into the restarted CN pods ---
+          # restore-config waits for CN pods to be ready, then re-uploads the
+          # saved-state files into the fresh pod filesystems so CN resumes from
+          # the backed-up block height rather than starting from genesis.
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
       - cmd: echo "Restoring database from dump..."
