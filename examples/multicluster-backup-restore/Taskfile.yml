@@ -228,43 +228,9 @@ tasks:
             $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
 
-      # After freeze, wait for the block node to stop advancing: all in-flight
-      # blocks from CN must be flushed to PVCs before backup.  Poll serverStatus
-      # (via a temporary port-forward) until lastAvailableBlock is stable for
-      # 3 consecutive 5-second checks, then close the port-forward.
-      - cmd: |
-          echo "Waiting for block node to stabilize after CN freeze..."
-          REPO_ROOT="$(git rev-parse --show-toplevel)"
-          PROTO_DIR="${REPO_ROOT}/test/data/proto"
-
-          kubectl port-forward pod/block-node-1-0 40840:40840 \
-            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 >/dev/null 2>&1 &
-          PFPID=$!
-          sleep 3
-
-          LAST_BLOCK="-2"
-          STABLE_COUNT=0
-          while [ "${STABLE_COUNT}" -lt 3 ]; do
-            CURRENT_BLOCK=$({{ .TIMEOUT_COMMAND }} 10 grpcurl -plaintext \
-              -import-path "${PROTO_DIR}" \
-              -proto "block/block_service.proto" \
-              -d '{}' \
-              localhost:40840 \
-              com.hedera.hapi.block.BlockNodeService/serverStatus 2>/dev/null | \
-              jq -r '.lastAvailableBlock // "-1"' 2>/dev/null || echo "-1")
-            echo "  Block node lastAvailableBlock: ${CURRENT_BLOCK}"
-            if [ "${CURRENT_BLOCK}" = "${LAST_BLOCK}" ]; then
-              STABLE_COUNT=$((STABLE_COUNT + 1))
-            else
-              STABLE_COUNT=0
-              LAST_BLOCK="${CURRENT_BLOCK}"
-            fi
-            sleep 5
-          done
-
-          echo "Block node stable at block: ${LAST_BLOCK}"
-          kill "${PFPID}" 2>/dev/null || true
-          wait "${PFPID}" 2>/dev/null || true
+      # Brief pause after freeze so block node can flush any in-flight blocks
+      # to its PVCs before the backup snapshot is taken.
+      - cmd: sleep 10
 
       - cmd: |
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
