@@ -315,37 +315,13 @@ tasks:
   restore-config:
     desc: Restore configuration and state from backup
     cmds:
-      # restore-config is called TWICE intentionally.
-      #
-      # Pass 1 – import backed-up K8s resources into the cluster:
-      #   Freeze CN so it stops producing blocks, then run restore-config which:
-      #     (a) imports all backed-up ConfigMaps and Secrets into K8s,
-      #     (b) waits for CN pods to be ready, then
-      #     (c) uploads saved-state files into the running pod filesystems.
-      #   After pass 1 the cluster has the correct secrets/configmaps, but the
-      #   running pods were started with the OLD secrets (from restore-network).
-      #
-      # Pod restarts – apply the restored secrets/configmaps:
-      #   • Redis: restore-network deployed Redis with a freshly generated password
-      #     stored in a new K8s secret.  restore-config just overwrote that secret
-      #     with the backed-up password.  Redis must restart to pick up the correct
-      #     credential; otherwise mirror-grpc and mirror-importer see WRONGPASS.
-      #   • CN pods: must restart to pick up the restored ConfigMaps/Secrets.
-      #     After restart the pod ephemeral filesystem is wiped, erasing the
-      #     state files uploaded in pass 1.
-      #   • Block node: restore-network ran CN from genesis, which streamed blocks
-      #     0-N to the block node's PVCs.  After CN restarts at the backed-up height
-      #     (M > N) those genesis blocks create a permanent gap that the block node
-      #     rejects.  The StatefulSet must be scaled to zero so the data PVCs can be
-      #     deleted; scaling back to 1 creates fresh PVCs and CN streams blocks from
-      #     the restored height into a clean block node.
-      #
-      # Pass 2 – re-upload state files into the restarted pods:
-      #   Because CN pod restarts wiped the ephemeral filesystem, the state files
-      #   are gone.  Pass 2 waits for the new pods to be ready and re-uploads the
-      #   state files so CN resumes from the backed-up block height, not genesis.
+      # restore-config is intentionally called twice.
+      # Pass 1 imports backed-up ConfigMaps/Secrets and uploads CN state files into
+      # the running pods.  Then pods are restarted to apply the restored secrets —
+      # which wipes the ephemeral pod filesystem.  Pass 2 re-uploads the state files
+      # into the fresh pods so CN resumes from the backed-up height, not genesis.
       - cmd: |
-          # --- Pass 1: import backed-up ConfigMaps, Secrets, and state files ---
+          # Pass 1: freeze CN, import backed-up ConfigMaps/Secrets, upload state files.
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
@@ -353,34 +329,28 @@ tasks:
           fi
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
-          # --- Pod restarts: apply restored secrets/configmaps ---
-
-          # Restart Redis: restore-network deployed it with a new random password;
-          # restore-config overwrote the secret with the backup password, so Redis
-          # must restart to use the correct credential (fixes mirror WRONGPASS errors).
+          # Restart Redis: restore-network created it with a new random password, but
+          # pass 1 just restored the backup's old password secret.  Redis must restart
+          # to pick up the correct credential (prevents mirror WRONGPASS errors).
           kubectl delete pod solo-shared-resources-redis-node-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
 
-          # Restart CN pods so they start up with the restored ConfigMaps/Secrets.
-          # NOTE: this wipes the pod ephemeral filesystem — state files uploaded in
-          # pass 1 are lost and must be re-uploaded in pass 2 below.
+          # Restart CN pods to apply the restored ConfigMaps/Secrets.
+          # Pod restart wipes the ephemeral filesystem; state files from pass 1 are
+          # lost and will be re-uploaded by pass 2 below.
           kubectl delete pod network-node1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1
           kubectl delete pod network-node2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
 
-          # Clear block node PVCs: genesis-phase blocks written during restore-network
-          # remain on the persistent volumes after a simple pod restart.  Scale the
-          # StatefulSet to 0 to release the PVCs, delete the three data volumes
-          # (live, archive, verification), then scale back to 1.  The StatefulSet
-          # controller will provision fresh PVCs and CN will stream blocks from the
-          # restored height into the clean block node — no gap.
+          # Clear block node PVCs: restore-network ran CN from genesis, writing
+          # genesis blocks to persistent volumes.  After CN restarts at the backed-up
+          # height those genesis blocks create a gap the block node rejects.
+          # Scale to 0, delete the three data PVCs, scale to 1 for a clean start.
           kubectl scale statefulset block-node-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=0
           kubectl delete pvc live-storage-block-node-1-0 archive-storage-block-node-1-0 verification-storage-block-node-1-0 \
             -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --ignore-not-found
           kubectl scale statefulset block-node-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=1
 
-          # --- Pass 2: re-upload state files into the restarted CN pods ---
-          # restore-config waits for CN pods to be ready, then re-uploads the
-          # saved-state files into the fresh pod filesystems so CN resumes from
-          # the backed-up block height rather than starting from genesis.
+          # Pass 2: wait for restarted CN pods, then re-upload state files so CN
+          # resumes from the backed-up block height rather than starting from genesis.
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
       - cmd: echo "Restoring database from dump..."
