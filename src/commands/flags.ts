@@ -620,6 +620,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly skipBlockNodeIntegration: CommandFlag = {
+    constName: 'skipBlockNodeIntegration',
+    name: 'skip-block-node-integration',
+    definition: {
+      describe: 'Skip block node integration when deploying or upgrading mirror node',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly javaFlightRecorderConfiguration: CommandFlag = {
     constName: 'javaFlightRecorderConfiguration',
     name: 'jfr-config',
@@ -1342,6 +1353,17 @@ export class Flags {
     name: 'local-address-book',
     definition: {
       describe: 'Build address book from local key files instead of querying a live consensus node',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly skipRelayReadiness: CommandFlag = {
+    constName: 'skipRelayReadiness',
+    name: 'skip-relay-readiness',
+    definition: {
+      describe: 'Skip waiting for relay pod running and ready checks after deployment',
       defaultValue: false,
       type: 'boolean',
     },
@@ -3099,6 +3121,7 @@ export class Flags {
     Flags.shard,
     Flags.username,
     Flags.skipNodeAlias,
+    Flags.skipRelayReadiness,
     Flags.id,
     Flags.mirrorNodeId,
     Flags.serviceMonitor,
@@ -3124,6 +3147,7 @@ export class Flags {
     Flags.tssEnabled,
     Flags.javaFlightRecorderConfiguration,
     Flags.forceBlockNodeIntegration,
+    Flags.skipBlockNodeIntegration,
     Flags.rollback,
     Flags.parallelDeploy,
     Flags.edgeEnabled,

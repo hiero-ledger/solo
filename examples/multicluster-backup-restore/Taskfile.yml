@@ -41,6 +41,7 @@ vars:
   POSTGRES_DATABASE_NAMESPACE: "database"
   POSTGRES_CONTAINER_NAME: "{{ .POSTGRES_NAME }}-0"
   POSTGRES_HOST_FQDN: "my-postgresql.database.svc.cluster.local"
+  EXPECTED_LB_IPS_FILE: "{{ .TASKFILE_DIR }}/expected-lb-ips.env"
 
 
 tasks:
@@ -58,33 +59,32 @@ tasks:
       - task: restore-clusters
       - task: restore-network
       - task: restore-config
-      - cmd: |
-          echo "Resetting block node data so CN can stream from restored block height..."
-          # Genesis blocks from the restore-network phase are still in the block node.
-          # If left in place, CN (which resumes at the backed-up block height) cannot
-          # stream to the block node because the block node would demand the next
-          # sequential block after the genesis tip — a block CN no longer has.
-          # Clearing makes the block node fresh so it accepts CN's first streamed block.
-          kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
-            -- sh -c "rm -rf /opt/hiero/block-node/data/live/* \
-                             /opt/hiero/block-node/data/historic/* \
-                             /opt/hiero/block-node/verification/*"
-          kubectl delete pod block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
-          kubectl wait --for=condition=ready pod/block-node-1-0 \
-            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s
-          echo "✅ Block node reset - will accept blocks from CN after consensus node start"
-      - cmd: |
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
-          else
-            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
-          fi
+      - task: restart
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           else
             {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           fi
+
+  restart:
+    desc: Restart consensus nodes after restore (skips cluster redeployment)
+    cmds:
+      # Fail fast if desired static IP is currently owned by another service.
+      - task: check-lb-ip-conflicts
+      # Enforce static node service LB IP mapping before CN start.
+      - task: ensure-lb-ips
+      # Verify expected LB IPs before startup; fail fast on drift.
+      - task: verify-lb-ips-pre-restore
+      - cmd: |
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
+          else
+            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
+          fi
+      # Guard 3: after start, ensure the loaded roster gossip IPs in swirlds.log
+      # match the live node service LB IPs. Fail early on stale roster endpoints.
+      - task: verify-roster-vs-lb
       - task: verify
 
   initial-deploy:
@@ -172,23 +172,26 @@ tasks:
       - cmd: echo "🔑 Generating consensus keys..."
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
-      # Deploy Block Node on Cluster 2 (before consensus network deploy so CN starts with blockStream.streamMode=BOTH)
-      - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
-
       # Deploy consensus network
+      # application.properties overrides blockStream.streamMode=RECORDS so CN does not stream
+      # blocks to the block node, avoiding a hard dependency on it.
       - cmd: echo "🚀 Deploying consensus network..."
-      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs
+      - cmd: |
+          $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs \
+            --application-properties {{ .USER_WORKING_DIR }}/application.properties
 
       # Setup nodes
       - cmd: echo "⚙️  Setting up consensus nodes..."
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
+      - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
+
       # Start nodes
       - cmd: echo "▶️  Starting consensus nodes..."
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+            {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --dev
           else
             {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
           fi
@@ -202,6 +205,7 @@ tasks:
       - cmd: |
           $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --use-external-database \
             --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
+            --skip-block-node-integration \
             --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
             --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
             --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
@@ -242,10 +246,6 @@ tasks:
           else
             $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
-
-      # Brief pause after freeze so block node can flush any in-flight blocks
-      # to its PVCs before the backup snapshot is taken.
-      - cmd: sleep 10
 
       - cmd: |
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
@@ -297,6 +297,62 @@ tasks:
     cmds:
       - task: deploy-external-database
       - cmd: $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard {{ .SHARD }} --realm {{ .REALM }} || true
+      # Fail fast if desired static IP is currently owned by another service.
+      - task: check-lb-ip-conflicts
+      # Enforce static node service LB IP mapping after services are created.
+      - task: ensure-lb-ips
+      # Guard: after restore-network creates node services, verify static LB IP mapping.
+      - task: verify-lb-ips-post-restore
+
+  ensure-lb-ips:
+    desc: Enforce expected LoadBalancer IPs for node services
+    cmds:
+      - cmd: |
+          {{ .TASKFILE_DIR }}/scripts/ensure-lb-ips.sh \
+            {{ .EXPECTED_LB_IPS_FILE }} \
+            {{ .NAMESPACE }} \
+            enforce
+
+  check-lb-ip-conflicts:
+    desc: Check whether target static LB IPs are owned by other services
+    cmds:
+      - cmd: |
+          {{ .TASKFILE_DIR }}/scripts/check-lb-ip-conflicts.sh \
+            {{ .EXPECTED_LB_IPS_FILE }} \
+            {{ .NAMESPACE }} \
+            precheck \
+            warn-only
+
+  verify-lb-ips-pre-restore:
+    desc: Verify expected LoadBalancer IPs before restore-network
+    cmds:
+      # Uses static expected-lb-ips.env as source of truth.
+      # Any mismatch returns non-zero and stops the workflow.
+      - cmd: |
+          {{ .TASKFILE_DIR }}/scripts/verify-lb-ips.sh \
+            {{ .EXPECTED_LB_IPS_FILE }} \
+            {{ .NAMESPACE }} \
+            pre-restore
+
+  verify-lb-ips-post-restore:
+    desc: Verify expected LoadBalancer IPs after restore-network
+    cmds:
+      # Same check as pre-restore, executed after restore-network.
+      - cmd: |
+          {{ .TASKFILE_DIR }}/scripts/verify-lb-ips.sh \
+            {{ .EXPECTED_LB_IPS_FILE }} \
+            {{ .NAMESPACE }} \
+            post-restore
+
+  verify-roster-vs-lb:
+    desc: Verify loaded roster gossip IPs match live LoadBalancer IPs
+    cmds:
+      # Parses each node's "Current Roster" from swirlds.log and compares
+      # both node views to current LB IPs of network-node services.
+      - cmd: |
+          {{ .TASKFILE_DIR }}/scripts/verify-roster-vs-lb.sh \
+            {{ .NAMESPACE }} \
+            post-start
 
   # ==================== External Database Tasks ====================
 
@@ -344,17 +400,29 @@ tasks:
       # into the fresh pods so CN resumes from the backed-up height, not genesis.
       - cmd: |
           # Pass 1: freeze CN, import backed-up ConfigMaps/Secrets, upload state files.
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-          else
-            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-          fi
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
           # Restart Redis: restore-network created it with a new random password, but
           # pass 1 just restored the backup's old password secret.  Redis must restart
           # to pick up the correct credential (prevents mirror WRONGPASS errors).
           kubectl delete pod solo-shared-resources-redis-node-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
+
+          # Restart MinIO: restore-network generated fresh root credentials, then
+          # pass 1 overwrote minio-secrets with the backed-up credentials.  MinIO's
+          # internal IAM state still holds the fresh creds; a pod restart forces it to
+          # re-read root user/password from the mounted config.env (sourced from
+          # minio-secrets), preventing "Access Key Id does not exist" errors.
+          kubectl delete pod minio-pool-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1 || true
+          kubectl delete pod minio-pool-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
+          kubectl wait pod/minio-pool-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1 \
+            --for=condition=Ready --timeout=180s || true
+          kubectl wait pod/minio-pool-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+            --for=condition=Ready --timeout=180s || true
+
+          # Restart mirror node pods that hold stale Redis connections.
+          # After Redis restarts with the restored password, mirror-grpc and
+          # mirror-importer must reconnect; without a restart they get WRONGPASS.
+          kubectl rollout restart deployment mirror-1-grpc mirror-1-importer -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
 
           # Restart CN pods to apply the restored ConfigMaps/Secrets.
           # Pod restart wipes the ephemeral filesystem; state files from pass 1 are
@@ -376,17 +444,6 @@ tasks:
           -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql >> database-restore.log 2>&1
       - cmd: echo "✅ Database restored"
 
-      # Restart mirror importer so it re-reads its position from the restored DB
-      # (block 107) instead of keeping the in-memory position from genesis (block ~74).
-      - cmd: |
-          IMPORTER_POD=$(kubectl get pod -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
-            -l 'app.kubernetes.io/component=importer' -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-          if [ -n "${IMPORTER_POD}" ]; then
-            echo "Restarting mirror importer pod ${IMPORTER_POD} to re-read restored DB position..."
-            kubectl delete pod "${IMPORTER_POD}" -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
-          else
-            echo "No importer pod found; skipping restart"
-          fi
   # ==================== Verification Tasks ====================
 
   verify:
