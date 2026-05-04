@@ -75,6 +75,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployMirrorNode,
       flags.deployExplorer,
       flags.deployRelay,
+      flags.deployMetricsServer,
       flags.rollback,
       flags.parallelDeploy,
       flags.externalAddress,
