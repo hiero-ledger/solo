@@ -425,10 +425,24 @@ tasks:
           kubectl wait pod/minio-pool-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
             --for=condition=Ready --timeout=180s || true
 
-          # Restart mirror node pods that hold stale Redis connections.
-          # After Redis restarts with the restored password, mirror-grpc and
-          # mirror-importer must reconnect; without a restart they get WRONGPASS.
-          kubectl rollout restart deployment mirror-1-grpc mirror-1-importer -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
+          # Restore database BEFORE restarting mirror pods.
+          # The importer must start with the backed-up record_file watermark and
+          # address book so it can verify new record file signatures (0/2 stake
+          # otherwise) and resume from the correct block height, not from epoch 0.
+          # Scale importer to 0 first to prevent concurrent access during DROP/CREATE.
+          kubectl scale deployment mirror-1-importer -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=0 || true
+          echo "Restoring database from dump..."
+          kubectl cp {{ .BACKUP_DIR }}/database-dump.sql \
+            {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-dump.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
+          kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+            env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
+            -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql >> database-restore.log 2>&1
+          echo "Database restored."
+
+          # Restart all mirror node pods to pick up restored Redis credentials and DB.
+          # mirror-1-rest (Node.js) also holds stale Redis connections and must be
+          # restarted — omitting it causes persistent WRONGPASS on every request.
+          kubectl rollout restart deployment mirror-1-grpc mirror-1-importer mirror-1-rest -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
 
           # Restart CN pods to apply the restored ConfigMaps/Secrets.
           # Pod restart wipes the ephemeral filesystem; state files from pass 1 are
@@ -440,15 +454,7 @@ tasks:
           # resumes from the backed-up block height rather than starting from genesis.
           $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
 
-      - cmd: echo "Restoring database from dump..."
-      - cmd: |
-          kubectl cp {{ .BACKUP_DIR }}/database-dump.sql \
-          {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-dump.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
-      - cmd: |
-          kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-          env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
-          -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql >> database-restore.log 2>&1
-      - cmd: echo "✅ Database restored"
+      - cmd: echo "✅ Database and configuration restored"
 
   # ==================== Verification Tasks ====================
 
