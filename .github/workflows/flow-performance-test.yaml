@@ -119,8 +119,9 @@ jobs:
         with:
           max_attempts: 3
           timeout_minutes: 10
+          # Skip metallb for single-cluster perf tests
           command: |
-            ./test/e2e/dual-cluster/setup-dual-e2e.sh
+            SOLO_CLUSTER_DUALITY=1 SOLO_SKIP_METALLB=1  ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Run E2E Tests
         id: run-e2e-tests

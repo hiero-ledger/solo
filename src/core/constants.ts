@@ -88,7 +88,7 @@ export const S6_NODE_IMAGE_REPOSITORY: string =
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
 export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
   ? ignorePodMetricsEnvironment.split(',')
-  : ['network-load-generator'];
+  : ['network-load-generator', 'metrics-server'];
 
 export const HEDERA_NODE_SIDECARS: string[] = [
   'recordStreamUploader',
@@ -141,6 +141,13 @@ export const MINIO_OPERATOR_CHART_URL: string =
   getEnvironmentVariable('MINIO_OPERATOR_CHART_URL') ?? 'https://operator.min.io/';
 export const MINIO_OPERATOR_CHART: string = 'operator';
 export const MINIO_OPERATOR_RELEASE_NAME: string = 'operator';
+
+export const METRICS_SERVER_CHART_URL: string =
+  getEnvironmentVariable('METRICS_SERVER_CHART_URL') ?? 'https://kubernetes-sigs.github.io/metrics-server/';
+export const METRICS_SERVER_CHART: string = 'metrics-server';
+export const METRICS_SERVER_RELEASE_NAME: string = 'metrics-server';
+export const METRICS_SERVER_NAMESPACE: NamespaceName = NamespaceName.of('kube-system');
+export const METRICS_SERVER_INSTALL_ARGS: string = '--set "args[0]=--kubelet-insecure-tls"';
 
 export const EXPLORER_CHART_URL: string =
   getEnvironmentVariable('EXPLORER_CHART_URL') ??
@@ -208,6 +215,7 @@ export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(MIRROR_NODE_RELEASE_NAME, MIRROR_NODE_CHART_URL)
   .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL)
   .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
+  .set(METRICS_SERVER_RELEASE_NAME, METRICS_SERVER_CHART_URL)
   .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL);
 
 export const MIRROR_INGRESS_CLASS_NAME: string = 'mirror-ingress-class';

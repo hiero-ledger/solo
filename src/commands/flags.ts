@@ -413,6 +413,17 @@ export class Flags {
     },
   };
 
+  public static readonly deployMetricsServer: CommandFlag = {
+    constName: 'deployMetricsServer',
+    name: 'metrics-server',
+    definition: {
+      describe: 'Deploy metrics server to enable kubectl top for CPU and memory usage monitoring',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly deployCertManager: CommandFlag = {
     constName: 'deployCertManager',
     name: 'cert-manager',
@@ -3058,6 +3069,7 @@ export class Flags {
     Flags.deployCertManagerCrds,
     Flags.deployJsonRpcRelay,
     Flags.deployMinio,
+    Flags.deployMetricsServer,
     Flags.deployPrometheusStack,
     Flags.deployment,
     Flags.deploymentClusters,
@@ -3274,5 +3286,14 @@ export class Flags {
     }
 
     return processedFlags.join(' ');
+  }
+
+  /**
+   * Returns the full flag key with '--' prefix for a given CommandFlag
+   * @param flag - the CommandFlag for which to get the formatted flag key
+   * @returns the formatted flag key as a string (e.g. '--flag-name')
+   */
+  public static getFormattedFlagKey(flag: CommandFlag): string {
+    return `--${flag.name}`;
   }
 }
