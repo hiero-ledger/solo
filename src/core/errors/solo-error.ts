@@ -2,6 +2,7 @@
 
 import {LocaleRegistry} from '../../utils/locales/locale-registry.js';
 import {type LocaleKey} from '../../utils/locales/locale-registry.js';
+import {type ErrorOwnership} from './error-ownership.js';
 
 type SoloErrorInit = {
   localeKey: LocaleKey;
@@ -13,6 +14,8 @@ export class SoloError extends Error {
   public readonly statusCode?: number;
   protected readonly code?: string;
   protected readonly localeKey?: LocaleKey;
+  protected readonly retryable?: boolean;
+  protected readonly ownership?: ErrorOwnership;
 
   protected static readonly DOC_BASE: string = 'https://solo.hiero.org/docs/errors';
 
