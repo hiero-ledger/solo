@@ -35,10 +35,6 @@ defaults:
 permissions:
   contents: read
 
-concurrency:
-  group: standard-runner-one-shot-${{ matrix.os }}-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
 env:
   STEP_TIMEOUT_MINUTES: '5'
 
@@ -47,6 +43,9 @@ jobs:
     name: Standard Runner One-Shot Deploy (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    concurrency:
+      group: standard-runner-one-shot-${{ matrix.os }}-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
