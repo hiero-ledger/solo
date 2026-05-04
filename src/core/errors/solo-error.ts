@@ -1,26 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {LocaleRegistry} from '../locales/locale-registry.js';
+import {LocaleRegistry} from '../../utils/locales/locale-registry.js';
+import {type LocaleKey} from '../../utils/locales/locale-registry.js';
 
 type SoloErrorInit = {
-  messageKey: string;
+  localeKey: LocaleKey;
   code?: string;
-  troubleshootingKey?: string;
   context?: Readonly<Record<string, string | number | boolean | undefined>>;
 };
 
 export class SoloError extends Error {
   public readonly statusCode?: number;
   protected readonly code?: string;
-  protected readonly messageKey?: string;
-  protected readonly troubleshootingKey?: string;
+  protected readonly localeKey?: LocaleKey;
 
   protected static readonly DOC_BASE: string = 'https://solo.hiero.org/docs/errors';
 
   /**
    * Create a custom error object
    *
-   * @param messageOrInit error message string, or an init object with messageKey, code, troubleshootingKey, and optional context
+   * @param messageOrInit error message string, or an init object with localeKey, code, and optional context
    * @param cause source error (if any)
    * @param meta additional metadata (if any)
    */
@@ -32,15 +31,14 @@ export class SoloError extends Error {
     const resolvedMessage: string =
       typeof messageOrInit === 'string'
         ? messageOrInit
-        : LocaleRegistry.getMessage(messageOrInit.messageKey, messageOrInit.context);
+        : LocaleRegistry.getMessage(messageOrInit.localeKey, messageOrInit.context);
     super(resolvedMessage);
     this.name = this.constructor.name;
     // eslint-disable-next-line unicorn/no-useless-error-capture-stack-trace
     Error.captureStackTrace(this, this.constructor);
     if (typeof messageOrInit !== 'string') {
       this.code = messageOrInit.code;
-      this.messageKey = messageOrInit.messageKey;
-      this.troubleshootingKey = messageOrInit.troubleshootingKey;
+      this.localeKey = messageOrInit.localeKey;
     }
     if (cause && Object.keys(cause).length > 0) {
       // if the cause message is the same as this message and this is a SoloError, re-throw the cause to avoid redundant wrapping
@@ -58,7 +56,7 @@ export class SoloError extends Error {
 
   /** Returns the troubleshooting steps for this error, or undefined if none are defined. */
   public getTroubleshootingSteps(): ReadonlyArray<string> | undefined {
-    return this.troubleshootingKey ? LocaleRegistry.getTroubleshootingSteps(this.troubleshootingKey) : undefined;
+    return this.localeKey ? LocaleRegistry.getTroubleshootingSteps(this.localeKey) : undefined;
   }
 
   /** Returns the documentation URL for this error, or undefined if not defined. */

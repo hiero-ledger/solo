@@ -8,9 +8,8 @@ export class DeploymentAlreadyExistsSoloError extends SoloError {
   public constructor(deploymentName: DeploymentName, cause?: Error) {
     super(
       {
-        messageKey: 'deployment_already_exists_message',
+        localeKey: 'deployment_already_exists',
         code: ErrorCodeRegistry.DEPLOYMENT_NAME_ALREADY_EXISTS,
-        troubleshootingKey: 'deployment_already_exists_troubleshooting_steps',
         context: {deploymentName},
       },
       cause,

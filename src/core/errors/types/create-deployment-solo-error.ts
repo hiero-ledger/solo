@@ -7,9 +7,8 @@ export class CreateDeploymentSoloError extends SoloError {
   public constructor(cause?: Error) {
     super(
       {
-        messageKey: 'create_deployment_error_message',
+        localeKey: 'create_deployment_error',
         code: ErrorCodeRegistry.CREATE_DEPLOYMENT,
-        troubleshootingKey: 'create_deployment_troubleshooting_steps',
       },
       cause,
     );

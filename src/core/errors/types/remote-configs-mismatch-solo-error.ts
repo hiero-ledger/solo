@@ -7,9 +7,8 @@ export class RemoteConfigsMismatchSoloError extends SoloError {
   public constructor(cluster1: string, cluster2: string, cause?: Error) {
     super(
       {
-        messageKey: 'remote_configs_mismatch_message',
+        localeKey: 'remote_configs_mismatch',
         code: ErrorCodeRegistry.REMOTE_CONFIGS_MISMATCH,
-        troubleshootingKey: 'remote_configs_mismatch_troubleshooting_steps',
         context: {cluster1, cluster2},
       },
       cause,

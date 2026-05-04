@@ -13,7 +13,7 @@ import {RemoteConfigsMismatchSoloError} from './types/remote-configs-mismatch-so
  *    passing a SoloErrorInit with a code, messageKey, and troubleshootingKey.
  * 2. Add the error code constant to `src/core/errors/error-code-registry.ts`.
  * 3. Add `<key>_message` and `<key>_troubleshooting_steps` entries to
- *    `src/core/locales/en.ts` (and all other language localization files).
+ *    `src/core/locales/en.ts` (no need to add values to other languages at this time).
  * 4. Import the class in this file and add it to the appropriate static namespace below.
  */
 export class SoloErrors {

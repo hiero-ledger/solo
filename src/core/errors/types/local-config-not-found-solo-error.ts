@@ -7,9 +7,8 @@ export class LocalConfigNotFoundSoloError extends SoloError {
   public constructor(cause?: Error) {
     super(
       {
-        messageKey: 'local_config_not_found_message',
+        localeKey: 'local_config_not_found',
         code: ErrorCodeRegistry.LOCAL_CONFIG_NOT_FOUND,
-        troubleshootingKey: 'local_config_not_found_troubleshooting_steps',
       },
       cause,
     );

@@ -33,7 +33,7 @@ export class SoloPinoLogger implements SoloLogger {
   private readonly MINOR_LINE_SEPARATOR: string =
     '-------------------------------------------------------------------------------';
 
-  private static readonly MAX_BOX_WIDTH: number = 200;
+  private static readonly MAX_BOX_WIDTH: number = 120;
   private static readonly MIN_BOX_WIDTH: number = 70;
 
   /**
@@ -219,15 +219,50 @@ export class SoloPinoLogger implements SoloLogger {
     return lines;
   }
 
+  private wrapLine(line: string, maxWidth: number): string[] {
+    const plainText: string = this.stripAnsi(line);
+    if (plainText.length <= maxWidth) {
+      return [line];
+    }
+
+    // eslint-disable-next-line no-control-regex
+    const ansiPrefix: string = line.match(/^(?:\[[0-9;]*m)+/)?.[0] ?? '';
+    const ansiSuffix: string = ansiPrefix ? '[0m' : '';
+
+    const indent: string = plainText.match(/^(\s*)/)?.[1] ?? '';
+
+    const result: string[] = [];
+    let remaining: string = plainText;
+
+    while (remaining.length > maxWidth) {
+      // Search outside the indent so wrapping never splits within it and
+      // continuation lines stay at the same indentation level.
+      const relativeSpaceAt: number = remaining.slice(indent.length).lastIndexOf(' ', maxWidth - 1 - indent.length);
+      const spaceAt: number = relativeSpaceAt === -1 ? -1 : indent.length + relativeSpaceAt;
+      const breakAt: number = spaceAt > 0 ? spaceAt : maxWidth;
+      result.push(ansiPrefix + remaining.slice(0, breakAt) + ansiSuffix);
+      const afterBreak: string = remaining.slice(spaceAt > 0 ? breakAt + 1 : breakAt);
+      remaining = indent + afterBreak;
+    }
+
+    if (remaining) {
+      result.push(ansiPrefix + remaining + ansiSuffix);
+    }
+
+    return result.length > 0 ? result : [line];
+  }
+
   private renderErrorBox(lines: string[]): void {
-    const maxContentWidth: number = Math.max(...lines.map((l): number => this.stripAnsi(l).length));
+    const maxInteriorWidth: number = SoloPinoLogger.MAX_BOX_WIDTH - 4;
+    const wrappedLines: string[] = lines.flatMap((line: string): string[] => this.wrapLine(line, maxInteriorWidth));
+    const maxContentWidth: number = Math.max(...wrappedLines.map((l): number => this.stripAnsi(l).length));
     const boxWidth: number = Math.min(
       SoloPinoLogger.MAX_BOX_WIDTH,
       Math.max(SoloPinoLogger.MIN_BOX_WIDTH, maxContentWidth + 4),
     );
     const interiorWidth: number = boxWidth - 4;
     console.log(chalk.red(`╭─ ERROR ─${'─'.repeat(interiorWidth - 7)}╮`));
-    for (const line of lines) {
+    for (const line of wrappedLines) {
       console.log(this.padWithBorder(line, chalk.red, boxWidth));
     }
     console.log(chalk.red(`╰${'─'.repeat(interiorWidth + 2)}╯`));
