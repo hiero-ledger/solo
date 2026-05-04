@@ -82,6 +82,7 @@ tasks:
           else
             {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           fi
+          deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
       # Guard 3: after start, ensure the loaded roster gossip IPs in swirlds.log
       # match the live node service LB IPs. Fail early on stale roster endpoints.
       # - task: verify-roster-vs-lb
