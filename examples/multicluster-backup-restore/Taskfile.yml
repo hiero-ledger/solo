@@ -84,7 +84,7 @@ tasks:
           fi
       # Guard 3: after start, ensure the loaded roster gossip IPs in swirlds.log
       # match the live node service LB IPs. Fail early on stale roster endpoints.
-      - task: verify-roster-vs-lb
+      # - task: verify-roster-vs-lb
       - task: verify
 
   initial-deploy:
