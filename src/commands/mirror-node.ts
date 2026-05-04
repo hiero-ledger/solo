@@ -50,6 +50,7 @@ import {Lock} from '../core/lock/lock.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Base64} from 'js-base64';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {IngressClass} from '../integration/kube/resources/ingress-class/ingress-class.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
@@ -64,6 +65,8 @@ import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-deployed-event.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
+import {optionFromFlag} from './command-helpers.js';
+import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -81,6 +84,7 @@ interface MirrorNodeDeployConfigClass {
   valuesArg: string;
   quiet: boolean;
   mirrorNodeVersion: string;
+  componentImage: string;
   pinger: boolean;
   operatorId: string;
   operatorKey: string;
@@ -131,6 +135,7 @@ interface MirrorNodeUpgradeConfigClass {
   valuesArg: string;
   quiet: boolean;
   mirrorNodeVersion: string;
+  componentImage: string;
   pinger: boolean;
   operatorId: string;
   operatorKey: string;
@@ -234,6 +239,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.mirrorNodeVersion,
+      flags.componentImage,
       flags.pinger,
       flags.useExternalDatabase,
       flags.operatorId,
@@ -252,6 +258,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.forcePortForward,
+      flags.externalAddress,
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
       flags.parallelDeploy,
@@ -271,6 +278,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.quiet,
       flags.valuesFile,
       flags.mirrorNodeVersion,
+      flags.componentImage,
       flags.pinger,
       flags.useExternalDatabase,
       flags.operatorId,
@@ -289,6 +297,7 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalDatabaseReadonlyPassword,
       flags.domainName,
       flags.forcePortForward,
+      flags.externalAddress,
       flags.id,
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
@@ -419,6 +428,30 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
     const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
+
+    if (config.componentImage) {
+      const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
+      valuesArgument += helpers.populateHelmArguments({
+        'importer.image.registry': parsedImageReference.registry,
+        'grpc.image.registry': parsedImageReference.registry,
+        'rest.image.registry': parsedImageReference.registry,
+        'restjava.image.registry': parsedImageReference.registry,
+        'web3.image.registry': parsedImageReference.registry,
+        'monitor.image.registry': parsedImageReference.registry,
+        'importer.image.repository': parsedImageReference.repository,
+        'grpc.image.repository': parsedImageReference.repository,
+        'rest.image.repository': parsedImageReference.repository,
+        'restjava.image.repository': parsedImageReference.repository,
+        'web3.image.repository': parsedImageReference.repository,
+        'monitor.image.repository': parsedImageReference.repository,
+        'importer.image.tag': parsedImageReference.tag,
+        'grpc.image.tag': parsedImageReference.tag,
+        'rest.image.tag': parsedImageReference.tag,
+        'restjava.image.tag': parsedImageReference.tag,
+        'web3.image.tag': parsedImageReference.tag,
+        'monitor.image.tag': parsedImageReference.tag,
+      });
+    }
 
     if (config.storageBucket) {
       valuesArgument += ` --set importer.config.${chartNamespace}.mirror.importer.downloader.bucketName=${config.storageBucket}`;
@@ -1080,6 +1113,7 @@ export class MirrorNodeCommand extends BaseCommand {
       title: 'Enable port forwarding for mirror ingress controller',
       skip: ({config}: MirrorNodeDeployContext): boolean => !config.forcePortForward || !config.enableIngress,
       task: async ({config}: MirrorNodeDeployContext): Promise<void> => {
+        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const pods: Pod[] = await this.k8Factory
           .getK8(config.clusterContext)
           .pods()
@@ -1105,6 +1139,9 @@ export class MirrorNodeCommand extends BaseCommand {
           ComponentTypes.MirrorNode,
           'Mirror ingress controller',
           config.isChartInstalled, // Reuse existing port if chart is already installed
+          undefined,
+          true, // persist: auto-restart on failure using persist-port-forward.js
+          externalAddress,
         );
         await this.remoteConfig.persist();
       },
@@ -1408,20 +1445,12 @@ export class MirrorNodeCommand extends BaseCommand {
             config.isLegacyChartInstalled = isLegacyChartInstalled;
             config.installSharedResources = false;
 
-            const currentMirrorNodeVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
-              ComponentTypes.MirrorNode,
+            assertUpgradeVersionNotOlder(
+              'Mirror node',
+              config.mirrorNodeVersion,
+              this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode),
+              optionFromFlag(flags.mirrorNodeVersion),
             );
-            if (currentMirrorNodeVersion && !currentMirrorNodeVersion.equals('0.0.0')) {
-              const targetMirrorNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
-                config.mirrorNodeVersion,
-              );
-              if (targetMirrorNodeVersion.lessThanOrEqual(currentMirrorNodeVersion)) {
-                throw new SoloError(
-                  `Mirror node upgrade target version ${config.mirrorNodeVersion} is not newer than the current version ${currentMirrorNodeVersion.toString()} stored in remote config. ` +
-                    'Use --mirror-node-version to specify a version newer than the currently deployed version.',
-                );
-              }
-            }
 
             context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               context_.config.soloChartVersion,

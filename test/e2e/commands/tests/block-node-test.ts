@@ -10,7 +10,7 @@ import {type ClusterReferenceName, type ComponentId, type DeploymentName} from '
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import * as constants from '../../../../src/core/constants.js';
 import {expect} from 'chai';
-import {exec, type ExecException, type ExecOptions} from 'node:child_process';
+import {exec, type ExecException, type ExecOptionsWithStringEncoding} from 'node:child_process';
 import {promisify} from 'node:util';
 import {type NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js';
 import {HEDERA_HAPI_PATH} from '../../../../src/core/constants.js';
@@ -204,7 +204,7 @@ export class BlockNodeTest extends BaseCommandTest {
 
     const execAsync: (
       command: string,
-      options?: ExecOptions,
+      options?: ExecOptionsWithStringEncoding,
     ) => Promise<{stdout: string; stderr: string; error?: ExecException}> = promisify(exec);
 
     it(`${testName}: test block node connection for block node ${blockNodeId}`, async (): Promise<void> => {
@@ -215,7 +215,11 @@ export class BlockNodeTest extends BaseCommandTest {
       // Sleep to allow the port-forward to be established before attempting to connect
       await sleep(Duration.ofSeconds(5));
 
-      const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 50 * 1024 * 1024, encoding: 'utf8'};
+      const commandOptions: ExecOptionsWithStringEncoding = {
+        cwd: './test/data',
+        maxBuffer: 50 * 1024 * 1024,
+        encoding: 'utf8',
+      };
 
       // Make script executable (no-op on Windows; chmod is not available)
       if (!OperatingSystem.isWin32()) {

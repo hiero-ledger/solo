@@ -95,6 +95,7 @@ You can selectively disable deployment of optional components using command-line
 * `--deploy-mirror-node` - Deploy mirror node (default: true)
 * `--deploy-explorer` - Deploy explorer (default: true)
 * `--deploy-relay` - Deploy relay (default: true)
+* `--external-address` - Bind forwarded ports to an external address (for example `0.0.0.0`)
 
 ### Example: Deploy without Explorer and Relay
 
