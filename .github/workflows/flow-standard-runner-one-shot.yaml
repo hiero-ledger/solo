@@ -84,17 +84,14 @@ jobs:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install Podman
-        if: ${{ runner.os == 'macOS' }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: brew install podman
-
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
       - name: One-Shot Single Deploy
         timeout-minutes: 10
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single deploy
