@@ -403,7 +403,7 @@ export const JVM_DEBUG_PORT: number = 5005;
 export const PODS_RUNNING_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_RUNNING_MAX_ATTEMPTS') || 60 * 15;
 export const PODS_RUNNING_DELAY: number = +getEnvironmentVariable('PODS_RUNNING_DELAY') || 1000;
 export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS: number =
-  +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 80;
+  +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 300;
 export const NETWORK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
 export const NETWORK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
 export const NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS: number =

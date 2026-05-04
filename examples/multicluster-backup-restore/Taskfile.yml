@@ -97,8 +97,6 @@ tasks:
   initial-deploy:
     desc: Create dual clusters and deploy network with external database
     cmds:
-      # Warm local image cache to reduce Docker Hub 429 pull failures.
-      - task: prepull-images
       # Install Solo CLI if using released version
       - cmd: |
           if [ "${USE_RELEASED_VERSION}" = "true" ]; then
@@ -291,8 +289,7 @@ tasks:
   restore-clusters:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
-      - cmd: |
-          {{ .TASKFILE_DIR }}/scripts/prepull-images.sh
+     - cmd: |
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
           $SOLO_COMMAND init
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
@@ -306,19 +303,6 @@ tasks:
           fi
           # keep a copy of zip file for debugging
           cp {{ .ZIP_INPUT_FILE }} ~/.solo/logs
-      - task: load-images-into-kind
-
-  prepull-images:
-    desc: Pre-pull required container images to avoid Docker Hub 429 during cluster restore/deploy
-    cmds:
-      - cmd: |
-          {{ .TASKFILE_DIR }}/scripts/prepull-images.sh
-
-  load-images-into-kind:
-    desc: Load warm images into kind clusters to avoid in-cluster registry pulls
-    cmds:
-      - cmd: |
-          {{ .TASKFILE_DIR }}/scripts/load-images-into-kind.sh solo-e2e
 
   restore-network:
     desc: Redeploy complete network infrastructure (after cluster deletion)
