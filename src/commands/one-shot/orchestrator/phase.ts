@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type SoloListr, type SoloListrTask, type SoloListrTaskWrapper} from '../../../types/index.js';
-import {type AnySoloEvent, type SoloEventType} from '../../../core/events/event-types/event-types.js';
+import {type SoloEventType} from '../../../core/events/event-types/solo-event.js';
+import {type AnySoloEvent} from '../../../core/events/event-types/solo-event-type.js';
 import {type SoloEventBus} from '../../../core/events/solo-event-bus.js';
 import {Duration} from '../../../core/time/duration.js';
 import {type OrchestratorStep} from './orchestrator-step.js';

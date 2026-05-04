@@ -11,6 +11,7 @@ import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ConfigManager} from '../core/config-manager.js';
 import {type AnyObject} from '../types/aliases.js';
+import {StringEx} from '../business/utils/string-ex.js';
 
 /**
  * Helper function to convert a flag object to CLI option string
@@ -160,7 +161,12 @@ export function appendConfigToArgv(argv: string[], configSection: AnyObject): vo
     return;
   }
   for (const [key, value] of Object.entries(configSection)) {
-    if (value !== undefined && value !== null && value !== '' && key !== optionFromFlag(flags.deployment)) {
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== StringEx.EMPTY &&
+      key !== flags.getFormattedFlagKey(flags.deployment)
+    ) {
       argv.push(`${key}`, value.toString());
     }
   }

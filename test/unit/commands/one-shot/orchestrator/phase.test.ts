@@ -6,7 +6,7 @@ import {expect} from 'chai';
 import {Phase} from '../../../../../src/commands/one-shot/orchestrator/phase.js';
 import {type OrchestratorStep} from '../../../../../src/commands/one-shot/orchestrator/orchestrator-step.js';
 import {type SoloEventBus} from '../../../../../src/core/events/solo-event-bus.js';
-import {SoloEventType} from '../../../../../src/core/events/event-types/event-types.js';
+import {SoloEventType} from '../../../../../src/core/events/event-types/solo-event.js';
 import {Duration} from '../../../../../src/core/time/duration.js';
 import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../../src/types/index.js';
 import {type AnyObject} from '../../../../../src/types/aliases.js';
