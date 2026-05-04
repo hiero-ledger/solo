@@ -36,7 +36,6 @@ import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
-import {ConsensusNodePathTemplates} from './consensus-node-path-templates.js';
 
 export function getInternalAddress(
   releaseVersion: SemanticVersion<string> | string,
@@ -852,7 +851,7 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
     `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
   );
 
-  const applicationPropertiesFilePath: string = ConsensusNodePathTemplates.APPLICATION_PROPERTIES;
+  const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES_FILE}`;
 
   const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
 

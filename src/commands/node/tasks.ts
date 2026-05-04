@@ -829,7 +829,10 @@ export class NodeCommandTasks {
             .getK8(context)
             .containers()
             .readByRef(containerReference)
-            .copyFrom(ConsensusNodePathTemplates.APPLICATION_PROPERTIES, templatesDirectory);
+            .copyFrom(
+              `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES_FILE}`,
+              templatesDirectory,
+            );
 
           context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
