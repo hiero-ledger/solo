@@ -62,7 +62,7 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
     if (this.subPhases.length > 0) {
       return {
         title: this.title,
-        skip: this.skipFunction ? this.skipFunction(getConfig) : false,
+        skip: this.skipFunction ? (): boolean => this.skipFunction!(getConfig) : false,
         task: (_: TContext, task: SoloListrTaskWrapper<TContext>): SoloListr<TContext> => {
           const isConcurrent: boolean =
             typeof this.executionMode === 'function'
