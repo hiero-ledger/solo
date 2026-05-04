@@ -13,7 +13,7 @@ import {hideBin} from 'yargs/helpers';
 import {type AnyObject} from './types/aliases.js';
 
 export class ArgumentProcessor {
-  public static process(argv: string[]): AnyObject {
+  public static async process(argv: string[]): Promise<AnyObject> {
     const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
     const middlewares: Middlewares = container.resolve(InjectTokens.Middlewares);
     const helpRenderer: HelpRenderer = container.resolve(InjectTokens.HelpRenderer);
@@ -96,6 +96,6 @@ export class ArgumentProcessor {
     // set root level flags
     flags.setOptionalCommandFlags(rootCmd, flags.devMode, flags.forcePortForward);
     logger.debug('Parsing root command (executing the commands)');
-    return rootCmd.parse();
+    return await rootCmd.parseAsync();
   }
 }
