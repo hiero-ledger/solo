@@ -67,7 +67,7 @@ tasks:
         {{else}}
         npx eslint . | tee eslint.log && npx tsx lint-formatter.ts eslint.log
         {{end}}
-      - npx dpdm ./solo.ts
+      - npx dpdm --exit-code circular:1 ./solo.ts
       - npx typedoc --emit none
 
   format:
