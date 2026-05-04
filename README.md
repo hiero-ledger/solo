@@ -21,6 +21,7 @@ Solo releases are supported for one month after their release date. Upgrade to t
 
 | Solo Version | Node.js             | Kind       | Solo Chart | Hedera       | Kubernetes | Kubectl    | Helm    | Docker Resources               | Release Date | End of Support |
 |--------------|---------------------|------------|------------|--------------|------------|------------|---------|--------------------------------|--------------|----------------|
+| 0.71.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.3    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-01   | 2026-06-01     |
 | 0.70.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.3    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-28   | 2026-07-28     |
 | 0.69.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.3    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-14   | 2026-05-14     |
 | 0.68.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.2    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-07   | 2026-07-07     |
