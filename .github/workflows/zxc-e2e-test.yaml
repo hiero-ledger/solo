@@ -469,6 +469,10 @@ jobs:
             echo "FORCE_PODMAN=true" >> .env
           fi
           
+          if [[ "${{ inputs.custom-job-label }}" == "One Shot Single" ]]; then
+            echo "ENABLE_IMAGE_CACHE=true" >> .env
+          fi
+          
           cat .env
           
           # Start resource monitoring in background

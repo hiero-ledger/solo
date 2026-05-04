@@ -32,6 +32,10 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
   public static readonly IMAGE_CLEAR: string = 'clear';
   public static readonly IMAGE_STATUS: string = 'status';
 
+  public static readonly IMAGE_PULL_COMMAND: string = `${CacheCommandDefinition.COMMAND_NAME} ${CacheCommandDefinition.IMAGE_SUBCOMMAND_NAME} ${CacheCommandDefinition.IMAGE_PULL}`;
+
+  public static readonly IMAGE_LOAD_COMMAND: string = `${CacheCommandDefinition.COMMAND_NAME} ${CacheCommandDefinition.IMAGE_SUBCOMMAND_NAME} ${CacheCommandDefinition.IMAGE_LOAD}`;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(CacheCommandDefinition.COMMAND_NAME, CacheCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(

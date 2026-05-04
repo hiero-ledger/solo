@@ -146,4 +146,31 @@ export class ImageCacheHandler implements CacheOperationHandler {
 
     return existingItems;
   }
+
+  // Non-generic
+
+  public async pullKindNodeImageIfMissing(): Promise<void> {
+    console.log(await this.resolveExpectedCachedItems());
+
+    const item: CachedItem = await this.resolveExpectedCachedItems().then(
+      (items: readonly CachedItem[]): CachedItem => items[0],
+    );
+    const image: string = `${item.target.name}:${item.target.version}`;
+
+    const exists: boolean = await this.inspector.exists(item.localPath);
+    if (!exists) {
+      await this.engine.saveImage(image, item.localPath);
+    }
+  }
+
+  public async loadKindNodeImageIntoEngine(): Promise<void> {
+    const item: CachedItem = await this.resolveExpectedCachedItems().then(
+      (items: readonly CachedItem[]): CachedItem => items[0],
+    );
+
+    const exists: boolean = await this.inspector.exists(item.localPath);
+    if (exists) {
+      await this.engine.loadImage(item.localPath);
+    }
+  }
 }
