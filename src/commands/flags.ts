@@ -376,6 +376,17 @@ export class Flags {
     },
   };
 
+  public static readonly deployMetricsServer: CommandFlag = {
+    constName: 'deployMetricsServer',
+    name: 'metrics-server',
+    definition: {
+      describe: 'Deploy metrics server to enable kubectl top for CPU and memory usage monitoring',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly deployCertManager: CommandFlag = {
     constName: 'deployCertManager',
     name: 'cert-manager',
@@ -2972,6 +2983,7 @@ export class Flags {
     Flags.deployCertManagerCrds,
     Flags.deployJsonRpcRelay,
     Flags.deployMinio,
+    Flags.deployMetricsServer,
     Flags.deployPrometheusStack,
     Flags.deployment,
     Flags.deploymentClusters,

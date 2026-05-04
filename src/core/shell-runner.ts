@@ -7,11 +7,25 @@ import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
+import {SensitiveDataRedactor} from './util/sensitive-data-redactor.js';
 
 @injectable()
 export class ShellRunner {
   public constructor(@inject(InjectTokens.SoloLogger) public logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+  }
+
+  /**
+   * Redacts sensitive arguments from a command array.
+   * Delegates to the shared {@link SensitiveDataRedactor} utility.
+   * @param arguments_ The arguments array to redact
+   * @returns A new redacted arguments array
+   */
+  public static redactArguments(arguments_: string[]): string[] {
+    return SensitiveDataRedactor.redactArguments(arguments_, {
+      flagsToRedactNextArgument: ['--password', '-p'],
+      setStyleFlags: ['--set', '--set-string', '--set-file'],
+    });
   }
 
   /** Returns a promise that invokes the shell command */
@@ -23,7 +37,8 @@ export class ShellRunner {
     environmentVariablesToAppend: Record<string, string> = {},
     timeoutMs?: number,
   ): Promise<string[]> {
-    const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${arguments_.join(' ')}`;
+    const redactedArguments: string[] = ShellRunner.redactArguments(arguments_);
+    const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${redactedArguments.join(' ')}`;
     const callStack: string = new Error(message).stack; // capture the callstack to be included in error
     this.logger.info(message);
 

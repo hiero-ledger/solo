@@ -141,6 +141,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.deployMirrorNode,
       flags.deployExplorer,
       flags.deployRelay,
+      flags.deployMetricsServer,
       flags.rollback,
       flags.parallelDeploy,
       flags.externalAddress,
@@ -539,6 +540,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 optionFromFlag(Flags.clusterRef),
                 config.clusterRef,
               );
+              if (config.deployMetricsServer) {
+                argv.push(optionFromFlag(Flags.deployMetricsServer));
+              }
               return argvPushGlobalFlags(argv);
             },
             this.taskList,
@@ -648,7 +652,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             task: (_, task): SoloListr<OneShotSingleDeployContext> => {
               // Network node pipeline: deploy network node, then setup, start consensus node, and account generation
               // Must be sequential
-              const deployNetworkNodeTask = {
+              const deployNetworkNodeTask: SoloListrTask<OneShotSingleDeployContext> = {
                 title: 'Deploy network node',
                 task: async (_, networkNodeTask): Promise<SoloListr<OneShotSingleDeployContext>> => {
                   return networkNodeTask.newListr(
@@ -1209,12 +1213,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
         // Format system accounts data
         const formattedSystemAccounts: {name: string; accountId: string; publicKey: string; privateKey?: string}[] =
-          systemAccounts.map(account => ({
-            name: account.name,
-            accountId: account.accountId.toString(),
-            publicKey: account.publicKey.toString(),
-            privateKey: account.privateKey,
-          }));
+          systemAccounts.map(
+            (account: SystemAccount): {name: string; accountId: string; publicKey: string; privateKey?: string} => ({
+              name: account.name,
+              accountId: account.accountId.toString(),
+              publicKey: account.publicKey.toString(),
+              privateKey: account.privateKey,
+            }),
+          );
 
         // Create the structured output with both systemAccounts and createdAccounts
         const outputData: {
@@ -1630,7 +1636,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return true;
   }
 
-  public async info(_argv: ArgvStruct): Promise<boolean> {
+  public async info(): Promise<boolean> {
     const tasks: SoloListr<OneShotInfoContext> = new Listr(
       [
         {
