@@ -255,6 +255,21 @@ Only use `this` in class constructors/methods, functions with an explicit `this`
 - Exception: single-line `if (x) x.doFoo();` is allowed.
 - Prefer `for (... of ...)` for arrays.
 - `for (... in ...)` is only for dict-style objects and must guard with `hasOwnProperty`.
+- Prefer truthy/falsy checks for string presence in conditionals (for example, `if (!localBuildPath)` and `if (app)`), instead of comparing to `''`.
+
+#### 4.8.1 Prefer logical assignment for fallback writes
+
+When assigning a fallback value only when the current value is falsy, prefer `||=` over an `if` block.
+
+```typescript
+// Avoid
+if (argv[flags.context.name]) {
+  argv[flags.context.name] = this.configManager.getFlag<Context>(flags.context);
+}
+
+// Prefer
+argv[flags.context.name] ||= this.configManager.getFlag<Context>(flags.context);
+```
 
 ### 4.9 Exception handling
 
@@ -389,6 +404,15 @@ Namespace imports are `lowerCamelCase` while files may be `snake_case`.
 #### 5.2.5 Constants
 
 `CONSTANT_CASE` is for global constants and signals “do not modify”, even if not deeply frozen.
+
+#### 5.2.6 Command flag references
+
+When referencing command flags in code and tests:
+
+- Do not hardcode flag keys as string literals when a `flags` constant exists.
+- For config-object keys, use `flags.<flag>.constName` (for example, `[flags.deployment.constName]`).
+- For argv/CLI option names, use `flags.<flag>.name` (for example, `argv[flags.deployment.name]`).
+- Avoid string literals such as `'deployment'`, `'nodeAliasesUnparsed'`, and `'--deployment'` in places where `flags` constants are available.
 
 ---
 

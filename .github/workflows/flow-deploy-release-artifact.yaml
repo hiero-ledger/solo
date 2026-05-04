@@ -61,7 +61,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Release
-        uses: pandaswhocode/initialize-github-job@47186ab8b59085a7406a53c0b7a98031bcf4c4cc # 1.0.7
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # 1.0.8
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -167,7 +167,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@47186ab8b59085a7406a53c0b7a98031bcf4c4cc # 1.0.7
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # 1.0.8
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -221,7 +221,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@47186ab8b59085a7406a53c0b7a98031bcf4c4cc # 1.0.7
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # 1.0.8
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -247,7 +247,7 @@ jobs:
 
       - name: Import GPG key
         id: gpg_key
-        uses: step-security/ghaction-import-gpg@69c854a83c7f79463f8bdf46772ab09826c560cd # v6.3.1
+        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
         with:
           gpg_private_key: ${{ secrets.GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.GPG_KEY_PASSPHRASE }}
@@ -537,7 +537,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@47186ab8b59085a7406a53c0b7a98031bcf4c4cc # 1.0.7
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # 1.0.8
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'

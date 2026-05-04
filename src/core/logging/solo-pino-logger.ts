@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import pino, {type Logger as PinoLogger, type TransportTargetOptions, type LoggerOptions} from 'pino';
+import pino, {type Logger as PinoLogger, type TransportTargetOptions, type LoggerOptions, type StreamEntry} from 'pino';
 import pinoPretty from 'pino-pretty';
 import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
 import * as util from 'node:util';
-import chalk, {type ChalkInstance} from 'chalk';
+import chalk from 'chalk';
 import * as constants from '../constants.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../dependency-injection/container-helper.js';
@@ -15,6 +15,8 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
 import {SoloError} from '../errors/solo-error.js';
 import {MessageLevel} from './message-level.js';
+
+type ChalkColor = typeof chalk.red;
 
 /**
  * Pino-based implementation of the SoloLogger interface.
@@ -106,7 +108,7 @@ export class SoloPinoLogger implements SoloLogger {
         pino.multistream([
           {level: logLevel, stream: ndjsonStream},
           {level: logLevel, stream: prettyStream},
-        ] as any),
+        ] as StreamEntry[]),
       );
     } else {
       this.pinoLogger = pino(baseOptions, pino.transport({targets: [ndjsonTarget, prettyTarget]}));
@@ -134,7 +136,7 @@ export class SoloPinoLogger implements SoloLogger {
   }
 
   public showUser(message: unknown, ...arguments_: unknown[]): void {
-    const formatted = util.format(String(message), ...arguments_.map(String));
+    const formatted: string = util.format(String(message), ...arguments_.map(String));
     console.log(formatted);
     // Mirror existing behavior: also persist to logs at info level
     this.info(formatted);
@@ -273,7 +275,7 @@ export class SoloPinoLogger implements SoloLogger {
   public showJSON(title: string, object: object): void {
     this.showUser(chalk.green(`\n *** ${title} ***`));
     this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
-    console.log(JSON.stringify(object, null, ' '));
+    console.log(JSON.stringify(object, undefined, 2));
   }
 
   public getMessageGroup(key: string): string[] {
@@ -306,8 +308,8 @@ export class SoloPinoLogger implements SoloLogger {
       return;
     }
 
-    let titleColor: ChalkInstance;
-    let textColor: ChalkInstance;
+    let titleColor: ChalkColor;
+    let textColor: ChalkColor;
     switch (messageLevel) {
       case MessageLevel.ERROR: {
         titleColor = chalk.red;
@@ -364,7 +366,7 @@ export class SoloPinoLogger implements SoloLogger {
     // Prefer structured errors/objects when provided
     if (message instanceof Error) {
       object = {...object, ...meta, err: message};
-      this.pinoLogger[level](object as any, (message as Error).message ?? 'Error');
+      this.pinoLogger[level](object, (message as Error).message ?? 'Error');
       return;
     }
 
@@ -373,14 +375,14 @@ export class SoloPinoLogger implements SoloLogger {
       const message_: string | undefined =
         arguments_.length > 0 ? util.format('%s', ...arguments_.map(String)) : undefined;
       if (message_) {
-        this.pinoLogger[level](object as any, message_);
+        this.pinoLogger[level](object, message_);
       } else {
-        this.pinoLogger[level](object as any);
+        this.pinoLogger[level](object);
       }
       return;
     }
 
-    const formatted: string = util.format(String(message), ...(arguments_ as any[]));
-    this.pinoLogger[level](meta as any, formatted);
+    const formatted: string = util.format(String(message), ...(arguments_ as unknown[]));
+    this.pinoLogger[level](meta, formatted);
   }
 }
