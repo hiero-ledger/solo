@@ -61,4 +61,67 @@ describe('ShellRunner', (): void => {
       `Command timed out after ${timeoutMs}ms`,
     );
   }).timeout(Duration.ofSeconds(10).toMillis());
+
+  describe('redactArguments', (): void => {
+    it('should redact --password and its value', (): void => {
+      const arguments_: string[] = ['--password', 'mySecret'];
+      const redacted: string[] = ShellRunner.redactArguments(arguments_);
+      expect(redacted).to.deep.equal(['--password', '******']);
+    });
+
+    it('should redact -p and its value', (): void => {
+      const arguments_: string[] = ['-p', 'mySecret'];
+      const redacted: string[] = ShellRunner.redactArguments(arguments_);
+      expect(redacted).to.deep.equal(['-p', '******']);
+    });
+
+    it('should redact sensitive key=value pairs', (): void => {
+      const arguments_: string[] = [
+        '--set',
+        'global.password=mySecret',
+        'some-token=abc',
+        'my_key=123',
+        'normal=value',
+      ];
+      const redacted: string[] = ShellRunner.redactArguments(arguments_);
+      expect(redacted).to.deep.equal([
+        '--set',
+        'global.password=******',
+        'some-token=******',
+        'my_key=******',
+        'normal=value',
+      ]);
+    });
+
+    it('should not modify unrelated arguments', (): void => {
+      const arguments_: string[] = ['--set', 'global.name=myApp', '--values', 'values.yaml'];
+      const redacted: string[] = ShellRunner.redactArguments(arguments_);
+      expect(redacted).to.deep.equal(['--set', 'global.name=myApp', '--values', 'values.yaml']);
+    });
+
+    it('should redact composite arguments', (): void => {
+      const arguments_: string[] = [
+        'helm',
+        'upgrade',
+        '--values values.yaml --set foo.bar=false --set foo.privateKey=0x123456 --set foo.bar.ALL_CAPS_KEY=0x123456 --set foo.bar.foo.bar.password=123456',
+      ];
+
+      const redacted: string[] = ShellRunner.redactArguments(arguments_);
+
+      expect(redacted).to.deep.equal([
+        'helm',
+        'upgrade',
+        '--values',
+        'values.yaml',
+        '--set',
+        'foo.bar=false',
+        '--set',
+        'foo.privateKey=******',
+        '--set',
+        'foo.bar.ALL_CAPS_KEY=******',
+        '--set',
+        'foo.bar.foo.bar.password=******',
+      ]);
+    });
+  });
 });
