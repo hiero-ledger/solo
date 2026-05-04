@@ -36,11 +36,13 @@ import {Templates} from '../core/templates.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
 import {createHash} from 'node:crypto';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
+import {optionFromFlag} from './command-helpers.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -791,20 +793,12 @@ export class ExplorerCommand extends BaseCommand {
 
             config.valuesArg = await this.prepareValuesArg(context_.config);
 
-            const currentExplorerVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
-              ComponentTypes.Explorer,
+            assertUpgradeVersionNotOlder(
+              'Explorer',
+              config.explorerVersion,
+              this.remoteConfig.getComponentVersion(ComponentTypes.Explorer),
+              optionFromFlag(flags.explorerVersion),
             );
-            if (currentExplorerVersion && !currentExplorerVersion.equals('0.0.0')) {
-              const targetExplorerVersion: SemanticVersion<string> = new SemanticVersion<string>(
-                config.explorerVersion,
-              );
-              if (targetExplorerVersion.lessThanOrEqual(currentExplorerVersion)) {
-                throw new SoloError(
-                  `Explorer upgrade target version ${config.explorerVersion} is not newer than the current version ${currentExplorerVersion.toString()} stored in remote config. ` +
-                    'Use --explorer-version to specify a version newer than the currently deployed version.',
-                );
-              }
-            }
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 

@@ -13,10 +13,16 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {
+  CHECK_WRAPS_DIRECTORY_BACKOFF_MS,
+  CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS,
+  DEFAULT_NETWORK_NODE_NAME,
+  HEDERA_HAPI_PATH,
+  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
+} from '../../core/constants.js';
 
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-  return !(path.includes('data/keys') || path.includes('data/config') || path.includes('build'));
+  return !(path.includes('data/keys') || path.includes('data/config'));
 };
 import {Templates} from '../../core/templates.js';
 import {
@@ -52,7 +58,6 @@ import type FindConfig from 'find-process';
 import type ProcessInfo from 'find-process';
 import * as helpers from '../../core/helpers.js';
 import {
-  addDebugOptions,
   addRootImageValues,
   createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
@@ -126,6 +131,7 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {helmValuesHelper} from '../../core/helm-values-helper.js';
 import {type GitClient} from '../../integration/git/git-client.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
@@ -182,6 +188,7 @@ import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
+import {Listr} from 'listr2';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -341,6 +348,24 @@ export class NodeCommandTasks {
         }
       }
     }
+  }
+
+  private async validateNodePvcsForLocalBuildPath(namespace: NamespaceName, contexts: string[]): Promise<void> {
+    await Promise.all(
+      contexts.map(async (context): Promise<void> => {
+        const pvcs: string[] = await this.k8Factory
+          .getK8(context)
+          .pvcs()
+          .list(namespace, ['solo.hedera.com/type=node-pvc']);
+
+        if (pvcs.length === 0) {
+          throw new SoloError(
+            'Custom JARs provided via --local-build-path require node PVCs to persist across pod restarts. ' +
+              'Redeploy the consensus network with --pvcs true and run consensus node setup again.',
+          );
+        }
+      }),
+    );
   }
 
   private _uploadPlatformSoftware(
@@ -528,29 +553,6 @@ export class NodeCommandTasks {
         collapseSubtasks: false,
       },
     });
-  }
-
-  public waitForNodesTask(): SoloListrTask<AnyListrContext> {
-    return {
-      title: 'Wait for nodes to be active',
-      skip: (): boolean => !this.oneShotState.isActive(),
-      task: (_, task): SoloListr<AnyListrContext> => {
-        const subTasks: SoloListrTask<AnyListrContext>[] = [];
-
-        for (const node of this.remoteConfig.getConsensusNodes()) {
-          const title: string = `Check network pod: ${chalk.yellow(node.name)}`;
-
-          subTasks.push({
-            title,
-            task: async (_, task): Promise<void> => {
-              await this.checkNetworkNodeActiveness(NamespaceName.of(node.namespace), node.name, task, title);
-            },
-          });
-        }
-
-        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
-      },
-    };
   }
 
   public async checkNetworkNodeActiveness(
@@ -1409,7 +1411,7 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Fetch platform software into network nodes',
-      task: (context_, task) => {
+      task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
         const {podRefs, localBuildPath} = context_.config;
         let {releaseTag} = context_.config;
 
@@ -1420,31 +1422,44 @@ export class NodeCommandTasks {
         if ('upgradeVersion' in context_.config) {
           if (!context_.config.upgradeVersion) {
             this.logger.info('Skip, no need to update the platform software');
-            return Promise.resolve();
+            return;
           }
           releaseTag = context_.config.upgradeVersion;
         }
 
         context_.config.releaseTag = releaseTag;
 
-        return localBuildPath === ''
-          ? this._fetchPlatformSoftware(
-              context_.config[aliasesField],
-              podRefs,
-              releaseTag,
-              task,
-              this.platformInstaller,
-              context_.config.consensusNodes,
-              context_.config.stagingDir,
-            )
-          : this._uploadPlatformSoftware(
-              context_.config[aliasesField],
-              podRefs,
-              task,
-              localBuildPath,
-              context_.config.consensusNodes,
-              releaseTag,
-            );
+        if (!localBuildPath) {
+          return this._fetchPlatformSoftware(
+            context_.config[aliasesField],
+            podRefs,
+            releaseTag,
+            task,
+            this.platformInstaller,
+            context_.config.consensusNodes,
+            context_.config.stagingDir,
+          );
+        }
+
+        const nodeAliases: NodeAliases = context_.config[aliasesField] as NodeAliases;
+        const uniqueContexts: Context[] = [
+          ...new Set(
+            nodeAliases.map(
+              (nodeAlias: NodeAlias): Context =>
+                extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes),
+            ),
+          ),
+        ];
+        await this.validateNodePvcsForLocalBuildPath(context_.config.namespace, uniqueContexts);
+
+        return this._uploadPlatformSoftware(
+          nodeAliases,
+          podRefs,
+          task,
+          localBuildPath,
+          context_.config.consensusNodes,
+          releaseTag,
+        );
       },
     };
   }
@@ -2025,9 +2040,10 @@ export class NodeCommandTasks {
         // logs will have a lot of white noise from being behind
         return this._checkNodesProxiesTask(task, context_.config.nodeAliases) as SoloListr<AnyListrContext>;
       }, // NodeStartConfigClass NodeRefreshContext
-      skip: async (context_): Promise<boolean> =>
-        (context_.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== '' &&
-        (context_.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== constants.HEDERA_APP_NAME,
+      skip: async (context_): Promise<boolean> => {
+        const app: string = (context_.config as NodeStartConfigClass | NodeRefreshConfigClass).app;
+        return app && app !== constants.HEDERA_APP_NAME;
+      },
     };
   }
 
@@ -2050,10 +2066,11 @@ export class NodeCommandTasks {
           {
             title: 'Check node proxies are ACTIVE',
             task: (context__, t): SoloListr<AnyListrContext> =>
-              this._checkNodesProxiesTask(t, context__.config.nodeAliases) as SoloListr<AnyListrContext>,
-            skip: (context__): boolean =>
-              (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== '' &&
-              (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== constants.HEDERA_APP_NAME,
+              this._checkNodesProxiesTask(t, context__.config[nodeAliasesProperty]) as SoloListr<AnyListrContext>,
+            skip: (context__): boolean => {
+              const app: string = (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app;
+              return app && app !== constants.HEDERA_APP_NAME;
+            },
           },
         ];
 
@@ -2136,7 +2153,7 @@ export class NodeCommandTasks {
     return {
       title: 'Add node stakes',
       task: (context_, task): SoloListr<NodeStartContext> | void => {
-        if (context_.config.app === '' || context_.config.app === constants.HEDERA_APP_NAME) {
+        if (!context_.config.app || context_.config.app === constants.HEDERA_APP_NAME) {
           const subTasks: SoloListrTask<NodeStartContext>[] = [];
 
           const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
@@ -2298,7 +2315,7 @@ export class NodeCommandTasks {
   public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<NodeUpgradeContext> {
     return {
       title: 'Update node configuration files',
-      task: async ({config}, task): Promise<void> => {
+      task: async ({config}, task): Promise<Listr<NodeConnectionsContext, any, any> | void> => {
         if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
           task.skip(
             `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
@@ -2437,30 +2454,74 @@ export class NodeCommandTasks {
           config.valuesFile,
         );
 
-        // Update all charts
-        await Promise.all(
-          clusterReferences.map(async (clusterReference: string): Promise<void> => {
-            const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
+        // `helm upgrade` triggers a rolling restart of the node pods when there is a change to items from the
+        // StatefulSet's pod template spec, which only includes application.env from the possible configuration files
+        // that can be updated in this task.
+        const skipRecreate: boolean = config.applicationEnv === flags.applicationEnv.definition.defaultValue;
+        const upgradeTimestamp: Date = new Date();
+        const subTasks: SoloListrTask<NodeConnectionsContext>[] = [
+          {
+            title: 'Update all charts',
+            task: async (): Promise<void> => {
+              await Promise.all(
+                clusterReferences.map(async (clusterReference: string): Promise<void> => {
+                  const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
-            config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
-              config.soloChartVersion,
-              false,
-              'Solo chart version',
-            );
+                  config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
+                    config.soloChartVersion,
+                    false,
+                    'Solo chart version',
+                  );
 
-            await this.chartManager.upgrade(
-              config.namespace,
-              constants.SOLO_DEPLOYMENT_CHART,
-              constants.SOLO_DEPLOYMENT_CHART,
-              config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
-              config.soloChartVersion,
-              valuesFiles[clusterReference],
-              context,
-            );
+                  await this.chartManager.upgrade(
+                    config.namespace,
+                    constants.SOLO_DEPLOYMENT_CHART,
+                    constants.SOLO_DEPLOYMENT_CHART,
+                    config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    config.soloChartVersion,
+                    valuesFiles[clusterReference],
+                    context,
+                  );
 
-            showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
-          }),
-        );
+                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
+                }),
+              );
+            },
+          },
+          {
+            title: 'Check node pods are running',
+            skip: (): boolean => skipRecreate,
+            task: (_, task): SoloListr<NodeConnectionsContext> => {
+              const waitSubTasks: SoloListrTask<NodeConnectionsContext>[] = [];
+              for (const node of config.consensusNodes) {
+                waitSubTasks.push({
+                  title: `Check Node: ${chalk.yellow(node.name)}, Cluster: ${chalk.yellow(node.cluster)}`,
+                  task: async (): Promise<void> => {
+                    await this.k8Factory
+                      .getK8(node.context)
+                      .pods()
+                      .waitForReadyStatus(
+                        NamespaceName.of(node.namespace),
+                        [`solo.hedera.com/node-name=${node.name}`, 'solo.hedera.com/type=network-node'],
+                        constants.PODS_RUNNING_MAX_ATTEMPTS,
+                        constants.PODS_RUNNING_DELAY,
+                        upgradeTimestamp,
+                      );
+                  },
+                });
+              }
+
+              return task.newListr(waitSubTasks, {
+                concurrent: true,
+                rendererOptions: {
+                  collapseSubtasks: false,
+                },
+              });
+            },
+          },
+        ];
+
+        return task.newListr(subTasks, {concurrent: false, rendererOptions: {collapseSubtasks: false}});
       },
     };
   }
@@ -3224,7 +3285,25 @@ export class NodeCommandTasks {
 
           const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps.directoryName}`;
 
-          if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+          const attempts: number = CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS;
+          let attempt: number = 0;
+          let found: boolean = false;
+          while (attempt < attempts) {
+            try {
+              if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+                found = true;
+                break;
+              }
+            } catch {
+              this.logger.info(
+                `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
+              );
+              await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
+              attempt++;
+            }
+          }
+
+          if (found) {
             continue;
           }
 
@@ -3347,19 +3426,67 @@ export class NodeCommandTasks {
             });
           }
         }
-        // Add Debug options
-        const consensusNode: ConsensusNode = consensusNodes.find(
-          (node): boolean => node.name === config.debugNodeAlias,
-        );
-        const clusterReference: string = consensusNode
-          ? consensusNode.cluster
-          : this.k8Factory.default().clusters().readCurrent();
 
-        valuesArgumentMap[clusterReference] = addDebugOptions(
-          valuesArgumentMap[clusterReference],
-          config.debugNodeAlias,
-          this.remoteConfig.configuration.state.wrapsEnabled ? 1 : 0,
-        );
+        // Generate extraEnv values file for wraps, debug, and custom environment variables
+        // This replaces the old --set extraEnv approach to prevent Helm replacement issues
+        const needsExtraEnvironment: boolean =
+          this.remoteConfig.configuration.state.wrapsEnabled || !!config.debugNodeAlias;
+
+        if (needsExtraEnvironment) {
+          for (const [clusterReference] of clusterReferences) {
+            // Collect extraEnv entries already present in the values files applied to this
+            // cluster so that the generated file can include them and avoid Helm array
+            // replacement silently dropping env vars set by user-provided values files.
+            // Always include the chart's own defaults file so default JAVA_OPTS/heap vars
+            // are preserved when no per-node override exists in the user-provided files.
+            const existingValuesFilePaths: string[] = [constants.SOLO_DEPLOYMENT_VALUES_FILE];
+            for (const filePath of helmValuesHelper.parseValuesFilePaths(valuesArgumentMap[clusterReference])) {
+              if (!existingValuesFilePaths.includes(filePath)) {
+                existingValuesFilePaths.push(filePath);
+              }
+            }
+
+            const clusterLocalNodeIndices: Record<NodeId, number> | undefined = clusterNodeIndexMap[clusterReference];
+            const indexedConsensusNodes: Array<ConsensusNode | undefined> = [];
+            const unindexedConsensusNodes: ConsensusNode[] = [];
+            for (const consensusNode of consensusNodes) {
+              const nodeIndex: number | undefined = clusterLocalNodeIndices?.[consensusNode.nodeId];
+              if (nodeIndex === undefined) {
+                unindexedConsensusNodes.push(consensusNode);
+                continue;
+              }
+              indexedConsensusNodes[nodeIndex] = consensusNode;
+            }
+            const clusterConsensusNodes: ConsensusNode[] = [
+              ...indexedConsensusNodes.filter((node): node is ConsensusNode => node !== undefined),
+              ...unindexedConsensusNodes,
+            ];
+
+            const extraEnvironmentValuesFile: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
+              clusterConsensusNodes,
+              {
+                wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
+                tss: this.soloConfig.tss,
+                debugNodeAlias: config.debugNodeAlias,
+                useJavaMainClass: false,
+                baseExtraEnvironmentVariables: helmValuesHelper.extractExtraEnvironmentFromValuesFiles(
+                  existingValuesFilePaths,
+                  clusterConsensusNodes,
+                ),
+              },
+              constants.SOLO_CACHE_DIR,
+            );
+            // Append the generated file after all existing --values entries but before
+            // any --set overrides so it wins in Helm's merge order without being overridden
+            // by subsequent --values files that could still replace the hedera.nodes array.
+            const existingArguments: string = valuesArgumentMap[clusterReference] ?? '';
+            const firstSetArgumentIndex: number = existingArguments.search(/\s--set(?:\s|=|-)/);
+            valuesArgumentMap[clusterReference] =
+              firstSetArgumentIndex === -1
+                ? `${existingArguments} --values "${extraEnvironmentValuesFile}"`
+                : `${existingArguments.slice(0, firstSetArgumentIndex)} --values "${extraEnvironmentValuesFile}"${existingArguments.slice(firstSetArgumentIndex)}`;
+          }
+        }
 
         const clusterReferencesList: ClusterReferenceName[] = [];
         for (const [clusterReference] of clusterReferences) {
@@ -3428,15 +3555,7 @@ export class NodeCommandTasks {
         constants.S6_NODE_IMAGE_REPOSITORY,
         versions.S6_NODE_IMAGE_VERSION,
       );
-      if (this.remoteConfig.configuration.state.wrapsEnabled) {
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-        const wraps: Wraps = this.soloConfig.tss.wraps;
-        const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-        valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-      }
+      // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
     }
   }
 
@@ -3515,15 +3634,7 @@ export class NodeCommandTasks {
       }
     }
 
-    if (this.remoteConfig.configuration.state.wrapsEnabled) {
-      valuesArgumentMap[clusterReference] +=
-        ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-      const wraps: Wraps = this.soloConfig.tss.wraps;
-      const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-      valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-    }
+    // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
   }
 
   /**
@@ -3565,15 +3676,7 @@ export class NodeCommandTasks {
           constants.S6_NODE_IMAGE_REPOSITORY,
           versions.S6_NODE_IMAGE_VERSION,
         );
-        if (this.remoteConfig.configuration.state.wrapsEnabled) {
-          valuesArgumentMap[clusterReference] +=
-            ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-          const wraps: Wraps = this.soloConfig.tss.wraps;
-          const path: string = `${constants.HEDERA_HAPI_PATH}/${wraps.artifactsFolderName}`;
-
-          valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-        }
+        // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
 
         index++;
       }
@@ -3802,13 +3905,13 @@ export class NodeCommandTasks {
     return {
       title: 'Upload last saved state to new network node',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
-        const nodeAlias: any = config.nodeAlias || config.nodeAliases[0];
+        const config: NodeAddConfigClass = context_.config;
+        const nodeAlias: NodeAlias = config.nodeAlias || config.nodeAliases[0];
         const newNodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(nodeAlias);
         const podReference: PodReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
-        const savedStateDirectory: any = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+        const savedStateDirectory: string = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
         const savedStatePath: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/${nodeId}/123/${savedStateDirectory}`;
 
         const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);

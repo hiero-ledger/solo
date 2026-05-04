@@ -3188,4 +3188,13 @@ export class Flags {
 
     return processedFlags.join(' ');
   }
+
+  /**
+   * Returns the full flag key with '--' prefix for a given CommandFlag
+   * @param flag - the CommandFlag for which to get the formatted flag key
+   * @returns the formatted flag key as a string (e.g. '--flag-name')
+   */
+  public static getFormattedFlagKey(flag: CommandFlag): string {
+    return `--${flag.name}`;
+  }
 }
