@@ -16,7 +16,8 @@
 
 name: "Standard Runner One-Shot Deploy"
 # The purpose of this workflow is to verify that Solo can successfully deploy a network
-# using the one-shot single deploy command on a standard GitHub-hosted ubuntu runner.
+# using the one-shot single deploy command on standard GitHub-hosted runners (Ubuntu and macOS).
+# This covers the experience of general developers who do not have access to self-hosted runners.
 # This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.
 
 on:
@@ -35,7 +36,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: standard-runner-one-shot-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: standard-runner-one-shot-${{ matrix.os }}-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -43,11 +44,18 @@ env:
 
 jobs:
   standard-runner-one-shot:
-    name: Standard Runner One-Shot Deploy
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
+    name: Standard Runner One-Shot Deploy (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
     steps:
       - name: Harden Runner
+        if: ${{ runner.os == 'Linux' }}
         uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
@@ -67,7 +75,7 @@ jobs:
         uses: step-security/retry@e1d59ce1f574b32f0915e3a8df055cfe9f99be5d # v3.0.4
         with:
           max_attempts: 10
-          timeout_minutes: 10
+          timeout_minutes: 5
           command: npm ci
 
       - name: Install Task
@@ -82,13 +90,13 @@ jobs:
         run: task build:compile
 
       - name: One-Shot Single Deploy
-        timeout-minutes: 70
+        timeout-minutes: 10
         run: |
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single deploy
 
       - name: Verify Mirror REST API
-        timeout-minutes: 10
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           echo "Checking mirror node REST API at http://localhost:38081/api/v1/accounts ..."
           for i in $(seq 1 30); do
@@ -112,7 +120,7 @@ jobs:
 
       - name: One-Shot Single Destroy
         if: always()
-        timeout-minutes: 15
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single destroy --quiet-mode || true
@@ -122,7 +130,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          name: standard-runner-one-shot-logs
+          name: standard-runner-one-shot-${{ matrix.os }}-logs
           path: ~/.solo/logs/*
           overwrite: true
           if-no-files-found: warn
