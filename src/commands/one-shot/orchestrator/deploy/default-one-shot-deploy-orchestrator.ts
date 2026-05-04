@@ -17,7 +17,7 @@ import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.
 import {patchInject} from '../../../../core/dependency-injection/container-helper.js';
 import {type TaskList} from '../../../../core/task-list/task-list.js';
 import {type SoloEventBus} from '../../../../core/events/solo-event-bus.js';
-import {SoloEventType} from '../../../../core/events/event-types/event-types.js';
+import {SoloEventType} from '../../../../core/events/event-types/solo-event.js';
 import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../types/index.js';
 import {type Realm, type Shard} from '../../../../types/index.js';
 import {type AccountManager} from '../../../../core/account-manager.js';
@@ -53,7 +53,7 @@ import {ConsensusCommandDefinition} from '../../../command-definitions/consensus
 import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
-import {invokeSoloCommand, optionFromFlag} from '../../../command-helpers.js';
+import {invokeSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
 import * as constants from '../../../../core/constants.js';
 import * as helpers from '../../../../core/helpers.js';
@@ -219,7 +219,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 PathEx.join(overridesDirectory, settingsOverrideFile),
                 settingsMergedPath,
               );
-              config.networkConfiguration[optionFromFlag(flags.settingTxt)] = useStateOnDisk
+              config.networkConfiguration[flags.getFormattedFlagKey(flags.settingTxt)] = useStateOnDisk
                 ? this.concatConfigFiles(
                     settingsMergedPath,
                     PathEx.join(stateOnDiskDirectory, 'settings.txt'),
@@ -227,20 +227,21 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   )
                 : settingsMergedPath;
 
-              config.networkConfiguration[optionFromFlag(flags.applicationProperties)] = this.concatConfigFiles(
-                PathEx.join(defaultsDirectory, 'application.properties'),
-                PathEx.join(overridesDirectory, 'application.properties'),
-                PathEx.join(mergedDirectory, 'application.properties'),
-              );
+              config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationProperties)] =
+                this.concatConfigFiles(
+                  PathEx.join(defaultsDirectory, 'application.properties'),
+                  PathEx.join(overridesDirectory, 'application.properties'),
+                  PathEx.join(mergedDirectory, 'application.properties'),
+                );
 
-              config.networkConfiguration[optionFromFlag(flags.applicationEnv)] = PathEx.join(
+              config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationEnv)] = PathEx.join(
                 useStateOnDisk ? stateOnDiskDirectory : overridesDirectory,
                 'application.env',
               );
 
               const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
               if (fs.existsSync(throttlesFile)) {
-                config.networkConfiguration[optionFromFlag(flags.genesisThrottlesFile)] = throttlesFile;
+                config.networkConfiguration[flags.getFormattedFlagKey(flags.genesisThrottlesFile)] = throttlesFile;
               }
             }
 
@@ -836,12 +837,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         );
 
         const formattedSystemAccounts: {name: string; accountId: string; publicKey: string; privateKey?: string}[] =
-          systemAccounts.map((account): {name: string; accountId: string; publicKey: string; privateKey?: string} => ({
-            name: account.name,
-            accountId: account.accountId.toString(),
-            publicKey: account.publicKey.toString(),
-            privateKey: account.privateKey,
-          }));
+          systemAccounts.map(
+            (account: SystemAccount): {name: string; accountId: string; publicKey: string; privateKey?: string} => ({
+              name: account.name,
+              accountId: account.accountId.toString(),
+              publicKey: account.publicKey.toString(),
+              privateKey: account.privateKey,
+            }),
+          );
 
         const outputData: {
           systemAccounts: {name: string; accountId: string; publicKey: string; privateKey?: string}[];

@@ -28,10 +28,11 @@ export class DeployArgvBuilders {
     // Build a local copy with the dev image values file appended, without mutating
     // config.blockNodeConfiguration — it may be an alias for another section's object
     // (e.g. via YAML anchors), causing the values file to leak into other commands.
-    const blockExistingValuesFile: string = config.blockNodeConfiguration?.['--values-file'];
+    const blockExistingValuesFile: string =
+      config.blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     const blockLocalConfig: AnyObject = {
       ...config.blockNodeConfiguration,
-      '--values-file': blockExistingValuesFile
+      [Flags.getFormattedFlagKey(Flags.valuesFile)]: blockExistingValuesFile
         ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
         : constants.BLOCK_NODE_SOLO_DEV_FILE,
     };
@@ -53,11 +54,12 @@ export class DeployArgvBuilders {
       config.parallelDeploy.toString(),
     );
     // Append HikariCP limits file without mutating the shared config object.
-    const mirrorExistingValuesFile: string = config.mirrorNodeConfiguration?.['--values-file'];
+    const mirrorExistingValuesFile: string =
+      config.mirrorNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     const mirrorLocalConfig: AnyObject = {
       [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
       ...config.mirrorNodeConfiguration,
-      '--values-file': mirrorExistingValuesFile
+      [Flags.getFormattedFlagKey(Flags.valuesFile)]: mirrorExistingValuesFile
         ? `${mirrorExistingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
         : constants.MIRROR_NODE_HIKARI_LIMITS_FILE,
     };
@@ -187,6 +189,9 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.clusterRef),
       config.clusterRef,
     );
+    if (config.deployMetricsServer) {
+      argv.push(optionFromFlag(Flags.deployMetricsServer));
+    }
     return argvPushGlobalFlags(argv);
   }
 

@@ -324,7 +324,9 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
         }),
       }),
       new Phase('Acquire deployment lock', {
-        asListrTask: (): SoloListrTask<OneShotSingleDestroyContext> => ({
+        asListrTask: (
+          getConfig: () => OneShotSingleDestroyConfigClass,
+        ): SoloListrTask<OneShotSingleDestroyContext> => ({
           title: 'Acquire deployment lock',
           task: async (
             _: OneShotSingleDestroyContext,
@@ -333,7 +335,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
             leaseReference.value = await this.leaseManager.create();
             return ListrLock.newAcquireLockTask(leaseReference.value, task);
           },
-          skip: (): boolean => getConfigGlobal().skipAll,
+          skip: (): boolean => getConfig().skipAll,
         }),
       }),
       Phase.composite(
@@ -342,7 +344,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
         Phase.EXECUTION_MODE.SEQUENTIAL,
         false,
         {collapseSubtasks: false},
-        (): boolean => getConfigGlobal().skipAll,
+        (getConfig: () => OneShotSingleDestroyConfigClass): boolean => getConfig().skipAll,
       ),
     ];
 
