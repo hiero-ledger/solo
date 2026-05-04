@@ -44,7 +44,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly collectDiagnosticLogs: boolean = true,
     public readonly apiPermissionProperties: string = 'api-permission.properties',
     public readonly applicationEnvironment: string = 'application.env',
-    public readonly applicationProperties: string = constants.APPLICATION_PROPERTIES_FILE,
+    public readonly applicationProperties: string = constants.APPLICATION_PROPERTIES,
     public readonly bootstrapProperties: string = 'bootstrap.properties',
     public readonly logXml: string = 'log4j2.xml',
     public readonly settingsTxt: string = 'settings.txt',

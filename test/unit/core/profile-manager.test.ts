@@ -141,7 +141,7 @@ describe('ProfileManager', (): void => {
       const applicationPropertiesFile: string = PathEx.join(
         cacheDirectory,
         'templates',
-        constants.APPLICATION_PROPERTIES_FILE,
+        constants.APPLICATION_PROPERTIES,
       );
       const valuesFileMapping: Record<string, string> = await profileManager.prepareValuesForSoloChart(
         consensusNodes,
@@ -169,7 +169,7 @@ describe('ProfileManager', (): void => {
       const applicationPropertiesFile: string = PathEx.join(
         stagingDirectory,
         'templates',
-        constants.APPLICATION_PROPERTIES_FILE,
+        constants.APPLICATION_PROPERTIES,
       );
       fs.cpSync(file, destinationFile, {force: true});
       const cachedValuesFileMapping: Record<string, string> = await profileManager.prepareValuesForSoloChart(
@@ -192,7 +192,7 @@ describe('ProfileManager', (): void => {
 
   describe('chainId updates', (): void => {
     it('should update contracts.chainId in application.properties', async (): Promise<void> => {
-      const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES_FILE);
+      const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
       fs.writeFileSync(
         applicationPropertiesPath,
         ['hedera.realm=0', 'contracts.chainId=295', 'hedera.shard=0'].join('\n') + '\n',
@@ -231,7 +231,7 @@ describe('ProfileManager', (): void => {
 
       const applicationPropertiesSourcePath: string = PathEx.join(
         sourceDirectory,
-        constants.APPLICATION_PROPERTIES_FILE,
+        constants.APPLICATION_PROPERTIES,
       );
       const bootstrapPropertiesSourcePath: string = PathEx.join(sourceDirectory, 'bootstrap.properties');
       // eslint-disable-next-line unicorn/prevent-abbreviations
@@ -295,7 +295,7 @@ describe('ProfileManager', (): void => {
       const stagedApplicationPropertiesPath: string = PathEx.join(
         stagingDirectory,
         'templates',
-        constants.APPLICATION_PROPERTIES_FILE,
+        constants.APPLICATION_PROPERTIES,
       );
       const stagedBootstrapPropertiesPath: string = PathEx.join(stagingDirectory, 'templates', 'bootstrap.properties');
 

@@ -397,9 +397,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
                 config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationProperties)] =
                   this.concatConfigFiles(
-                    PathEx.join(defaultsDirectory, constants.APPLICATION_PROPERTIES_FILE),
-                    PathEx.join(overridesDirectory, constants.APPLICATION_PROPERTIES_FILE),
-                    PathEx.join(mergedDirectory, constants.APPLICATION_PROPERTIES_FILE),
+                    PathEx.join(defaultsDirectory, constants.APPLICATION_PROPERTIES),
+                    PathEx.join(overridesDirectory, constants.APPLICATION_PROPERTIES),
+                    PathEx.join(mergedDirectory, constants.APPLICATION_PROPERTIES),
                   );
 
                 // For CN >= 0.73.0, use state-on-disk application.env instead of default small-memory

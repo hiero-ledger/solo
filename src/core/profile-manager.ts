@@ -253,7 +253,7 @@ export class ProfileManager {
     );
     this._setFileContentsAsValue(
       'hedera.configMaps.applicationProperties',
-      PathEx.joinWithRealPath(stagingDirectory, 'templates', constants.APPLICATION_PROPERTIES_FILE),
+      PathEx.joinWithRealPath(stagingDirectory, 'templates', constants.APPLICATION_PROPERTIES),
       yamlRoot,
     );
     this._setFileContentsAsValue(
