@@ -27,6 +27,7 @@ import * as constants from '../../../../../core/constants.js';
 import type * as stream from 'node:stream';
 import {platform} from 'node:process';
 import {PathEx} from '../../../../../business/utils/path-ex.js';
+import eol from 'eol';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -239,8 +240,21 @@ export class K8ClientContainer implements Container {
     let temporaryTar: string | undefined;
 
     try {
+      const sourceFileName: string = path.basename(sourcePath);
+      if (sourceFileName.endsWith('.sh') && os.platform() === 'win32') {
+        // For text files on Windows, convert line endings to LF to avoid issues in Linux containers.
+        temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
+        const temporarySourcePath: string = PathEx.join(temporaryDirectory, sourceFileName);
+        let content: string = fs.readFileSync(sourcePath, 'utf8');
+
+        // Convert CRLF to LF
+        content = eol.lf(content);
+
+        // Write back
+        fs.writeFileSync(temporarySourcePath, content);
+        localPathToCopy = temporarySourcePath;
+      }
       if (filter) {
-        const sourceFileName: string = path.basename(sourcePath);
         const sourceDirectory: string = path.dirname(sourcePath);
 
         temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
