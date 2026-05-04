@@ -82,10 +82,10 @@ tasks:
           else
             {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           fi
-          deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
+          {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1
       # Guard 3: after start, ensure the loaded roster gossip IPs in swirlds.log
       # match the live node service LB IPs. Fail early on stale roster endpoints.
-      # - task: verify-roster-vs-lb
+      - task: verify-roster-vs-lb
       - task: verify
 
   initial-deploy:
@@ -180,6 +180,11 @@ tasks:
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs \
             --application-properties {{ .USER_WORKING_DIR }}/application.properties
+
+      # Pin static LB IPs before node setup so genesis-network.json is generated
+      # with the correct pinned IPs. This ensures backup state captures the same
+      # IPs that ensure-lb-ips re-pins after restore, avoiding roster mismatches.
+      - task: ensure-lb-ips
 
       # Setup nodes
       - cmd: echo "⚙️  Setting up consensus nodes..."
