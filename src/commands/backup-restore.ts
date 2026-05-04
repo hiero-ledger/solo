@@ -983,8 +983,10 @@ export class BackupRestoreCommand extends BaseCommand {
                       }
                     }
                     // Build address book from local keys — CN is not running during restore-network
-                    argv.push(CommandHelpers.optionFromFlag(flags.localAddressBook));
-                    argv.push(CommandHelpers.optionFromFlag(flags.skipBlockNodeIntegration));
+                    argv.push(
+                      CommandHelpers.optionFromFlag(flags.localAddressBook),
+                      CommandHelpers.optionFromFlag(flags.skipBlockNodeIntegration),
+                    );
                     return CommandHelpers.argvPushGlobalFlags(argv);
                   },
                   this.taskList,

@@ -97,6 +97,8 @@ tasks:
   initial-deploy:
     desc: Create dual clusters and deploy network with external database
     cmds:
+      # Warm local image cache to reduce Docker Hub 429 pull failures.
+      - task: prepull-images
       # Install Solo CLI if using released version
       - cmd: |
           if [ "${USE_RELEASED_VERSION}" = "true" ]; then
@@ -289,7 +291,8 @@ tasks:
   restore-clusters:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
-     - cmd: |
+      - cmd: |
+          {{ .TASKFILE_DIR }}/scripts/prepull-images.sh
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
           $SOLO_COMMAND init
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
@@ -303,6 +306,19 @@ tasks:
           fi
           # keep a copy of zip file for debugging
           cp {{ .ZIP_INPUT_FILE }} ~/.solo/logs
+      - task: load-images-into-kind
+
+  prepull-images:
+    desc: Pre-pull required container images to avoid Docker Hub 429 during cluster restore/deploy
+    cmds:
+      - cmd: |
+          {{ .TASKFILE_DIR }}/scripts/prepull-images.sh
+
+  load-images-into-kind:
+    desc: Load warm images into kind clusters to avoid in-cluster registry pulls
+    cmds:
+      - cmd: |
+          {{ .TASKFILE_DIR }}/scripts/load-images-into-kind.sh solo-e2e
 
   restore-network:
     desc: Redeploy complete network infrastructure (after cluster deletion)
@@ -461,6 +477,35 @@ tasks:
           # FATAL on "Operator account has no balance" (mirror returns 404), crash-loop,
           # and be in backoff when the smoke test runs.
           kubectl rollout status deployment mirror-1-rest -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s || true
+
+          # Patch relay HEDERA_NETWORK to use stable haproxy LoadBalancer IPs.
+          # restore-config restores the backed-up relay ConfigMap, which contains stale
+          # ClusterIPs from the original deployment. After cluster recreation, ClusterIPs
+          # change, making those addresses unreachable. EthereumTransactions time out
+          # silently: the relay returns a tx hash optimistically, then CN never sees the tx,
+          # so the mirror never indexes it and the hardhat test hangs forever waiting for
+          # a receipt that will never arrive.
+          # The haproxy LB IPs are pinned (expected-lb-ips.env) and stable across restores.
+          source {{ .EXPECTED_LB_IPS_FILE }}
+          OLD_HEDERA_NET=$(kubectl get configmap relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+            -o jsonpath='{.data.HEDERA_NETWORK}' 2>/dev/null || true)
+          if [ -n "$OLD_HEDERA_NET" ]; then
+            python3 -c "
+import json,os,sys
+d=json.loads(sys.argv[1])
+vals=list(d.values())
+c1=os.environ.get('KIND_SOLO_E2E_C1_HAPROXY_NODE1_SVC','172.19.1.0')
+c2=os.environ.get('KIND_SOLO_E2E_C2_HAPROXY_NODE2_SVC','172.19.2.0')
+n=json.dumps({c1+':50211':vals[0],c2+':50211':vals[1]},separators=(',',':'))
+p=json.dumps({'data':{'HEDERA_NETWORK':n}})
+open('/tmp/relay-patch.json','w').write(p)
+print('[relay-patch] HEDERA_NETWORK ->',n)
+" "$OLD_HEDERA_NET"
+            kubectl patch configmap relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+              --type=merge --patch-file /tmp/relay-patch.json || true
+            kubectl patch configmap relay-1-ws -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+              --type=merge --patch-file /tmp/relay-patch.json 2>/dev/null || true
+          fi
 
           # Restart CN pods to apply the restored ConfigMaps/Secrets.
           # Pod restart wipes the ephemeral filesystem; state files from pass 1 are
