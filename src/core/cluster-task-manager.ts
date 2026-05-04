@@ -253,7 +253,7 @@ export class ClusterTaskManager extends ShellRunner {
               } catch (error) {
                 if (error.message.includes('VM does not exist')) {
                   await this.run(
-                    `${podmanExecutable} machine init ${constants.PODMAN_MACHINE_NAME} --memory=16384`, // 16GB
+                    `${podmanExecutable} machine init ${constants.PODMAN_MACHINE_NAME} --memory=${process.env.SOLO_PODMAN_MACHINE_MEMORY ?? '16384'}`,
                     ...podmanRunOptions,
                   );
                   await this.run(
