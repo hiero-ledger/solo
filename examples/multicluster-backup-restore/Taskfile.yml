@@ -86,6 +86,12 @@ tasks:
       # Guard 3: after start, ensure the loaded roster gossip IPs in swirlds.log
       # match the live node service LB IPs. Fail early on stale roster endpoints.
       - task: verify-roster-vs-lb
+      # Restart relay to clear any crash-loop backoff caused by mirror-1-rest WRONGPASS
+      # during restore. Even after mirror-1-rest is ready, the relay may be stuck in
+      # exponential backoff and won't recover on its own before the smoke test runs.
+      - cmd: |
+          kubectl rollout restart deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
+          kubectl rollout status deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s || true
       - task: verify
 
   initial-deploy:
@@ -429,7 +435,7 @@ tasks:
           # The importer must start with the backed-up record_file watermark and
           # address book so it can verify new record file signatures (0/2 stake
           # otherwise) and resume from the correct block height, not from epoch 0.
-          # Scale importer to 0 first to prevent concurrent access during DROP/CREATE.
+          # Scale importer to 0 first to prevent concurrent DB access during DROP/CREATE.
           kubectl scale deployment mirror-1-importer -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=0 || true
           echo "Restoring database from dump..."
           kubectl cp {{ .BACKUP_DIR }}/database-dump.sql \
@@ -439,10 +445,22 @@ tasks:
             -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql >> database-restore.log 2>&1
           echo "Database restored."
 
-          # Restart all mirror node pods to pick up restored Redis credentials and DB.
-          # mirror-1-rest (Node.js) also holds stale Redis connections and must be
-          # restarted — omitting it causes persistent WRONGPASS on every request.
-          kubectl rollout restart deployment mirror-1-grpc mirror-1-importer mirror-1-rest -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
+          # Scale importer back to 1 and wait for it to be ready before Pass 2.
+          # restore-config Pass 2 uploads state files to the importer pod;
+          # it will fail with "not found" if the pod is still at 0 replicas.
+          kubectl scale deployment mirror-1-importer -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=1 || true
+          kubectl rollout status deployment mirror-1-importer -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s || true
+
+          # Restart grpc and rest to pick up restored Redis credentials.
+          # Importer is already starting fresh from scale 0→1; no rollout restart needed.
+          # mirror-1-rest (Node.js) holds stale Redis connections — must be restarted
+          # or it gets persistent WRONGPASS on every request.
+          kubectl rollout restart deployment mirror-1-grpc mirror-1-rest -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
+          # Wait for mirror-1-rest to be fully ready before restarting CN pods.
+          # If mirror-1-rest is still starting when CN pods come up, the relay will
+          # FATAL on "Operator account has no balance" (mirror returns 404), crash-loop,
+          # and be in backoff when the smoke test runs.
+          kubectl rollout status deployment mirror-1-rest -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s || true
 
           # Restart CN pods to apply the restored ConfigMaps/Secrets.
           # Pod restart wipes the ephemeral filesystem; state files from pass 1 are
