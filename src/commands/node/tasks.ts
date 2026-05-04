@@ -2388,11 +2388,7 @@ export class NodeCommandTasks {
           }
 
           if (!this.isDefaultFlagValue(flags.applicationProperties)) {
-            const sourcePath: string = PathEx.join(
-              stagingDirectory,
-              'templates',
-              constants.APPLICATION_PROPERTIES,
-            );
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', constants.APPLICATION_PROPERTIES);
             const destinationPath: string = ConsensusNodePathTemplates.DATA_CONFIG;
 
             await container.copyTo(sourcePath, destinationPath);

@@ -681,10 +681,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
           temporaryDirectory,
         );
 
-        const applicationPropertiesPath: string = PathEx.join(
-          temporaryDirectory,
-          constants.APPLICATION_PROPERTIES,
-        );
+        const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
         const applicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
         const updatedContent: string = applicationProperties.replaceAll(
           'contracts.chainId=298',
@@ -775,10 +772,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       // prepare temporary application.properties to utilize for argv
       await containerReference.copyFrom(applicationPropertiesFilePath, temporaryDirectory);
 
-      const testApplicationPropertiesPath: string = PathEx.join(
-        temporaryDirectory,
-        constants.APPLICATION_PROPERTIES,
-      );
+      const testApplicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
 
       const applicationProperties: string = fs.readFileSync(testApplicationPropertiesPath, 'utf8');
 

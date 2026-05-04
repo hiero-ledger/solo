@@ -229,10 +229,7 @@ describe('ProfileManager', (): void => {
       const sourceDirectory: string = PathEx.join(temporaryDirectory, 'source-files');
       fs.mkdirSync(sourceDirectory, {recursive: true});
 
-      const applicationPropertiesSourcePath: string = PathEx.join(
-        sourceDirectory,
-        constants.APPLICATION_PROPERTIES,
-      );
+      const applicationPropertiesSourcePath: string = PathEx.join(sourceDirectory, constants.APPLICATION_PROPERTIES);
       const bootstrapPropertiesSourcePath: string = PathEx.join(sourceDirectory, 'bootstrap.properties');
       // eslint-disable-next-line unicorn/prevent-abbreviations
       const applicationEnvSourcePath: string = PathEx.join(sourceDirectory, 'application.env');
