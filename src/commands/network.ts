@@ -413,7 +413,7 @@ export class NetworkCommand extends BaseCommand {
     const applicationPropertiesPath: string = PathEx.joinWithRealPath(
       config.cacheDir,
       'templates',
-      'application.properties',
+      constants.APPLICATION_PROPERTIES,
     );
 
     const jfrFilePath: string = config.javaFlightRecorderConfiguration;

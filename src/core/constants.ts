@@ -11,7 +11,7 @@ import 'dotenv/config';
 import {type NodeAlias} from '../types/aliases.js';
 
 export function getEnvironmentVariable(name: string): string | undefined {
-  if (process.env[name]) {
+  if (process.env[name] && process.env[name].trim() !== '') {
     console.log(`>> environment variable '${name}' exists, using its value`);
     return process.env[name];
   }
@@ -474,6 +474,7 @@ export const BLOCK_STREAM_STREAM_MODE: string = getEnvironmentVariable('BLOCK_ST
 export const BLOCK_STREAM_WRITER_MODE: string = getEnvironmentVariable('BLOCK_STREAM_WRITER_MODE') || 'FILE_AND_GRPC';
 
 export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
+export const APPLICATION_PROPERTIES: string = 'application.properties';
 export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';
 export const NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME: string = 'network-node-data-config-cm';
 export const enum StorageType {
