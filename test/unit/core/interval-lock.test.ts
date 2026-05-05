@@ -151,7 +151,7 @@ describe('IntervalLock', (): void => {
 
     let createCallCounter: number = 0;
     let cancelCallCounter: number = 0;
-    let cancelledScheduleId: number | null = null;
+    let cancelledScheduleId: number | undefined;
 
     const renewalService: LockRenewalService = {
       isScheduled: async (): Promise<boolean> => false,
@@ -176,7 +176,7 @@ describe('IntervalLock', (): void => {
       delete: async (): Promise<V1Status> => {
         throw new Error('not used');
       },
-      read: async (): Promise<Lease> => null,
+      read: async (): Promise<Lease> => undefined as unknown as Lease,
       renew: async (): Promise<Lease> => {
         throw new Error('not used');
       },
