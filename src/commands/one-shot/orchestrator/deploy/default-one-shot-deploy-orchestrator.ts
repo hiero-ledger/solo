@@ -229,9 +229,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
               config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationProperties)] =
                 this.concatConfigFiles(
-                  PathEx.join(defaultsDirectory, 'application.properties'),
-                  PathEx.join(overridesDirectory, 'application.properties'),
-                  PathEx.join(mergedDirectory, 'application.properties'),
+                  PathEx.join(defaultsDirectory, constants.APPLICATION_PROPERTIES),
+                  PathEx.join(overridesDirectory, constants.APPLICATION_PROPERTIES),
+                  PathEx.join(mergedDirectory, constants.APPLICATION_PROPERTIES),
                 );
 
               config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationEnv)] = PathEx.join(
