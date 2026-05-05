@@ -109,7 +109,6 @@ jobs:
           version: 'v1.27.3'
         id: install
 
-<<<<<<< HEAD
       - name: Resolve Input Versions
         id: get-version
         uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
@@ -134,9 +133,6 @@ jobs:
             echo "to_consensus_node_version=${TO_CN_INPUT}" >> $GITHUB_OUTPUT
 
       - name: Launch Network with Prior Release ${{ steps.get-version.outputs.from_solo_version }}
-=======
-      - name: Launch Network with Prior Release 0.71.0
->>>>>>> main
         timeout-minutes: 60
         run: |
           export PATH=~/.solo/bin:${PATH}
