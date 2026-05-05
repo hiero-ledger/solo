@@ -183,8 +183,10 @@ tasks:
       - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
 
       # Deploy consensus network
-      # application.properties overrides blockStream.streamMode=RECORDS so CN does not stream
-      # blocks to the block node, avoiding a hard dependency on it.
+      # application.properties sets blockStream.streamMode=BOTH so CN streams blocks to the
+      # block node from genesis, allowing it to acquire TSS params (tss-parameters.bin) from
+      # block 0. These are preserved during the block node data reset in restore-config so
+      # TSS verification passes for backed-up blocks after restore.
       - cmd: echo "🚀 Deploying consensus network..."
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs \
@@ -495,6 +497,19 @@ tasks:
             kubectl patch configmap relay-1-ws -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
               --type=merge --patch-file /tmp/relay-patch.json 2>/dev/null || true
           fi
+
+      # Reset block node data: clear genesis blocks accumulated during restore-network
+      # (CN streams from block 0 before backed-up state is applied), but preserve
+      # tss-parameters.bin so TSS verification passes for backed-up blocks.
+      # With BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000, block node accepts the first
+      # backed-up block via streamBeforeEmbOrElse after data is cleared.
+      - cmd: |
+          kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+            -- sh -c "rm -rf /opt/hiero/block-node/data/live/* \
+                             /opt/hiero/block-node/data/historic/* \
+                             /opt/hiero/block-node/verification/rootHashOfAllPreviousBlocks.bin 2>/dev/null || true"
+          kubectl delete pod block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
+          kubectl wait --for=condition=ready pod/block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s || true
 
       - cmd: echo "✅ Database and configuration restored"
 
