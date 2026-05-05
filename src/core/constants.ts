@@ -142,6 +142,13 @@ export const MINIO_OPERATOR_CHART_URL: string =
 export const MINIO_OPERATOR_CHART: string = 'operator';
 export const MINIO_OPERATOR_RELEASE_NAME: string = 'operator';
 
+export const METRICS_SERVER_CHART_URL: string =
+  getEnvironmentVariable('METRICS_SERVER_CHART_URL') ?? 'https://kubernetes-sigs.github.io/metrics-server/';
+export const METRICS_SERVER_CHART: string = 'metrics-server';
+export const METRICS_SERVER_RELEASE_NAME: string = 'metrics-server';
+export const METRICS_SERVER_NAMESPACE: NamespaceName = NamespaceName.of('kube-system');
+export const METRICS_SERVER_INSTALL_ARGS: string = '--set "args[0]=--kubelet-insecure-tls"';
+
 export const EXPLORER_CHART_URL: string =
   getEnvironmentVariable('EXPLORER_CHART_URL') ??
   'oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart';
@@ -208,6 +215,7 @@ export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(MIRROR_NODE_RELEASE_NAME, MIRROR_NODE_CHART_URL)
   .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL)
   .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
+  .set(METRICS_SERVER_RELEASE_NAME, METRICS_SERVER_CHART_URL)
   .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL);
 
 export const MIRROR_INGRESS_CLASS_NAME: string = 'mirror-ingress-class';
