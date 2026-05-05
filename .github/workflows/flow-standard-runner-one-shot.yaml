@@ -51,7 +51,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-13
+          - macos-latest
     steps:
       - name: Harden Runner
         if: ${{ runner.os == 'Linux' }}
@@ -83,6 +83,13 @@ jobs:
         with:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start Colima (macOS)
+        if: ${{ runner.os == 'macOS' }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          brew install colima docker
+          colima start --cpu 3 --memory 6 --disk 60
 
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
