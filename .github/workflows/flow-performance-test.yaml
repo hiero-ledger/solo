@@ -138,7 +138,13 @@ jobs:
           export PATH=~/.solo/bin:${PATH}
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
-          echo HEDERA_PLATFORM_EDGE_VERSION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.cn-edge-version || '' }}" >> .env
+          CN_EDGE_VERSION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.cn-edge-version || '' }}"
+          if [[ -n "${CN_EDGE_VERSION}" ]]; then
+            echo "Using consensus node edge version: ${CN_EDGE_VERSION}"
+            echo HEDERA_PLATFORM_EDGE_VERSION="${CN_EDGE_VERSION}" >> .env
+          else
+            echo "No consensus node edge version specified, using default from version.ts"
+          fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
