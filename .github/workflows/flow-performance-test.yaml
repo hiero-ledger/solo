@@ -18,6 +18,12 @@ name: "Performance Test Solo Deployment"
 
 on:
   workflow_dispatch:
+    inputs:
+      cn-edge-version:
+        description: "Consensus node version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: "v0.74.0-rc.1"
   workflow_call:
   pull_request:
     types:
@@ -132,6 +138,7 @@ jobs:
           export PATH=~/.solo/bin:${PATH}
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
+          echo HEDERA_PLATFORM_EDGE_VERSION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.cn-edge-version || '' }}" >> .env
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
