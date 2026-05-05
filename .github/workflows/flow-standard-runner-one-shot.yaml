@@ -89,7 +89,11 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           brew install colima docker
-          colima start --vm-type vz --cpu 3 --memory 6 --disk 60
+          colima start --vm-type vz --cpu 3 --memory 6 --disk 60 || {
+            echo "=== Colima ha.stderr.log ===" && cat ~/.colima/_lima/colima/ha.stderr.log 2>/dev/null || true
+            echo "=== Colima serial log ===" && cat ~/.colima/_lima/colima/serial*.log 2>/dev/null || true
+            exit 1
+          }
 
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
