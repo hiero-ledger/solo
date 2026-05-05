@@ -82,11 +82,13 @@ export class VfkitDependencyManager extends BaseDependencyManager {
   private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
     try {
       // Make a GET request to GitHub API using fetch
+      const githubToken: string | undefined = process.env.GITHUB_TOKEN;
       const response = await fetch(VFKIT_RELEASES_LIST_URL, {
-        method: 'GET', // Changed from HEAD to GET to retrieve the body
+        method: 'GET',
         headers: {
           'User-Agent': constants.SOLO_USER_AGENT_HEADER,
-          Accept: 'application/vnd.github.v3+json', // Explicitly request GitHub API v3 format
+          Accept: 'application/vnd.github.v3+json',
+          ...(githubToken ? {Authorization: `Bearer ${githubToken}`} : {}),
         },
       });
 
