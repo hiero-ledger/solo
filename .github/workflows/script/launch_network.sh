@@ -107,8 +107,8 @@ then
 fi
 
 echo "::group::Prerequisites"
-# npm install -g @hashgraph/solo@"${releaseTag}" --force
-# solo --version
+npm install -g @hashgraph/solo@"${releaseTag}" --force
+solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e
 export SOLO_NAMESPACE=solo-e2e
@@ -154,9 +154,6 @@ else
 fi
 echo "Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 
-npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
-solo --version
-
 solo init --dev
 
 
@@ -185,13 +182,7 @@ kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.dat
 cat remote-config-before.yaml
 
 # trigger migration
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs BEFORE migration trigger (namespace: ${SOLO_NAMESPACE}):"
-kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
-
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --dev
-
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs AFTER migration trigger:"
-kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
 
 cp ~/.solo/local-config.yaml ./local-config-after.yaml
 cat ./local-config-after.yaml
