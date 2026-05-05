@@ -47,6 +47,12 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
   public static readonly MULTIPLE_DESTROY: string = 'destroy';
   public static readonly FALCON_PREPARE: string = 'prepare';
 
+  public static readonly FALCON_PREPARE_COMMAND: string =
+    `${OneShotCommandDefinition.COMMAND_NAME} ${OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME} ${OneShotCommandDefinition.FALCON_PREPARE}` as const;
+
+  public static readonly FALCON_DEPLOY_COMMAND: string =
+    `${OneShotCommandDefinition.COMMAND_NAME} ${OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME} ${OneShotCommandDefinition.SINGLE_DEPLOY}` as const;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
       .addCommandGroup(
