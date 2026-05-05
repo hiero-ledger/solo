@@ -406,7 +406,7 @@ export class IntervalLock implements Lock {
         // Cancel the renewal schedule and return gracefully instead of propagating the error.
         container
           .resolve<SoloLogger>(InjectTokens.SoloLogger)
-          .debug(
+          .info(
             `lease '${this.leaseName}' renewal forbidden in namespace '${this.namespace}'; namespace may be terminating, stopping renewal`,
           );
         await this.renewalService.cancel(this.scheduleId);
