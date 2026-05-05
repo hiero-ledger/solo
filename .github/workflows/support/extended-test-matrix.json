@@ -8,6 +8,13 @@
       "timeout_minutes": 20
     },
     {
+      "name": "one-shot-timing",
+      "type": "workflow",
+      "path": ".github/workflows/flow-one-shot-timing.yaml",
+      "description": "One-shot timing performance test",
+      "timeout_minutes": 40
+    },
+    {
       "name": "reproduce-stale-config",
       "type": "script",
       "path": ".github/workflows/script/reproduce-stale-config.sh",

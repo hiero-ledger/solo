@@ -18,12 +18,6 @@ name: "Performance Test Solo Deployment"
 
 on:
   workflow_dispatch:
-    inputs:
-      consensus-node-version:
-        description: "Consensus node version (leave empty for version.ts default)"
-        type: string
-        required: false
-        default: ""
   workflow_call:
   pull_request:
     types:
@@ -138,7 +132,6 @@ jobs:
           export PATH=~/.solo/bin:${PATH}
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
-          echo CONSENSUS_NODE_VERSION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.consensus-node-version || '' }}" >> .env
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env
