@@ -141,7 +141,7 @@ jobs:
           CN_EDGE_VERSION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.cn-edge-version || '' }}"
           if [[ -n "${CN_EDGE_VERSION}" ]]; then
             echo "Using consensus node edge version: ${CN_EDGE_VERSION}"
-            echo HEDERA_PLATFORM_EDGE_VERSION="${CN_EDGE_VERSION}" >> .env
+            echo CONSENSUS_NODE_EDGE_VERSION="${CN_EDGE_VERSION}" >> .env
           else
             echo "No consensus node edge version specified, using default from version.ts"
           fi
