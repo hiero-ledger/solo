@@ -5,6 +5,7 @@ import {HelmExecutionException} from '../helm-execution-exception.js';
 import {HelmParserException} from '../helm-parser-exception.js';
 import {type Duration} from '../../../core/time/duration.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
+import {SensitiveDataRedactor} from '../../../core/util/sensitive-data-redactor.js';
 
 /**
  * Represents the execution of a helm command and is responsible for parsing the response.
@@ -36,6 +37,19 @@ export class HelmExecution {
   private exitCodeValue: number | null = null;
 
   /**
+   * Redacts sensitive arguments from a command array.
+   * Delegates to the shared {@link SensitiveDataRedactor} utility.
+   * @param command The command array to redact
+   * @returns A new redacted command array
+   */
+  public static redactCommand(command: string[]): string[] {
+    return SensitiveDataRedactor.redactArguments(command, {
+      flagsToRedactNextArgument: ['--password'],
+      setStyleFlags: ['--set', '--set-string', '--set-file'],
+    });
+  }
+
+  /**
    * Creates a new HelmExecution instance.
    * @param command The command array to execute
    * @param environmentVariables The environment variables to set
@@ -43,7 +57,9 @@ export class HelmExecution {
    */
   public constructor(command: string[], environmentVariables: Record<string, string>, logger?: SoloLogger) {
     this.logger = logger;
-    this.commandLine = command.join(' ');
+
+    const redactedCommand: string[] = HelmExecution.redactCommand(command);
+    this.commandLine = redactedCommand.join(' ');
 
     if (this.logger) {
       this.logger.info(`Executing helm command: ${this.commandLine}`);
