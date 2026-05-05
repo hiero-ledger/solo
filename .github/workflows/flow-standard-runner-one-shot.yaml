@@ -88,7 +88,7 @@ jobs:
         if: ${{ runner.os == 'macOS' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          brew install colima docker
+          brew install colima docker qemu
           colima start --vm-type qemu --cpu 3 --memory 6 --disk 60
 
       - name: Compile Project
