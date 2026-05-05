@@ -13,6 +13,75 @@ readonly KIND_CONFIG_RENDERER="${SCRIPT_PATH}/../../../.github/workflows/script/
 
 readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
 
+# Images to pre-load into each cluster to avoid pull failures on self-hosted runners
+# where the Docker daemon may be unavailable during action setup steps.
+readonly C1_IMAGES=(
+  busybox
+  busybox:1.36.1
+  busybox:stable-musl
+  curlimages/curl:8.9.1
+  docker.io/envoyproxy/envoy:v1.21.1
+  docker.io/haproxytech/haproxy-alpine:2.4.25
+  docker.io/kindest/kindnetd:v20241212-9f82dd49
+  docker.io/kindest/local-path-provisioner:v20241212-8ac705d0
+  docker.io/otel/opentelemetry-collector-contrib:0.72.0
+  ghcr.io/hashgraph/solo-cheetah/cheetah:0.4.5
+  ghcr.io/hashgraph/solo-containers/ubi8-s6-java25:0.44.0-alpha.1
+  ghcr.io/hiero-ledger/hiero-block-node:0.31.0
+  maven:3-eclipse-temurin-25-alpine
+  quay.io/frrouting/frr:10.4.1
+  quay.io/metallb/controller:v0.15.3
+  quay.io/metallb/speaker:v0.15.3
+  quay.io/minio/minio:RELEASE.2024-08-03T04-33-23Z
+  quay.io/minio/operator-sidecar:v7.0.1
+  quay.io/minio/operator:v7.1.1
+  registry.k8s.io/coredns/coredns:v1.11.3
+  registry.k8s.io/etcd:3.5.15-0
+  registry.k8s.io/kube-apiserver:v1.31.4
+  registry.k8s.io/kube-controller-manager:v1.31.4
+  registry.k8s.io/kube-proxy:v1.31.4
+  registry.k8s.io/kube-scheduler:v1.31.4
+  registry.k8s.io/metrics-server/metrics-server:v0.8.0
+  ubuntu:noble
+)
+
+readonly C2_IMAGES=(
+  busybox:1.36.1
+  busybox:stable-musl
+  curlimages/curl:8.9.1
+  docker.io/envoyproxy/envoy:v1.21.1
+  docker.io/haproxytech/haproxy-alpine:2.4.25
+  docker.io/kindest/kindnetd:v20241212-9f82dd49
+  docker.io/kindest/local-path-provisioner:v20241212-8ac705d0
+  docker.io/otel/opentelemetry-collector-contrib:0.72.0
+  ghcr.io/hashgraph/solo-cheetah/cheetah:0.4.5
+  ghcr.io/hashgraph/solo-containers/ubi8-s6-java25:0.44.0-alpha.1
+  quay.io/frrouting/frr:10.4.1
+  quay.io/jcmoraisjr/haproxy-ingress:v0.14.5
+  quay.io/metallb/controller:v0.15.3
+  quay.io/metallb/speaker:v0.15.3
+  quay.io/minio/minio:RELEASE.2024-08-03T04-33-23Z
+  quay.io/minio/operator-sidecar:v7.0.1
+  quay.io/minio/operator:v7.1.1
+  registry-1.docker.io/bitnami/postgresql:latest
+  registry.k8s.io/coredns/coredns:v1.11.3
+  registry.k8s.io/etcd:3.5.15-0
+  registry.k8s.io/kube-apiserver:v1.31.4
+  registry.k8s.io/kube-controller-manager:v1.31.4
+  registry.k8s.io/kube-proxy:v1.31.4
+  registry.k8s.io/kube-scheduler:v1.31.4
+  registry.k8s.io/metrics-server/metrics-server:v0.8.0
+  ubuntu:noble
+  gcr.io/mirrornode/hedera-mirror-importer:0.153.0
+  gcr.io/mirrornode/hedera-mirror-pinger:0.153.0
+  gcr.io/mirrornode/hedera-mirror-rest:0.153.0
+  gcr.io/mirrornode/hedera-mirror-web3:0.153.0
+  gcr.io/mirrornode/redis-sentinel:8.2.2
+  gcr.io/mirrornode/redis:8.2.2
+  ghcr.io/hiero-ledger/hiero-mirror-node/grpc:0.153.0
+  ghcr.io/hiero-ledger/hiero-mirror-node/rest-java:0.153.0
+)
+
 echo "SOLO_CHARTS_DIR: ${SOLO_CHARTS_DIR}"
 
 if [[ -n "${SOLO_TEST_CLUSTER}" ]]; then
@@ -114,8 +183,6 @@ fi
 run_with_timeout_diag 30 "docker info" docker info | grep -i cgroup || true
 
 # Setup Helm Repos
-helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/ --force-update
-helm repo add metallb https://metallb.github.io/metallb --force-update
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   cluster_kind_config="${SCRIPT_PATH}/kind-cluster-${i}.yaml"
@@ -128,13 +195,14 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
     kind create cluster -n "${SOLO_CLUSTER_NAME}-c${i}" --image "${KIND_IMAGE}" --config "${cluster_kind_config}" || exit 1
   fi
 
-  helm upgrade --install metrics-server metrics-server/metrics-server \
-    --namespace kube-system \
-    --set "args[0]=--kubelet-insecure-tls" \
-    --wait
-
-  # Wait for metrics server to be ready
-  kubectl wait --for=condition=available --timeout=300s deployment/metrics-server -n kube-system
+# Pre-load images into the kind node to avoid pull failures on self-hosted runners.
+  # kind load docker-image accepts multiple images in a single call.
+  echo "=== Pre-loading images into cluster ${SOLO_CLUSTER_NAME}-c${i} ==="
+  if [[ "${i}" -eq 1 ]]; then
+    kind load docker-image "${C1_IMAGES[@]}" -n "${SOLO_CLUSTER_NAME}-c${i}"
+  else
+    kind load docker-image "${C2_IMAGES[@]}" -n "${SOLO_CLUSTER_NAME}-c${i}"
+  fi
 
   # Install metallb only for multi-cluster unless explicitly skipped
   if [[ "${SOLO_CLUSTER_DUALITY}" -gt 1 && "${SOLO_SKIP_METALLB}" != "1" ]]; then
