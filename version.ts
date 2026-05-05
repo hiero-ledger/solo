@@ -31,6 +31,7 @@ export const NETWORK_LOAD_GENERATOR_CHART_VERSION: string =
   constants.getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_VERSION') || '0.8.0';
 
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
+export const METRICS_SERVER_VERSION: string = constants.getEnvironmentVariable('METRICS_SERVER_VERSION') || '';
 export const PROMETHEUS_STACK_VERSION: string =
   constants.getEnvironmentVariable('PROMETHEUS_STACK_VERSION') || '52.0.1';
 export const GRAFANA_AGENT_VERSION: string = constants.getEnvironmentVariable('GRAFANA_AGENT_VERSION') || '0.27.1';
