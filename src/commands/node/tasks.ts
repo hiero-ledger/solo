@@ -188,6 +188,7 @@ import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
+import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -3058,10 +3059,12 @@ export class NodeCommandTasks {
   private async getGossipFqdnRestricted(config: any, k8: K8): Promise<boolean> {
     // Prefer live cluster config when present, then staged file, then default true.
     try {
-      const configMap = await k8.configMaps().read(config.namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
-      const configMapProps: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
-      if (configMapProps) {
-        const parsedFromConfigMap: boolean | undefined = this.parseGossipFqdnRestricted(configMapProps);
+      const configMap: ConfigMap = await k8
+        .configMaps()
+        .read(config.namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+      const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
+      if (configMapProperties) {
+        const parsedFromConfigMap: boolean | undefined = this.parseGossipFqdnRestricted(configMapProperties);
         if (parsedFromConfigMap !== undefined) {
           return parsedFromConfigMap;
         }
@@ -3070,10 +3073,14 @@ export class NodeCommandTasks {
       // Fall through to staged application.properties
     }
 
-    const applicationPropertiesPath: string = PathEx.join(config.stagingDir, 'templates', constants.APPLICATION_PROPERTIES);
+    const applicationPropertiesPath: string = PathEx.join(
+      config.stagingDir,
+      'templates',
+      constants.APPLICATION_PROPERTIES,
+    );
     if (fs.existsSync(applicationPropertiesPath)) {
-      const appProps: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-      const parsedFromStaging: boolean | undefined = this.parseGossipFqdnRestricted(appProps);
+      const appProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      const parsedFromStaging: boolean | undefined = this.parseGossipFqdnRestricted(appProperties);
       if (parsedFromStaging !== undefined) {
         return parsedFromStaging;
       }

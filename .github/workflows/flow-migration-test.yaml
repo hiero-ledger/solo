@@ -176,9 +176,9 @@ jobs:
           trap - SIGTERM SIGINT
 
           if [[ "$RC" != "0" ]]; then
-              echo "Failed to launch network with release version ${{ steps.get-version.outputs.from_solo_version }}"
-              exit $RC
-            fi
+            echo "Failed to launch network with release version ${{ steps.get-version.outputs.from_solo_version }}"
+            exit $RC
+          fi
 
       - name: Collect Deployment Diagnostics Logs
         if: ${{ !cancelled() && always() }}
