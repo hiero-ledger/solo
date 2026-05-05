@@ -401,6 +401,18 @@ export class IntervalLock implements Lock {
         this.scheduleId = await this.renewalService.schedule(this);
       }
     } catch (error) {
+      if (this.scheduleId && IntervalLock.hasStatusCode(error, StatusCodes.FORBIDDEN)) {
+        // A 403 during renewal most likely means the namespace is being terminated.
+        // Cancel the renewal schedule and return gracefully instead of propagating the error.
+        container
+          .resolve<SoloLogger>(InjectTokens.SoloLogger)
+          .debug(
+            `lease '${this.leaseName}' renewal forbidden in namespace '${this.namespace}'; namespace may be terminating, stopping renewal`,
+          );
+        await this.renewalService.cancel(this.scheduleId);
+        this.scheduleId = null;
+        return;
+      }
       throw new LockAcquisitionError(
         `failed to create or renew the lease named '${this.leaseName}' in the ` + `'${this.namespace}' namespace`,
         error,
