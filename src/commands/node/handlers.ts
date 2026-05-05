@@ -42,7 +42,7 @@ import {type ConfigManager} from '../../core/config-manager.js';
 import {getSoloVersion} from '../../../version.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
 import {findDeploymentsFromRemoteConfig} from '../util/find-deployments-from-remote-config.js';
-import {getSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
+import {GetSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
 import {type RemoteDeploymentInfo} from '../util/remote-deployment-info.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 
@@ -681,7 +681,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
         this.tasks.getHelmChartValues(outputDirectory),
-        getSoloRemoteConfigMapTask(this.k8Factory, this.logger, outputDirectory),
+        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         this.tasks.reportActivePortForwards(),
@@ -803,7 +803,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
         this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
         ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
-        getSoloRemoteConfigMapTask(this.k8Factory, this.logger, outputDirectory),
+        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
