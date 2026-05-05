@@ -51,7 +51,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-13
     steps:
       - name: Harden Runner
         if: ${{ runner.os == 'Linux' }}
