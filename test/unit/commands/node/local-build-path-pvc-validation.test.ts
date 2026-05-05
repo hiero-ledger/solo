@@ -39,7 +39,7 @@ describe('NodeCommandTasks local build path PVC validation', (): void => {
     });
 
     await expect(invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-solo'])).to.be.rejectedWith(
-      'Redeploy the consensus network with --pvcs true',
+      'Redeploy the consensus network with `consensus network deploy --pvcs true`',
     );
   });
 
