@@ -66,6 +66,7 @@ import {invokeSoloCommand} from './command-helpers.js';
 import {NodeCommandTasks} from './node/tasks.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
+import {OneShotCommandDefinition} from './command-definitions/one-shot-command-definition.js';
 
 interface UpdateAccountConfig {
   accountId: string;
@@ -123,8 +124,8 @@ export class AccountCommand extends BaseCommand {
   };
 
   public static RESET_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.nodeAliasesUnparsed, flags.clusterRef],
+    required: [],
+    optional: [flags.deployment, flags.nodeAliasesUnparsed, flags.clusterRef],
   };
 
   public static CREATE_FLAGS_LIST: CommandFlags = {
@@ -530,7 +531,8 @@ export class AccountCommand extends BaseCommand {
             await this.remoteConfig.loadAndValidate(argv);
             this.configManager.update(argv);
 
-            const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            const deployment: DeploymentName =
+              this.configManager.getFlag<DeploymentName>(flags.deployment) ?? OneShotCommandDefinition.COMMAND_NAME;
             const namespace: NamespaceName = await resolveNamespaceFromDeployment(
               this.localConfig,
               this.configManager,
