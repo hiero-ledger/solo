@@ -705,12 +705,9 @@ export class ConsensusNodeTest extends BaseCommandTest {
           .default()
           .containers()
           .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
-        await container.copyFrom(
-          `${HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`,
-          temporaryDirectory,
-        );
+        await container.copyFrom(`${HEDERA_HAPI_PATH}/data/config/${'application.properties'}`, temporaryDirectory);
 
-        const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
+        const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
         const applicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
         const updatedContent: string = applicationProperties.replaceAll(
           'contracts.chainId=298',
@@ -728,7 +725,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
         const modifiedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
 
         await container.copyFrom(
-          `${HEDERA_HAPI_PATH}/data/upgrade/current/${constants.APPLICATION_PROPERTIES}`,
+          `${HEDERA_HAPI_PATH}/data/upgrade/current/${'application.properties'}`,
           temporaryDirectory,
         );
         const upgradedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
@@ -796,12 +793,12 @@ export class ConsensusNodeTest extends BaseCommandTest {
         .containers()
         .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
 
-      const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`;
+      const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${'application.properties'}`;
 
       // prepare temporary application.properties to utilize for argv
       await containerReference.copyFrom(applicationPropertiesFilePath, temporaryDirectory);
 
-      const testApplicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
+      const testApplicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
 
       const applicationProperties: string = fs.readFileSync(testApplicationPropertiesPath, 'utf8');
 

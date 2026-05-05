@@ -4,7 +4,6 @@ import {type NamespaceName} from '../../src/types/namespace/namespace-name.js';
 import {type ClusterReferenceName, type ClusterReferences, type DeploymentName} from '../../src/types/index.js';
 import {getTestCacheDirectory, getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../test-utility.js';
 import {type SoloLogger} from '../../src/core/logging/solo-logger.js';
-import * as constants from '../../src/core/constants.js';
 import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js';
 import {container} from 'tsyringe-neo';
 import {Suite} from 'mocha';
@@ -44,7 +43,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly collectDiagnosticLogs: boolean = true,
     public readonly apiPermissionProperties: string = 'api-permission.properties',
     public readonly applicationEnvironment: string = 'application.env',
-    public readonly applicationProperties: string = constants.APPLICATION_PROPERTIES,
+    public readonly applicationProperties: string = 'application.properties',
     public readonly bootstrapProperties: string = 'bootstrap.properties',
     public readonly logXml: string = 'log4j2.xml',
     public readonly settingsTxt: string = 'settings.txt',

@@ -851,7 +851,7 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
     `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
   );
 
-  const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`;
+  const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${'application.properties'}`;
 
   const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
 
@@ -875,7 +875,8 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
   }
 
   await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
-    [constants.APPLICATION_PROPERTIES]: lines.join('\n'),
+    ['applicationProperties']: lines.join('\n'),
+    ['application.properties']: lines.join('\n'),
   });
 
   const configName: string = `network-${nodeAlias}-data-config-cm`;
@@ -887,10 +888,7 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 
   logger.debug(`Copied block-nodes configuration to consensus node ${consensusNode.name}`);
 
-  const updatedApplicationPropertiesFilePath: string = PathEx.join(
-    constants.SOLO_CACHE_DIR,
-    constants.APPLICATION_PROPERTIES,
-  );
+  const updatedApplicationPropertiesFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, 'application.properties');
 
   fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
   await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);

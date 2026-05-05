@@ -40,7 +40,7 @@ const dualClusterValuesFile: string = PathEx.joinWithRealPath(
 const configFiles: Record<string, string> = {
   'api-permission.properties': 'api-permission.properties.txt',
   'application.env': 'application.env.txt',
-  [constants.APPLICATION_PROPERTIES]: `${constants.APPLICATION_PROPERTIES}.txt`,
+  ['application.properties']: `${'application.properties'}.txt`,
   'bootstrap.properties': 'bootstrap.properties.txt',
   'log4j2.xml': 'log4j2.xml.txt',
   'settings.txt': 'settings.txt.txt',
@@ -59,7 +59,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withRealm(2)
   .withApiPermissionProperties(configFiles['api-permission.properties'])
   .withApplicationEnvironment(configFiles['application.env'])
-  .withApplicationProperties(configFiles[constants.APPLICATION_PROPERTIES])
+  .withApplicationProperties(configFiles['application.properties'])
   .withBootstrapProperties(configFiles['bootstrap.properties'])
   .withLog4j2Xml(configFiles['log4j2.xml'])
   .withSettingsTxt(configFiles['settings.txt'])
