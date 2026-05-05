@@ -1263,7 +1263,7 @@ export class Flags {
     name: 'application-properties',
     definition: {
       describe: 'application.properties file for node',
-      defaultValue: PathEx.join('templates', 'application.properties'),
+      defaultValue: PathEx.join('templates', constants.APPLICATION_PROPERTIES),
       type: 'string',
     },
     prompt: undefined,
