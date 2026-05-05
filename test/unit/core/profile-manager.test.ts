@@ -21,6 +21,7 @@ import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type AnyObject, type NodeAliases} from '../../../src/types/aliases.js';
+import * as constants from '../../../src/core/constants.js';
 
 describe('ProfileManager', (): void => {
   let temporaryDirectory: string, configManager: ConfigManager, profileManager: ProfileManager, cacheDirectory: string;
@@ -137,7 +138,11 @@ describe('ProfileManager', (): void => {
         fs.cpSync(sourceDirectory, destinationDirectory, {recursive: true});
       }
 
-      const applicationPropertiesFile: string = PathEx.join(cacheDirectory, 'templates', 'application.properties');
+      const applicationPropertiesFile: string = PathEx.join(
+        cacheDirectory,
+        'templates',
+        constants.APPLICATION_PROPERTIES,
+      );
       const valuesFileMapping: Record<string, string> = await profileManager.prepareValuesForSoloChart(
         consensusNodes,
         deploymentName,
@@ -161,7 +166,11 @@ describe('ProfileManager', (): void => {
       fs.writeFileSync(file, fileContents);
       configManager.setFlag(flags.applicationEnv, file);
       const destinationFile: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
-      const applicationPropertiesFile: string = PathEx.join(stagingDirectory, 'templates', 'application.properties');
+      const applicationPropertiesFile: string = PathEx.join(
+        stagingDirectory,
+        'templates',
+        constants.APPLICATION_PROPERTIES,
+      );
       fs.cpSync(file, destinationFile, {force: true});
       const cachedValuesFileMapping: Record<string, string> = await profileManager.prepareValuesForSoloChart(
         consensusNodes,
@@ -183,7 +192,7 @@ describe('ProfileManager', (): void => {
 
   describe('chainId updates', (): void => {
     it('should update contracts.chainId in application.properties', async (): Promise<void> => {
-      const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
+      const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
       fs.writeFileSync(
         applicationPropertiesPath,
         ['hedera.realm=0', 'contracts.chainId=295', 'hedera.shard=0'].join('\n') + '\n',
@@ -220,7 +229,7 @@ describe('ProfileManager', (): void => {
       const sourceDirectory: string = PathEx.join(temporaryDirectory, 'source-files');
       fs.mkdirSync(sourceDirectory, {recursive: true});
 
-      const applicationPropertiesSourcePath: string = PathEx.join(sourceDirectory, 'application.properties');
+      const applicationPropertiesSourcePath: string = PathEx.join(sourceDirectory, constants.APPLICATION_PROPERTIES);
       const bootstrapPropertiesSourcePath: string = PathEx.join(sourceDirectory, 'bootstrap.properties');
       // eslint-disable-next-line unicorn/prevent-abbreviations
       const applicationEnvSourcePath: string = PathEx.join(sourceDirectory, 'application.env');
@@ -283,7 +292,7 @@ describe('ProfileManager', (): void => {
       const stagedApplicationPropertiesPath: string = PathEx.join(
         stagingDirectory,
         'templates',
-        'application.properties',
+        constants.APPLICATION_PROPERTIES,
       );
       const stagedBootstrapPropertiesPath: string = PathEx.join(stagingDirectory, 'templates', 'bootstrap.properties');
 
