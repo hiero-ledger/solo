@@ -89,7 +89,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           brew install colima docker
-          colima start --vm-type vz --vz-rosetta false --cpu 3 --memory 6 --disk 60
+          colima start --vm-type vz --cpu 3 --memory 6 --disk 60
 
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
