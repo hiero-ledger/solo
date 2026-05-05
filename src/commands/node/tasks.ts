@@ -256,7 +256,7 @@ export class NodeCommandTasks {
 
     // bump field hedera.config.version or use the version passed in
     const fileBytes: Buffer = fs.readFileSync(
-      PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'),
+      PathEx.joinWithRealPath(stagingDirectory, 'templates', constants.APPLICATION_PROPERTIES),
     );
     const lines: string[] = fileBytes.toString().split('\n');
     const newLines: string[] = [];
@@ -271,7 +271,7 @@ export class NodeCommandTasks {
         newLines.push(line);
       }
     }
-    fs.writeFileSync(PathEx.join(upgradeConfigDirectory, 'application.properties'), newLines.join('\n'));
+    fs.writeFileSync(PathEx.join(upgradeConfigDirectory, constants.APPLICATION_PROPERTIES), newLines.join('\n'));
 
     return await zipper.zip(
       PathEx.join(stagingDirectory, 'mock-upgrade'),
@@ -850,7 +850,10 @@ export class NodeCommandTasks {
             .getK8(context)
             .containers()
             .readByRef(containerReference)
-            .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
+            .copyFrom(
+              `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`,
+              templatesDirectory,
+            );
 
           context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
@@ -1103,12 +1106,12 @@ export class NodeCommandTasks {
           await k8Container.copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${keysDir}`);
         }
 
-        const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`;
+        const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/${constants.APPLICATION_PROPERTIES}`;
 
         await ((await k8Container.hasFile(applicationPropertiesSourceDirectory))
           ? k8Container.copyFrom(applicationPropertiesSourceDirectory, `${stagingDir}/templates`)
           : k8Container.copyFrom(
-              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
+              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/${constants.APPLICATION_PROPERTIES}`,
               `${stagingDir}/templates`,
             ));
       },
@@ -1809,7 +1812,7 @@ export class NodeCommandTasks {
               const applicationPropertiesPath: string = PathEx.joinWithRealPath(
                 config.cacheDir,
                 'templates',
-                'application.properties',
+                constants.APPLICATION_PROPERTIES,
               );
 
               const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
@@ -2349,7 +2352,7 @@ export class NodeCommandTasks {
         if (!this.isDefaultFlagValue(flags.applicationProperties)) {
           this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.applicationProperties',
-            'application.properties',
+            constants.APPLICATION_PROPERTIES,
             stagingDirectory,
             yamlRoot,
           );
@@ -2403,7 +2406,7 @@ export class NodeCommandTasks {
           }
 
           if (!this.isDefaultFlagValue(flags.applicationProperties)) {
-            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'application.properties');
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', constants.APPLICATION_PROPERTIES);
             const destinationPath: string = ConsensusNodePathTemplates.DATA_CONFIG;
 
             await container.copyTo(sourcePath, destinationPath);
@@ -3382,7 +3385,7 @@ export class NodeCommandTasks {
           ? PathEx.joinWithRealPath(config.stagingDir, 'config.txt')
           : undefined;
         const profileValuesFile: string = await this.profileManager.prepareValuesForNodeTransaction(
-          PathEx.joinWithRealPath(config.stagingDir, 'templates', 'application.properties'),
+          PathEx.joinWithRealPath(config.stagingDir, 'templates', constants.APPLICATION_PROPERTIES),
           configTxtPath,
         );
 
