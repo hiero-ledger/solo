@@ -140,7 +140,7 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   if [[ "${SOLO_CLUSTER_DUALITY}" -gt 1 && "${SOLO_SKIP_METALLB}" != "1" ]]; then
     helm upgrade --install metallb metallb/metallb \
       --namespace metallb-system --create-namespace --atomic --wait \
-      --set speaker.frr.enabled=wtrue
+      --set speaker.frr.enabled=true
 
     kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"
   else
