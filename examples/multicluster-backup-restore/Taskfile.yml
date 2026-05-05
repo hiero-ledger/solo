@@ -179,6 +179,9 @@ tasks:
       - cmd: echo "🔑 Generating consensus keys..."
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
+      - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
+
       # Deploy consensus network
       # application.properties overrides blockStream.streamMode=RECORDS so CN does not stream
       # blocks to the block node, avoiding a hard dependency on it.
@@ -195,9 +198,6 @@ tasks:
       # Setup nodes
       - cmd: echo "⚙️  Setting up consensus nodes..."
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
-
-      - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
 
       # Start nodes
       - cmd: echo "▶️  Starting consensus nodes..."
@@ -217,7 +217,6 @@ tasks:
       - cmd: |
           $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --use-external-database \
             --enable-ingress --external-database-host {{ .POSTGRES_HOST_FQDN }} \
-            --skip-block-node-integration \
             --external-database-owner-username {{ .POSTGRES_USERNAME }} --external-database-owner-password {{ .POSTGRES_PASSWORD }} \
             --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
             --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
@@ -308,7 +307,13 @@ tasks:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
       - task: deploy-external-database
-      - cmd: $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file {{ .TASKFILE_DIR }}/command.yaml --shard {{ .SHARD }} --realm {{ .REALM }} || true
+      - cmd: |
+          # Rewrite command.yaml with absolute path for block-node-values.yaml so that
+          # PathEx.resolve in solo finds the file regardless of solo's working directory
+          # (repo root for `npm run solo-test`, example dir for `npx @hashgraph/solo`).
+          sed "s|block-node-values.yaml|{{ .TASKFILE_DIR }}/block-node-values.yaml|g" \
+            {{ .TASKFILE_DIR }}/command.yaml > /tmp/solo-restore-options.yaml
+          $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file /tmp/solo-restore-options.yaml --shard {{ .SHARD }} --realm {{ .REALM }} || true
       # Fail fast if desired static IP is currently owned by another service.
       - task: check-lb-ip-conflicts
       # Enforce static node service LB IP mapping after services are created.

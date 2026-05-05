@@ -18,3 +18,12 @@ mirror:
   - readonlyuser
   - --external-database-read-password
   - XXXXXXXX
+block:
+  - --deployment
+  - external-database-test-deployment
+  - --cluster-ref
+  - solo-e2e-c2
+  - --dev
+  - --quiet-mode
+  - --values-file
+  - block-node-values.yaml

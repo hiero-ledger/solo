@@ -776,6 +776,7 @@ export class BackupRestoreCommand extends BaseCommand {
           );
         },
       },
+      ...this.buildBlockNodeTasks(),
       // Consensus network deploy task
       {
         title: 'Deploy consensus network',
@@ -854,7 +855,6 @@ export class BackupRestoreCommand extends BaseCommand {
         },
       },
       // Block nodes deploy tasks (one per block node)
-      ...this.buildBlockNodeTasks(),
       ...this.buildMirrorNodeTasks(),
       ...this.buildRelayNodeTasks(),
       ...this.buildExplorerTasks(),
@@ -983,10 +983,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       }
                     }
                     // Build address book from local keys — CN is not running during restore-network
-                    argv.push(
-                      CommandHelpers.optionFromFlag(flags.localAddressBook),
-                      CommandHelpers.optionFromFlag(flags.skipBlockNodeIntegration),
-                    );
+                    argv.push(CommandHelpers.optionFromFlag(flags.localAddressBook));
                     return CommandHelpers.argvPushGlobalFlags(argv);
                   },
                   this.taskList,
