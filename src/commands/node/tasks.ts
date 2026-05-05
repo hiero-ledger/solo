@@ -1962,7 +1962,7 @@ export class NodeCommandTasks {
               podReference,
               constants.GRPC_PORT, // Pod port
               constants.GRPC_LOCAL_PORT + nodeId, // Local port offset by node id (node1=base, node2=base+1, ...)
-              this.k8Factory.getK8(config.clusterContext),
+              this.k8Factory.getK8(context),
               this.logger,
               ComponentTypes.HaProxy,
               'Consensus Node gRPC',
