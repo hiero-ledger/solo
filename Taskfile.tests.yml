@@ -12,7 +12,7 @@ tasks:
   test-setup:
     desc: "Setup for E2E tests that require a single cluster environment"
     cmds:
-      - SOLO_CLUSTER_DUALITY=1 sh {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
+      - SOLO_CLUSTER_DUALITY=1 CONSENSUS_NODE_EDGE_VERSION=${CONSENSUS_NODE_EDGE_VERSION} sh {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
 
   dual-cluster-setup:
     desc: "Setup for E2E tests that require a dual cluster environment"
@@ -164,6 +164,8 @@ tasks:
 
   test-e2e-performance:
     desc: "Runs E2E Performance tests with coverage and generates reports in coverage/e2e-performance"
+    env:
+      CONSENSUS_NODE_EDGE_VERSION: ${CONSENSUS_NODE_EDGE_VERSION}
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Performance Test\"
         {{ .reporter_prefix }}='coverage/e2e-performance'
