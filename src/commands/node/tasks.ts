@@ -2999,6 +2999,7 @@ export class NodeCommandTasks {
       title: 'Prepare gossip endpoints',
       task: async (context_): Promise<void> => {
         const config: any = context_.config;
+
         let endpoints: string[] = [];
         if (config.gossipEndpoints) {
           endpoints = splitFlagInput(config.gossipEndpoints);
@@ -3009,6 +3010,7 @@ export class NodeCommandTasks {
           );
 
           const k8: K8 = this.k8Factory.getK8(context);
+          const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(config, k8);
 
           const externalEndpointAddress: Address = await Address.getExternalAddress(
             new ConsensusNode(
@@ -3025,6 +3027,7 @@ export class NodeCommandTasks {
             ),
             k8,
             +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+            gossipFqdnRestricted,
           );
 
           endpoints = [
@@ -3040,6 +3043,43 @@ export class NodeCommandTasks {
         );
       },
     };
+  }
+
+  private parseGossipFqdnRestricted(applicationPropertiesText: string): boolean | undefined {
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
+    );
+    if (match?.[1]) {
+      return match[1].toLowerCase() !== 'false';
+    }
+    return undefined;
+  }
+
+  private async getGossipFqdnRestricted(config: any, k8: K8): Promise<boolean> {
+    // Prefer live cluster config when present, then staged file, then default true.
+    try {
+      const configMap = await k8.configMaps().read(config.namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+      const configMapProps: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
+      if (configMapProps) {
+        const parsedFromConfigMap: boolean | undefined = this.parseGossipFqdnRestricted(configMapProps);
+        if (parsedFromConfigMap !== undefined) {
+          return parsedFromConfigMap;
+        }
+      }
+    } catch {
+      // Fall through to staged application.properties
+    }
+
+    const applicationPropertiesPath: string = PathEx.join(config.stagingDir, 'templates', constants.APPLICATION_PROPERTIES);
+    if (fs.existsSync(applicationPropertiesPath)) {
+      const appProps: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      const parsedFromStaging: boolean | undefined = this.parseGossipFqdnRestricted(appProps);
+      if (parsedFromStaging !== undefined) {
+        return parsedFromStaging;
+      }
+    }
+
+    return true;
   }
 
   public refreshNodeList(): SoloListrTask<NodeDestroyContext> {

@@ -36,9 +36,66 @@ on_exit() {
 
 trap on_exit EXIT
 
-releaseTag="${1}"
-if [[ -z "${releaseTag}" ]]; then
-  echo "Usage: $0 <releaseTag>"
+# Function to save current service ClusterIPs
+save_cluster_ips() {
+  local namespace="${1}"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Saving current ClusterIPs..."
+  NODE1_IP=$(kubectl get svc -n "${namespace}" network-node1-svc -o jsonpath='{.spec.clusterIP}')
+  NODE2_IP=$(kubectl get svc -n "${namespace}" network-node2-svc -o jsonpath='{.spec.clusterIP}')
+  echo "  node1: ${NODE1_IP}"
+  echo "  node2: ${NODE2_IP}"
+}
+
+# Function to restore service ClusterIPs using saved values
+restore_cluster_ips() {
+  local namespace="${1}"
+  local saved_node1_ip="${2}"
+  local saved_node2_ip="${3}"
+
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Checking if ClusterIPs changed..."
+  local current_node1_ip=$(kubectl get svc -n "${namespace}" network-node1-svc -o jsonpath='{.spec.clusterIP}')
+  local current_node2_ip=$(kubectl get svc -n "${namespace}" network-node2-svc -o jsonpath='{.spec.clusterIP}')
+
+  if [[ "${saved_node1_ip}" != "${current_node1_ip}" ]] || [[ "${saved_node2_ip}" != "${current_node2_ip}" ]]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - ClusterIPs changed! Restoring old IPs..."
+    echo "  node1: ${current_node1_ip} -> ${saved_node1_ip}"
+    echo "  node2: ${current_node2_ip} -> ${saved_node2_ip}"
+
+    # Save service definitions before deletion
+    kubectl get svc -n "${namespace}" network-node1-svc -o yaml > /tmp/node1-svc-original.yaml
+    kubectl get svc -n "${namespace}" network-node2-svc -o yaml > /tmp/node2-svc-original.yaml
+
+    # Modify YAML to use preserved ClusterIPs and remove immutable fields
+    yq eval ".spec.clusterIP = \"${saved_node1_ip}\" | .spec.clusterIPs[0] = \"${saved_node1_ip}\" | del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .status)" \
+      /tmp/node1-svc-original.yaml > /tmp/node1-svc-patched.yaml
+
+    yq eval ".spec.clusterIP = \"${saved_node2_ip}\" | .spec.clusterIPs[0] = \"${saved_node2_ip}\" | del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .status)" \
+      /tmp/node2-svc-original.yaml > /tmp/node2-svc-patched.yaml
+
+    # Delete services and recreate with preserved IPs
+    kubectl delete svc -n "${namespace}" network-node1-svc network-node2-svc
+    kubectl apply -f /tmp/node1-svc-patched.yaml
+    kubectl apply -f /tmp/node2-svc-patched.yaml
+
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - Verified restored IPs:"
+    kubectl get svc -n "${namespace}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP
+  else
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - ClusterIPs unchanged, no restoration needed"
+  fi
+}
+
+# Function to display service IPs
+show_service_ips() {
+  local namespace="${1}"
+  local label="${2}"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs ${label}:"
+  kubectl get svc -n "${namespace}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
+}
+
+fromSoloVersion="${1}"
+toConsensusNodeVersion="${2}"
+if [[ -z "${fromSoloVersion}" ]]; then
+  echo "Usage: $0 <fromSoloVersion> [toConsensusNodeVersion]"
   exit 1
 fi
 
@@ -50,8 +107,8 @@ then
 fi
 
 echo "::group::Prerequisites"
-npm install -g @hashgraph/solo@"${releaseTag}" --force
-solo --version
+# npm install -g @hashgraph/solo@"${releaseTag}" --force
+# solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e
 export SOLO_NAMESPACE=solo-e2e
@@ -88,10 +145,18 @@ fi
 rm -rf ~/.solo/*
 echo "::endgroup::"
 
-echo "::group::Launch solo using released Solo version ${releaseTag}"
+echo "::group::Launch solo using released Solo version ${fromSoloVersion}"
 
-export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+if [[ -z "${toConsensusNodeVersion}" ]]; then
+  export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+else
+  export CONSENSUS_NODE_VERSION="${toConsensusNodeVersion}"
+fi
 echo "Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
+
+npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
+solo --version
+
 solo init --dev
 
 
@@ -120,7 +185,13 @@ kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.dat
 cat remote-config-before.yaml
 
 # trigger migration
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs BEFORE migration trigger (namespace: ${SOLO_NAMESPACE}):"
+kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
+
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --dev
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs AFTER migration trigger:"
+kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
 
 cp ~/.solo/local-config.yaml ./local-config-after.yaml
 cat ./local-config-after.yaml
@@ -142,16 +213,28 @@ echo "::endgroup::"
 
 echo "::group::Upgrade Solo"
 # need to add ingress controller helm repo
-npm run solo -- init --dev
+SOLO_UPGRADE_CMD_PREFIX=(npm run solo --)
+echo "Upgrading with workspace Solo CLI"
+
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" init --dev
 # Do not force legacy release-name override when upgrading with current workspace Solo.
 # The old released Solo command executed above may have installed either naming scheme.
 unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
-npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 
 # using new solo to redeploy solo deployment chart to new version
-npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
-npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
+save_cluster_ips "${SOLO_NAMESPACE}"
+
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+
+show_service_ips "${SOLO_NAMESPACE}" "AFTER network deploy"
+restore_cluster_ips "${SOLO_NAMESPACE}" "${NODE1_IP}" "${NODE2_IP}"
+
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+
+show_service_ips "${SOLO_NAMESPACE}" "AFTER node setup"
 
 # force mirror component restarts to pick up secret/config changes due to solo chart upgrade.
 # deployment naming varies by chart version (e.g. mirror-* vs mirror-1-*), so discover dynamically.
@@ -179,22 +262,42 @@ fi
 sleep 40;
 
 # restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart
-npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev || result=$?
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs BEFORE node start:"
+kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Checking config.txt in pods before start:"
+for node in node1 node2; do
+  echo "=== network-${node}-0 config.txt ==="
+  kubectl exec -n "${SOLO_NAMESPACE}" network-${node}-0 -c root-container -- grep "^address" /opt/hgcapp/services-hedera/HapiApp2.0/.archive/config.txt 2>/dev/null || echo "config.txt not found"
+done
+
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev || result=$?
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs AFTER node start:"
+kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Checking config.txt AFTER start (wait 10s for file creation):"
+sleep 10
+for node in node1 node2; do
+  echo "=== network-${node}-0 config.txt after start ==="
+  kubectl exec -n "${SOLO_NAMESPACE}" network-${node}-0 -c root-container -- grep "^address" /opt/hgcapp/services-hedera/HapiApp2.0/.archive/config.txt 2>/dev/null || echo "config.txt not found or pod not ready"
+done
+
 if [[ $result -ne 0 ]]; then
   echo "Starting consensus nodes failed with exit code $result"
-  npm run solo -- deployment diagnostics logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
+  "${SOLO_UPGRADE_CMD_PREFIX[@]}" deployment diagnostics logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
   exit $result
 fi
 
-npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
 # force restart relay pod to pick up changes of configMap
 kubectl rollout restart deployment/relay-1 -n solo-e2e
 kubectl rollout restart deployment/relay-1-ws -n solo-e2e
 
 # redeploy mirror node to upgrade to a newer version
-npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
-npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 
 # wait a few seconds for the pods to be ready before running transactions against them
@@ -208,21 +311,18 @@ echo "Mirror Ingress Controller Pod Name: ${mirrorPodName}"
 kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${mirrorPodName}" 38081:80 >/tmp/solo-migration-mirror-port-forward.log 2>&1 &
 
 # Test transaction can still be sent and processed
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
-# Upgrade to latest version
-# HEDERA_PLATFORM_VERSION is no longer a hardcoded value in version.ts,
-export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
-npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
-npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
 # kill existing port-forward process due to restart of relay pods
 curl http://127.0.0.1:37546 || true
@@ -241,9 +341,9 @@ ps -ef |grep port-forward
 
 # Test deployment config list command
 echo "Testing deployment config list without cluster-ref..."
-npm run solo -- deployment config list --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" deployment config list --dev
 echo "Testing deployment config list with cluster-ref..."
-npm run solo -- deployment config list --cluster-ref ${SOLO_CLUSTER_NAME} --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" deployment config list --cluster-ref ${SOLO_CLUSTER_NAME} --dev
 
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
@@ -251,9 +351,9 @@ echo "::endgroup::"
 
 echo "::group::Cleanup"
 # uninstall components using current Solo version
-npm run solo -- explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
-npm run solo -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
-npm run solo -- mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
-npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
-npm run solo -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
 echo "::endgroup::"
