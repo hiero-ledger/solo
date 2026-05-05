@@ -26,6 +26,10 @@ import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-ref
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
+import {type FacadeMap} from '../../business/runtime-state/collection/facade-map.js';
+import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
+import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
+import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type OneShotState} from '../../core/one-shot-state.js';
@@ -152,10 +156,10 @@ export class ClusterCommandTasks {
       task: async (): Promise<void> => {
         await this.localConfig.load();
 
-        const clusterReferences = this.localConfig.configuration.clusterRefs;
+        const clusterReferences: FacadeMap<string, StringFacade, string> = this.localConfig.configuration.clusterRefs;
         const clusterList: string[] = [];
         for (const [clusterName, clusterContext] of clusterReferences) {
-          clusterList.push(`${clusterName}:${clusterContext}`);
+          clusterList.push(`${clusterName}:${clusterContext.toString()}`);
         }
         this.logger.showList('Cluster references and the respective contexts', clusterList);
       },
@@ -165,10 +169,11 @@ export class ClusterCommandTasks {
   public getClusterInfo(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Get cluster info',
-      task: async (context_, task): Promise<void> => {
+      task: async (context_, task) => {
         const clusterReference: string = context_.config.clusterRef;
-        const clusterReferences = this.localConfig.configuration.clusterRefs;
-        const deployments = this.localConfig.configuration.deployments;
+        const clusterReferences: FacadeMap<string, StringFacade, string> = this.localConfig.configuration.clusterRefs;
+        const deployments: MutableFacadeArray<Deployment, DeploymentSchema> =
+          this.localConfig.configuration.deployments;
         const context: StringFacade | undefined = clusterReferences.get(clusterReference);
 
         if (!context) {

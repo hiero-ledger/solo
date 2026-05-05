@@ -49,7 +49,6 @@ import {
 } from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
 import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
-import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {execSync} from 'node:child_process';
@@ -403,6 +402,28 @@ export class NodeCommandTasks {
 
       if (!fs.existsSync(localDataLibraryBuildPath)) {
         throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
+      }
+
+      // The local build path points to the `data` directory itself (containing apps/ and lib/).
+      // Validate that it contains jar files in each subdirectory to catch incorrect paths early.
+      const applicationsSubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'apps');
+      const librarySubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'lib');
+      if (!fs.existsSync(applicationsSubDirectory) || !fs.existsSync(librarySubDirectory)) {
+        throw new SoloError(
+          `local build path '${localDataLibraryBuildPath}' must contain 'apps' and 'lib' subdirectories`,
+        );
+      }
+      const applicationsJarFiles: string[] = fs
+        .readdirSync(applicationsSubDirectory)
+        .filter((file: string): boolean => file.endsWith('.jar'));
+      if (applicationsJarFiles.length === 0) {
+        throw new SoloError(`No jar files found in '${applicationsSubDirectory}'; please check your local build path`);
+      }
+      const libraryJarFiles: string[] = fs
+        .readdirSync(librarySubDirectory)
+        .filter((file: string): boolean => file.endsWith('.jar'));
+      if (libraryJarFiles.length === 0) {
+        throw new SoloError(`No jar files found in '${librarySubDirectory}'; please check your local build path`);
       }
 
       const k8: K8 = this.k8Factory.getK8(context);
@@ -1278,15 +1299,12 @@ export class NodeCommandTasks {
 
           // Determine the state file to use
           let zipFile: string;
-          if (
-            stateFileDirectory &&
-            fs.existsSync(stateFileDirectory) &&
-            fs.statSync(stateFileDirectory).isDirectory()
-          ) {
+          const stateInputPath: string = stateFileDirectory || config.stateFile;
+          if (stateInputPath && fs.existsSync(stateInputPath) && fs.statSync(stateInputPath).isDirectory()) {
             // It's a directory - find the state file for this specific pod
             const podName: any = podReference.name.name;
             const statesDirectory: string = PathEx.join(
-              stateFileDirectory,
+              stateInputPath,
               'states',
               clusterReference,
               config.namespace.name,
@@ -1310,7 +1328,7 @@ export class NodeCommandTasks {
             this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
           } else {
             // It's a single file or use default from config
-            zipFile = stateFileDirectory || config.stateFile;
+            zipFile = stateInputPath;
           }
 
           this.logger.debug(`Uploading state files to pod ${podReference.name}`);
@@ -1323,7 +1341,7 @@ export class NodeCommandTasks {
           await container.execContainer([
             'unzip',
             '-o',
-            `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
+            `${constants.HEDERA_HAPI_PATH}/data/${PathEx.basename(zipFile)}`,
             '-d',
             `${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
@@ -1341,7 +1359,7 @@ export class NodeCommandTasks {
 
           // Clean up old rounds - keep only the latest/biggest round
           this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
-          const cleanupScriptName: string = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
+          const cleanupScriptName: string = PathEx.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
           const cleanupScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
@@ -1353,7 +1371,7 @@ export class NodeCommandTasks {
             this.logger.info(
               `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
             );
-            const renameScriptName: string = path.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
+            const renameScriptName: string = PathEx.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
             const renameScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
             await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
@@ -2304,7 +2322,7 @@ export class NodeCommandTasks {
             );
           }
 
-          const destinationFileName: string = path.basename(flag.definition.defaultValue as string);
+          const destinationFileName: string = PathEx.basename(flag.definition.defaultValue as string);
           const destinationPath: string = PathEx.join(stagingDirectory, 'templates', destinationFileName);
           this.logger.debug(`Copying configuration file to staging: ${sourceAbsoluteFilePath} -> ${destinationPath}`);
 
@@ -2545,7 +2563,7 @@ export class NodeCommandTasks {
                   maxBuffer: 1024 * 1024 * 10, // 10MB buffer
                   env: {
                     ...process.env,
-                    PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${path.delimiter}${process.env.PATH}`,
+                    PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${PathEx.delimiter}${process.env.PATH}`,
                   },
                 }).toString();
 
@@ -3875,7 +3893,7 @@ export class NodeCommandTasks {
           context,
         );
 
-        const extractCommand: string = `unzip ${path.basename(config.lastStateZipPath)}`;
+        const extractCommand: string = `unzip ${PathEx.basename(config.lastStateZipPath)}`;
 
         await k8
           .containers()
@@ -3883,7 +3901,7 @@ export class NodeCommandTasks {
           .execContainer([
             'bash',
             '-c',
-            `cd ${savedStatePath} && ${extractCommand} && mv preconsensus-events/0 preconsensus-events/${nodeId} && rm -f ${path.basename(config.lastStateZipPath)}`,
+            `cd ${savedStatePath} && ${extractCommand} && mv preconsensus-events/0 preconsensus-events/${nodeId} && rm -f ${PathEx.basename(config.lastStateZipPath)}`,
           ]);
       },
     };
@@ -4173,7 +4191,7 @@ export class NodeCommandTasks {
 
         // Create output directory structure - use custom dir if provided, otherwise use default
         const outputDirectory: string = customOutputDirectory
-          ? path.resolve(customOutputDirectory)
+          ? PathEx.resolve(customOutputDirectory)
           : PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
         if (!fs.existsSync(outputDirectory)) {
           fs.mkdirSync(outputDirectory, {recursive: true});
