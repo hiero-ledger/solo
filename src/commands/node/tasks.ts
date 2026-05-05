@@ -360,7 +360,7 @@ export class NodeCommandTasks {
         if (pvcs.length === 0) {
           throw new SoloError(
             'Custom JARs provided via --local-build-path require node PVCs to persist across pod restarts. ' +
-              'Redeploy the consensus network with --pvcs true and run consensus node setup again.',
+              'Redeploy the consensus network with `consensus network deploy --pvcs true` and run `consensus node setup` again.',
           );
         }
       }),
