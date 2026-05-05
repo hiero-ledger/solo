@@ -22,6 +22,7 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
@@ -676,6 +677,89 @@ export class ProfileManager {
   }
 
   /**
+   * Extracts gossip endpoints from saved state (network.json) if it exists
+   * @param consensusNode - the consensus node to check
+   * @param nodeSeq - the node sequence number (index in roster)
+   * @returns the saved endpoint address or undefined if no saved state exists or IP is no longer valid
+   * @private
+   */
+  private async extractSavedEndpoint(consensusNode: ConsensusNode, nodeSeq: number): Promise<Address | undefined> {
+    try {
+      const k8 = this.k8Factory.getK8(consensusNode.context);
+      const networkJsonPath: string = `${constants.HEDERA_HAPI_PATH}/output/network.json`;
+
+      // Check if network.json exists in the pod
+      const pods = await k8
+        .pods()
+        .list(NamespaceName.of(consensusNode.namespace), [`app=network-${consensusNode.name}`]);
+      if (pods.length === 0) {
+        return undefined;
+      }
+
+      const pod = pods[0];
+      const podReference = pod.podReference;
+
+      // Get container reference
+      const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+      const container = k8.containers().readByRef(containerReference);
+
+      // Try to read network.json from the pod
+      const networkJsonContent: string = await container.execContainer(['cat', networkJsonPath]);
+
+      if (!networkJsonContent || networkJsonContent.includes('No such file')) {
+        return undefined;
+      }
+
+      const networkJson: any = JSON.parse(networkJsonContent);
+      const nodeMetadata: any = networkJson?.nodeMetadata?.[nodeSeq];
+      const gossipEndpoint: any = nodeMetadata?.rosterEntry?.gossipEndpoint?.[0];
+
+      if (!gossipEndpoint) {
+        return undefined;
+      }
+
+      const port: number = gossipEndpoint.port;
+
+      // Check if endpoint uses domain name (FQDN)
+      if (gossipEndpoint.domainName) {
+        const domainName: string = gossipEndpoint.domainName;
+        this.logger.info(`Found saved endpoint for ${consensusNode.name}: ${domainName}:${port} (FQDN)`);
+        return new Address(port, domainName);
+      }
+
+      // Check if endpoint uses IP address
+      if (gossipEndpoint.ipAddressV4) {
+        // Decode base64 IP address
+        const base64Ip: string = gossipEndpoint.ipAddressV4;
+        const ipBytes: Buffer = Buffer.from(base64Ip, 'base64');
+        const ipAddress: string = [...ipBytes].join('.');
+
+        // Validate that a service with this IP still exists
+        const services = await k8.services().list(NamespaceName.of(consensusNode.namespace));
+        const serviceExists: boolean = services.some(svc => svc.spec?.clusterIP === ipAddress);
+
+        if (!serviceExists) {
+          this.logger.warn(
+            `Saved endpoint ${ipAddress}:${port} for ${consensusNode.name} no longer exists, falling back to current service IP`,
+          );
+          return undefined;
+        }
+
+        this.logger.info(`Found saved endpoint for ${consensusNode.name}: ${ipAddress}:${port} (IP)`);
+        return new Address(port, ipAddress);
+      }
+
+      return undefined;
+    } catch (error: Error | unknown) {
+      // If anything fails, return undefined to fall back to getExternalAddress
+      this.logger.debug(
+        `Could not extract saved endpoint for ${consensusNode.name}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+      return undefined;
+    }
+  }
+
+  /**
    * Prepares config.txt file for the node
    * @param nodeAccountMap - the map of node aliases to account IDs
    * @param consensusNodes - the list of consensus nodes
@@ -729,11 +813,17 @@ export class ProfileManager {
           consensusNode.name as NodeAlias,
         );
 
-        const address: Address = await Address.getExternalAddress(
-          consensusNode,
-          this.k8Factory.getK8(consensusNode.context),
-          externalPort,
-        );
+        // First try to extract endpoint from saved state (migration scenario)
+        let address: Address | undefined = await this.extractSavedEndpoint(consensusNode, nodeSeq);
+
+        // If no saved state, get current external address
+        if (!address) {
+          address = await Address.getExternalAddress(
+            consensusNode,
+            this.k8Factory.getK8(consensusNode.context),
+            externalPort,
+          );
+        }
 
         const account: string | undefined = nodeAccountMap.get(consensusNode.name as NodeAlias);
 
