@@ -829,7 +829,7 @@ export class NodeCommandTasks {
             .getK8(context)
             .containers()
             .readByRef(containerReference)
-            .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/${'application.properties'}`, templatesDirectory);
+            .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
 
           context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
         }
@@ -1082,12 +1082,12 @@ export class NodeCommandTasks {
           await k8Container.copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${keysDir}`);
         }
 
-        const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/${'application.properties'}`;
+        const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`;
 
         await ((await k8Container.hasFile(applicationPropertiesSourceDirectory))
           ? k8Container.copyFrom(applicationPropertiesSourceDirectory, `${stagingDir}/templates`)
           : k8Container.copyFrom(
-              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/${'application.properties'}`,
+              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
               `${stagingDir}/templates`,
             ));
       },

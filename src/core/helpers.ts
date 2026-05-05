@@ -851,7 +851,7 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
     `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
   );
 
-  const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${'application.properties'}`;
+  const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/application.properties`;
 
   const applicationPropertiesData: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
 
