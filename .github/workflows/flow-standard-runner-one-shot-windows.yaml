@@ -117,16 +117,13 @@ jobs:
           sudo -n -E -- apt-get -y install \
             docker-ce docker-ce-cli containerd.io \
             docker-compose-plugin docker-buildx-plugin
-          # The systemd service uses -H fd:// by default; adding hosts via daemon.json conflicts
-          # with it and Docker silently ignores the TCP host. Use a service override instead.
-          sudo -n -E -- mkdir -p /etc/systemd/system/docker.service.d
-          sudo -n -E -- bash -c 'printf "[Service]\nExecStart=\nExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2375 --containerd=/run/containerd/containerd.sock\n" \
-            > /etc/systemd/system/docker.service.d/tcp.conf'
-          sudo -n -E -- systemctl daemon-reload
-          sudo -n -E -- systemctl enable --now docker.service
-          sleep 10
+          # Skip systemd — start dockerd directly with both Unix socket and TCP listener.
+          # This is simpler and more reliable in WSL2 CI than fighting systemd service overrides.
+          sudo -n -E -- systemctl disable --now docker.service docker.socket || true
+          sudo -n -E -- bash -c 'nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &'
+          sleep 20
           sudo -n -E -- docker info
-          sudo -n -E -- ss -tlnp | grep 2375
+          ss -tlnp | grep 2375
 
       - name: Solo Init
         shell: pwsh
