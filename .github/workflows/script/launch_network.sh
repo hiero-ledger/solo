@@ -207,23 +207,23 @@ echo "::group::Upgrade Solo"
 SOLO_UPGRADE_CMD_PREFIX=(npm run solo --)
 echo "Upgrading with workspace Solo CLI"
 
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" init --dev
+npm run solo -- init --dev
 # Do not force legacy release-name override when upgrading with current workspace Solo.
 # The old released Solo command executed above may have installed either naming scheme.
 unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 
 # using new solo to redeploy solo deployment chart to new version
 show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
 save_cluster_ips "${SOLO_NAMESPACE}"
 
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "AFTER network deploy"
 restore_cluster_ips "${SOLO_NAMESPACE}" "${NODE1_IP}" "${NODE2_IP}"
 
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "AFTER node setup"
 
@@ -262,7 +262,7 @@ for node in node1 node2; do
   kubectl exec -n "${SOLO_NAMESPACE}" network-${node}-0 -c root-container -- grep "^address" /opt/hgcapp/services-hedera/HapiApp2.0/.archive/config.txt 2>/dev/null || echo "config.txt not found"
 done
 
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev || result=$?
+npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev || result=$?
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs AFTER node start:"
 kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
@@ -276,19 +276,19 @@ done
 
 if [[ $result -ne 0 ]]; then
   echo "Starting consensus nodes failed with exit code $result"
-  "${SOLO_UPGRADE_CMD_PREFIX[@]}" deployment diagnostics logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
+  npm run solo -- deployment diagnostics logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
   exit $result
 fi
 
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
 # force restart relay pod to pick up changes of configMap
 kubectl rollout restart deployment/relay-1 -n solo-e2e
 kubectl rollout restart deployment/relay-1-ws -n solo-e2e
 
 # redeploy mirror node to upgrade to a newer version
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
+npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 
 # wait a few seconds for the pods to be ready before running transactions against them
@@ -302,18 +302,18 @@ echo "Mirror Ingress Controller Pod Name: ${mirrorPodName}"
 kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${mirrorPodName}" 38081:80 >/tmp/solo-migration-mirror-port-forward.log 2>&1 &
 
 # Test transaction can still be sent and processed
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
+npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
 # kill existing port-forward process due to restart of relay pods
 curl http://127.0.0.1:37546 || true
@@ -332,9 +332,9 @@ ps -ef |grep port-forward
 
 # Test deployment config list command
 echo "Testing deployment config list without cluster-ref..."
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" deployment config list --dev
+npm run solo -- deployment config list --dev
 echo "Testing deployment config list with cluster-ref..."
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" deployment config list --cluster-ref ${SOLO_CLUSTER_NAME} --dev
+npm run solo -- deployment config list --cluster-ref ${SOLO_CLUSTER_NAME} --dev
 
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
@@ -342,9 +342,9 @@ echo "::endgroup::"
 
 echo "::group::Cleanup"
 # uninstall components using current Solo version
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
-"${SOLO_UPGRADE_CMD_PREFIX[@]}" consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
+npm run solo -- explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
+npm run solo -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+npm run solo -- mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
+npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+npm run solo -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
 echo "::endgroup::"
