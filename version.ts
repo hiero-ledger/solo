@@ -16,7 +16,6 @@ export const KIND_VERSION: string = 'v0.29.0';
 export const PODMAN_VERSION: string = 'v5.6.0';
 export const VFKIT_VERSION: string = 'v0.6.1';
 export const GVPROXY_VERSION: string = 'v0.8.7';
-export const CNI_PLUGINS_VERSION: string = 'v1.5.1';
 export const KUBECTL_VERSION: string = 'v1.32.2';
 export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.63.3';
 export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.71.0';
@@ -32,6 +31,7 @@ export const NETWORK_LOAD_GENERATOR_CHART_VERSION: string =
   constants.getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_VERSION') || '0.8.0';
 
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
+export const METRICS_SERVER_VERSION: string = constants.getEnvironmentVariable('METRICS_SERVER_VERSION') || '';
 export const PROMETHEUS_STACK_VERSION: string =
   constants.getEnvironmentVariable('PROMETHEUS_STACK_VERSION') || '52.0.1';
 export const GRAFANA_AGENT_VERSION: string = constants.getEnvironmentVariable('GRAFANA_AGENT_VERSION') || '0.27.1';

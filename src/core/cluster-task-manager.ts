@@ -3,6 +3,7 @@
 import {inject, injectable} from 'tsyringe-neo';
 import {ShellRunner} from './shell-runner.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
+import {BrewPackageManager} from './package-managers/brew-package-manager.js';
 import {OsPackageManager} from './package-managers/os-package-manager.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {PodmanMode, SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
@@ -10,7 +11,6 @@ import {InitContext} from '../commands/init/init-context.js';
 import {AptGetPackageManager} from './package-managers/apt-get-package-manager.js';
 import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
-import * as version from '../../version.js';
 import {getTemporaryDirectory} from './helpers.js';
 import fs from 'node:fs';
 import * as yaml from 'yaml';
@@ -31,6 +31,7 @@ import {type GitClient} from '../integration/git/git-client.js';
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
   public constructor(
+    @inject(InjectTokens.BrewPackageManager) protected readonly brewPackageManager: BrewPackageManager,
     @inject(InjectTokens.OsPackageManager) protected readonly osPackageManager: OsPackageManager,
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.PodmanDependencyManager) protected readonly podmanDependencyManager: PodmanDependencyManager,
@@ -43,6 +44,7 @@ export class ClusterTaskManager extends ShellRunner {
   ) {
     super();
 
+    this.brewPackageManager = patchInject(brewPackageManager, InjectTokens.BrewPackageManager, ClusterTaskManager.name);
     this.osPackageManager = patchInject(osPackageManager, InjectTokens.OsPackageManager, ClusterTaskManager.name);
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, ClusterTaskManager.name);
     this.podmanDependencyManager = patchInject(
@@ -101,60 +103,52 @@ export class ClusterTaskManager extends ShellRunner {
         },
       },
       {
+        title: 'Install brew...',
+        task: async (): Promise<void> => {
+          const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
+          if (!brewInstalled) {
+            this.logger.info('Homebrew not found, installing Homebrew...');
+            if (!(await this.brewPackageManager.install())) {
+              throw new SoloError('Failed to install Homebrew');
+            }
+          }
+        },
+      },
+      {
         title: 'Install podman...',
         task: async (): Promise<void> => {
           try {
             const podmanVersion: string[] = await this.run('podman --version');
             this.logger.info(`Podman already installed: ${podmanVersion}`);
           } catch {
-            this.logger.info('Podman not found, installing Podman via apt-get...');
-            const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);
-            await this.sudoRun(onSudoRequested, onSudoGranted, 'apt-get install -y podman');
+            this.logger.info('Podman not found, installing Podman...');
+            await this.brewPackageManager.installPackages(['podman']);
+            const brewBin: string[] = await this.run('which podman');
+            process.env.PATH = `${process.env.PATH}:${brewBin.join('').replace('/podman', '')}`;
           }
-        },
-      } as SoloListrTask<InitContext>,
-      {
-        title: 'Install CNI plugins...',
-        task: async (): Promise<void> => {
-          const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);
-          const unameOutput: string[] = await this.run('uname -m');
-          const unameArch: string = unameOutput.join('').trim();
-          const archMap: Record<string, string> = {x86_64: 'amd64', aarch64: 'arm64'};
-          const cniArch: string = archMap[unameArch] ?? unameArch;
-          const cniUrl: string =
-            `https://github.com/containernetworking/plugins/releases/download/${version.CNI_PLUGINS_VERSION}/` +
-            `cni-plugins-linux-${cniArch}-${version.CNI_PLUGINS_VERSION}.tgz`;
-          // Ubuntu 22.04 ships CNI plugins v0.9.x which do not support CNI spec "1.0.0" (used by
-          // kind). Download v1.5.1+ directly and overwrite the apt-installed plugins in /usr/lib/cni/.
-          await this.sudoRun(
-            onSudoRequested,
-            onSudoGranted,
-            `bash -c 'mkdir -p /usr/lib/cni && curl -fsSL "${cniUrl}" | tar -xz -C /usr/lib/cni/'`,
-          );
         },
       } as SoloListrTask<InitContext>,
       {
         title: 'Creating local cluster...',
         task: async (_context: InitContext, task: SoloListrTaskWrapper<InitContext>): Promise<void> => {
           void _context;
-          const sudoPath: string =
-            `${this.podmanInstallationDirectory}${path.delimiter}` +
-            `${this.kindInstallationDirectory}${path.delimiter}${process.env.PATH}`;
+          const whichPodman: string[] = await this.run('which podman');
+          const podmanPath: string = whichPodman.join('').replace('/podman', '');
           const sudoRunOptions: [string[], boolean?, boolean?, Record<string, string>?] = [
             [],
             undefined,
             undefined,
-            {PATH: sudoPath},
+            {
+              PATH:
+                `${this.podmanInstallationDirectory}${path.delimiter}` +
+                `${this.kindInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+            },
           ];
           const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
           await this.sudoRun(
             onSudoRequested,
             onSudoGranted,
-            // Use `env` so sudo passes KIND_EXPERIMENTAL_PROVIDER and the full PATH to the
-            // subprocess — sudo's secure_path would otherwise strip it.  Use bare `kind` so the
-            // binary is resolved from sudoPath, which covers both the local install dir
-            // (~/.solo/bin) and any system-wide install (e.g. /usr/local/bin on CI runners).
-            `env KIND_EXPERIMENTAL_PROVIDER=podman PATH="${sudoPath}" kind create cluster --image "${constants.KIND_NODE_IMAGE}" --config "${constants.KIND_CLUSTER_CONFIG_FILE}"`,
+            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" kind create cluster --image "${constants.KIND_NODE_IMAGE}" --config "${constants.KIND_CLUSTER_CONFIG_FILE}"`,
             ...sudoRunOptions,
           );
 
