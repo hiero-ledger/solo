@@ -125,6 +125,19 @@ jobs:
           sudo -n -E -- docker info
           ss -tlnp | grep 2375
 
+      - name: Forward Docker TCP Port from WSL2 to Windows
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          # WSL2 on Windows Server 2022 uses NAT mode — localhost does not automatically
+          # forward to services inside WSL2. Explicitly proxy port 2375 to the WSL2 VM IP.
+          $wslIp = (wsl hostname -I).Trim().Split()[0]
+          Write-Host "WSL2 IP: $wslIp"
+          netsh interface portproxy add v4tov4 listenport=2375 listenaddress=127.0.0.1 connectport=2375 connectaddress=$wslIp
+          netsh interface portproxy show all
+          Start-Sleep -Seconds 5
+          docker info
+
       - name: Solo Init
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
