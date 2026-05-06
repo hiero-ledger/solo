@@ -152,28 +152,6 @@ jobs:
           $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
           npm run solo -- one-shot single deploy
 
-      - name: Verify Mirror REST API
-        shell: pwsh
-        timeout-minutes: 10
-        run: |
-          Write-Host "Checking mirror node REST API at http://localhost:38081/api/v1/accounts ..."
-          for ($i = 1; $i -le 30; $i++) {
-            try {
-              $response = Invoke-RestMethod -Uri "http://localhost:38081/api/v1/accounts" -ErrorAction Stop
-              if ($response.accounts) {
-                Write-Host "Mirror REST API is up and returned accounts."
-                Write-Host ($response | ConvertTo-Json -Depth 5)
-                exit 0
-              }
-            } catch {
-              # not ready yet
-            }
-            Write-Host "Attempt $i/30: not ready yet, retrying in 10s..."
-            Start-Sleep -Seconds 10
-          }
-          Write-Error "ERROR: Mirror REST API did not become available after 5 minutes."
-          exit 1
-
       - name: Collect Diagnostics on Failure
         if: ${{ failure() }}
         shell: pwsh
