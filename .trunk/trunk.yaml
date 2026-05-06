@@ -19,7 +19,7 @@ merge:
 #########
 # Add or remove Test Example must make sure also update examples-trunkio-matrix.json or examples-test-matrix.json accordingly
 #########
-     - "Test Example (Consensus Node JVM Parameters)"
+    - "Test Example (Consensus Node JVM Parameters)"
 #    - "Test Example (Multicluster Backup and Restore)"
 #    - "Test Example (Address Book)"
     - "Test Example (External Database Test)"
