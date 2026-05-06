@@ -90,7 +90,11 @@ echo "::endgroup::"
 
 echo "::group::Launch solo using released Solo version ${releaseTag}"
 
-export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+export CONSENSUS_NODE_VERSION=$(grep 'TEST_UPGRADE_FROM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+if [[ -z "${CONSENSUS_NODE_VERSION}" ]]; then
+  echo "CONSENSUS_NODE_VERSION is empty, please check version-test.ts for TEST_UPGRADE_FROM_VERSION"
+  exit 1
+fi
 echo "Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 solo init --dev
 
@@ -216,7 +220,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade 
 ps -ef |grep port-forward
 # Upgrade to latest version
 # HEDERA_PLATFORM_VERSION is no longer a hardcoded value in version.ts,
-export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
+export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
 echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
