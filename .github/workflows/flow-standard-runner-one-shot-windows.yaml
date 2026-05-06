@@ -117,11 +117,16 @@ jobs:
           sudo -n -E -- apt-get -y install \
             docker-ce docker-ce-cli containerd.io \
             docker-compose-plugin docker-buildx-plugin
-          sudo -n -E -- bash -c 'echo "{\"hosts\": [\"unix:///var/run/docker.sock\", \"tcp://0.0.0.0:2375\"]}" \
-            > /etc/docker/daemon.json'
+          # The systemd service uses -H fd:// by default; adding hosts via daemon.json conflicts
+          # with it and Docker silently ignores the TCP host. Use a service override instead.
+          sudo -n -E -- mkdir -p /etc/systemd/system/docker.service.d
+          sudo -n -E -- bash -c 'printf "[Service]\nExecStart=\nExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2375 --containerd=/run/containerd/containerd.sock\n" \
+            > /etc/systemd/system/docker.service.d/tcp.conf'
+          sudo -n -E -- systemctl daemon-reload
           sudo -n -E -- systemctl enable --now docker.service
           sleep 10
           sudo -n -E -- docker info
+          sudo -n -E -- ss -tlnp | grep 2375
 
       - name: Solo Init
         shell: pwsh
