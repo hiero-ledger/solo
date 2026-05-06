@@ -15,13 +15,12 @@
 ##
 
 name: "Standard Runner One-Shot Deploy (Windows)"
-# The purpose of this workflow is to verify that Solo can successfully deploy a network
-# using the one-shot single deploy command on a standard GitHub-hosted Windows runner.
-# Solo runs natively on Windows (PowerShell), with Docker Desktop using the WSL2 backend
-# (required by Kind for Linux containers). This mirrors the documented Windows setup.
-# This acts as a compatibility gate: if Solo stops working on Windows standard runners, this job fails.
+# Compatibility gate: verifies that Solo one-shot deploy continues to work on native Windows.
+# Solo runs natively in PowerShell on a standard GitHub-hosted Windows runner.
+# Any PR that breaks Solo on Windows will cause this workflow to fail.
 
 on:
+  workflow_dispatch:
   pull_request:
     types:
       - opened
@@ -56,22 +55,26 @@ jobs:
           node-version: '22'
 
       - name: Install Task
-        shell: pwsh
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          choco install go-task -y
-          task --version
+        with:
+          version: 3.49.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Switch Docker to Linux Container Mode
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          Write-Host "Docker location:"
-          Get-Command docker | Select-Object -ExpandProperty Source
-          Write-Host "Docker info:"
-          docker info
-          Write-Host "Searching for DockerCli.exe:"
-          Get-ChildItem -Path "C:\", "$env:ProgramFiles", "$env:LOCALAPPDATA" -Recurse -Filter "DockerCli.exe" -ErrorAction SilentlyContinue | Select-Object FullName
+          $dockerCli = "C:\Program Files\Docker\Docker\DockerCli.exe"
+          if (Test-Path $dockerCli) {
+            Write-Host "Switching Docker to Linux container mode..."
+            & $dockerCli -SwitchLinuxEngine
+            Start-Sleep -Seconds 10
+            docker info
+          } else {
+            Write-Error "DockerCli.exe not found at expected path: $dockerCli"
+            exit 1
+          }
 
       - name: Install Dependencies
         shell: pwsh
@@ -81,7 +84,14 @@ jobs:
       - name: Compile Project
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: task build:compile
+        run: npx tsc
+
+      - name: Solo Init
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- init --dev
 
       - name: One-Shot Single Deploy
         shell: pwsh
