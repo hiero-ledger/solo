@@ -103,7 +103,9 @@ jobs:
         timeout-minutes: 10
         run: |
           set -euo pipefail
-          # Ubuntu 24.04 uses iptables-nft by default which prevents Docker from starting in WSL2
+          # Ubuntu 24.04 uses iptables-nft by default which prevents Docker from starting in WSL2.
+          # iptables must be installed before alternatives can be switched.
+          sudo -n -E -- apt-get install -y -q iptables
           sudo -n -E -- update-alternatives --set iptables /usr/sbin/iptables-legacy
           sudo -n -E -- update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
           sudo -n -E -- mkdir -p /etc/apt/keyrings
