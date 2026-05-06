@@ -34,7 +34,7 @@ importer:
       memory: 200Mi
     limits:
       cpu: 1000m
-      memory: 200Mi
+      memory: 220Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -98,7 +98,7 @@ grpc:
       memory: 100Mi
     limits:
       cpu: 500m
-      memory: 100Mi
+      memory: 120Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -210,8 +210,8 @@ restjava:
       cpu: 0
       memory: 175Mi
     limits:
-      cpu: 500m
-      memory: 175Mi
+      cpu: 2
+      memory: 200Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
