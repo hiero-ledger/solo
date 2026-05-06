@@ -376,6 +376,17 @@ export class Flags {
     },
   };
 
+  public static readonly deployMetricsServer: CommandFlag = {
+    constName: 'deployMetricsServer',
+    name: 'metrics-server',
+    definition: {
+      describe: 'Deploy metrics server to enable kubectl top for CPU and memory usage monitoring',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly deployCertManager: CommandFlag = {
     constName: 'deployCertManager',
     name: 'cert-manager',
@@ -1252,7 +1263,7 @@ export class Flags {
     name: 'application-properties',
     definition: {
       describe: 'application.properties file for node',
-      defaultValue: PathEx.join('templates', 'application.properties'),
+      defaultValue: PathEx.join('templates', constants.APPLICATION_PROPERTIES),
       type: 'string',
     },
     prompt: undefined,
@@ -2972,6 +2983,7 @@ export class Flags {
     Flags.deployCertManagerCrds,
     Flags.deployJsonRpcRelay,
     Flags.deployMinio,
+    Flags.deployMetricsServer,
     Flags.deployPrometheusStack,
     Flags.deployment,
     Flags.deploymentClusters,

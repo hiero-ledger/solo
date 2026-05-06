@@ -9,6 +9,7 @@ import {container} from 'tsyringe-neo';
 import {Suite} from 'mocha';
 import {type BaseTestOptions} from './commands/tests/base-test-options.js';
 import {BaseCommandTest} from './commands/tests/base-command-test.js';
+import * as constants from '../../src/core/constants.js';
 
 export class EndToEndTestSuite extends Suite {
   private readonly endToEndTestSuiteInstance: EndToEndTestSuite;
@@ -43,7 +44,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly collectDiagnosticLogs: boolean = true,
     public readonly apiPermissionProperties: string = 'api-permission.properties',
     public readonly applicationEnvironment: string = 'application.env',
-    public readonly applicationProperties: string = 'application.properties',
+    public readonly applicationProperties: string = constants.APPLICATION_PROPERTIES,
     public readonly bootstrapProperties: string = 'bootstrap.properties',
     public readonly logXml: string = 'log4j2.xml',
     public readonly settingsTxt: string = 'settings.txt',
