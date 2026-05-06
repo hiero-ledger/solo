@@ -327,7 +327,7 @@ export class IntervalLock implements Lock {
    * @returns true if the lock is acquired and not expired; otherwise, false.
    */
   async isAcquired(): Promise<boolean> {
-    const lease = await this.retrieveLease();
+    const lease: Lease | undefined = await this.retrieveLease();
     return !!lease && !IntervalLock.checkExpiration(lease) && this.heldBySameProcess(lease);
   }
 
@@ -338,7 +338,7 @@ export class IntervalLock implements Lock {
    * @returns true if the lock is expired; otherwise, false.
    */
   async isExpired(): Promise<boolean> {
-    const lease = await this.retrieveLease();
+    const lease: Lease | undefined = await this.retrieveLease();
     return !!lease && IntervalLock.checkExpiration(lease);
   }
 
@@ -505,11 +505,11 @@ export class IntervalLock implements Lock {
    * @returns true if the lease has expired; otherwise, false.
    */
   private static checkExpiration(lease: Lease): boolean {
-    const now = Duration.ofMillis(Date.now());
-    const durationSec = lease.durationSeconds || DEFAULT_LEASE_DURATION;
-    const lastRenewalTime = lease.renewTime || lease.acquireTime;
-    const lastRenewal = Duration.ofMillis(new Date(lastRenewalTime).valueOf());
-    const deltaSec = now.minus(lastRenewal).seconds;
+    const now: Duration = Duration.ofMillis(Date.now());
+    const durationSec: number = lease.durationSeconds || DEFAULT_LEASE_DURATION;
+    const lastRenewalTime: Date = new Date(lease.renewTime || lease.acquireTime);
+    const lastRenewal: Duration = Duration.ofMillis(new Date(lastRenewalTime).valueOf());
+    const deltaSec: number = now.minus(lastRenewal).seconds;
     return deltaSec > durationSec;
   }
 
