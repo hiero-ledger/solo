@@ -61,20 +61,12 @@ jobs:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Switch Docker to Linux Container Mode
+      - name: Verify Docker (Linux Container Mode)
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          $dockerCli = "C:\Program Files\Docker\Docker\DockerCli.exe"
-          if (Test-Path $dockerCli) {
-            Write-Host "Switching Docker to Linux container mode..."
-            & $dockerCli -SwitchLinuxEngine
-            Start-Sleep -Seconds 10
-            docker info
-          } else {
-            Write-Error "DockerCli.exe not found at expected path: $dockerCli"
-            exit 1
-          }
+          docker info
+          docker version
 
       - name: Install Dependencies
         shell: pwsh
@@ -84,7 +76,10 @@ jobs:
       - name: Compile Project
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: npx tsc
+        run: |
+          Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue
+          npx tsc
+          node resources/post-build-script.js
 
       - name: Solo Init
         shell: pwsh
