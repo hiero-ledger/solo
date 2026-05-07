@@ -125,7 +125,7 @@ jobs:
             fi
 
             if [[ -z "${TO_CN_INPUT}" ]]; then
-              TO_CN_INPUT=$(grep 'TEST_UPGRADE_TO_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\\1/")
+              TO_CN_INPUT=$(.github/workflows/script/extract-version.sh TEST_UPGRADE_TO_VERSION version-test.ts)
             fi
 
             if [[ -z "${TO_CN_INPUT}" ]]; then
