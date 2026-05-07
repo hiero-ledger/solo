@@ -27,17 +27,20 @@ export function parseOneShotVersionsFile(fileContent: string): OneShotParsedVers
       continue;
     }
 
-    for (const [label, key] of Object.entries(ONE_SHOT_VERSION_LABELS)) {
-      const versionPrefix: string = `${label}:`;
-      if (!line.startsWith(versionPrefix)) {
-        continue;
-      }
+    const separatorIndex: number = line.indexOf(':');
+    if (separatorIndex === -1) {
+      continue;
+    }
 
-      const version: string = line.slice(versionPrefix.length).trim();
-      if (version) {
-        parsedVersions[key] = version;
-      }
-      break;
+    const label: string = line.slice(0, separatorIndex).trim();
+    const key: keyof OneShotParsedVersions | undefined = ONE_SHOT_VERSION_LABELS[label];
+    if (!key) {
+      continue;
+    }
+
+    const version: string = line.slice(separatorIndex + 1).trim();
+    if (version) {
+      parsedVersions[key] = version;
     }
   }
 

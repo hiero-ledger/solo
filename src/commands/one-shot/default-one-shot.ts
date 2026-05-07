@@ -1815,9 +1815,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
             const versionsFile: string = PathEx.join(outputDirectory, 'versions');
-            const versionsFromFile: OneShotParsedVersions = fs.existsSync(versionsFile)
-              ? parseOneShotVersionsFile(fs.readFileSync(versionsFile, 'utf8'))
-              : {};
+            let versionsFromFile: OneShotParsedVersions = {};
+            if (fs.existsSync(versionsFile)) {
+              try {
+                versionsFromFile = parseOneShotVersionsFile(fs.readFileSync(versionsFile, 'utf8'));
+              } catch (error) {
+                const typedError: Error = error as Error;
+                this.logger.warn(`Unable to read one-shot versions file '${versionsFile}': ${typedError.message}`);
+              }
+            }
             const versions: ApplicationVersionsSchema | undefined = context_.remoteConfig?.versions;
 
             // Show versions
