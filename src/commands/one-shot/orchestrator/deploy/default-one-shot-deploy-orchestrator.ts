@@ -234,6 +234,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   PathEx.join(mergedDirectory, constants.APPLICATION_PROPERTIES),
                 );
 
+              // For CN >= 0.73.0, use state-on-disk application.env instead of default small-memory
               config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationEnv)] = PathEx.join(
                 useStateOnDisk ? stateOnDiskDirectory : overridesDirectory,
                 'application.env',
@@ -242,6 +243,15 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
               if (fs.existsSync(throttlesFile)) {
                 config.networkConfiguration[flags.getFormattedFlagKey(flags.genesisThrottlesFile)] = throttlesFile;
+              }
+
+              // For CN >= 0.73.0, cap K8s container memory at 1Gi to prevent unbounded mmap'd state-on-disk page cache growth
+              if (useStateOnDisk) {
+                const helmOverrideFile: string = PathEx.join(stateOnDiskDirectory, 'helm-overrides.yaml');
+                if (fs.existsSync(helmOverrideFile)) {
+                  config.networkConfiguration[flags.getFormattedFlagKey(flags.valuesFile)] =
+                    `${config.clusterRef}=${helmOverrideFile}`;
+                }
               }
             }
 
