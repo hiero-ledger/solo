@@ -47,6 +47,16 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
+      - name: Exclude Directory from Antivirus Scanning
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          # Exclude the project directory from Windows Defender Antivirus scanning to improve performance.
+          # This is especially important for Docker in WSL2, which accesses the project files via a bind mount.
+          $projectPath = "$env:GITHUB_WORKSPACE"
+          Write-Host "Excluding $projectPath from antivirus scanning"
+          Add-MpPreference -ExclusionPath $projectPath
+
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
