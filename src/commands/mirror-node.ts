@@ -315,9 +315,19 @@ export class MirrorNodeCommand extends BaseCommand {
   ): string {
     const configuration: RemoteConfig = this.remoteConfig.configuration;
     const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
+    const sameClusterBlockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = blockNodeSchemas.filter(
+      (blockNode): boolean => blockNode.metadata.cluster === config.clusterReference,
+    );
 
     if (blockNodeSchemas.length === 0) {
       this.logger.debug('No block nodes found in remote config configuration');
+      return '';
+    }
+
+    if (sameClusterBlockNodeSchemas.length === 0) {
+      this.logger.info(
+        `Skipping block node integration for mirror node cluster ${config.clusterReference}; no block node in the same cluster`,
+      );
       return '';
     }
 
@@ -359,7 +369,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const blockNodeFqdnList: {host: string; port: number}[] = [];
 
-    for (const blockNode of blockNodeSchemas) {
+    for (const blockNode of sameClusterBlockNodeSchemas) {
       const id: ComponentId = blockNode.metadata.id;
       const clusterReference: ClusterReferenceName = blockNode.metadata.cluster;
 
@@ -1221,8 +1231,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
+              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.senderAccountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.recipientAccountId=${pingerRecipientAccountId}`;
               config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_ID=${operatorId}`;
+              config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_TO_ACCOUNT_ID=${pingerRecipientAccountId}`;
 
               if (config.operatorKey) {
                 this.logger.info('Using provided operator key');
@@ -1466,8 +1480,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
+              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
               config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.operator.accountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.senderAccountId=${operatorId}`;
+              config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.properties.recipientAccountId=${pingerRecipientAccountId}`;
               config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_OPERATOR_ID=${operatorId}`;
+              config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_TO_ACCOUNT_ID=${pingerRecipientAccountId}`;
 
               if (config.operatorKey) {
                 this.logger.info('Using provided operator key');

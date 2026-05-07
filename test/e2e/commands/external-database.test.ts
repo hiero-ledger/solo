@@ -55,8 +55,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withConsensusNodesCount(2)
   .withLoadBalancerEnabled(true)
   .withPinger(true)
-  .withShard(0)
-  .withRealm(0)
+  .withShard(3)
+  .withRealm(2)
   .withApiPermissionProperties(configFiles['api-permission.properties'])
   .withApplicationEnvironment(configFiles['application.env'])
   .withApplicationProperties(configFiles[constants.APPLICATION_PROPERTIES])
@@ -133,9 +133,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // the right cluster (e.g. kubectl wait for mirror-grpc readiness).
           const mirrorClusterContext: string = contexts[1];
           const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
-            export SHARD_NUM=0; \
-            export REALM_NUM=0; \
-            export NEW_NODE_ACCOUNT_ID=0.0.3; \
+            export SHARD_NUM=3; \
+            export REALM_NUM=2; \
+            export NEW_NODE_ACCOUNT_ID=3.2.3; \
             export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CLUSTER_CONTEXT=${mirrorClusterContext}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \

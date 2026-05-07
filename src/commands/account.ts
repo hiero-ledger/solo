@@ -348,7 +348,7 @@ export class AccountCommand extends BaseCommand {
                     const config: Config = context_.config;
 
                     context_.updateSecrets = await this.k8Factory
-                      .getK8(config.clusterRef)
+                      .getK8(config.contextName)
                       .secrets()
                       .list(config.namespace, ['solo.hedera.com/account-id'])
                       .then((secrets): boolean => secrets.length > 0);
