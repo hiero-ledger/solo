@@ -43,7 +43,7 @@ env:
 
 jobs:
   standard-runner-one-shot-windows:
-    name: Deploy and Destroy
+    name: Windows Deploy and Destroy
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
