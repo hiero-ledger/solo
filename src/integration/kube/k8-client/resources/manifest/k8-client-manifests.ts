@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type KubernetesObject, type KubernetesObjectApi, PatchStrategy} from '@kubernetes/client-node';
+import {StatusCodes} from 'http-status-codes';
 import yaml from 'yaml';
 import fs from 'node:fs';
 import {type Manifests} from '../../../resources/manifest/manifests.js';
@@ -26,6 +27,30 @@ export class K8ClientManifests implements Manifests {
       }
 
       await this.k8sObjectApi.create(document);
+    }
+  }
+
+  public async installManifest(filePath: string): Promise<void> {
+    const yamlText: string = fs.readFileSync(filePath, 'utf8');
+
+    const documents: KubernetesObject[] = yaml
+      .parseAllDocuments(yamlText)
+      .map((document: {toJSON: () => KubernetesObject}): KubernetesObject => document.toJSON() as KubernetesObject);
+
+    for (const document of documents) {
+      if (!document || !document.metadata) {
+        continue;
+      }
+
+      try {
+        await this.k8sObjectApi.create(document);
+      } catch (error) {
+        const statusCode: number = (error as {code?: number; statusCode?: number}).code ??
+          (error as {code?: number; statusCode?: number}).statusCode ?? 0;
+        if (statusCode !== StatusCodes.CONFLICT) {
+          throw error;
+        }
+      }
     }
   }
 
