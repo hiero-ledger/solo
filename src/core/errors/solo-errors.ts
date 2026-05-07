@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {CreateDeploymentSoloError} from './types/create-deployment-solo-error.js';
-import {DeploymentAlreadyExistsSoloError} from './types/deployment-already-exists-solo-error.js';
-import {LocalConfigNotFoundSoloError} from './types/local-config-not-found-solo-error.js';
-import {RemoteConfigsMismatchSoloError} from './types/remote-configs-mismatch-solo-error.js';
+import {CreateDeploymentSoloError} from './classes/create-deployment-solo-error.js';
+import {DeploymentAlreadyExistsSoloError} from './classes/deployment-already-exists-solo-error.js';
+import {LocalConfigNotFoundSoloError} from './classes/local-config-not-found-solo-error.js';
+import {RemoteConfigsMismatchSoloError} from './classes/remote-configs-mismatch-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
