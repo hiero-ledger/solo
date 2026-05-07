@@ -94,7 +94,6 @@ import {StringFacade} from '../../business/runtime-state/facade/string-facade.js
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {OneShotInfoContext} from './one-shot-info-context.js';
 import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
-import {parseOneShotVersionsFile, type OneShotParsedVersions} from './one-shot-versions-parser.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -1814,38 +1813,18 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             this.logger.showUser(chalk.cyan('\n=== Deployment Components ==='));
 
             const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
-            const versionsFile: string = PathEx.join(outputDirectory, 'versions');
-            let versionsFromFile: OneShotParsedVersions = {};
-            if (fs.existsSync(versionsFile)) {
-              try {
-                versionsFromFile = parseOneShotVersionsFile(fs.readFileSync(versionsFile, 'utf8'));
-              } catch (error) {
-                const thrownError: Error = error as Error;
-                this.logger.warn(`Unable to read one-shot versions file '${versionsFile}': ${thrownError.message}`);
-              }
-            }
             const remoteVersions: ApplicationVersionsSchema | undefined = context_.remoteConfig?.versions;
 
             // Show versions
             this.logger.showUser(chalk.cyan('\nVersions:'));
+            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(remoteVersions?.chart?.toString())}`);
+            this.logger.showUser(`  Consensus Node Version: ${chalk.bold(remoteVersions?.consensusNode?.toString())}`);
+            this.logger.showUser(`  Mirror Node Version: ${chalk.bold(remoteVersions?.mirrorNodeChart?.toString())}`);
+            this.logger.showUser(`  Explorer Version: ${chalk.bold(remoteVersions?.explorerChart?.toString())}`);
             this.logger.showUser(
-              `  Solo Chart Version: ${chalk.bold(versionsFromFile.soloChart ?? remoteVersions?.chart?.toString())}`,
+              `  JSON RPC Relay Version: ${chalk.bold(remoteVersions?.jsonRpcRelayChart?.toString())}`,
             );
-            this.logger.showUser(
-              `  Consensus Node Version: ${chalk.bold(versionsFromFile.consensus ?? remoteVersions?.consensusNode?.toString())}`,
-            );
-            this.logger.showUser(
-              `  Mirror Node Version: ${chalk.bold(versionsFromFile.mirror ?? remoteVersions?.mirrorNodeChart?.toString())}`,
-            );
-            this.logger.showUser(
-              `  Explorer Version: ${chalk.bold(versionsFromFile.explorer ?? remoteVersions?.explorerChart?.toString())}`,
-            );
-            this.logger.showUser(
-              `  JSON RPC Relay Version: ${chalk.bold(versionsFromFile.relay ?? remoteVersions?.jsonRpcRelayChart?.toString())}`,
-            );
-            this.logger.showUser(
-              `  Block Node Version: ${chalk.bold(versionsFromFile.blockNode ?? remoteVersions?.blockNodeChart?.toString())}`,
-            );
+            this.logger.showUser(`  Block Node Version: ${chalk.bold(remoteVersions?.blockNodeChart?.toString())}`);
 
             if (context_.remoteConfig) {
               const components: DeploymentStateSchema = context_.remoteConfig.state;
@@ -1906,6 +1885,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.logger.showUser(`Output directory: ${chalk.bold(outputDirectory)}`);
 
               const notesFile: string = PathEx.join(outputDirectory, 'notes');
+              const versionsFile: string = PathEx.join(outputDirectory, 'versions');
               const forwardsFile: string = PathEx.join(outputDirectory, 'forwards');
               const accountsFile: string = PathEx.join(outputDirectory, 'accounts.json');
 
