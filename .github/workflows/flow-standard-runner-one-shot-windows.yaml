@@ -55,11 +55,15 @@ jobs:
           winver
           Write-Host "System Information:"
           systeminfo
+          Write-Host "CPU Information:"
+          Get-CimInstance -ClassName Win32_Processor | Select-Object -Property Name, NumberOfCores, NumberOfLogicalProcessors
           Write-Host "Environment Variables:"
           Write-Host "HOME: $env:HOME"
           Write-Host "USERPROFILE: $env:USERPROFILE"
           Write-Host "GITHUB_WORKSPACE: $env:GITHUB_WORKSPACE"
           Write-Host "Current Working Directory: $(Get-Location)"
+          Write-Host "Existing WSL Config:"
+          Get-Content -Path "$env:USERPROFILE\.wslconfig" -ErrorAction SilentlyContinue || Write-Host "No existing .wslconfig"
 
       - name: Exclude Directory from Antivirus Scanning
         shell: pwsh
@@ -125,26 +129,34 @@ jobs:
         timeout-minutes: 10
         run: |
           set -euo pipefail
-          # Ubuntu 24.04 uses iptables-nft by default which prevents Docker from starting in WSL2.
-          # iptables must be installed before alternatives can be switched.
-          sudo -n -E -- apt-get install -y -q iptables
-          sudo -n -E -- update-alternatives --set iptables /usr/sbin/iptables-legacy
-          sudo -n -E -- update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
-          sudo -n -E -- mkdir -p /etc/apt/keyrings
-          sudo -n -E -- cp .github/workflows/resources/docker-apt-public-gpg-key.key /etc/apt/keyrings/docker.asc
-          sudo -n -E -- chmod 644 /etc/apt/keyrings/docker.asc
-          sudo -n -E -- bash -c 'echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] \
-            https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list'
-          sudo -n -E -- apt-get update -q
-          sudo -n -E -- apt-get -y install \
-            docker-ce docker-ce-cli containerd.io \
-            docker-compose-plugin docker-buildx-plugin
-          # Skip systemd — start dockerd directly with both Unix socket and TCP listener.
-          # This is simpler and more reliable in WSL2 CI than fighting systemd service overrides.
-          sudo -n -E -- systemctl disable --now docker.service docker.socket || true
-          sudo -n -E -- bash -c 'nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &'
-          sleep 20
-          sudo -n -E -- docker info
+          WORKSPACE="$PWD"
+          cat > /tmp/install-docker.sh << EOF
+            #!/usr/bin/env bash
+            set -euo pipefail
+            # Diagnostics information to help debug Docker installation issues in WSL2.
+            echo "CPU (lscpu):"
+            lscpu
+            echo "Memory (free -h):"
+            free -h
+            # Ubuntu 24.04 uses iptables-nft by default which prevents Docker from starting in WSL2.
+            # iptables must be installed before alternatives can be switched.
+            apt-get install -y -q iptables
+            update-alternatives --set iptables /usr/sbin/iptables-legacy
+            update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+            mkdir -p /etc/apt/keyrings
+            cp $WORKSPACE/.github/workflows/resources/docker-apt-public-gpg-key.key /etc/apt/keyrings/docker.asc
+            chmod 644 /etc/apt/keyrings/docker.asc
+            echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list
+            apt-get update -q
+            apt-get -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin
+            # Skip systemd — start dockerd directly with both Unix socket and TCP listener.
+            # This is simpler and more reliable in WSL2 CI than fighting systemd service overrides.
+            systemctl disable --now docker.service docker.socket || true
+            nohup /usr/bin/dockerd -H unix:///var/run/docker.sock -H tcp://0.0.0.0:2375 > /tmp/dockerd.log 2>&1 &
+            sleep 20
+            docker info
+          EOF
+          sudo -n -E -- bash /tmp/install-docker.sh
           ss -tlnp | grep 2375
 
       - name: Forward Docker TCP Port from WSL2 to Windows
@@ -196,6 +208,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: standard-runner-one-shot-windows-logs
-          path: ${USERPROFILE}\.solo\logs
+          path: C:\Users\runneradmin\.solo\logs # bug in actions/upload-artifact on Windows prevents using %USERPROFILE% or ~, must hardcode full path
           overwrite: true
           if-no-files-found: warn
