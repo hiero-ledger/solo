@@ -95,6 +95,10 @@ import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-s
 import {OneShotInfoContext} from './one-shot-info-context.js';
 import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
 
+const formatVersionValue: (versionObject: {toString: () => string} | undefined) => string = (
+  versionObject: {toString: () => string} | undefined,
+): string => versionObject?.toString() ?? 'not available';
+
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
   private static readonly SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
@@ -1814,24 +1818,25 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
             const remoteVersions: ApplicationVersionsSchema | undefined = context_.remoteConfig?.versions;
-            const formatVersion: (value: {toString: () => string} | undefined) => string = (
-              value: {toString: () => string} | undefined,
-            ): string => value?.toString() ?? 'not available';
 
             // Show versions
             this.logger.showUser(chalk.cyan('\nVersions:'));
-            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(formatVersion(remoteVersions?.chart))}`);
+            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(formatVersionValue(remoteVersions?.chart))}`);
             this.logger.showUser(
-              `  Consensus Node Version: ${chalk.bold(formatVersion(remoteVersions?.consensusNode))}`,
+              `  Consensus Node Version: ${chalk.bold(formatVersionValue(remoteVersions?.consensusNode))}`,
             );
             this.logger.showUser(
-              `  Mirror Node Version: ${chalk.bold(formatVersion(remoteVersions?.mirrorNodeChart))}`,
+              `  Mirror Node Version: ${chalk.bold(formatVersionValue(remoteVersions?.mirrorNodeChart))}`,
             );
-            this.logger.showUser(`  Explorer Version: ${chalk.bold(formatVersion(remoteVersions?.explorerChart))}`);
             this.logger.showUser(
-              `  JSON RPC Relay Version: ${chalk.bold(formatVersion(remoteVersions?.jsonRpcRelayChart))}`,
+              `  Explorer Version: ${chalk.bold(formatVersionValue(remoteVersions?.explorerChart))}`,
             );
-            this.logger.showUser(`  Block Node Version: ${chalk.bold(formatVersion(remoteVersions?.blockNodeChart))}`);
+            this.logger.showUser(
+              `  JSON RPC Relay Version: ${chalk.bold(formatVersionValue(remoteVersions?.jsonRpcRelayChart))}`,
+            );
+            this.logger.showUser(
+              `  Block Node Version: ${chalk.bold(formatVersionValue(remoteVersions?.blockNodeChart))}`,
+            );
 
             if (context_.remoteConfig) {
               const components: DeploymentStateSchema = context_.remoteConfig.state;

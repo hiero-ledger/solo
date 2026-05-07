@@ -3,15 +3,15 @@
 import {SemanticVersion} from '../../../utils/semantic-version.js';
 
 export function resolveVersionValue(
-  argvValue: unknown,
-  configuredValue: unknown,
+  argvValue: string | undefined,
+  configuredValue: string | undefined,
   defaultValue: string,
 ): SemanticVersion<string> {
-  if (typeof argvValue === 'string' && argvValue.trim().length > 0) {
+  if (argvValue?.trim().length > 0) {
     return new SemanticVersion<string>(argvValue);
   }
 
-  if (typeof configuredValue === 'string' && configuredValue.trim().length > 0) {
+  if (configuredValue?.trim().length > 0) {
     return new SemanticVersion<string>(configuredValue);
   }
 
