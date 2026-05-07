@@ -3051,7 +3051,7 @@ export class NodeCommandTasks {
       /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
     );
     if (match?.[1]) {
-      return match[1].toLowerCase() !== 'false';
+      return match[1].toLowerCase() === 'true';
     }
     return undefined;
   }
