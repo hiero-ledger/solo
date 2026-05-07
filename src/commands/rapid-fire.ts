@@ -121,7 +121,7 @@ export class RapidFireCommand extends BaseCommand {
         const subTasks: SoloListrTask<RapidFireStartContext>[] = [
           {
             title: 'Install Network Load Generator chart',
-            task: async (context_, _task): Promise<void> => {
+            task: async (context_): Promise<void> => {
               let valuesArgument: string = helpers.prepareValuesFiles(constants.RAPID_FIRE_VALUES_FILE);
 
               if (context_.config.valuesFile) {
@@ -135,7 +135,7 @@ export class RapidFireCommand extends BaseCommand {
 
               const port: number = constants.GRPC_PORT;
               const networkProperties: string[] = haproxyPods.map((pod: Pod) => {
-                const accountId = pod.labels['solo.hedera.com/account-id'] ?? 'unknown';
+                const accountId: string = pod.labels['solo.hedera.com/account-id'] ?? 'unknown';
                 // Using multiple backslashes to ensure it is not stripped when the network.properties file is generated
                 // Final result should look like: x.x.x.x\:50211=0.0.y
                 return String.raw`${pod.podIp}\\\:${port}=${accountId}`;
@@ -180,7 +180,7 @@ export class RapidFireCommand extends BaseCommand {
               const k8Containers: Containers = this.k8Factory.getK8(config.context).containers();
 
               for (const pod of nlgPods) {
-                const containerReference = ContainerReference.of(
+                const containerReference: ContainerReference = ContainerReference.of(
                   pod.podReference,
                   constants.NETWORK_LOAD_GENERATOR_CONTAINER,
                 );
@@ -222,7 +222,7 @@ export class RapidFireCommand extends BaseCommand {
         const k8Containers: Containers = this.k8Factory.getK8(context_.config.context).containers();
 
         for (const pod of nlgPods) {
-          const containerReference = ContainerReference.of(
+          const containerReference: ContainerReference = ContainerReference.of(
             pod.podReference,
             constants.NETWORK_LOAD_GENERATOR_CONTAINER,
           );
@@ -241,7 +241,7 @@ export class RapidFireCommand extends BaseCommand {
               await leaseReference.lease?.release();
             }
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
-            let commandString = `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`;
+            let commandString: string = `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`;
             commandString = commandString.replaceAll('  ', ' ').trim();
             await container.execContainer(commandString, outputStream, errorStream);
           } catch (error) {
@@ -395,7 +395,7 @@ export class RapidFireCommand extends BaseCommand {
         const k8Containers: Containers = this.k8Factory.getK8(context_.config.context).containers();
 
         for (const pod of nlgPods) {
-          const containerReference = ContainerReference.of(
+          const containerReference: ContainerReference = ContainerReference.of(
             pod.podReference,
             constants.NETWORK_LOAD_GENERATOR_CONTAINER,
           );
@@ -433,7 +433,7 @@ export class RapidFireCommand extends BaseCommand {
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     return this.allStopTasks(argv, {
       title: 'Uninstall Network Load Generator chart',
-      task: async (context_, _task): Promise<void> => {
+      task: async (context_): Promise<void> => {
         await this.chartManager.uninstall(
           context_.config.namespace,
           constants.NETWORK_LOAD_GENERATOR_RELEASE_NAME,
