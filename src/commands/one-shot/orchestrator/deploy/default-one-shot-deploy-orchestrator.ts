@@ -41,6 +41,8 @@ import {
   PREDEFINED_ACCOUNT_GROUPS,
   type PredefinedAccount,
   type SystemAccount,
+  type FormattedSystemAccount,
+  type FormattedCreatedAccount,
 } from '../../predefined-accounts.js';
 import {type OneShotDeployOrchestrator} from './one-shot-deploy-orchestrator.js';
 import {OrchestratorPipelinePhase} from '../orchestrator-pipeline-phase.js';
@@ -291,7 +293,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               const promptOptions: {default: boolean; message: string} = {
                 default: false,
                 message:
-                  '⚠️ Warning: Existing solo deployment detected in cluster.\n\n' +
+                  'Warning: Existing solo deployment detected in cluster.\n\n' +
                   existingDeploymentsTable.join('\n') +
                   '\n\nCreating another deployment will require additional' +
                   ' CPU and memory resources. Do you want to proceed and create another deployment?',
@@ -672,7 +674,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       const fileData: string = data.join('\n') + '\n';
       createDirectoryIfNotExists(outputFile);
       fs.writeFileSync(outputFile, fileData);
-      this.logger.showUser(chalk.green(`✅ User notes saved to file: ${outputFile}`));
+      this.logger.showUser(chalk.green(`User notes saved to file: ${outputFile}`));
     }
   }
 
@@ -697,7 +699,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       const fileData: string = data.join('\n') + '\n';
       createDirectoryIfNotExists(outputFile);
       fs.writeFileSync(outputFile, fileData);
-      this.logger.showUser(chalk.green(`✅ Versions used saved to file: ${outputFile}`));
+      this.logger.showUser(chalk.green(`Versions used saved to file: ${outputFile}`));
     }
   }
 
@@ -710,7 +712,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         const fileData: string = messages.join('\n') + '\n';
         createDirectoryIfNotExists(outputFile);
         fs.writeFileSync(outputFile, fileData);
-        this.logger.showUser(chalk.green(`✅ Port forwarding info saved to file: ${outputFile}`));
+        this.logger.showUser(chalk.green(`Port forwarding info saved to file: ${outputFile}`));
       }
     }
   }
@@ -807,32 +809,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       if (outputFile) {
         createDirectoryIfNotExists(outputFile);
 
-        const formattedCreatedAccounts: {
-          accountId: string;
-          privateKey: string;
-          publicKey: string;
-          balance: string;
-          group: string;
-          publicAddress?: string;
-        }[] = createdAccounts.map(
-          (
-            account,
-          ): {
-            accountId: string;
-            privateKey: string;
-            publicKey: string;
-            balance: string;
-            group: string;
-            publicAddress?: string;
-          } => {
-            const formattedAccount: {
-              accountId: string;
-              privateKey: string;
-              publicKey: string;
-              balance: string;
-              group: string;
-              publicAddress?: string;
-            } = {
+        const formattedCreatedAccounts: FormattedCreatedAccount[] = createdAccounts.map(
+          (account: CreatedPredefinedAccount): FormattedCreatedAccount => {
+            const formattedAccount: FormattedCreatedAccount = {
               accountId: account.accountId.toString(),
               privateKey: `0x${account.data.privateKey.toStringRaw()}`,
               publicKey: `0x${PublicKey.fromString(account.publicKey).toStringRaw()}`,
@@ -848,33 +827,25 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           },
         );
 
-        const formattedSystemAccounts: {name: string; accountId: string; publicKey: string; privateKey?: string}[] =
-          systemAccounts.map(
-            (account: SystemAccount): {name: string; accountId: string; publicKey: string; privateKey?: string} => ({
-              name: account.name,
-              accountId: account.accountId.toString(),
-              publicKey: account.publicKey.toString(),
-              privateKey: account.privateKey,
-            }),
-          );
+        const formattedSystemAccounts: FormattedSystemAccount[] = systemAccounts.map(
+          (account: SystemAccount): FormattedSystemAccount => ({
+            name: account.name,
+            accountId: account.accountId.toString(),
+            publicKey: account.publicKey.toString(),
+            privateKey: account.privateKey,
+          }),
+        );
 
         const outputData: {
-          systemAccounts: {name: string; accountId: string; publicKey: string; privateKey?: string}[];
-          createdAccounts: {
-            accountId: string;
-            privateKey: string;
-            publicKey: string;
-            balance: string;
-            group: string;
-            publicAddress?: string;
-          }[];
+          systemAccounts: FormattedSystemAccount[];
+          createdAccounts: FormattedCreatedAccount[];
         } = {
           systemAccounts: formattedSystemAccounts,
           createdAccounts: formattedCreatedAccounts,
         };
 
         fs.writeFileSync(outputFile, JSON.stringify(outputData, undefined, 2));
-        this.logger.showUser(chalk.green(`✅ Created accounts saved to file in JSON format: ${outputFile}`));
+        this.logger.showUser(chalk.green(`Created accounts saved to file in JSON format: ${outputFile}`));
       }
 
       this.logger.showUser(
@@ -885,6 +856,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
   private cacheDeploymentName(context: OneShotSingleDeployContext, outputFile: string): void {
     fs.writeFileSync(outputFile, context.config.deployment);
-    this.logger.showUser(chalk.green(`✅ Deployment name (${context.config.deployment}) saved to file: ${outputFile}`));
+    this.logger.showUser(chalk.green(`Deployment name (${context.config.deployment}) saved to file: ${outputFile}`));
   }
 }
