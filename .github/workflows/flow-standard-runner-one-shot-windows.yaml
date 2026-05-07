@@ -196,6 +196,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: standard-runner-one-shot-windows-logs
-          path: ${{ env.HOME }}\.solo\logs
+          path: ${USERPROFILE}\.solo\logs
           overwrite: true
           if-no-files-found: warn
