@@ -27,12 +27,12 @@ import {Address} from '../../../src/business/address/address.js';
 function invokeExtractSavedEndpoint(
   manager: ProfileManager,
   consensusNode: ConsensusNode,
-  nodeSeq: number,
+  nodeSequence: number,
 ): Promise<Address | undefined> {
   const extractSavedEndpoint: (node: ConsensusNode, nodeSequence: number) => Promise<Address | undefined> = (
     manager as unknown as Record<string, (node: ConsensusNode, nodeSequence: number) => Promise<Address | undefined>>
   ).extractSavedEndpoint;
-  return extractSavedEndpoint.call(manager, consensusNode, nodeSeq);
+  return extractSavedEndpoint.call(manager, consensusNode, nodeSequence);
 }
 
 describe('ProfileManager', (): void => {

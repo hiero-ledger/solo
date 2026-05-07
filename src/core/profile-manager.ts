@@ -742,7 +742,9 @@ export class ProfileManager {
 
         // Validate the saved IP still belongs to this node service.
         const serviceName: string = `network-${consensusNode.name}-svc`;
-        const service = await k8.services().read(NamespaceName.of(consensusNode.namespace), serviceName);
+        const service: {spec?: {clusterIP?: string}} | undefined = await k8
+          .services()
+          .read(NamespaceName.of(consensusNode.namespace), serviceName);
         const serviceIpAddress: string | undefined = service?.spec?.clusterIP;
         if (serviceIpAddress !== ipAddress) {
           this.logger.warn(
@@ -862,7 +864,7 @@ export class ProfileManager {
       /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
     );
     if (match?.[1]) {
-      return match[1].toLowerCase() !== 'false';
+      return match[1].toLowerCase() === 'true';
     }
     return undefined;
   }

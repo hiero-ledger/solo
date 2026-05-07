@@ -60,6 +60,11 @@ describe('NodeCommandTasks local build path PVC validation', (): void => {
 });
 
 describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
+  const configMapFalseData: {data: Record<string, string>} = {
+    data: {[constants.APPLICATION_PROPERTIES]: 'nodes.gossipFqdnRestricted=false\n'},
+  };
+  const emptyConfigMapData: {data: Record<string, string>} = {data: {}};
+
   function invokeParseGossipFqdnRestricted(
     nodeCommandTasks: NodeCommandTasks,
     applicationPropertiesText: string,
@@ -76,14 +81,14 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
     k8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>} | never>}},
   ): Promise<boolean> {
     const getterFunction: (
-      configValue: {namespace: NamespaceName; stagingDir: string},
-      k8Value: {configMaps: () => {read: () => Promise<{data?: Record<string, string>} | never>}},
+      config: {namespace: NamespaceName; stagingDir: string},
+      k8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>} | never>}},
     ) => Promise<boolean> = (
       nodeCommandTasks as unknown as Record<
         string,
         (
-          configValue: {namespace: NamespaceName; stagingDir: string},
-          k8Value: {configMaps: () => {read: () => Promise<{data?: Record<string, string>} | never>}},
+          config: {namespace: NamespaceName; stagingDir: string},
+          k8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>} | never>}},
         ) => Promise<boolean>
       >
     ).getGossipFqdnRestricted;
@@ -109,9 +114,7 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
 
     const k8 = {
       configMaps: (): {read: () => Promise<{data?: Record<string, string>} | never>} => ({
-        read: async (): Promise<{data?: Record<string, string>}> => ({
-          data: {[constants.APPLICATION_PROPERTIES]: 'nodes.gossipFqdnRestricted=false\n'},
-        }),
+        read: async (): Promise<{data?: Record<string, string>}> => configMapFalseData,
       }),
     };
     const config: {namespace: NamespaceName; stagingDir: string} = {
@@ -160,7 +163,7 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
     const stagingDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'gossip-fqdn-default-'));
     const k8 = {
       configMaps: (): {read: () => Promise<{data?: Record<string, string>} | never>} => ({
-        read: async (): Promise<{data?: Record<string, string>}> => ({data: {}}),
+        read: async (): Promise<{data?: Record<string, string>}> => emptyConfigMapData,
       }),
     };
     const config: {namespace: NamespaceName; stagingDir: string} = {
