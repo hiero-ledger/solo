@@ -148,6 +148,7 @@ jobs:
           if [[ -n "${CN_EDGE_VERSION}" ]]; then
             echo "Using consensus node edge version: ${CN_EDGE_VERSION}"
             echo CONSENSUS_NODE_EDGE_VERSION="${CN_EDGE_VERSION}" >> .env
+            export CONSENSUS_NODE_EDGE_VERSION="${CN_EDGE_VERSION}"
           else
             echo "No consensus node edge version specified, using default from version.ts"
           fi
