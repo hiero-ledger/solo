@@ -16,6 +16,7 @@ import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
   parseNodeAliases,
   prepareValuesFilesMapMultipleCluster,
+  resolveStorageClass,
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
@@ -55,7 +56,6 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
-import {type StorageClass} from '../integration/kube/resources/storage-class/storage-class.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
@@ -695,7 +695,8 @@ export class NetworkCommand extends BaseCommand {
         ` --set "crds.podLog.enabled=${config.singleUsePodLog}"` +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"` +
         (config.resolvedPvcStorageClass
-          ? ` --set "defaults.volumeClaims.storageClassName=${config.resolvedPvcStorageClass}"`
+          ? ` --set "defaults.volumeClaims.storageClassName=${config.resolvedPvcStorageClass}"` +
+            ` --set "minio-server.tenant.pools[0].storageClassName=${config.resolvedPvcStorageClass}"`
           : '');
     }
 
@@ -1266,52 +1267,11 @@ export class NetworkCommand extends BaseCommand {
    * Resolution order:
    * 1. User-supplied class (--pvc-storage-class) — validated against the cluster.
    * 2. Cluster default StorageClass (annotated with is-default-class=true).
-   * 3. A StorageClass backed by rancher.io/local-path (common on Kind clusters).
-   * 4. Install rancher.io/local-path-provisioner from the bundled manifest, then return 'local-path'.
+   * 3. A StorageClass backed by LOCAL_PATH_PROVISIONER (common on Kind clusters).
+   * 4. Install LOCAL_PATH_PROVISIONER from the bundled manifest, then return LOCAL_PATH_STORAGE_CLASS.
    */
   private async resolveStorageClass(contexts: string[], userSuppliedClass: string): Promise<string> {
-    const k8: K8 = this.k8Factory.getK8(contexts[0]);
-    const storageClasses: StorageClass[] = await k8.storageClasses().list();
-
-    if (userSuppliedClass) {
-      const found: StorageClass | undefined = storageClasses.find(
-        (storageClass: StorageClass): boolean => storageClass.name === userSuppliedClass,
-      );
-      if (!found) {
-        const available: string = storageClasses
-          .map((storageClass: StorageClass): string => storageClass.name)
-          .join(', ');
-        throw new SoloError(
-          `StorageClass '${userSuppliedClass}' not found in cluster.` +
-            (available ? ` Available classes: ${available}` : ' No StorageClasses are installed.'),
-        );
-      }
-      return userSuppliedClass;
-    }
-
-    const defaultClass: StorageClass | undefined = storageClasses.find(
-      (storageClass: StorageClass): boolean => storageClass.isDefault,
-    );
-    if (defaultClass) {
-      this.logger.debug(`Using default StorageClass: ${defaultClass.name}`);
-      return defaultClass.name;
-    }
-
-    const localPathClass: StorageClass | undefined = storageClasses.find(
-      (storageClass: StorageClass): boolean => storageClass.provisioner === 'rancher.io/local-path',
-    );
-    if (localPathClass) {
-      this.logger.debug(`Using existing rancher.io/local-path StorageClass: ${localPathClass.name}`);
-      return localPathClass.name;
-    }
-
-    const manifestPath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'local-path-provisioner.yaml');
-    this.logger.showUser(
-      'No StorageClass found in cluster — installing rancher.io/local-path-provisioner. ' +
-        'Use --pvc-storage-class to specify an existing StorageClass.',
-    );
-    await k8.manifests().installManifest(manifestPath);
-    return 'local-path';
+    return resolveStorageClass(this.k8Factory.getK8(contexts[0]), this.logger, userSuppliedClass);
   }
 
   /** Run helm install and deploy network components */

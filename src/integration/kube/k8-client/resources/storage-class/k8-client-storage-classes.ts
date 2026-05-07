@@ -6,7 +6,7 @@ import {type StorageClass} from '../../../resources/storage-class/storage-class.
 import {K8ClientStorageClass} from './k8-client-storage-class.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 
-const DEFAULT_CLASS_ANNOTATION = 'storageclass.kubernetes.io/is-default-class';
+const DEFAULT_CLASS_ANNOTATION: string = 'storageclass.kubernetes.io/is-default-class';
 
 export class K8ClientStorageClasses implements StorageClasses {
   public constructor(private readonly storageApi: StorageV1Api) {}

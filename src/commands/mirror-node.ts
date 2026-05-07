@@ -12,7 +12,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
-import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
+import {prepareValuesFiles, resolveStorageClass, showVersionBanner} from '../core/helpers.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -741,12 +741,18 @@ export class MirrorNodeCommand extends BaseCommand {
               }
 
               this.sharedResourceManager.enableRedis();
+              const resolvedStorageClass: string = await resolveStorageClass(
+                this.k8Factory.getK8(context_.config.clusterContext),
+                this.logger,
+                constants.LOCAL_PATH_PROVISIONER,
+              );
               context_.config.installSharedResources = await this.sharedResourceManager.installChart(
                 context_.config.namespace,
                 context_.config.chartDirectory,
                 context_.config.soloChartVersion,
                 context_.config.clusterContext,
                 {
+                  'global.storageClass': resolvedStorageClass,
                   'redis.image.registry': constants.REDIS_IMAGE_REGISTRY,
                   'redis.image.repository': constants.REDIS_IMAGE_REPOSITORY,
                   'redis.image.tag': versions.REDIS_IMAGE_VERSION,

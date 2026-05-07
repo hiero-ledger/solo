@@ -4,6 +4,7 @@ import {describe, it} from 'mocha';
 import {expect} from 'chai';
 import {NetworkCommand} from '../../../../src/commands/network.js';
 import {type StorageClass} from '../../../../src/integration/kube/resources/storage-class/storage-class.js';
+import {LOCAL_PATH_PROVISIONER, LOCAL_PATH_STORAGE_CLASS} from '../../../../src/core/constants.js';
 
 type ResolveStorageClass = (contexts: string[], userSuppliedClass: string) => Promise<string>;
 
@@ -87,14 +88,14 @@ describe('NetworkCommand resolveStorageClass', (): void => {
 
   it('returns the rancher.io/local-path class when no default exists', async (): Promise<void> => {
     const storageClasses: StorageClass[] = [
-      {name: 'local-path', provisioner: 'rancher.io/local-path', isDefault: false},
+      {name: LOCAL_PATH_STORAGE_CLASS, provisioner: LOCAL_PATH_PROVISIONER, isDefault: false},
     ];
     const installCount: {value: number} = {value: 0};
     const command: NetworkCommand = createNetworkCommandWithStorageClasses(storageClasses, installCount);
 
     const result: string = await invokeResolveStorageClass(command, ['kind-solo'], '');
 
-    expect(result).to.equal('local-path');
+    expect(result).to.equal(LOCAL_PATH_STORAGE_CLASS);
     expect(installCount.value).to.equal(0);
   });
 
@@ -105,7 +106,29 @@ describe('NetworkCommand resolveStorageClass', (): void => {
 
     const result: string = await invokeResolveStorageClass(command, ['kind-solo'], '');
 
-    expect(result).to.equal('local-path');
+    expect(result).to.equal(LOCAL_PATH_STORAGE_CLASS);
+    expect(installCount.value).to.equal(1);
+  });
+
+  it('runs auto-detect cascade when user supplies LOCAL_PATH_PROVISIONER as default', async (): Promise<void> => {
+    const storageClasses: StorageClass[] = [{name: 'standard', provisioner: 'pd.csi.storage.gke.io', isDefault: true}];
+    const installCount: {value: number} = {value: 0};
+    const command: NetworkCommand = createNetworkCommandWithStorageClasses(storageClasses, installCount);
+
+    const result: string = await invokeResolveStorageClass(command, ['kind-solo'], LOCAL_PATH_PROVISIONER);
+
+    expect(result).to.equal('standard');
+    expect(installCount.value).to.equal(0);
+  });
+
+  it('installs provisioner when LOCAL_PATH_PROVISIONER is the default and no StorageClass exists', async (): Promise<void> => {
+    const storageClasses: StorageClass[] = [];
+    const installCount: {value: number} = {value: 0};
+    const command: NetworkCommand = createNetworkCommandWithStorageClasses(storageClasses, installCount);
+
+    const result: string = await invokeResolveStorageClass(command, ['kind-solo'], LOCAL_PATH_PROVISIONER);
+
+    expect(result).to.equal(LOCAL_PATH_STORAGE_CLASS);
     expect(installCount.value).to.equal(1);
   });
 });
