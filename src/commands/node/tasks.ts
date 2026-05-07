@@ -188,6 +188,7 @@ import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
+import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -243,7 +244,7 @@ export class NodeCommandTasks {
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
-  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion: string): Promise<string> {
+  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion?: string): Promise<string> {
     // we build a mock upgrade.zip file as we really don't need to upgrade the network
     // also the platform zip file is ~80Mb in size requiring a lot of transactions since the max
     // transaction size is 6Kb and in practice we need to send the file as 4Kb chunks.
@@ -732,7 +733,7 @@ export class NodeCommandTasks {
     return {
       title: 'Generate gRPC TLS Keys',
       task: (context_, task): SoloListr<NodeKeysContext | NodeAddContext> => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass | NodeKeysConfigClass = context_.config;
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
@@ -825,7 +826,8 @@ export class NodeCommandTasks {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass | NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass =
+          context_.config;
         const {upgradeZipFile, deployment}: any = context_.config;
         if (upgradeZipFile) {
           context_.upgradeZipFile = upgradeZipFile;
@@ -855,7 +857,9 @@ export class NodeCommandTasks {
               templatesDirectory,
             );
 
-          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
+          const upgradeVersion: string | undefined =
+            'upgradeVersion' in config ? (config.upgradeVersion as string) : undefined;
+          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, upgradeVersion);
         }
         context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
@@ -1273,7 +1277,7 @@ export class NodeCommandTasks {
     return {
       title: 'Upload state files network nodes',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass & {stateFile?: string} = context_.config;
 
         // Get the source node ID from the first consensus node (the state file's original node)
         const sourceNodeId: any = config.consensusNodes[0].nodeId;
@@ -2998,7 +3002,8 @@ export class NodeCommandTasks {
     return {
       title: 'Prepare gossip endpoints',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
+
         let endpoints: string[] = [];
         if (config.gossipEndpoints) {
           endpoints = splitFlagInput(config.gossipEndpoints);
@@ -3009,6 +3014,7 @@ export class NodeCommandTasks {
           );
 
           const k8: K8 = this.k8Factory.getK8(context);
+          const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(config, k8);
 
           const externalEndpointAddress: Address = await Address.getExternalAddress(
             new ConsensusNode(
@@ -3025,6 +3031,7 @@ export class NodeCommandTasks {
             ),
             k8,
             +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+            gossipFqdnRestricted,
           );
 
           endpoints = [
@@ -3040,6 +3047,49 @@ export class NodeCommandTasks {
         );
       },
     };
+  }
+
+  private parseGossipFqdnRestricted(applicationPropertiesText: string): boolean | undefined {
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
+    );
+    if (match?.[1]) {
+      return match[1].toLowerCase() === 'true';
+    }
+    return undefined;
+  }
+
+  private async getGossipFqdnRestricted(config: NodeAddConfigClass, k8: K8): Promise<boolean> {
+    // Prefer live cluster config when present, then staged file, then default true.
+    try {
+      const configMap: ConfigMap = await k8
+        .configMaps()
+        .read(config.namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+      const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
+      if (configMapProperties) {
+        const parsedFromConfigMap: boolean | undefined = this.parseGossipFqdnRestricted(configMapProperties);
+        if (parsedFromConfigMap !== undefined) {
+          return parsedFromConfigMap;
+        }
+      }
+    } catch {
+      // Fall through to staged application.properties
+    }
+
+    const applicationPropertiesPath: string = PathEx.join(
+      config.stagingDir,
+      'templates',
+      constants.APPLICATION_PROPERTIES,
+    );
+    if (fs.existsSync(applicationPropertiesPath)) {
+      const appProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      const parsedFromStaging: boolean | undefined = this.parseGossipFqdnRestricted(appProperties);
+      if (parsedFromStaging !== undefined) {
+        return parsedFromStaging;
+      }
+    }
+
+    return true;
   }
 
   public refreshNodeList(): SoloListrTask<NodeDestroyContext> {
@@ -3061,8 +3111,8 @@ export class NodeCommandTasks {
     return {
       title: 'Prepare grpc service endpoints',
       task: (context_): void => {
-        const config: any = context_.config;
-        let endpoints: any[] = [];
+        const config: NodeAddConfigClass = context_.config;
+        let endpoints: string[] = [];
 
         if (config.grpcEndpoints) {
           endpoints = splitFlagInput(config.grpcEndpoints);
