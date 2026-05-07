@@ -36,3 +36,4 @@ merge:
     - "Test Example (One Shot Local Build)"
     - "performance-test"
     - "Migrate Solo from Prior to Current Version"
+    - "Windows One-Shot Deploy and Destroy / Deploy and Destroy"
