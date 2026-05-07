@@ -43,10 +43,5 @@
     "name": "Rapid Fire",
     "directory": "rapid-fire",
     "local-java-build": false
-  },
-  {
-    "name": "One Shot Local Build",
-    "directory": "one-shot-local-build",
-    "local-java-build": true
   }
 ]

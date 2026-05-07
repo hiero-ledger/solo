@@ -58,7 +58,6 @@ import {type CommandInvoker} from './helpers/command-invoker.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {type HelmClient} from '../src/integration/helm/helm-client.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
-import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
 import {HEDERA_PLATFORM_VERSION} from '../version.js';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
@@ -122,8 +121,8 @@ export function startNodesTest(testName: string, argv: Argv): void {
     const deployment: string = argv.getArg<string>(flags.deployment);
     const cacheDirectory: string = argv.getArg<string>(flags.cacheDir);
     const localBuildPath: string = argv.getArg<string>(flags.localBuildPath);
-    const app = argv.getArg<string>(flags.app);
-    const appConfig = argv.getArg<string>(flags.appConfig);
+    const app: string = argv.getArg<string>(flags.app);
+    const appConfig: string = argv.getArg<string>(flags.appConfig);
     await main(ConsensusNodeTest.soloConsensusNodeSetup(deployment, cacheDirectory, localBuildPath, app, appConfig));
   }).timeout(Duration.ofMinutes(4).toMillis());
 
@@ -468,7 +467,6 @@ export async function createAccount(
   expect(accountManager._nodeClient).not.to.be.null;
   const privateKey: PrivateKey = PrivateKey.generate();
   const amount: number = 100;
-
   const newAccount: TransactionResponse = await new AccountCreateTransaction()
     .setKey(privateKey)
     .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
@@ -517,13 +515,13 @@ export async function getNodeAliasesPrivateKeysHash(
   k8Factory: K8Factory,
   destinationDirectory: string,
 ): Promise<Map<NodeAlias, Map<string, string>>> {
-  const dataKeysDirectory = `${constants.HEDERA_HAPI_PATH}/data/keys`;
-  const tlsKeysDirectory = constants.HEDERA_HAPI_PATH;
-  const nodeKeyHashMap = new Map<NodeAlias, Map<string, string>>();
+  const dataKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+  const tlsKeysDirectory: string = constants.HEDERA_HAPI_PATH;
+  const nodeKeyHashMap: Map<NodeAlias, Map<string, string>> = new Map<NodeAlias, Map<string, string>>();
   for (const networkNodeServices of networkNodeServicesMap.values()) {
-    const keyHashMap = new Map<string, string>();
-    const nodeAlias = networkNodeServices.nodeAlias;
-    const uniqueNodeDestinationDirectory = PathEx.join(destinationDirectory, nodeAlias);
+    const keyHashMap: Map<string, string> = new Map<string, string>();
+    const nodeAlias: NodeAlias = networkNodeServices.nodeAlias;
+    const uniqueNodeDestinationDirectory: string = PathEx.join(destinationDirectory, nodeAlias);
     if (!fs.existsSync(uniqueNodeDestinationDirectory)) {
       fs.mkdirSync(uniqueNodeDestinationDirectory, {recursive: true});
     }
@@ -566,12 +564,12 @@ async function addKeyHashToMap(
       ContainerReference.of(PodReference.of(namespace, Templates.renderNetworkPodName(nodeAlias)), ROOT_CONTAINER),
     )
     .copyFrom(PathEx.join(keyDirectory, privateKeyFileName), uniqueNodeDestinationDirectory);
-  const keyBytes = fs.readFileSync(PathEx.joinWithRealPath(uniqueNodeDestinationDirectory, privateKeyFileName));
-  const keyString = keyBytes.toString();
+  const keyBytes: Buffer = fs.readFileSync(PathEx.joinWithRealPath(uniqueNodeDestinationDirectory, privateKeyFileName));
+  const keyString: string = keyBytes.toString();
   keyHashMap.set(privateKeyFileName, crypto.createHash('sha256').update(keyString).digest('base64'));
 }
 
-export const testLocalConfigData = {
+export const testLocalConfigData: Record<string, unknown> = {
   userIdentity: {
     name: 'john',
     host: 'doe',
@@ -607,10 +605,6 @@ export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version
 
 export function hederaPlatformSupportsNonZeroRealms(): boolean {
   return new SemanticVersion<string>(HEDERA_PLATFORM_VERSION).greaterThanOrEqual('0.61.4');
-}
-
-export function localHederaPlatformSupportsNonZeroRealms(): boolean {
-  return new SemanticVersion<string>(TEST_LOCAL_HEDERA_PLATFORM_VERSION).greaterThanOrEqual('0.61.4');
 }
 
 export function destroyEnabled(): boolean {

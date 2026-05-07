@@ -1963,7 +1963,7 @@ export class NodeCommandTasks {
               podReference,
               constants.GRPC_PORT, // Pod port
               constants.GRPC_LOCAL_PORT + nodeId, // Local port offset by node id (node1=base, node2=base+1, ...)
-              this.k8Factory.getK8(config.clusterContext),
+              this.k8Factory.getK8(context),
               this.logger,
               ComponentTypes.HaProxy,
               'Consensus Node gRPC',
@@ -4223,6 +4223,7 @@ export class NodeCommandTasks {
         const componentLabelConfigs: Array<{name: string; labels: string[]}> = [
           {name: 'consensus node', labels: ['solo.hedera.com/type=network-node']},
           {name: 'mirror importer', labels: [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL]},
+          {name: 'mirror pinger', labels: [constants.SOLO_MIRROR_PINGER_NAME_LABEL]},
           {name: 'mirror grpc', labels: [constants.SOLO_MIRROR_GRPC_NAME_LABEL]},
           {name: 'mirror monitor', labels: [constants.SOLO_MIRROR_MONITOR_NAME_LABEL]},
           {name: 'mirror rest', labels: [constants.SOLO_MIRROR_REST_NAME_LABEL]},
