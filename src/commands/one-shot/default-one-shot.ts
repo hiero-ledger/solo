@@ -94,6 +94,7 @@ import {StringFacade} from '../../business/runtime-state/facade/string-facade.js
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {OneShotInfoContext} from './one-shot-info-context.js';
 import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
+import {parseOneShotVersionsFile, type OneShotParsedVersions} from './one-shot-versions-parser.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -1812,16 +1813,33 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           task: async (context_): Promise<void> => {
             this.logger.showUser(chalk.cyan('\n=== Deployment Components ==='));
 
-            const versions: ApplicationVersionsSchema = context_.remoteConfig.versions;
+            const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
+            const versionsFile: string = PathEx.join(outputDirectory, 'versions');
+            const versionsFromFile: OneShotParsedVersions = fs.existsSync(versionsFile)
+              ? parseOneShotVersionsFile(fs.readFileSync(versionsFile, 'utf8'))
+              : {};
+            const versions: ApplicationVersionsSchema | undefined = context_.remoteConfig?.versions;
 
             // Show versions
             this.logger.showUser(chalk.cyan('\nVersions:'));
-            this.logger.showUser(`  Solo Chart Version: ${chalk.bold()}`);
-            this.logger.showUser(`  Consensus Node Version: ${chalk.bold(versions.consensusNode?.toString())}`);
-            this.logger.showUser(`  Mirror Node Version: ${chalk.bold(versions.mirrorNodeChart?.toString())}`);
-            this.logger.showUser(`  Explorer Version: ${chalk.bold(versions.explorerChart?.toString())}`);
-            this.logger.showUser(`  JSON RPC Relay Version: ${chalk.bold(versions.jsonRpcRelayChart?.toString())}`);
-            this.logger.showUser(`  Block Node Version: ${chalk.bold(versions.blockNodeChart?.toString())}`);
+            this.logger.showUser(
+              `  Solo Chart Version: ${chalk.bold(versionsFromFile.soloChart ?? versions?.chart?.toString())}`,
+            );
+            this.logger.showUser(
+              `  Consensus Node Version: ${chalk.bold(versionsFromFile.consensus ?? versions?.consensusNode?.toString())}`,
+            );
+            this.logger.showUser(
+              `  Mirror Node Version: ${chalk.bold(versionsFromFile.mirror ?? versions?.mirrorNodeChart?.toString())}`,
+            );
+            this.logger.showUser(
+              `  Explorer Version: ${chalk.bold(versionsFromFile.explorer ?? versions?.explorerChart?.toString())}`,
+            );
+            this.logger.showUser(
+              `  JSON RPC Relay Version: ${chalk.bold(versionsFromFile.relay ?? versions?.jsonRpcRelayChart?.toString())}`,
+            );
+            this.logger.showUser(
+              `  Block Node Version: ${chalk.bold(versionsFromFile.blockNode ?? versions?.blockNodeChart?.toString())}`,
+            );
 
             if (context_.remoteConfig) {
               const components: DeploymentStateSchema = context_.remoteConfig.state;
@@ -1876,15 +1894,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             // Show information about where files are stored
-            const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
-
             this.logger.showUser(chalk.cyan('\n=== Deployment Files ==='));
 
             if (fs.existsSync(outputDirectory)) {
               this.logger.showUser(`Output directory: ${chalk.bold(outputDirectory)}`);
 
               const notesFile: string = PathEx.join(outputDirectory, 'notes');
-              const versionsFile: string = PathEx.join(outputDirectory, 'versions');
               const forwardsFile: string = PathEx.join(outputDirectory, 'forwards');
               const accountsFile: string = PathEx.join(outputDirectory, 'accounts.json');
 
