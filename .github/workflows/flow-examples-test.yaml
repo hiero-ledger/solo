@@ -29,6 +29,11 @@ on:
         type: string
         required: false
         default: "22"
+      consensus-node-version:
+        description: "Consensus node release tag to use"
+        type: string
+        required: false
+        default: ""
       released-or-latest:
         description: "Use released or latest version"
         type: boolean
@@ -56,6 +61,11 @@ on:
         type: string
         required: false
         default: "22"
+      consensus-node-version:
+        description: "Consensus node release tag to use"
+        type: string
+        required: false
+        default: ""
       released-or-latest:
         description: "Use released or latest version"
         type: boolean
@@ -231,7 +241,10 @@ jobs:
           max_attempts: 3
           timeout_minutes: 30
           command: |
-            export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
+            export CONSENSUS_NODE_VERSION="${{ inputs.consensus-node-version }}"
+            if [ -z "${CONSENSUS_NODE_VERSION}" ]; then
+              export CONSENSUS_NODE_VERSION=$(.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)
+            fi
             cd ..
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
             cd hiero-consensus-node
@@ -362,7 +375,10 @@ jobs:
           # test immediately rather than waiting up to 45 minutes for it to finish
           # on its own.
           echo "Starting task..."
-          export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' ../../version.ts)
+          export CONSENSUS_NODE_VERSION="${{ inputs.consensus-node-version }}"
+          if [ -z "${CONSENSUS_NODE_VERSION}" ]; then
+            export CONSENSUS_NODE_VERSION=$(../../.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION ../../version.ts)
+          fi
           TASK_PID=""
           TASK_PGID=""
           TASK_RC=0
