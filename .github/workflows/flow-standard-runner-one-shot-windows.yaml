@@ -47,6 +47,20 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
+      - name: Windows Diagnostics
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          Write-Host "Windows Version:"
+          winver
+          Write-Host "System Information:"
+          systeminfo
+          Write-Host "Environment Variables:"
+          Write-Host "HOME: $env:HOME"
+          Write-Host "USERPROFILE: $env:USERPROFILE"
+          Write-Host "GITHUB_WORKSPACE: $env:GITHUB_WORKSPACE"
+          Write-Host "Current Working Directory: $(Get-Location)"
+
       - name: Exclude Directory from Antivirus Scanning
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
@@ -182,6 +196,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: standard-runner-one-shot-windows-logs
-          path: ${{ env.USERPROFILE }}\.solo\logs
+          path: ${{ env.HOME }}\.solo\logs
           overwrite: true
           if-no-files-found: warn
