@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type CacheArtifactEnum} from '../enums/cache-artifact-enum.js';
-import {type CacheTargetStructure} from '../models/cache-target-structure.js';
 import {type ArtifactHealthResultStructure} from '../models/artifact-health-result-structure.js';
 import {type SoloListrTask} from '../../../types/index.js';
 import {type AnyListrContext} from '../../../types/aliases.js';
@@ -66,6 +65,4 @@ export interface CacheOperationHandler {
    * It may be used by callers to inspect or report cache contents.
    */
   list(): Promise<readonly CachedItemStructure[]>;
-
-  resolveRequiredArtifacts(): Promise<readonly CacheTargetStructure[]>;
 }
