@@ -293,11 +293,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.oneShotState.activate();
 
               const edgeEnabled: boolean = this.configManager.getFlag(Flags.edgeEnabled);
+              console.log(`[DEBUG one-shot] edgeEnabled flag: ${edgeEnabled}`);
               const versions: OneShotVersionsObject = this.resolveOneShotComponentVersions(edgeEnabled);
+              console.log(`[DEBUG one-shot] Resolved consensus version: ${versions.consensus}`);
 
               // Pre-set component version flags in configManager so they are available
               // for all sub-commands during concurrent execution
               this.configManager.setFlag(Flags.releaseTag, versions.consensus);
+              console.log(`[DEBUG one-shot] Set releaseTag flag to: ${versions.consensus}`);
               this.configManager.setFlag(Flags.blockNodeChartVersion, versions.blockNode);
               this.configManager.setFlag(Flags.mirrorNodeVersion, versions.mirror);
               this.configManager.setFlag(Flags.relayReleaseTag, versions.relay);
