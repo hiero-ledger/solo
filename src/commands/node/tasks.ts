@@ -244,7 +244,7 @@ export class NodeCommandTasks {
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
-  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion: string): Promise<string> {
+  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion?: string): Promise<string> {
     // we build a mock upgrade.zip file as we really don't need to upgrade the network
     // also the platform zip file is ~80Mb in size requiring a lot of transactions since the max
     // transaction size is 6Kb and in practice we need to send the file as 4Kb chunks.
@@ -733,7 +733,7 @@ export class NodeCommandTasks {
     return {
       title: 'Generate gRPC TLS Keys',
       task: (context_, task): SoloListr<NodeKeysContext | NodeAddContext> => {
-        const config: NodeAddConfigClass = context_.config;
+        const config: NodeAddConfigClass | NodeKeysConfigClass = context_.config;
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
@@ -826,7 +826,8 @@ export class NodeCommandTasks {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_): Promise<void> => {
-        const config: NodeAddConfigClass = context_.config;
+        const config: NodeAddConfigClass | NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass =
+          context_.config;
         const {upgradeZipFile, deployment}: any = context_.config;
         if (upgradeZipFile) {
           context_.upgradeZipFile = upgradeZipFile;
@@ -856,7 +857,9 @@ export class NodeCommandTasks {
               templatesDirectory,
             );
 
-          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
+          const upgradeVersion: string | undefined =
+            'upgradeVersion' in config ? (config.upgradeVersion as string) : undefined;
+          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, upgradeVersion);
         }
         context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
@@ -1274,7 +1277,7 @@ export class NodeCommandTasks {
     return {
       title: 'Upload state files network nodes',
       task: async (context_): Promise<void> => {
-        const config: NodeAddConfigClass = context_.config;
+        const config: NodeAddConfigClass & {stateFile?: string} = context_.config;
 
         // Get the source node ID from the first consensus node (the state file's original node)
         const sourceNodeId: any = config.consensusNodes[0].nodeId;
@@ -3051,7 +3054,7 @@ export class NodeCommandTasks {
       /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
     );
     if (match?.[1]) {
-      return match[1].toLowerCase() !== 'false';
+      return match[1].toLowerCase() === 'true';
     }
     return undefined;
   }
