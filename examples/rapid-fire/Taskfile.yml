@@ -77,7 +77,7 @@ tasks:
 
       - cmd: |
           # Generate application.properties based on CN version
-          CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' ../../version.ts)
+          CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
 
           # Create base application.properties
           mkdir -p {{ .TEMPORARY_DIR }}
@@ -85,7 +85,7 @@ tasks:
 
           # Compare versions using node
           ENABLE_SIMPLE_FEES=$(node -e "
-            const {SemanticVersion} = require('../../dist/src/business/utils/semantic-version.js');
+            const {SemanticVersion} = require('./dist/src/business/utils/semantic-version.js');
             const cnVersion = new SemanticVersion('${CONSENSUS_NODE_VERSION}');
             const minTssVersion = new SemanticVersion('v0.74.0-0');
             console.log(cnVersion.greaterThanOrEqual(minTssVersion));
