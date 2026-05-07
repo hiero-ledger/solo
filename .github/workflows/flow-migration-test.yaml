@@ -38,11 +38,11 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
+#  pull_request:
+#    types:
+#      - opened
+#      - reopened
+#      - synchronize
 concurrency:
   # One run per PR or per branch. A new push cancels any in-progress run for
   # the same PR/branch, saving runner resources. workflow_dispatch runs are

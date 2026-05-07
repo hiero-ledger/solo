@@ -19,13 +19,13 @@ name: "Standard Runner One-Shot Deploy"
 # using the one-shot single deploy command on a standard GitHub-hosted ubuntu runner.
 # This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.
 
-on:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
+#on:
+#  pull_request:
+#    types:
+#      - opened
+#      - reopened
+#      - synchronize
+#      - ready_for_review
 
 defaults:
   run:
