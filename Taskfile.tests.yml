@@ -165,11 +165,6 @@ tasks:
   test-e2e-performance:
     desc: "Runs E2E Performance tests with coverage and generates reports in coverage/e2e-performance"
     cmds:
-      - |
-        if [ -z "$CONSENSUS_NODE_EDGE_VERSION" ]; then
-          echo "CONSENSUS_NODE_EDGE_VERSION=${CONSENSUS_NODE_EDGE_VERSION}" >> .env
-          echo "CONSENSUS_NODE_VERSION is set to '${CONSENSUS_NODE_VERSION}'"
-        fi
       - "{{ .test_prefix }}=\"Mocha E2E Performance Test\"
         {{ .reporter_prefix }}='coverage/e2e-performance'
         {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts'
