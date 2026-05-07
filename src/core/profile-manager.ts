@@ -27,7 +27,6 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
-import {type Service} from '../integration/kube/resources/service/service.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
@@ -40,6 +39,7 @@ import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {type V1ConfigMap} from '@kubernetes/client-node';
 
 export interface ProfileManagerStagingOptions {
   // These values are intentionally passed from the command's resolved config so profile generation
@@ -185,6 +185,10 @@ export class ProfileManager {
     const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(resolvedStagingOptions.releaseTag);
     let configTxtPath: Optional<string>;
     if (needsConfigTxt) {
+      const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(
+        consensusNodes,
+        applicationPropertiesPath,
+      );
       configTxtPath = await this.prepareConfigTxt(
         accountMap,
         consensusNodes,
@@ -192,6 +196,7 @@ export class ProfileManager {
         resolvedStagingOptions.releaseTag,
         resolvedStagingOptions.appName,
         resolvedStagingOptions.chainId,
+        gossipFqdnRestricted,
       );
     }
 
@@ -744,13 +749,15 @@ export class ProfileManager {
         const ipBytes: Buffer = Buffer.from(base64Ip, 'base64');
         const ipAddress: string = [...ipBytes].join('.');
 
-        // Validate that a service with this IP still exists
-        const services: Service[] = await k8.services().list(NamespaceName.of(consensusNode.namespace));
-        const serviceExists: boolean = services.some((svc: Service): boolean => svc.spec?.clusterIP === ipAddress);
-
-        if (!serviceExists) {
+        // Validate the saved IP still belongs to this node service.
+        const serviceName: string = `network-${consensusNode.name}-svc`;
+        const service: {spec?: {clusterIP?: string}} | undefined = await k8
+          .services()
+          .read(NamespaceName.of(consensusNode.namespace), serviceName);
+        const serviceIpAddress: string | undefined = service?.spec?.clusterIP;
+        if (serviceIpAddress !== ipAddress) {
           this.logger.warn(
-            `Saved endpoint ${ipAddress}:${port} for ${consensusNode.name} no longer exists, falling back to current service IP`,
+            `Saved endpoint ${ipAddress}:${port} for ${consensusNode.name} does not match current ${serviceName} ClusterIP ${serviceIpAddress ?? 'undefined'}, falling back to current service address`,
           );
           return undefined;
         }
@@ -786,6 +793,7 @@ export class ProfileManager {
     releaseTagOverride: string,
     appName: string = constants.HEDERA_APP_NAME,
     chainId: string = constants.HEDERA_CHAIN_ID,
+    gossipFqdnRestricted: boolean = true,
   ): Promise<string> {
     let releaseTag: string = releaseTagOverride;
     if (!nodeAccountMap || nodeAccountMap.size === 0) {
@@ -832,6 +840,7 @@ export class ProfileManager {
             consensusNode,
             this.k8Factory.getK8(consensusNode.context),
             externalPort,
+            gossipFqdnRestricted,
           );
         }
 
@@ -857,5 +866,50 @@ export class ProfileManager {
         error,
       );
     }
+  }
+
+  private parseGossipFqdnRestricted(applicationPropertiesText: string): boolean | undefined {
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
+    );
+    if (match?.[1]) {
+      return match[1].toLowerCase() === 'true';
+    }
+    return undefined;
+  }
+
+  private async getGossipFqdnRestricted(
+    consensusNodes: ConsensusNode[],
+    applicationPropertiesPath: string,
+  ): Promise<boolean> {
+    const firstNode: ConsensusNode | undefined = consensusNodes[0];
+    if (firstNode) {
+      try {
+        const k8 = this.k8Factory.getK8(firstNode.context);
+        const configMap: V1ConfigMap = await k8
+          .configMaps()
+          .read(NamespaceName.of(firstNode.namespace), constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+        const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
+        if (configMapProperties) {
+          const parsedFromConfigMap: boolean | undefined = this.parseGossipFqdnRestricted(configMapProperties);
+          if (parsedFromConfigMap !== undefined) {
+            return parsedFromConfigMap;
+          }
+        }
+      } catch {
+        // Fall through to local application.properties
+      }
+    }
+
+    if (fs.existsSync(applicationPropertiesPath)) {
+      const applicationPropertiesContent: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      const parsedFromApplicationProperties: boolean | undefined =
+        this.parseGossipFqdnRestricted(applicationPropertiesContent);
+      if (parsedFromApplicationProperties !== undefined) {
+        return parsedFromApplicationProperties;
+      }
+    }
+
+    return true;
   }
 }

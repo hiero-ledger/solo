@@ -107,7 +107,7 @@ then
 fi
 
 echo "::group::Prerequisites"
-npm install -g @hashgraph/solo@"${releaseTag}" --force
+npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
 solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e
@@ -148,15 +148,23 @@ echo "::endgroup::"
 echo "::group::Launch solo using released Solo version ${fromSoloVersion}"
 
 if [[ -z "${toConsensusNodeVersion}" ]]; then
-  export CONSENSUS_NODE_VERSION=$(grep 'TEST_UPGRADE_FROM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
-  if [[ -z "${CONSENSUS_NODE_VERSION}" ]]; then
-    echo "CONSENSUS_NODE_VERSION is empty, please check version-test.ts for TEST_UPGRADE_FROM_VERSION"
+  export TO_CONSENSUS_NODE_VERSION=$(grep 'TEST_UPGRADE_TO_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+  if [[ -z "${TO_CONSENSUS_NODE_VERSION}" ]]; then
+    echo "TO_CONSENSUS_NODE_VERSION is empty, please check version-test.ts for TEST_UPGRADE_TO_VERSION"
     exit 1
   fi
 else
-  export CONSENSUS_NODE_VERSION="${toConsensusNodeVersion}"
+  export TO_CONSENSUS_NODE_VERSION="${toConsensusNodeVersion}"
 fi
-echo "Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
+
+export FROM_CONSENSUS_NODE_VERSION=$(grep 'TEST_UPGRADE_FROM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+if [[ -z "${FROM_CONSENSUS_NODE_VERSION}" ]]; then
+  echo "FROM_CONSENSUS_NODE_VERSION is empty, please check version-test.ts for TEST_UPGRADE_FROM_VERSION"
+  exit 1
+fi
+
+echo "Consensus Node Version (from): ${FROM_CONSENSUS_NODE_VERSION}"
+echo "Consensus Node Version (to): ${TO_CONSENSUS_NODE_VERSION}"
 
 solo init --dev
 
@@ -168,8 +176,8 @@ solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLO
 solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
 
 solo block node add --deployment "${SOLO_DEPLOYMENT}" --chart-version "${PREV_BLOCK_VERSION}"
-solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
-solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
 solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q --dev
 solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
@@ -208,7 +216,6 @@ echo "::endgroup::"
 
 echo "::group::Upgrade Solo"
 # need to add ingress controller helm repo
-SOLO_UPGRADE_CMD_PREFIX=(npm run solo --)
 echo "Upgrading with workspace Solo CLI"
 
 npm run solo -- init --dev
@@ -222,12 +229,12 @@ npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
 save_cluster_ips "${SOLO_NAMESPACE}"
 
-npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "AFTER network deploy"
 restore_cluster_ips "${SOLO_NAMESPACE}" "${NODE1_IP}" "${NODE2_IP}"
 
-npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "AFTER node setup"
 
@@ -312,8 +319,8 @@ echo "::endgroup::"
 echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
-echo "Upgrade to Consensus Node Version: ${CONSENSUS_NODE_VERSION}"
-npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${CONSENSUS_NODE_VERSION}" -q --dev
+echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
+npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
