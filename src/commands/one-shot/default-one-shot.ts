@@ -116,6 +116,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.rollback,
       flags.parallelDeploy,
       flags.externalAddress,
+      flags.edgeEnabled,
     ],
   };
 
@@ -412,6 +413,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
                 if (fs.existsSync(throttlesFile)) {
                   config.networkConfiguration[flags.getFormattedFlagKey(flags.genesisThrottlesFile)] = throttlesFile;
+                }
+
+                // For CN >= 0.73.0, cap K8s container memory at 1Gi to prevent unbounded mmap'd state-on-disk page cache growth
+                if (useStateOnDisk) {
+                  const helmOverrideFile: string = PathEx.join(stateOnDiskDirectory, 'helm-overrides.yaml');
+                  if (fs.existsSync(helmOverrideFile)) {
+                    config.networkConfiguration[flags.getFormattedFlagKey(flags.valuesFile)] =
+                      `${config.clusterRef}=${helmOverrideFile}`;
+                  }
                 }
               }
 
