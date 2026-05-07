@@ -45,8 +45,10 @@ export class K8ClientManifests implements Manifests {
       try {
         await this.k8sObjectApi.create(document);
       } catch (error) {
-        const statusCode: number = (error as {code?: number; statusCode?: number}).code ??
-          (error as {code?: number; statusCode?: number}).statusCode ?? 0;
+        const statusCode: number =
+          (error as {code?: number; statusCode?: number}).code ??
+          (error as {code?: number; statusCode?: number}).statusCode ??
+          0;
         if (statusCode !== StatusCodes.CONFLICT) {
           throw error;
         }
