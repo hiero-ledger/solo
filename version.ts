@@ -18,7 +18,7 @@ export const VFKIT_VERSION: string = 'v0.6.1';
 export const GVPROXY_VERSION: string = 'v0.8.7';
 export const KUBECTL_VERSION: string = 'v1.32.2';
 export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.63.3';
-export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.74.0';
+export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.71.0';
 export const S6_NODE_IMAGE_VERSION: string =
   constants.getEnvironmentVariable('SOLO_S6_NODE_IMAGE_VERSION') || '0.44.0-alpha.1';
 export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.153.1';
@@ -28,7 +28,7 @@ export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
 export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || '0.31.0';
 export const NETWORK_LOAD_GENERATOR_CHART_VERSION: string =
-  constants.getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_VERSION') || '0.14.0';
+  constants.getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_VERSION') || getNetworkLoadGeneratorVersion();
 
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
 export const METRICS_SERVER_VERSION: string = constants.getEnvironmentVariable('METRICS_SERVER_VERSION') || '';
@@ -81,6 +81,12 @@ export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: stri
 export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
   const versionTag: SemanticVersion<string> = new SemanticVersion(releaseTag || HEDERA_PLATFORM_VERSION);
   return versionTag.lessThanOrEqual(LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
+}
+
+export function getNetworkLoadGeneratorVersion(consensusVersion?: string): string {
+  const versionTag: SemanticVersion<string> = new SemanticVersion(consensusVersion || HEDERA_PLATFORM_VERSION);
+  const minimumTssVersion: SemanticVersion<string> = new SemanticVersion(MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+  return versionTag.greaterThanOrEqual(minimumTssVersion) ? '0.14.0' : '0.8.0';
 }
 
 export function getSoloVersion(): Version {
