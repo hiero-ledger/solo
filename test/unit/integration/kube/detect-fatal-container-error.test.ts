@@ -84,17 +84,23 @@ describe('detectFatalContainerError', (): void => {
     expect(detectFatalContainerError(pod)).to.be.undefined;
   });
 
-  for (const reason of [
-    'ImagePullBackOff',
-    'ErrImagePull',
-    'InvalidImageName',
-    'ImageInspectError',
-    'RegistryUnavailable',
-  ]) {
+  for (const reason of ['InvalidImageName', 'RegistryUnavailable']) {
     it(`should detect fatal waiting reason: ${reason}`, (): void => {
       const pod: V1Pod = buildPodWithContainerStatus(buildWaitingContainerStatus(reason));
       const result: string | undefined = detectFatalContainerError(pod);
       expect(result).to.include(reason);
+      expect(result).to.include('"test-pod"');
+      expect(result).to.include('"test-container"');
+    });
+  }
+
+  for (const reason of ['ImagePullBackOff', 'ErrImagePull', 'ImageInspectError']) {
+    it(`should detect fatal waiting reason when message is non-recoverable: ${reason}`, (): void => {
+      const message: string = 'failed to pull image "ghcr.io/example/app:1.2.3": not found';
+      const pod: V1Pod = buildPodWithContainerStatus(buildWaitingContainerStatus(reason, message));
+      const result: string | undefined = detectFatalContainerError(pod);
+      expect(result).to.include(reason);
+      expect(result).to.include(message);
       expect(result).to.include('"test-pod"');
       expect(result).to.include('"test-container"');
     });
@@ -125,7 +131,9 @@ describe('detectFatalContainerError', (): void => {
   });
 
   it('should detect fatal error in init container status', (): void => {
-    const pod: V1Pod = buildPodWithInitContainerStatus(buildWaitingContainerStatus('ImagePullBackOff'));
+    const pod: V1Pod = buildPodWithInitContainerStatus(
+      buildWaitingContainerStatus('ImagePullBackOff', 'manifest unknown'),
+    );
     const result: string | undefined = detectFatalContainerError(pod);
     expect(result).to.include('ImagePullBackOff');
   });
@@ -137,6 +145,7 @@ describe('detectFatalContainerError', (): void => {
     const state: V1ContainerState = new V1ContainerState();
     const waiting: V1ContainerStateWaiting = new V1ContainerStateWaiting();
     waiting.reason = 'ImagePullBackOff';
+    waiting.message = 'not found';
     state.waiting = waiting;
     containerStatus.state = state;
     pod.status.containerStatuses = [containerStatus];
