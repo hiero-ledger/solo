@@ -60,7 +60,6 @@ import * as helpers from '../../../../core/helpers.js';
 import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
 import {MissingRequiredParametersError} from '../../errors/missing-required-parameters-error.js';
 import {SemanticVersion} from '../../../utils/semantic-version.js';
-import {resolveVersionValue} from './version-value-resolver.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -402,11 +401,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private initializeComponentVersions(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
-    remoteConfig.versions.chart = resolveVersionValue(
-      argv[flags.soloChartVersion.name],
-      this.configManager.getFlag<string>(flags.soloChartVersion),
-      flags.soloChartVersion.definition.defaultValue as string,
-    );
+    remoteConfig.versions.chart = argv[flags.soloChartVersion.name]
+      ? new SemanticVersion(argv[flags.soloChartVersion.name])
+      : new SemanticVersion(flags.soloChartVersion.definition.defaultValue as string);
 
     // set default versions if not set
     const componentTypes: ComponentTypes[] = [
@@ -424,55 +421,35 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
           case ComponentTypes.BlockNode: {
             this.updateComponentVersion(
               componentType,
-              resolveVersionValue(
-                argv[flags.blockNodeChartVersion.name],
-                this.configManager.getFlag<string>(flags.blockNodeChartVersion),
-                flags.blockNodeChartVersion.definition.defaultValue as string,
-              ),
+              new SemanticVersion<string>(flags.blockNodeChartVersion.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.RelayNodes: {
             this.updateComponentVersion(
               componentType,
-              resolveVersionValue(
-                argv[flags.relayReleaseTag.name],
-                this.configManager.getFlag<string>(flags.relayReleaseTag),
-                flags.relayReleaseTag.definition.defaultValue as string,
-              ),
+              new SemanticVersion<string>(flags.relayReleaseTag.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.MirrorNode: {
             this.updateComponentVersion(
               componentType,
-              resolveVersionValue(
-                argv[flags.mirrorNodeVersion.name],
-                this.configManager.getFlag<string>(flags.mirrorNodeVersion),
-                flags.mirrorNodeVersion.definition.defaultValue as string,
-              ),
+              new SemanticVersion<string>(flags.mirrorNodeVersion.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.Explorer: {
             this.updateComponentVersion(
               componentType,
-              resolveVersionValue(
-                argv[flags.explorerVersion.name],
-                this.configManager.getFlag<string>(flags.explorerVersion),
-                flags.explorerVersion.definition.defaultValue as string,
-              ),
+              new SemanticVersion<string>(flags.explorerVersion.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.ConsensusNode: {
             this.updateComponentVersion(
               componentType,
-              resolveVersionValue(
-                argv[flags.releaseTag.name],
-                this.configManager.getFlag<string>(flags.releaseTag),
-                flags.releaseTag.definition.defaultValue as string,
-              ),
+              new SemanticVersion<string>(flags.releaseTag.definition.defaultValue as string),
             );
             break;
           }
