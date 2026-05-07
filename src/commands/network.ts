@@ -708,9 +708,12 @@ export class NetworkCommand extends BaseCommand {
     );
 
     if (config.resolvedThrottlesFile) {
+      // repairing the path, this avoid helm failing when running on windows
+      const throttlesFilePath: string = config.resolvedThrottlesFile.replaceAll('\\', '/');
+
       for (const clusterReference of clusterReferences) {
         valuesArguments[clusterReference] +=
-          ` --set-file "hedera.configMaps.genesisThrottlesJson=${config.resolvedThrottlesFile}"`;
+          ` --set-file "hedera.configMaps.genesisThrottlesJson=${throttlesFilePath}"`;
       }
     }
 
