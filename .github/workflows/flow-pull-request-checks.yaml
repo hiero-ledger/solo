@@ -28,12 +28,12 @@ on:
         type: boolean
         required: false
         default: true
-#  pull_request:
-#    types:
-#      - opened
-#      - reopened
-#      - synchronize
-#      - ready_for_review
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
 
 permissions:
   id-token: write
