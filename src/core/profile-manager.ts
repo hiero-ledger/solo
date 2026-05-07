@@ -885,7 +885,7 @@ export class ProfileManager {
     const firstNode: ConsensusNode | undefined = consensusNodes[0];
     if (firstNode) {
       try {
-        const k8 = this.k8Factory.getK8(firstNode.context);
+        const k8: K8 = this.k8Factory.getK8(firstNode.context);
         const configMap: V1ConfigMap = await k8
           .configMaps()
           .read(NamespaceName.of(firstNode.namespace), constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);

@@ -733,7 +733,7 @@ export class NodeCommandTasks {
     return {
       title: 'Generate gRPC TLS Keys',
       task: (context_, task): SoloListr<NodeKeysContext | NodeAddContext> => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
@@ -826,7 +826,7 @@ export class NodeCommandTasks {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
         const {upgradeZipFile, deployment}: any = context_.config;
         if (upgradeZipFile) {
           context_.upgradeZipFile = upgradeZipFile;
@@ -1274,7 +1274,7 @@ export class NodeCommandTasks {
     return {
       title: 'Upload state files network nodes',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
 
         // Get the source node ID from the first consensus node (the state file's original node)
         const sourceNodeId: any = config.consensusNodes[0].nodeId;
@@ -2999,7 +2999,7 @@ export class NodeCommandTasks {
     return {
       title: 'Prepare gossip endpoints',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
 
         let endpoints: string[] = [];
         if (config.gossipEndpoints) {
@@ -3056,7 +3056,7 @@ export class NodeCommandTasks {
     return undefined;
   }
 
-  private async getGossipFqdnRestricted(config: any, k8: K8): Promise<boolean> {
+  private async getGossipFqdnRestricted(config: NodeAddConfigClass, k8: K8): Promise<boolean> {
     // Prefer live cluster config when present, then staged file, then default true.
     try {
       const configMap: ConfigMap = await k8
@@ -3108,8 +3108,8 @@ export class NodeCommandTasks {
     return {
       title: 'Prepare grpc service endpoints',
       task: (context_): void => {
-        const config: any = context_.config;
-        let endpoints: any[] = [];
+        const config: NodeAddConfigClass = context_.config;
+        let endpoints: string[] = [];
 
         if (config.grpcEndpoints) {
           endpoints = splitFlagInput(config.grpcEndpoints);

@@ -112,7 +112,7 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
       'nodes.gossipFqdnRestricted=true\n',
     );
 
-    const k8 = {
+    const k8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>} | never>}} = {
       configMaps: (): {read: () => Promise<{data?: Record<string, string>} | never>} => ({
         read: async (): Promise<{data?: Record<string, string>}> => configMapFalseData,
       }),
@@ -139,7 +139,7 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
       'nodes.gossipFqdnRestricted=false\n',
     );
 
-    const k8 = {
+    const k8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>} | never>}} = {
       configMaps: (): {read: () => Promise<{data?: Record<string, string>} | never>} => ({
         read: async (): Promise<never> => {
           throw new Error('config map missing');
@@ -161,7 +161,7 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
   it('defaults to true when neither ConfigMap nor staged file provides a value', async (): Promise<void> => {
     const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
     const stagingDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'gossip-fqdn-default-'));
-    const k8 = {
+    const k8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>} | never>}} = {
       configMaps: (): {read: () => Promise<{data?: Record<string, string>} | never>} => ({
         read: async (): Promise<{data?: Record<string, string>}> => emptyConfigMapData,
       }),
