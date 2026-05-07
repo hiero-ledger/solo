@@ -183,6 +183,17 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: finished ${testName}: destroy`);
         }).timeout(Duration.ofMinutes(8).toMillis());
 
+        it('NftTransferLoadTest', async (): Promise<void> => {
+          logEvent('Starting NftTransferLoadTest');
+          await main(
+            soloRapidFire(
+              testName,
+              'NftTransferLoadTest',
+              `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+              maxTps,
+            ),
+          );
+        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
       });
     },
