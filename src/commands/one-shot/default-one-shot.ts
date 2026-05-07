@@ -1814,17 +1814,24 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
             const remoteVersions: ApplicationVersionsSchema | undefined = context_.remoteConfig?.versions;
+            const formatVersion: (value: {toString: () => string} | undefined) => string = (
+              value: {toString: () => string} | undefined,
+            ): string => value?.toString() ?? 'not available';
 
             // Show versions
             this.logger.showUser(chalk.cyan('\nVersions:'));
-            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(remoteVersions?.chart?.toString())}`);
-            this.logger.showUser(`  Consensus Node Version: ${chalk.bold(remoteVersions?.consensusNode?.toString())}`);
-            this.logger.showUser(`  Mirror Node Version: ${chalk.bold(remoteVersions?.mirrorNodeChart?.toString())}`);
-            this.logger.showUser(`  Explorer Version: ${chalk.bold(remoteVersions?.explorerChart?.toString())}`);
+            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(formatVersion(remoteVersions?.chart))}`);
             this.logger.showUser(
-              `  JSON RPC Relay Version: ${chalk.bold(remoteVersions?.jsonRpcRelayChart?.toString())}`,
+              `  Consensus Node Version: ${chalk.bold(formatVersion(remoteVersions?.consensusNode))}`,
             );
-            this.logger.showUser(`  Block Node Version: ${chalk.bold(remoteVersions?.blockNodeChart?.toString())}`);
+            this.logger.showUser(
+              `  Mirror Node Version: ${chalk.bold(formatVersion(remoteVersions?.mirrorNodeChart))}`,
+            );
+            this.logger.showUser(`  Explorer Version: ${chalk.bold(formatVersion(remoteVersions?.explorerChart))}`);
+            this.logger.showUser(
+              `  JSON RPC Relay Version: ${chalk.bold(formatVersion(remoteVersions?.jsonRpcRelayChart))}`,
+            );
+            this.logger.showUser(`  Block Node Version: ${chalk.bold(formatVersion(remoteVersions?.blockNodeChart))}`);
 
             if (context_.remoteConfig) {
               const components: DeploymentStateSchema = context_.remoteConfig.state;
