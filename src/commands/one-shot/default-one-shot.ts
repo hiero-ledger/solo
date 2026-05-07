@@ -95,9 +95,9 @@ import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-s
 import {OneShotInfoContext} from './one-shot-info-context.js';
 import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
 
-const formatVersionValue: (versionObject: {toString: () => string} | undefined) => string = (
-  versionObject: {toString: () => string} | undefined,
-): string => versionObject?.toString() ?? 'not available';
+function formatVersionValue(versionObject: {toString: () => string} | undefined): string {
+  return versionObject?.toString() ?? 'not available';
+}
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {

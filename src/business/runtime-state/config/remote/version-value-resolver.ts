@@ -7,11 +7,11 @@ export function resolveVersionValue(
   configuredValue: string | undefined,
   defaultValue: string,
 ): SemanticVersion<string> {
-  if (argvValue?.trim().length > 0) {
+  if (argvValue && argvValue.trim().length > 0) {
     return new SemanticVersion<string>(argvValue);
   }
 
-  if (configuredValue?.trim().length > 0) {
+  if (configuredValue && configuredValue.trim().length > 0) {
     return new SemanticVersion<string>(configuredValue);
   }
 
