@@ -63,7 +63,7 @@ tasks:
       - cmd: |
           if [ ! -d "{{.BLOCK_NODE_REPO_DIR}}" ]; then
             git clone https://github.com/hiero-ledger/hiero-block-node.git \
-              --depth 1 --branch {{.BLOCK_NODE_VERSION}} {{.BLOCK_NODE_REPO_DIR}}
+              --depth 1 --branch v{{.BLOCK_NODE_VERSION}} {{.BLOCK_NODE_REPO_DIR}}
           else
             echo "Skipping clone: {{.BLOCK_NODE_REPO_DIR}} already exists"
           fi
@@ -258,7 +258,8 @@ tasks:
       - cmd: |
           $SOLO_COMMAND one-shot falcon deploy \
           --values-file {{.RUNTIME_VALUES_FILE}} \
-          --num-consensus-nodes 1
+          --num-consensus-nodes 1 \
+          --metrics-server
 
   destroy:
     desc: Destroy the Solo network and clean up

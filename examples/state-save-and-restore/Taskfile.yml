@@ -224,28 +224,46 @@ tasks:
     desc: Deploy network and upload saved state
     cmds:
       - cmd: echo "Deploying network with saved state..."
-      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
-      # list files in root-container directory /opt/hgcapp/services-hedera/HapiApp2.0/output
       - cmd: |
-          kubectl exec network-node1-0 -n {{ .NAMESPACE }} -c root-container -- \
-          ls /opt/hgcapp/services-hedera/HapiApp2.0/output
-          kubectl exec network-node2-0 -n {{ .NAMESPACE }} -c root-container -- \
-          ls /opt/hgcapp/services-hedera/HapiApp2.0/output
+          echo "Reusing existing consensus network pods for restore to keep service IPs stable..."
+          kubectl get pod network-node1-0 -n {{ .NAMESPACE }} >/dev/null
+          kubectl get pod network-node2-0 -n {{ .NAMESPACE }} >/dev/null
       - cmd: |
-          # Use first node's state file for all nodes
-          FIRST_NODE=$(echo {{ .NODE_ALIASES }} | cut -d',' -f1)
-          FIRST_NODE_STATE_FILE="network-${FIRST_NODE}-0-state.zip"
-          STATE_FILE_PATH="{{ .STATE_SAVE_DIR }}/{{ .NAMESPACE }}/${FIRST_NODE_STATE_FILE}"
-          
-          if [ ! -f "${STATE_FILE_PATH}" ]; then
-            echo "⚠️  State file not found: ${STATE_FILE_PATH}"
-            exit 1
-          fi
-          
-          echo "Using ${FIRST_NODE_STATE_FILE} for all nodes..."
+          echo "Validating stable per-node service DNS names..."
+          for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
+            SERVICE_FQDN="network-${node}-svc.{{ .NAMESPACE }}.svc.cluster.local"
+            kubectl exec network-node1-0 -n {{ .NAMESPACE }} -c root-container -- \
+              getent hosts "${SERVICE_FQDN}" >/dev/null
+            echo "✅ ${SERVICE_FQDN} is resolvable"
+          done
+      - cmd: |
+          # Build the directory layout expected by Solo for per-node state restore:
+          # <input>/states/<cluster-ref>/<namespace>/network-<node>-0-state.zip
+          RESTORE_INPUT_DIR="{{ .STATE_SAVE_DIR }}/restore-input"
+          RESTORE_STATES_DIR="${RESTORE_INPUT_DIR}/states/{{ .CLUSTER_REF }}/{{ .NAMESPACE }}"
+          rm -rf "${RESTORE_STATES_DIR}"
+          mkdir -p "${RESTORE_STATES_DIR}"
+
+          for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
+            NODE_STATE_FILE="network-${node}-0-state.zip"
+            SRC_STATE_FILE_PATH="{{ .STATE_SAVE_DIR }}/{{ .NAMESPACE }}/${NODE_STATE_FILE}"
+            DEST_STATE_FILE_PATH="${RESTORE_STATES_DIR}/${NODE_STATE_FILE}"
+
+            if [ ! -f "${SRC_STATE_FILE_PATH}" ]; then
+              echo "⚠️  State file not found for ${node}: ${SRC_STATE_FILE_PATH}"
+              exit 1
+            fi
+
+            cp "${SRC_STATE_FILE_PATH}" "${DEST_STATE_FILE_PATH}"
+            echo "Prepared state for ${node}: ${DEST_STATE_FILE_PATH}"
+          done
+
+          echo "Prepared restore input:"
+          find "${RESTORE_INPUT_DIR}" -maxdepth 4 -type f | sort
+
+          # Start all nodes together so they can transition to ACTIVE as a group.
           $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} \
-            --state-file "${STATE_FILE_PATH}"
+            --state-file "${RESTORE_INPUT_DIR}"
       - cmd: echo "✅ Nodes started with restored state"
 
   restore-database:

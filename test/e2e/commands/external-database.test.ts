@@ -40,7 +40,7 @@ const dualClusterValuesFile: string = PathEx.joinWithRealPath(
 const configFiles: Record<string, string> = {
   'api-permission.properties': 'api-permission.properties.txt',
   'application.env': 'application.env.txt',
-  'application.properties': 'application.properties.txt',
+  [constants.APPLICATION_PROPERTIES]: 'application.properties.txt',
   'bootstrap.properties': 'bootstrap.properties.txt',
   'log4j2.xml': 'log4j2.xml.txt',
   'settings.txt': 'settings.txt.txt',
@@ -55,11 +55,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withConsensusNodesCount(2)
   .withLoadBalancerEnabled(true)
   .withPinger(true)
-  .withShard(0)
-  .withRealm(0)
+  .withShard(3)
+  .withRealm(2)
   .withApiPermissionProperties(configFiles['api-permission.properties'])
   .withApplicationEnvironment(configFiles['application.env'])
-  .withApplicationProperties(configFiles['application.properties'])
+  .withApplicationProperties(configFiles[constants.APPLICATION_PROPERTIES])
   .withBootstrapProperties(configFiles['bootstrap.properties'])
   .withLog4j2Xml(configFiles['log4j2.xml'])
   .withSettingsTxt(configFiles['settings.txt'])
@@ -129,9 +129,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         it('should run smoke tests', async (): Promise<void> => {
           const scriptPath: string = `export SOLO_HOME=${testCacheDirectory}; \
-            export SHARD_NUM=0; \
-            export REALM_NUM=0; \
-            export NEW_NODE_ACCOUNT_ID=0.0.3; \
+            export SHARD_NUM=3; \
+            export REALM_NUM=2; \
+            export NEW_NODE_ACCOUNT_ID=3.2.3; \
             export SOLO_NAMESPACE=${namespace.name}; \
             export SOLO_CACHE_DIR=${testCacheDirectory}; \
             export SOLO_DEPLOYMENT=${testName}-deployment; \

@@ -11,7 +11,7 @@ import 'dotenv/config';
 import {type NodeAlias} from '../types/aliases.js';
 
 export function getEnvironmentVariable(name: string): string | undefined {
-  if (process.env[name]) {
+  if (process.env[name] && process.env[name].trim() !== '') {
     console.log(`>> environment variable '${name}' exists, using its value`);
     return process.env[name];
   }
@@ -49,7 +49,6 @@ export const KIND_NODE_IMAGE: string =
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 export const ENABLE_S6_IMAGE: boolean = getEnvironmentVariable('ENABLE_S6_IMAGE') === 'true' || true;
-
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
 export const SOLO_REMOTE_CONFIGMAP_DATA_KEY: string = 'remote-config-data';
@@ -142,6 +141,13 @@ export const MINIO_OPERATOR_CHART_URL: string =
 export const MINIO_OPERATOR_CHART: string = 'operator';
 export const MINIO_OPERATOR_RELEASE_NAME: string = 'operator';
 
+export const METRICS_SERVER_CHART_URL: string =
+  getEnvironmentVariable('METRICS_SERVER_CHART_URL') ?? 'https://kubernetes-sigs.github.io/metrics-server/';
+export const METRICS_SERVER_CHART: string = 'metrics-server';
+export const METRICS_SERVER_RELEASE_NAME: string = 'metrics-server';
+export const METRICS_SERVER_NAMESPACE: NamespaceName = NamespaceName.of('kube-system');
+export const METRICS_SERVER_INSTALL_ARGS: string = '--set "args[0]=--kubelet-insecure-tls"';
+
 export const EXPLORER_CHART_URL: string =
   getEnvironmentVariable('EXPLORER_CHART_URL') ??
   'oci://ghcr.io/hiero-ledger/hiero-mirror-node-explorer/hiero-explorer-chart';
@@ -193,6 +199,7 @@ export const SOLO_HEDERA_MIRROR_IMPORTER: string[] = [
 // Component label selectors for pod discovery
 export const SOLO_RELAY_NAME_LABEL: string = 'app.kubernetes.io/name=relay';
 export const SOLO_MIRROR_IMPORTER_NAME_LABEL: string = 'app.kubernetes.io/name=importer';
+export const SOLO_MIRROR_PINGER_NAME_LABEL: string = 'app.kubernetes.io/name=pinger';
 export const SOLO_MIRROR_GRPC_NAME_LABEL: string = 'app.kubernetes.io/name=grpc';
 export const SOLO_MIRROR_MONITOR_NAME_LABEL: string = 'app.kubernetes.io/name=monitor';
 export const SOLO_MIRROR_REST_NAME_LABEL: string = 'app.kubernetes.io/name=rest';
@@ -208,6 +215,7 @@ export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
   .set(MIRROR_NODE_RELEASE_NAME, MIRROR_NODE_CHART_URL)
   .set(PROMETHEUS_RELEASE_NAME, PROMETHEUS_STACK_CHART_URL)
   .set(MINIO_OPERATOR_RELEASE_NAME, MINIO_OPERATOR_CHART_URL)
+  .set(METRICS_SERVER_RELEASE_NAME, METRICS_SERVER_CHART_URL)
   .set(INGRESS_CONTROLLER_RELEASE_NAME, INGRESS_CONTROLLER_CHART_URL);
 
 export const MIRROR_INGRESS_CLASS_NAME: string = 'mirror-ingress-class';
@@ -466,6 +474,7 @@ export const BLOCK_STREAM_STREAM_MODE: string = getEnvironmentVariable('BLOCK_ST
 export const BLOCK_STREAM_WRITER_MODE: string = getEnvironmentVariable('BLOCK_STREAM_WRITER_MODE') || 'FILE_AND_GRPC';
 
 export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
+export const APPLICATION_PROPERTIES: string = 'application.properties';
 export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';
 export const NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME: string = 'network-node-data-config-cm';
 export const enum StorageType {

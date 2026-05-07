@@ -101,6 +101,7 @@ export class ClusterCommandConfigs {
       chartDirectory: this.configManager.getFlag(flags.chartDirectory),
       clusterSetupNamespace: this.configManager.getFlag(flags.clusterSetupNamespace),
       deployMinio: this.configManager.getFlag(flags.deployMinio),
+      deployMetricsServer: this.configManager.getFlag(flags.deployMetricsServer),
       deployPrometheusStack: this.configManager.getFlag(flags.deployPrometheusStack),
       soloChartVersion: this.configManager.getFlag(flags.soloChartVersion),
       clusterRef: this.configManager.getFlag(flags.clusterRef),

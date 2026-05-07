@@ -1,6 +1,6 @@
 {
   "name": "@hashgraph/solo",
-  "version": "0.71.0",
+  "version": "0.72.0",
   "description": "An opinionated CLI tool to deploy and manage private Hedera Networks.",
   "main": "./dist/src/index.js",
   "type": "module",
@@ -37,6 +37,7 @@
     "dot-object": "2.1.5",
     "dotenv": "17.4.2",
     "elliptic": "6.6.1",
+    "eol": "0.10.0",
     "esm": "3.2.25",
     "figlet": "1.11.0",
     "find-process": "2.1.1",
@@ -57,7 +58,7 @@
     "uuid": "14.0.0",
     "validator": "13.15.35",
     "ws": "8.20.0",
-    "yaml": "2.8.3",
+    "yaml": "2.8.4",
     "yargs": "18.0.0"
   },
   "devDependencies": {
@@ -98,7 +99,7 @@
     "eslint-plugin-tsdoc": "0.5.2",
     "eslint-plugin-unicorn": "64.0.0",
     "eslint-plugin-unused-imports": "4.4.1",
-    "globals": "17.5.0",
+    "globals": "17.6.0",
     "jsdoc": "4.0.5",
     "mocha": "11.7.5",
     "mocha-each": "2.0.1",
