@@ -1820,31 +1820,31 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               try {
                 versionsFromFile = parseOneShotVersionsFile(fs.readFileSync(versionsFile, 'utf8'));
               } catch (error) {
-                const typedError: Error = error as Error;
-                this.logger.warn(`Unable to read one-shot versions file '${versionsFile}': ${typedError.message}`);
+                const thrownError: Error = error as Error;
+                this.logger.warn(`Unable to read one-shot versions file '${versionsFile}': ${thrownError.message}`);
               }
             }
-            const versions: ApplicationVersionsSchema | undefined = context_.remoteConfig?.versions;
+            const remoteVersions: ApplicationVersionsSchema | undefined = context_.remoteConfig?.versions;
 
             // Show versions
             this.logger.showUser(chalk.cyan('\nVersions:'));
             this.logger.showUser(
-              `  Solo Chart Version: ${chalk.bold(versionsFromFile.soloChart ?? versions?.chart?.toString())}`,
+              `  Solo Chart Version: ${chalk.bold(versionsFromFile.soloChart ?? remoteVersions?.chart?.toString())}`,
             );
             this.logger.showUser(
-              `  Consensus Node Version: ${chalk.bold(versionsFromFile.consensus ?? versions?.consensusNode?.toString())}`,
+              `  Consensus Node Version: ${chalk.bold(versionsFromFile.consensus ?? remoteVersions?.consensusNode?.toString())}`,
             );
             this.logger.showUser(
-              `  Mirror Node Version: ${chalk.bold(versionsFromFile.mirror ?? versions?.mirrorNodeChart?.toString())}`,
+              `  Mirror Node Version: ${chalk.bold(versionsFromFile.mirror ?? remoteVersions?.mirrorNodeChart?.toString())}`,
             );
             this.logger.showUser(
-              `  Explorer Version: ${chalk.bold(versionsFromFile.explorer ?? versions?.explorerChart?.toString())}`,
+              `  Explorer Version: ${chalk.bold(versionsFromFile.explorer ?? remoteVersions?.explorerChart?.toString())}`,
             );
             this.logger.showUser(
-              `  JSON RPC Relay Version: ${chalk.bold(versionsFromFile.relay ?? versions?.jsonRpcRelayChart?.toString())}`,
+              `  JSON RPC Relay Version: ${chalk.bold(versionsFromFile.relay ?? remoteVersions?.jsonRpcRelayChart?.toString())}`,
             );
             this.logger.showUser(
-              `  Block Node Version: ${chalk.bold(versionsFromFile.blockNode ?? versions?.blockNodeChart?.toString())}`,
+              `  Block Node Version: ${chalk.bold(versionsFromFile.blockNode ?? remoteVersions?.blockNodeChart?.toString())}`,
             );
 
             if (context_.remoteConfig) {
