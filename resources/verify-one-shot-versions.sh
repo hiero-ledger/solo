@@ -38,12 +38,6 @@ CONFIGMAP_JSON=$(kubectl get configmap solo-remote-config \
   exit 1
 }
 
-# Extract version fields from the YAML blob using grep + awk (no yq required)
-extract_version() {
-  local key="$1"
-  echo "${CONFIGMAP_JSON}" | grep -A1 "^versions:" | grep "${key}:" | awk '{print $2}' | tr -d '"'
-}
-
 # Parse using a simple sed pipeline that works without yq
 VERSIONS_BLOCK=$(echo "${CONFIGMAP_JSON}" | sed -n '/^versions:/,/^[^ ]/p' | head -n -1)
 
