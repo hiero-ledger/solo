@@ -52,6 +52,17 @@ const FATAL_WAITING_REASONS: ReadonlySet<string> = new Set([
  * Terminated reasons for container states that are non-recoverable (e.g. out-of-memory kill).
  */
 const FATAL_TERMINATED_REASONS: ReadonlySet<string> = new Set(['OOMKilled']);
+const FATAL_ERROR_RETRY_THRESHOLD: number = 3;
+const NON_RECOVERABLE_IMAGE_PULL_PATTERNS: ReadonlyArray<RegExp> = [
+  /not found/i,
+  /manifest unknown/i,
+  /pull access denied/i,
+  /requested access to the resource is denied/i,
+  /insufficient_scope/i,
+  /unauthorized/i,
+  /authentication required/i,
+  /invalid reference format/i,
+];
 
 /**
  * Inspect a V1Pod's container statuses for non-recoverable error states and return a descriptive
@@ -75,6 +86,14 @@ export function detectFatalContainerError(pod: V1Pod): string | undefined {
 
     const waitingState: V1ContainerStateWaiting | undefined = containerStatus.state?.waiting;
     if (waitingState?.reason && FATAL_WAITING_REASONS.has(waitingState.reason)) {
+      if (
+        (waitingState.reason === 'ErrImagePull' ||
+          waitingState.reason === 'ImagePullBackOff' ||
+          waitingState.reason === 'ImageInspectError') &&
+        !isNonRecoverableImagePullError(waitingState.message)
+      ) {
+        continue;
+      }
       const detail: string = waitingState.message ? `: ${waitingState.message}` : '';
       return (
         `Pod "${podName}" container "${containerName}" is in a non-recoverable state: ` +
@@ -92,6 +111,13 @@ export function detectFatalContainerError(pod: V1Pod): string | undefined {
   }
 
   return undefined;
+}
+
+function isNonRecoverableImagePullError(message?: string): boolean {
+  if (!message) {
+    return false;
+  }
+  return NON_RECOVERABLE_IMAGE_PULL_PATTERNS.some((pattern): boolean => pattern.test(message));
 }
 
 export class K8ClientPods extends K8ClientBase implements Pods {
@@ -239,6 +265,10 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
     return new Promise<Pod[]>((resolve, reject): void => {
       let attempts: number = 0;
+      const fatalErrorStreakByPod: Map<string, {count: number; error: string}> = new Map<
+        string,
+        {count: number; error: string}
+      >();
 
       const check: (resolve: (items: Pod[]) => void, reject: (reason?: Error) => void) => Promise<void> = async (
         resolve: (items: Pod[]) => void,
@@ -273,11 +303,24 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                 )
               : sortedItems;
 
-            // Fail fast if any eligible pod has a non-recoverable container error (e.g. ImagePullBackOff, OOMKilled)
+            // Allow transient startup states to recover; only fail after repeated fatal detections.
             for (const item of eligibleItems) {
               const fatalError: string | undefined = detectFatalContainerError(item);
+              const podName: string = item.metadata?.name ?? '<unknown>';
               if (fatalError) {
-                return reject(new SoloError(fatalError));
+                const previous: {count: number; error: string} | undefined = fatalErrorStreakByPod.get(podName);
+                const nextCount: number = previous?.error === fatalError ? previous.count + 1 : 1;
+                fatalErrorStreakByPod.set(podName, {count: nextCount, error: fatalError});
+
+                if (nextCount >= FATAL_ERROR_RETRY_THRESHOLD) {
+                  return reject(new SoloError(fatalError));
+                }
+
+                this.logger.info(
+                  `Detected fatal pod state for "${podName}" (${nextCount}/${FATAL_ERROR_RETRY_THRESHOLD}); retrying`,
+                );
+              } else {
+                fatalErrorStreakByPod.delete(podName);
               }
             }
 
