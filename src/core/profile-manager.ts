@@ -22,6 +22,12 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
+import {type K8} from '../integration/kube/k8.js';
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {type Container} from '../integration/kube/resources/container/container.js';
+import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
@@ -179,6 +185,10 @@ export class ProfileManager {
     const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(resolvedStagingOptions.releaseTag);
     let configTxtPath: Optional<string>;
     if (needsConfigTxt) {
+      const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(
+        consensusNodes,
+        applicationPropertiesPath,
+      );
       configTxtPath = await this.prepareConfigTxt(
         accountMap,
         consensusNodes,
@@ -186,6 +196,7 @@ export class ProfileManager {
         resolvedStagingOptions.releaseTag,
         resolvedStagingOptions.appName,
         resolvedStagingOptions.chainId,
+        gossipFqdnRestricted,
       );
     }
 
@@ -676,6 +687,96 @@ export class ProfileManager {
   }
 
   /**
+   * Extracts gossip endpoints from saved state (network.json) if it exists
+   * @param consensusNode - the consensus node to check
+   * @param nodeSeq - the node sequence number (index in roster)
+   * @returns the saved endpoint address or undefined if no saved state exists or IP is no longer valid
+   * @private
+   */
+  private async extractSavedEndpoint(consensusNode: ConsensusNode, nodeSeq: number): Promise<Address | undefined> {
+    try {
+      const k8: K8 = this.k8Factory.getK8(consensusNode.context);
+      const networkJsonPath: string = `${constants.HEDERA_HAPI_PATH}/output/network.json`;
+
+      // Check if network.json exists in the pod
+      const pods: Pod[] = await k8
+        .pods()
+        .list(NamespaceName.of(consensusNode.namespace), [`app=network-${consensusNode.name}`]);
+      if (pods.length === 0) {
+        return undefined;
+      }
+
+      const pod: Pod = pods[0];
+      const podReference: PodReference = pod.podReference;
+
+      // Get container reference
+      const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+      const container: Container = k8.containers().readByRef(containerReference);
+
+      // Try to read network.json from the pod
+      const networkJsonContent: string = await container.execContainer(['cat', networkJsonPath]);
+
+      if (!networkJsonContent || networkJsonContent.includes('No such file')) {
+        return undefined;
+      }
+
+      const networkJson: Record<string, unknown> = JSON.parse(networkJsonContent);
+      const nodeMetadata: unknown = networkJson?.nodeMetadata?.[nodeSeq];
+      const rosterEntry: {gossipEndpoint?: Array<Record<string, unknown>>} | undefined = (
+        nodeMetadata as {rosterEntry?: {gossipEndpoint?: Array<Record<string, unknown>>}} | undefined
+      )?.rosterEntry;
+      const gossipEndpointRaw: Record<string, unknown> | undefined = rosterEntry?.gossipEndpoint?.[0];
+      const port: number = (gossipEndpointRaw?.port as number) || 0;
+      const domainName: string | undefined =
+        typeof gossipEndpointRaw?.domainName === 'string' ? gossipEndpointRaw.domainName : undefined;
+      const ipAddressV4: string | undefined =
+        typeof gossipEndpointRaw?.ipAddressV4 === 'string' ? gossipEndpointRaw.ipAddressV4 : undefined;
+
+      if (!gossipEndpointRaw) {
+        return undefined;
+      }
+
+      // Check if endpoint uses domain name (FQDN)
+      if (domainName) {
+        this.logger.info(`Found saved endpoint for ${consensusNode.name}: ${domainName}:${port} (FQDN)`);
+        return new Address(port, domainName);
+      }
+
+      // Check if endpoint uses IP address
+      if (ipAddressV4) {
+        // Decode base64 IP address
+        const base64Ip: string = ipAddressV4 as string;
+        const ipBytes: Buffer = Buffer.from(base64Ip, 'base64');
+        const ipAddress: string = [...ipBytes].join('.');
+
+        // Validate the saved IP still belongs to this node service.
+        const serviceName: string = `network-${consensusNode.name}-svc`;
+        const service: {spec?: {clusterIP?: string}} | undefined = await k8
+          .services()
+          .read(NamespaceName.of(consensusNode.namespace), serviceName);
+        const serviceIpAddress: string | undefined = service?.spec?.clusterIP;
+        if (serviceIpAddress !== ipAddress) {
+          this.logger.warn(
+            `Saved endpoint ${ipAddress}:${port} for ${consensusNode.name} does not match current ${serviceName} ClusterIP ${serviceIpAddress ?? 'undefined'}, falling back to current service address`,
+          );
+          return undefined;
+        }
+
+        this.logger.info(`Found saved endpoint for ${consensusNode.name}: ${ipAddress}:${port} (IP)`);
+        return new Address(port, ipAddress);
+      }
+
+      return undefined;
+    } catch (error: Error | unknown) {
+      // If anything fails, return undefined to fall back to getExternalAddress
+      this.logger.debug(
+        `Could not extract saved endpoint for ${consensusNode.name}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+      return undefined;
+    }
+  }
+
+  /**
    * Prepares config.txt file for the node
    * @param nodeAccountMap - the map of node aliases to account IDs
    * @param consensusNodes - the list of consensus nodes
@@ -692,6 +793,7 @@ export class ProfileManager {
     releaseTagOverride: string,
     appName: string = constants.HEDERA_APP_NAME,
     chainId: string = constants.HEDERA_CHAIN_ID,
+    gossipFqdnRestricted: boolean = true,
   ): Promise<string> {
     let releaseTag: string = releaseTagOverride;
     if (!nodeAccountMap || nodeAccountMap.size === 0) {
@@ -729,11 +831,18 @@ export class ProfileManager {
           consensusNode.name as NodeAlias,
         );
 
-        const address: Address = await Address.getExternalAddress(
-          consensusNode,
-          this.k8Factory.getK8(consensusNode.context),
-          externalPort,
-        );
+        // First try to extract endpoint from saved state (migration scenario)
+        let address: Address | undefined = await this.extractSavedEndpoint(consensusNode, nodeSeq);
+
+        // If no saved state, get current external address
+        if (!address) {
+          address = await Address.getExternalAddress(
+            consensusNode,
+            this.k8Factory.getK8(consensusNode.context),
+            externalPort,
+            gossipFqdnRestricted,
+          );
+        }
 
         const account: string | undefined = nodeAccountMap.get(consensusNode.name as NodeAlias);
 
@@ -757,5 +866,50 @@ export class ProfileManager {
         error,
       );
     }
+  }
+
+  private parseGossipFqdnRestricted(applicationPropertiesText: string): boolean | undefined {
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
+    );
+    if (match?.[1]) {
+      return match[1].toLowerCase() === 'true';
+    }
+    return undefined;
+  }
+
+  private async getGossipFqdnRestricted(
+    consensusNodes: ConsensusNode[],
+    applicationPropertiesPath: string,
+  ): Promise<boolean> {
+    const firstNode: ConsensusNode | undefined = consensusNodes[0];
+    if (firstNode) {
+      try {
+        const k8: K8 = this.k8Factory.getK8(firstNode.context);
+        const configMap: ConfigMap = await k8
+          .configMaps()
+          .read(NamespaceName.of(firstNode.namespace), constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+        const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
+        if (configMapProperties) {
+          const parsedFromConfigMap: boolean | undefined = this.parseGossipFqdnRestricted(configMapProperties);
+          if (parsedFromConfigMap !== undefined) {
+            return parsedFromConfigMap;
+          }
+        }
+      } catch {
+        // Fall through to local application.properties
+      }
+    }
+
+    if (fs.existsSync(applicationPropertiesPath)) {
+      const applicationPropertiesContent: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      const parsedFromApplicationProperties: boolean | undefined =
+        this.parseGossipFqdnRestricted(applicationPropertiesContent);
+      if (parsedFromApplicationProperties !== undefined) {
+        return parsedFromApplicationProperties;
+      }
+    }
+
+    return true;
   }
 }
