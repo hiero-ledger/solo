@@ -73,9 +73,7 @@ jobs:
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue
-          npx tsc
-          node resources/post-build-script.js
+          task build:compile
 
       - name: Setup WSL2
         # Kind requires Linux containers. GitHub's windows-latest runner has Docker in Windows
