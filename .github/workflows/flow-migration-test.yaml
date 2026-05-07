@@ -18,7 +18,23 @@ name: "Test Migration Process"
 
 on:
   workflow_dispatch:
+    inputs:
+      from-solo-version:
+        description: 'Solo version to use before migration'
+        required: false
+        type: string
+      to-consensus-node-version:
+        description: 'Consensus node release tag to use after migration'
+        required: false
+        type: string
   workflow_call:
+    inputs:
+      from-solo-version:
+        required: false
+        type: string
+      to-consensus-node-version:
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -94,7 +110,35 @@ jobs:
           version: 'v1.27.3'
         id: install
 
-      - name: Launch Network with Prior Release 0.71.0
+      - name: Resolve Input Versions
+        id: get-version
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
+        with:
+          max_attempts: 3
+          timeout_minutes: 5
+          command: |
+            FROM_INPUT="${{ inputs.from-solo-version }}"
+            TO_CN_INPUT="${{ inputs.to-consensus-node-version }}"
+
+            if [[ -z "${FROM_INPUT}" ]]; then
+              FROM_INPUT=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
+            fi
+
+            if [[ -z "${TO_CN_INPUT}" ]]; then
+              TO_CN_INPUT=$(grep 'TEST_UPGRADE_TO_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\\1/")
+            fi
+
+            if [[ -z "${TO_CN_INPUT}" ]]; then
+              echo "Failed to resolve to-consensus-node-version input or TEST_UPGRADE_TO_VERSION from version-test.ts"
+              exit 1
+            fi
+
+            echo "From Solo Version: ${FROM_INPUT}"
+            echo "To Consensus Node Version: ${TO_CN_INPUT}"
+            echo "from_solo_version=${FROM_INPUT}" >> $GITHUB_OUTPUT
+            echo "to_consensus_node_version=${TO_CN_INPUT}" >> $GITHUB_OUTPUT
+
+      - name: Launch Network with Prior Release ${{ steps.get-version.outputs.from_solo_version }}
         timeout-minutes: 60
         run: |
           export PATH=~/.solo/bin:${PATH}
@@ -129,14 +173,16 @@ jobs:
           }
           trap cleanup SIGTERM SIGINT
 
-          .github/workflows/script/launch_network.sh 0.71.0 &
+          .github/workflows/script/launch_network.sh \
+            "${{ steps.get-version.outputs.from_solo_version }}" \
+            "${{ steps.get-version.outputs.to_consensus_node_version }}" &
           SCRIPT_PID=$!
           wait "${SCRIPT_PID}" || RC=$?
           SCRIPT_PID=""
           trap - SIGTERM SIGINT
 
           if [[ "$RC" != "0" ]]; then
-            echo "Failed to launch network with release version 0.71.0"
+            echo "Failed to launch network with release version ${{ steps.get-version.outputs.from_solo_version }}"
             exit $RC
           fi
 
