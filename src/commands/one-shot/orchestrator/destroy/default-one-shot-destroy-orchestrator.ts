@@ -22,7 +22,7 @@ import {type SoloLogger} from '../../../../core/logging/solo-logger.js';
 import {type Lock} from '../../../../core/lock/lock.js';
 import {type CommandFlag, type CommandFlags} from '../../../../types/flag-types.js';
 import {type ArgvStruct} from '../../../../types/aliases.js';
-import {Phase} from '../phase.js';
+import {OrchestratorPipelinePhase} from '../orchestrator-pipeline-phase.js';
 import {BlockCommandDefinition} from '../../../command-definitions/block-command-definition.js';
 import {ExplorerCommandDefinition} from '../../../command-definitions/explorer-command-definition.js';
 import {RelayCommandDefinition} from '../../../command-definitions/relay-command-definition.js';
@@ -41,7 +41,7 @@ import {NoKubeConfigContextError} from '../../../../business/runtime-state/error
 import {type Deployment} from '../../../../business/runtime-state/config/local/deployment.js';
 import {type StringFacade} from '../../../../business/runtime-state/facade/string-facade.js';
 import {DestroyArgvBuilders} from './destroy-argv-builders.js';
-import {Pipeline} from '../pipeline.js';
+import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {MutableFacadeArray} from '../../../../business/runtime-state/collection/mutable-facade-array.js';
 import {DeploymentSchema} from '../../../../data/schema/model/local/deployment-schema.js';
 
@@ -76,16 +76,18 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
     argv: ArgvStruct,
     flagsList: CommandFlags,
     leaseReference: {value?: Lock},
-  ): Pipeline<OneShotSingleDestroyContext> {
+  ): OrchestratorPipeline<OneShotSingleDestroyContext> {
     let config: OneShotSingleDestroyConfigClass;
     const getConfigGlobal: () => OneShotSingleDestroyConfigClass = (): OneShotSingleDestroyConfigClass => config;
     let remoteConfigLoaded: boolean = false;
 
-    const destroySubPhases: Array<Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>> = [
-      Phase.composite(
+    const destroySubPhases: Array<
+      OrchestratorPipelinePhase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>
+    > = [
+      OrchestratorPipelinePhase.composite(
         'Destroy extended setup',
         [
-          new Phase('Destroy explorer', {
+          new OrchestratorPipelinePhase('Destroy explorer', {
             asListrTask: (
               getConfig: () => OneShotSingleDestroyConfigClass,
             ): SoloListrTask<OneShotSingleDestroyContext> =>
@@ -97,7 +99,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
                 (): boolean => !getConfig().hasExplorers,
               ),
           }),
-          new Phase('Destroy relay', {
+          new OrchestratorPipelinePhase('Destroy relay', {
             asListrTask: (
               getConfig: () => OneShotSingleDestroyConfigClass,
             ): SoloListrTask<OneShotSingleDestroyContext> =>
@@ -110,10 +112,10 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
               ),
           }),
         ],
-        Phase.EXECUTION_MODE.CONCURRENT,
+        OrchestratorPipelinePhase.EXECUTION_MODE.CONCURRENT,
         false,
       ),
-      new Phase('Destroy mirror node', {
+      new OrchestratorPipelinePhase('Destroy mirror node', {
         asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
@@ -123,7 +125,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
             (): boolean => getConfig().skipAll || !getConfig().deployment || !getConfig().hasMirrorNodes,
           ),
       }),
-      new Phase('Destroy block node', {
+      new OrchestratorPipelinePhase('Destroy block node', {
         asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
@@ -137,7 +139,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
               getConfig().hasBlockNodes === false,
           ),
       }),
-      new Phase('Destroy consensus node', {
+      new OrchestratorPipelinePhase('Destroy consensus node', {
         asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
@@ -147,7 +149,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
             (): boolean => getConfig().skipAll || !getConfig().deployment,
           ),
       }),
-      new Phase('Cluster reset', {
+      new OrchestratorPipelinePhase('Cluster reset', {
         asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
@@ -157,7 +159,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
             (): boolean => getConfig().skipAll || !getConfig().deployment,
           ),
       }),
-      new Phase('Cluster disconnect', {
+      new OrchestratorPipelinePhase('Cluster disconnect', {
         asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND}`,
@@ -167,7 +169,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
             (): boolean => getConfig().skipAll || !getConfig().deployment,
           ),
       }),
-      new Phase('Deployment delete', {
+      new OrchestratorPipelinePhase('Deployment delete', {
         asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
           invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.DELETE_COMMAND}`,
@@ -179,8 +181,8 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
       }),
     ];
 
-    const phases: Array<Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>> = [
-      new Phase('Initialize', {
+    const phases: Array<OrchestratorPipelinePhase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>> = [
+      new OrchestratorPipelinePhase('Initialize', {
         asListrTask: (): SoloListrTask<OneShotSingleDestroyContext> => ({
           title: 'Initialize',
           task: async (
@@ -323,7 +325,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
           },
         }),
       }),
-      new Phase('Acquire deployment lock', {
+      new OrchestratorPipelinePhase('Acquire deployment lock', {
         asListrTask: (
           getConfig: () => OneShotSingleDestroyConfigClass,
         ): SoloListrTask<OneShotSingleDestroyContext> => ({
@@ -338,20 +340,20 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
           skip: (): boolean => getConfig().skipAll,
         }),
       }),
-      Phase.composite(
+      OrchestratorPipelinePhase.composite(
         'Destroy',
         destroySubPhases,
-        Phase.EXECUTION_MODE.SEQUENTIAL,
+        OrchestratorPipelinePhase.EXECUTION_MODE.SEQUENTIAL,
         false,
         {collapseSubtasks: false},
         (getConfig: () => OneShotSingleDestroyConfigClass): boolean => getConfig().skipAll,
       ),
     ];
 
-    return new Pipeline<OneShotSingleDestroyContext>(
+    return new OrchestratorPipeline<OneShotSingleDestroyContext>(
       phases.map(
         (
-          phase: Phase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>,
+          phase: OrchestratorPipelinePhase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>,
         ): SoloListrTask<OneShotSingleDestroyContext> => phase.asListrTask(getConfigGlobal, this.eventBus),
       ),
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDestroyContext>,

@@ -5,7 +5,7 @@ import {type OneShotSingleDeployContext} from '../../one-shot-single-deploy-cont
 import {type Lock} from '../../../../core/lock/lock.js';
 import {type CommandFlags} from '../../../../types/flag-types.js';
 import {type ArgvStruct} from '../../../../types/aliases.js';
-import {type Pipeline} from '../pipeline.js';
+import {type OrchestratorPipeline} from '../orchestrator-pipeline.js';
 
 /**
  * Interface for the One-Shot Deploy Orchestrator, responsible for building the deployment pipeline for one-shot deploy commands.
@@ -23,5 +23,5 @@ export interface OneShotDeployOrchestrator {
     flagsList: CommandFlags,
     leaseReference: {value?: Lock},
     configReference: {value?: OneShotSingleDeployConfigClass},
-  ): Pipeline<OneShotSingleDeployContext>;
+  ): OrchestratorPipeline<OneShotSingleDeployContext>;
 }

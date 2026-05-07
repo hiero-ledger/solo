@@ -6,7 +6,7 @@ import {type SoloListrTask} from '../../../types/index.js';
 /**
  * Represents a pipeline of tasks to be executed in sequence.
  */
-export class Pipeline<TContext> {
+export class OrchestratorPipeline<TContext> {
   public constructor(
     public readonly tasks: SoloListrTask<TContext>[],
     private readonly defaultOptions: ListrBaseClassOptions<TContext>,

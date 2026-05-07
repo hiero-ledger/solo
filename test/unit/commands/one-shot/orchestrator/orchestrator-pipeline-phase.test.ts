@@ -3,7 +3,7 @@
 import sinon, {type SinonStub} from 'sinon';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
-import {Phase} from '../../../../../src/commands/one-shot/orchestrator/phase.js';
+import {OrchestratorPipelinePhase} from '../../../../../src/commands/one-shot/orchestrator/orchestrator-pipeline-phase.js';
 import {type OrchestratorStep} from '../../../../../src/commands/one-shot/orchestrator/orchestrator-step.js';
 import {type SoloEventBus} from '../../../../../src/core/events/solo-event-bus.js';
 import {SoloEventType} from '../../../../../src/core/events/event-types/solo-event.js';
@@ -36,15 +36,23 @@ describe('Phase', (): void => {
 
   describe('withWaitCondition', (): void => {
     it('is chainable and returns the same Phase instance', (): void => {
-      const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub);
-      const result: Phase<SimpleConfig, SimpleContext> = phase.withWaitCondition(SoloEventType.MirrorNodeDeployed);
+      const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+        'test phase',
+        stepStub,
+      );
+      const result: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = phase.withWaitCondition(
+        SoloEventType.MirrorNodeDeployed,
+      );
       expect(result).to.equal(phase);
     });
   });
 
   describe('asListrTask (no wait conditions)', (): void => {
     it('returns the step task directly without wrapping', (): void => {
-      const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub);
+      const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+        'test phase',
+        stepStub,
+      );
       const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
       expect(task).to.equal(stepTaskStub);
       expect(asListrTaskStub.calledOnce).to.be.true;
@@ -53,7 +61,10 @@ describe('Phase', (): void => {
     });
 
     it('does not call eventBus.waitFor', (): void => {
-      const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub);
+      const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+        'test phase',
+        stepStub,
+      );
       phase.asListrTask((): SimpleConfig => config, eventBusStub);
       expect(waitForStub.called).to.be.false;
     });
@@ -61,19 +72,20 @@ describe('Phase', (): void => {
 
   describe('asListrTask (one wait condition)', (): void => {
     it('returns a wrapper task with a task function instead of the step task directly', (): void => {
-      const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub).withWaitCondition(
-        SoloEventType.MirrorNodeDeployed,
-      );
+      const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+        'test phase',
+        stepStub,
+      ).withWaitCondition(SoloEventType.MirrorNodeDeployed);
       const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
       expect(task).to.not.equal(stepTaskStub);
       expect(task).to.have.property('task').that.is.a('function');
     });
 
     it('wrapper task calls eventBus.waitFor with the correct event type', async (): Promise<void> => {
-      const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub).withWaitCondition(
-        SoloEventType.MirrorNodeDeployed,
-        Duration.ofMinutes(10),
-      );
+      const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+        'test phase',
+        stepStub,
+      ).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10));
       const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown> =
@@ -84,9 +96,10 @@ describe('Phase', (): void => {
     });
 
     it('waitFor predicate matches events for the configured deployment', async (): Promise<void> => {
-      const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub).withWaitCondition(
-        SoloEventType.MirrorNodeDeployed,
-      );
+      const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+        'test deployed phase',
+        stepStub,
+      ).withWaitCondition(SoloEventType.MirrorNodeDeployed);
       const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown> =
@@ -98,9 +111,10 @@ describe('Phase', (): void => {
     });
 
     it('wrapper task calls step.asListrTask after waiting', async (): Promise<void> => {
-      const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub).withWaitCondition(
-        SoloEventType.MirrorNodeDeployed,
-      );
+      const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+        'test phase',
+        stepStub,
+      ).withWaitCondition(SoloEventType.MirrorNodeDeployed);
       const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown> =
@@ -115,7 +129,10 @@ describe('Phase', (): void => {
 
   describe('asListrTask (two wait conditions)', (): void => {
     it('calls eventBus.waitFor twice in order for both event types', async (): Promise<void> => {
-      const phase: Phase<SimpleConfig, SimpleContext> = new Phase('test phase', stepStub)
+      const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+        'test phase',
+        stepStub,
+      )
         .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
         .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(5));
       const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
@@ -132,8 +149,8 @@ describe('Phase', (): void => {
   describe('Phase.composite', (): void => {
     let childStepStubA: OrchestratorStep<SimpleConfig, SimpleContext>;
     let childStepStubB: OrchestratorStep<SimpleConfig, SimpleContext>;
-    let childPhaseA: Phase<SimpleConfig, SimpleContext>;
-    let childPhaseB: Phase<SimpleConfig, SimpleContext>;
+    let childPhaseA: OrchestratorPipelinePhase<SimpleConfig, SimpleContext>;
+    let childPhaseB: OrchestratorPipelinePhase<SimpleConfig, SimpleContext>;
 
     beforeEach((): void => {
       childStepStubA = {asListrTask: sinon.stub().returns({title: 'child-a'})} as OrchestratorStep<
@@ -144,21 +161,24 @@ describe('Phase', (): void => {
         SimpleConfig,
         SimpleContext
       >;
-      childPhaseA = new Phase('child a', childStepStubA);
-      childPhaseB = new Phase('child b', childStepStubB);
+      childPhaseA = new OrchestratorPipelinePhase('child a', childStepStubA);
+      childPhaseB = new OrchestratorPipelinePhase('child b', childStepStubB);
     });
 
     it('asListrTask returns a wrapper task with a task function, not the child step directly', (): void => {
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA, childPhaseB]);
+      const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
+        'parent',
+        [childPhaseA, childPhaseB],
+      );
       const task: SoloListrTask<SimpleContext> = composite.asListrTask((): SimpleConfig => config, eventBusStub);
       expect(task).to.have.property('task').that.is.a('function');
     });
 
     it('sequential composite passes concurrent: false to newListr', (): void => {
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite(
+      const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
         'parent',
         [childPhaseA],
-        Phase.EXECUTION_MODE.SEQUENTIAL,
+        OrchestratorPipelinePhase.EXECUTION_MODE.SEQUENTIAL,
       );
       const task: SoloListrTask<SimpleContext> = composite.asListrTask((): SimpleConfig => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
@@ -169,10 +189,10 @@ describe('Phase', (): void => {
     });
 
     it('concurrent composite passes concurrent: true to newListr', (): void => {
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite(
+      const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
         'parent',
         [childPhaseA],
-        Phase.EXECUTION_MODE.CONCURRENT,
+        OrchestratorPipelinePhase.EXECUTION_MODE.CONCURRENT,
       );
       const task: SoloListrTask<SimpleContext> = composite.asListrTask((): SimpleConfig => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
@@ -183,10 +203,10 @@ describe('Phase', (): void => {
     });
 
     it('exitOnError: false is passed through when specified', (): void => {
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite(
+      const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
         'parent',
         [childPhaseA],
-        Phase.EXECUTION_MODE.CONCURRENT,
+        OrchestratorPipelinePhase.EXECUTION_MODE.CONCURRENT,
         false,
       );
       const task: SoloListrTask<SimpleContext> = composite.asListrTask((): SimpleConfig => config, eventBusStub);
@@ -198,7 +218,10 @@ describe('Phase', (): void => {
     });
 
     it('calls each child phase asListrTask with the same config and eventBus', (): void => {
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA, childPhaseB]);
+      const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
+        'parent',
+        [childPhaseA, childPhaseB],
+      );
       const task: SoloListrTask<SimpleContext> = composite.asListrTask((): SimpleConfig => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
@@ -211,7 +234,10 @@ describe('Phase', (): void => {
     });
 
     it('defaults to sequential execution mode when not specified', (): void => {
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA]);
+      const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
+        'parent',
+        [childPhaseA],
+      );
       const task: SoloListrTask<SimpleContext> = composite.asListrTask((): SimpleConfig => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
@@ -221,10 +247,10 @@ describe('Phase', (): void => {
     });
 
     it('rendererOptions are passed to newListr when provided', (): void => {
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite(
+      const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
         'parent',
         [childPhaseA],
-        Phase.EXECUTION_MODE.SEQUENTIAL,
+        OrchestratorPipelinePhase.EXECUTION_MODE.SEQUENTIAL,
         true,
         {collapseSubtasks: false},
       );
@@ -239,8 +265,12 @@ describe('Phase', (): void => {
     });
 
     it('dynamic executionMode function determines concurrent flag at task execution time', (): void => {
-      const executionModeStub: SinonStub = sinon.stub().returns(Phase.EXECUTION_MODE.CONCURRENT);
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite('parent', [childPhaseA], executionModeStub);
+      const executionModeStub: SinonStub = sinon.stub().returns(OrchestratorPipelinePhase.EXECUTION_MODE.CONCURRENT);
+      const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
+        'parent',
+        [childPhaseA],
+        executionModeStub,
+      );
       const task: SoloListrTask<SimpleContext> = composite.asListrTask((): SimpleConfig => config, eventBusStub);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
@@ -254,10 +284,10 @@ describe('Phase', (): void => {
 
     it('skip function on composite is evaluated with getConfig at task execution time', (): void => {
       const skipStub: SinonStub = sinon.stub().returns(true);
-      const composite: Phase<SimpleConfig, SimpleContext> = Phase.composite(
+      const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
         'parent',
         [childPhaseA],
-        Phase.EXECUTION_MODE.SEQUENTIAL,
+        OrchestratorPipelinePhase.EXECUTION_MODE.SEQUENTIAL,
         true,
         undefined,
         skipStub,

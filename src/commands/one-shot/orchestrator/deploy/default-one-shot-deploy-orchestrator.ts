@@ -43,7 +43,7 @@ import {
   type SystemAccount,
 } from '../../predefined-accounts.js';
 import {type OneShotDeployOrchestrator} from './one-shot-deploy-orchestrator.js';
-import {Phase} from '../phase.js';
+import {OrchestratorPipelinePhase} from '../orchestrator-pipeline-phase.js';
 import {type ExecutionMode} from '../execution-mode.js';
 import {BlockCommandDefinition} from '../../../command-definitions/block-command-definition.js';
 import {MirrorCommandDefinition} from '../../../command-definitions/mirror-command-definition.js';
@@ -80,7 +80,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
 import {DeployArgvBuilders} from './deploy-argv-builders.js';
-import {Pipeline} from '../pipeline.js';
+import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DISK} from '../../../../../version.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
@@ -119,12 +119,12 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     flagsList: CommandFlags,
     leaseReference: {value?: Lock},
     configReference: {value?: OneShotSingleDeployConfigClass},
-  ): Pipeline<OneShotSingleDeployContext> {
+  ): OrchestratorPipeline<OneShotSingleDeployContext> {
     let config: OneShotSingleDeployConfigClass;
     const getConfigGlobal: () => OneShotSingleDeployConfigClass = (): OneShotSingleDeployConfigClass => config;
 
-    const phases: Array<Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
-      new Phase('Initialize', {
+    const phases: Array<OrchestratorPipelinePhase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
+      new OrchestratorPipelinePhase('Initialize', {
         asListrTask: (): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Initialize',
           task: async (
@@ -263,7 +263,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           },
         }),
       }),
-      new Phase('Acquire deployment lock', {
+      new OrchestratorPipelinePhase('Acquire deployment lock', {
         asListrTask: (): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Acquire deployment lock',
           task: async (
@@ -275,7 +275,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           },
         }),
       }),
-      new Phase('Check for other deployments', {
+      new OrchestratorPipelinePhase('Check for other deployments', {
         asListrTask: (): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Check for other deployments',
           task: async (
@@ -306,7 +306,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             context_.config.force === true || context_.config.quiet === true,
         }),
       }),
-      new Phase('Cluster connect', {
+      new OrchestratorPipelinePhase('Cluster connect', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
@@ -315,7 +315,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.taskList,
           ),
       }),
-      new Phase('Deployment create', {
+      new OrchestratorPipelinePhase('Deployment create', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
@@ -324,7 +324,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.taskList,
           ),
       }),
-      new Phase('Deployment attach', {
+      new OrchestratorPipelinePhase('Deployment attach', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
@@ -333,7 +333,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.taskList,
           ),
       }),
-      new Phase('Cluster setup', {
+      new OrchestratorPipelinePhase('Cluster setup', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
@@ -342,7 +342,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.taskList,
           ),
       }),
-      new Phase('Keys generate', {
+      new OrchestratorPipelinePhase('Keys generate', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
           invokeSoloCommand(
             `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
@@ -351,7 +351,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.taskList,
           ),
       }),
-      new Phase('Create remote config components', {
+      new OrchestratorPipelinePhase('Create remote config components', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Create remote config components',
           task: async (): Promise<void> => {
@@ -416,10 +416,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           },
         }),
       }),
-      Phase.composite(
+      OrchestratorPipelinePhase.composite(
         'Deploy Solo components',
         [
-          new Phase('Deploy block node', {
+          new OrchestratorPipelinePhase('Deploy block node', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
                 `solo ${BlockCommandDefinition.ADD_COMMAND}`,
@@ -429,8 +429,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
               ),
           }),
-          Phase.composite('Deploy network node', [
-            new Phase('Deploy consensus node', {
+          OrchestratorPipelinePhase.composite('Deploy network node', [
+            new OrchestratorPipelinePhase('Deploy consensus node', {
               asListrTask: (
                 getConfig: () => OneShotSingleDeployConfigClass,
               ): SoloListrTask<OneShotSingleDeployContext> =>
@@ -441,8 +441,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   this.taskList,
                 ),
             }),
-            Phase.composite('Setup and start consensus node', [
-              new Phase('Setup consensus node', {
+            OrchestratorPipelinePhase.composite('Setup and start consensus node', [
+              new OrchestratorPipelinePhase('Setup consensus node', {
                 asListrTask: (
                   getConfig: () => OneShotSingleDeployConfigClass,
                 ): SoloListrTask<OneShotSingleDeployContext> =>
@@ -453,7 +453,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                     this.taskList,
                   ),
               }),
-              new Phase('Start consensus node', {
+              new OrchestratorPipelinePhase('Start consensus node', {
                 asListrTask: (
                   getConfig: () => OneShotSingleDeployConfigClass,
                 ): SoloListrTask<OneShotSingleDeployContext> =>
@@ -464,14 +464,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                     this.taskList,
                   ),
               }),
-              new Phase('Create accounts', {
+              new OrchestratorPipelinePhase('Create accounts', {
                 asListrTask: (
                   getConfig: () => OneShotSingleDeployConfigClass,
                 ): SoloListrTask<OneShotSingleDeployContext> => this.buildCreateAccountsTask(getConfig()),
               }),
             ]),
           ]),
-          new Phase('Deploy mirror node', {
+          new OrchestratorPipelinePhase('Deploy mirror node', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
                 `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
@@ -481,7 +481,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 (): boolean => !getConfig().deployMirrorNode,
               ),
           }),
-          new Phase('Deploy explorer', {
+          new OrchestratorPipelinePhase('Deploy explorer', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
                 `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
@@ -491,7 +491,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 (): boolean => !getConfig().deployExplorer && !getConfig().minimalSetup,
               ),
           }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
-          new Phase('Deploy JSON-RPC Relay', {
+          new OrchestratorPipelinePhase('Deploy JSON-RPC Relay', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
                 `solo ${RelayCommandDefinition.ADD_COMMAND}`,
@@ -505,11 +505,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(5)),
         ],
         (getConfig: () => OneShotSingleDeployConfigClass): ExecutionMode =>
-          getConfig().parallelDeploy ? Phase.EXECUTION_MODE.CONCURRENT : Phase.EXECUTION_MODE.SEQUENTIAL,
+          getConfig().parallelDeploy
+            ? OrchestratorPipelinePhase.EXECUTION_MODE.CONCURRENT
+            : OrchestratorPipelinePhase.EXECUTION_MODE.SEQUENTIAL,
         true,
         {collapseSubtasks: false},
       ),
-      new Phase('Finish', {
+      new OrchestratorPipelinePhase('Finish', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Finish',
           task: async (context_: OneShotSingleDeployContext): Promise<void> => {
@@ -526,10 +528,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       }),
     ];
 
-    return new Pipeline<OneShotSingleDeployContext>(
+    return new OrchestratorPipeline<OneShotSingleDeployContext>(
       phases.map(
         (
-          phase: Phase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
+          phase: OrchestratorPipelinePhase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
         ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfigGlobal, this.eventBus),
       ),
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDeployContext>,

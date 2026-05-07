@@ -4,7 +4,7 @@ import {type OneShotSingleDestroyContext} from '../../one-shot-single-destroy-co
 import {type Lock} from '../../../../core/lock/lock.js';
 import {type CommandFlags} from '../../../../types/flag-types.js';
 import {type ArgvStruct} from '../../../../types/aliases.js';
-import {type Pipeline} from '../pipeline.js';
+import {type OrchestratorPipeline} from '../orchestrator-pipeline.js';
 
 /**
  * Interface for the One-Shot Destroy Orchestrator, responsible for building the destruction pipeline for one-shot destroy commands.
@@ -20,5 +20,5 @@ export interface OneShotDestroyOrchestrator {
     argv: ArgvStruct,
     flagsList: CommandFlags,
     leaseReference: {value?: Lock},
-  ): Pipeline<OneShotSingleDestroyContext>;
+  ): OrchestratorPipeline<OneShotSingleDestroyContext>;
 }

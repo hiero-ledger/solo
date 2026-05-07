@@ -15,7 +15,7 @@ type WaitCondition = {
   timeout: Duration;
 };
 
-export class Phase<TConfig extends {deployment: string}, TContext> {
+export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TContext> {
   private readonly waitConditions: WaitCondition[] = [];
 
   public static EXECUTION_MODE: {SEQUENTIAL: ExecutionMode; CONCURRENT: ExecutionMode} = {
@@ -26,9 +26,10 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
   public constructor(
     private readonly title: string,
     private readonly step: OrchestratorStep<TConfig, TContext> | undefined,
-    private readonly subPhases: ReadonlyArray<Phase<TConfig, TContext>> = [],
-    private readonly executionMode: ExecutionMode | ((getConfig: () => TConfig) => ExecutionMode) = Phase.EXECUTION_MODE
-      .SEQUENTIAL,
+    private readonly subPhases: ReadonlyArray<OrchestratorPipelinePhase<TConfig, TContext>> = [],
+    private readonly executionMode:
+      | ExecutionMode
+      | ((getConfig: () => TConfig) => ExecutionMode) = OrchestratorPipelinePhase.EXECUTION_MODE.SEQUENTIAL,
     private readonly exitOnError: boolean = true,
     private readonly rendererOptions?: object,
     private readonly skipFunction?: (getConfig: () => TConfig) => boolean,
@@ -36,13 +37,14 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
 
   public static composite<TConfig extends {deployment: string}, TContext>(
     title: string,
-    subPhases: ReadonlyArray<Phase<TConfig, TContext>>,
-    executionMode: ExecutionMode | ((getConfig: () => TConfig) => ExecutionMode) = Phase.EXECUTION_MODE.SEQUENTIAL,
+    subPhases: ReadonlyArray<OrchestratorPipelinePhase<TConfig, TContext>>,
+    executionMode: ExecutionMode | ((getConfig: () => TConfig) => ExecutionMode) = OrchestratorPipelinePhase
+      .EXECUTION_MODE.SEQUENTIAL,
     exitOnError: boolean = true,
     rendererOptions?: object,
     skipFunction?: (getConfig: () => TConfig) => boolean,
-  ): Phase<TConfig, TContext> {
-    return new Phase<TConfig, TContext>(
+  ): OrchestratorPipelinePhase<TConfig, TContext> {
+    return new OrchestratorPipelinePhase<TConfig, TContext>(
       title,
       undefined,
       subPhases,
@@ -66,11 +68,12 @@ export class Phase<TConfig extends {deployment: string}, TContext> {
         task: (_: TContext, task: SoloListrTaskWrapper<TContext>): SoloListr<TContext> => {
           const isConcurrent: boolean =
             typeof this.executionMode === 'function'
-              ? this.executionMode(getConfig) === Phase.EXECUTION_MODE.CONCURRENT
-              : this.executionMode === Phase.EXECUTION_MODE.CONCURRENT;
+              ? this.executionMode(getConfig) === OrchestratorPipelinePhase.EXECUTION_MODE.CONCURRENT
+              : this.executionMode === OrchestratorPipelinePhase.EXECUTION_MODE.CONCURRENT;
           return task.newListr(
             this.subPhases.map(
-              (phase: Phase<TConfig, TContext>): SoloListrTask<TContext> => phase.asListrTask(getConfig, eventBus),
+              (phase: OrchestratorPipelinePhase<TConfig, TContext>): SoloListrTask<TContext> =>
+                phase.asListrTask(getConfig, eventBus),
             ),
             {
               concurrent: isConcurrent,
