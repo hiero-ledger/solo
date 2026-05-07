@@ -22,7 +22,12 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
+import {type K8} from '../integration/kube/k8.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {type Container} from '../integration/kube/resources/container/container.js';
+import {type Service} from '../integration/kube/resources/service/service.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
@@ -685,23 +690,23 @@ export class ProfileManager {
    */
   private async extractSavedEndpoint(consensusNode: ConsensusNode, nodeSeq: number): Promise<Address | undefined> {
     try {
-      const k8 = this.k8Factory.getK8(consensusNode.context);
+      const k8: K8 = this.k8Factory.getK8(consensusNode.context);
       const networkJsonPath: string = `${constants.HEDERA_HAPI_PATH}/output/network.json`;
 
       // Check if network.json exists in the pod
-      const pods = await k8
+      const pods: Pod[] = await k8
         .pods()
         .list(NamespaceName.of(consensusNode.namespace), [`app=network-${consensusNode.name}`]);
       if (pods.length === 0) {
         return undefined;
       }
 
-      const pod = pods[0];
-      const podReference = pod.podReference;
+      const pod: Pod = pods[0];
+      const podReference: PodReference = pod.podReference;
 
       // Get container reference
-      const containerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-      const container = k8.containers().readByRef(containerReference);
+      const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+      const container: Container = k8.containers().readByRef(containerReference);
 
       // Try to read network.json from the pod
       const networkJsonContent: string = await container.execContainer(['cat', networkJsonPath]);
@@ -710,33 +715,38 @@ export class ProfileManager {
         return undefined;
       }
 
-      const networkJson: any = JSON.parse(networkJsonContent);
-      const nodeMetadata: any = networkJson?.nodeMetadata?.[nodeSeq];
-      const gossipEndpoint: any = nodeMetadata?.rosterEntry?.gossipEndpoint?.[0];
+      const networkJson: Record<string, unknown> = JSON.parse(networkJsonContent);
+      const nodeMetadata: unknown = networkJson?.nodeMetadata?.[nodeSeq];
+      const rosterEntry: {gossipEndpoint?: Array<Record<string, unknown>>} | undefined = (
+        nodeMetadata as {rosterEntry?: {gossipEndpoint?: Array<Record<string, unknown>>}} | undefined
+      )?.rosterEntry;
+      const gossipEndpointRaw: Record<string, unknown> | undefined = rosterEntry?.gossipEndpoint?.[0];
+      const port: number = (gossipEndpointRaw?.port as number) || 0;
+      const domainName: string | undefined =
+        typeof gossipEndpointRaw?.domainName === 'string' ? gossipEndpointRaw.domainName : undefined;
+      const ipAddressV4: string | undefined =
+        typeof gossipEndpointRaw?.ipAddressV4 === 'string' ? gossipEndpointRaw.ipAddressV4 : undefined;
 
-      if (!gossipEndpoint) {
+      if (!gossipEndpointRaw) {
         return undefined;
       }
 
-      const port: number = gossipEndpoint.port;
-
       // Check if endpoint uses domain name (FQDN)
-      if (gossipEndpoint.domainName) {
-        const domainName: string = gossipEndpoint.domainName;
+      if (domainName) {
         this.logger.info(`Found saved endpoint for ${consensusNode.name}: ${domainName}:${port} (FQDN)`);
         return new Address(port, domainName);
       }
 
       // Check if endpoint uses IP address
-      if (gossipEndpoint.ipAddressV4) {
+      if (ipAddressV4) {
         // Decode base64 IP address
-        const base64Ip: string = gossipEndpoint.ipAddressV4;
+        const base64Ip: string = ipAddressV4 as string;
         const ipBytes: Buffer = Buffer.from(base64Ip, 'base64');
         const ipAddress: string = [...ipBytes].join('.');
 
         // Validate that a service with this IP still exists
-        const services = await k8.services().list(NamespaceName.of(consensusNode.namespace));
-        const serviceExists: boolean = services.some(svc => svc.spec?.clusterIP === ipAddress);
+        const services: Service[] = await k8.services().list(NamespaceName.of(consensusNode.namespace));
+        const serviceExists: boolean = services.some((svc: Service): boolean => svc.spec?.clusterIP === ipAddress);
 
         if (!serviceExists) {
           this.logger.warn(
