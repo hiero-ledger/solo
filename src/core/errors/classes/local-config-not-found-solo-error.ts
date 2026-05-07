@@ -11,8 +11,9 @@ export class LocalConfigNotFoundSoloError extends SoloError {
   public constructor(cause?: Error) {
     super(
       {
-        localeKey: 'local_config_not_found',
+        message: 'Local configuration file not found',
         code: ErrorCodeRegistry.LOCAL_CONFIG_NOT_FOUND,
+        troubleshootingSteps: 'Create a local config: solo deployment config create',
       },
       cause,
     );

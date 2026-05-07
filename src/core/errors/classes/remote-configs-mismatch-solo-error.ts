@@ -11,9 +11,9 @@ export class RemoteConfigsMismatchSoloError extends SoloError {
   public constructor(cluster1: string, cluster2: string, cause?: Error) {
     super(
       {
-        localeKey: 'remote_configs_mismatch',
+        message: `Remote configurations in clusters ${cluster1} and ${cluster2} do not match`,
         code: ErrorCodeRegistry.REMOTE_CONFIGS_MISMATCH,
-        context: {cluster1, cluster2},
+        troubleshootingSteps: 'Inspect both configs: kubectl get configmap -n solo\nSync manually before retrying',
       },
       cause,
     );

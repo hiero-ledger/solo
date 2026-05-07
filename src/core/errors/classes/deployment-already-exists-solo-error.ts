@@ -12,9 +12,10 @@ export class DeploymentAlreadyExistsSoloError extends SoloError {
   public constructor(deploymentName: DeploymentName, cause?: Error) {
     super(
       {
-        localeKey: 'deployment_already_exists',
+        message: `A deployment named '${deploymentName}' already exists. Please select a different name`,
         code: ErrorCodeRegistry.DEPLOYMENT_NAME_ALREADY_EXISTS,
-        context: {deploymentName},
+        troubleshootingSteps:
+          'Check existing deployments: solo deployment list\nChoose a different name for your deployment',
       },
       cause,
     );

@@ -9,12 +9,10 @@ import {RemoteConfigsMismatchSoloError} from './classes/remote-configs-mismatch-
  * Registry of typed Solo error constructors, grouped by error code category.
  *
  * To add a new error type:
- * 1. Create `src/core/errors/types/<kebab-name>.ts` — a class extending SoloError,
- *    passing a SoloErrorInit with a code, messageKey, and troubleshootingKey.
+ * 1. Create `src/core/errors/classes/<kebab-name>.ts` — a class extending SoloError,
+ *    passing a SoloErrorInit with a message, code, and optional troubleshootingSteps.
  * 2. Add the error code constant to `src/core/errors/error-code-registry.ts`.
- * 3. Add `<key>_message` and `<key>_troubleshooting_steps` entries to
- *    `src/core/locales/en.ts` (no need to add values to other languages at this time).
- * 4. Import the class in this file and add it to the appropriate static namespace below.
+ * 3. Import the class in this file and add it to the appropriate static namespace below.
  */
 export class SoloErrors {
   // 1xxx - Configuration: Deployment config, schema, existence checks

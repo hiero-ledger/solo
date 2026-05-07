@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {LocaleRegistry} from '../../utils/locales/locale-registry.js';
-import {type LocaleKey} from '../../utils/locales/locale-registry.js';
 import {type ErrorOwnership} from './error-ownership.js';
 
 type SoloErrorInit = {
-  localeKey: LocaleKey;
+  message: string;
   code?: string;
-  context?: Readonly<Record<string, string | number | boolean | undefined>>;
+  troubleshootingSteps?: string;
 };
 
 export class SoloError extends Error {
   public readonly statusCode?: number;
   protected readonly code?: string;
-  protected readonly localeKey?: LocaleKey;
+  protected readonly troubleshootingSteps?: ReadonlyArray<string>;
   protected readonly retryable?: boolean;
   protected readonly ownership?: ErrorOwnership;
 
@@ -31,17 +29,14 @@ export class SoloError extends Error {
     public override cause: Error | any = {},
     public meta: any = {},
   ) {
-    const resolvedMessage: string =
-      typeof messageOrInit === 'string'
-        ? messageOrInit
-        : LocaleRegistry.getMessage(messageOrInit.localeKey, messageOrInit.context);
+    const resolvedMessage: string = typeof messageOrInit === 'string' ? messageOrInit : messageOrInit.message;
     super(resolvedMessage);
     this.name = this.constructor.name;
     // eslint-disable-next-line unicorn/no-useless-error-capture-stack-trace
     Error.captureStackTrace(this, this.constructor);
     if (typeof messageOrInit !== 'string') {
       this.code = messageOrInit.code;
-      this.localeKey = messageOrInit.localeKey;
+      this.troubleshootingSteps = messageOrInit.troubleshootingSteps?.split('\n');
     }
     if (cause && Object.keys(cause).length > 0) {
       // if the cause message is the same as this message and this is a SoloError, re-throw the cause to avoid redundant wrapping
@@ -59,7 +54,7 @@ export class SoloError extends Error {
 
   /** Returns the troubleshooting steps for this error, or undefined if none are defined. */
   public getTroubleshootingSteps(): ReadonlyArray<string> | undefined {
-    return this.localeKey ? LocaleRegistry.getTroubleshootingSteps(this.localeKey) : undefined;
+    return this.troubleshootingSteps;
   }
 
   /** Returns the documentation URL for this error, or undefined if not defined. */

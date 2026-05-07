@@ -11,8 +11,10 @@ export class CreateDeploymentSoloError extends SoloError {
   public constructor(cause?: Error) {
     super(
       {
-        localeKey: 'create_deployment_error',
+        message: 'Error creating deployment',
         code: ErrorCodeRegistry.CREATE_DEPLOYMENT,
+        troubleshootingSteps:
+          'Check the logs for details: tail -f ~/.solo/logs/solo.log | jq\nVerify cluster connectivity: kubectl get nodes\nReview your configuration: solo deployment config view',
       },
       cause,
     );

@@ -94,8 +94,6 @@ export class InjectTokens {
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
   public static PostgresSharedResource: symbol = Symbol.for('PostgresSharedResource');
   public static SharedResourceManager: symbol = Symbol.for('SharedResourceManager');
-  public static SoloLocale: symbol = Symbol.for('SoloLocale');
-
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');
   public static BlockCommandDefinition: symbol = Symbol.for('BlockCommandDefinition');
