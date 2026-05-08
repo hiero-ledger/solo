@@ -66,6 +66,7 @@ import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-de
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 import {optionFromFlag} from './command-helpers.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
+import {K8} from '../integration/kube/k8.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -655,7 +656,7 @@ export class MirrorNodeCommand extends BaseCommand {
         constants.MIRROR_INGRESS_TLS_SECRET_NAME,
       );
       // patch ingressClassName of mirror ingress, so it can be recognized by haproxy ingress controller
-      const k8 = this.k8Factory.getK8(config.clusterContext);
+      const k8: K8 = this.k8Factory.getK8(config.clusterContext);
       const tlsSpec: object = {
         spec: {
           ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
@@ -1305,11 +1306,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
             this.addMirrorNodeMemoryOverrides(hasMirrorNodeMemoryImprovements, config);
 
-            const lockTask: SoloListr<AnyListrContext> = this.oneShotState.isActive()
+            return this.oneShotState.isActive()
               ? ListrLock.newSkippedLockTask(task)
               : ListrLock.newAcquireLockTask(lease, task);
-
-            return lockTask;
           },
         },
         this.addMirrorNodeComponents(),
@@ -1554,11 +1553,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
             this.addMirrorNodeMemoryOverrides(hasMirrorNodeMemoryImprovements, config);
 
-            const lockTask: SoloListr<AnyListrContext> = this.oneShotState.isActive()
+            return this.oneShotState.isActive()
               ? ListrLock.newSkippedLockTask(task)
               : ListrLock.newAcquireLockTask(lease, task);
-
-            return lockTask;
           },
         },
         this.enableSharedResourcesTask(),
