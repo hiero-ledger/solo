@@ -298,6 +298,10 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'mirror-postgres-truncate.sql',
+);
 export const UPGRADE_MIGRATIONS_FILE: string = PathEx.join(RESOURCES_DIR, 'component-upgrade-migrations.json');
 export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
 export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
@@ -325,7 +329,7 @@ export const CHECK_WRAPS_DIRECTORY_BACKOFF_MS: number =
  * Listr related
  * @returns a object that defines the default color options
  */
-export const LISTR_DEFAULT_RENDERER_TIMER_OPTION = {
+export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: any = {
   ...PRESET_TIMER,
   condition: (duration: number): boolean => duration > 100,
   format: (duration: number) => {
