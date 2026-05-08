@@ -383,7 +383,7 @@ export class NodeCommandTasks {
       const output: string = await container.execContainer([
         'bash',
         '-c',
-        `set -euo pipefail; shopt -s nullglob; for file in "${pair.remote}"/*.jar; do basename "$file"; printf ":"; wc -c < "$file"; done | sort`,
+        `set -euo pipefail; shopt -s nullglob; for file in "${pair.remote}"/*.jar; do printf "%s:%s\\n" "$(basename "$file")" "$(wc -c < "$file" | tr -d "[:space:]")"; done | sort`,
       ]);
       const actualEntries: string[] = output
         .split('\n')
