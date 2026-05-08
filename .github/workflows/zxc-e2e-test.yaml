@@ -382,8 +382,9 @@ jobs:
           max_attempts: 3
           timeout_minutes: 30
           command: |
+            source .github/workflows/script/helper.sh
             if [ -z "${{ inputs.consensus-node-version }}" ]; then
-                export CONSENSUS_NODE_VERSION=$(.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)
+                export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
             else
                 export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
             fi
@@ -417,7 +418,8 @@ jobs:
           max_attempts: 3
           timeout_minutes: 20
           command: |
-            TEST_LOCAL_BLOCK_NODE_VERSION=$(.github/workflows/script/extract-version.sh PREV_BLOCK_NODE_VERSION version-test.ts)
+            source .github/workflows/script/helper.sh
+            TEST_LOCAL_BLOCK_NODE_VERSION=$(extract_version PREV_BLOCK_NODE_VERSION version-test.ts)
             echo "Using PREV_BLOCK_NODE_VERSION: ${TEST_LOCAL_BLOCK_NODE_VERSION}"
             cd ..
             git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch ${TEST_LOCAL_BLOCK_NODE_VERSION}
@@ -451,6 +453,7 @@ jobs:
         run: |
           export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
+          source .github/workflows/script/helper.sh
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"
@@ -458,7 +461,7 @@ jobs:
                   if [[ "${{ inputs.test-script }}" == "test-e2e-block-node" ]]; then
                     echo "Use default from version.ts for block node test"
                   else
-                    export CONSENSUS_NODE_VERSION=$(.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)
+                    export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
                   fi
               fi
           else

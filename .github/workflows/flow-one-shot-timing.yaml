@@ -177,11 +177,12 @@ jobs:
         id: versions
         run: |
           # Read defaults from version.ts and allow input overrides
-          DEFAULT_CN=$(.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)
-          DEFAULT_BN=$(.github/workflows/script/extract-version.sh BLOCK_NODE_VERSION version.ts)
-          DEFAULT_MN=$(.github/workflows/script/extract-version.sh MIRROR_NODE_VERSION version.ts)
-          DEFAULT_RELAY=$(.github/workflows/script/extract-version.sh HEDERA_JSON_RPC_RELAY_VERSION version.ts)
-          DEFAULT_EXPLORER=$(.github/workflows/script/extract-version.sh EXPLORER_VERSION version.ts)
+          source .github/workflows/script/helper.sh
+          DEFAULT_CN=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
+          DEFAULT_BN=$(extract_version BLOCK_NODE_VERSION version.ts)
+          DEFAULT_MN=$(extract_version MIRROR_NODE_VERSION version.ts)
+          DEFAULT_RELAY=$(extract_version HEDERA_JSON_RPC_RELAY_VERSION version.ts)
+          DEFAULT_EXPLORER=$(extract_version EXPLORER_VERSION version.ts)
 
           CN_VERSION="${{ inputs.consensus-node-version }}"
           BN_VERSION="${{ inputs.block-node-version }}"

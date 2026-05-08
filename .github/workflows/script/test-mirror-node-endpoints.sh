@@ -293,11 +293,12 @@ kubectl get svc -n "$NAMESPACE" | grep mirror || {
 info "Extracting port numbers from constants.ts..."
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/helper.sh"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 CONSTANTS_FILE="${REPO_ROOT}/src/core/constants.ts"
 
-MIRROR_INGRESS_PORT=$("${SCRIPT_DIR}/extract-version.sh" MIRROR_NODE_PORT "${CONSTANTS_FILE}" 2>/dev/null | tr -d '_' || echo "38081")
-RELAY_PORT=$("${SCRIPT_DIR}/extract-version.sh" JSON_RPC_RELAY_LOCAL_PORT "${CONSTANTS_FILE}" 2>/dev/null | tr -d '_' || echo "37546")
+MIRROR_INGRESS_PORT=$(extract_version MIRROR_NODE_PORT "${CONSTANTS_FILE}" 2>/dev/null | tr -d '_' || echo "38081")
+RELAY_PORT=$(extract_version JSON_RPC_RELAY_LOCAL_PORT "${CONSTANTS_FILE}" 2>/dev/null | tr -d '_' || echo "37546")
 
 info "Using mirror ingress port: $MIRROR_INGRESS_PORT"
 info "Using relay port: $RELAY_PORT"

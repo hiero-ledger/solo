@@ -139,8 +139,9 @@ tasks:
   test-external-database:
     desc: "Runs the external database example test without coverage (used for local development)"
     cmd: |
+        source .github/workflows/script/helper.sh
         if [ -z "$CONSENSUS_NODE_VERSION" ]; then
-          export CONSENSUS_NODE_VERSION=$(.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)
+          export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
         fi
         cd examples/external-database-test
         task default
