@@ -600,6 +600,7 @@ export class NodeCommandTasks {
 
     let attempt: number = 0;
     let success: boolean = false;
+
     while (attempt < maxAttempts) {
       const controller: AbortController = new AbortController();
 
@@ -616,20 +617,20 @@ export class NodeCommandTasks {
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           clearTimeout(timeoutId);
-          throw new SoloError('empty response'); // Guard
+          throw new SoloError('empty response');
         }
 
-        const statusLine: string = response
+        const statusLine: string | undefined = response
           .split('\n')
           .find((line: string): boolean => line.startsWith('platform_PlatformStatus'));
 
         if (!statusLine) {
           task.title = `${title} - status ${chalk.yellow('STARTING')}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           clearTimeout(timeoutId);
-          throw new SoloError('missing status line'); // Guard
+          throw new SoloError('missing status line');
         }
 
-        const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
+        const statusNumber: number = Number.parseInt(statusLine.split(' ').pop() || '');
 
         if (statusNumber === status) {
           task.title = `${title} - status ${chalk.green(NodeStatusEnums[status])}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -642,6 +643,7 @@ export class NodeCommandTasks {
         } else if (statusNumber) {
           task.title = `${title} - status ${chalk.yellow(NodeStatusEnums[statusNumber])}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
         }
+
         clearTimeout(timeoutId);
       } catch (error) {
         this.logger.debug(
@@ -661,11 +663,59 @@ export class NodeCommandTasks {
       );
     }
 
-    if (constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS > 0) {
-      await sleep(Duration.ofMillis(constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS)); // delaying prevents - gRPC service error
+    if (status === NodeStatusCodes.ACTIVE) {
+      await this.waitForGrpcReadiness(namespace, nodeAlias, task, title);
     }
 
     return podReference;
+  }
+
+  private async waitForGrpcReadiness(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    task: SoloListrTaskWrapper<AnyListrContext>,
+    title: string,
+  ): Promise<void> {
+    const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+
+    let attempt: number = 0;
+    let consecutiveSuccesses: number = 0;
+
+    while (attempt < constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS) {
+      try {
+        await this.accountManager.loadNodeClientForNodeAlias(namespace, clusterReferences, deployment, nodeAlias, true);
+
+        consecutiveSuccesses++;
+
+        task.title =
+          `${title} - gRPC readiness ${chalk.green(`${consecutiveSuccesses}/${constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES}`)}, ` +
+          `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
+
+        if (consecutiveSuccesses >= constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES) {
+          return;
+        }
+      } catch (error) {
+        consecutiveSuccesses = 0;
+
+        this.logger.debug(
+          `${title} : Error in checking gRPC readiness for node '${nodeAlias}': ` +
+            `attempt: ${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}: ${JSON.stringify(error)}`,
+        );
+
+        task.title =
+          `${title} - gRPC readiness ${chalk.yellow('WAITING')}, ` +
+          `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
+      }
+
+      attempt++;
+      await sleep(Duration.ofMillis(constants.NETWORK_NODE_GRPC_READINESS_DELAY));
+    }
+
+    throw new SoloError(
+      `node '${nodeAlias}' failed gRPC readiness check ` +
+        `[ attempt = ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)} ]`,
+    );
   }
 
   /** Return task for check if node proxies are ready */

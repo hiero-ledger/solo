@@ -250,7 +250,7 @@ export class AccountManager {
   public async refreshNodeClient(
     namespace: NamespaceName,
     clusterReferences: ClusterReferences,
-    skipNodeAlias: NodeAlias,
+    skipNodeAlias: NodeAlias | undefined,
     deployment: DeploymentName,
     forcePortForward?: boolean,
   ): Promise<Client> {
@@ -306,7 +306,7 @@ export class AccountManager {
     networkNodeServicesMap: NodeServiceMapping,
     operatorId: string,
     operatorKey: string,
-    skipNodeAlias: string,
+    skipNodeAlias?: NodeAlias | undefined,
   ): Promise<Client> {
     let nodes: Record<SdkNetworkEndpoint, AccountId> = {};
     const configureNodeAccessPromiseArray: Promise<Record<SdkNetworkEndpoint, AccountId>>[] = [];
@@ -1200,5 +1200,51 @@ export class AccountManager {
       accountMap.set(nodeAlias, nodeAccount);
     }
     return accountMap;
+  }
+
+  public async loadNodeClientForNodeAlias(
+    namespace: NamespaceName,
+    clusterReferences: ClusterReferences,
+    deployment: DeploymentName,
+    nodeAlias: NodeAlias,
+    forcePortForward?: boolean,
+  ): Promise<Client> {
+    try {
+      await this.close();
+
+      if (forcePortForward !== undefined) {
+        this._forcePortForward = forcePortForward;
+      }
+
+      const treasuryAccountInfo: AccountIdWithKeyPairObject = await this.getTreasuryAccountKeys(namespace, deployment);
+
+      const networkNodeServicesMap: NodeServiceMapping = await this.getNodeServiceMap(
+        namespace,
+        clusterReferences,
+        deployment,
+      );
+
+      const targetNodeService: NetworkNodeServices | undefined = networkNodeServicesMap.get(nodeAlias);
+
+      if (!targetNodeService) {
+        throw new SoloError(`failed to resolve node service for node '${nodeAlias}'`);
+      }
+
+      const singleNodeServiceMap: NodeServiceMapping = new Map<NodeAlias, NetworkNodeServices>([
+        [nodeAlias, targetNodeService],
+      ]);
+
+      this._nodeClient = await this._getNodeClient(
+        namespace,
+        singleNodeServiceMap,
+        treasuryAccountInfo.accountId,
+        treasuryAccountInfo.privateKey,
+      );
+
+      this.logger.debug(`single-node client has been loaded for node '${nodeAlias}'`);
+      return this._nodeClient;
+    } catch (error) {
+      throw new SoloError(`failed to load single-node client for '${nodeAlias}': ${error.message}`, error);
+    }
   }
 }
