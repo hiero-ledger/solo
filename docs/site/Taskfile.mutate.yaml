@@ -319,7 +319,7 @@ tasks:
       - cat examples/multicluster-backup-restore/README.md >> docs/site/build/multicluster-backup-restore.md
 
   mutate:version-upgrade-test-example:
-    desc: "Mutate the examples/version-upgrade-test/README.md file to add front-matter"
+    desc: "Mutate examples/version-upgrade-test/README.md file to add front-matter"
     dir: ../..
     silent: true
     sources:
@@ -339,3 +339,70 @@ tasks:
         ---
         EOF
       - cat examples/version-upgrade-test/README.md >> docs/site/build/version-upgrade-test.md
+
+  mutate:ledger-reset-smoke-example:
+    desc: "Mutate examples/ledger-reset-smoke/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/ledger-reset-smoke/README.md
+    generates:
+      - docs/site/build/ledger-reset-smoke.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/ledger-reset-smoke.md << 'EOF'
+        ---
+        title: "Ledger Reset Smoke Test Example"
+        weight: 1
+        description: >
+          Example of how to perform ledger reset smoke testing to verify network recovery and data consistency
+        type: docs
+        ---
+        EOF
+      - cat examples/ledger-reset-smoke/README.md >> docs/site/build/ledger-reset-smoke.md
+
+  mutate:consensus-node-jvm-parameters-example:
+    desc: "Mutate examples/consensus-node-jvm-parameters/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/consensus-node-jvm-parameters/README.md
+    generates:
+      - docs/site/build/consensus-node-jvm-parameters.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/consensus-node-jvm-parameters.md << 'EOF'
+        ---
+        title: "Consensus Node JVM Parameters Example"
+        weight: 1
+        description: >
+          Example of how to customize JVM parameters for Solo consensus nodes using one-shot falcon commands
+        type: docs
+        ---
+        EOF
+      - cat examples/consensus-node-jvm-parameters/README.md >> docs/site/build/consensus-node-jvm-parameters.md
+
+  mutate:one-shot-local-build-example:
+    desc: "Mutate examples/one-shot-local-build/README.md file to add front-matter"
+    dir: ../..
+    silent: true
+    sources:
+      - examples/one-shot-local-build/README.md
+    generates:
+      - docs/site/build/one-shot-local-build.md
+    cmds:
+      - |
+        mkdir -p docs/site/build
+        cat > docs/site/build/one-shot-local-build.md << 'EOF'
+        ---
+        title: "One-Shot Local Build Example"
+        weight: 1
+        description: >
+          Example of how to deploy a complete network using locally built component sources via the Solo one-shot falcon command
+        type: docs
+        ---
+        EOF
+      - cat examples/one-shot-local-build/README.md >> docs/site/build/one-shot-local-build.md
+

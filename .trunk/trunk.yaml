@@ -16,6 +16,13 @@ merge:
     - "E2E Tests (One Shot Single - using Podman) / One Shot Single - using Podman"
     - "E2E Tests (External database new) / External database new"
     - "Hugo Docs Build / Build"
+    - "Performance Test"
+    - "Migrate Solo from Prior to Current Version"
+    - "Windows Deploy and Destroy"
+    - "Standard Runner Deploy and Destroy"
+#########
+# Add or remove Test Example must make sure also update examples-trunkio-matrix.json or examples-test-matrix.json accordingly
+#########
     - "Test Example (Consensus Node JVM Parameters)"
 #    - "Test Example (Multicluster Backup and Restore)"
 #    - "Test Example (Address Book)"
@@ -31,5 +38,3 @@ merge:
 #    - "Test Example (Rapid Fire)"
     - "Test Example (State Save and Restore)"
     - "Test Example (One Shot Local Build)"
-    - "performance-test"
-    - "Migrate Solo from Prior to Current Version"

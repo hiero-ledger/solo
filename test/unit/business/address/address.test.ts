@@ -75,6 +75,19 @@ describe('Address', (): void => {
       expect(address.domainName).to.be.undefined;
     });
 
+    it('should return FQDN for NodePort when gossipFqdnRestricted is false', async (): Promise<void> => {
+      const k8Stub: K8 = buildK8StubWithService({
+        metadata: {name: 'network-node0-svc'},
+        spec: {type: 'NodePort', clusterIP: '10.96.0.5'},
+        status: {loadBalancer: {}},
+      } as Service);
+
+      const address: Address = await Address.getExternalAddress(mockConsensusNode, k8Stub, 50_111, false);
+
+      expect(address.domainName).to.equal('network-node0-svc.solo.svc.cluster.local');
+      expect(address.ipAddressV4).to.be.undefined;
+    });
+
     it('should return cluster IP when LoadBalancer has no ingress', async (): Promise<void> => {
       const k8Stub: K8 = buildK8StubWithService({
         metadata: {name: 'network-node0-svc'},
