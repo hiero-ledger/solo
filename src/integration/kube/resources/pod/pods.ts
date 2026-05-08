@@ -36,6 +36,7 @@ export interface Pods {
    * @param [maxAttempts] - maximum attempts to check
    * @param [delay] - delay between checks in milliseconds
    * @param [createdAfter] - if provided, only pods created strictly after this date are considered
+   * @param [excludeMarkedForDeletion] - if true, pods with deletionTimestamp are ignored
    */
   waitForReadyStatus(
     namespace: NamespaceName,
@@ -43,7 +44,20 @@ export interface Pods {
     maxAttempts?: number,
     delay?: number,
     createdAfter?: Date,
+    excludeMarkedForDeletion?: boolean,
   ): Promise<Pod[]>;
+
+  /**
+   * Wait until a pod with the given reference appears in the Kubernetes API.
+   *
+   * Use this when the exact pod name is known. If the pod must be found by labels,
+   * use {@link waitForReadyStatus}.
+   *
+   * @param podReference - exact reference of the pod to wait for
+   * @param maxAttempts - maximum number of polling attempts (default 20)
+   * @param delay - milliseconds to wait between attempts (default 3000)
+   */
+  waitForPodByReference(podReference: PodReference, maxAttempts?: number, delay?: number): Promise<void>;
 
   /**
    * Check if pod's phase is running
@@ -53,6 +67,7 @@ export interface Pods {
    * @param delay - delay between checks in milliseconds
    * @param [podItemPredicate] - pod item predicate
    * @param [createdAfter] - if provided, only pods created strictly after this date are considered
+   * @param [excludeMarkedForDeletion] - if true, pods with deletionTimestamp are ignored
    */
   waitForRunningPhase(
     namespace: NamespaceName,
@@ -61,6 +76,7 @@ export interface Pods {
     delay: number,
     podItemPredicate?: (items: Pod) => boolean,
     createdAfter?: Date,
+    excludeMarkedForDeletion?: boolean,
   ): Promise<Pod[]>;
 
   /**
@@ -88,6 +104,12 @@ export interface Pods {
     containerCommand: string[],
     startupProbeCommand: string[],
   ): Promise<Pod>;
+
+  /**
+   * Delete a pod by reference
+   * @param podReference - the reference to the pod
+   */
+  delete(podReference: PodReference): Promise<void>;
 
   /**
    * Read logs for the given pod across all containers.
