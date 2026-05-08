@@ -145,7 +145,7 @@ tasks:
 
       # Upgrade network to main with local build path
       - cmd: |
-          export CONSENSUS_NODE_VERSION=$(../../.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION ../../version.ts)
+          export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' ../../version.ts)
           echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
           SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
           --upgrade-version ${CONSENSUS_NODE_VERSION} \
