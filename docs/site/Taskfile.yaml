@@ -62,6 +62,9 @@ tasks:
       - task: "mutate:state-save-and-restore-example"
       - task: "mutate:multicluster-backup-restore-example"
       - task: "mutate:version-upgrade-test-example"
+      - task: "mutate:ledger-reset-smoke-example"
+      - task: "mutate:consensus-node-jvm-parameters-example"
+      - task: "mutate:one-shot-local-build-example"
       - task: "build:all"
 
   check-doc-dir:
