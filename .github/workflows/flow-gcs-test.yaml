@@ -26,10 +26,7 @@ on:
       - synchronize
       - ready_for_review
 concurrency:
-  # One run per PR or per branch. A new push cancels any in-progress run for
-  # the same PR/branch, saving runner resources. workflow_dispatch runs are
-  # not cancelled — each manual trigger gets its own group via run_id.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'auto' }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 defaults:

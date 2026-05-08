@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Standard Runner One-Shot Deploy"
+name: "Standard Runner One-Shot Deploy and Destroy"
 # The purpose of this workflow is to verify that Solo can successfully deploy a network
 # using the one-shot single deploy command on a standard GitHub-hosted ubuntu runner.
 # This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.
@@ -35,7 +35,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: standard-runner-one-shot-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:
@@ -43,7 +43,7 @@ env:
 
 jobs:
   standard-runner-one-shot:
-    name: Standard Runner One-Shot Deploy
+    name: Standard Runner Deploy and Destroy
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -63,13 +63,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install Dependencies
-        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
-        with:
-          max_attempts: 10
-          timeout_minutes: 10
-          command: npm ci
-
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
@@ -85,7 +78,7 @@ jobs:
         timeout-minutes: 70
         run: |
           export PATH=~/.solo/bin:${PATH}
-          npm run solo -- one-shot single deploy
+          npm run solo -- one-shot single deploy --dev
 
       - name: Verify Mirror REST API
         timeout-minutes: 10
@@ -115,7 +108,7 @@ jobs:
         timeout-minutes: 15
         run: |
           export PATH=~/.solo/bin:${PATH}
-          npm run solo -- one-shot single destroy --quiet-mode || true
+          npm run solo -- one-shot single destroy --quiet-mode --dev || true
 
       - name: Upload Logs
         if: always()
