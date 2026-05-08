@@ -681,9 +681,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             optionFromFlag(Flags.deployment),
                             config.deployment,
                           );
-                          if (config.networkConfiguration) {
-                            this.appendConfigToArgv(argv, config.networkConfiguration);
-                          }
+                          this.appendConfigToArgv(argv, {
+                            [optionFromFlag(Flags.releaseTag)]: config.versions.consensus,
+                            ...config.networkConfiguration,
+                          });
                           return argvPushGlobalFlags(argv, config.cacheDir);
                         },
                         this.taskList,
@@ -852,6 +853,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       const blockExistingValuesFile: string =
                         config.blockNodeConfiguration?.[flags.getFormattedFlagKey(Flags.valuesFile)];
                       const blockLocalConfig: AnyObject = {
+                        [optionFromFlag(Flags.blockNodeChartVersion)]: config.versions.blockNode,
                         ...config.blockNodeConfiguration,
                         [flags.getFormattedFlagKey(Flags.valuesFile)]: blockExistingValuesFile
                           ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
@@ -884,6 +886,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       const mirrorExistingValuesFile: string =
                         config.mirrorNodeConfiguration?.[flags.getFormattedFlagKey(Flags.valuesFile)];
                       const mirrorLocalConfig: AnyObject = {
+                        [optionFromFlag(Flags.mirrorNodeVersion)]: config.versions.mirror,
                         [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         ...config.mirrorNodeConfiguration,
                         [flags.getFormattedFlagKey(Flags.valuesFile)]: mirrorExistingValuesFile
@@ -950,6 +953,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         'node1',
                       );
                       this.appendConfigToArgv(argv, {
+                        [optionFromFlag(Flags.relayReleaseTag)]: config.versions.relay,
                         [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
                         [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
