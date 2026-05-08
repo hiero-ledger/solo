@@ -655,12 +655,8 @@ export class MirrorNodeCommand extends BaseCommand {
         constants.MIRROR_INGRESS_TLS_SECRET_NAME,
       );
       // patch ingressClassName of mirror ingress, so it can be recognized by haproxy ingress controller
-      const updated: object = {
-        metadata: {
-          annotations: {
-            'haproxy-ingress.github.io/path-type': 'regex',
-          },
-        },
+      const k8 = this.k8Factory.getK8(config.clusterContext);
+      const tlsSpec: object = {
         spec: {
           ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
           tls: [
@@ -671,10 +667,20 @@ export class MirrorNodeCommand extends BaseCommand {
           ],
         },
       };
-      await this.k8Factory
-        .getK8(config.clusterContext)
-        .ingresses()
-        .update(config.namespace, constants.MIRROR_NODE_RELEASE_NAME, updated);
+
+      // First pass: set ingressClassName, TLS, and path-type 'prefix' on all mirror ingresses.
+      // 'prefix' puts the Node.js REST catch-all path /api/v1 into HAProxy's prefix map.
+      await k8.ingresses().update(config.namespace, constants.MIRROR_NODE_RELEASE_NAME, {
+        ...tlsSpec,
+        metadata: {annotations: {'haproxy-ingress.github.io/path-type': 'prefix'}},
+      });
+
+      // Second pass: override path-type back to 'regex' for ingresses that have complex
+      for (const suffix of ['-restjava', '-web3']) {
+        await k8.ingresses().update(config.namespace, suffix, {
+          metadata: {annotations: {'haproxy-ingress.github.io/path-type': 'regex'}},
+        });
+      }
 
       await this.k8Factory
         .getK8(config.clusterContext)
