@@ -122,6 +122,7 @@ User can configure the following environment variables to customize the behavior
 | `CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS`               | The maximum number of attempts to check for the existance of the wraps directory.                                               | `10`                                                                                               |
 | `CHECK_WRAPS_DIRECTORY_BACKOFF_MS`                 | The backoff period for retrying to check for the existance of the wraps directory.                                              | `2000`                                                                                             |
 
+
 ## Config-System Override Variables
 
 Solo's layered configuration system allows environment variables to override fields in the built-in
