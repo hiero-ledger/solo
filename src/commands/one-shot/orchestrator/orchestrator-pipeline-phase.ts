@@ -89,8 +89,12 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
       return (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(getConfig);
     }
 
+    const innerTask: SoloListrTask<TContext> = (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(
+      getConfig,
+    );
     return {
       title: this.title,
+      skip: innerTask.skip,
       task: async (_: TContext, task: SoloListrTaskWrapper<TContext>): Promise<SoloListr<TContext>> => {
         for (const {eventType, timeout} of this.waitConditions) {
           await eventBus.waitFor<DeploymentEvent>(
@@ -99,7 +103,7 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
             timeout,
           );
         }
-        return task.newListr([(this.step as OrchestratorStep<TConfig, TContext>).asListrTask(getConfig)]);
+        return task.newListr([innerTask]);
       },
     };
   }

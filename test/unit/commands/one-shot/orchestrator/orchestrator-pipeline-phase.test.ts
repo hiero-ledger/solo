@@ -110,20 +110,39 @@ describe('Phase', (): void => {
       expect(predicate({deployment: 'other-deployment'})).to.be.false;
     });
 
-    it('wrapper task calls step.asListrTask after waiting', async (): Promise<void> => {
+    it('step.asListrTask is called when phase.asListrTask is called and inner task is passed to newListr', async (): Promise<void> => {
       const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
         'test phase',
         stepStub,
       ).withWaitCondition(SoloEventType.MirrorNodeDeployed);
       const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
+      expect(asListrTaskStub.calledOnce).to.be.true;
+      const getConfigArgument: () => SimpleConfig = asListrTaskStub.firstCall.args[0] as () => SimpleConfig;
+      expect(getConfigArgument()).to.equal(config);
       const newListrStub: SinonStub = sinon.stub().returns([]);
       const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown> =
         task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown>;
       await taskFunction({}, {newListr: newListrStub} as unknown as SoloListrTaskWrapper<SimpleContext>);
       expect(asListrTaskStub.calledOnce).to.be.true;
-      const getConfigArgument: () => SimpleConfig = asListrTaskStub.firstCall.args[0] as () => SimpleConfig;
-      expect(getConfigArgument()).to.equal(config);
       expect(newListrStub.calledOnce).to.be.true;
+      expect((newListrStub.firstCall.args[0] as unknown[])[0]).to.equal(stepTaskStub);
+    });
+
+    it('propagates the skip function from the inner step task to the wrapper task', (): void => {
+      const skipStub: SinonStub = sinon.stub().returns(true);
+      stepTaskStub = {
+        title: 'stub-step-task',
+        skip: skipStub,
+        task: sinon.stub(),
+      } as unknown as SoloListrTask<SimpleContext>;
+      asListrTaskStub.returns(stepTaskStub);
+      const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+        'test phase',
+        stepStub,
+      ).withWaitCondition(SoloEventType.MirrorNodeDeployed);
+      const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
+      expect(task).to.have.property('skip').that.is.a('function');
+      expect((task.skip as () => boolean)()).to.be.true;
     });
   });
 

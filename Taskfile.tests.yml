@@ -94,6 +94,7 @@ tasks:
           --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
           --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
           --ignore 'test/e2e/commands/performance.test.ts' 
+          --ignore 'test/e2e/commands/small-memory-load.test.ts'
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
 
   test-e2e-node-add-local:
