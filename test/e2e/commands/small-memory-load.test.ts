@@ -27,9 +27,9 @@ import {type Deployment} from '../../../src/business/runtime-state/config/local/
 import {type ChartManager} from '../../../src/core/chart-manager.js';
 import {
   HEDERA_PLATFORM_VERSION,
-  MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
-  NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_74,
-  NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_74,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR,
+  NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72,
+  NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72,
 } from '../../../version.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 import * as helpers from '../../../src/core/helpers.js';
@@ -253,10 +253,10 @@ async function deployNlgChart(kubeContext: string): Promise<void> {
     constants.NETWORK_LOAD_GENERATOR_CHART,
     constants.NETWORK_LOAD_GENERATOR_CHART_URL,
     new SemanticVersion(HEDERA_PLATFORM_VERSION).greaterThanOrEqual(
-      new SemanticVersion(MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS),
+      new SemanticVersion(MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR),
     )
-      ? NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_74
-      : NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_74,
+      ? NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72
+      : NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72,
     valuesArgument,
     kubeContext,
   );

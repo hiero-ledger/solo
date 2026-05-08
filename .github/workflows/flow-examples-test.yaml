@@ -215,7 +215,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          consensus_node_version="$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)"
+          consensus_node_version="$(bash ./.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)"
           normalized_version="$(echo "${consensus_node_version}" | sed -E 's/^v//; s/-.*$//')"
 
           java_version="21"

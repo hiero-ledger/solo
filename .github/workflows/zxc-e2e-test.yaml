@@ -349,7 +349,7 @@ jobs:
           set -euo pipefail
 
           if [ -z "${{ inputs.consensus-node-version }}" ]; then
-            consensus_node_version="$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)"
+            consensus_node_version="$(bash ./.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)"
           else
             consensus_node_version="${{ inputs.consensus-node-version }}"
           fi
@@ -426,7 +426,7 @@ jobs:
           max_attempts: 3
           timeout_minutes: 20
           command: |
-            TEST_LOCAL_BLOCK_NODE_VERSION=$(awk -v RS=';' '/PREV_BLOCK_NODE_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/{s=$0;v="";while(match(s,/'"'"'[^'"'"']*'"'"'/)){v=substr(s,RSTART+1,RLENGTH-2);s=substr(s,RSTART+RLENGTH)};if(v!="")print v}' version-test.ts)
+            TEST_LOCAL_BLOCK_NODE_VERSION="$(bash ./.github/workflows/script/extract-version.sh PREV_BLOCK_NODE_VERSION version-test.ts)"
             echo "Using PREV_BLOCK_NODE_VERSION: ${TEST_LOCAL_BLOCK_NODE_VERSION}"
             cd ..
             git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch ${TEST_LOCAL_BLOCK_NODE_VERSION}
@@ -467,7 +467,7 @@ jobs:
                   if [[ "${{ inputs.test-script }}" == "test-e2e-block-node" ]]; then
                     echo "Use default from version.ts for block node test"
                   else
-                    export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
+                    export CONSENSUS_NODE_VERSION="$(bash ./.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)"
                   fi
               fi
           else

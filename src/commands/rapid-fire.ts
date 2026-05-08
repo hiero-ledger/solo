@@ -20,9 +20,9 @@ import {type Lock} from '../core/lock/lock.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {injectable} from 'tsyringe-neo';
 import {
-  MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
-  NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_74,
-  NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_74,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR,
+  NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72,
+  NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72,
 } from '../../version.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import * as helpers from '../core/helpers.js';
@@ -157,10 +157,10 @@ export class RapidFireCommand extends BaseCommand {
                 constants.NETWORK_LOAD_GENERATOR_CHART,
                 constants.NETWORK_LOAD_GENERATOR_CHART_URL,
                 new SemanticVersion(consensusNodeVersion).greaterThanOrEqual(
-                  new SemanticVersion(MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS),
+                  new SemanticVersion(MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR),
                 )
-                  ? NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_74
-                  : NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_74,
+                  ? NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72
+                  : NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72,
                 valuesArgument,
                 context_.config.context,
               );
@@ -253,10 +253,10 @@ export class RapidFireCommand extends BaseCommand {
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
             const consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
             const nlgVersion: string = new SemanticVersion(consensusNodeVersion).greaterThanOrEqual(
-              new SemanticVersion(MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS),
+              new SemanticVersion(MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR),
             )
-              ? NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_74
-              : NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_74;
+              ? NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72
+              : NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72;
             let commandString: string = `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${nlgVersion}.jar ${testClass} ${context_.config.parsedNlgArguments}`;
             commandString = commandString.replaceAll('  ', ' ').trim();
             await container.execContainer(commandString, outputStream, errorStream);
