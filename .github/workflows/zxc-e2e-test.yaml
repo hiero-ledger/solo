@@ -103,16 +103,16 @@ on:
         type: string
         required: false
         default: "3.14.2"
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
-        required: false
-        default: false
       node-version:
         description: "NodeJS Version:"
         type: string
         required: false
         default: "22"
+      dual-cluster-node-count:
+        description: "Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):"
+        type: number
+        required: false
+        default: 3
       test-timeout-minutes:
         description: "Test Timeout (minutes):"
         type: number
@@ -205,11 +205,11 @@ on:
         type: string
         required: false
         default: "22"
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
+      dual-cluster-node-count:
+        description: "Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):"
+        type: number
         required: false
-        default: false
+        default: 3
       test-timeout-minutes:
         description: "Test Timeout (minutes):"
         type: number
@@ -233,7 +233,6 @@ env:
   CG_EXEC: "ionice -c 2 -n 2 nice -n 19"
   KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
   SOLO_CLUSTER_DUALITY: ${{ (inputs.test-script == 'test-e2e-dual-cluster-full' || inputs.test-script == 'test-e2e-external-database') && 2 || 1 }}
-  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
   STEP_TIMEOUT_MINUTES: '5'
 
 jobs:
@@ -242,7 +241,7 @@ jobs:
     runs-on: ${{ inputs.runner || 'hiero-solo-linux-large' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -285,7 +284,7 @@ jobs:
 
       - name: Install Kubectl
         if: ${{ inputs.install-dependencies == true && inputs.kubectl-install == true && !cancelled() && !failure() }}
-        uses: step-security/setup-kubectl@8489d0d7bf2110e44a330d8db821786e6e8c8d73 # pinned to v4.0.2
+        uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 'v${{ inputs.kubectl-version }}'
@@ -347,7 +346,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
-          java-version: 21.0.1
+          java-version: 25
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && inputs.local-java-build && !cancelled() && !failure() }}
@@ -373,7 +372,7 @@ jobs:
           timeout_minutes: 30
           command: |
             if [ -z "${{ inputs.consensus-node-version }}" ]; then
-                export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+                export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
             else
                 export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
             fi
@@ -407,9 +406,10 @@ jobs:
           max_attempts: 3
           timeout_minutes: 20
           command: |
-            export TEST_LOCAL_BLOCK_NODE_VERSION=$(grep 'TEST_LOCAL_BLOCK_NODE_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+            TEST_LOCAL_BLOCK_NODE_VERSION=$(awk -v RS=';' '/PREV_BLOCK_NODE_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/{s=$0;v="";while(match(s,/'"'"'[^'"'"']*'"'"'/)){v=substr(s,RSTART+1,RLENGTH-2);s=substr(s,RSTART+RLENGTH)};if(v!="")print v}' version-test.ts)
+            echo "Using PREV_BLOCK_NODE_VERSION: ${TEST_LOCAL_BLOCK_NODE_VERSION}"
             cd ..
-            git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch v${TEST_LOCAL_BLOCK_NODE_VERSION}
+            git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch ${TEST_LOCAL_BLOCK_NODE_VERSION}
             cd hiero-block-node
             
             # Configure apt to use multiple mirror sources with fallback
@@ -429,7 +429,7 @@ jobs:
             
             ./gradlew :block-node-app:createDockerImage
             timeout 30 kind get clusters
-            kind load docker-image block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION} --name ${{ inputs.cluster-name }}-c1
+            kind load docker-image "block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION}" --name ${{ inputs.cluster-name }}-c1
             ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
             cd ../solo
 
@@ -447,14 +447,15 @@ jobs:
                   if [[ "${{ inputs.test-script }}" == "test-e2e-block-node" ]]; then
                     echo "Use default from version.ts for block node test"
                   else
-                    export CONSENSUS_NODE_VERSION=$(grep 'TEST_LOCAL_HEDERA_PLATFORM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+                    export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
                   fi
               fi
           else
               export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
           fi
           echo SOLO_TEST_CLUSTER=${{ inputs.cluster-name }}-c1 > .env
-          
+          echo SOLO_DUAL_CLUSTER_NODE_COUNT=${{ inputs.dual-cluster-node-count || 3 }} >> .env
+
           if [[ "${{ inputs.custom-job-label }}" != "One Shot Single - using Podman" ]]; then
             # Verify cluster connectivity before running tests
             echo "Verifying cluster connectivity..."

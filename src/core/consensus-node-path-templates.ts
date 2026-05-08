@@ -43,5 +43,5 @@ export class ConsensusNodePathTemplates {
 
   public static readonly GENESIS_THROTTLES_JSON: string = `${this.DATA_CONFIG}/genesis-throttles.json`;
 
-  public static readonly APPLICATION_PROPERTIES: string = `${this.DATA_CONFIG}/application.properties`;
+  public static readonly APPLICATION_PROPERTIES: string = `${this.DATA_CONFIG}/${constants.APPLICATION_PROPERTIES}`;
 }

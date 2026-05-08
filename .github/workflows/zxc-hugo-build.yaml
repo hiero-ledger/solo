@@ -58,7 +58,7 @@ jobs:
       build_succeeded: ${{ steps.set-build-succeeded.outputs.build_succeeded }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
         with:
           egress-policy: audit
 
@@ -108,7 +108,7 @@ jobs:
           sudo apt-get install -y wget
 
       - name: Install Kubectl
-        uses: step-security/setup-kubectl@8489d0d7bf2110e44a330d8db821786e6e8c8d73 # pinned to v4.0.2
+        uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
         with:
           version: 'v1.27.3'
         id: install
