@@ -15,8 +15,6 @@ vars:
   SOLO_CLUSTER_NAME: "rapid-fire-cluster"
   SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
-  APPLICATION_PROPERTIES: "{{ .TASKFILE_DIR }}/application.properties"
-  APPLICATION_PROPERTIES_FLAG: "--application-properties {{.APPLICATION_PROPERTIES}}"
 
 tasks:
   deploy:
@@ -79,8 +77,7 @@ tasks:
 
       - cmd: |
           # Solo consensus network deploy
-          $SOLO_COMMAND consensus network deploy --deployment {{ .SOLO_DEPLOYMENT }} \
-          --pvcs {{.APPLICATION_PROPERTIES_FLAG}} --dev
+          $SOLO_COMMAND consensus network deploy --deployment {{ .SOLO_DEPLOYMENT }} --pvcs --dev
 
       - cmd: |
           # Solo consensus node setup
