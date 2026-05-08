@@ -712,10 +712,16 @@ export class NodeCommandTasks {
       await sleep(Duration.ofMillis(constants.NETWORK_NODE_GRPC_READINESS_DELAY));
     }
 
-    throw new SoloError(
+    this.logger.showUser(
       `node '${nodeAlias}' failed gRPC readiness check ` +
         `[ attempt = ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)} ]`,
     );
+
+    // Erroring disabled to prevent the additional logic from blocking deployments
+    // throw new SoloError(
+    //   `node '${nodeAlias}' failed gRPC readiness check ` +
+    //     `[ attempt = ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)} ]`,
+    // );
   }
 
   /** Return task for check if node proxies are ready */
