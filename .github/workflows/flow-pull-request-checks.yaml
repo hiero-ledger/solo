@@ -130,7 +130,6 @@ jobs:
       helm-install: ${{ matrix.e2e-test-type.helm-install }}
       helm-version: ${{ matrix.e2e-test-type.helm-version }}
       node-version: ${{ matrix.e2e-test-type.node-version }}
-      enable_s6_image: ${{ matrix.e2e-test-type.enable_s6_image }}
       test-timeout-minutes: ${{ matrix.e2e-test-type.test-timeout-minutes }}
 
   codecov:

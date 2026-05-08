@@ -34,11 +34,6 @@ on:
         type: boolean
         required: false
         default: false
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
-        required: false
-        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -61,11 +56,6 @@ on:
         type: boolean
         required: false
         default: false
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
-        required: false
-        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -88,7 +78,6 @@ permissions:
   actions: read
 
 env:
-  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
   STEP_TIMEOUT_MINUTES: '5'
 
 jobs:
