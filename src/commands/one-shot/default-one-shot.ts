@@ -293,14 +293,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.oneShotState.activate();
 
               const edgeEnabled: boolean = this.configManager.getFlag(Flags.edgeEnabled);
-              console.log(`[DEBUG one-shot] edgeEnabled flag: ${edgeEnabled}`);
               const versions: OneShotVersionsObject = this.resolveOneShotComponentVersions(edgeEnabled);
-              console.log(`[DEBUG one-shot] Resolved consensus version: ${versions.consensus}`);
 
               // Pre-set component version flags in configManager so they are available
               // for all sub-commands during concurrent execution
               this.configManager.setFlag(Flags.releaseTag, versions.consensus);
-              console.log(`[DEBUG one-shot] Set releaseTag flag to: ${versions.consensus}`);
               this.configManager.setFlag(Flags.blockNodeChartVersion, versions.blockNode);
               this.configManager.setFlag(Flags.mirrorNodeVersion, versions.mirror);
               this.configManager.setFlag(Flags.relayReleaseTag, versions.relay);
@@ -370,6 +367,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.configManager.setFlag(flags.namespace, config.namespace);
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
+
+              // Ensure release tag is set in network configuration so subcommands use the correct version
+              const releaseTagKey: string = flags.getFormattedFlagKey(Flags.releaseTag);
+              if (!config.networkConfiguration[releaseTagKey]) {
+                config.networkConfiguration[releaseTagKey] = versions.consensus;
+              }
+              if (!config.setupConfiguration[releaseTagKey]) {
+                config.setupConfiguration[releaseTagKey] = versions.consensus;
+              }
 
               // Apply small-memory node configuration only for CN >= 0.72.0 and when not using `one-shot falcon deploy`
               const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
@@ -679,8 +685,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
                             optionFromFlag(Flags.deployment),
                             config.deployment,
-                            optionFromFlag(Flags.releaseTag),
-                            config.versions.consensus,
                           );
                           if (config.networkConfiguration) {
                             this.appendConfigToArgv(argv, config.networkConfiguration);
@@ -706,8 +710,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                                     ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
                                     optionFromFlag(Flags.deployment),
                                     config.deployment,
-                                    optionFromFlag(Flags.releaseTag),
-                                    config.versions.consensus,
                                   );
                                   this.appendConfigToArgv(argv, config.setupConfiguration);
                                   return argvPushGlobalFlags(argv, config.cacheDir);

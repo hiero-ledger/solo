@@ -48,12 +48,8 @@ export const REDIS_SENTINEL_IMAGE_VERSION: string =
 // Edge (newer-than-default) versions used by the `--edge` preset in one-shot deploys.
 export const SOLO_CHART_EDGE_VERSION: string =
   constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || SOLO_CHART_VERSION;
-// Debug: log the env var value before using it
-const _edgeVersionFromEnv: string | undefined = constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION');
-console.log(`[DEBUG version.ts] CONSENSUS_NODE_EDGE_VERSION from env: ${_edgeVersionFromEnv || '(not set)'}`);
-console.log(`[DEBUG version.ts] Will use HEDERA_PLATFORM_EDGE_VERSION: ${_edgeVersionFromEnv || HEDERA_PLATFORM_VERSION}`);
-
-export const HEDERA_PLATFORM_EDGE_VERSION: string = _edgeVersionFromEnv || HEDERA_PLATFORM_VERSION;
+export const HEDERA_PLATFORM_EDGE_VERSION: string =
+  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || HEDERA_PLATFORM_VERSION;
 export const MIRROR_NODE_EDGE_VERSION: string =
   constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || MIRROR_NODE_VERSION;
 export const EXPLORER_EDGE_VERSION: string =
