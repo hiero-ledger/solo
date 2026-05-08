@@ -16,11 +16,11 @@ import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
   parseNodeAliases,
   prepareValuesFilesMapMultipleCluster,
-  resolveStorageClass,
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
 } from '../core/helpers.js';
+import {StorageClassHelper} from '../core/storage-class-helper.js';
 import {helmValuesHelper} from '../core/helm-values-helper.js';
 import {type PerNodeIdentity} from '../types/helm-values.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
@@ -694,9 +694,11 @@ export class NetworkCommand extends BaseCommand {
         ` --set "crds.serviceMonitor.enabled=${config.singleUseServiceMonitor}"` +
         ` --set "crds.podLog.enabled=${config.singleUsePodLog}"` +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"` +
+        (config.pvcStorageClass && config.resolvedPvcStorageClass
+          ? ` --set "defaults.volumeClaims.storageClassName=${config.resolvedPvcStorageClass}"`
+          : '') +
         (config.resolvedPvcStorageClass
-          ? ` --set "defaults.volumeClaims.storageClassName=${config.resolvedPvcStorageClass}"` +
-            ` --set "minio-server.tenant.pools[0].storageClassName=${config.resolvedPvcStorageClass}"`
+          ? ` --set "minio-server.tenant.pools[0].storageClassName=${config.resolvedPvcStorageClass}"`
           : '');
     }
 
@@ -1271,7 +1273,7 @@ export class NetworkCommand extends BaseCommand {
    * 4. Install LOCAL_PATH_PROVISIONER from the bundled manifest, then return LOCAL_PATH_STORAGE_CLASS.
    */
   private async resolveStorageClass(contexts: string[], userSuppliedClass: string): Promise<string> {
-    return resolveStorageClass(this.k8Factory.getK8(contexts[0]), this.logger, userSuppliedClass);
+    return StorageClassHelper.resolveStorageClass(this.k8Factory.getK8(contexts[0]), this.logger, userSuppliedClass);
   }
 
   /** Run helm install and deploy network components */

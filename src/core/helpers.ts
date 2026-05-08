@@ -34,7 +34,6 @@ import {type ConfigMap} from '../integration/kube/resources/config-map/config-ma
 import {type K8} from '../integration/kube/k8.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
-import {type StorageClass} from '../integration/kube/resources/storage-class/storage-class.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 
@@ -895,60 +894,4 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 
   fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
   await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
-}
-
-/**
- * Resolves the StorageClass name to use for PersistentVolumeClaims.
- *
- * Resolution order:
- * 1. User-supplied class — validated by name against the cluster.
- * 2. Cluster default StorageClass (annotated with is-default-class=true).
- * 3. A StorageClass backed by LOCAL_PATH_PROVISIONER (common on Kind clusters).
- * 4. Install LOCAL_PATH_PROVISIONER from the bundled manifest, then return LOCAL_PATH_STORAGE_CLASS.
- *
- * Passing LOCAL_PATH_PROVISIONER as userSuppliedClass is treated the same as passing an empty
- * string — both run the auto-detect cascade instead of validating by name.
- */
-export async function resolveStorageClass(k8: K8, logger: SoloLogger, userSuppliedClass: string): Promise<string> {
-  const storageClasses: StorageClass[] = await k8.storageClasses().list();
-
-  if (userSuppliedClass && userSuppliedClass !== constants.LOCAL_PATH_PROVISIONER) {
-    const found: StorageClass | undefined = storageClasses.find(
-      (storageClass: StorageClass): boolean => storageClass.name === userSuppliedClass,
-    );
-    if (!found) {
-      const available: string = storageClasses
-        .map((storageClass: StorageClass): string => storageClass.name)
-        .join(', ');
-      throw new SoloError(
-        `StorageClass '${userSuppliedClass}' not found in cluster.` +
-          (available ? ` Available classes: ${available}` : ' No StorageClasses are installed.'),
-      );
-    }
-    return userSuppliedClass;
-  }
-
-  const defaultClass: StorageClass | undefined = storageClasses.find(
-    (storageClass: StorageClass): boolean => storageClass.isDefault,
-  );
-  if (defaultClass) {
-    logger.debug(`Using default StorageClass: ${defaultClass.name}`);
-    return defaultClass.name;
-  }
-
-  const localPathClass: StorageClass | undefined = storageClasses.find(
-    (storageClass: StorageClass): boolean => storageClass.provisioner === constants.LOCAL_PATH_PROVISIONER,
-  );
-  if (localPathClass) {
-    logger.debug(`Using existing ${constants.LOCAL_PATH_PROVISIONER} StorageClass: ${localPathClass.name}`);
-    return localPathClass.name;
-  }
-
-  const manifestPath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'local-path-provisioner.yaml');
-  logger.showUser(
-    `No StorageClass found in cluster — installing ${constants.LOCAL_PATH_PROVISIONER}-provisioner. ` +
-      'Use --pvc-storage-class to specify an existing StorageClass.',
-  );
-  await k8.manifests().installManifest(manifestPath);
-  return constants.LOCAL_PATH_STORAGE_CLASS;
 }

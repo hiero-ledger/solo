@@ -4,7 +4,10 @@ import {type StorageV1Api, type V1StorageClass, type V1StorageClassList} from '@
 import {type StorageClasses} from '../../../resources/storage-class/storage-classes.js';
 import {type StorageClass} from '../../../resources/storage-class/storage-class.js';
 import {K8ClientStorageClass} from './k8-client-storage-class.js';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
+import {KubeApiResponse} from '../../../kube-api-response.js';
+import {ResourceOperation} from '../../../resources/resource-operation.js';
+import {ResourceType} from '../../../resources/resource-type.js';
+import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 
 const DEFAULT_CLASS_ANNOTATION: string = 'storageclass.kubernetes.io/is-default-class';
 
@@ -25,7 +28,13 @@ export class K8ClientStorageClasses implements StorageClasses {
 
       return storageClasses;
     } catch (error) {
-      throw new SoloError('Failed to list StorageClasses', error);
+      KubeApiResponse.throwError(
+        error,
+        ResourceOperation.LIST,
+        ResourceType.STORAGE_CLASS,
+        undefined as unknown as NamespaceName,
+        '',
+      );
     }
   }
 }

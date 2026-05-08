@@ -4,14 +4,13 @@
  * Interface CRUD on manifests.
  */
 export interface Manifests {
-  applyManifest(filePath: string): Promise<void>;
-
   /**
-   * Apply a manifest file idempotently — resources that already exist (HTTP 409) are skipped.
-   * Equivalent to `kubectl apply -f <file>` for the create path.
+   * Apply a manifest file. By default fails if a resource already exists (HTTP 409).
+   * Pass `{ignoreExisting: true}` to skip resources that already exist, making the operation idempotent.
    * @param filePath - path to a YAML manifest (may contain multiple documents)
+   * @param options - optional behaviour overrides
    */
-  installManifest(filePath: string): Promise<void>;
+  applyManifest(filePath: string, options?: {ignoreExisting?: boolean}): Promise<void>;
 
   /**
    * Patch an existing Kubernetes object (including custom resources) using a merge patch.
