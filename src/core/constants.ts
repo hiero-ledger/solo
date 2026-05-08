@@ -48,8 +48,6 @@ export const KIND_NODE_IMAGE: string =
 
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
-export const ENABLE_S6_IMAGE: boolean = getEnvironmentVariable('ENABLE_S6_IMAGE') === 'true' || true;
-
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
 export const SOLO_REMOTE_CONFIGMAP_DATA_KEY: string = 'remote-config-data';
@@ -200,6 +198,7 @@ export const SOLO_HEDERA_MIRROR_IMPORTER: string[] = [
 // Component label selectors for pod discovery
 export const SOLO_RELAY_NAME_LABEL: string = 'app.kubernetes.io/name=relay';
 export const SOLO_MIRROR_IMPORTER_NAME_LABEL: string = 'app.kubernetes.io/name=importer';
+export const SOLO_MIRROR_PINGER_NAME_LABEL: string = 'app.kubernetes.io/name=pinger';
 export const SOLO_MIRROR_GRPC_NAME_LABEL: string = 'app.kubernetes.io/name=grpc';
 export const SOLO_MIRROR_MONITOR_NAME_LABEL: string = 'app.kubernetes.io/name=monitor';
 export const SOLO_MIRROR_REST_NAME_LABEL: string = 'app.kubernetes.io/name=rest';
@@ -292,6 +291,10 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'mirror-postgres-truncate.sql',
+);
 export const UPGRADE_MIGRATIONS_FILE: string = PathEx.join(RESOURCES_DIR, 'component-upgrade-migrations.json');
 export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
 export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
@@ -313,7 +316,7 @@ export const CHECK_WRAPS_DIRECTORY_BACKOFF_MS: number =
  * Listr related
  * @returns a object that defines the default color options
  */
-export const LISTR_DEFAULT_RENDERER_TIMER_OPTION = {
+export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: any = {
   ...PRESET_TIMER,
   condition: (duration: number): boolean => duration > 100,
   format: (duration: number) => {

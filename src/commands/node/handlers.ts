@@ -193,6 +193,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.copyNodeKeysToSecrets(),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap('Deploy new network node', NodeSubcommandType.ADD),
+      this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.killNodes(),
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.populateServiceMap(),
@@ -678,7 +679,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
         this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
         this.tasks.getHelmChartValues(outputDirectory),
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
@@ -800,7 +801,7 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null),
+        this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
         this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
         ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
         GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
@@ -1005,7 +1006,13 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(argv, this.configs.startConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.initialize(
+          argv,
+          this.configs.startConfigBuilder.bind(this.configs),
+          leaseWrapper.lease,
+          true,
+          false,
+        ),
         this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
         this.tasks.identifyExistingNodes(),
         this.tasks.uploadStateFiles(context_ => context_.config.stateFile.length === 0),
@@ -1063,8 +1070,14 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(argv, this.configs.freezeConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager, false),
+        this.tasks.initialize(
+          argv,
+          this.configs.freezeConfigBuilder.bind(this.configs),
+          leaseWrapper.lease,
+          true,
+          false,
+        ),
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
@@ -1081,13 +1094,19 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async restart(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.RESTART_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
-        this.tasks.initialize(argv, this.configs.restartConfigBuilder.bind(this.configs), leaseWrapper.lease),
+        this.tasks.initialize(
+          argv,
+          this.configs.restartConfigBuilder.bind(this.configs),
+          leaseWrapper.lease,
+          true,
+          false,
+        ),
         this.tasks.identifyExistingNodes(),
         this.tasks.addWrapsLib(),
         this.tasks.startNodes('existingNodeAliases'),
