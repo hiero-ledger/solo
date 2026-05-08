@@ -15,10 +15,6 @@ vars:
   SOLO_CLUSTER_NAME: "rapid-fire-cluster"
   SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
-  TEMPORARY_DIR:
-    sh: mktemp -d
-  APPLICATION_PROPERTIES: "{{ .TEMPORARY_DIR }}/application.properties"
-  APPLICATION_PROPERTIES_FLAG: "--application-properties {{.APPLICATION_PROPERTIES}}"
 
 tasks:
   deploy:
@@ -76,32 +72,12 @@ tasks:
           $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
       - cmd: |
-          # Generate application.properties based on CN version
-          CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
-
-          # Create base application.properties
-          mkdir -p {{ .TEMPORARY_DIR }}
-          touch {{ .APPLICATION_PROPERTIES }}
-
-          # Compare versions using node
-          ENABLE_SIMPLE_FEES=$(node -e "
-            const {SemanticVersion} = require('./dist/src/business/utils/semantic-version.js');
-            const cnVersion = new SemanticVersion('${CONSENSUS_NODE_VERSION}');
-            const minTssVersion = new SemanticVersion('v0.74.0-0');
-            console.log(cnVersion.greaterThanOrEqual(minTssVersion));
-          ")
-
-          echo "fees.simpleFeesEnabled=${ENABLE_SIMPLE_FEES}" > {{ .APPLICATION_PROPERTIES }}
-          echo "Generated application.properties with fees.simpleFeesEnabled=${ENABLE_SIMPLE_FEES} for CN ${CONSENSUS_NODE_VERSION}"
-
-      - cmd: |
           # Solo cluster-ref config setup
           $SOLO_COMMAND cluster-ref config setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
 
       - cmd: |
           # Solo consensus network deploy
-          $SOLO_COMMAND consensus network deploy --deployment {{ .SOLO_DEPLOYMENT }} \
-          --pvcs {{.APPLICATION_PROPERTIES_FLAG}} --dev
+          $SOLO_COMMAND consensus network deploy --deployment {{ .SOLO_DEPLOYMENT }} --pvcs --dev
 
       - cmd: |
           # Solo consensus node setup

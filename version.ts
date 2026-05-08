@@ -76,18 +76,12 @@ export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS: string = 'v0.74.0-0';
 export const MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.29.0-0';
 export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.150.0-0';
 
-export const NETWORK_LOAD_GENERATOR_CHART_VERSION: string =
-  constants.getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_VERSION') || getNetworkLoadGeneratorVersion();
+export const NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_74: string = '0.8.0';
+export const NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_74: string = '0.14.0';
 
 export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
   const versionTag: SemanticVersion<string> = new SemanticVersion(releaseTag || HEDERA_PLATFORM_VERSION);
   return versionTag.lessThanOrEqual(LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
-}
-
-export function getNetworkLoadGeneratorVersion(consensusVersion?: string): string {
-  const versionTag: SemanticVersion<string> = new SemanticVersion(consensusVersion || HEDERA_PLATFORM_VERSION);
-  const minimumTssVersion: SemanticVersion<string> = new SemanticVersion(MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
-  return versionTag.greaterThanOrEqual(minimumTssVersion) ? '0.14.0' : '0.8.0';
 }
 
 export function getSoloVersion(): Version {
