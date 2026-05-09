@@ -51,8 +51,29 @@ import {Chart} from '../integration/helm/model/chart.js';
 import {Repository} from '../integration/helm/model/repository.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Container} from '../integration/kube/resources/container/container.js';
+import {ContainerName} from '../integration/kube/resources/container/container-name.js';
+import {type Service} from '../integration/kube/resources/service/service.js';
+import {Templates} from '../core/templates.js';
+import * as Base64 from 'js-base64';
+
+interface ExpectedLbIpAssignment {
+  context: Context;
+  serviceName: string;
+  expectedIp: string;
+}
+
+interface ExternalDatabaseParameters {
+  context: Context;
+  namespace: string;
+  podName: string;
+  containerName: string;
+  databaseName: string;
+  ownerUsername: string;
+  ownerPassword: string;
+}
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -75,12 +96,19 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static BACKUP_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.quiet, flags.outputDir, flags.zipPassword, flags.zipFile],
+    optional: [
+      flags.quiet,
+      flags.outputDir,
+      flags.zipPassword,
+      flags.zipFile,
+      flags.backupExternalDatabase,
+      flags.externalDbParamsFile,
+    ],
   };
 
   public static RESTORE_CONFIG_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.quiet, flags.inputDir],
+    optional: [flags.quiet, flags.inputDir, flags.externalDbParamsFile],
   };
 
   public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
@@ -90,7 +118,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
     required: [flags.inputDir],
-    optional: [flags.quiet, flags.optionsFile, flags.shard, flags.realm],
+    optional: [flags.quiet, flags.optionsFile, flags.shard, flags.realm, flags.expectedLbIpsFile, flags.skipIpTracking],
   };
 
   /**
@@ -249,11 +277,19 @@ export class BackupRestoreCommand extends BaseCommand {
 
     const outputDirectory: string = this.configManager.getFlag<string>(flags.outputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
+    const shouldBackupExternalDatabase: boolean = this.configManager.getFlag<boolean>(flags.backupExternalDatabase);
+
+    if (!fs.existsSync(outputDirectory)) {
+      fs.mkdirSync(outputDirectory, {recursive: true});
+    }
 
     // Export configmaps and secrets from the cluster
     interface BackupContext {
       configMapCount: number;
       secretCount: number;
+      externalDatabaseParameters?: ExternalDatabaseParameters;
+      externalDatabaseDumpPath?: string;
+      externalDatabaseParamsPath?: string;
     }
 
     // Get namespace, contexts, and cluster references for backup operations
@@ -272,6 +308,24 @@ export class BackupRestoreCommand extends BaseCommand {
 
     const tasks: Listr<BackupContext, any, any> = new Listr(
       [
+        {
+          title: 'Resolve external database parameters',
+          skip: (): boolean => !shouldBackupExternalDatabase,
+          task: async (context_, task): Promise<void> => {
+            context_.externalDatabaseParameters = await this.resolveExternalDatabaseParametersForBackup();
+            task.title =
+              `Resolve external database parameters: ${context_.externalDatabaseParameters.context}/` +
+              `${context_.externalDatabaseParameters.namespace}/${context_.externalDatabaseParameters.podName}`;
+          },
+        },
+        {
+          title: 'Wait for mirror importer to catch up',
+          skip: (context_): boolean => !shouldBackupExternalDatabase || !context_.externalDatabaseParameters,
+          task: async (context_, task): Promise<void> => {
+            await this.waitForMirrorImporterCatchUp(context_.externalDatabaseParameters);
+            task.title = 'Wait for mirror importer to catch up: completed';
+          },
+        },
         {
           title: 'Export ConfigMaps',
           task: async (context_, task): Promise<void> => {
@@ -309,6 +363,23 @@ export class BackupRestoreCommand extends BaseCommand {
               await networkNodes.getStatesFromPod(namespace, nodeAlias, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
+          },
+        },
+        {
+          title: 'Export external database backup artifacts',
+          skip: (context_): boolean => !shouldBackupExternalDatabase || !context_.externalDatabaseParameters,
+          task: async (context_, task): Promise<void> => {
+            context_.externalDatabaseDumpPath = await this.exportExternalDatabaseBackup(
+              outputDirectory,
+              context_.externalDatabaseParameters,
+            );
+            context_.externalDatabaseParamsPath = this.writeExternalDatabaseParameters(
+              outputDirectory,
+              context_.externalDatabaseParameters,
+            );
+            task.title =
+              `Export external database backup artifacts: dump='${context_.externalDatabaseDumpPath}', ` +
+              `params='${context_.externalDatabaseParamsPath}'`;
           },
         },
         {
@@ -543,6 +614,654 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
+   * Resolve the current consensus pod references by node alias.
+   * This is used after pod restarts so later restore steps target live pods.
+   */
+  private async buildConsensusPodReferences(
+    namespace: NamespaceName,
+    consensusNodes: ConsensusNode[],
+    nodeAliases: string[],
+  ): Promise<Record<string, PodReference>> {
+    const podReferences: Record<string, PodReference> = {};
+
+    for (const nodeAlias of nodeAliases) {
+      const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
+      const k8: K8 = this.k8Factory.getK8(context);
+      const pods: Pod[] = await k8
+        .pods()
+        .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
+
+      if (pods.length > 0) {
+        podReferences[nodeAlias] = pods[0].podReference;
+      }
+    }
+
+    return podReferences;
+  }
+
+  /**
+   * Restart pods by deleting them and waiting for replacement pods to become ready.
+   * We use this for components that are easiest to bounce by label selection.
+   */
+  private async restartPodsMatchingLabels(
+    context: Context,
+    namespace: NamespaceName,
+    labels: string[],
+    description: string,
+  ): Promise<void> {
+    const k8: K8 = this.k8Factory.getK8(context);
+    const pods: Pod[] = await k8.pods().list(namespace, labels);
+    if (pods.length === 0) {
+      this.logger.info(`No pods found for ${description} in context ${context}`);
+      return;
+    }
+
+    for (const pod of pods) {
+      await k8.pods().delete(pod.podReference);
+    }
+
+    await k8
+      .pods()
+      .waitForReadyStatus(namespace, labels, constants.PODS_READY_MAX_ATTEMPTS, constants.PODS_READY_DELAY);
+  }
+
+  /**
+   * Resolve mirror release name while supporting legacy release naming.
+   * Mirror node id=1 may still be installed under the old fixed release name.
+   */
+  private async resolveMirrorReleaseName(
+    mirrorId: number,
+    mirrorNamespace: NamespaceName,
+    mirrorContext: Context,
+  ): Promise<string> {
+    if (mirrorId !== 1) {
+      return Templates.renderMirrorNodeName(mirrorId);
+    }
+
+    const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
+      mirrorNamespace,
+      constants.MIRROR_NODE_RELEASE_NAME,
+      mirrorContext,
+    );
+    return isLegacyChartInstalled ? constants.MIRROR_NODE_RELEASE_NAME : Templates.renderMirrorNodeName(mirrorId);
+  }
+
+  /**
+   * Trigger a deployment rollout by patching a restart annotation.
+   * This avoids delete/recreate and keeps restart behavior explicit.
+   */
+  private async patchDeploymentRestartAnnotation(
+    context: Context,
+    namespace: NamespaceName,
+    deploymentName: string,
+  ): Promise<void> {
+    await this.k8Factory
+      .getK8(context)
+      .manifests()
+      .patchObject({
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        metadata: {
+          name: deploymentName,
+          namespace: namespace.name,
+        },
+        spec: {
+          template: {
+            metadata: {
+              annotations: {
+                'solo.hedera.com/restartedAt': new Date().toISOString(),
+              },
+            },
+          },
+        },
+      });
+  }
+
+  /**
+   * Restart mirror runtime dependencies that cache state/config.
+   * Redis and MinIO pods are restarted so restored config/database state is reloaded.
+   */
+  private async restartMirrorRuntimeDependencies(namespace: NamespaceName): Promise<void> {
+    const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+    const processedContexts: Set<string> = new Set<string>();
+
+    for (const mirrorNode of mirrorNodes) {
+      const mirrorContext: Context = clusterReferences.get(mirrorNode.metadata.cluster);
+      if (!mirrorContext || processedContexts.has(mirrorContext)) {
+        continue;
+      }
+
+      processedContexts.add(mirrorContext);
+      await this.restartPodsMatchingLabels(
+        mirrorContext,
+        namespace,
+        [constants.SOLO_MIRROR_REDIS_NAME_LABEL],
+        'mirror redis',
+      );
+    }
+
+    for (const context of clusterReferences.values()) {
+      await this.restartPodsMatchingLabels(context, namespace, ['v1.min.io/tenant=minio'], 'minio');
+    }
+  }
+
+  /**
+   * Read mirror importer DB credentials from the mirror-passwords secret.
+   * These credentials are used for database export/restore operations.
+   */
+  private async resolveMirrorDatabaseCredentials(
+    mirrorNamespace: NamespaceName,
+    mirrorContext: Context,
+  ): Promise<{dbName: string; ownerUsername: string; ownerPassword: string}> {
+    const mirrorPasswordsSecret: Secret = await this.k8Factory
+      .getK8(mirrorContext)
+      .secrets()
+      .read(mirrorNamespace, 'mirror-passwords');
+
+    const ownerKey: string | undefined = Object.keys(mirrorPasswordsSecret.data).find((key: string): boolean =>
+      key.endsWith('_MIRROR_IMPORTER_DB_OWNER'),
+    );
+    if (!ownerKey) {
+      throw new SoloError('Could not find MIRROR_IMPORTER_DB_OWNER in mirror-passwords secret.');
+    }
+
+    const environmentVariablePrefix: string = ownerKey.replace('_MIRROR_IMPORTER_DB_OWNER', '');
+    return {
+      dbName: Base64.decode(mirrorPasswordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`]),
+      ownerUsername: Base64.decode(mirrorPasswordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNER`]),
+      ownerPassword: Base64.decode(
+        mirrorPasswordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`],
+      ),
+    };
+  }
+
+  /**
+   * Resolve a database pod name in the external DB namespace/context.
+   * Backup/restore needs a concrete pod target for pg_dump/psql execution.
+   */
+  private async resolveExternalDbPodName(databaseNamespace: NamespaceName, databaseContext: Context): Promise<string> {
+    const pods: Pod[] = await this.k8Factory.getK8(databaseContext).pods().list(databaseNamespace, []);
+    if (pods.length === 0) {
+      throw new SoloError(
+        `No pods found in external DB namespace ${databaseNamespace.name} (context: ${databaseContext})`,
+      );
+    }
+
+    return pods[0].podReference.name.toString();
+  }
+
+  private resolveExternalDbParamsFilePath(baseDirectory: string): {paramsFilePath: string; fromFlag: boolean} {
+    const configuredPath: string = this.configManager.getFlag<string>(flags.externalDbParamsFile);
+    if (configuredPath) {
+      return {
+        paramsFilePath: path.isAbsolute(configuredPath) ? configuredPath : PathEx.resolve(configuredPath),
+        fromFlag: true,
+      };
+    }
+
+    return {
+      paramsFilePath: PathEx.join(baseDirectory, 'external-database-params.json'),
+      fromFlag: false,
+    };
+  }
+
+  private readExternalDatabaseParameters(
+    baseDirectory: string,
+    required = false,
+  ): ExternalDatabaseParameters | undefined {
+    const {paramsFilePath, fromFlag} = this.resolveExternalDbParamsFilePath(baseDirectory);
+    if (!fs.existsSync(paramsFilePath)) {
+      if (fromFlag || required) {
+        throw new SoloError(`External database parameters file not found: ${paramsFilePath}`);
+      }
+      return undefined;
+    }
+
+    const parsedPayload: any = JSON.parse(fs.readFileSync(paramsFilePath, 'utf8'));
+    const parameters: any = parsedPayload.parameters || parsedPayload;
+
+    const requiredKeys: string[] = [
+      'context',
+      'namespace',
+      'podName',
+      'containerName',
+      'databaseName',
+      'ownerUsername',
+      'ownerPassword',
+    ];
+    const missingKeys: string[] = requiredKeys.filter(
+      (key: string): boolean => !parameters[key] || typeof parameters[key] !== 'string',
+    );
+    if (missingKeys.length > 0) {
+      throw new SoloError(
+        `Invalid external database parameters file '${paramsFilePath}'. Missing or invalid keys: ${missingKeys.join(', ')}`,
+      );
+    }
+
+    return {
+      context: parameters.context,
+      namespace: parameters.namespace,
+      podName: parameters.podName,
+      containerName: parameters.containerName,
+      databaseName: parameters.databaseName,
+      ownerUsername: parameters.ownerUsername,
+      ownerPassword: parameters.ownerPassword,
+    };
+  }
+
+  private writeExternalDatabaseParameters(baseDirectory: string, parameters: ExternalDatabaseParameters): string {
+    const {paramsFilePath} = this.resolveExternalDbParamsFilePath(baseDirectory);
+    const payload: Record<string, unknown> = {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      parameters,
+    };
+    fs.writeFileSync(paramsFilePath, `${JSON.stringify(payload, undefined, 2)}\n`, 'utf8');
+    return paramsFilePath;
+  }
+
+  /**
+   * Wait until mirror REST data has converged after freeze.
+   * We poll the latest transaction over REST and require stable consensus timestamps.
+   */
+  private async waitForMirrorImporterCatchUp(parameters: ExternalDatabaseParameters): Promise<void> {
+    this.logger.info(
+      `Waiting for mirror importer to catch up to frozen consensus state (external DB: ${parameters.context}/${parameters.namespace}/${parameters.podName})...`,
+    );
+    const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
+    if (mirrorNodes.length === 0) {
+      throw new SoloError('No mirror node found in deployment state; cannot poll mirror REST API.');
+    }
+
+    const mirrorNode: any = mirrorNodes[0];
+    const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+    const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+    const mirrorReleaseName: string = await this.resolveMirrorReleaseName(
+      Number(mirrorNode.metadata.id),
+      mirrorNamespace,
+      mirrorContext,
+    );
+
+    const mirrorPods: Pod[] = await this.k8Factory
+      .getK8(mirrorContext)
+      .pods()
+      .list(mirrorNamespace, [
+        constants.SOLO_MIRROR_REST_NAME_LABEL,
+        `app.kubernetes.io/instance=${mirrorReleaseName}`,
+      ]);
+
+    if (mirrorPods.length === 0) {
+      throw new SoloError(
+        `No mirror REST pod found in namespace ${mirrorNamespace.name} (context: ${mirrorContext}, release: ${mirrorReleaseName})`,
+      );
+    }
+
+    const mirrorRestPod: Pod = this.k8Factory.getK8(mirrorContext).pods().readByReference(mirrorPods[0].podReference);
+    const localMirrorRestPort: number = await mirrorRestPod.portForward(
+      constants.MIRROR_NODE_PORT,
+      constants.MIRROR_NODE_PORT,
+      false,
+      false,
+    );
+
+    let previousConsensusTimestamp: string = '';
+    let stableCount: number = 0;
+    const endpoint: string = `http://localhost:${localMirrorRestPort}/api/v1/transactions?limit=1&order=desc`;
+    try {
+      for (let attempt: number = 1; attempt <= 100; attempt++) {
+        let currentConsensusTimestamp: string = '';
+        let currentTransactionName: string = '';
+        try {
+          const response: Response = await fetch(endpoint);
+          if (response.ok) {
+            const responsePayload: any = await response.json();
+            const latestTransaction: any =
+              Array.isArray(responsePayload?.transactions) && responsePayload.transactions.length > 0
+                ? responsePayload.transactions[0]
+                : undefined;
+            currentConsensusTimestamp =
+              typeof latestTransaction?.consensus_timestamp === 'string' ? latestTransaction.consensus_timestamp : '';
+            currentTransactionName = typeof latestTransaction?.name === 'string' ? latestTransaction.name : '';
+          } else {
+            this.logger.info(
+              `Mirror REST poll failed with status ${response.status}; attempt ${attempt}/100, retrying...`,
+            );
+          }
+        } catch (error: any) {
+          this.logger.info(`Mirror REST poll error '${error.message || error}'; attempt ${attempt}/100, retrying...`);
+        }
+
+        this.logger.info(
+          `Mirror REST latest tx: ${currentTransactionName || '<unknown>'} @ ${currentConsensusTimestamp || '<empty>'}`,
+        );
+
+        if (currentConsensusTimestamp && currentConsensusTimestamp === previousConsensusTimestamp) {
+          stableCount++;
+          if (stableCount >= 3) {
+            this.logger.info(`Mirror importer is stable at consensus timestamp ${currentConsensusTimestamp}`);
+            return;
+          }
+        } else {
+          stableCount = 0;
+        }
+
+        previousConsensusTimestamp = currentConsensusTimestamp || previousConsensusTimestamp;
+        await helpers.sleep(Duration.ofSeconds(3));
+      }
+
+      this.logger.info('Mirror importer catch-up wait timed out after 100 checks; proceeding with backup.');
+    } finally {
+      try {
+        await mirrorRestPod.stopPortForward(localMirrorRestPort);
+      } catch (error: any) {
+        this.logger.info(
+          `Unable to stop temporary mirror REST port-forward on port ${localMirrorRestPort}: ${error.message || error}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Build the external DB parameter set used by backup.
+   * Parameters include pod/container location plus DB credentials from mirror secrets.
+   */
+  private async resolveExternalDatabaseParametersForBackup(): Promise<ExternalDatabaseParameters> {
+    const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
+    if (mirrorNodes.length === 0) {
+      throw new SoloError('No mirror node found in deployment state; cannot back up external database.');
+    }
+
+    const mirrorNode: any = mirrorNodes[0];
+    const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+    const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+
+    const databaseContext: Context = mirrorContext;
+    const databaseNamespace: NamespaceName = NamespaceName.of('database');
+    const databasePodName: string = await this.resolveExternalDbPodName(databaseNamespace, databaseContext);
+    const databaseContainerName: string = 'postgresql';
+    const credentials: {dbName: string; ownerUsername: string; ownerPassword: string} =
+      await this.resolveMirrorDatabaseCredentials(mirrorNamespace, mirrorContext);
+
+    return {
+      context: databaseContext,
+      namespace: databaseNamespace.name,
+      podName: databasePodName,
+      containerName: databaseContainerName,
+      databaseName: credentials.dbName,
+      ownerUsername: credentials.ownerUsername,
+      ownerPassword: credentials.ownerPassword,
+    };
+  }
+
+  /**
+   * Execute pg_dump inside the DB pod and copy the SQL dump to backup output.
+   * The output file is later consumed by restore-config.
+   */
+  private async exportExternalDatabaseBackup(
+    outputDirectory: string,
+    parameters: ExternalDatabaseParameters,
+  ): Promise<string> {
+    const databaseNamespace: NamespaceName = NamespaceName.of(parameters.namespace);
+    const databasePodReference: PodReference = PodReference.of(databaseNamespace, PodName.of(parameters.podName));
+    const databaseContainerReference: ContainerReference = ContainerReference.of(
+      databasePodReference,
+      ContainerName.of(parameters.containerName),
+    );
+    const databaseContainer: Container = this.k8Factory
+      .getK8(parameters.context)
+      .containers()
+      .readByRef(databaseContainerReference);
+
+    const dumpPathInContainer: string = '/tmp/database-dump.sql';
+    await databaseContainer.execContainer([
+      'env',
+      `PGPASSWORD=${parameters.ownerPassword}`,
+      'pg_dump',
+      '-U',
+      parameters.ownerUsername,
+      '--clean',
+      '--if-exists',
+      parameters.databaseName,
+      '-f',
+      dumpPathInContainer,
+    ]);
+    await databaseContainer.copyFrom(dumpPathInContainer, outputDirectory);
+    return PathEx.join(outputDirectory, 'database-dump.sql');
+  }
+
+  /**
+   * Restore an external DB SQL dump when backup artifacts are present.
+   * Importer is scaled down during restore, then runtime services are restarted.
+   */
+  private async restoreDatabaseDumpIfPresent(inputDirectory: string): Promise<void> {
+    const databaseDumpPath: string = PathEx.join(inputDirectory, 'database-dump.sql');
+    if (!fs.existsSync(databaseDumpPath)) {
+      this.logger.info(`No database dump found at ${databaseDumpPath}; skipping database restore`);
+      return;
+    }
+
+    const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
+    if (mirrorNodes.length === 0) {
+      this.logger.info('No mirror node found in deployment state; skipping database restore');
+      return;
+    }
+
+    const mirrorNode: any = mirrorNodes[0];
+    const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+    const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+    const mirrorReleaseName: string = await this.resolveMirrorReleaseName(
+      Number(mirrorNode.metadata.id),
+      mirrorNamespace,
+      mirrorContext,
+    );
+    const importerDeploymentName: string = `${mirrorReleaseName}-importer`;
+
+    const parametersFromFile: ExternalDatabaseParameters = this.readExternalDatabaseParameters(inputDirectory, true);
+    const databaseContext: Context = parametersFromFile.context || mirrorContext;
+    const databaseNamespace: NamespaceName = NamespaceName.of(parametersFromFile.namespace || 'database');
+    const explicitDatabasePodName: string = parametersFromFile.podName || '';
+    const databasePodName: string =
+      explicitDatabasePodName || (await this.resolveExternalDbPodName(databaseNamespace, databaseContext));
+    const databaseContainerName: string = parametersFromFile.containerName || 'postgresql';
+
+    const explicitDatabaseName: string = parametersFromFile.databaseName || '';
+    const explicitOwnerUsername: string = parametersFromFile.ownerUsername || '';
+    const explicitOwnerPassword: string = parametersFromFile.ownerPassword || '';
+
+    const credentials: {dbName: string; ownerUsername: string; ownerPassword: string} =
+      explicitDatabaseName && explicitOwnerUsername && explicitOwnerPassword
+        ? {
+            dbName: explicitDatabaseName,
+            ownerUsername: explicitOwnerUsername,
+            ownerPassword: explicitOwnerPassword,
+          }
+        : await this.resolveMirrorDatabaseCredentials(mirrorNamespace, mirrorContext);
+
+    const mirrorK8: K8 = this.k8Factory.getK8(mirrorContext);
+    const databaseK8: K8 = this.k8Factory.getK8(databaseContext);
+
+    await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 0);
+
+    const databasePodReference: PodReference = PodReference.of(databaseNamespace, PodName.of(databasePodName));
+    const databaseContainerReference: ContainerReference = ContainerReference.of(
+      databasePodReference,
+      ContainerName.of(databaseContainerName),
+    );
+    const databaseContainer: Container = databaseK8.containers().readByRef(databaseContainerReference);
+    await databaseContainer.copyTo(databaseDumpPath, '/tmp');
+    await databaseContainer.execContainer([
+      'psql',
+      `postgresql://${credentials.ownerUsername}:${credentials.ownerPassword}@localhost:5432/${credentials.dbName}`,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-f',
+      '/tmp/database-dump.sql',
+    ]);
+
+    await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 1);
+    await mirrorK8
+      .pods()
+      .waitForReadyStatus(
+        mirrorNamespace,
+        [
+          'app.kubernetes.io/name=importer',
+          'app.kubernetes.io/component=importer',
+          `app.kubernetes.io/instance=${mirrorReleaseName}`,
+        ],
+        constants.PODS_READY_MAX_ATTEMPTS,
+        constants.PODS_READY_DELAY,
+      );
+
+    const grpcDeploymentName: string = `${mirrorReleaseName}-grpc`;
+    const restDeploymentName: string = `${mirrorReleaseName}-rest`;
+    await this.patchDeploymentRestartAnnotation(mirrorContext, mirrorNamespace, grpcDeploymentName);
+    await this.patchDeploymentRestartAnnotation(mirrorContext, mirrorNamespace, restDeploymentName);
+    await mirrorK8
+      .pods()
+      .waitForReadyStatus(
+        mirrorNamespace,
+        [
+          'app.kubernetes.io/name=rest',
+          'app.kubernetes.io/component=rest',
+          `app.kubernetes.io/instance=${mirrorReleaseName}`,
+        ],
+        constants.PODS_READY_MAX_ATTEMPTS,
+        constants.PODS_READY_DELAY,
+      );
+  }
+
+  /**
+   * Restart all consensus node pods so restored ConfigMaps/Secrets are applied.
+   * This keeps restore deterministic without reinstalling components.
+   */
+  private async restartConsensusPods(namespace: NamespaceName, consensusNodes: ConsensusNode[]): Promise<void> {
+    for (const consensusNode of consensusNodes) {
+      const context: Context = helpers.extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
+      await this.restartPodsMatchingLabels(
+        context,
+        namespace,
+        [`solo.hedera.com/node-name=${consensusNode.name}`, 'solo.hedera.com/type=network-node'],
+        `consensus ${consensusNode.name}`,
+      );
+    }
+  }
+
+  /**
+   * Rebuild relay HEDERA_NETWORK from currently assigned network service endpoints.
+   * This ensures relay uses post-restore service addresses.
+   */
+  private async patchRelayHederaNetworkFromLiveServices(
+    namespace: NamespaceName,
+    consensusNodes: ConsensusNode[],
+  ): Promise<void> {
+    const relayNodes: any[] = this.remoteConfig.configuration.state.relayNodes || [];
+    if (relayNodes.length === 0) {
+      return;
+    }
+
+    const networkMap: Record<string, string> = {};
+    for (const consensusNode of consensusNodes) {
+      const nodeAlias: string = consensusNode.name;
+      const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
+      const k8: K8 = this.k8Factory.getK8(context);
+
+      const haProxyService = await k8.services().read(namespace, `haproxy-${nodeAlias}-svc`);
+      const nodeService = await k8.services().read(namespace, `network-${nodeAlias}-svc`);
+      const endpointIp: string =
+        haProxyService.status?.loadBalancer?.ingress?.[0]?.ip || haProxyService.spec?.clusterIP || '';
+      const endpointPort: number =
+        haProxyService.spec?.ports?.find((port): boolean => port.name === 'non-tls-grpc-client-port')?.port || 50_211;
+      const accountId: string = nodeService.metadata?.labels?.['solo.hedera.com/account-id'] || '';
+
+      if (!endpointIp || !accountId) {
+        continue;
+      }
+      networkMap[`${endpointIp}:${endpointPort}`] = accountId;
+    }
+
+    if (Object.keys(networkMap).length === 0) {
+      return;
+    }
+
+    const relayNode: any = relayNodes[0];
+    const relayContext: Context = this.remoteConfig.getClusterRefs().get(relayNode.metadata.cluster);
+    const relayId: number = Number(relayNode.metadata.id);
+    const relayName: string = Templates.renderRelayName(relayId);
+    const relayK8: K8 = this.k8Factory.getK8(relayContext);
+    const patchedData: Record<string, string> = {HEDERA_NETWORK: JSON.stringify(networkMap)};
+
+    await relayK8.configMaps().update(namespace, relayName, patchedData);
+    try {
+      await relayK8.configMaps().update(namespace, `${relayName}-ws`, patchedData);
+    } catch (error) {
+      this.logger.info(`Skipping optional relay ws patch: ${error.message}`);
+    }
+  }
+
+  /**
+   * Apply block-node-specific restore adjustments after config/state restore.
+   * Includes earliest block override and optional tss-parameters.bin restoration.
+   */
+  private async applyBlockNodeRestoreFixes(inputDirectory: string, _namespace: NamespaceName): Promise<void> {
+    const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
+    if (blockNodes.length === 0) {
+      return;
+    }
+
+    const tssParametersPath: string = PathEx.join(inputDirectory, 'tss-parameters.bin');
+    const shouldRestoreTssParameters: boolean = fs.existsSync(tssParametersPath);
+
+    for (const blockNode of blockNodes) {
+      const blockNodeId: number = Number(blockNode.metadata.id);
+      const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
+      const blockNodeReleaseName: string = Templates.renderBlockNodeName(blockNodeId);
+      const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
+      const k8: K8 = this.k8Factory.getK8(blockNodeContext);
+
+      await k8.configMaps().update(blockNodeNamespace, `${blockNodeReleaseName}-config`, {
+        BLOCK_NODE_EARLIEST_MANAGED_BLOCK: '100000000',
+      });
+
+      if (!shouldRestoreTssParameters) {
+        continue;
+      }
+
+      const pods: Pod[] = await k8.pods().list(blockNodeNamespace, Templates.renderBlockNodeLabels(blockNodeId));
+      if (pods.length === 0) {
+        continue;
+      }
+
+      const podReference: PodReference = pods[0].podReference;
+      const containerReference: ContainerReference = ContainerReference.of(
+        podReference,
+        constants.BLOCK_NODE_CONTAINER_NAME,
+      );
+      const container: Container = k8.containers().readByRef(containerReference);
+
+      await container.execContainer([
+        'sh',
+        '-c',
+        'rm -rf /opt/hiero/block-node/data/live/* ' +
+          '/opt/hiero/block-node/data/historic/* ' +
+          '/opt/hiero/block-node/verification/rootHashOfAllPreviousBlocks.bin ' +
+          '/opt/hiero/block-node/verification/tss-parameters.bin 2>/dev/null || true',
+      ]);
+      await container.copyTo(tssParametersPath, '/opt/hiero/block-node/verification');
+
+      await k8.pods().delete(podReference);
+      await k8
+        .pods()
+        .waitForReadyStatus(
+          blockNodeNamespace,
+          Templates.renderBlockNodeLabels(blockNodeId),
+          constants.PODS_READY_MAX_ATTEMPTS,
+          constants.PODS_READY_DELAY,
+        );
+    }
+  }
+
+  /**
    * Restore all component configurations
    * Command: solo config ops restore-config
    */
@@ -555,6 +1274,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
     const inputDirectory: string = this.configManager.getFlag<string>(flags.inputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
+    const deployment: string = this.configManager.getFlag<string>(flags.deployment);
 
     // Get configuration data
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
@@ -573,20 +1293,11 @@ export class BackupRestoreCommand extends BaseCommand {
         {
           title: 'Initialize restore configuration',
           task: async (context_, task): Promise<void> => {
-            // Build pod references map
-            const podReferences: any = {};
-
-            for (const nodeAlias of nodeAliases) {
-              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
-              const k8: K8 = this.k8Factory.getK8(context);
-              const pods: Pod[] = await k8
-                .pods()
-                .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
-
-              if (pods.length > 0) {
-                podReferences[nodeAlias] = pods[0].podReference;
-              }
-            }
+            const podReferences: Record<string, PodReference> = await this.buildConsensusPodReferences(
+              namespace,
+              consensusNodes,
+              nodeAliases,
+            );
 
             // Initialize config object expected by uploadStateFiles
             context_.config = {
@@ -610,7 +1321,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 'consensus network freeze',
                 (): string[] => {
                   const argv: string[] = CommandHelpers.newArgv();
-                  argv.push('consensus', 'network', 'freeze', '--deployment', context_.deployment);
+                  argv.push('consensus', 'network', 'freeze', '--deployment', deployment);
                   return argv;
                 },
                 this.taskList,
@@ -639,6 +1350,28 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
         {
+          title: 'Restart mirror runtime dependencies',
+          task: async (context_, task): Promise<void> => {
+            await this.restartMirrorRuntimeDependencies(namespace);
+            task.title = 'Restart mirror runtime dependencies: completed';
+          },
+        },
+        {
+          title: 'Restore external database dump (if present)',
+          task: async (context_, task): Promise<void> => {
+            await this.restoreDatabaseDumpIfPresent(inputDirectory);
+            task.title = 'Restore external database dump (if present): completed';
+          },
+        },
+        {
+          title: 'Restart consensus pods to pick up restored ConfigMaps/Secrets',
+          task: async (context_, task): Promise<void> => {
+            await this.restartConsensusPods(namespace, consensusNodes);
+            context_.config.podRefs = await this.buildConsensusPodReferences(namespace, consensusNodes, nodeAliases);
+            task.title = 'Restart consensus pods to pick up restored ConfigMaps/Secrets: completed';
+          },
+        },
+        {
           title: 'Wait for consensus node pods',
           task: async (context_, task): Promise<void> => {
             await this.waitForConsensusPods();
@@ -653,6 +1386,20 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
         this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),
+        {
+          title: 'Patch relay HEDERA_NETWORK from live services',
+          task: async (context_, task): Promise<void> => {
+            await this.patchRelayHederaNetworkFromLiveServices(namespace, consensusNodes);
+            task.title = 'Patch relay HEDERA_NETWORK from live services: completed';
+          },
+        },
+        {
+          title: 'Apply block node restore fixes',
+          task: async (context_, task): Promise<void> => {
+            await this.applyBlockNodeRestoreFixes(inputDirectory, namespace);
+            task.title = 'Apply block node restore fixes: completed';
+          },
+        },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
@@ -1603,6 +2350,265 @@ export class BackupRestoreCommand extends BaseCommand {
     return initTasks;
   }
 
+  private parseExpectedLbIpAssignments(expectedLbIpsFile: string): ExpectedLbIpAssignment[] {
+    const resolvedPath: string = PathEx.resolve(expectedLbIpsFile);
+    if (!fs.existsSync(resolvedPath)) {
+      throw new SoloError(`Expected LB IP file not found: ${resolvedPath}`);
+    }
+
+    const assignments: ExpectedLbIpAssignment[] = [];
+    const lines: string[] = fs.readFileSync(resolvedPath, 'utf8').split('\n');
+    const entryPattern: RegExp = /^KIND_(.+)_(ENVOY_PROXY|HAPROXY|NETWORK)_NODE(\d+)_SVC$/;
+
+    for (const line of lines) {
+      const entry: string = line.trim();
+      if (!entry || entry.startsWith('#')) {
+        continue;
+      }
+
+      const equalsIndex: number = entry.indexOf('=');
+      if (equalsIndex <= 0) {
+        continue;
+      }
+
+      const key: string = entry.slice(0, equalsIndex).trim();
+      const value: string = entry
+        .slice(equalsIndex + 1)
+        .trim()
+        .replaceAll(/^['"]|['"]$/g, '');
+      if (!key || !value) {
+        continue;
+      }
+
+      const match: RegExpMatchArray | null = key.match(entryPattern);
+      if (!match) {
+        continue;
+      }
+
+      const contextSuffix: string = match[1].toLowerCase().replaceAll('_', '-');
+      const context: Context = `kind-${contextSuffix}`;
+      const serviceTypeToken: string = match[2];
+      const nodeId: string = match[3];
+
+      let servicePrefix: string;
+      switch (serviceTypeToken) {
+        case 'ENVOY_PROXY': {
+          servicePrefix = 'envoy-proxy';
+          break;
+        }
+        case 'HAPROXY': {
+          servicePrefix = 'haproxy';
+          break;
+        }
+        case 'NETWORK': {
+          servicePrefix = 'network';
+          break;
+        }
+        default: {
+          continue;
+        }
+      }
+
+      assignments.push({
+        context,
+        serviceName: `${servicePrefix}-node${nodeId}-svc`,
+        expectedIp: value,
+      });
+    }
+
+    if (assignments.length === 0) {
+      throw new SoloError(
+        `No supported LoadBalancer IP entries found in ${resolvedPath}. ` +
+          'Expected keys like KIND_<CONTEXT>_<ENVOY_PROXY|HAPROXY|NETWORK>_NODE<n>_SVC=<ip>',
+      );
+    }
+
+    return assignments;
+  }
+
+  private getServiceLoadBalancerIp(service: Service): string {
+    return service.status?.loadBalancer?.ingress?.[0]?.ip || '';
+  }
+
+  /**
+   * Find which service currently owns a target LoadBalancer IP in a context.
+   * Used to detect conflicting ownership before reassignment.
+   */
+  private async findServiceOwningLoadBalancerIp(
+    context: Context,
+    namespace: NamespaceName,
+    expectedIp: string,
+  ): Promise<string> {
+    const services: Service[] = await this.k8Factory.getK8(context).services().list(namespace, []);
+    const ownerService: Service | undefined = services.find(
+      (service: Service): boolean => this.getServiceLoadBalancerIp(service) === expectedIp,
+    );
+    return ownerService?.metadata?.name || '';
+  }
+
+  /**
+   * Clear MetalLB IP annotations from a service to force unassignment.
+   * This is the first phase before reapplying expected IP ownership.
+   */
+  private async unassignServiceLoadBalancerIp(
+    context: Context,
+    namespace: NamespaceName,
+    serviceName: string,
+  ): Promise<void> {
+    await this.k8Factory
+      .getK8(context)
+      .manifests()
+      .patchObject({
+        apiVersion: 'v1',
+        kind: 'Service',
+        metadata: {
+          namespace: namespace.name,
+          name: serviceName,
+          annotations: {
+            'metallb.universe.tf/loadBalancerIPs': null,
+            'metallb.io/loadBalancerIPs': null,
+          },
+        },
+        spec: {
+          loadBalancerIP: null,
+        },
+      });
+  }
+
+  /**
+   * Assign an expected LoadBalancer IP to a service via MetalLB annotations.
+   * This drives deterministic service endpoint restoration after redeploy.
+   */
+  private async assignServiceLoadBalancerIp(
+    context: Context,
+    namespace: NamespaceName,
+    serviceName: string,
+    expectedIp: string,
+  ): Promise<void> {
+    await this.k8Factory
+      .getK8(context)
+      .manifests()
+      .patchObject({
+        apiVersion: 'v1',
+        kind: 'Service',
+        metadata: {
+          namespace: namespace.name,
+          name: serviceName,
+          annotations: {
+            'metallb.universe.tf/loadBalancerIPs': expectedIp,
+            'metallb.io/loadBalancerIPs': expectedIp,
+          },
+        },
+      });
+  }
+
+  /**
+   * Verify all services currently advertise their expected LoadBalancer IPs.
+   * Returns false immediately on the first mismatch.
+   */
+  private async hasAllExpectedLoadBalancerIps(
+    namespace: NamespaceName,
+    assignments: ExpectedLbIpAssignment[],
+  ): Promise<boolean> {
+    for (const assignment of assignments) {
+      const service: Service = await this.k8Factory
+        .getK8(assignment.context)
+        .services()
+        .read(namespace, assignment.serviceName);
+      const actualIp: string = this.getServiceLoadBalancerIp(service);
+      if (actualIp !== assignment.expectedIp) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Rollout restart MetalLB controllers in involved contexts.
+   * Used as a recovery step when IP assignment does not converge.
+   */
+  private async restartMetalLbControllers(assignments: ExpectedLbIpAssignment[]): Promise<void> {
+    const contexts: Set<Context> = new Set(
+      assignments.map((assignment: ExpectedLbIpAssignment): Context => assignment.context),
+    );
+    for (const context of contexts) {
+      try {
+        await this.patchDeploymentRestartAnnotation(context, NamespaceName.of('metallb-system'), 'metallb-controller');
+      } catch (error: any) {
+        this.logger.info(`Skipping MetalLB controller restart for context '${context}': ${error.message}`);
+      }
+    }
+  }
+
+  /**
+   * Enforce expected service IP ownership from the configured assignment file.
+   * Flow: detect conflicts, unassign, reassign, verify, and fallback restart MetalLB if needed.
+   */
+  private async enforceExpectedLoadBalancerIps(namespace: NamespaceName, expectedLbIpsFile: string): Promise<void> {
+    const assignments: ExpectedLbIpAssignment[] = this.parseExpectedLbIpAssignments(expectedLbIpsFile);
+
+    for (const assignment of assignments) {
+      const ownerServiceName: string = await this.findServiceOwningLoadBalancerIp(
+        assignment.context,
+        namespace,
+        assignment.expectedIp,
+      );
+      if (ownerServiceName && ownerServiceName !== assignment.serviceName) {
+        this.logger.info(
+          `LB IP ownership warning: context='${assignment.context}' service='${assignment.serviceName}' ` +
+            `expected='${assignment.expectedIp}' currentlyOwnedBy='${ownerServiceName}'`,
+        );
+      }
+    }
+
+    for (const assignment of assignments) {
+      await this.unassignServiceLoadBalancerIp(assignment.context, namespace, assignment.serviceName);
+    }
+
+    for (const assignment of assignments) {
+      await this.assignServiceLoadBalancerIp(
+        assignment.context,
+        namespace,
+        assignment.serviceName,
+        assignment.expectedIp,
+      );
+    }
+
+    for (let attempt: number = 0; attempt < 45; attempt++) {
+      if (await this.hasAllExpectedLoadBalancerIps(namespace, assignments)) {
+        return;
+      }
+      await helpers.sleep(Duration.ofSeconds(2));
+    }
+
+    this.logger.info('LoadBalancer IPs did not converge after initial retries. Restarting MetalLB controllers...');
+    await this.restartMetalLbControllers(assignments);
+
+    for (let attempt: number = 0; attempt < 30; attempt++) {
+      if (await this.hasAllExpectedLoadBalancerIps(namespace, assignments)) {
+        return;
+      }
+      await helpers.sleep(Duration.ofSeconds(2));
+    }
+
+    const mismatches: string[] = [];
+    for (const assignment of assignments) {
+      const service: Service = await this.k8Factory
+        .getK8(assignment.context)
+        .services()
+        .read(namespace, assignment.serviceName);
+      const actualIp: string = this.getServiceLoadBalancerIp(service);
+      if (actualIp !== assignment.expectedIp) {
+        mismatches.push(
+          `${assignment.context}/${assignment.serviceName}: expected ${assignment.expectedIp}, got ${actualIp || '<none>'}`,
+        );
+      }
+    }
+
+    throw new SoloError(`Failed to enforce expected LoadBalancer IPs:\n${mismatches.join('\n')}`);
+  }
+
   /**
    * Restore Kind clusters from backup directory structure
    * Command: solo config ops restore-clusters
@@ -1702,6 +2708,14 @@ export class BackupRestoreCommand extends BaseCommand {
     // Extract shard and realm from argv
     const shard: number = (argv[flags.shard.name] as number) ?? 0;
     const realm: number = (argv[flags.realm.name] as number) ?? 0;
+    const expectedLbIpsFile: string = (argv[flags.expectedLbIpsFile.name] as string) || '';
+    const skipIpTracking: boolean = (argv[flags.skipIpTracking.name] as boolean) ?? true;
+
+    if (!skipIpTracking && !expectedLbIpsFile) {
+      throw new SoloError(
+        `--${flags.expectedLbIpsFile.name} is required when --${flags.skipIpTracking.name}=false`,
+      );
+    }
 
     interface RestoreNetworkContext {
       inputDirectory: string;
@@ -1741,6 +2755,17 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         // Flatten the deployment tasks to top level (like default-one-shot.ts)
         ...this.buildDeploymentTasks(),
+        {
+          title: 'Enforce expected LoadBalancer IPs',
+          skip: (): boolean => skipIpTracking || !expectedLbIpsFile,
+          task: async (context_: RestoreNetworkContext, task): Promise<void> => {
+            if (!context_.namespace) {
+              throw new SoloError('Namespace is required to enforce expected LoadBalancer IPs.');
+            }
+            await this.enforceExpectedLoadBalancerIps(context_.namespace, expectedLbIpsFile);
+            task.title = 'Enforce expected LoadBalancer IPs: completed';
+          },
+        },
       ],
       {
         concurrent: false,

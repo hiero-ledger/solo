@@ -1909,6 +1909,53 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly backupExternalDatabase: CommandFlag = {
+    constName: 'backupExternalDatabase',
+    name: 'backup-external-database',
+    definition: {
+      describe:
+        'Export external Mirror Node database dump during backup and save connection/credential parameters to JSON',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly externalDbParamsFile: CommandFlag = {
+    constName: 'externalDbParamsFile',
+    name: 'external-db-params-file',
+    definition: {
+      describe:
+        'Path to external database parameters JSON. Backup writes it; restore reads it to avoid passing many DB flags',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly expectedLbIpsFile: CommandFlag = {
+    constName: 'expectedLbIpsFile',
+    name: 'expected-lb-ips-file',
+    definition: {
+      describe:
+        'Path to KEY=VALUE file with expected LoadBalancer IP mappings, for example KIND_<CONTEXT>_NETWORK_NODE1_SVC=172.x.x.x',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly skipIpTracking: CommandFlag = {
+    constName: 'skipIpTracking',
+    name: 'skip-ip-tracking',
+    definition: {
+      describe: 'Skip LoadBalancer IP tracking and enforcement during restore-network',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly adminKey: CommandFlag = {
     constName: 'adminKey',
     name: 'admin-key',
@@ -3048,6 +3095,10 @@ export class Flags {
     Flags.explorerStaticIp,
     Flags.explorerVersion,
     Flags.inputDir,
+    Flags.backupExternalDatabase,
+    Flags.externalDbParamsFile,
+    Flags.expectedLbIpsFile,
+    Flags.skipIpTracking,
     Flags.loadBalancerEnabled,
     Flags.localAddressBook,
     Flags.localBuildPath,

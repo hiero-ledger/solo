@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       cn-edge-version:
-        description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)"
+        description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.3)"
         type: string
         required: false
         default: ""

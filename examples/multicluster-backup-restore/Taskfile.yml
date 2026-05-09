@@ -58,7 +58,15 @@ tasks:
       - task: destroy-cluster
       - task: restore-clusters
       - task: restore-network
+      - cmd: |
+          echo "=== [DEBUG] block-node-1-config after restore-network ==="
+          kubectl get configmap block-node-1-config -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+            -o jsonpath='{.data}' 2>/dev/null | python3 -m json.tool || true
       - task: restore-config
+      - cmd: |
+          echo "=== [DEBUG] block-node-1-config after restore-config ==="
+          kubectl get configmap block-node-1-config -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+            -o jsonpath='{.data}' 2>/dev/null | python3 -m json.tool || true
       - task: restart
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
@@ -92,6 +100,36 @@ tasks:
       - cmd: |
           kubectl rollout restart deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
           kubectl rollout status deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s || true
+      # Wait for mirror importer to catch up to current CN state before the smoke test.
+      # restore-config may have cleared record_file and reset the importer to start from
+      # the block node's earliest block (~128).  The smoke test creates ECDSA accounts
+      # and immediately queries them via relay → mirror REST.  If the importer is still
+      # replaying old blocks those new accounts won't be indexed and the test fails with
+      # "Requested resource not found".  Poll MAX(index) from record_file every 5 s;
+      # three consecutive identical readings (excluding -1) means the importer has caught
+      # up to the current tip and is idle.
+      - cmd: |
+          echo "Waiting for mirror importer to catch up before smoke test..."
+          PREV_BLOCK="-2"
+          STABLE_COUNT=0
+          for i in $(seq 1 200); do
+            CUR_BLOCK=$(kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+              env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
+              -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -t -c \
+              "SELECT COALESCE(MAX(index),-1) FROM record_file;" 2>/dev/null | tr -d ' \n')
+            echo "  Mirror latest block: ${CUR_BLOCK}"
+            if [ "${CUR_BLOCK}" = "${PREV_BLOCK}" ] && [ "${CUR_BLOCK}" != "-1" ]; then
+              STABLE_COUNT=$((STABLE_COUNT + 1))
+              if [ "${STABLE_COUNT}" -ge 3 ]; then
+                echo "Mirror caught up and stable at block ${CUR_BLOCK}"
+                break
+              fi
+            else
+              STABLE_COUNT=0
+            fi
+            PREV_BLOCK="${CUR_BLOCK}"
+            sleep 5
+          done
       - task: verify
 
   initial-deploy:
@@ -262,6 +300,8 @@ tasks:
 
       - cmd: |
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
+          --backup-external-database \
+          --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json \
           --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
       - cmd: echo "✅ Backup completed successfully"
       - cmd: |
@@ -271,13 +311,16 @@ tasks:
           echo "  Logs and States: {{ .BACKUP_DIR }}/{{ .NAMESPACE }}"
           ls -lh {{ .BACKUP_DIR }} 2>/dev/null || true
           ls -lh "{{ .BACKUP_DIR }}/{{ .NAMESPACE }}" 2>/dev/null || true
-      - cmd: echo "Exporting database..."
+      # Back up tss-parameters.bin from the block node.
+      # This file is derived from block 0 (LedgerIdPublicationTransactionBody) and is
+      # required for TSS verification.  After cluster destroy + restore, CN resumes at
+      # the backed-up block height and never re-streams block 0, so the block node
+      # can only acquire this file if we restore it explicitly.
       - cmd: |
-          kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-          env PGPASSWORD={{ .POSTGRES_PASSWORD }} pg_dump -U {{ .POSTGRES_USERNAME }} \
-          --clean --if-exists \
-          {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} > {{ .BACKUP_DIR }}/database-dump.sql
-      - cmd: echo "✅ Database exported to {{ .BACKUP_DIR }}/database-dump.sql"
+          kubectl cp block-node-1-0:/opt/hiero/block-node/verification/tss-parameters.bin \
+            {{ .BACKUP_DIR }}/tss-parameters.bin \
+            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
+          echo "✅ tss-parameters.bin backed up"
 
   # ==================== Destroy and Redeploy Tasks ====================
 
@@ -315,13 +358,12 @@ tasks:
           # (repo root for `npm run solo-test`, example dir for `npx @hashgraph/solo`).
           sed "s|block-node-values.yaml|{{ .TASKFILE_DIR }}/block-node-values.yaml|g" \
             {{ .TASKFILE_DIR }}/command.yaml > /tmp/solo-restore-options.yaml
-          $SOLO_COMMAND config ops restore-network --input-dir {{ .BACKUP_DIR }} --options-file /tmp/solo-restore-options.yaml --shard {{ .SHARD }} --realm {{ .REALM }} || true
-      # Fail fast if desired static IP is currently owned by another service.
-      - task: check-lb-ip-conflicts
-      # Enforce static node service LB IP mapping after services are created.
-      - task: ensure-lb-ips
-      # Guard: after restore-network creates node services, verify static LB IP mapping.
-      - task: verify-lb-ips-post-restore
+          $SOLO_COMMAND config ops restore-network \
+            --input-dir {{ .BACKUP_DIR }} \
+            --options-file /tmp/solo-restore-options.yaml \
+            --shard {{ .SHARD }} \
+            --realm {{ .REALM }} \
+            --expected-lb-ips-file {{ .EXPECTED_LB_IPS_FILE }}
 
   ensure-lb-ips:
     desc: Enforce expected LoadBalancer IPs for node services
@@ -412,106 +454,11 @@ tasks:
   restore-config:
     desc: Restore configuration and state from backup
     cmds:
-      # restore-config is intentionally called twice.
-      # Pass 1 imports backed-up ConfigMaps/Secrets and uploads CN state files into
-      # the running pods.  Then pods are restarted to apply the restored secrets —
-      # which wipes the ephemeral pod filesystem.  Pass 2 re-uploads the state files
-      # into the fresh pods so CN resumes from the backed-up height, not genesis.
       - cmd: |
-          # Pass 1: freeze CN, import backed-up ConfigMaps/Secrets, upload state files.
-          $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
-
-          # Restart Redis: restore-network created it with a new random password, but
-          # pass 1 just restored the backup's old password secret.  Redis must restart
-          # to pick up the correct credential (prevents mirror WRONGPASS errors).
-          kubectl delete pod solo-shared-resources-redis-node-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
-
-          # Restart MinIO: restore-network generated fresh root credentials, then
-          # pass 1 overwrote minio-secrets with the backed-up credentials.  MinIO's
-          # internal IAM state still holds the fresh creds; a pod restart forces it to
-          # re-read root user/password from the mounted config.env (sourced from
-          # minio-secrets), preventing "Access Key Id does not exist" errors.
-          kubectl delete pod minio-pool-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1 || true
-          kubectl delete pod minio-pool-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
-          kubectl wait pod/minio-pool-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1 \
-            --for=condition=Ready --timeout=180s || true
-          kubectl wait pod/minio-pool-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
-            --for=condition=Ready --timeout=180s || true
-
-          # Restore database BEFORE restarting mirror pods.
-          # The importer must start with the backed-up record_file watermark and
-          # address book so it can verify new record file signatures (0/2 stake
-          # otherwise) and resume from the correct block height, not from epoch 0.
-          # Scale importer to 0 first to prevent concurrent DB access during DROP/CREATE.
-          kubectl scale deployment mirror-1-importer -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=0 || true
-          echo "Restoring database from dump..."
-          kubectl cp {{ .BACKUP_DIR }}/database-dump.sql \
-            {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-dump.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
-          kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-            env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
-            -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql >> database-restore.log 2>&1
-          echo "Database restored."
-
-          # Scale importer back to 1 and wait for it to be ready before Pass 2.
-          # restore-config Pass 2 uploads state files to the importer pod;
-          # it will fail with "not found" if the pod is still at 0 replicas.
-          kubectl scale deployment mirror-1-importer -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --replicas=1 || true
-          kubectl rollout status deployment mirror-1-importer -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s || true
-
-          # Restart grpc and rest to pick up restored Redis credentials.
-          # Importer is already starting fresh from scale 0→1; no rollout restart needed.
-          # mirror-1-rest (Node.js) holds stale Redis connections — must be restarted
-          # or it gets persistent WRONGPASS on every request.
-          kubectl rollout restart deployment mirror-1-grpc mirror-1-rest -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
-          # Wait for mirror-1-rest to be fully ready before restarting CN pods.
-          # If mirror-1-rest is still starting when CN pods come up, the relay will
-          # FATAL on "Operator account has no balance" (mirror returns 404), crash-loop,
-          # and be in backoff when the smoke test runs.
-          kubectl rollout status deployment mirror-1-rest -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s || true
-
-          # Restart CN pods to apply the restored ConfigMaps/Secrets.
-          # Pod restart wipes the ephemeral filesystem; state files from pass 1 are
-          # lost and will be re-uploaded by pass 2 below.
-          kubectl delete pod network-node1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1
-          kubectl delete pod network-node2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
-
-          # Pass 2: wait for restarted CN pods, then re-upload state files so CN
-          # resumes from the backed-up block height rather than starting from genesis.
-          $SOLO_COMMAND config ops restore-config -d {{ .DEPLOYMENT }} --input-dir {{ .BACKUP_DIR }}
-
-          # Patch relay HEDERA_NETWORK AFTER pass 2 so the patch is not overwritten.
-          # Both passes of restore-config apply backed-up ConfigMaps (including relay-1),
-          # which contain stale ClusterIPs from the original deployment. After cluster
-          # recreation, ClusterIPs change, making those addresses unreachable.
-          # EthereumTransactions time out silently: the relay returns a tx hash
-          # optimistically, then CN never sees the tx, so the mirror never indexes it
-          # and the hardhat test hangs forever waiting for a receipt that will never arrive.
-          # The haproxy LB IPs are pinned (expected-lb-ips.env) and stable across restores.
-          source {{ .EXPECTED_LB_IPS_FILE }}
-          OLD_HEDERA_NET=$(kubectl get configmap relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
-            -o jsonpath='{.data.HEDERA_NETWORK}' 2>/dev/null || true)
-          if [ -n "$OLD_HEDERA_NET" ]; then
-            node {{ .TASKFILE_DIR }}/scripts/patch-relay-hedera-network.js "$OLD_HEDERA_NET"
-            kubectl patch configmap relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
-              --type=merge --patch-file /tmp/relay-patch.json || true
-            kubectl patch configmap relay-1-ws -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
-              --type=merge --patch-file /tmp/relay-patch.json 2>/dev/null || true
-          fi
-
-      # Reset block node data: clear genesis blocks accumulated during restore-network
-      # (CN streams from block 0 before backed-up state is applied), but preserve
-      # tss-parameters.bin so TSS verification passes for backed-up blocks.
-      # With BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000, block node accepts the first
-      # backed-up block via streamBeforeEmbOrElse after data is cleared.
-      - cmd: |
-          kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
-            -- sh -c "rm -rf /opt/hiero/block-node/data/live/* \
-                             /opt/hiero/block-node/data/historic/* \
-                             /opt/hiero/block-node/verification/rootHashOfAllPreviousBlocks.bin 2>/dev/null || true"
-          kubectl delete pod block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
-          kubectl wait --for=condition=ready pod/block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s || true
-
-      - cmd: echo "✅ Database and configuration restored"
+          $SOLO_COMMAND config ops restore-config \
+            --deployment {{ .DEPLOYMENT }} \
+            --input-dir {{ .BACKUP_DIR }} \
+            --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json
 
   # ==================== Verification Tasks ====================
 
