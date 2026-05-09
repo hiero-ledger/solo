@@ -1031,6 +1031,26 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
+   * Reset the target database schema before SQL import.
+   * Restoring into a clean schema avoids partition/inherited-constraint cleanup failures.
+   * Re-granting schema usage keeps mirror readers/writers functional after recreate.
+   */
+  private async resetExternalDatabaseSchema(
+    databaseContainer: Container,
+    credentials: {dbName: string; ownerUsername: string; ownerPassword: string},
+  ): Promise<void> {
+    const quotedOwnerUsername: string = `"${credentials.ownerUsername.replaceAll('"', '""')}"`;
+    await databaseContainer.execContainer([
+      'psql',
+      `postgresql://${credentials.ownerUsername}:${credentials.ownerPassword}@localhost:5432/${credentials.dbName}`,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      `DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public AUTHORIZATION ${quotedOwnerUsername}; GRANT USAGE ON SCHEMA public TO PUBLIC;`,
+    ]);
+  }
+
+  /**
    * Restore an external DB SQL dump when backup artifacts are present.
    * Importer is scaled down during restore, then runtime services are restarted.
    */
@@ -1081,37 +1101,58 @@ export class BackupRestoreCommand extends BaseCommand {
     const mirrorK8: K8 = this.k8Factory.getK8(mirrorContext);
     const databaseK8: K8 = this.k8Factory.getK8(databaseContext);
 
-    await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 0);
-
-    const databasePodReference: PodReference = PodReference.of(databaseNamespace, PodName.of(databasePodName));
-    const databaseContainerReference: ContainerReference = ContainerReference.of(
-      databasePodReference,
-      ContainerName.of(databaseContainerName),
-    );
-    const databaseContainer: Container = databaseK8.containers().readByRef(databaseContainerReference);
-    await databaseContainer.copyTo(databaseDumpPath, '/tmp');
-    await databaseContainer.execContainer([
-      'psql',
-      `postgresql://${credentials.ownerUsername}:${credentials.ownerPassword}@localhost:5432/${credentials.dbName}`,
-      '-v',
-      'ON_ERROR_STOP=1',
-      '-f',
-      '/tmp/database-dump.sql',
-    ]);
-
-    await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 1);
-    await mirrorK8
-      .pods()
-      .waitForReadyStatus(
-        mirrorNamespace,
-        [
-          'app.kubernetes.io/name=importer',
-          'app.kubernetes.io/component=importer',
-          `app.kubernetes.io/instance=${mirrorReleaseName}`,
-        ],
-        constants.PODS_READY_MAX_ATTEMPTS,
-        constants.PODS_READY_DELAY,
+    let importerScaledDown: boolean = false;
+    try {
+      await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 0);
+      importerScaledDown = true;
+    } catch (error: any) {
+      this.logger.info(
+        `Skipping importer scale-down for '${importerDeploymentName}' in ${mirrorNamespace.name}: ${error.message || error}`,
       );
+    }
+    try {
+      const databasePodReference: PodReference = PodReference.of(databaseNamespace, PodName.of(databasePodName));
+      const databaseContainerReference: ContainerReference = ContainerReference.of(
+        databasePodReference,
+        ContainerName.of(databaseContainerName),
+      );
+      const databaseContainer: Container = databaseK8.containers().readByRef(databaseContainerReference);
+      await databaseContainer.copyTo(databaseDumpPath, '/tmp');
+      await this.resetExternalDatabaseSchema(databaseContainer, credentials);
+      await databaseContainer.execContainer([
+        'psql',
+        `postgresql://${credentials.ownerUsername}:${credentials.ownerPassword}@localhost:5432/${credentials.dbName}`,
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-f',
+        '/tmp/database-dump.sql',
+      ]);
+    } finally {
+      if (importerScaledDown) {
+        await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 1);
+        try {
+          await mirrorK8
+            .pods()
+            .waitForReadyStatus(
+              mirrorNamespace,
+              [
+                'app.kubernetes.io/name=importer',
+                'app.kubernetes.io/component=importer',
+                `app.kubernetes.io/instance=${mirrorReleaseName}`,
+              ],
+              constants.PODS_READY_MAX_ATTEMPTS,
+              constants.PODS_READY_DELAY,
+            );
+        } catch (error: any) {
+          this.logger.showUser(
+            chalk.yellow(
+              `Importer is not ready yet after database restore; continuing with restore flow. ` +
+                `Reason: ${error.message || error}`,
+            ),
+          );
+        }
+      }
+    }
 
     const grpcDeploymentName: string = `${mirrorReleaseName}-grpc`;
     const restDeploymentName: string = `${mirrorReleaseName}-rest`;
@@ -1148,8 +1189,9 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Rebuild relay HEDERA_NETWORK from currently assigned network service endpoints.
-   * This ensures relay uses post-restore service addresses.
+   * Rebuild relay HEDERA_NETWORK from currently assigned service endpoints.
+   * Prefer in-cluster service DNS for same-cluster consensus nodes so relay does not rely on
+   * externally-routed LoadBalancer IPs that may be unreachable from pod networking.
    */
   private async patchRelayHederaNetworkFromLiveServices(
     namespace: NamespaceName,
@@ -1160,6 +1202,9 @@ export class BackupRestoreCommand extends BaseCommand {
       return;
     }
 
+    const relayNode: any = relayNodes[0];
+    const relayClusterReference: string = relayNode.metadata.cluster;
+    const relayContext: Context = this.remoteConfig.getClusterRefs().get(relayClusterReference);
     const networkMap: Record<string, string> = {};
     for (const consensusNode of consensusNodes) {
       const nodeAlias: string = consensusNode.name;
@@ -1168,24 +1213,27 @@ export class BackupRestoreCommand extends BaseCommand {
 
       const haProxyService = await k8.services().read(namespace, `haproxy-${nodeAlias}-svc`);
       const nodeService = await k8.services().read(namespace, `network-${nodeAlias}-svc`);
-      const endpointIp: string =
+      const lbOrClusterEndpoint: string =
         haProxyService.status?.loadBalancer?.ingress?.[0]?.ip || haProxyService.spec?.clusterIP || '';
       const endpointPort: number =
         haProxyService.spec?.ports?.find((port): boolean => port.name === 'non-tls-grpc-client-port')?.port || 50_211;
       const accountId: string = nodeService.metadata?.labels?.['solo.hedera.com/account-id'] || '';
+      const isSameClusterAsRelay: boolean = consensusNode.cluster === relayClusterReference;
+      const endpointHost: string =
+        isSameClusterAsRelay
+          ? `network-${nodeAlias}.${namespace.toString()}.svc.cluster.local`
+          : lbOrClusterEndpoint;
 
-      if (!endpointIp || !accountId) {
+      if (!endpointHost || !accountId) {
         continue;
       }
-      networkMap[`${endpointIp}:${endpointPort}`] = accountId;
+      networkMap[`${endpointHost}:${endpointPort}`] = accountId;
     }
 
     if (Object.keys(networkMap).length === 0) {
       return;
     }
 
-    const relayNode: any = relayNodes[0];
-    const relayContext: Context = this.remoteConfig.getClusterRefs().get(relayNode.metadata.cluster);
     const relayId: number = Number(relayNode.metadata.id);
     const relayName: string = Templates.renderRelayName(relayId);
     const relayK8: K8 = this.k8Factory.getK8(relayContext);
@@ -1201,7 +1249,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   /**
    * Apply block-node-specific restore adjustments after config/state restore.
-   * Includes earliest block override and optional tss-parameters.bin restoration.
+   * Preserve a valid earliest managed block setting and optionally restore tss-parameters.bin.
    */
   private async applyBlockNodeRestoreFixes(inputDirectory: string, _namespace: NamespaceName): Promise<void> {
     const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
@@ -1218,9 +1266,30 @@ export class BackupRestoreCommand extends BaseCommand {
       const blockNodeReleaseName: string = Templates.renderBlockNodeName(blockNodeId);
       const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
+      const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      await k8.configMaps().update(blockNodeNamespace, `${blockNodeReleaseName}-config`, {
-        BLOCK_NODE_EARLIEST_MANAGED_BLOCK: '100000000',
+      // Keep the currently configured earliest block unless it is the legacy restore sentinel.
+      let earliestManagedBlock: string = '0';
+      try {
+        const blockNodeConfigMap: ConfigMap = await k8.configMaps().read(blockNodeNamespace, blockNodeConfigMapName);
+        const configuredEarliestManagedBlock: string = blockNodeConfigMap.data?.BLOCK_NODE_EARLIEST_MANAGED_BLOCK;
+        if (configuredEarliestManagedBlock && configuredEarliestManagedBlock.trim().length > 0) {
+          earliestManagedBlock = configuredEarliestManagedBlock.trim();
+        }
+      } catch (error: any) {
+        this.logger.info(
+          `Unable to read ${blockNodeConfigMapName} in ${blockNodeNamespace.toString()} (${blockNodeContext}); defaulting earliest block to 0. Error: ${error.message || error}`,
+        );
+      }
+      if (earliestManagedBlock === '100000000') {
+        this.logger.info(
+          `Replacing legacy BLOCK_NODE_EARLIEST_MANAGED_BLOCK sentinel value for ${blockNodeConfigMapName} with 0`,
+        );
+        earliestManagedBlock = '0';
+      }
+
+      await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
+        BLOCK_NODE_EARLIEST_MANAGED_BLOCK: earliestManagedBlock,
       });
 
       if (!shouldRestoreTssParameters) {
@@ -1268,7 +1337,9 @@ export class BackupRestoreCommand extends BaseCommand {
   public async restoreConfig(argv: ArgvStruct): Promise<boolean> {
     // Load configurations
     await this.localConfig.load();
-    await this.remoteConfig.loadAndValidate(argv);
+    // Restore can run while some components are temporarily down/missing (for example importer scaled to zero).
+    // Load remote config without strict pod validation and let restore tasks reconcile runtime state.
+    await this.remoteConfig.loadAndValidate(argv, false);
 
     this.configManager.update(argv);
 

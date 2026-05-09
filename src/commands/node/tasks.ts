@@ -1300,6 +1300,71 @@ export class NodeCommandTasks {
     };
   }
 
+  /**
+   * Detect transient unzip termination in a pod.
+   * Exit code 137 indicates the process was SIGKILLed (commonly OOM or cgroup kill),
+   * so we can retry using a safer host-side extraction flow.
+   */
+  private isPodUnzipKilled(error: unknown): boolean {
+    const message: string = error instanceof Error ? error.message : `${error}`;
+    return /failed with code 137|exit code 137/i.test(message);
+  }
+
+  /**
+   * Copy extracted state entries from a local directory into the pod saved-state path.
+   * We copy top-level entries one by one so kubectl cp preserves the expected layout.
+   */
+  private async copyExtractedStateEntriesToPod(container: Container, extractedStateDirectory: string): Promise<void> {
+    const extractedEntries: string[] = fs
+      .readdirSync(extractedStateDirectory)
+      .map((entry: string): string => PathEx.join(extractedStateDirectory, entry));
+
+    if (extractedEntries.length === 0) {
+      throw new SoloError(`State archive extraction produced no files: ${extractedStateDirectory}`);
+    }
+
+    for (const extractedEntry of extractedEntries) {
+      await container.copyTo(extractedEntry, `${constants.HEDERA_HAPI_PATH}/data/saved`);
+    }
+  }
+
+  /**
+   * Extract a state archive inside the pod with fallback to local extraction.
+   * Primary path keeps current behavior. If in-pod unzip is killed (137), we
+   * unzip locally and push extracted content back into the pod.
+   */
+  private async unzipStateArchiveWithFallback(container: Container, zipFile: string, podName: string): Promise<void> {
+    const zipFileName: string = PathEx.basename(zipFile);
+    const zipPathInPod: string = `${constants.HEDERA_HAPI_PATH}/data/${zipFileName}`;
+
+    try {
+      await container.execContainer(['unzip', '-o', zipPathInPod, '-d', `${constants.HEDERA_HAPI_PATH}/data/saved`]);
+      return;
+    } catch (error) {
+      if (!this.isPodUnzipKilled(error)) {
+        throw error;
+      }
+
+      this.logger.info(
+        `In-pod unzip was killed for ${podName}. Falling back to host-side extraction for archive ${zipFileName}`,
+      );
+    }
+
+    const temporaryExtractionDirectory: string = fs.mkdtempSync(
+      PathEx.join(constants.SOLO_CACHE_DIR, `state-restore-${podName}-`),
+    );
+
+    try {
+      this.zippy.unzip(zipFile, temporaryExtractionDirectory);
+      await this.copyExtractedStateEntriesToPod(container, temporaryExtractionDirectory);
+      this.logger.info(`Host-side state extraction fallback completed for ${podName}`);
+    } finally {
+      if (fs.existsSync(temporaryExtractionDirectory)) {
+        fs.rmSync(temporaryExtractionDirectory, {recursive: true, force: true});
+      }
+    }
+  }
+
   public uploadStateFiles(skip: SkipCheck | boolean, stateFileDirectory?: string) {
     return {
       title: 'Upload state files network nodes',
@@ -1369,13 +1434,7 @@ export class NodeCommandTasks {
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
           await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
-          await container.execContainer([
-            'unzip',
-            '-o',
-            `${constants.HEDERA_HAPI_PATH}/data/${PathEx.basename(zipFile)}`,
-            '-d',
-            `${constants.HEDERA_HAPI_PATH}/data/saved`,
-          ]);
+          await this.unzipStateArchiveWithFallback(container, zipFile, podReference.name.toString());
 
           // Fix ownership of extracted state files to hedera user
           // NOTE: zip doesn't preserve Unix ownership - files are owned by whoever runs unzip (root).
