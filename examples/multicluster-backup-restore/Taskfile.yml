@@ -353,14 +353,9 @@ tasks:
     cmds:
       - task: deploy-external-database
       - cmd: |
-          # Rewrite command.yaml with absolute path for block-node-values.yaml so that
-          # PathEx.resolve in solo finds the file regardless of solo's working directory
-          # (repo root for `npm run solo-test`, example dir for `npx @hashgraph/solo`).
-          sed "s|block-node-values.yaml|{{ .TASKFILE_DIR }}/block-node-values.yaml|g" \
-            {{ .TASKFILE_DIR }}/command.yaml > /tmp/solo-restore-options.yaml
           $SOLO_COMMAND config ops restore-network \
             --input-dir {{ .BACKUP_DIR }} \
-            --options-file /tmp/solo-restore-options.yaml \
+            --options-file {{ .TASKFILE_DIR }}/command.yaml \
             --shard {{ .SHARD }} \
             --realm {{ .REALM }} \
             --expected-lb-ips-file {{ .EXPECTED_LB_IPS_FILE }}

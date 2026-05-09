@@ -172,7 +172,7 @@ rest:
       memory: 120Mi
     limits:
       cpu: 500m
-      memory: 100Mi
+      memory: 120Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1

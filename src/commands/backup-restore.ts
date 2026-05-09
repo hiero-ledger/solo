@@ -2001,6 +2001,53 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
+   * Normalize component options file paths before subcommands are invoked.
+   * Relative values files are resolved from the options YAML location.
+   */
+  private normalizeComponentOptionsFilePaths(parsedOptions: any, optionsFile: string): void {
+    const optionsDirectory: string = path.dirname(path.resolve(optionsFile));
+    const componentNames: string[] = ['consensus', 'block', 'mirror', 'relay', 'explorer'];
+
+    for (const componentName of componentNames) {
+      const rawArguments: unknown = parsedOptions?.[componentName];
+      if (!Array.isArray(rawArguments)) {
+        continue;
+      }
+
+      parsedOptions[componentName] = this.resolveRelativeValuesFileArgs(rawArguments, optionsDirectory);
+    }
+  }
+
+  /**
+   * Resolve relative --values-file arguments against the options file directory.
+   * This lets restore-network consume component options without external shell path rewriting.
+   */
+  private resolveRelativeValuesFileArgs(rawArguments: unknown[], optionsDirectory: string): string[] {
+    const resolvedArguments: string[] = rawArguments.map(String);
+
+    for (let index: number = 0; index < resolvedArguments.length; index++) {
+      const token: string = resolvedArguments[index];
+      if (token === '--values-file') {
+        const nextIndex: number = index + 1;
+        const rawPath: string = resolvedArguments[nextIndex] || '';
+        if (rawPath && !rawPath.startsWith('-') && !path.isAbsolute(rawPath)) {
+          resolvedArguments[nextIndex] = path.resolve(optionsDirectory, rawPath);
+        }
+        continue;
+      }
+
+      if (token.startsWith('--values-file=')) {
+        const rawPath: string = token.slice('--values-file='.length);
+        if (rawPath && !path.isAbsolute(rawPath)) {
+          resolvedArguments[index] = `--values-file=${path.resolve(optionsDirectory, rawPath)}`;
+        }
+      }
+    }
+
+    return resolvedArguments;
+  }
+
+  /**
    * Build shared initialization task for restore commands
    */
   private buildInitializationTask(argv: ArgvStruct): SoloListrTask<any> {
@@ -2028,6 +2075,7 @@ export class BackupRestoreCommand extends BaseCommand {
           try {
             const optionsContent: string = fs.readFileSync(optionsFile, 'utf8');
             const parsedOptions: any = yaml.parse(optionsContent);
+            this.normalizeComponentOptionsFilePaths(parsedOptions, optionsFile);
             context_.componentOptions = parsedOptions;
 
             this.logger.showUser(chalk.cyan('Component options loaded:'));
@@ -2712,8 +2760,11 @@ export class BackupRestoreCommand extends BaseCommand {
     const skipIpTracking: boolean = (argv[flags.skipIpTracking.name] as boolean) ?? true;
 
     if (!skipIpTracking && !expectedLbIpsFile) {
-      throw new SoloError(
-        `--${flags.expectedLbIpsFile.name} is required when --${flags.skipIpTracking.name}=false`,
+      throw new SoloError(`--${flags.expectedLbIpsFile.name} is required when --${flags.skipIpTracking.name}=false`);
+    }
+    if (skipIpTracking && expectedLbIpsFile) {
+      this.logger.info(
+        `Skipping expected LoadBalancer IP enforcement because --${flags.skipIpTracking.name}=true (default)`,
       );
     }
 
