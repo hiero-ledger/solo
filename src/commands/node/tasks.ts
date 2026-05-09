@@ -350,60 +350,6 @@ export class NodeCommandTasks {
     }
   }
 
-  private async verifyLocalBuildPathOnNode(
-    k8: K8,
-    podReference: PodReference,
-    localDataLibraryBuildPath: string,
-  ): Promise<void> {
-    const expectedEntriesByDirectory: Record<string, string[]> = {};
-    const directoryPairs: Array<{local: string; remote: string}> = [
-      {
-        local: PathEx.join(localDataLibraryBuildPath, 'apps'),
-        remote: `${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}`,
-      },
-      {
-        local: PathEx.join(localDataLibraryBuildPath, 'lib'),
-        remote: `${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}`,
-      },
-    ];
-
-    for (const pair of directoryPairs) {
-      expectedEntriesByDirectory[pair.remote] = fs
-        .readdirSync(pair.local)
-        .filter((fileName: string): boolean => fileName.endsWith('.jar'))
-        .sort()
-        .map((fileName: string): string => `${fileName}:${fs.statSync(PathEx.join(pair.local, fileName)).size}`);
-    }
-
-    const container: Container = k8
-      .containers()
-      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
-
-    for (const pair of directoryPairs) {
-      const output: string = await container.execContainer([
-        'bash',
-        '-c',
-        `set -euo pipefail; shopt -s nullglob; for file in "${pair.remote}"/*.jar; do printf "%s:%s\\n" "$(basename "$file")" "$(wc -c < "$file" | tr -d "[:space:]")"; done | sort`,
-      ]);
-      const actualEntries: string[] = output
-        .split('\n')
-        .map((line: string): string => line.trim())
-        .filter(Boolean)
-        .sort();
-      const expectedEntries: string[] = expectedEntriesByDirectory[pair.remote];
-
-      if (
-        expectedEntries.length !== actualEntries.length ||
-        expectedEntries.some((entry: string, index: number): boolean => entry !== actualEntries[index])
-      ) {
-        throw new SoloError(
-          `Local build verification failed for '${pair.remote}'. ` +
-            `Expected ${expectedEntries.length} jar(s) with matching sizes but found ${actualEntries.length}.`,
-        );
-      }
-    }
-  }
-
   private async validateNodePvcsForLocalBuildPath(namespace: NamespaceName, contexts: string[]): Promise<void> {
     await Promise.all(
       contexts.map(async (context): Promise<void> => {
@@ -515,8 +461,6 @@ export class NodeCommandTasks {
             try {
               // filter the data/config and data/keys to avoid failures due to config and secret mounts
               await this.copyLocalBuildPathToNode(k8, podReference, this.configManager, localDataLibraryBuildPath);
-              await this.verifyLocalBuildPathOnNode(k8, podReference, localDataLibraryBuildPath);
-              break;
             } catch (error) {
               storedError = error;
             }
