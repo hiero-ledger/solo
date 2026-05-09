@@ -50,6 +50,7 @@ const associations: number = 50;
 const nfts: number = 50;
 const percent: number = 50;
 const maxTps: number = 100;
+const nftTransferLoadTestTimeoutMultiplier: number = 6;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
@@ -193,7 +194,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
               maxTps,
             ),
           );
-        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+        }).timeout(Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier).toMillis());
 
         it('TokenTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting TokenTransferLoadTest');
@@ -305,7 +306,7 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
-  argv.push(optionFromFlag(Flags.deployment), deployment);
+  argv.push(optionFromFlag(Flags.deployment), deployment, optionFromFlag(Flags.edgeEnabled));
   return argv;
 }
 

@@ -27,6 +27,7 @@ import * as constants from '../../../../../core/constants.js';
 import type * as stream from 'node:stream';
 import {platform} from 'node:process';
 import {PathEx} from '../../../../../business/utils/path-ex.js';
+import eol from 'eol';
 
 export class K8ClientContainer implements Container {
   private readonly logger: SoloLogger;
@@ -42,6 +43,25 @@ export class K8ClientContainer implements Container {
 
   private async getContext(): Promise<string> {
     return this.kubeConfig.getCurrentContext();
+  }
+
+  /**
+   * Waits until the pod for this container reference is visible in the API before
+   * `copyTo`, `copyFrom`, or `execContainer`.
+   *
+   * Uses {@link Pods.waitForPodByReference} and maps failures to
+   * {@link IllegalArgumentError} with the pod name.
+   *
+   * @param maxAttempts - forwarded to {@link Pods.waitForPodByReference} (default 20)
+   * @param delayMs - forwarded to {@link Pods.waitForPodByReference} (default 3000 ms)
+   */
+  private async waitForPod(maxAttempts: number = 20, delayMs: number = 3000): Promise<void> {
+    const podName: string = this.containerReference.parentReference.name.toString();
+    try {
+      await this.pods.waitForPodByReference(this.containerReference.parentReference, maxAttempts, delayMs);
+    } catch {
+      throw new IllegalArgumentError(`Invalid pod ${podName}`);
+    }
   }
 
   private async execKubectl(
@@ -166,9 +186,7 @@ export class K8ClientContainer implements Container {
     sourcePath = this.toKubectlSafePath(sourcePath);
     destinationDirectory = this.toKubectlSafePath(destinationDirectory);
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForPod();
 
     if (!fs.existsSync(destinationDirectory)) {
       throw new SoloError(`invalid destination path: ${destinationDirectory}`);
@@ -216,9 +234,7 @@ export class K8ClientContainer implements Container {
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForPod();
 
     if (!(await this.hasDir(destinationDirectory))) {
       throw new SoloError(`invalid destination path: ${destinationDirectory}`);
@@ -239,8 +255,21 @@ export class K8ClientContainer implements Container {
     let temporaryTar: string | undefined;
 
     try {
+      const sourceFileName: string = path.basename(sourcePath);
+      if (sourceFileName.endsWith('.sh') && os.platform() === 'win32') {
+        // For text files on Windows, convert line endings to LF to avoid issues in Linux containers.
+        temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
+        const temporarySourcePath: string = PathEx.join(temporaryDirectory, sourceFileName);
+        let content: string = fs.readFileSync(sourcePath, 'utf8');
+
+        // Convert CRLF to LF
+        content = eol.lf(content);
+
+        // Write back
+        fs.writeFileSync(temporarySourcePath, content);
+        localPathToCopy = temporarySourcePath;
+      }
       if (filter) {
-        const sourceFileName: string = path.basename(sourcePath);
         const sourceDirectory: string = path.dirname(sourcePath);
 
         temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-kubectl-cp-src-'));
@@ -291,9 +320,7 @@ export class K8ClientContainer implements Container {
     const podName: string = this.containerReference.parentReference.name.toString();
     const containerName: string = this.containerReference.name.toString();
 
-    if (!(await this.pods.read(this.containerReference.parentReference))) {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
-    }
+    await this.waitForPod();
 
     if (!cmd) {
       throw new MissingArgumentError('command cannot be empty');

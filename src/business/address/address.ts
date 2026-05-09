@@ -72,14 +72,20 @@ export class Address {
     }
   }
 
-  public static async getExternalAddress(consensusNode: ConsensusNode, k8: K8, port: number): Promise<Address> {
-    return Address.resolveLoadBalancerAddress(consensusNode, k8, port);
+  public static async getExternalAddress(
+    consensusNode: ConsensusNode,
+    k8: K8,
+    port: number,
+    gossipFqdnRestricted: boolean = true,
+  ): Promise<Address> {
+    return Address.resolveLoadBalancerAddress(consensusNode, k8, port, gossipFqdnRestricted);
   }
 
   private static async resolveLoadBalancerAddress(
     consensusNode: ConsensusNode,
     k8: K8,
     port: number,
+    gossipFqdnRestricted: boolean,
   ): Promise<Address> {
     const namespace: NamespaceName = NamespaceName.of(consensusNode.namespace);
     try {
@@ -107,6 +113,17 @@ export class Address {
               return new Address(port, ingress.ip);
             }
           }
+        }
+
+        // If gossip FQDN is allowed by node config, keep using the service FQDN fallback.
+        if (!gossipFqdnRestricted) {
+          return new Address(port, consensusNode.fullyQualifiedDomainName);
+        }
+
+        // When gossip FQDN is restricted and no LoadBalancer IP is available
+        // (e.g., Kind/NodePort), use cluster IP to avoid CN validation failure.
+        if (svc.spec?.clusterIP && svc.spec.clusterIP !== 'None') {
+          return new Address(port, svc.spec.clusterIP);
         }
       }
     } catch {

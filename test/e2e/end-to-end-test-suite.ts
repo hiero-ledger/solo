@@ -10,6 +10,7 @@ import {container} from 'tsyringe-neo';
 import {Suite} from 'mocha';
 import {type BaseTestOptions} from './commands/tests/base-test-options.js';
 import {BaseCommandTest} from './commands/tests/base-command-test.js';
+import * as constants from '../../src/core/constants.js';
 
 export class EndToEndTestSuite extends Suite {
   private readonly endToEndTestSuiteInstance: EndToEndTestSuite;

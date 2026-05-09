@@ -97,4 +97,18 @@ export class PathEx {
   public static relative(from: string, to: string): string {
     return path.relative(from, to);
   }
+
+  /**
+   * Return the last portion of a path. This is a wrapper around path.basename.
+   */
+  public static basename(pathValue: string, suffix?: string): string {
+    return path.basename(pathValue, suffix);
+  }
+
+  /**
+   * Platform-specific path delimiter for PATH-like environment variables.
+   */
+  public static get delimiter(): string {
+    return path.delimiter;
+  }
 }
