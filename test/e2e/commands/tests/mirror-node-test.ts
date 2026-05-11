@@ -32,6 +32,7 @@ import {ContainerName} from '../../../../src/integration/kube/resources/containe
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
+import {MIRROR_NODE_PORT} from '../../../../src/core/constants.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -125,7 +126,7 @@ export class MirrorNodeTest extends BaseCommandTest {
   ): Promise<void> {
     const portForwarder: number = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
     try {
-      const queryUrl: string = 'http://localhost:5551/api/v1/network/nodes';
+      const queryUrl: string = `http://localhost:${MIRROR_NODE_PORT}/api/v1/network/nodes`;
 
       let received: boolean = false;
       // wait until the transaction reached consensus and retrievable from the mirror node API
@@ -163,7 +164,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       }
 
       for (const accountId of createdAccountIds) {
-        const accountQueryUrl: string = `http://localhost:5551/api/v1/accounts/${accountId}`;
+        const accountQueryUrl: string = `http://localhost:${MIRROR_NODE_PORT}/api/v1/accounts/${accountId}`;
 
         received = false;
         // wait until the transaction reached consensus and retrievable from the mirror node API
@@ -212,7 +213,7 @@ export class MirrorNodeTest extends BaseCommandTest {
   ): Promise<void> {
     const portForwarder: number = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
     try {
-      const transactionsEndpoint: string = 'http://localhost:5551/api/v1/transactions';
+      const transactionsEndpoint: string = `http://localhost:${MIRROR_NODE_PORT}/api/v1/transactions`;
       // force to fetch new data instead of using cache
       const fetchOptions: object = {
         cache: 'no-cache' as RequestCache,
