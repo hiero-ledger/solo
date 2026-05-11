@@ -1194,18 +1194,20 @@ export class BackupRestoreCommand extends BaseCommand {
 
   /**
    * Poll CN's local block stream tip every 3s until three consecutive identical samples
-   * confirm CN has stopped finalizing new blocks.
+   * confirm CN has stopped finalizing new blocks. Capped at 30 polls (~90s) since CN is
+   * already frozen and idle before this wait runs.
    */
   private async waitForConsensusTipStable(consensusNodeContainer: Container | undefined): Promise<number> {
     if (!consensusNodeContainer) {
       return -1;
     }
+    const maxAttempts: number = 30;
     let previousTip: number = -2;
     let stableCount: number = 0;
     let currentTip: number = -1;
-    for (let attempt: number = 1; attempt <= 100; attempt++) {
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       currentTip = await this.getConsensusNodeBlockStreamTip(consensusNodeContainer);
-      this.logger.info(`CN local tip: ${currentTip} (attempt ${attempt}/100, stable-count ${stableCount})`);
+      this.logger.info(`CN local tip: ${currentTip} (attempt ${attempt}/${maxAttempts}, stable-count ${stableCount})`);
       if (currentTip >= 0 && currentTip === previousTip) {
         stableCount++;
         if (stableCount >= 3) {
@@ -1218,27 +1220,35 @@ export class BackupRestoreCommand extends BaseCommand {
       previousTip = currentTip;
       await helpers.sleep(Duration.ofSeconds(3));
     }
-    this.logger.info(`CN local tip did not stabilize within 100 polls; using last observed value ${currentTip}`);
+    this.logger.info(
+      `CN local tip did not stabilize within ${maxAttempts} polls; using last observed value ${currentTip}`,
+    );
     return currentTip;
   }
 
   /**
    * Poll the block node tip until it reaches or exceeds `target`. Returns the last observed
    * tip. If the block node never reaches target within the timeout window, returns the last
-   * observed tip without throwing - caller is expected to detect and warn on the gap.
+   * observed tip without throwing - the post-restore `bridge-import-gap` step compensates.
+   * Capped at 20 polls (~60s) because the freeze-block flush either happens immediately or
+   * never (hiero-consensus-node#25389); waiting longer just wastes the CI budget.
    */
   private async waitForBlockNodeToReach(blockNodeContainer: Container, target: number): Promise<number> {
+    const maxAttempts: number = 20;
     let lastTip: number = -1;
-    for (let attempt: number = 1; attempt <= 100; attempt++) {
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       lastTip = await this.getBlockNodeLatestBlock(blockNodeContainer);
-      this.logger.info(`Block node tip: ${lastTip} (target ${target}, attempt ${attempt}/100)`);
+      this.logger.info(`Block node tip: ${lastTip} (target ${target}, attempt ${attempt}/${maxAttempts})`);
       if (lastTip >= target) {
         this.logger.info(`Block node reached target ${target} (tip at ${lastTip})`);
         return lastTip;
       }
       await helpers.sleep(Duration.ofSeconds(3));
     }
-    this.logger.info(`Block node did not reach target ${target} within 100 polls; last tip ${lastTip}`);
+    this.logger.info(
+      `Block node did not reach target ${target} within ${maxAttempts} polls; last tip ${lastTip}. ` +
+        'Post-restore bridge-import-gap will compensate for the missing block(s).',
+    );
     return lastTip;
   }
 
@@ -1272,18 +1282,22 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Poll the importer DB until record_file MAX(index) reaches `targetBlock`. Required for
-   * post-restore CN's next block to equal MAX+1 exactly.
+   * Poll the importer DB until record_file MAX(index) reaches `targetBlock`. Capped at
+   * 60 polls (~3 min) - any block-node-side gap that prevents the importer from reaching
+   * the target is permanent (hiero-consensus-node#25389) and waiting longer is wasted
+   * time; the post-restore bridge-import-gap step inserts synthetic record_file rows to
+   * compensate.
    */
   private async waitForImporterAtBlock(
     databaseContainer: Container,
     parameters: ExternalDatabaseParameters,
     targetBlock: number,
   ): Promise<void> {
-    for (let attempt: number = 1; attempt <= 200; attempt++) {
+    const maxAttempts: number = 60;
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       const importerTip: number = await this.getImporterMaxRecordFileIndex(databaseContainer, parameters);
       this.logger.info(
-        `Importer record_file MAX(index): ${importerTip} (target ${targetBlock}, attempt ${attempt}/200)`,
+        `Importer record_file MAX(index): ${importerTip} (target ${targetBlock}, attempt ${attempt}/${maxAttempts})`,
       );
       if (importerTip >= targetBlock) {
         this.logger.showUser(chalk.green(`    ✓ Importer aligned at block ${importerTip} (target ${targetBlock})`));
@@ -1294,10 +1308,12 @@ export class BackupRestoreCommand extends BaseCommand {
     }
     this.logger.showUser(
       chalk.yellow(
-        `    ⚠ Importer did not reach block ${targetBlock} within 200 polls; backup may have a block gap on restore.`,
+        `    ⚠ Importer did not reach block ${targetBlock} within ${maxAttempts} polls; bridge-import-gap will fill the gap on restore.`,
       ),
     );
-    this.logger.info(`Importer did not reach block ${targetBlock} within 200 polls; proceeding with backup.`);
+    this.logger.info(
+      `Importer did not reach block ${targetBlock} within ${maxAttempts} polls; proceeding with backup.`,
+    );
   }
 
   /**
@@ -1618,7 +1634,7 @@ export class BackupRestoreCommand extends BaseCommand {
       const consensusBase: string = `(SELECT consensus_end + ${(n - importerMax) * 2 - 1} FROM record_file WHERE index = ${importerMax})`;
       const consensusEnd: string = `(SELECT consensus_end + ${(n - importerMax) * 2} FROM record_file WHERE index = ${importerMax})`;
       insertStatements.push(
-        `INSERT INTO record_file (name, load_start, load_end, hash, prev_hash, consensus_start, consensus_end, count, digest_algorithm, version, file_hash, index, sidecar_count) ` +
+        'INSERT INTO record_file (name, load_start, load_end, hash, prev_hash, consensus_start, consensus_end, count, digest_algorithm, version, file_hash, index, sidecar_count) ' +
           `VALUES ('${n.toString().padStart(19, '0')}.blk', 0, 0, '${hashValue}', ${previousHashValue}, ${consensusBase}, ${consensusEnd}, 0, 0, 7, '${fileHashPlaceholder}', ${n}, 0);`,
       );
     }
