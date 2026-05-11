@@ -399,40 +399,6 @@ jobs:
               SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
             fi
 
-      - name: Build Block Code Locally
-        if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
-        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
-        with:
-          max_attempts: 3
-          timeout_minutes: 20
-          command: |
-            TEST_LOCAL_BLOCK_NODE_VERSION=$(awk -v RS=';' '/PREV_BLOCK_NODE_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/{s=$0;v="";while(match(s,/'"'"'[^'"'"']*'"'"'/)){v=substr(s,RSTART+1,RLENGTH-2);s=substr(s,RSTART+RLENGTH)};if(v!="")print v}' version-test.ts)
-            echo "Using PREV_BLOCK_NODE_VERSION: ${TEST_LOCAL_BLOCK_NODE_VERSION}"
-            cd ..
-            git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch ${TEST_LOCAL_BLOCK_NODE_VERSION}
-            cd hiero-block-node
-            
-            # Configure apt to use multiple mirror sources with fallback
-            # This adds fallback mirrors while keeping the original sources
-            find . -name "Dockerfile*" -type f | while read dockerfile; do
-              # Create a backup of sources.list configuration in the Dockerfile
-              sed -i '/RUN apt-get update/i \
-            # Add fallback Ubuntu mirrors for reliability\n\
-            RUN echo "deb http://archive.ubuntu.com/ubuntu/ mantic main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
-                echo "deb http://archive.ubuntu.com/ubuntu/ mantic-updates main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
-                echo "deb http://archive.ubuntu.com/ubuntu/ mantic-security main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
-                echo "deb http://security.ubuntu.com/ubuntu/ mantic-security main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
-                echo "Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries && \\\n\
-                echo "Acquire::http::Timeout \"30\";" >> /etc/apt/apt.conf.d/80-retries && \\\n\
-                echo "Acquire::https::Timeout \"30\";" >> /etc/apt/apt.conf.d/80-retries\n' "$dockerfile"
-            done
-            
-            ./gradlew :block-node-app:createDockerImage
-            timeout 30 kind get clusters
-            kind load docker-image "block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION}" --name ${{ inputs.cluster-name }}-c1
-            ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
-            cd ../solo
-
       - name: Run E2E Tests
         id: run-e2e-tests
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
