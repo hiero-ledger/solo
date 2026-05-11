@@ -110,7 +110,6 @@ interface MirrorNodeDeployConfigClass {
   soloChartVersion: string;
   deployment: DeploymentName;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
-  skipBlockNodeIntegration: boolean;
   installSharedResources: boolean;
   parallelDeploy: boolean;
 }
@@ -161,7 +160,6 @@ interface MirrorNodeUpgradeConfigClass {
   soloChartVersion: string;
   installSharedResources: boolean;
   forceBlockNodeIntegration: boolean; // Used to bypass version requirements for block node integration
-  skipBlockNodeIntegration: boolean;
   deployment: DeploymentName;
 }
 
@@ -264,7 +262,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.externalAddress,
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
-      flags.skipBlockNodeIntegration,
       flags.parallelDeploy,
       flags.localAddressBook,
     ],
@@ -306,7 +303,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.id,
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
-      flags.skipBlockNodeIntegration,
     ],
   };
 
@@ -318,11 +314,6 @@ export class MirrorNodeCommand extends BaseCommand {
   private prepareBlockNodeIntegrationValues(
     config: MirrorNodeUpgradeConfigClass | MirrorNodeDeployConfigClass,
   ): string {
-    if (config.skipBlockNodeIntegration) {
-      this.logger.info('Skipping block node integration because --skip-block-node-integration is enabled');
-      return '';
-    }
-
     const configuration: RemoteConfig = this.remoteConfig.configuration;
     const blockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = configuration.components.state.blockNodes;
     const sameClusterBlockNodeSchemas: ReadonlyArray<Readonly<BlockNodeStateSchema>> = blockNodeSchemas.filter(
