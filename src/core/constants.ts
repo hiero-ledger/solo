@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {color, type ListrLogger, PRESET_TIMER} from 'listr2';
+import {color, type ListrLogger, type ListrRendererValue, PRESET_TIMER} from 'listr2';
 import path from 'node:path';
 import url from 'node:url';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -8,11 +8,16 @@ import {ContainerName} from '../integration/kube/resources/container/container-n
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey} from '@hiero-ledger/sdk';
 import 'dotenv/config';
-import {type NodeAlias} from '../types/aliases.js';
+import {type AnyListrContext, type NodeAlias} from '../types/aliases.js';
+import {type ListrBaseClassOptions} from 'listr2';
+
+export const SOLO_SILENT_MODE: boolean = getEnvironmentVariable('SOLO_SILENT_MODE') === 'true' || false;
 
 export function getEnvironmentVariable(name: string): string | undefined {
   if (process.env[name] && process.env[name].trim() !== '') {
-    console.log(`>> environment variable '${name}' exists, using its value`);
+    if (!(process.env.SOLO_SILENT_MODE === 'true')) {
+      console.log(`>> environment variable '${name}' exists, using its value`);
+    }
     return process.env[name];
   }
   return undefined;
@@ -352,19 +357,12 @@ export const LISTR_DEFAULT_RENDERER_OPTION: {
   formatOutput: 'wrap',
 };
 
-type ListrOptionsType = {
-  concurrent: boolean;
-  rendererOptions: typeof LISTR_DEFAULT_RENDERER_OPTION;
-  fallbackRendererOptions: {
-    timer: typeof LISTR_DEFAULT_RENDERER_TIMER_OPTION;
-  };
-};
-
 export const LISTR_DEFAULT_OPTIONS: {
-  DEFAULT: ListrOptionsType;
-  WITH_CONCURRENCY: ListrOptionsType;
+  DEFAULT: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
+  WITH_CONCURRENCY: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
 } = {
   DEFAULT: {
+    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
     concurrent: false,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {
@@ -372,6 +370,7 @@ export const LISTR_DEFAULT_OPTIONS: {
     },
   },
   WITH_CONCURRENCY: {
+    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {

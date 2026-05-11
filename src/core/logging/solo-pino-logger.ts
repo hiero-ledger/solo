@@ -15,6 +15,7 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
 import {SoloError} from '../errors/solo-error.js';
 import {MessageLevel} from './message-level.js';
+import {SOLO_SILENT_MODE} from '../constants.js';
 
 type ChalkColor = typeof chalk.red;
 
@@ -134,7 +135,9 @@ export class SoloPinoLogger implements SoloLogger {
 
   public showUser(message: unknown, ...arguments_: unknown[]): void {
     const formatted: string = util.format(String(message), ...arguments_.map(String));
-    console.log(formatted);
+    if (!constants.SOLO_SILENT_MODE) {
+      console.log(formatted);
+    }
     // Mirror existing behavior: also persist to logs at info level
     this.info(formatted);
   }
@@ -163,6 +166,23 @@ export class SoloPinoLogger implements SoloLogger {
         cause = c.cause;
         depth += 1;
       }
+    }
+
+    if (constants.SOLO_SILENT_MODE) {
+      console.error(
+        JSON.stringify(
+          {
+            level: 'ERROR',
+            message: stack[0].message,
+            causes: stack.slice(1).map((s): string => s.message),
+          },
+          undefined,
+          2,
+        ),
+      );
+
+      this.toPino('error', error, []);
+      return;
     }
 
     console.log(chalk.red('*********************************** ERROR *****************************************'));
@@ -231,7 +251,9 @@ export class SoloPinoLogger implements SoloLogger {
   public showJSON(title: string, object: object): void {
     this.showUser(chalk.green(`\n *** ${title} ***`));
     this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
-    console.log(JSON.stringify(object, undefined, 2));
+    if (SOLO_SILENT_MODE) {
+      console.log(JSON.stringify(object, undefined, 2));
+    }
   }
 
   public getMessageGroup(key: string): string[] {
