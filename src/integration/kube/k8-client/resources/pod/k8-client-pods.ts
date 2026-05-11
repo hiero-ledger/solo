@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+  type CoreV1Event,
   type CoreV1Api,
   type KubeConfig,
   Metrics,
@@ -36,6 +37,7 @@ import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {type PodMetricsItem} from '../../../resources/pod/pod-metrics-item.js';
 import yaml from 'yaml';
+import {sleep} from '../../../../../core/helpers.js';
 
 /**
  * Waiting reasons for container states that are non-recoverable (image unavailable in registry).
@@ -52,6 +54,17 @@ const FATAL_WAITING_REASONS: ReadonlySet<string> = new Set([
  * Terminated reasons for container states that are non-recoverable (e.g. out-of-memory kill).
  */
 const FATAL_TERMINATED_REASONS: ReadonlySet<string> = new Set(['OOMKilled']);
+const FATAL_ERROR_RETRY_THRESHOLD: number = 3;
+const NON_RECOVERABLE_IMAGE_PULL_PATTERNS: ReadonlyArray<RegExp> = [
+  /not found/i,
+  /manifest unknown/i,
+  /pull access denied/i,
+  /requested access to the resource is denied/i,
+  /insufficient_scope/i,
+  /unauthorized/i,
+  /authentication required/i,
+  /invalid reference format/i,
+];
 
 /**
  * Inspect a V1Pod's container statuses for non-recoverable error states and return a descriptive
@@ -75,6 +88,14 @@ export function detectFatalContainerError(pod: V1Pod): string | undefined {
 
     const waitingState: V1ContainerStateWaiting | undefined = containerStatus.state?.waiting;
     if (waitingState?.reason && FATAL_WAITING_REASONS.has(waitingState.reason)) {
+      if (
+        (waitingState.reason === 'ErrImagePull' ||
+          waitingState.reason === 'ImagePullBackOff' ||
+          waitingState.reason === 'ImageInspectError') &&
+        !isNonRecoverableImagePullError(waitingState.message)
+      ) {
+        continue;
+      }
       const detail: string = waitingState.message ? `: ${waitingState.message}` : '';
       return (
         `Pod "${podName}" container "${containerName}" is in a non-recoverable state: ` +
@@ -92,6 +113,13 @@ export function detectFatalContainerError(pod: V1Pod): string | undefined {
   }
 
   return undefined;
+}
+
+function isNonRecoverableImagePullError(message?: string): boolean {
+  if (!message) {
+    return false;
+  }
+  return NON_RECOVERABLE_IMAGE_PULL_PATTERNS.some((pattern): boolean => pattern.test(message));
 }
 
 export class K8ClientPods extends K8ClientBase implements Pods {
@@ -159,6 +187,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     maxAttempts: number = 10,
     delay: number = 500,
     createdAfter?: Date,
+    excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
     const podReadyCondition: Map<string, string> = new Map<string, string>().set(
       constants.POD_CONDITION_READY,
@@ -166,12 +195,49 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     );
 
     try {
-      return await this.waitForPodConditions(namespace, podReadyCondition, labels, maxAttempts, delay, createdAfter);
+      return await this.waitForPodConditions(
+        namespace,
+        podReadyCondition,
+        labels,
+        maxAttempts,
+        delay,
+        createdAfter,
+        excludeMarkedForDeletion,
+      );
     } catch (error: Error | unknown) {
       const errorMessage: string = error instanceof Error ? error.message : String(error);
       this.logger.showUser(`Pod readiness check failed: ${errorMessage}`);
       throw new SoloError(`Pod with labels [${labels.join(', ')}] not ready [maxAttempts = ${maxAttempts}]`, error);
     }
+  }
+
+  /**
+   * Wait until the pod identified by `podReference` appears in the Kubernetes API.
+   *
+   * Use this when the exact pod name is known. If the pod must be discovered by labels,
+   * use {@link waitForReadyStatus} with an appropriate label selector instead.
+   *
+   * @param podReference - exact reference of the pod to wait for
+   * @param maxAttempts - maximum polling attempts before throwing (default 20 × 3 s = 60 s)
+   * @param delay - milliseconds between attempts (default 3000)
+   */
+  public async waitForPodByReference(
+    podReference: PodReference,
+    maxAttempts: number = 20,
+    delay: number = 3000,
+  ): Promise<void> {
+    const podName: string = podReference.name.toString();
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      const pod: Pod = await this.read(podReference);
+      if (pod) {
+        return;
+      }
+      this.logger.debug(
+        `waitForPodByReference: pod ${podName} not yet visible in API, attempt ${attempt}/${maxAttempts}`,
+      );
+      await sleep(Duration.ofMillis(delay));
+    }
+    throw new SoloError(`Pod ${podName} not found after ${maxAttempts} attempts`);
   }
 
   /**
@@ -182,6 +248,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
    * @param [maxAttempts] - maximum attempts to check
    * @param [delay] - delay between checks in milliseconds
    * @param [createdAfter] - if provided, only pods created strictly after this date are considered
+   * @param [excludeMarkedForDeletion] - if true, pods with deletionTimestamp are ignored
    */
   private async waitForPodConditions(
     namespace: NamespaceName,
@@ -190,6 +257,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     maxAttempts: number = 10,
     delay: number = 500,
     createdAfter?: Date,
+    excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
     if (!conditionsMap || conditionsMap.size === 0) {
       throw new MissingArgumentError('pod conditions are required');
@@ -219,6 +287,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         return false;
       },
       createdAfter,
+      excludeMarkedForDeletion,
     );
   }
 
@@ -229,6 +298,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     delay: number,
     podItemPredicate?: (items: Pod) => boolean,
     createdAfter?: Date,
+    excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
     const phases: string[] = [constants.POD_PHASE_RUNNING];
     const labelSelector: string = labels ? labels.join(',') : undefined;
@@ -239,6 +309,10 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
     return new Promise<Pod[]>((resolve, reject): void => {
       let attempts: number = 0;
+      const fatalErrorStreakByPod: Map<string, {count: number; error: string}> = new Map<
+        string,
+        {count: number; error: string}
+      >();
 
       const check: (resolve: (items: Pod[]) => void, reject: (reason?: Error) => void) => Promise<void> = async (
         resolve: (items: Pod[]) => void,
@@ -267,17 +341,33 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
             // When a createdAfter cutoff is provided, skip pods that existed before the
             // cutoff (e.g. a terminating predecessor from a recreate migration).
-            const eligibleItems: V1Pod[] = createdAfter
+            const createdAfterEligibleItems: V1Pod[] = createdAfter
               ? sortedItems.filter(
-                  (p): boolean => (p.metadata?.creationTimestamp?.getTime() || 0) > createdAfter.getTime(),
+                  (pod): boolean => (pod.metadata?.creationTimestamp?.getTime() || 0) > createdAfter.getTime(),
                 )
               : sortedItems;
 
-            // Fail fast if any eligible pod has a non-recoverable container error (e.g. ImagePullBackOff, OOMKilled)
+            const eligibleItems: V1Pod[] = excludeMarkedForDeletion
+              ? createdAfterEligibleItems.filter((pod): boolean => !pod.metadata?.deletionTimestamp)
+              : createdAfterEligibleItems;
+            // Allow transient startup states to recover; only fail after repeated fatal detections.
             for (const item of eligibleItems) {
               const fatalError: string | undefined = detectFatalContainerError(item);
+              const podName: string = item.metadata?.name ?? '<unknown>';
               if (fatalError) {
-                return reject(new SoloError(fatalError));
+                const previous: {count: number; error: string} | undefined = fatalErrorStreakByPod.get(podName);
+                const nextCount: number = previous?.error === fatalError ? previous.count + 1 : 1;
+                fatalErrorStreakByPod.set(podName, {count: nextCount, error: fatalError});
+
+                if (nextCount >= FATAL_ERROR_RETRY_THRESHOLD) {
+                  return reject(new SoloError(fatalError));
+                }
+
+                this.logger.info(
+                  `Detected fatal pod state for "${podName}" (${nextCount}/${FATAL_ERROR_RETRY_THRESHOLD}); retrying`,
+                );
+              } else {
+                fatalErrorStreakByPod.delete(podName);
               }
             }
 
@@ -397,14 +487,31 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     }
   }
 
+  public async delete(podReference: PodReference): Promise<void> {
+    try {
+      await this.kubeClient.deleteNamespacedPod({
+        namespace: podReference.namespace.toString(),
+        name: podReference.name.toString(),
+      });
+    } catch (error) {
+      KubeApiResponse.throwError(
+        error,
+        ResourceOperation.DELETE,
+        ResourceType.POD,
+        podReference.namespace,
+        podReference.name.toString(),
+      );
+    }
+  }
+
   public async readLogs(podReference: PodReference, timestamps: boolean = true): Promise<string> {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
     const containerNames: string[] = [
-      ...(pod.spec?.initContainers?.map((container): string => container.name) ?? []),
-      ...(pod.spec?.containers?.map((container): string => container.name) ?? []),
-      ...(pod.spec?.ephemeralContainers?.map((container): string => container.name) ?? []),
+      ...(pod.spec?.initContainers?.map((container: V1Container): string => container.name) ?? []),
+      ...(pod.spec?.containers?.map((container: V1Container): string => container.name) ?? []),
+      ...(pod.spec?.ephemeralContainers?.map((container: V1Container): string => container.name) ?? []),
     ].filter(Boolean);
 
     if (containerNames.length === 0) {
@@ -440,13 +547,13 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
-    const events: {items?: any[]} = await this.kubeClient.listNamespacedEvent({
+    const events: {items?: CoreV1Event[]} = await this.kubeClient.listNamespacedEvent({
       namespace,
       fieldSelector: `involvedObject.name=${name},involvedObject.namespace=${namespace}`,
     });
 
     // eslint-disable-next-line unicorn/no-array-sort
-    const sortedEvents: any[] = [...(events?.items ?? [])].sort((left, right): number => {
+    const sortedEvents: CoreV1Event[] = [...(events?.items ?? [])].sort((left, right): number => {
       const leftTime: number = new Date(
         left.lastTimestamp ?? left.eventTime ?? left.firstTimestamp ?? left.metadata?.creationTimestamp ?? 0,
       ).getTime();

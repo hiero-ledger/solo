@@ -18,6 +18,12 @@ name: "Performance Test Solo Deployment"
 
 on:
   workflow_dispatch:
+    inputs:
+      cn-edge-version:
+        description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)"
+        type: string
+        required: false
+        default: ""
   workflow_call:
   pull_request:
     types:
@@ -30,10 +36,7 @@ on:
       - main
       - 'release/*'
 concurrency:
-  # One run per PR or per branch. A new push cancels any in-progress run for
-  # the same PR/branch, saving runner resources. workflow_dispatch runs are
-  # not cancelled — each manual trigger gets its own group via run_id.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'auto' }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 defaults:
@@ -51,6 +54,7 @@ env:
 
 jobs:
   performance-test:
+    name: Performance Test
     if: >
       ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false ||
       startsWith(github.event.pull_request.title, 'trunk-merge') && !cancelled() && !failure() }}
@@ -58,7 +62,7 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -132,6 +136,13 @@ jobs:
           export PATH=~/.solo/bin:${PATH}
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
+          CN_EDGE_VERSION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.cn-edge-version || '' }}"
+          if [[ -n "${CN_EDGE_VERSION}" ]]; then
+            echo "Using consensus node edge version: ${CN_EDGE_VERSION}"
+            echo CONSENSUS_NODE_EDGE_VERSION="${CN_EDGE_VERSION}" >> .env
+          else
+            echo "No consensus node edge version specified, using default from version.ts"
+          fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           cat .env

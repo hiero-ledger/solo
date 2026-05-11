@@ -141,6 +141,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.rollback,
       flags.parallelDeploy,
       flags.externalAddress,
+      flags.edgeEnabled,
     ],
   };
 
@@ -445,9 +446,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
                 config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationProperties)] =
                   this.concatConfigFiles(
-                    PathEx.join(defaultsDirectory, 'application.properties'),
-                    PathEx.join(overridesDirectory, 'application.properties'),
-                    PathEx.join(mergedDirectory, 'application.properties'),
+                    PathEx.join(defaultsDirectory, constants.APPLICATION_PROPERTIES),
+                    PathEx.join(overridesDirectory, constants.APPLICATION_PROPERTIES),
+                    PathEx.join(mergedDirectory, constants.APPLICATION_PROPERTIES),
                   );
 
                 // For CN >= 0.73.0, use state-on-disk application.env instead of default small-memory
@@ -458,6 +459,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 const throttlesFile: string = PathEx.join(overridesDirectory, 'throttles.json');
                 if (fs.existsSync(throttlesFile)) {
                   config.networkConfiguration[flags.getFormattedFlagKey(flags.genesisThrottlesFile)] = throttlesFile;
+                }
+
+                // For CN >= 0.73.0, cap K8s container memory at 1Gi to prevent unbounded mmap'd state-on-disk page cache growth
+                if (useStateOnDisk) {
+                  const helmOverrideFile: string = PathEx.join(stateOnDiskDirectory, 'helm-overrides.yaml');
+                  if (fs.existsSync(helmOverrideFile)) {
+                    config.networkConfiguration[flags.getFormattedFlagKey(flags.valuesFile)] =
+                      `${config.clusterRef}=${helmOverrideFile}`;
+                  }
                 }
               }
 

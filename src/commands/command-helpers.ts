@@ -156,6 +156,10 @@ export async function subTaskSoloCommand(
   const configManager: ConfigManager = container.resolve<ConfigManager>(InjectTokens.ConfigManager);
   const scopedConfig: ReturnType<ConfigManager['cloneActiveConfig']> = configManager.cloneActiveConfig();
 
+  // Subcommands run in parallel during one-shot flows. values-file is component-specific
+  // and must come from each subcommand argv, not inherited from sibling command state.
+  delete (scopedConfig.flags as Record<string, unknown>)[flags.valuesFile.name];
+
   // ArgumentProcessor/command handlers read and write config flags deeply via
   // ConfigManager and Flags helpers. Running under a scoped copy keeps each
   // subcommand immutable from the perspective of siblings and removes shared

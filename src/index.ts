@@ -100,5 +100,5 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
     throw new SilentBreak('displayed version information, exiting');
   }
 
-  return ArgumentProcessor.process(argv);
+  return await ArgumentProcessor.process(argv);
 }
