@@ -12,6 +12,7 @@ merge:
     - "E2E Tests (Dual Cluster Full) / Dual Cluster Full"
     - "E2E Tests (Node Upgrade) / Node Upgrade"
     - "E2E Tests (Block Node) / Block Node"
+    - "E2E Tests (Cache) / Cache"
     - "E2E Tests (One Shot Single) / One Shot Single"
     - "E2E Tests (One Shot Single - using Podman) / One Shot Single - using Podman"
     - "E2E Tests (External database new) / External database new"
