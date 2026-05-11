@@ -684,8 +684,10 @@ export class NodeCommandTasks {
 
     while (attempt < constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS) {
       try {
-        await this.accountManager.loadNodeClientForNodeAlias(namespace, clusterReferences, deployment, nodeAlias, true);
-
+        await this.accountManager.refreshNodeClient(namespace, clusterReferences, deployment, true, {
+          type: 'only',
+          nodeAlias,
+        });
         consecutiveSuccesses++;
 
         task.title =
@@ -2215,8 +2217,9 @@ export class NodeCommandTasks {
         config.nodeClient = await this.accountManager.refreshNodeClient(
           config.namespace,
           this.remoteConfig.getClusterRefs(),
-          skipNodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
+          undefined,
+          {type: 'all', skipNodeAlias},
         );
 
         // send some write transactions to invoke the handler that will trigger the stake weight recalculate
@@ -2278,9 +2281,9 @@ export class NodeCommandTasks {
         await this.accountManager.refreshNodeClient(
           context_.config.namespace,
           this.remoteConfig.getClusterRefs(),
-          context_.config.nodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
           this.configManager.getFlag<boolean>(flags.forcePortForward),
+          {type: 'all', skipNodeAlias: context_.config.nodeAlias},
         );
         await this._addStake(context_.config.namespace, context_.newNode.accountId, context_.config.nodeAlias);
       },
@@ -3247,8 +3250,9 @@ export class NodeCommandTasks {
           config.nodeClient = await this.accountManager.refreshNodeClient(
             config.namespace,
             this.remoteConfig.getClusterRefs(),
-            config.nodeAlias,
             this.configManager.getFlag<DeploymentName>(flags.deployment),
+            undefined,
+            {type: 'all', skipNodeAlias: config.nodeAlias},
           );
         }
 

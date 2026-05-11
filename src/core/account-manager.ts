@@ -75,6 +75,10 @@ const REASON_FAILED_TO_CREATE_K8S_S_KEY: string = 'failed to create k8s scrt key
 const FULFILLED: string = 'fulfilled';
 const REJECTED: string = 'rejected';
 
+type NodeClientSelection = {type: 'all'; skipNodeAlias?: NodeAlias} | {type: 'only'; nodeAlias: NodeAlias};
+
+const DEFAULT_NODE_CLIENT_SELECTION: NodeClientSelection = {type: 'all'};
+
 @injectable()
 export class AccountManager {
   private _portForwards: number[];
@@ -216,11 +220,13 @@ export class AccountManager {
       this.logger.debug(
         `loading node client: [!this._nodeClient=${!this._nodeClient}, this._nodeClient.isClientShutDown=${this._nodeClient?.isClientShutDown}]`,
       );
+
       if (!this._nodeClient || this._nodeClient?.isClientShutDown) {
         this.logger.debug(
           `refreshing node client: [!this._nodeClient=${!this._nodeClient}, this._nodeClient.isClientShutDown=${this._nodeClient?.isClientShutDown}]`,
         );
-        await this.refreshNodeClient(namespace, clusterReferences, undefined, deployment, forcePortForward);
+
+        await this.refreshNodeClient(namespace, clusterReferences, deployment, forcePortForward);
       } else {
         try {
           if (!constants.SKIP_NODE_PING) {
@@ -228,58 +234,74 @@ export class AccountManager {
           }
         } catch {
           this.logger.debug('node client ping failed, refreshing node client');
-          await this.refreshNodeClient(namespace, clusterReferences, undefined, deployment, forcePortForward);
+          await this.refreshNodeClient(namespace, clusterReferences, deployment, forcePortForward);
         }
       }
 
       return this._nodeClient!;
     } catch (error) {
-      const message: string = `failed to load node client: ${error.message}`;
-      throw new SoloError(message, error);
+      throw new SoloError(`failed to load node client: ${error.message}`, error);
     }
   }
 
-  /**
-   * loads and initializes the Node Client, throws a SoloError if anything fails
-   * @param namespace - the namespace of the network
-   * @param clusterReferences - the cluster references
-   * @param skipNodeAlias - the node alias to skip
-   * @param deployment - the deployment name
-   * @param [forcePortForward] - whether to force the port forward
-   */
+  private selectNodeServices(
+    networkNodeServicesMap: NodeServiceMapping,
+    selection: NodeClientSelection,
+  ): NodeServiceMapping {
+    if (selection.type === 'all') {
+      return networkNodeServicesMap;
+    }
+
+    const targetNodeService: NetworkNodeServices | undefined = networkNodeServicesMap.get(selection.nodeAlias);
+
+    if (!targetNodeService) {
+      throw new SoloError(`failed to resolve node service for node '${selection.nodeAlias}'`);
+    }
+
+    return new Map<NodeAlias, NetworkNodeServices>([[selection.nodeAlias, targetNodeService]]);
+  }
+
   public async refreshNodeClient(
     namespace: NamespaceName,
     clusterReferences: ClusterReferences,
-    skipNodeAlias: NodeAlias | undefined,
     deployment: DeploymentName,
     forcePortForward?: boolean,
+    selection: NodeClientSelection = DEFAULT_NODE_CLIENT_SELECTION,
   ): Promise<Client> {
     try {
       await this.close();
+
       if (forcePortForward !== undefined) {
         this._forcePortForward = forcePortForward;
       }
 
       const treasuryAccountInfo: AccountIdWithKeyPairObject = await this.getTreasuryAccountKeys(namespace, deployment);
-      const networkNodeServicesMap: Map<NodeAlias, NetworkNodeServices> = await this.getNodeServiceMap(
+
+      const networkNodeServicesMap: NodeServiceMapping = await this.getNodeServiceMap(
         namespace,
         clusterReferences,
         deployment,
       );
 
+      const selectedNodeServicesMap: NodeServiceMapping = this.selectNodeServices(networkNodeServicesMap, selection);
+
       this._nodeClient = await this._getNodeClient(
         namespace,
-        networkNodeServicesMap,
+        selectedNodeServicesMap,
         treasuryAccountInfo.accountId,
         treasuryAccountInfo.privateKey,
-        skipNodeAlias,
+        selection.type === 'all' ? selection.skipNodeAlias : undefined,
       );
 
-      this.logger.debug('node client has been refreshed');
+      this.logger.debug(
+        selection.type === 'only'
+          ? `single-node client has been refreshed for node '${selection.nodeAlias}'`
+          : 'node client has been refreshed',
+      );
+
       return this._nodeClient;
     } catch (error) {
-      const message: string = `failed to refresh node client: ${error.message}`;
-      throw new SoloError(message, error);
+      throw new SoloError(`failed to refresh node client: ${error.message}`, error);
     }
   }
 
@@ -1200,51 +1222,5 @@ export class AccountManager {
       accountMap.set(nodeAlias, nodeAccount);
     }
     return accountMap;
-  }
-
-  public async loadNodeClientForNodeAlias(
-    namespace: NamespaceName,
-    clusterReferences: ClusterReferences,
-    deployment: DeploymentName,
-    nodeAlias: NodeAlias,
-    forcePortForward?: boolean,
-  ): Promise<Client> {
-    try {
-      await this.close();
-
-      if (forcePortForward !== undefined) {
-        this._forcePortForward = forcePortForward;
-      }
-
-      const treasuryAccountInfo: AccountIdWithKeyPairObject = await this.getTreasuryAccountKeys(namespace, deployment);
-
-      const networkNodeServicesMap: NodeServiceMapping = await this.getNodeServiceMap(
-        namespace,
-        clusterReferences,
-        deployment,
-      );
-
-      const targetNodeService: NetworkNodeServices | undefined = networkNodeServicesMap.get(nodeAlias);
-
-      if (!targetNodeService) {
-        throw new SoloError(`failed to resolve node service for node '${nodeAlias}'`);
-      }
-
-      const singleNodeServiceMap: NodeServiceMapping = new Map<NodeAlias, NetworkNodeServices>([
-        [nodeAlias, targetNodeService],
-      ]);
-
-      this._nodeClient = await this._getNodeClient(
-        namespace,
-        singleNodeServiceMap,
-        treasuryAccountInfo.accountId,
-        treasuryAccountInfo.privateKey,
-      );
-
-      this.logger.debug(`single-node client has been loaded for node '${nodeAlias}'`);
-      return this._nodeClient;
-    } catch (error) {
-      throw new SoloError(`failed to load single-node client for '${nodeAlias}': ${error.message}`, error);
-    }
   }
 }

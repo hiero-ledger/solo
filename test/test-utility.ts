@@ -424,8 +424,9 @@ export async function queryBalance(
   await accountManager.refreshNodeClient(
     namespace,
     remoteConfig.getClusterRefs(),
-    skipNodeAlias,
     argv.getArg<DeploymentName>(flags.deployment),
+    undefined,
+    {type: 'all', skipNodeAlias},
   );
   expect(accountManager._nodeClient).to.not.be.null;
 
@@ -461,8 +462,9 @@ export async function createAccount(
   await accountManager.refreshNodeClient(
     namespace,
     remoteConfig.getClusterRefs(),
-    skipNodeAlias,
     argv.getArg<DeploymentName>(flags.deployment),
+    undefined,
+    {type: 'all', skipNodeAlias},
   );
   expect(accountManager._nodeClient).not.to.be.null;
   const privateKey: PrivateKey = PrivateKey.generate();
