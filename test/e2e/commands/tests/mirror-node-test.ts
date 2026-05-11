@@ -105,7 +105,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const portForwarder: number = await k8
       .pods()
       .readByReference(mirrorNodeRestPods[0].podReference)
-      .portForward(MIRROR_NODE_PORT, MIRROR_NODE_PORT);
+      .portForward(MIRROR_NODE_PORT, 80);
     await sleep(Duration.ofSeconds(2));
     return portForwarder;
   }
