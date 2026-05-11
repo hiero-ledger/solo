@@ -97,6 +97,7 @@ import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.
 import {ClusterTaskManager} from '../cluster-task-manager.js';
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
+import {StorageClassHelper} from '../storage-class-helper.js';
 import {ROOT_DIR} from '../constants.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
@@ -191,6 +192,7 @@ export class Container {
       new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
       new SingletonContainer(InjectTokens.PostgresSharedResource, PostgresSharedResource),
       new SingletonContainer(InjectTokens.SharedResourceManager, SharedResourceManager),
+      new SingletonContainer(InjectTokens.StorageClassHelper, StorageClassHelper),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),

@@ -13,7 +13,7 @@ import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
 import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
-import {StorageClassHelper} from '../core/storage-class-helper.js';
+import {type StorageClassHelper} from '../core/storage-class-helper.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -206,6 +206,7 @@ export class MirrorNodeCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
+    @inject(InjectTokens.StorageClassHelper) private readonly storageClassHelper: StorageClassHelper,
     @inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager,
     @inject(InjectTokens.SoloEventBus) private readonly eventBus?: SoloEventBus,
   ) {
@@ -222,6 +223,7 @@ export class MirrorNodeCommand extends BaseCommand {
       InjectTokens.SharedResourceManager,
       this.constructor.name,
     );
+    this.storageClassHelper = patchInject(storageClassHelper, InjectTokens.StorageClassHelper, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -726,9 +728,8 @@ export class MirrorNodeCommand extends BaseCommand {
               }
 
               this.sharedResourceManager.enableRedis();
-              const resolvedStorageClass: string = await StorageClassHelper.resolveStorageClass(
-                this.k8Factory.getK8(context_.config.clusterContext),
-                this.logger,
+              const resolvedStorageClass: string = await this.storageClassHelper.resolveStorageClass(
+                context_.config.clusterContext,
                 '',
               );
               context_.config.installSharedResources = await this.sharedResourceManager.installChart(

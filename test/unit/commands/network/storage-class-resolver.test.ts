@@ -6,6 +6,7 @@ import {StorageClassHelper} from '../../../../src/core/storage-class-helper.js';
 import {type StorageClass} from '../../../../src/integration/kube/resources/storage-class/storage-class.js';
 import {LOCAL_PATH_PROVISIONER, LOCAL_PATH_STORAGE_CLASS} from '../../../../src/core/constants.js';
 import {type K8} from '../../../../src/integration/kube/k8.js';
+import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 
 function buildK8(
@@ -28,10 +29,22 @@ function buildK8(
   } as unknown as K8;
 }
 
-const stubLogger: SoloLogger = {
-  debug: (): void => {},
-  showUser: (): void => {},
-} as unknown as SoloLogger;
+function buildHelper(
+  storageClasses: StorageClass[],
+  applyManifestCallCount: {value: number},
+  patchObjectCallCount: {value: number},
+): StorageClassHelper {
+  const k8: K8 = buildK8(storageClasses, applyManifestCallCount, patchObjectCallCount);
+  const k8Factory: K8Factory = {
+    getK8: (): K8 => k8,
+    default: (): K8 => k8,
+  } as unknown as K8Factory;
+  const stubLogger: SoloLogger = {
+    debug: (): void => {},
+    showUser: (): void => {},
+  } as unknown as SoloLogger;
+  return new StorageClassHelper(k8Factory, stubLogger);
+}
 
 describe('StorageClassHelper.resolveStorageClass', (): void => {
   it('returns user-supplied class when it exists in the cluster', async (): Promise<void> => {
@@ -41,9 +54,9 @@ describe('StorageClassHelper.resolveStorageClass', (): void => {
     ];
     const applyCount: {value: number} = {value: 0};
     const patchCount: {value: number} = {value: 0};
-    const k8: K8 = buildK8(storageClasses, applyCount, patchCount);
+    const helper: StorageClassHelper = buildHelper(storageClasses, applyCount, patchCount);
 
-    const result: string = await StorageClassHelper.resolveStorageClass(k8, stubLogger, 'fast-ssd');
+    const result: string = await helper.resolveStorageClass('test-context', 'fast-ssd');
 
     expect(result).to.equal('fast-ssd');
     expect(applyCount.value).to.equal(0);
@@ -54,9 +67,9 @@ describe('StorageClassHelper.resolveStorageClass', (): void => {
     const storageClasses: StorageClass[] = [{name: 'standard', provisioner: 'pd.csi.storage.gke.io', isDefault: true}];
     const applyCount: {value: number} = {value: 0};
     const patchCount: {value: number} = {value: 0};
-    const k8: K8 = buildK8(storageClasses, applyCount, patchCount);
+    const helper: StorageClassHelper = buildHelper(storageClasses, applyCount, patchCount);
 
-    await expect(StorageClassHelper.resolveStorageClass(k8, stubLogger, 'nonexistent-class')).to.be.rejectedWith(
+    await expect(helper.resolveStorageClass('test-context', 'nonexistent-class')).to.be.rejectedWith(
       "StorageClass 'nonexistent-class' not found in cluster",
     );
     expect(applyCount.value).to.equal(0);
@@ -70,37 +83,37 @@ describe('StorageClassHelper.resolveStorageClass', (): void => {
     ];
     const applyCount: {value: number} = {value: 0};
     const patchCount: {value: number} = {value: 0};
-    const k8: K8 = buildK8(storageClasses, applyCount, patchCount);
+    const helper: StorageClassHelper = buildHelper(storageClasses, applyCount, patchCount);
 
-    const result: string = await StorageClassHelper.resolveStorageClass(k8, stubLogger, '');
+    const result: string = await helper.resolveStorageClass('test-context', '');
 
     expect(result).to.equal('standard');
     expect(applyCount.value).to.equal(0);
     expect(patchCount.value).to.equal(0);
   });
 
-  it('returns the local-path class name when no default exists but local-path is present', async (): Promise<void> => {
+  it('sets local-path as cluster default and returns its name when no default exists but local-path is present', async (): Promise<void> => {
     const storageClasses: StorageClass[] = [
       {name: LOCAL_PATH_STORAGE_CLASS, provisioner: LOCAL_PATH_PROVISIONER, isDefault: false},
     ];
     const applyCount: {value: number} = {value: 0};
     const patchCount: {value: number} = {value: 0};
-    const k8: K8 = buildK8(storageClasses, applyCount, patchCount);
+    const helper: StorageClassHelper = buildHelper(storageClasses, applyCount, patchCount);
 
-    const result: string = await StorageClassHelper.resolveStorageClass(k8, stubLogger, '');
+    const result: string = await helper.resolveStorageClass('test-context', '');
 
     expect(result).to.equal(LOCAL_PATH_STORAGE_CLASS);
     expect(applyCount.value).to.equal(0);
-    expect(patchCount.value).to.equal(0);
+    expect(patchCount.value).to.equal(1);
   });
 
   it('installs local-path-provisioner, sets it as default, and returns its name when no StorageClass exists', async (): Promise<void> => {
     const storageClasses: StorageClass[] = [];
     const applyCount: {value: number} = {value: 0};
     const patchCount: {value: number} = {value: 0};
-    const k8: K8 = buildK8(storageClasses, applyCount, patchCount);
+    const helper: StorageClassHelper = buildHelper(storageClasses, applyCount, patchCount);
 
-    const result: string = await StorageClassHelper.resolveStorageClass(k8, stubLogger, '');
+    const result: string = await helper.resolveStorageClass('test-context', '');
 
     expect(result).to.equal(LOCAL_PATH_STORAGE_CLASS);
     expect(applyCount.value).to.equal(1);

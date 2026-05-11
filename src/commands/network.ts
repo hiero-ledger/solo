@@ -20,7 +20,7 @@ import {
   showVersionBanner,
   sleep,
 } from '../core/helpers.js';
-import {StorageClassHelper} from '../core/storage-class-helper.js';
+import {type StorageClassHelper} from '../core/storage-class-helper.js';
 import {helmValuesHelper} from '../core/helm-values-helper.js';
 import {type PerNodeIdentity} from '../types/helm-values.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
@@ -174,6 +174,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
     @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
+    @inject(InjectTokens.StorageClassHelper) private readonly storageClassHelper: StorageClassHelper,
   ) {
     super();
 
@@ -183,6 +184,7 @@ export class NetworkCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
+    this.storageClassHelper = patchInject(storageClassHelper, InjectTokens.StorageClassHelper, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -1264,17 +1266,12 @@ export class NetworkCommand extends BaseCommand {
     );
   }
 
-  /**
-   * Resolve the StorageClass name to use for PersistentVolumeClaims.
-   *
-   * Resolution order:
-   * 1. User-supplied class (--pvc-storage-class) — validated against the cluster.
-   * 2. Cluster default StorageClass (annotated with is-default-class=true).
-   * 3. A StorageClass backed by LOCAL_PATH_PROVISIONER (common on Kind clusters).
-   * 4. Install LOCAL_PATH_PROVISIONER from the bundled manifest, then return LOCAL_PATH_STORAGE_CLASS.
-   */
   private async resolveStorageClass(contexts: string[], userSuppliedClass: string): Promise<string> {
-    return StorageClassHelper.resolveStorageClass(this.k8Factory.getK8(contexts[0]), this.logger, userSuppliedClass);
+    let resolved: string = '';
+    for (const context of contexts) {
+      resolved = await this.storageClassHelper.resolveStorageClass(context, userSuppliedClass);
+    }
+    return resolved;
   }
 
   /** Run helm install and deploy network components */
