@@ -93,7 +93,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static async forwardRestServicePort(contexts: string[], namespace: NamespaceName): Promise<number> {
+  private static async forwardMirrorIngressServicePort(contexts: string[], namespace: NamespaceName): Promise<number> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
     const k8: K8 = k8Factory.getK8(lastContext);
@@ -105,7 +105,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const portForwarder: number = await k8
       .pods()
       .readByReference(mirrorNodeRestPods[0].podReference)
-      .portForward(5551, 5551);
+      .portForward(MIRROR_NODE_PORT, MIRROR_NODE_PORT);
     await sleep(Duration.ofSeconds(2));
     return portForwarder;
   }
@@ -124,7 +124,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     createdAccountIds: string[],
     consensusNodesCount: number,
   ): Promise<void> {
-    const portForwarder: number = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
+    const portForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(contexts, namespace);
     try {
       const queryUrl: string = `http://localhost:${MIRROR_NODE_PORT}/api/v1/network/nodes`;
 
@@ -211,7 +211,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     namespace: NamespaceName,
     pingerIsEnabled: boolean,
   ): Promise<void> {
-    const portForwarder: number = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
+    const portForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(contexts, namespace);
     try {
       const transactionsEndpoint: string = `http://localhost:${MIRROR_NODE_PORT}/api/v1/transactions`;
       // force to fetch new data instead of using cache
@@ -487,7 +487,7 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static pullAddressBook(options: BaseTestOptions): void {
     const {consensusNodesCount} = options;
     it('should pull address book from mirror node', async (): Promise<void> => {
-      const srv: number = await MirrorNodeTest.forwardRestServicePort(options.contexts, options.namespace);
+      const srv: number = await MirrorNodeTest.forwardMirrorIngressServicePort(options.contexts, options.namespace);
 
       const stdOut: string[] = await new ShellRunner().run(`curl http://localhost:${srv}/api/v1/network/nodes`);
 
