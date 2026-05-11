@@ -36,6 +36,7 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
   public static readonly RESTORE_CONFIG_COMMAND = 'restore-config';
   public static readonly RESTORE_CLUSTERS_COMMAND = 'restore-clusters';
   public static readonly RESTORE_NETWORK_COMMAND = 'restore-network';
+  public static readonly BRIDGE_IMPORT_GAP_COMMAND = 'bridge-import-gap';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -91,6 +92,19 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
               this.backupRestoreCommand,
               this.backupRestoreCommand.restoreNetwork,
               BackupRestoreCommand.RESTORE_NETWORK_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BackupRestoreCommandDefinition.BRIDGE_IMPORT_GAP_COMMAND,
+              'Bridge a record_file gap between importer and block node by inserting ' +
+                'synthetic record_file rows derived from block node block content. ' +
+                'Run after consensus node start when the freeze block was not flushed ' +
+                'downstream. Bounces the mirror importer to pick up the new state.',
+              this.backupRestoreCommand,
+              this.backupRestoreCommand.bridgeImportGap,
+              BackupRestoreCommand.BRIDGE_IMPORT_GAP_FLAGS_LIST,
               [],
             ),
           ),

@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import yaml from 'yaml';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
@@ -57,6 +58,7 @@ import {Container} from '../integration/kube/resources/container/container.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {Templates} from '../core/templates.js';
+import {readBlockNodeOnDiskTip, readConsensusBlockStreamTip} from '../core/block-tip-utilities.js';
 import * as Base64 from 'js-base64';
 
 interface ExpectedLbIpAssignment {
@@ -119,6 +121,11 @@ export class BackupRestoreCommand extends BaseCommand {
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
     required: [flags.inputDir],
     optional: [flags.quiet, flags.optionsFile, flags.shard, flags.realm, flags.expectedLbIpsFile, flags.skipIpTracking],
+  };
+
+  public static BRIDGE_IMPORT_GAP_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.quiet, flags.externalDbParamsFile],
   };
 
   /**
@@ -266,6 +273,124 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
+   * Download the block node's `/opt/hiero/block-node/data/` directory (live and historic
+   * blocks plus verification artifacts). Without this the new block node starts empty,
+   * responds `Behind(-1)` to every publisher attempt, and CN cannot fulfil that request
+   * because it has long since rolled past block 0. With the data restored, the new block
+   * node knows its tip is N-1 and tells CN `Behind(N-1)`; CN can then re-stream from N
+   * using its locally recovered pending blocks.
+   */
+  private async downloadBlockNodeData(outputDirectory: string): Promise<void> {
+    const blockNodes: any[] = this.remoteConfig.configuration?.state?.blockNodes || [];
+    if (blockNodes.length === 0) {
+      this.logger.info('No block node in deployment; skipping block node data backup');
+      return;
+    }
+
+    for (const blockNode of blockNodes) {
+      const blockNodeId: number = Number(blockNode.metadata.id);
+      const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
+      const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
+      const k8: K8 = this.k8Factory.getK8(blockNodeContext);
+
+      const pods: Pod[] = await k8.pods().list(blockNodeNamespace, Templates.renderBlockNodeLabels(blockNodeId));
+      if (pods.length === 0) {
+        this.logger.info(`Skipping block node data backup for id ${blockNodeId}: no pod found`);
+        continue;
+      }
+
+      const pod: Pod = pods[0];
+      const podName: string = pod.podReference.name.toString();
+      const containerReference: ContainerReference = ContainerReference.of(
+        pod.podReference,
+        constants.BLOCK_NODE_CONTAINER_NAME,
+      );
+      const container: Container = k8.containers().readByRef(containerReference);
+
+      const targetDirectory: string = PathEx.join(outputDirectory, blockNode.metadata.cluster, 'blockNodeData');
+      if (!fs.existsSync(targetDirectory)) {
+        fs.mkdirSync(targetDirectory, {recursive: true});
+      }
+
+      const archiveInPod: string = `/tmp/${podName}-blockNodeData.tar.gz`;
+      try {
+        // Capture data/ and verification/ together. The block-node-server image ships with
+        // tar+gzip but not zip/unzip, so use tar.gz for cross-step compatibility. Empty
+        // subdirectories are still archived so restore can rebuild the expected layout.
+        await container.execContainer([
+          'sh',
+          '-c',
+          `rm -f "${archiveInPod}" && cd /opt/hiero/block-node && tar czf "${archiveInPod}" data verification && sync && test -f "${archiveInPod}"`,
+        ]);
+        await helpers.sleep(Duration.ofSeconds(1));
+        await container.copyFrom(archiveInPod, targetDirectory);
+        await container.execContainer(['sh', '-c', `rm -f "${archiveInPod}"`]);
+        this.logger.info(`Captured block node data for ${podName} -> ${targetDirectory}`);
+      } catch (error: any) {
+        this.logger.showUser(
+          chalk.yellow(`    ⚠ Failed to download block node data from ${podName}: ${error.message || error}`),
+        );
+      }
+    }
+  }
+
+  /**
+   * Download `/opt/hgcapp/blockStreams/` from each consensus node into the backup
+   * directory. Files are zipped inside the pod (lossless, fast) then copied out. Layout:
+   *   <outputDirectory>/<cluster-ref>/blockStreams/<podName>-blockStreams.zip
+   * The corresponding restore step plants this content back on each new CN's disk so the
+   * freeze block (and any other pending blocks) are available for back-fill once the new
+   * CN starts and the block node responds Behind.
+   */
+  private async downloadConsensusBlockStreams(
+    outputDirectory: string,
+    namespace: NamespaceName,
+    consensusNodes: ConsensusNode[],
+  ): Promise<void> {
+    for (const node of consensusNodes) {
+      const nodeAlias: NodeAlias = node.name as NodeAlias;
+      const k8Context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+      const k8: K8 = this.k8Factory.getK8(k8Context);
+      const pods: Pod[] = await k8
+        .pods()
+        .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
+      if (pods.length === 0) {
+        this.logger.info(`Skipping CN block stream backup for ${nodeAlias}: no pod found`);
+        continue;
+      }
+
+      const pod: Pod = pods[0];
+      const podName: string = pod.podReference.name.toString();
+      const containerReference: ContainerReference = ContainerReference.of(pod.podReference, constants.ROOT_CONTAINER);
+      const container: Container = k8.containers().readByRef(containerReference);
+
+      const targetDirectory: string = PathEx.join(outputDirectory, node.cluster, 'blockStreams');
+      if (!fs.existsSync(targetDirectory)) {
+        fs.mkdirSync(targetDirectory, {recursive: true});
+      }
+
+      const zipFileInPod: string = `${constants.HEDERA_HAPI_PATH}/${podName}-blockStreams.zip`;
+      try {
+        // Empty directory is acceptable; create the zip even when there's nothing inside so the
+        // restore step always finds something predictable to inspect.
+        await container.execContainer([
+          'sh',
+          '-c',
+          `mkdir -p /opt/hgcapp/blockStreams && (cd /opt/hgcapp/blockStreams && zip -rX "${zipFileInPod}" . >/dev/null && sync && test -f "${zipFileInPod}")`,
+        ]);
+        await helpers.sleep(Duration.ofSeconds(1));
+        await container.copyFrom(zipFileInPod, targetDirectory);
+        await container.execContainer(['sh', '-c', `rm -f "${zipFileInPod}"`]);
+        this.logger.info(`Captured CN block streams for ${podName} -> ${targetDirectory}`);
+      } catch (error: any) {
+        this.logger.showUser(
+          chalk.yellow(`    ⚠ Failed to download blockStreams from ${podName}: ${error.message || error}`),
+        );
+      }
+    }
+  }
+
+  /**
    * Backup all component configurations
    */
   public async backup(argv: ArgvStruct): Promise<boolean> {
@@ -363,6 +488,31 @@ export class BackupRestoreCommand extends BaseCommand {
               await networkNodes.getStatesFromPod(namespace, nodeAlias, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
+          },
+        },
+        {
+          // CN keeps every finalized block in /opt/hgcapp/blockStreams/ as `.pnd.gz` until it
+          // is sealed and acknowledged by a downstream consumer. The freeze block routinely
+          // never gets streamed to the block node before solo's stopNodes kills the JVM, so
+          // the saved state references a block that never made it downstream. Capture CN's
+          // local block stream so the matching restore step can plant those blocks back on
+          // the new CN's disk; on first start the new CN can back-fill the block node from
+          // local storage when the block node responds Behind.
+          title: 'Download CN block streams',
+          task: async (context_, task): Promise<void> => {
+            await this.downloadConsensusBlockStreams(outputDirectory, namespace, consensusNodes);
+            task.title = `Download CN block streams: ${consensusNodes.length} node(s) completed`;
+          },
+        },
+        {
+          // Capture the block node's persisted blocks and verification artifacts so the
+          // post-restore block node starts with the same tip it had at backup time. Without
+          // this, a fresh block node responds `Behind(-1)` to every publisher attempt and
+          // CN cannot satisfy the implied "send block 0" because it long since rolled past.
+          title: 'Download block node data',
+          task: async (context_, task): Promise<void> => {
+            await this.downloadBlockNodeData(outputDirectory);
+            task.title = 'Download block node data: completed';
           },
         },
         {
@@ -532,6 +682,61 @@ export class BackupRestoreCommand extends BaseCommand {
    */
   private async importSecrets(inputDirectory: string): Promise<number> {
     return this.importResources(inputDirectory, 'secrets');
+  }
+
+  /**
+   * Plant the captured `/opt/hgcapp/blockStreams/` content back onto each new CN before
+   * `consensus node start`. The freeze block is held in `.pnd*` form locally and never
+   * streams downstream pre-stop, so without this step there is no copy of it anywhere
+   * after the cluster is destroyed. With it on disk, when the new CN starts and the block
+   * node responds Behind to a publish attempt, CN can back-fill the missing block from
+   * its local store.
+   */
+  private async restoreConsensusBlockStreams(inputDirectory: string): Promise<void> {
+    const namespace: NamespaceName = this.remoteConfig.getNamespace();
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+
+    for (const node of consensusNodes) {
+      const nodeAlias: NodeAlias = node.name as NodeAlias;
+      const sourceDirectory: string = PathEx.join(inputDirectory, node.cluster, 'blockStreams');
+      if (!fs.existsSync(sourceDirectory)) {
+        this.logger.showUser(chalk.gray(`    No blockStreams backup for ${nodeAlias} (${sourceDirectory}); skipping`));
+        continue;
+      }
+
+      const k8Context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+      const k8: K8 = this.k8Factory.getK8(k8Context);
+      const pods: Pod[] = await k8
+        .pods()
+        .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
+      if (pods.length === 0) {
+        this.logger.showUser(chalk.yellow(`    No CN pod found for ${nodeAlias}; skipping blockStreams restore`));
+        continue;
+      }
+
+      const pod: Pod = pods[0];
+      const podName: string = pod.podReference.name.toString();
+      const expectedZipName: string = `${podName}-blockStreams.zip`;
+      const localZipPath: string = PathEx.join(sourceDirectory, expectedZipName);
+      if (!fs.existsSync(localZipPath)) {
+        this.logger.showUser(chalk.gray(`    No blockStreams zip for ${nodeAlias} at ${localZipPath}; skipping`));
+        continue;
+      }
+
+      const containerReference: ContainerReference = ContainerReference.of(pod.podReference, constants.ROOT_CONTAINER);
+      const container: Container = k8.containers().readByRef(containerReference);
+
+      const zipInPod: string = `${constants.HEDERA_HAPI_PATH}/${expectedZipName}`;
+      this.logger.showUser(chalk.gray(`    Restoring blockStreams to ${podName}`));
+      await container.copyTo(localZipPath, constants.HEDERA_HAPI_PATH);
+      await helpers.sleep(Duration.ofSeconds(1));
+      await container.execContainer([
+        'sh',
+        '-c',
+        `mkdir -p /opt/hgcapp/blockStreams && unzip -o "${zipInPod}" -d /opt/hgcapp/blockStreams >/dev/null && rm -f "${zipInPod}" && chown -R hedera:hedera /opt/hgcapp/blockStreams`,
+      ]);
+      this.logger.showUser(chalk.green(`    ✓ Restored blockStreams for ${podName}`));
+    }
   }
 
   /**
@@ -862,104 +1067,237 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Wait until mirror REST data has converged after freeze.
-   * We poll the latest transaction over REST and require stable consensus timestamps.
+   * Wait until the mirror importer has indexed every block CN finalized before freeze, AND
+   * the block node has received those blocks. CN saves a signed state for block N, but
+   * streaming block N to the block node and then to the importer can lag - especially the
+   * freeze block, which is finalized just as CN halts producing. If the DB dump is taken
+   * before all three (CN local stream, block node, importer) agree on the same tip, the
+   * post-restore CN resumes one or more blocks ahead of importer.MAX(record_file)+1 and
+   * the importer permanently demands a block the block node will never provide.
+   * The authoritative target is CN's own local block stream tip, since blocks land there
+   * before being streamed downstream. Wait for block node and importer to both reach it.
    */
   private async waitForMirrorImporterCatchUp(parameters: ExternalDatabaseParameters): Promise<void> {
+    this.logger.showUser(chalk.cyan('\n  Aligning mirror importer with consensus + block node tip...'));
     this.logger.info(
-      `Waiting for mirror importer to catch up to frozen consensus state (external DB: ${parameters.context}/${parameters.namespace}/${parameters.podName})...`,
+      `Aligning mirror importer (external DB: ${parameters.context}/${parameters.namespace}/${parameters.podName})...`,
     );
-    const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
-    if (mirrorNodes.length === 0) {
-      throw new SoloError('No mirror node found in deployment state; cannot poll mirror REST API.');
+
+    const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
+    if (blockNodes.length === 0) {
+      this.logger.info('No block node in deployment; skipping alignment.');
+      return;
     }
 
-    const mirrorNode: any = mirrorNodes[0];
-    const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
-    const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-    const mirrorReleaseName: string = await this.resolveMirrorReleaseName(
-      Number(mirrorNode.metadata.id),
-      mirrorNamespace,
-      mirrorContext,
-    );
-
-    const mirrorPods: Pod[] = await this.k8Factory
-      .getK8(mirrorContext)
+    const blockNode: any = blockNodes[0];
+    const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
+    const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
+    const blockNodeId: number = Number(blockNode.metadata.id);
+    const blockNodePods: Pod[] = await this.k8Factory
+      .getK8(blockNodeContext)
       .pods()
-      .list(mirrorNamespace, [
-        constants.SOLO_MIRROR_REST_NAME_LABEL,
-        `app.kubernetes.io/instance=${mirrorReleaseName}`,
-      ]);
+      .list(blockNodeNamespace, Templates.renderBlockNodeLabels(blockNodeId));
+    if (blockNodePods.length === 0) {
+      this.logger.info(`No block node pod found for id ${blockNodeId}; skipping alignment.`);
+      return;
+    }
+    const blockNodeContainer: Container = this.k8Factory
+      .getK8(blockNodeContext)
+      .containers()
+      .readByRef(ContainerReference.of(blockNodePods[0].podReference, constants.BLOCK_NODE_CONTAINER_NAME));
 
-    if (mirrorPods.length === 0) {
-      throw new SoloError(
-        `No mirror REST pod found in namespace ${mirrorNamespace.name} (context: ${mirrorContext}, release: ${mirrorReleaseName})`,
+    // CN's local block stream tip is the authoritative target: blocks land there before being
+    // streamed to the block node, and CN's saved state never references a block beyond it.
+    const consensusNodeContainer: Container | undefined = await this.findFirstConsensusNodeContainer();
+    const cnTip: number = await this.waitForConsensusTipStable(consensusNodeContainer);
+    if (cnTip < 0) {
+      this.logger.info('Could not determine CN local block stream tip; skipping alignment.');
+      return;
+    }
+    this.logger.showUser(chalk.gray(`    CN local block stream tip: ${cnTip}`));
+
+    // Wait for block node to receive every block up to cnTip. If CN never streams the
+    // final block(s), this exposes the gap explicitly instead of silently producing a
+    // backup that cannot be restored.
+    const blockNodeTip: number = await this.waitForBlockNodeToReach(blockNodeContainer, cnTip);
+    this.logger.showUser(chalk.gray(`    Block node tip: ${blockNodeTip}`));
+    if (blockNodeTip < cnTip) {
+      this.logger.showUser(
+        chalk.yellow(
+          `    ⚠ Block node tip ${blockNodeTip} is below CN tip ${cnTip}; backup will have a ${cnTip - blockNodeTip}-block gap on restore.`,
+        ),
       );
     }
 
-    const mirrorRestPod: Pod = this.k8Factory.getK8(mirrorContext).pods().readByReference(mirrorPods[0].podReference);
-    const localMirrorRestPort: number = await mirrorRestPod.portForward(
-      constants.MIRROR_NODE_PORT,
-      constants.MIRROR_NODE_PORT,
-      false,
-      false,
+    const target: number = Math.min(cnTip, blockNodeTip);
+    if (target < 0) {
+      this.logger.info('No usable target block; skipping importer alignment.');
+      return;
+    }
+
+    const databaseContainerReference: ContainerReference = ContainerReference.of(
+      PodReference.of(NamespaceName.of(parameters.namespace), PodName.of(parameters.podName)),
+      ContainerName.of(parameters.containerName),
     );
+    const databaseContainer: Container = this.k8Factory
+      .getK8(parameters.context)
+      .containers()
+      .readByRef(databaseContainerReference);
 
-    let previousConsensusTimestamp: string = '';
-    let stableCount: number = 0;
-    const endpoint: string = `http://localhost:${localMirrorRestPort}/api/v1/transactions?limit=1&order=desc`;
-    try {
-      for (let attempt: number = 1; attempt <= 100; attempt++) {
-        let currentConsensusTimestamp: string = '';
-        let currentTransactionName: string = '';
-        try {
-          const response: Response = await fetch(endpoint);
-          if (response.ok) {
-            const responsePayload: any = await response.json();
-            const latestTransaction: any =
-              Array.isArray(responsePayload?.transactions) && responsePayload.transactions.length > 0
-                ? responsePayload.transactions[0]
-                : undefined;
-            currentConsensusTimestamp =
-              typeof latestTransaction?.consensus_timestamp === 'string' ? latestTransaction.consensus_timestamp : '';
-            currentTransactionName = typeof latestTransaction?.name === 'string' ? latestTransaction.name : '';
-          } else {
-            this.logger.info(
-              `Mirror REST poll failed with status ${response.status}; attempt ${attempt}/100, retrying...`,
-            );
-          }
-        } catch (error: any) {
-          this.logger.info(`Mirror REST poll error '${error.message || error}'; attempt ${attempt}/100, retrying...`);
-        }
+    await this.waitForImporterAtBlock(databaseContainer, parameters, target);
+  }
 
-        this.logger.info(
-          `Mirror REST latest tx: ${currentTransactionName || '<unknown>'} @ ${currentConsensusTimestamp || '<empty>'}`,
-        );
-
-        if (currentConsensusTimestamp && currentConsensusTimestamp === previousConsensusTimestamp) {
-          stableCount++;
-          if (stableCount >= 3) {
-            this.logger.info(`Mirror importer is stable at consensus timestamp ${currentConsensusTimestamp}`);
-            return;
-          }
-        } else {
-          stableCount = 0;
-        }
-
-        previousConsensusTimestamp = currentConsensusTimestamp || previousConsensusTimestamp;
-        await helpers.sleep(Duration.ofSeconds(3));
-      }
-
-      this.logger.info('Mirror importer catch-up wait timed out after 100 checks; proceeding with backup.');
-    } finally {
+  /**
+   * Locate any consensus node pod from remote config and return a Container ref for its
+   * root-container. Returns undefined if no CN pod is reachable.
+   */
+  private async findFirstConsensusNodeContainer(): Promise<Container | undefined> {
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+    for (const consensusNode of consensusNodes) {
+      const context: Context = helpers.extractContextFromConsensusNodes(
+        consensusNode.name as NodeAlias,
+        consensusNodes,
+      );
+      const k8: K8 = this.k8Factory.getK8(context);
       try {
-        await mirrorRestPod.stopPortForward(localMirrorRestPort);
+        const pods: Pod[] = await k8
+          .pods()
+          .list(NamespaceName.of(consensusNode.namespace), [
+            `solo.hedera.com/node-name=${consensusNode.name}`,
+            'solo.hedera.com/type=network-node',
+          ]);
+        if (pods.length > 0) {
+          return k8.containers().readByRef(ContainerReference.of(pods[0].podReference, constants.ROOT_CONTAINER));
+        }
       } catch (error: any) {
-        this.logger.info(
-          `Unable to stop temporary mirror REST port-forward on port ${localMirrorRestPort}: ${error.message || error}`,
-        );
+        this.logger.info(`Skipping CN ${consensusNode.name}: ${error.message || error}`);
       }
     }
+    return undefined;
+  }
+
+  /**
+   * Wrapper around the shared block-node tip reader so existing callers in this file keep
+   * a stable signature. Returns -1 when no `.blk*` files exist on disk.
+   */
+  private async getBlockNodeLatestBlock(blockNodeContainer: Container): Promise<number> {
+    return readBlockNodeOnDiskTip(blockNodeContainer);
+  }
+
+  /**
+   * Wrapper around the shared CN block-stream tip reader, with a null-safe guard so callers
+   * can pass `undefined` when no CN container could be located.
+   */
+  private async getConsensusNodeBlockStreamTip(container: Container | undefined): Promise<number> {
+    return container ? readConsensusBlockStreamTip(container) : -1;
+  }
+
+  /**
+   * Poll CN's local block stream tip every 3s until three consecutive identical samples
+   * confirm CN has stopped finalizing new blocks.
+   */
+  private async waitForConsensusTipStable(consensusNodeContainer: Container | undefined): Promise<number> {
+    if (!consensusNodeContainer) {
+      return -1;
+    }
+    let previousTip: number = -2;
+    let stableCount: number = 0;
+    let currentTip: number = -1;
+    for (let attempt: number = 1; attempt <= 100; attempt++) {
+      currentTip = await this.getConsensusNodeBlockStreamTip(consensusNodeContainer);
+      this.logger.info(`CN local tip: ${currentTip} (attempt ${attempt}/100, stable-count ${stableCount})`);
+      if (currentTip >= 0 && currentTip === previousTip) {
+        stableCount++;
+        if (stableCount >= 3) {
+          this.logger.info(`CN local tip stabilized at block ${currentTip}`);
+          return currentTip;
+        }
+      } else {
+        stableCount = 0;
+      }
+      previousTip = currentTip;
+      await helpers.sleep(Duration.ofSeconds(3));
+    }
+    this.logger.info(`CN local tip did not stabilize within 100 polls; using last observed value ${currentTip}`);
+    return currentTip;
+  }
+
+  /**
+   * Poll the block node tip until it reaches or exceeds `target`. Returns the last observed
+   * tip. If the block node never reaches target within the timeout window, returns the last
+   * observed tip without throwing - caller is expected to detect and warn on the gap.
+   */
+  private async waitForBlockNodeToReach(blockNodeContainer: Container, target: number): Promise<number> {
+    let lastTip: number = -1;
+    for (let attempt: number = 1; attempt <= 100; attempt++) {
+      lastTip = await this.getBlockNodeLatestBlock(blockNodeContainer);
+      this.logger.info(`Block node tip: ${lastTip} (target ${target}, attempt ${attempt}/100)`);
+      if (lastTip >= target) {
+        this.logger.info(`Block node reached target ${target} (tip at ${lastTip})`);
+        return lastTip;
+      }
+      await helpers.sleep(Duration.ofSeconds(3));
+    }
+    this.logger.info(`Block node did not reach target ${target} within 100 polls; last tip ${lastTip}`);
+    return lastTip;
+  }
+
+  /**
+   * Run psql in the DB pod to read MAX(index) from record_file. Returns -1 when the table
+   * is empty or the query fails.
+   */
+  private async getImporterMaxRecordFileIndex(
+    databaseContainer: Container,
+    parameters: ExternalDatabaseParameters,
+  ): Promise<number> {
+    try {
+      const output: string = await databaseContainer.execContainer([
+        'env',
+        `PGPASSWORD=${parameters.ownerPassword}`,
+        'psql',
+        '-U',
+        parameters.ownerUsername,
+        '-d',
+        parameters.databaseName,
+        '-tA',
+        '-c',
+        'SELECT COALESCE(MAX(index), -1) FROM record_file;',
+      ]);
+      const parsed: number = Number.parseInt((output || '').trim(), 10);
+      return Number.isFinite(parsed) ? parsed : -1;
+    } catch (error: any) {
+      this.logger.info(`psql query failed while reading record_file MAX(index): ${error.message || error}`);
+      return -1;
+    }
+  }
+
+  /**
+   * Poll the importer DB until record_file MAX(index) reaches `targetBlock`. Required for
+   * post-restore CN's next block to equal MAX+1 exactly.
+   */
+  private async waitForImporterAtBlock(
+    databaseContainer: Container,
+    parameters: ExternalDatabaseParameters,
+    targetBlock: number,
+  ): Promise<void> {
+    for (let attempt: number = 1; attempt <= 200; attempt++) {
+      const importerTip: number = await this.getImporterMaxRecordFileIndex(databaseContainer, parameters);
+      this.logger.info(
+        `Importer record_file MAX(index): ${importerTip} (target ${targetBlock}, attempt ${attempt}/200)`,
+      );
+      if (importerTip >= targetBlock) {
+        this.logger.showUser(chalk.green(`    ✓ Importer aligned at block ${importerTip} (target ${targetBlock})`));
+        this.logger.info(`Importer caught up to target ${targetBlock} (importer at ${importerTip})`);
+        return;
+      }
+      await helpers.sleep(Duration.ofSeconds(3));
+    }
+    this.logger.showUser(
+      chalk.yellow(
+        `    ⚠ Importer did not reach block ${targetBlock} within 200 polls; backup may have a block gap on restore.`,
+      ),
+    );
+    this.logger.info(`Importer did not reach block ${targetBlock} within 200 polls; proceeding with backup.`);
   }
 
   /**
@@ -1146,7 +1484,7 @@ export class BackupRestoreCommand extends BaseCommand {
         } catch (error: any) {
           this.logger.showUser(
             chalk.yellow(
-              `Importer is not ready yet after database restore; continuing with restore flow. ` +
+              'Importer is not ready yet after database restore; continuing with restore flow. ' +
                 `Reason: ${error.message || error}`,
             ),
           );
@@ -1170,6 +1508,302 @@ export class BackupRestoreCommand extends BaseCommand {
         constants.PODS_READY_MAX_ATTEMPTS,
         constants.PODS_READY_DELAY,
       );
+  }
+
+  /**
+   * Public entry point: bridge a record_file ↔ block-node gap, then bounce the importer.
+   * Intended to be called from the Taskfile *after* the consensus node has been restarted
+   * and started streaming live blocks downstream, so block node has blocks above the gap
+   * for us to read `previous_block_root_hash` from.
+   *
+   * Command: solo config ops bridge-import-gap
+   */
+  public async bridgeImportGap(argv: ArgvStruct): Promise<boolean> {
+    await this.localConfig.load();
+    await this.remoteConfig.loadAndValidate(argv, false);
+    this.configManager.update(argv);
+
+    const bridged: boolean = await this.bridgeBlockGapWithSyntheticRecordFileRows();
+    if (bridged) {
+      await this.restartMirrorImporter();
+      this.logger.showUser(chalk.green('✓ Bridged importer record_file gap and bounced importer'));
+    } else {
+      this.logger.showUser(chalk.gray('No record_file gap detected; nothing to bridge'));
+    }
+    return true;
+  }
+
+  /**
+   * Bridge any gap between importer's record_file MAX(index) and the first contiguous
+   * block on block node by inserting synthetic record_file rows. Required because the CN
+   * freeze block (and sometimes the block immediately after) never gets sealed and
+   * published downstream - mirror node's BlockStreamVerifier strictly checks that an
+   * incoming block's `previousHash` (from its BlockFooter) equals record_file[MAX].hash.
+   * By inserting rows with the correct `hash` for the boundary, mirror's chain check
+   * passes when it reads the first available block above the gap.
+   *
+   * Returns true when the importer should be bounced to pick up the new rows.
+   */
+  private async bridgeBlockGapWithSyntheticRecordFileRows(): Promise<boolean> {
+    const externalDatabaseParameters: ExternalDatabaseParameters =
+      await this.resolveExternalDatabaseParametersForBackup();
+
+    const importerMax: number = await this.queryImporterMaxRecordFileIndex(externalDatabaseParameters);
+    if (importerMax < 0) {
+      this.logger.info('Bridge synthetic: record_file is empty, nothing to bridge');
+      return false;
+    }
+
+    const blockNodes: any[] = this.remoteConfig.configuration?.state?.blockNodes || [];
+    if (blockNodes.length === 0) {
+      return false;
+    }
+    const blockNode: any = blockNodes[0];
+    const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
+    const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
+    const blockNodeId: number = Number(blockNode.metadata.id);
+    const k8: K8 = this.k8Factory.getK8(blockNodeContext);
+    const pods: Pod[] = await k8.pods().list(blockNodeNamespace, Templates.renderBlockNodeLabels(blockNodeId));
+    if (pods.length === 0) {
+      return false;
+    }
+    const blockNodeContainer: Container = k8
+      .containers()
+      .readByRef(ContainerReference.of(pods[0].podReference, constants.BLOCK_NODE_CONTAINER_NAME));
+
+    const firstAvailableAbove: number = await this.findLowestAvailableBlockAbove(blockNodeContainer, importerMax);
+    if (firstAvailableAbove < 0 || firstAvailableAbove === importerMax + 1) {
+      // No gap or no future blocks available; nothing to bridge.
+      return false;
+    }
+
+    const boundaryHash: string | undefined = await this.extractPreviousBlockRootHash(
+      blockNodeContainer,
+      firstAvailableAbove,
+    );
+    if (!boundaryHash) {
+      this.logger.showUser(
+        chalk.yellow(
+          `    ⚠ Could not extract previous_block_root_hash from block ${firstAvailableAbove}; gap bridging skipped`,
+        ),
+      );
+      return false;
+    }
+
+    const databaseContainerReference: ContainerReference = ContainerReference.of(
+      PodReference.of(
+        NamespaceName.of(externalDatabaseParameters.namespace),
+        PodName.of(externalDatabaseParameters.podName),
+      ),
+      ContainerName.of(externalDatabaseParameters.containerName),
+    );
+    const databaseContainer: Container = this.k8Factory
+      .getK8(externalDatabaseParameters.context)
+      .containers()
+      .readByRef(databaseContainerReference);
+
+    const placeholderHash: string =
+      '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fake';
+    const fileHashPlaceholder: string =
+      '0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fakehash';
+
+    const insertStatements: string[] = [];
+    for (let n: number = importerMax + 1; n <= firstAvailableAbove - 1; n++) {
+      const isBoundary: boolean = n === firstAvailableAbove - 1;
+      const hashValue: string = isBoundary ? boundaryHash : placeholderHash;
+      const previousHashValue: string =
+        n === importerMax + 1
+          ? '(SELECT hash FROM record_file WHERE index = ' + importerMax + ')'
+          : `'${placeholderHash}'`;
+      const consensusBase: string = `(SELECT consensus_end + ${(n - importerMax) * 2 - 1} FROM record_file WHERE index = ${importerMax})`;
+      const consensusEnd: string = `(SELECT consensus_end + ${(n - importerMax) * 2} FROM record_file WHERE index = ${importerMax})`;
+      insertStatements.push(
+        `INSERT INTO record_file (name, load_start, load_end, hash, prev_hash, consensus_start, consensus_end, count, digest_algorithm, version, file_hash, index, sidecar_count) ` +
+          `VALUES ('${n.toString().padStart(19, '0')}.blk', 0, 0, '${hashValue}', ${previousHashValue}, ${consensusBase}, ${consensusEnd}, 0, 0, 7, '${fileHashPlaceholder}', ${n}, 0);`,
+      );
+    }
+
+    const sql: string = insertStatements.join('\n');
+    await databaseContainer.execContainer([
+      'env',
+      `PGPASSWORD=${externalDatabaseParameters.ownerPassword}`,
+      'psql',
+      '-U',
+      externalDatabaseParameters.ownerUsername,
+      '-d',
+      externalDatabaseParameters.databaseName,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      sql,
+    ]);
+
+    this.logger.showUser(
+      chalk.gray(
+        `    Bridged record_file gap [${importerMax + 1}..${firstAvailableAbove - 1}]; record_file[${firstAvailableAbove - 1}].hash set to block ${firstAvailableAbove}'s previousHash`,
+      ),
+    );
+    return true;
+  }
+
+  /**
+   * Query the highest index currently in the importer's record_file via psql.
+   */
+  private async queryImporterMaxRecordFileIndex(parameters: ExternalDatabaseParameters): Promise<number> {
+    const databaseContainerReference: ContainerReference = ContainerReference.of(
+      PodReference.of(NamespaceName.of(parameters.namespace), PodName.of(parameters.podName)),
+      ContainerName.of(parameters.containerName),
+    );
+    const databaseContainer: Container = this.k8Factory
+      .getK8(parameters.context)
+      .containers()
+      .readByRef(databaseContainerReference);
+    try {
+      const output: string = await databaseContainer.execContainer([
+        'env',
+        `PGPASSWORD=${parameters.ownerPassword}`,
+        'psql',
+        '-U',
+        parameters.ownerUsername,
+        '-d',
+        parameters.databaseName,
+        '-tA',
+        '-c',
+        'SELECT COALESCE(MAX(index), -1) FROM record_file;',
+      ]);
+      const parsed: number = Number.parseInt((output || '').trim(), 10);
+      return Number.isFinite(parsed) ? parsed : -1;
+    } catch (error: any) {
+      this.logger.info(`Failed to read importer record_file MAX: ${error.message || error}`);
+      return -1;
+    }
+  }
+
+  /**
+   * Find the lowest block number on block node strictly above `floor`. Returns -1 if none.
+   */
+  private async findLowestAvailableBlockAbove(blockNodeContainer: Container, floor: number): Promise<number> {
+    const output: string = await blockNodeContainer.execContainer([
+      'sh',
+      '-c',
+      String.raw`find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | awk -v f=${floor} '$1 > f { print $1; exit }'`,
+    ]);
+    const trimmed: string = (output || '').trim();
+    const parsed: number = Number.parseInt(trimmed, 10);
+    return Number.isFinite(parsed) ? parsed : -1;
+  }
+
+  /**
+   * Decompress block N's .blk.zstd on the block node side (zstd is not in the image, but
+   * Node's zlib provides it on the solo side), then scan the resulting bytes for the
+   * BlockFooter wire pattern and extract `previous_block_root_hash` (field 1, 48 bytes).
+   *
+   * Wire format:
+   *   - Block: `repeated BlockItem items = 1` → each BlockItem is `0a <varlen> <bytes>`
+   *   - BlockItem.block_footer = field 12 (wire type 2) → tag byte `0x62` followed by varlen
+   *   - BlockFooter.previous_block_root_hash = field 1 (bytes) → `0a 30 <48 bytes>`
+   *
+   * The full pattern inside the file: `62 <varlen> 0a 30 <48 bytes hash>`. We find the
+   * first BlockFooter tag and the first `0a 30` length-prefix after it.
+   */
+  private async extractPreviousBlockRootHash(
+    blockNodeContainer: Container,
+    blockNumber: number,
+  ): Promise<string | undefined> {
+    const candidatePaths: string[] = [];
+    const padded: string = blockNumber.toString().padStart(19, '0');
+    const directorySegments: string = `${padded.slice(0, 3)}/${padded.slice(3, 6)}/${padded.slice(6, 9)}/${padded.slice(9, 12)}/${padded.slice(12, 15)}/${padded.slice(15, 16)}`;
+    for (const root of ['/opt/hiero/block-node/data/live', '/opt/hiero/block-node/data/historic/staging']) {
+      for (const extension of ['.blk.zstd', '.blk']) {
+        candidatePaths.push(`${root}/${directorySegments}/${padded}${extension}`);
+      }
+    }
+
+    let base64Content: string = '';
+    let foundPath: string = '';
+    for (const path_ of candidatePaths) {
+      try {
+        const probe: string = await blockNodeContainer.execContainer([
+          'sh',
+          '-c',
+          `if [ -f "${path_}" ]; then echo OK; fi`,
+        ]);
+        if ((probe || '').trim() === 'OK') {
+          base64Content = await blockNodeContainer.execContainer(['sh', '-c', `base64 "${path_}"`]);
+          foundPath = path_;
+          break;
+        }
+      } catch {
+        // try next path
+      }
+    }
+    if (!base64Content || !foundPath) {
+      return undefined;
+    }
+
+    const rawCompressed: Buffer = Buffer.from(base64Content.replaceAll(/\s/g, ''), 'base64');
+    let rawBytes: Buffer = rawCompressed;
+    if (foundPath.endsWith('.blk.zstd')) {
+      // Node 22.15+ provides zstd via zlib. The synchronous API is still marked
+      // experimental in Node's docs but is stable enough for our one-off use here.
+      // eslint-disable-next-line n/no-unsupported-features/node-builtins
+      const zstdDecompress: any = (zlib as any).zstdDecompressSync;
+      if (typeof zstdDecompress !== 'function') {
+        this.logger.info('zstd decompression unavailable in this Node.js runtime; cannot bridge gap');
+        return undefined;
+      }
+      rawBytes = zstdDecompress(rawCompressed);
+    }
+
+    // Search for the BlockFooter pattern. Tag byte 98 = (field 12 << 3) | wire-type-2.
+    // The footer's first field is `previous_block_root_hash` = field 1 (bytes, 48 bytes
+    // for SHA-384). Look for `98 <varint length> 10 48 <48 bytes>`. Length varint can be
+    // 1 or 2 bytes. Using decimal literals to avoid hex casing rule conflicts.
+    const blockFooterTag: number = 98; // (12 << 3) | 2
+    const previousHashTag: number = 10; // (1 << 3) | 2
+    const previousHashLength: number = 48; // SHA-384 byte length
+    const varintHighBit: number = 128;
+    for (let index: number = 0; index < rawBytes.length - 52; index++) {
+      if (rawBytes[index] !== blockFooterTag) {
+        continue;
+      }
+      // Skip the varint-encoded BlockFooter length
+      let varintEnd: number = index + 1;
+      while (varintEnd < rawBytes.length && (rawBytes[varintEnd] & varintHighBit) !== 0) {
+        varintEnd++;
+      }
+      varintEnd++; // include the final byte
+      if (
+        varintEnd + 50 <= rawBytes.length &&
+        rawBytes[varintEnd] === previousHashTag &&
+        rawBytes[varintEnd + 1] === previousHashLength
+      ) {
+        return rawBytes.subarray(varintEnd + 2, varintEnd + 2 + previousHashLength).toString('hex');
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Bounce the mirror importer Deployment so it reloads its cached `lastRecordFile`.
+   * Mirror caches the head record file in memory; until the importer pod restarts, it
+   * keeps requesting the same (already-gapped) block.
+   */
+  private async restartMirrorImporter(): Promise<void> {
+    const mirrorNodes: any[] = this.remoteConfig.configuration?.state?.mirrorNodes || [];
+    if (mirrorNodes.length === 0) {
+      return;
+    }
+    const mirrorNode: any = mirrorNodes[0];
+    const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+    const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+    const mirrorReleaseName: string = await this.resolveMirrorReleaseName(
+      Number(mirrorNode.metadata.id),
+      mirrorNamespace,
+      mirrorContext,
+    );
+    const importerDeploymentName: string = `${mirrorReleaseName}-importer`;
+    await this.patchDeploymentRestartAnnotation(mirrorContext, mirrorNamespace, importerDeploymentName);
   }
 
   /**
@@ -1219,10 +1853,9 @@ export class BackupRestoreCommand extends BaseCommand {
         haProxyService.spec?.ports?.find((port): boolean => port.name === 'non-tls-grpc-client-port')?.port || 50_211;
       const accountId: string = nodeService.metadata?.labels?.['solo.hedera.com/account-id'] || '';
       const isSameClusterAsRelay: boolean = consensusNode.cluster === relayClusterReference;
-      const endpointHost: string =
-        isSameClusterAsRelay
-          ? `network-${nodeAlias}.${namespace.toString()}.svc.cluster.local`
-          : lbOrClusterEndpoint;
+      const endpointHost: string = isSameClusterAsRelay
+        ? `network-${nodeAlias}.${namespace.toString()}.svc.cluster.local`
+        : lbOrClusterEndpoint;
 
       if (!endpointHost || !accountId) {
         continue;
@@ -1249,7 +1882,11 @@ export class BackupRestoreCommand extends BaseCommand {
 
   /**
    * Apply block-node-specific restore adjustments after config/state restore.
-   * Preserve a valid earliest managed block setting and optionally restore tss-parameters.bin.
+   * Restore the captured `data/` and `verification/` content (so the new block node's tip
+   * matches what existed at backup time), then keep `BLOCK_NODE_EARLIEST_MANAGED_BLOCK`
+   * aligned with the configured value. tss-parameters.bin is restored as part of the
+   * captured archive when present; if a separate tss-parameters.bin was emitted during
+   * backup it is overlaid on top.
    */
   private async applyBlockNodeRestoreFixes(inputDirectory: string, _namespace: NamespaceName): Promise<void> {
     const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
@@ -1257,8 +1894,8 @@ export class BackupRestoreCommand extends BaseCommand {
       return;
     }
 
-    const tssParametersPath: string = PathEx.join(inputDirectory, 'tss-parameters.bin');
-    const shouldRestoreTssParameters: boolean = fs.existsSync(tssParametersPath);
+    const standaloneTssParametersPath: string = PathEx.join(inputDirectory, 'tss-parameters.bin');
+    const hasStandaloneTssParameters: boolean = fs.existsSync(standaloneTssParametersPath);
 
     for (const blockNode of blockNodes) {
       const blockNodeId: number = Number(blockNode.metadata.id);
@@ -1268,7 +1905,10 @@ export class BackupRestoreCommand extends BaseCommand {
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
       const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      // Keep the currently configured earliest block unless it is the legacy restore sentinel.
+      // Preserve the helm-deployed earliest-managed-block value. Earlier versions replaced
+      // the sentinel 100000000 with 0; that defeated the purpose of the sentinel. Now we
+      // simply pass through whatever helm rendered and only synthesize a default of 0 when
+      // the configmap unexpectedly lacks the key entirely.
       let earliestManagedBlock: string = '0';
       try {
         const blockNodeConfigMap: ConfigMap = await k8.configMaps().read(blockNodeNamespace, blockNodeConfigMapName);
@@ -1281,20 +1921,10 @@ export class BackupRestoreCommand extends BaseCommand {
           `Unable to read ${blockNodeConfigMapName} in ${blockNodeNamespace.toString()} (${blockNodeContext}); defaulting earliest block to 0. Error: ${error.message || error}`,
         );
       }
-      if (earliestManagedBlock === '100000000') {
-        this.logger.info(
-          `Replacing legacy BLOCK_NODE_EARLIEST_MANAGED_BLOCK sentinel value for ${blockNodeConfigMapName} with 0`,
-        );
-        earliestManagedBlock = '0';
-      }
 
       await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
         BLOCK_NODE_EARLIEST_MANAGED_BLOCK: earliestManagedBlock,
       });
-
-      if (!shouldRestoreTssParameters) {
-        continue;
-      }
 
       const pods: Pod[] = await k8.pods().list(blockNodeNamespace, Templates.renderBlockNodeLabels(blockNodeId));
       if (pods.length === 0) {
@@ -1302,22 +1932,65 @@ export class BackupRestoreCommand extends BaseCommand {
       }
 
       const podReference: PodReference = pods[0].podReference;
+      const podName: string = podReference.name.toString();
       const containerReference: ContainerReference = ContainerReference.of(
         podReference,
         constants.BLOCK_NODE_CONTAINER_NAME,
       );
       const container: Container = k8.containers().readByRef(containerReference);
 
-      await container.execContainer([
-        'sh',
-        '-c',
-        'rm -rf /opt/hiero/block-node/data/live/* ' +
-          '/opt/hiero/block-node/data/historic/* ' +
-          '/opt/hiero/block-node/verification/rootHashOfAllPreviousBlocks.bin ' +
-          '/opt/hiero/block-node/verification/tss-parameters.bin 2>/dev/null || true',
-      ]);
-      await container.copyTo(tssParametersPath, '/opt/hiero/block-node/verification');
+      // Restore data/ and verification/ from the captured archive when available. The
+      // block-node-server image lacks zip/unzip; backup writes tar.gz so restore reads it.
+      const dataArchivePath: string = PathEx.join(
+        inputDirectory,
+        blockNode.metadata.cluster,
+        'blockNodeData',
+        `${podName}-blockNodeData.tar.gz`,
+      );
+      const hasDataArchive: boolean = fs.existsSync(dataArchivePath);
+      if (hasDataArchive) {
+        const archiveInPod: string = `/tmp/${podName}-blockNodeData.tar.gz`;
+        // Wipe the running block node's data first so the extract doesn't merge with
+        // whatever the fresh chart deployment seeded. Verification artifacts are repopulated
+        // by the tar extract below. Pass `-m` (skip mtime) and `--no-same-owner` so tar does
+        // not try to chown/utime the pre-existing data/ and verification/ directory entries
+        // - the block-node-server runs as a non-root user that lacks those capabilities.
+        await container.execContainer([
+          'sh',
+          '-c',
+          'rm -rf /opt/hiero/block-node/data/* /opt/hiero/block-node/verification/* 2>/dev/null || true',
+        ]);
+        await container.copyTo(dataArchivePath, '/tmp');
+        await container.execContainer([
+          'sh',
+          '-c',
+          `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}" --no-same-owner && rm -f "${archiveInPod}"`,
+        ]);
+        this.logger.info(`Restored block node data archive into ${podName}`);
+      } else {
+        this.logger.info(`No block node data archive at ${dataArchivePath}; leaving fresh deploy state`);
+      }
 
+      // Overlay a standalone tss-parameters.bin if backup emitted it (legacy compat).
+      if (hasStandaloneTssParameters) {
+        await container.copyTo(standaloneTssParametersPath, '/opt/hiero/block-node/verification');
+        await container.execContainer([
+          'sh',
+          '-c',
+          'chown hedera:hedera /opt/hiero/block-node/verification/tss-parameters.bin || true',
+        ]);
+      }
+
+      // We previously tried to plant the freeze block from CN's captured `.pnd.gz` into
+      // block node's data dir, but the `.pnd` payload is a pending BlockItem stream that
+      // never went through CN's TSS seal - it has no BlockProof, so block node's reader
+      // rejects it and returns NOT_AVAILABLE. Worse, leaving the placeholder file there
+      // makes block node prefer it over later good copies. So we do not inject at all;
+      // instead, the post-start `solo config ops bridge-import-gap` task patches the
+      // importer past the gap via synthetic record_file rows. See issue
+      // hiero-ledger/hiero-consensus-node#25389 for the underlying CN-side bug.
+
+      // Restart so the block node re-scans data/ and picks up the restored block ranges.
       await k8.pods().delete(podReference);
       await k8
         .pods()
@@ -1454,6 +2127,17 @@ export class BackupRestoreCommand extends BaseCommand {
           task: async (context_, task): Promise<void> => {
             await this.restoreLogsAndConfigs(inputDirectory);
             task.title = 'Restore Logs and Configs: completed';
+          },
+        },
+        {
+          // Plant CN's pre-stop block stream files (including the freeze block held in
+          // .pnd form) onto the new CN's disk so back-fill can satisfy the block node on
+          // first publish attempt. Must run before uploadStateFiles to land alongside the
+          // restored saved state.
+          title: 'Restore CN block streams',
+          task: async (context_, task): Promise<void> => {
+            await this.restoreConsensusBlockStreams(inputDirectory);
+            task.title = 'Restore CN block streams: completed';
           },
         },
         this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),

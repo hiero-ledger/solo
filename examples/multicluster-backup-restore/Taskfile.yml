@@ -94,6 +94,27 @@ tasks:
       # Guard 3: after start, ensure the loaded roster gossip IPs in swirlds.log
       # match the live node service LB IPs. Fail early on stale roster endpoints.
       - task: verify-roster-vs-lb
+      # Wait for CN to publish blocks above the importer's gap (freeze block and the
+      # block immediately after are typically missing from block node because CN's saved
+      # state references blocks it never finalized-and-streamed downstream). Once block
+      # node has blocks above importer.MAX(record_file), bridge the gap with synthetic
+      # record_file rows and bounce the importer so it resumes indexing from there.
+      # Workaround for hiero-ledger/hiero-consensus-node#25389 - retire once that lands.
+      - cmd: |
+          echo "Waiting for block node to receive blocks above importer's MAX..."
+          IMPORTER_MAX=$(kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+            env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
+            -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -tA -c \
+            "SELECT COALESCE(MAX(index),-1) FROM record_file;" 2>/dev/null)
+          TARGET=$((IMPORTER_MAX + 5))
+          for i in $(seq 1 60); do
+            BN_TIP=$(kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- \
+              sh -c "find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | tail -1" 2>/dev/null)
+            [ -n "${BN_TIP}" ] && [ "${BN_TIP}" -ge "${TARGET}" ] && { echo "Block node tip ${BN_TIP} >= target ${TARGET}"; break; }
+            echo "  attempt ${i}: bn_tip=${BN_TIP} target=${TARGET}"
+            sleep 5
+          done
+          {{ .SOLO_COMMAND }} config ops bridge-import-gap --deployment {{ .DEPLOYMENT }} --dev || true
       # Restart relay to clear any crash-loop backoff caused by mirror-1-rest WRONGPASS
       # during restore. Even after mirror-1-rest is ready, the relay may be stuck in
       # exponential backoff and won't recover on its own before the smoke test runs.
@@ -293,7 +314,7 @@ tasks:
     cmds:
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 40 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+            {{ .TIMEOUT_COMMAND }} 60 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
             $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
