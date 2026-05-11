@@ -107,4 +107,11 @@ export interface HelmClient {
    * @param chartName the name of the chart to update.
    */
   dependencyUpdate(chartName: string): Promise<void>;
+
+  /**
+   * @param chart - the chart to pull
+   * @param version - the version of the chart to pull
+   * @param destinationDirectory - the directory to pull the chart to
+   */
+  pullChartPackage(chart: Chart, version: string, destinationDirectory: string): Promise<void>;
 }

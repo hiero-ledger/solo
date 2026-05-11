@@ -94,6 +94,7 @@ import {StringFacade} from '../../business/runtime-state/facade/string-facade.js
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {OneShotInfoContext} from './one-shot-info-context.js';
 import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
+import {CacheCommandDefinition} from '../command-definitions/cache-command-definition.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -376,6 +377,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               if (!config.setupConfiguration[releaseTagKey]) {
                 config.setupConfiguration[releaseTagKey] = versions.consensus;
               }
+              this.logger.addLogBindings({
+                clusterReference: config.clusterRef,
+                context: config.context,
+                deployment: config.deployment,
+                namespace: config.namespace.name,
+              });
 
               // Apply small-memory node configuration only for CN >= 0.72.0 and when not using `one-shot falcon deploy`
               const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
@@ -499,6 +506,36 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             skip: (context_: OneShotSingleDeployContext): boolean =>
               context_.config.force === true || context_.config.quiet === true,
           },
+          invokeSoloCommand(
+            `solo ${CacheCommandDefinition.IMAGE_PULL_COMMAND}`,
+            CacheCommandDefinition.IMAGE_PULL_COMMAND,
+            (): string[] => {
+              const argv: string[] = newArgv();
+              argv.push(
+                ...CacheCommandDefinition.IMAGE_PULL_COMMAND.split(' '),
+                optionFromFlag(Flags.edgeEnabled),
+                (!!config.edgeEnabled).toString(),
+              );
+              return argvPushGlobalFlags(argv);
+            },
+            this.taskList,
+            (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
+          ),
+          invokeSoloCommand(
+            `solo ${CacheCommandDefinition.IMAGE_LOAD_COMMAND}`,
+            CacheCommandDefinition.IMAGE_LOAD_COMMAND,
+            (): string[] => {
+              const argv: string[] = newArgv();
+              argv.push(
+                ...CacheCommandDefinition.IMAGE_LOAD_COMMAND.split(' '),
+                optionFromFlag(Flags.clusterRef),
+                config.clusterRef,
+              );
+              return argvPushGlobalFlags(argv);
+            },
+            this.taskList,
+            (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
+          ),
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
             ClusterReferenceCommandDefinition.CONNECT_COMMAND,
