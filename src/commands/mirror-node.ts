@@ -47,7 +47,6 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {Lock} from '../core/lock/lock.js';
-import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Base64} from 'js-base64';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
@@ -201,6 +200,8 @@ enum MirrorNodeCommandType {
 
 @injectable()
 export class MirrorNodeCommand extends BaseCommand {
+  private static readonly MIRROR_ENVIRONMENT_VARIABLE_PREFIX: string = 'HIERO';
+  private static readonly MIRROR_CHART_NAMESPACE: string = 'hiero';
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
@@ -436,8 +437,8 @@ export class MirrorNodeCommand extends BaseCommand {
       'Mirror node version',
     );
 
-    const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
-    const environmentVariablePrefix: string = this.getEnvironmentVariablePrefix(config.mirrorNodeVersion);
+    const chartNamespace: string = MirrorNodeCommand.MIRROR_CHART_NAMESPACE;
+    const environmentVariablePrefix: string = MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX;
 
     if (config.componentImage) {
       const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
@@ -566,33 +567,6 @@ export class MirrorNodeCommand extends BaseCommand {
     {config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext,
     commandType: MirrorNodeCommandType,
   ): Promise<void> {
-    if (
-      config.isChartInstalled &&
-      new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
-        versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION,
-      )
-    ) {
-      // migrating mirror node passwords from HEDERA_ (version 0.129.0) to HIERO_
-      const existingSecrets: Secret = await this.k8Factory
-        .getK8(config.clusterContext)
-        .secrets()
-        .read(config.namespace, 'mirror-passwords');
-      const updatedData: Record<string, string> = {};
-      for (const [key, value] of Object.entries(existingSecrets.data)) {
-        if (key.startsWith('HEDERA_')) {
-          updatedData[key.replace('HEDERA_', 'HIERO_')] = value;
-        } else {
-          updatedData[key] = value;
-        }
-      }
-      if (Object.keys(updatedData).length > 0) {
-        await this.k8Factory
-          .getK8(config.clusterContext)
-          .secrets()
-          .replace(config.namespace, 'mirror-passwords', SecretType.OPAQUE, updatedData);
-      }
-    }
-
     // Determine if we should reuse values based on the currently deployed version from remote config
     // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
     // to avoid RegularExpression rules from old version causing relay node request failures
@@ -796,7 +770,7 @@ export class MirrorNodeCommand extends BaseCommand {
           },
           {
             title: 'Initialize Postgres pod',
-            task: (context_, task): SoloListr<MirrorNodeDeployContext> => {
+            task: (_context_, task): SoloListr<MirrorNodeDeployContext> => {
               const subTasks: SoloListrTask<MirrorNodeDeployContext>[] = [
                 {
                   title: 'Wait for Postgres pod to be ready',
@@ -858,7 +832,7 @@ export class MirrorNodeCommand extends BaseCommand {
         await this.postgresSharedResource.initializeMirrorNode(
           context_.config.namespace,
           context_.config.clusterContext,
-          this.getEnvironmentVariablePrefix(context_.config.mirrorNodeVersion),
+          MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX,
         );
       },
       skip: ({config}: MirrorNodeDeployContext): boolean =>
@@ -1236,13 +1210,7 @@ export class MirrorNodeCommand extends BaseCommand {
             );
 
             // predefined values first
-            config.valuesArg = helpers.prepareValuesFiles(
-              new SemanticVersion<string>(config.mirrorNodeVersion).lessThan(
-                versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION,
-              )
-                ? constants.MIRROR_NODE_VALUES_FILE_HEDERA
-                : constants.MIRROR_NODE_VALUES_FILE,
-            );
+            config.valuesArg = helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
 
             // user defined values later to override predefined values
             config.valuesArg += await this.prepareValuesArg(config);
@@ -1251,7 +1219,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
             const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
             const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
-            const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
+            const chartNamespace: string = MirrorNodeCommand.MIRROR_CHART_NAMESPACE;
 
             const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
 
@@ -1485,11 +1453,7 @@ export class MirrorNodeCommand extends BaseCommand {
             }
 
             // predefined values first
-            config.valuesArg = new SemanticVersion<string>(config.mirrorNodeVersion).lessThan(
-              versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION,
-            )
-              ? helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE_HEDERA)
-              : helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
+            config.valuesArg = helpers.prepareValuesFiles(constants.MIRROR_NODE_VALUES_FILE);
 
             // user defined values later to override predefined values
             config.valuesArg += await this.prepareValuesArg(config);
@@ -1505,7 +1469,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
             const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
             const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
-            const chartNamespace: string = this.getChartNamespace(config.mirrorNodeVersion);
+            const chartNamespace: string = MirrorNodeCommand.MIRROR_CHART_NAMESPACE;
 
             const modules: string[] = ['monitor', 'rest', 'grpc', 'importer', 'restjava', 'graphql', 'rosetta', 'web3'];
             for (const module of modules) {
@@ -1695,18 +1659,6 @@ export class MirrorNodeCommand extends BaseCommand {
         `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
       );
     }
-  }
-
-  private getEnvironmentVariablePrefix(version: string): string {
-    return new SemanticVersion<string>(version).lessThan(versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
-      ? 'HEDERA'
-      : 'HIERO';
-  }
-
-  private getChartNamespace(version: string): string {
-    return new SemanticVersion<string>(version).lessThan(versions.POST_HIERO_MIGRATION_MIRROR_NODE_VERSION)
-      ? 'hedera'
-      : 'hiero';
   }
 
   /**

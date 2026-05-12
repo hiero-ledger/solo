@@ -9,6 +9,38 @@ export interface SoloLogger {
 
   nextTraceId(): void;
 
+  /**
+   * Adds or updates a single structured log binding.
+   *
+   * Log bindings are MDC-style key/value pairs that are automatically attached
+   * to structured log entries written by the logger. This makes fields such as
+   * namespace, deployment, cluster reference, command name, or node alias easier
+   * to query in JSON log files.
+   *
+   * These bindings are intended for file/structured logging only and should not
+   * change user-facing CLI output such as showUser(...), showJSON(...), lists, or
+   * progress messages.
+   *
+   * Passing undefined, null, or an empty string removes the binding.
+   */
+  setLogBinding(key: string, value: unknown): void;
+
+  /**
+   * Adds or updates multiple structured log bindings.
+   *
+   * This is useful once command or task configuration has been resolved and
+   * several common fields should be attached to following structured log entries.
+   */
+  addLogBindings(bindings: Record<string, unknown>): void;
+
+  /**
+   * Clears structured log bindings.
+   *
+   * If keys are provided, only those bindings are removed. If no keys are
+   * provided, all active log bindings are cleared.
+   */
+  clearLogBindings(...keys: string[]): void;
+
   prepMeta(meta?: object | any): object | any;
 
   showUser(message: any, ...arguments_: any): void;

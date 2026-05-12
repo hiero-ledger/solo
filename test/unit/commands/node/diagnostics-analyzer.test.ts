@@ -60,6 +60,9 @@ com.swirlds.platform.system.SystemExitUtils.exitSystem(SystemExitUtils.java:37)
       getMessageGroupKeys: sinon.stub().returns([]),
       showAllMessageGroups: sinon.stub(),
       flush: sinon.stub().callsFake((callback: (error?: Error) => void): void => callback()),
+      setLogBinding: sinon.stub(),
+      addLogBindings: sinon.stub(),
+      clearLogBindings: sinon.stub(),
     };
   });
 
