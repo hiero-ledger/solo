@@ -1,6 +1,9 @@
 #!/bin/bash
 set -eo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/helper.sh"
+
 collect_failure_diagnostics() {
   local rc="${1}"
 
@@ -148,7 +151,7 @@ echo "::endgroup::"
 echo "::group::Launch solo using released Solo version ${fromSoloVersion}"
 
 if [[ -z "${toConsensusNodeVersion}" ]]; then
-  export TO_CONSENSUS_NODE_VERSION=$(grep 'TEST_UPGRADE_TO_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+  export TO_CONSENSUS_NODE_VERSION=$(extract_version TEST_UPGRADE_TO_VERSION version-test.ts)
   if [[ -z "${TO_CONSENSUS_NODE_VERSION}" ]]; then
     echo "TO_CONSENSUS_NODE_VERSION is empty, please check version-test.ts for TEST_UPGRADE_TO_VERSION"
     exit 1
@@ -157,7 +160,7 @@ else
   export TO_CONSENSUS_NODE_VERSION="${toConsensusNodeVersion}"
 fi
 
-export FROM_CONSENSUS_NODE_VERSION=$(grep 'TEST_UPGRADE_FROM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+export FROM_CONSENSUS_NODE_VERSION=$(extract_version TEST_UPGRADE_FROM_VERSION version-test.ts)
 if [[ -z "${FROM_CONSENSUS_NODE_VERSION}" ]]; then
   echo "FROM_CONSENSUS_NODE_VERSION is empty, please check version-test.ts for TEST_UPGRADE_FROM_VERSION"
   exit 1
@@ -223,7 +226,9 @@ npm run solo -- init --dev
 # The old released Solo command executed above may have installed either naming scheme.
 unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
-npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+# need to use old solo to freeze the network since new solo freeze may not be compatible with old consensus node
+# s6 container
+solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 
 # using new solo to redeploy solo deployment chart to new version
 show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"

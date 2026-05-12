@@ -36,6 +36,7 @@ export const VFKIT: string = 'vfkit';
 export const GVPROXY: string = 'gvproxy';
 export const DOCKER: string = 'docker';
 export const KUBECTL: string = 'kubectl';
+export const CRANE: string = 'crane';
 export const BASE_DEPENDENCIES: string[] = [HELM, KIND, KUBECTL];
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
@@ -49,6 +50,11 @@ export const KIND_NODE_IMAGE: string =
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 export const ENABLE_S6_IMAGE: boolean = getEnvironmentVariable('ENABLE_S6_IMAGE') === 'true' || true;
+
+export const CONFIG: {ENABLE_IMAGE_CACHE: boolean} = {
+  ENABLE_IMAGE_CACHE: getEnvironmentVariable('ENABLE_IMAGE_CACHE') === 'true' || false,
+};
+
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
 export const SOLO_REMOTE_CONFIGMAP_NAME: string = 'solo-remote-config';
 export const SOLO_REMOTE_CONFIGMAP_DATA_KEY: string = 'remote-config-data';
@@ -292,6 +298,10 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'mirror-postgres-truncate.sql',
+);
 export const UPGRADE_MIGRATIONS_FILE: string = PathEx.join(RESOURCES_DIR, 'component-upgrade-migrations.json');
 export const SOLO_DEPLOYMENT_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'solo-values.yaml');
 export const BLOCK_NODE_TSS_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-tss-values.yaml');
@@ -300,6 +310,12 @@ export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOU
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
 export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
+
+export const SOLO_CACHE_IMAGES_TARGET_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'config',
+  'solo-cache-images-target.yaml',
+);
 
 export const CONTAINER_COPY_MAX_ATTEMPTS: number = +getEnvironmentVariable('CONTAINER_COPY_MAX_ATTEMPTS') || 3;
 export const CONTAINER_COPY_BACKOFF_MS: number = +getEnvironmentVariable('CONTAINER_COPY_BACKOFF_MS') || 300;
@@ -313,7 +329,7 @@ export const CHECK_WRAPS_DIRECTORY_BACKOFF_MS: number =
  * Listr related
  * @returns a object that defines the default color options
  */
-export const LISTR_DEFAULT_RENDERER_TIMER_OPTION = {
+export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: any = {
   ...PRESET_TIMER,
   condition: (duration: number): boolean => duration > 100,
   format: (duration: number) => {

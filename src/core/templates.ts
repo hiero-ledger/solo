@@ -177,6 +177,7 @@ export class Templates {
       case constants.PODMAN:
       case constants.VFKIT:
       case constants.GVPROXY:
+      case constants.CRANE:
       case constants.KUBECTL: {
         if (OperatingSystem.isWin32()) {
           return PathEx.join(installationDirectory, `${dependency}.exe`);
