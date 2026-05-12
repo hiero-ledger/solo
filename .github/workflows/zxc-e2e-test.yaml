@@ -395,7 +395,12 @@ jobs:
           max_attempts: 3
           timeout_minutes: 30
           command: |
-            export CONSENSUS_NODE_VERSION="${{ steps.resolve_consensus_java.outputs.consensus-node-version }}"
+            source .github/workflows/script/helper.sh
+            if [ -z "${{ inputs.consensus-node-version }}" ]; then
+                export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
+            else
+                export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
+            fi
             cd ..
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
             cd hiero-consensus-node
@@ -426,6 +431,7 @@ jobs:
         run: |
           export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
+          source .github/workflows/script/helper.sh
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"
@@ -433,7 +439,7 @@ jobs:
                   if [[ "${{ inputs.test-script }}" == "test-e2e-block-node" ]]; then
                     echo "Use default from version.ts for block node test"
                   else
-                    export CONSENSUS_NODE_VERSION="$(bash ./.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)"
+                    export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
                   fi
               fi
           else
@@ -454,6 +460,10 @@ jobs:
           else 
             echo "SOLO_ONE_SHOT_MINIMAL_SETUP=true" >> .env
             echo "FORCE_PODMAN=true" >> .env
+          fi
+          
+          if [[ "${{ inputs.custom-job-label }}" == "One Shot Single" ]]; then
+            echo "ENABLE_IMAGE_CACHE=true" >> .env
           fi
           
           cat .env
