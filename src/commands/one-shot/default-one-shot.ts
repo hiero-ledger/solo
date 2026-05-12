@@ -31,6 +31,8 @@ import {MutableFacadeArray} from '../../business/runtime-state/collection/mutabl
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
 import {type DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {OneShotInfoContext} from './one-shot-info-context.js';
+import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
+import {CacheCommandDefinition} from '../command-definitions/cache-command-definition.js';
 import {type ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
 
 @injectable()
