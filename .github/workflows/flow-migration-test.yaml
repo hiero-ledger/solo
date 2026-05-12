@@ -62,6 +62,7 @@ env:
 jobs:
   test-migration-process:
     name: Migrate Solo from Prior to Current Version
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     timeout-minutes: 60
     runs-on: hiero-solo-linux-large
     steps:
@@ -113,6 +114,7 @@ jobs:
           max_attempts: 3
           timeout_minutes: 5
           command: |
+            source .github/workflows/script/helper.sh
             FROM_INPUT="${{ inputs.from-solo-version }}"
             TO_CN_INPUT="${{ inputs.to-consensus-node-version }}"
 
@@ -121,7 +123,7 @@ jobs:
             fi
 
             if [[ -z "${TO_CN_INPUT}" ]]; then
-              TO_CN_INPUT=$(grep 'TEST_UPGRADE_TO_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\\1/")
+              TO_CN_INPUT=$(extract_version TEST_UPGRADE_TO_VERSION version-test.ts)
             fi
 
             if [[ -z "${TO_CN_INPUT}" ]]; then

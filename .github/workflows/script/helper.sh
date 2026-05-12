@@ -122,3 +122,82 @@ function log_and_exit()
     return 1
   fi
 }
+
+# Extract a version-like string from a TypeScript const declaration
+#
+# Usage:
+#   extract_version <TARGET> <SOURCE_FILE>
+#
+# Arguments:
+#   TARGET       TypeScript const name to extract (e.g., HEDERA_PLATFORM_VERSION)
+#   SOURCE_FILE  Path to the TypeScript file to parse
+#
+# Examples:
+#   extract_version PREV_BLOCK_NODE_VERSION version-test.ts
+#   extract_version HEDERA_PLATFORM_VERSION version.ts
+extract_version() {
+  if [[ "$#" -ne 2 ]]; then
+    echo "Usage: extract_version <TARGET> <SOURCE_FILE>" >&2
+    return 1
+  fi
+
+  local TARGET="$1"
+  local SOURCE_FILE="$2"
+
+  if [[ ! -f "${SOURCE_FILE}" ]]; then
+    echo "Source file not found: ${SOURCE_FILE}" >&2
+    return 1
+  fi
+
+  local value
+  value="$(awk -v target="${TARGET}" '
+    BEGIN {
+      RS = ";"
+      value = ""
+      declarationFound = 0
+    }
+
+    function extract_value(text,    idx, candidate, s, token, v) {
+      idx = index(text, "||")
+      if (idx > 0) {
+        candidate = substr(text, idx + 2)
+      } else {
+        candidate = text
+      }
+
+      s = candidate
+      v = ""
+      while (match(s, /\047[^\047]*\047|\"[^\"]*\"/)) {
+        token = substr(s, RSTART, RLENGTH)
+        v = substr(token, 2, length(token) - 2)
+        s = substr(s, RSTART + RLENGTH)
+      }
+
+      return v
+    }
+
+    {
+      if ($0 ~ "(^|[[:space:]])(export[[:space:]]+)?const[[:space:]]+" target "([[:space:]]|:)" ) {
+        declarationFound = 1
+        value = extract_value($0)
+        if (value != "") {
+          print value
+          exit
+        }
+      }
+    }
+
+    END {
+      if (declarationFound == 0 || value == "") {
+        exit 1
+      }
+    }
+  ' "${SOURCE_FILE}" | head -n 1)"
+
+  if [[ -z "${value}" ]]; then
+    echo "Unable to extract value for target \"${TARGET}\" from ${SOURCE_FILE}" >&2
+    return 1
+  fi
+
+  printf '%s' "${value}"
+}

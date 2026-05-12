@@ -369,6 +369,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
 
+              // Ensure release tag is set in network configuration so subcommands use the correct version
+              const releaseTagKey: string = flags.getFormattedFlagKey(Flags.releaseTag);
+              if (!config.networkConfiguration[releaseTagKey]) {
+                config.networkConfiguration[releaseTagKey] = versions.consensus;
+              }
+              if (!config.setupConfiguration[releaseTagKey]) {
+                config.setupConfiguration[releaseTagKey] = versions.consensus;
+              }
               this.logger.addLogBindings({
                 clusterReference: config.clusterRef,
                 context: config.context,
