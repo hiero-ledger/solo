@@ -280,12 +280,13 @@ export class AccountManager {
       );
 
       const selectedNodeServicesMap: NodeServiceMapping = this.selectNodeServices(networkNodeServicesMap, selection);
-      this._nodeClient = await this._getNodeClient(
+      const nodeClient = await this._getNodeClient(
         namespace,
         selectedNodeServicesMap,
         treasuryAccountInfo.accountId,
         treasuryAccountInfo.privateKey,
         selection.type === 'all' ? selection.skipNodeAlias : undefined,
+        selection.type === 'only',
       );
 
       this.logger.debug(
@@ -294,7 +295,7 @@ export class AccountManager {
           : 'node client has been refreshed',
       );
 
-      return this._nodeClient;
+      return nodeClient;
     } catch (error) {
       throw new SoloError(`failed to refresh node client: ${error.message}`, error);
     }
@@ -316,6 +317,7 @@ export class AccountManager {
    * @param operatorId - the account id of the operator of the transactions
    * @param operatorKey - the private key of the operator of the transactions
    * @param skipNodeAlias - the node alias to skip
+   * @param skipAssignment
    * @returns a node client that can be used to call transactions
    */
   public async _getNodeClient(
@@ -324,6 +326,7 @@ export class AccountManager {
     operatorId: string,
     operatorKey: string,
     skipNodeAlias?: NodeAlias | undefined,
+    skipAssignment: boolean = false,
   ): Promise<Client> {
     let nodes: Record<SdkNetworkEndpoint, AccountId> = {};
     const configureNodeAccessPromiseArray: Promise<Record<SdkNetworkEndpoint, AccountId>>[] = [];
@@ -367,21 +370,25 @@ export class AccountManager {
 
       // scheduleNetworkUpdate is set to false, because the ports 50212/50211 are hardcoded in JS SDK that will not work
       // when running locally or in a pipeline
-      this._nodeClient = Client.fromConfig({network: nodes, scheduleNetworkUpdate: false});
-      this._nodeClient.setOperator(operatorId, operatorKey);
-      this._nodeClient.setLogger(new Logger(LogLevel.Trace, PathEx.join(constants.SOLO_LOGS_DIR, 'hashgraph-sdk.log')));
-      this._nodeClient.setMaxAttempts(constants.NODE_CLIENT_MAX_ATTEMPTS as number);
-      this._nodeClient.setMinBackoff(constants.NODE_CLIENT_MIN_BACKOFF as number);
-      this._nodeClient.setMaxBackoff(constants.NODE_CLIENT_MAX_BACKOFF as number);
-      this._nodeClient.setRequestTimeout(constants.NODE_CLIENT_REQUEST_TIMEOUT as number);
-      this._nodeClient.setMaxQueryPayment(new Hbar(constants.NODE_CLIENT_MAX_QUERY_PAYMENT));
+      const nodeClient = Client.fromConfig({network: nodes, scheduleNetworkUpdate: false});
+      nodeClient.setOperator(operatorId, operatorKey);
+      nodeClient.setLogger(new Logger(LogLevel.Trace, PathEx.join(constants.SOLO_LOGS_DIR, 'hashgraph-sdk.log')));
+      nodeClient.setMaxAttempts(constants.NODE_CLIENT_MAX_ATTEMPTS as number);
+      nodeClient.setMinBackoff(constants.NODE_CLIENT_MIN_BACKOFF as number);
+      nodeClient.setMaxBackoff(constants.NODE_CLIENT_MAX_BACKOFF as number);
+      nodeClient.setRequestTimeout(constants.NODE_CLIENT_REQUEST_TIMEOUT as number);
+      nodeClient.setMaxQueryPayment(new Hbar(constants.NODE_CLIENT_MAX_QUERY_PAYMENT));
+
+      if (!skipAssignment) {
+        this._nodeClient = nodeClient;
+      }
 
       // ping the node client to ensure it is working
       if (!constants.SKIP_NODE_PING) {
-        await this._nodeClient.ping(AccountId.fromString(operatorId));
+        await nodeClient.ping(AccountId.fromString(operatorId));
       }
 
-      return this._nodeClient;
+      return nodeClient;
     } catch (error) {
       throw new SoloError(`failed to setup node client: ${error.message}`, error);
     }

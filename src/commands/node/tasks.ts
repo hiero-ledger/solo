@@ -674,7 +674,7 @@ export class NodeCommandTasks {
     task: SoloListrTaskWrapper<AnyListrContext>,
     title: string,
   ): Promise<void> {
-    const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+    const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
     const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
     let attempt: number = 0;
@@ -716,12 +716,6 @@ export class NodeCommandTasks {
       `node '${nodeAlias}' failed gRPC readiness check ` +
         `[ attempt = ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)} ]`,
     );
-
-    // Erroring disabled to prevent the additional logic from blocking deployments
-    // throw new SoloError(
-    //   `node '${nodeAlias}' failed gRPC readiness check ` +
-    //     `[ attempt = ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)} ]`,
-    // );
   }
 
   /** Return task for check if node proxies are ready */
