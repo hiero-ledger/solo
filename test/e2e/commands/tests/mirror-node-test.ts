@@ -138,6 +138,7 @@ export class MirrorNodeTest extends BaseCommandTest {
             response.setEncoding('utf8');
 
             response.on('data', (chunk): void => {
+              testLogger.info(chunk);
               // convert chunk to json object
               const object: {nodes: {service_endpoints: unknown[]}[]} = JSON.parse(chunk);
               expect(
