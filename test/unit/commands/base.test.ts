@@ -8,7 +8,7 @@ import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {BaseCommand} from '../../../src/commands/base.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
-import sinon, {type SinonStub, type SinonStubbedInstance} from 'sinon';
+import sinon, {type SinonSandbox, type SinonStub, type SinonStubbedInstance} from 'sinon';
 import {container} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {resetForTest} from '../../test-container.js';
@@ -23,20 +23,20 @@ import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-st
 import {RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
 
-describe('BaseCommand', () => {
+describe('BaseCommand', (): void => {
   let helm: HelmClient;
   let chartManager: ChartManager;
   let configManager: ConfigManager;
   let depManager: DependencyManager;
   let localConfig: LocalConfigRuntimeState;
   let remoteConfig: RemoteConfigRuntimeStateApi;
-  let sandbox = sinon.createSandbox();
+  let sandbox: SinonSandbox = sinon.createSandbox();
   let testLogger: SoloLogger;
 
   let baseCmd: BaseCommand;
 
-  describe('runShell', () => {
-    before(async () => {
+  describe('runShell', (): void => {
+    before(async (): Promise<void> => {
       resetForTest();
       testLogger = container.resolve(InjectTokens.SoloLogger);
       helm = container.resolve(InjectTokens.Helm);
@@ -65,17 +65,17 @@ describe('BaseCommand', () => {
       await localConfig.load();
     });
 
-    after(() => {
+    after((): void => {
       sandbox.restore();
     });
 
-    it('should fail during invalid program check', async () => {
+    it('should fail during invalid program check', async (): Promise<void> => {
       await expect(baseCmd.run('INVALID_PROGRAM')).to.be.rejected;
     });
-    it('should succeed during valid program check', async () => {
+    it('should succeed during valid program check', async (): Promise<void> => {
       await expect(baseCmd.run('echo')).to.eventually.not.be.null;
     });
-    it('getConfig tracks property usage', () => {
+    it('getConfig tracks property usage', (): void => {
       const flagsList: CommandFlag[] = [flags.releaseTag, flags.tlsClusterIssuerType, flags.valuesFile];
       const argv: Argv = Argv.initializeEmpty();
       argv.setArg(flags.releaseTag, 'releaseTag1');
@@ -146,8 +146,8 @@ describe('BaseCommand', () => {
     });
   });
 
-  describe('get consensus nodes', () => {
-    before(() => {
+  describe('get consensus nodes', (): void => {
+    before((): void => {
       const testLogger: SinonStub = sinon.stub();
       const helm: SinonStub = sinon.stub();
       const chartManager: SinonStub = sinon.stub();
@@ -210,9 +210,9 @@ describe('BaseCommand', () => {
       );
     });
 
-    it('should return consensus nodes', () => {
+    it('should return consensus nodes', (): void => {
       // @ts-expect-error - TS2445: to access private property
-      const consensusNodes = baseCmd.remoteConfig.getConsensusNodes();
+      const consensusNodes: ConsensusNode[] = baseCmd.remoteConfig.getConsensusNodes();
       expect(consensusNodes).to.be.an('array');
       expect(consensusNodes[0].context).to.equal('context1');
       expect(consensusNodes[1].context).to.equal('context2');
@@ -226,7 +226,7 @@ describe('BaseCommand', () => {
       expect(consensusNodes[1].cluster).to.equal('cluster2');
     });
 
-    it('should return contexts', () => {
+    it('should return contexts', (): void => {
       // @ts-expect-error - TS2445: to access private property
       const contexts = baseCmd.remoteConfig.getContexts();
       expect(contexts).to.be.an('array');
@@ -234,7 +234,7 @@ describe('BaseCommand', () => {
       expect(contexts[1]).to.equal('context2');
     });
 
-    it('should return clusters references', () => {
+    it('should return clusters references', (): void => {
       const expectedClusterReferences = {cluster: 'context1', cluster2: 'context2'};
       // @ts-expect-error - TS2445: to access private property
       const clusterReferences: ClusterReferences = baseCmd.remoteConfig.getClusterRefs();
