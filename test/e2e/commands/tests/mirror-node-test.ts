@@ -105,14 +105,14 @@ export class MirrorNodeTest extends BaseCommandTest {
     const portForwarder: number = await k8
       .pods()
       .readByReference(mirrorNodeRestPods[0].podReference)
-      .portForward(MIRROR_NODE_PORT, 80);
+      .portForward(MIRROR_NODE_PORT, 80, true);
     await sleep(Duration.ofSeconds(2));
     return portForwarder;
   }
 
   private static async stopPortForward(contexts: string[], portForwarder: number): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const k8: K8 = k8Factory.getK8(contexts[contexts.length]);
+    const k8: K8 = k8Factory.getK8(contexts.at(-1));
     // eslint-disable-next-line unicorn/no-null
     await k8.pods().readByReference(null).stopPortForward(portForwarder);
   }
@@ -139,8 +139,13 @@ export class MirrorNodeTest extends BaseCommandTest {
 
             response.on('data', (chunk): void => {
               testLogger.info(chunk);
-              // convert chunk to json object
-              const object: {nodes: {service_endpoints: unknown[]}[]} = JSON.parse(chunk);
+              let object: {nodes: {service_endpoints: unknown[]}[]};
+              try {
+                object = JSON.parse(chunk) as {nodes: {service_endpoints: unknown[]}[]};
+              } catch {
+                testLogger.warn(`Mirror node returned non-JSON response, will retry: ${chunk}`);
+                return;
+              }
               expect(
                 object.nodes?.length,
                 `expect there to be ${consensusNodesCount} nodes in the mirror node's copy of the address book`,
@@ -165,7 +170,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       }
 
       for (const accountId of createdAccountIds) {
-        const accountQueryUrl: string = `http://localhost:${MIRROR_NODE_PORT}/api/v1/accounts/${accountId}`;
+        const accountQueryUrl: string = `http://localhost:${portForwarder}/api/v1/accounts/${accountId}`;
 
         received = false;
         // wait until the transaction reached consensus and retrievable from the mirror node API
@@ -177,8 +182,13 @@ export class MirrorNodeTest extends BaseCommandTest {
               response.setEncoding('utf8');
 
               response.on('data', (chunk): void => {
-                // convert chunk to json object
-                const object: {account: string} = JSON.parse(chunk);
+                let object: {account: string};
+                try {
+                  object = JSON.parse(chunk) as {account: string};
+                } catch {
+                  testLogger.warn(`Mirror node returned non-JSON response, will retry: ${chunk}`);
+                  return;
+                }
 
                 expect(
                   object.account,
