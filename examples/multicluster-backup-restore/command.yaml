@@ -27,3 +27,21 @@ block:
   - --quiet-mode
   - --values-file
   - block-node-values.yaml
+# Re-applied at restore time so service.spec.loadBalancerIP is rendered into the
+# chart with the same values as the original deploy. MetalLB honors loadBalancerIP,
+# so the new cluster comes up with the same LB IPs the saved roster expects.
+consensus:
+  - --deployment
+  - external-database-test-deployment
+  - --quiet-mode
+  - --dev
+  - --load-balancer
+  - --pvcs
+  - --application-properties
+  - application.properties
+  - --haproxy-ips
+  - node1=172.19.1.0,node2=172.19.2.0
+  - --envoy-ips
+  - node1=172.19.1.2,node2=172.19.2.2
+  - --network-node-ips
+  - node1=172.19.1.1,node2=172.19.2.1

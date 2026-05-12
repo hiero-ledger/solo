@@ -2481,6 +2481,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly networkNodeIps: CommandFlag = {
+    constName: 'networkNodeIps',
+    name: 'network-node-ips',
+    definition: {
+      describe:
+        'IP mapping where key = value is node alias and static ip for the network-node LoadBalancer service, ' +
+        '(e.g.: --network-node-ips node1=127.0.0.1,node2=127.0.0.2)',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   public static readonly storageType: CommandFlag = {
     constName: 'storageType',
     name: 'storage-type',
@@ -3064,6 +3076,7 @@ export class Flags {
     Flags.enableTimeout,
     Flags.endpointType,
     Flags.envoyIps,
+    Flags.networkNodeIps,
     Flags.forcePortForward,
     Flags.externalAddress,
     Flags.generateEcdsaKey,

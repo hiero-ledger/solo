@@ -103,8 +103,10 @@ export interface NetworkDeployConfigClass {
   resolvedThrottlesFile: string;
   haproxyIps: string;
   envoyIps: string;
+  networkNodeIps: string;
   haproxyIpsParsed?: Record<NodeAlias, IP>;
   envoyIpsParsed?: Record<NodeAlias, IP>;
+  networkNodeIpsParsed?: Record<NodeAlias, IP>;
   storageType: constants.StorageType;
   gcsWriteAccessKey: string;
   gcsWriteSecrets: string;
@@ -217,6 +219,7 @@ export class NetworkCommand extends BaseCommand {
       flags.grpcWebTlsKeyPath,
       flags.haproxyIps,
       flags.envoyIps,
+      flags.networkNodeIps,
       flags.storageType,
       flags.gcsWriteAccessKey,
       flags.gcsWriteSecrets,
@@ -695,6 +698,7 @@ export class NetworkCommand extends BaseCommand {
       config.consensusNodes,
       valuesArguments,
       ' --set "hedera.nodes[${nodeId}].haproxyStaticIP=${recordValue}"',
+      nodeIndexByClusterAndName,
     );
 
     // Iterate over each node and set static IPs for Envoy Proxy
@@ -703,6 +707,16 @@ export class NetworkCommand extends BaseCommand {
       config.consensusNodes,
       valuesArguments,
       ' --set "hedera.nodes[${nodeId}].envoyProxyStaticIP=${recordValue}"',
+      nodeIndexByClusterAndName,
+    );
+
+    // Iterate over each node and set static IPs for the network-node LoadBalancer service
+    this.addArgForEachRecord(
+      config.networkNodeIpsParsed,
+      config.consensusNodes,
+      valuesArguments,
+      ' --set "hedera.nodes[${nodeId}].networkNodeStaticIP=${recordValue}"',
+      nodeIndexByClusterAndName,
     );
 
     if (config.resolvedThrottlesFile) {
@@ -745,17 +759,33 @@ export class NetworkCommand extends BaseCommand {
     consensusNodes: ConsensusNode[],
     valuesArguments: Record<ClusterReferenceName, string>,
     templateString: string,
+    nodeIndexByClusterAndName: Map<string, number>,
   ): void {
-    if (records) {
-      for (const consensusNode of consensusNodes) {
-        if (records[consensusNode.name]) {
-          const newTemplateString: string = templateString.replace('{nodeId}', consensusNode.nodeId.toString());
-          valuesArguments[consensusNode.cluster] += newTemplateString.replace(
-            '{recordValue}',
-            records[consensusNode.name],
-          );
-        }
+    if (!records) {
+      return;
+    }
+    for (const consensusNode of consensusNodes) {
+      if (!records[consensusNode.name]) {
+        continue;
       }
+      // The per-cluster index (matching the chart's hedera.nodes[N].name slot) must be
+      // used here. consensusNode.nodeId is the global node id and points at a phantom
+      // hedera.nodes[N] slot without a `name`, which makes downstream templates render
+      // `%!s(<nil>)` for the node name.
+      const perClusterIndex: number | undefined = nodeIndexByClusterAndName.get(
+        `${consensusNode.cluster}:${consensusNode.name}`,
+      );
+      if (perClusterIndex === undefined) {
+        continue;
+      }
+      // Templates use `${nodeId}` / `${recordValue}` placeholders. Replacing only
+      // `{nodeId}` (no `$`) leaves the `$` orphaned in the final --set arg, which
+      // helm's index parser then chokes on (e.g. `[$0]` -> "invalid syntax").
+      const newTemplateString: string = templateString.replace('${nodeId}', perClusterIndex.toString());
+      valuesArguments[consensusNode.cluster] += newTemplateString.replace(
+        '${recordValue}',
+        records[consensusNode.name],
+      );
     }
   }
 
@@ -800,6 +830,7 @@ export class NetworkCommand extends BaseCommand {
       flags.grpcWebTlsKeyPath,
       flags.haproxyIps,
       flags.envoyIps,
+      flags.networkNodeIps,
       flags.storageType,
       flags.gcsWriteAccessKey,
       flags.gcsWriteSecrets,
@@ -865,6 +896,10 @@ export class NetworkCommand extends BaseCommand {
 
     if (config.envoyIps) {
       config.envoyIpsParsed = Templates.parseNodeAliasToIpMapping(config.envoyIps);
+    }
+
+    if (config.networkNodeIps) {
+      config.networkNodeIpsParsed = Templates.parseNodeAliasToIpMapping(config.networkNodeIps);
     }
 
     if (config.domainNames) {

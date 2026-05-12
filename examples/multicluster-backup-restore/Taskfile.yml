@@ -41,7 +41,13 @@ vars:
   POSTGRES_DATABASE_NAMESPACE: "database"
   POSTGRES_CONTAINER_NAME: "{{ .POSTGRES_NAME }}-0"
   POSTGRES_HOST_FQDN: "my-postgresql.database.svc.cluster.local"
-  EXPECTED_LB_IPS_FILE: "{{ .TASKFILE_DIR }}/expected-lb-ips.env"
+  # Static LoadBalancer IPs pinned into the chart at deploy time via solo's
+  # --haproxy-ips / --envoy-ips / --network-node-ips flags. MetalLB honors
+  # service.spec.loadBalancerIP so the same IPs survive destroy+recreate without
+  # any post-deploy patching. Replaces the old ensure-lb-ips/verify-* scripts.
+  HAPROXY_IPS: "node1=172.19.1.0,node2=172.19.2.0"
+  ENVOY_IPS: "node1=172.19.1.2,node2=172.19.2.2"
+  NETWORK_NODE_IPS: "node1=172.19.1.1,node2=172.19.2.1"
 
 
 tasks:
@@ -78,12 +84,10 @@ tasks:
   restart:
     desc: Restart consensus nodes after restore (skips cluster redeployment)
     cmds:
-      # Fail fast if desired static IP is currently owned by another service.
-      - task: check-lb-ip-conflicts
-      # Enforce static node service LB IP mapping before CN start.
-      - task: ensure-lb-ips
-      # Verify expected LB IPs before startup; fail fast on drift.
-      - task: verify-lb-ips-pre-restore
+      # LB IPs are pinned by the chart via service.spec.loadBalancerIP (set during
+      # consensus network deploy / restore-network with --haproxy-ips/--envoy-ips/
+      # --network-node-ips), so MetalLB re-allocates the same IPs every time. No
+      # pre-start enforcement or roster-vs-LB verification needed.
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
@@ -91,9 +95,6 @@ tasks:
             {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           fi
           {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1
-      # Guard 3: after start, ensure the loaded roster gossip IPs in swirlds.log
-      # match the live node service LB IPs. Fail early on stale roster endpoints.
-      - task: verify-roster-vs-lb
       # Wait for CN to publish blocks above the importer's gap (freeze block and the
       # block immediately after are typically missing from block node because CN's saved
       # state references blocks it never finalized-and-streamed downstream). Once block
@@ -242,15 +243,17 @@ tasks:
       # block node from genesis, allowing it to acquire TSS params (tss-parameters.bin) from
       # block 0. These are preserved during the block node data reset in restore-config so
       # TSS verification passes for backed-up blocks after restore.
+      # Pin LB IPs into the chart so MetalLB allocates them deterministically and
+      # genesis-network.json captures the right gossip endpoints from the start. The
+      # same IPs are re-applied during restore-network so destroy+recreate preserves
+      # the roster's gossip targets with no post-deploy reconciliation.
       - cmd: echo "🚀 Deploying consensus network..."
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs \
-            --application-properties {{ .USER_WORKING_DIR }}/application.properties
-
-      # Pin static LB IPs before node setup so genesis-network.json is generated
-      # with the correct pinned IPs. This ensures backup state captures the same
-      # IPs that ensure-lb-ips re-pins after restore, avoiding roster mismatches.
-      - task: ensure-lb-ips
+            --application-properties {{ .USER_WORKING_DIR }}/application.properties \
+            --haproxy-ips {{ .HAPROXY_IPS }} \
+            --envoy-ips {{ .ENVOY_IPS }} \
+            --network-node-ips {{ .NETWORK_NODE_IPS }}
 
       # Setup nodes
       - cmd: echo "⚙️  Setting up consensus nodes..."
@@ -369,63 +372,17 @@ tasks:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
       - task: deploy-external-database
+      # IP pinning lives in command.yaml's `consensus:` block (--haproxy-ips /
+      # --envoy-ips / --network-node-ips). The chart renders service.spec.loadBalancerIP
+      # and MetalLB allocates deterministically, so --skip-ip-tracking is correct here:
+      # there is nothing for restore-network to re-patch post-deploy.
       - cmd: |
           $SOLO_COMMAND config ops restore-network \
             --input-dir {{ .BACKUP_DIR }} \
             --options-file {{ .TASKFILE_DIR }}/command.yaml \
             --shard {{ .SHARD }} \
             --realm {{ .REALM }} \
-            --expected-lb-ips-file {{ .EXPECTED_LB_IPS_FILE }}
-
-  ensure-lb-ips:
-    desc: Enforce expected LoadBalancer IPs for node services
-    cmds:
-      - cmd: |
-          {{ .TASKFILE_DIR }}/scripts/ensure-lb-ips.sh \
-            {{ .EXPECTED_LB_IPS_FILE }} \
-            {{ .NAMESPACE }} \
-            enforce
-
-  check-lb-ip-conflicts:
-    desc: Check whether target static LB IPs are owned by other services
-    cmds:
-      - cmd: |
-          {{ .TASKFILE_DIR }}/scripts/check-lb-ip-conflicts.sh \
-            {{ .EXPECTED_LB_IPS_FILE }} \
-            {{ .NAMESPACE }} \
-            precheck \
-            warn-only
-
-  verify-lb-ips-pre-restore:
-    desc: Verify expected LoadBalancer IPs before restore-network
-    cmds:
-      # Uses static expected-lb-ips.env as source of truth.
-      # Any mismatch returns non-zero and stops the workflow.
-      - cmd: |
-          {{ .TASKFILE_DIR }}/scripts/verify-lb-ips.sh \
-            {{ .EXPECTED_LB_IPS_FILE }} \
-            {{ .NAMESPACE }} \
-            pre-restore
-
-  verify-lb-ips-post-restore:
-    desc: Verify expected LoadBalancer IPs after restore-network
-    cmds:
-      # Same check as pre-restore, executed after restore-network.
-      - cmd: |
-          {{ .TASKFILE_DIR }}/scripts/verify-lb-ips.sh \
-            {{ .EXPECTED_LB_IPS_FILE }} \
-            {{ .NAMESPACE }} \
-            post-restore
-
-  verify-roster-vs-lb:
-    desc: Verify loaded roster gossip IPs match live LoadBalancer IPs
-    cmds:
-      # Parses each node's "Current Roster" from swirlds.log and compares
-      # both node views to current LB IPs of network-node services.
-      - cmd: |
-          {{ .TASKFILE_DIR }}/scripts/verify-roster-vs-lb.sh \
-            {{ .NAMESPACE }} \
-            post-start
+            --skip-ip-tracking
 
   # ==================== External Database Tasks ====================
 

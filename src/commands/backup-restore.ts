@@ -10,6 +10,7 @@ import yaml from 'yaml';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import AdmZip from 'adm-zip';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
@@ -1904,6 +1905,50 @@ export class BackupRestoreCommand extends BaseCommand {
    * captured archive when present; if a separate tss-parameters.bin was emitted during
    * backup it is overlaid on top.
    */
+  // Scan the captured CN-side block-stream archives for the freeze-time `.pnd` block file.
+  // After freeze, each CN halts mid-production of the freeze block as a pending entry
+  // (e.g. `000...142.pnd.gz`). The block number is the last 36-digit numeric segment of the
+  // entry path. Returns the max block number found across all clusters, or -1 if no `.pnd`
+  // entries are present (no freeze gap to bridge).
+  private discoverFreezePndBlockNumber(inputDirectory: string): number {
+    let maxPndBlockNumber: number = -1;
+    if (!fs.existsSync(inputDirectory)) {
+      return maxPndBlockNumber;
+    }
+    const pndPattern: RegExp = /(\d+)\.pnd(\.|$)/;
+    try {
+      const clusterEntries: fs.Dirent[] = fs.readdirSync(inputDirectory, {withFileTypes: true});
+      for (const clusterEntry of clusterEntries) {
+        if (!clusterEntry.isDirectory()) {
+          continue;
+        }
+        const blockStreamsDirectory: string = path.join(inputDirectory, clusterEntry.name, 'blockStreams');
+        if (!fs.existsSync(blockStreamsDirectory)) {
+          continue;
+        }
+        const archiveFiles: string[] = fs
+          .readdirSync(blockStreamsDirectory)
+          .filter((fileName: string): boolean => fileName.endsWith('-blockStreams.zip'));
+        for (const archiveFile of archiveFiles) {
+          const archivePath: string = path.join(blockStreamsDirectory, archiveFile);
+          const zip: AdmZip = new AdmZip(archivePath);
+          for (const zipEntry of zip.getEntries()) {
+            const match: RegExpMatchArray | null = zipEntry.entryName.match(pndPattern);
+            if (match) {
+              const blockNumber: number = Number.parseInt(match[1], 10);
+              if (blockNumber > maxPndBlockNumber) {
+                maxPndBlockNumber = blockNumber;
+              }
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      this.logger.info(`Failed to scan captured CN block streams for freeze pnd block: ${error.message || error}`);
+    }
+    return maxPndBlockNumber;
+  }
+
   private async applyBlockNodeRestoreFixes(inputDirectory: string, _namespace: NamespaceName): Promise<void> {
     const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
     if (blockNodes.length === 0) {
@@ -1921,21 +1966,34 @@ export class BackupRestoreCommand extends BaseCommand {
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
       const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      // Preserve the helm-deployed earliest-managed-block value. Earlier versions replaced
-      // the sentinel 100000000 with 0; that defeated the purpose of the sentinel. Now we
-      // simply pass through whatever helm rendered and only synthesize a default of 0 when
-      // the configmap unexpectedly lacks the key entirely.
+      // Override BLOCK_NODE_EARLIEST_MANAGED_BLOCK so block node accepts CN's first
+      // post-restore block. Block node's startup logic in LiveStreamPublisherManager
+      // sets nextUnstreamedBlockNumber = EMB when disk is empty. CN resumes producing
+      // at freezeBlock+2 (skipping the unfinishable freeze block). If EMB <= 0, block
+      // node thinks the first block must be 0 and responds BehindPublisher; CN gives
+      // up after 2 responses. Setting EMB above CN's expected first block activates
+      // block node's streamBeforeEmb flex path, which accepts any first block below
+      // EMB as the new tip. The freeze block number is recovered from the captured
+      // CN-side `.pnd` archives; +100 margin guards against CN behavior variance.
+      const freezePndBlockNumber: number = this.discoverFreezePndBlockNumber(inputDirectory);
       let earliestManagedBlock: string = '0';
-      try {
-        const blockNodeConfigMap: ConfigMap = await k8.configMaps().read(blockNodeNamespace, blockNodeConfigMapName);
-        const configuredEarliestManagedBlock: string = blockNodeConfigMap.data?.BLOCK_NODE_EARLIEST_MANAGED_BLOCK;
-        if (configuredEarliestManagedBlock && configuredEarliestManagedBlock.trim().length > 0) {
-          earliestManagedBlock = configuredEarliestManagedBlock.trim();
-        }
-      } catch (error: any) {
+      if (freezePndBlockNumber >= 0) {
+        earliestManagedBlock = String(freezePndBlockNumber + 100);
         this.logger.info(
-          `Unable to read ${blockNodeConfigMapName} in ${blockNodeNamespace.toString()} (${blockNodeContext}); defaulting earliest block to 0. Error: ${error.message || error}`,
+          `Setting block node EMB to ${earliestManagedBlock} (freeze pnd block ${freezePndBlockNumber} + 100 margin)`,
         );
+      } else {
+        try {
+          const blockNodeConfigMap: ConfigMap = await k8.configMaps().read(blockNodeNamespace, blockNodeConfigMapName);
+          const configuredEarliestManagedBlock: string = blockNodeConfigMap.data?.BLOCK_NODE_EARLIEST_MANAGED_BLOCK;
+          if (configuredEarliestManagedBlock && configuredEarliestManagedBlock.trim().length > 0) {
+            earliestManagedBlock = configuredEarliestManagedBlock.trim();
+          }
+        } catch (error: any) {
+          this.logger.info(
+            `Unable to read ${blockNodeConfigMapName} in ${blockNodeNamespace.toString()} (${blockNodeContext}); defaulting earliest block to 0. Error: ${error.message || error}`,
+          );
+        }
       }
 
       await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
@@ -1955,8 +2013,17 @@ export class BackupRestoreCommand extends BaseCommand {
       );
       const container: Container = k8.containers().readByRef(containerReference);
 
-      // Restore data/ and verification/ from the captured archive when available. The
-      // block-node-server image lacks zip/unzip; backup writes tar.gz so restore reads it.
+      // Restore only verification/ from the captured archive. We deliberately do NOT restore
+      // data/ (the pre-freeze block files): see hiero-ledger/hiero-consensus-node#25389. After
+      // freeze, CN halts mid-production of the freeze block (e.g. 142.pnd) and never streams
+      // it. On restart CN resumes at 144, so block node ends up with a permanent 142..143 gap
+      // on disk. That gap pins block node's lastPersistedBlockNumber to the pre-gap value
+      // forever - CN keeps replying "Behind, need 142", CN can't supply it (.pnd has no
+      // BlockProof), and CN's in-memory buffer eventually evicts the contested block. The
+      // workaround is to start block node with an empty data/ so lastPersistedBlockNumber = -1
+      // and it accepts whatever block CN produces first. Mirror importer already holds 0..141
+      // in its own record_file table; the subsequent bridge-import-gap step inserts synthetic
+      // rows for the missing freeze blocks so importer can pull forward from 144.
       const dataArchivePath: string = PathEx.join(
         inputDirectory,
         blockNode.metadata.cluster,
@@ -1966,11 +2033,10 @@ export class BackupRestoreCommand extends BaseCommand {
       const hasDataArchive: boolean = fs.existsSync(dataArchivePath);
       if (hasDataArchive) {
         const archiveInPod: string = `/tmp/${podName}-blockNodeData.tar.gz`;
-        // Wipe the running block node's data first so the extract doesn't merge with
-        // whatever the fresh chart deployment seeded. Verification artifacts are repopulated
-        // by the tar extract below. Pass `-m` (skip mtime) and `--no-same-owner` so tar does
-        // not try to chown/utime the pre-existing data/ and verification/ directory entries
-        // - the block-node-server runs as a non-root user that lacks those capabilities.
+        // Wipe both data/ and verification/ so the extract doesn't merge with the fresh chart
+        // deploy seed. We then extract only verification/ - data/ stays empty. Pass `-m` and
+        // `--no-same-owner` because the block-node-server runs as a non-root user that lacks
+        // chown/utime capability on pre-existing directory entries.
         await container.execContainer([
           'sh',
           '-c',
@@ -1980,9 +2046,9 @@ export class BackupRestoreCommand extends BaseCommand {
         await container.execContainer([
           'sh',
           '-c',
-          `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}" --no-same-owner && rm -f "${archiveInPod}"`,
+          `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}" --no-same-owner verification && rm -f "${archiveInPod}"`,
         ]);
-        this.logger.info(`Restored block node data archive into ${podName}`);
+        this.logger.info(`Restored block node verification artifacts into ${podName} (data/ left empty by design)`);
       } else {
         this.logger.info(`No block node data archive at ${dataArchivePath}; leaving fresh deploy state`);
       }
