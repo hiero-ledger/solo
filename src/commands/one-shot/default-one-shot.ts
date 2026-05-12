@@ -205,7 +205,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         // and keep the latest value (last-write-wins semantics).
         let existingIndex: number = argv.indexOf(key);
         while (existingIndex !== -1) {
-          const hasFollowingValue: boolean = existingIndex + 1 < argv.length && !argv[existingIndex + 1].startsWith('--');
+          const hasFollowingValue: boolean =
+            existingIndex + 1 < argv.length && !argv[existingIndex + 1].startsWith('--');
           argv.splice(existingIndex, hasFollowingValue ? 2 : 1);
           existingIndex = argv.indexOf(key);
         }

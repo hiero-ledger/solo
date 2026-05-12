@@ -415,10 +415,10 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private initializeComponentVersions(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
-    const chartVersionArg: string | undefined = argv[flags.soloChartVersion.name] as string | undefined;
-    if (chartVersionArg) {
+    const chartVersionArgument: string | undefined = argv[flags.soloChartVersion.name] as string | undefined;
+    if (chartVersionArgument) {
       // Explicit CLI flag always wins.
-      remoteConfig.versions.chart = new SemanticVersion(chartVersionArg);
+      remoteConfig.versions.chart = new SemanticVersion(chartVersionArgument);
     } else if (!remoteConfig.versions.chart || remoteConfig.versions.chart.equals('0.0.0')) {
       // Only backfill default when the chart version is not initialized yet.
       // Preserve previously recorded chart versions for commands that don't accept chart flags.
