@@ -17,6 +17,7 @@ import {appendConfigToArgv, argvPushGlobalFlags, newArgv, optionFromFlag} from '
 import * as constants from '../../../../core/constants.js';
 import * as version from '../../../../../version.js';
 import {type AnyObject} from '../../../../types/aliases.js';
+import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
 
 const MIRROR_NODE_ID: number = 1;
 
@@ -206,6 +207,26 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.generateTlsKeys),
     );
     return argvPushGlobalFlags(argv, config.cacheDir);
+  }
+
+  public static buildImagePullArgv(config: OneShotSingleDeployConfigClass): string[] {
+    const argv: string[] = newArgv();
+    argv.push(
+      ...CacheCommandDefinition.IMAGE_PULL_COMMAND.split(' '),
+      optionFromFlag(Flags.edgeEnabled),
+      (!!config.edgeEnabled).toString(),
+    );
+    return argvPushGlobalFlags(argv);
+  }
+
+  public static buildImageLoadArgv(config: OneShotSingleDeployConfigClass): string[] {
+    const argv: string[] = newArgv();
+    argv.push(
+      ...CacheCommandDefinition.IMAGE_LOAD_COMMAND.split(' '),
+      optionFromFlag(Flags.clusterRef),
+      config.clusterRef,
+    );
+    return argvPushGlobalFlags(argv);
   }
 
   public static resolveOneShotComponentVersions(useEdge: boolean): OneShotVersionsObject {

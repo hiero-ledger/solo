@@ -84,6 +84,7 @@ import yaml from 'yaml';
 import {DeployArgvBuilders} from './deploy-argv-builders.js';
 import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DISK} from '../../../../../version.js';
+import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
@@ -307,6 +308,26 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           skip: (context_: OneShotSingleDeployContext): boolean =>
             context_.config.force === true || context_.config.quiet === true,
         }),
+      }),
+      new OrchestratorPipelinePhase('Pull docker images', {
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+          invokeSoloCommand(
+            `solo ${CacheCommandDefinition.IMAGE_PULL_COMMAND}`,
+            CacheCommandDefinition.IMAGE_PULL_COMMAND,
+            (): string[] => DeployArgvBuilders.buildImagePullArgv(getConfig()),
+            this.taskList,
+            (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
+          ),
+      }),
+      new OrchestratorPipelinePhase('Load docker images', {
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+          invokeSoloCommand(
+            `solo ${CacheCommandDefinition.IMAGE_LOAD_COMMAND}`,
+            CacheCommandDefinition.IMAGE_LOAD_COMMAND,
+            (): string[] => DeployArgvBuilders.buildImageLoadArgv(getConfig()),
+            this.taskList,
+            (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
+          ),
       }),
       new OrchestratorPipelinePhase('Cluster connect', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
