@@ -736,8 +736,9 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
                             optionFromFlag(Flags.deployment),
                             config.deployment,
+                            optionFromFlag(Flags.soloChartVersion),
+                            config.versions.soloChart,
                           );
-                          argv.push(optionFromFlag(Flags.soloChartVersion), config.versions.soloChart);
                           if (config.networkConfiguration) {
                             this.appendConfigToArgv(argv, config.networkConfiguration);
                           }
