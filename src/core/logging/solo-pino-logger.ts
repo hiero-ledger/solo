@@ -303,29 +303,31 @@ export class SoloPinoLogger implements SoloLogger {
     console.log(chalk.red(`╰${'─'.repeat(interiorWidth + 2)}╯`));
   }
 
+  private buildSilentErrorOutput(error: Error, causeChain: Error[]): Record<string, unknown> {
+    return {
+      level: 'ERROR',
+      message: this.getFormattedCode(error) + error.message,
+      stack: error.stack,
+      causes: causeChain.slice(1).map(
+        (cause: Error): Record<string, unknown> => ({
+          message: this.getFormattedCode(cause) + cause.message,
+          stack: cause.stack,
+        }),
+      ),
+    };
+  }
+
   public showUserError(error: unknown): void {
     const normalizedError: Error = error instanceof Error ? error : new Error(String(error));
     const causeChain: Error[] = this.buildCauseChain(normalizedError);
     const lines: string[] = this.buildContentLines(normalizedError, causeChain);
 
     if (constants.SOLO_SILENT_MODE) {
-      console.error(
-        JSON.stringify(
-          {
-            level: 'ERROR',
-            message: stack[0].message,
-            causes: stack.slice(1).map((s): string => s.message),
-          },
-          undefined,
-          2,
-        ),
-      );
-
-      this.toPino('error', error, []);
-      return;
+      console.error(JSON.stringify(this.buildSilentErrorOutput(normalizedError, causeChain), undefined, 2));
+    } else {
+      this.renderErrorBox(lines);
     }
 
-    this.renderErrorBox(lines);
     this.toPino('error', error, []);
   }
 
