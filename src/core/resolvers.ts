@@ -16,7 +16,15 @@ export async function resolveNamespaceFromDeployment(
   task?: SoloListrTaskWrapper<AnyListrContext>,
 ): Promise<NamespaceName> {
   const deploymentName: DeploymentName = await promptTheUserForDeployment(configManager, task);
-  return NamespaceName.of(localConfig.configuration.deploymentByName(deploymentName).namespace);
+  try {
+    return NamespaceName.of(localConfig.configuration.deploymentByName(deploymentName).namespace);
+  } catch {
+    const namespaceFromFlag = configManager.getFlag<NamespaceName | string | undefined>(flags.namespace);
+    if (namespaceFromFlag) {
+      return typeof namespaceFromFlag === 'string' ? NamespaceName.of(namespaceFromFlag) : namespaceFromFlag;
+    }
+    throw new SoloError(`Deployment ${deploymentName} not found in local config and no --namespace provided`);
+  }
 }
 
 export async function promptTheUserForDeployment(
