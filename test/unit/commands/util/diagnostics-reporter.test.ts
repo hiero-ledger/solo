@@ -53,12 +53,12 @@ describe('DiagnosticsReporter', (): void => {
 
   describe('isGhCliAvailable', (): void => {
     it('returns true when gh is on the PATH', async (): Promise<void> => {
-      sinon.stub(ShellRunner.prototype, 'run').resolves(['/usr/bin/gh']);
+      sinon.stub(ShellRunner.prototype, 'runCommand').resolves(['/usr/bin/gh']);
       expect(await DiagnosticsReporter.isGhCliAvailable(loggerStub)).to.equal(true);
     });
 
     it('returns false when gh is not found', async (): Promise<void> => {
-      sinon.stub(ShellRunner.prototype, 'run').rejects(new Error('not found'));
+      sinon.stub(ShellRunner.prototype, 'runCommand').rejects(new Error('not found'));
       expect(await DiagnosticsReporter.isGhCliAvailable(loggerStub)).to.equal(false);
     });
   });

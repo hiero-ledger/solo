@@ -8,5 +8,13 @@ export interface PackageManager {
   install(): Promise<boolean>;
   uninstall(): Promise<void>;
   isAvailable(): Promise<boolean>;
-  run(cmd: string, arguments_: string[], verbose: boolean, detached: boolean): Promise<string[]>;
+  runCommand(
+    cmd: string,
+    arguments_?: string[],
+    verbose?: boolean,
+    detached?: boolean,
+    environmentVariablesToAppend?: Record<string, string>,
+    timeoutMs?: number,
+    cwd?: string,
+  ): Promise<string[]>;
 }

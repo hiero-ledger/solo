@@ -197,14 +197,17 @@ describe('CraneDependencyManager', (): void => {
 
     it('getVersion should return version from crane version output', async (): Promise<void> => {
       const executableWithPath: string = '/usr/local/bin/crane';
-      sandbox.stub(ShellRunner.prototype, 'run').withArgs(`"${executableWithPath}" version`).resolves(['0.21.4']);
+      sandbox
+        .stub(ShellRunner.prototype, 'runCommand')
+        .withArgs(`"${executableWithPath}" version`)
+        .resolves(['0.21.4']);
 
       const actualVersion: string = await craneDependencyManager.getVersion(executableWithPath);
       expect(actualVersion).to.equal('0.21.4');
     });
 
     it('getVersion should throw error when command fails', async (): Promise<void> => {
-      sandbox.stub(ShellRunner.prototype, 'run').rejects(new Error('Command failed'));
+      sandbox.stub(ShellRunner.prototype, 'runCommand').rejects(new Error('Command failed'));
 
       try {
         await craneDependencyManager.getVersion('/usr/local/bin/crane');
@@ -215,7 +218,7 @@ describe('CraneDependencyManager', (): void => {
     });
 
     it('getVersion should throw error when version pattern not found', async (): Promise<void> => {
-      sandbox.stub(ShellRunner.prototype, 'run').resolves(['invalid output']);
+      sandbox.stub(ShellRunner.prototype, 'runCommand').resolves(['invalid output']);
 
       try {
         await craneDependencyManager.getVersion('/usr/local/bin/crane');
@@ -342,7 +345,7 @@ describe('CraneDependencyManager', (): void => {
         undefined,
       );
       craneDependencyManager.uninstallLocal();
-      runStub = sandbox.stub(craneDependencyManager, 'run');
+      runStub = sandbox.stub(craneDependencyManager, 'runCommand');
 
       originalFetch = globalThis.fetch;
       globalThis.fetch = sandbox.stub() as never;
@@ -438,7 +441,7 @@ describe('CraneDependencyManager', (): void => {
             return [executablePath];
           });
 
-        sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.CRANE}`).alwaysReturned(false);
+        sandbox.stub(ShellRunner.prototype, 'runCommand').withArgs(`which ${constants.CRANE}`).alwaysReturned(false);
 
         craneDependencyManager.uninstallLocal();
         expect(craneDependencyManager.isInstalledLocally()).not.to.be.ok;

@@ -29,13 +29,14 @@ export class ShellRunner {
   }
 
   /** Returns a promise that invokes the shell command */
-  public async run(
+  public async runCommand(
     cmd: string,
     arguments_: string[] = [],
     verbose: boolean = false,
     detached: boolean = false,
     environmentVariablesToAppend: Record<string, string> = {},
     timeoutMs?: number,
+    cwd?: string,
   ): Promise<string[]> {
     const redactedArguments: string[] = ShellRunner.redactArguments(arguments_);
     const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${redactedArguments.join(' ')}`;
@@ -45,8 +46,9 @@ export class ShellRunner {
     return new Promise<string[]>((resolve, reject): void => {
       const child: ChildProcessWithoutNullStreams = spawn(cmd, arguments_, {
         env: {...process.env, ...environmentVariablesToAppend},
-        shell: true,
+        shell: false,
         detached,
+        cwd,
         stdio: detached ? 'ignore' : undefined,
         windowsHide: OperatingSystem.isWin32(), // hide the console window on Windows
       });
@@ -88,6 +90,15 @@ export class ShellRunner {
             errorOutput.push(item.trim());
           }
         }
+      });
+
+      child.on('error', (error): void => {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+
+        error.stack = callStack;
+        reject(error);
       });
 
       child.on('exit', (code, signal): void => {
@@ -151,14 +162,16 @@ export class ShellRunner {
   ): Promise<string[]> {
     // Use Promise.race to handle sudo whoami and timeout
     let whoamiResolved: boolean = false;
-    const whoamiPromise: Promise<string[]> = this.run('sudo whoami').then(async result => {
-      whoamiResolved = true;
-      sudoGranted('Root access granted.');
-      return result;
-    });
+    const whoamiPromise: Promise<string[]> = this.runCommand('sudo', ['whoami']).then(
+      async (result): Promise<string[]> => {
+        whoamiResolved = true;
+        sudoGranted('Root access granted.');
+        return result;
+      },
+    );
     // eslint-disable-next-line no-async-promise-executor
-    const timeoutPromise = new Promise<string[]>(async resolve => {
-      await new Promise(callback => setTimeout(callback, 500));
+    const timeoutPromise: Promise<string[]> = new Promise<string[]>(async (resolve): Promise<void> => {
+      await new Promise((callback): NodeJS.Timeout => setTimeout(callback, 500));
       if (!whoamiResolved) {
         sudoRequested('Please provide root permissions to proceed...');
       }
@@ -166,6 +179,6 @@ export class ShellRunner {
     });
     await Promise.race([whoamiPromise, timeoutPromise]);
 
-    return this.run(`sudo ${cmd}`, arguments_, verbose, detached, environmentVariablesToAppend);
+    return this.runCommand('sudo', [cmd, ...arguments_], verbose, detached, environmentVariablesToAppend);
   }
 }

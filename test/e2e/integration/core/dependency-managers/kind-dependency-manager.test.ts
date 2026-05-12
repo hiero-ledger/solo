@@ -100,7 +100,7 @@ describe('KindDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub = sandbox.stub(kindDependencyManager, 'run');
+      runStub = sandbox.stub(kindDependencyManager, 'runCommand');
       runStub.withArgs(`"${fakeGlobalKindPath}" --version`).resolves([`kind version ${version.KIND_VERSION}`]);
       existsSyncStub = sandbox.stub(fs, 'existsSync').returns(true);
       existsSyncStub.withArgs(`${installationDirectory}/kind`).returns(false);
@@ -173,7 +173,7 @@ describe('KindDependencyManager', (): void => {
 
     beforeEach((): void => {
       kindDependencyManager = new KindDependencyManager(undefined, installationDirectory, process.arch, undefined);
-      runStub = sandbox.stub(kindDependencyManager, 'run');
+      runStub = sandbox.stub(kindDependencyManager, 'runCommand');
     });
 
     afterEach((): void => {

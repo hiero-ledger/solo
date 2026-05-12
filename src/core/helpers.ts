@@ -27,7 +27,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags, Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
-import {execSync} from 'node:child_process';
+import {execFileSync} from 'node:child_process';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import yaml from 'yaml';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
@@ -564,12 +564,16 @@ async function throwAfter(duration: Duration, message: string = 'Timeout'): Prom
 export function checkDockerImageExists(imageName: string, imageTag: string): boolean {
   const fullImageName: string = `${imageName}:${imageTag}`;
   try {
-    // Execute the 'docker images' command and filter by the image name
-    // The --format "{{.Repository}}:{{.Tag}}" ensures consistent output
-    // We use grep to filter for the exact image:tag
-    const command: string = `docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "^${fullImageName}$"`;
-    const output: string = execSync(command, {encoding: 'utf8', stdio: 'pipe'});
-    return output.trim() === fullImageName;
+    const output: string = execFileSync('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}'], {
+      encoding: 'utf8',
+      stdio: 'pipe',
+      shell: false,
+    });
+
+    return output
+      .split(/\r?\n/)
+      .map((line: string): string => line.trim())
+      .includes(fullImageName);
   } catch (error: unknown) {
     console.error(`Error checking Docker image ${fullImageName}:`, (error as Error).message);
     return false;

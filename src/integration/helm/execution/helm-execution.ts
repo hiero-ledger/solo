@@ -65,8 +65,8 @@ export class HelmExecution {
       this.logger.info(`Executing helm command: ${this.commandLine}`);
     }
 
-    this.process = spawn(command.join(' '), {
-      shell: true,
+    this.process = spawn(command[0], command.slice(1), {
+      shell: false,
       env: {...process.env, ...environmentVariables},
     });
   }

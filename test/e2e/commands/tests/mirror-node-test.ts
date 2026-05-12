@@ -488,7 +488,9 @@ export class MirrorNodeTest extends BaseCommandTest {
     it('should pull address book from mirror node', async (): Promise<void> => {
       const srv: number = await MirrorNodeTest.forwardRestServicePort(options.contexts, options.namespace);
 
-      const stdOut: string[] = await new ShellRunner().run(`curl http://localhost:${srv}/api/v1/network/nodes`);
+      const stdOut: string[] = await new ShellRunner().runCommand('curl', [
+        `http://localhost:${srv}/api/v1/network/nodes`,
+      ]);
 
       const addressBook: AnyObject = JSON.parse(stdOut.join(''));
 

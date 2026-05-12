@@ -40,8 +40,8 @@ export class KindExecution {
    * @param environmentVariables The environment variables to set
    */
   public constructor(command: string[], environmentVariables: Record<string, string>) {
-    this.process = spawn(command.join(' '), {
-      shell: true,
+    this.process = spawn(command[0], command.slice(1), {
+      shell: false,
       env: {...process.env, ...environmentVariables},
     });
   }

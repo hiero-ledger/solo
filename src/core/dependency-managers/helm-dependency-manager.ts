@@ -99,9 +99,9 @@ export class HelmDependencyManager extends BaseDependencyManager {
       // Override KUBECONFIG to prevent loading kubeconfig and triggering authentication
       // plugins (e.g., Teleport exec credentials) which can hang in non-interactive environments.
       const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
-      const output: string[] = await this.run(
-        `"${executableWithPath}" version --short`,
-        [],
+      const output: string[] = await this.runCommand(
+        executableWithPath,
+        ['version', '--short'],
         false,
         false,
         {KUBECONFIG: nullDevice},
