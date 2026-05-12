@@ -126,7 +126,7 @@ export class MirrorNodeTest extends BaseCommandTest {
   ): Promise<void> {
     const portForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(contexts, namespace);
     try {
-      const queryUrl: string = `http://localhost:${MIRROR_NODE_PORT}/api/v1/network/nodes`;
+      const queryUrl: string = `http://localhost:${portForwarder}/api/v1/network/nodes`;
 
       let received: boolean = false;
       // wait until the transaction reached consensus and retrievable from the mirror node API
@@ -213,7 +213,7 @@ export class MirrorNodeTest extends BaseCommandTest {
   ): Promise<void> {
     const portForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(contexts, namespace);
     try {
-      const transactionsEndpoint: string = `http://localhost:${MIRROR_NODE_PORT}/api/v1/transactions`;
+      const transactionsEndpoint: string = `http://localhost:${portForwarder}/api/v1/transactions`;
       // force to fetch new data instead of using cache
       const fetchOptions: object = {
         cache: 'no-cache' as RequestCache,
@@ -227,16 +227,10 @@ export class MirrorNodeTest extends BaseCommandTest {
       const firstResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const firstData: any = await firstResponse.json();
-      console.log('\r::group::Mirror node verify pinger status first data');
-      console.log(`firstData = ${JSON.stringify(firstData, undefined, 2)}`);
-      console.log('\r::endgroup::');
       await sleep(Duration.ofSeconds(15));
       const secondResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const secondData: any = await secondResponse.json();
-      console.log('\r::group::Mirror node verify pinger status second data');
-      console.log(`secondData = ${JSON.stringify(secondData, undefined, 2)}`);
-      console.log('\r::endgroup::');
       expect(firstData.transactions).to.not.be.undefined;
       expect(firstData.transactions.length).to.be.gt(0);
       expect(secondData.transactions).to.not.be.undefined;
