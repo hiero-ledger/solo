@@ -104,7 +104,7 @@ export class ClusterTaskManager extends ShellRunner {
             this.logger.info('Git not found, installing git...');
             const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);
             const osPackageManager: AptGetPackageManager =
-              this.osPackageManager.getPackageManager() as unknown as AptGetPackageManager;
+              this.osPackageManager.getPackageManager() as AptGetPackageManager;
             osPackageManager.setOnSudoGranted(onSudoGranted);
             osPackageManager.setOnSudoRequested(onSudoRequested);
             await osPackageManager.update();

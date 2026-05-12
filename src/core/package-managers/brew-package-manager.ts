@@ -25,12 +25,10 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
   public async install(): Promise<boolean> {
     await this.runCommand(
       '/bin/bash',
-      ['-c', 'curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | /bin/bash'],
+      ['-c', 'curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh'],
       false,
       false,
-      {
-        NONINTERACTIVE: '1',
-      },
+      {NONINTERACTIVE: '1'},
     );
 
     process.env.PATH = `${process.env.PATH}:/home/linuxbrew/.linuxbrew/bin`;
@@ -40,12 +38,10 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
   public async uninstall(): Promise<void> {
     await this.runCommand(
       '/bin/bash',
-      ['-c', 'curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh | /bin/bash'],
+      ['-c', 'curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh'],
       false,
       false,
-      {
-        NONINTERACTIVE: '1',
-      },
+      {NONINTERACTIVE: '1'},
     );
   }
 

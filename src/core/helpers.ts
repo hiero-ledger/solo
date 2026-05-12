@@ -564,16 +564,15 @@ async function throwAfter(duration: Duration, message: string = 'Timeout'): Prom
 export function checkDockerImageExists(imageName: string, imageTag: string): boolean {
   const fullImageName: string = `${imageName}:${imageTag}`;
   try {
+    // Execute the 'docker images' command and filter by the image name
+    // The --format "{{.Repository}}:{{.Tag}}" ensures consistent output
     const output: string = execFileSync('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}'], {
       encoding: 'utf8',
       stdio: 'pipe',
       shell: false,
-    });
+    }).toString();
 
-    return output
-      .split(/\r?\n/)
-      .map((line: string): string => line.trim())
-      .includes(fullImageName);
+    return output.split(/\r?\n/).some((line: string): boolean => line.trim() === fullImageName);
   } catch (error: unknown) {
     console.error(`Error checking Docker image ${fullImageName}:`, (error as Error).message);
     return false;

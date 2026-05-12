@@ -249,7 +249,6 @@ export class MetricsServerImpl implements MetricsServer {
         return Number.parseInt(runtime.replace('m', ''), 10);
       }
     }
-
     return 0;
   }
 
