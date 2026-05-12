@@ -19,8 +19,15 @@ const {green, yellow} = chalk;
  *   3. pod-readiness    — pod is not Running or its readiness probe is failing.
  *   4. consensus-active — consensus node did not reach ACTIVE platform status.
  *   5. log-exception    — an exception/stack-trace was found in an application log.
+ *   6. app-error        — an ERROR line was found in a pod's raw container log.
  */
-export type DiagnosticsFindingCategory = 'image-pull' | 'oom' | 'pod-readiness' | 'consensus-active' | 'log-exception';
+export type DiagnosticsFindingCategory =
+  | 'image-pull'
+  | 'oom'
+  | 'pod-readiness'
+  | 'consensus-active'
+  | 'log-exception'
+  | 'app-error';
 
 /** A single detected problem with its supporting evidence lines. */
 export type DiagnosticsFinding = {
@@ -45,7 +52,13 @@ type ConsensusLogDefinition = {
  *
  * ## Input sources
  *
- * ### 1. Pod describe files  (`*.describe.txt`)
+ * ### 1. Solo CLI log  (`solo.log`)
+ * The Solo CLI's own Pino log file (`~/.solo/logs/solo.log` by default, or
+ * `solo.log` found recursively under `customOutputDirectory`).  Lines
+ * matching `] ERROR:` are captured as `app-error` findings.  ANSI escape
+ * codes and `[traceId="..."]` suffixes are stripped before matching.
+ *
+ * ### 2. Pod describe files  (`*.describe.txt`)
  * Written by `downloadHieroComponentLogs()` for every pod across all clusters.
  * These are the output of `kubectl describe pod <name> -n <namespace>` and
  * contain the pod's status, container states, events, and resource usage.
@@ -125,6 +138,16 @@ export class DiagnosticsAnalyzer {
       this.analyzeConsensusNodeArchives(consensusArchiveDirectory, findings);
     } else {
       this.logger.showUser(yellow(`  Consensus archive directory not found, skipping: ${consensusArchiveDirectory}`));
+    }
+
+    if (fs.existsSync(hieroOutputDirectory)) {
+      this.analyzePodLogFiles(hieroOutputDirectory, findings);
+    }
+
+    if (fs.existsSync(hieroOutputDirectory)) {
+      this.analyzeSoloLogFiles(hieroOutputDirectory, customOutputDirectory, findings);
+    } else {
+      this.logger.showUser(yellow(`  Diagnostics output directory not found, skipping: ${hieroOutputDirectory}`));
     }
 
     if (!fs.existsSync(hieroOutputDirectory)) {
@@ -253,7 +276,7 @@ export class DiagnosticsAnalyzer {
         if (readyFalse) {
           evidence.push('Ready: False');
         }
-        evidence.push(...this.extractMatchSnippets(content, /^\s*(Reason|Message):\s+.+$/i, 8));
+        evidence.push(...this.extractMatchSnippetsJoiningContinuations(content, /^\s*(Reason|Message):\s+/i, 8));
 
         this.addDiagnosticsFinding(findings, {
           category: 'pod-readiness',
@@ -262,6 +285,117 @@ export class DiagnosticsAnalyzer {
           evidence,
         });
       }
+    }
+  }
+
+  /**
+   * Recursively scans `rootDirectory` for `*.log` pod log files and checks each
+   * for application-level ERROR lines (category: `app-error`).
+   *
+   * These are the raw container logs downloaded by `downloadHieroComponentLogs()`
+   * alongside the `*.describe.txt` files. Each file is scanned for lines
+   * containing `ERROR` and the first matching block (up to 8 lines) is captured.
+   */
+  private analyzePodLogFiles(rootDirectory: string, findings: DiagnosticsFinding[]): void {
+    // Only scan logs for non-consensus components. Consensus node logs are
+    // handled separately via the *-log-config.zip archives (which include
+    // swirlds.log and hgcaa.log).  Broad *.log would match those files too
+    // and produce duplicate / noisy findings.
+    const componentLogPattern: RegExp = /[\\/](?:mirror|block|relay|explorer|solo-shared)[^/\\]*\.log$/i;
+    const logFiles: string[] = this.collectFilesRecursively(rootDirectory, (filePath: string): boolean =>
+      componentLogPattern.test(filePath),
+    );
+
+    // Strip Docker/containerd timestamp prefix (e.g. "2026-04-06T03:24:32.470558065Z ") before matching.
+    const errorPattern: RegExp = /\b(?:ERROR|FATAL)\b/i;
+
+    this.logger.showUser(`  Found ${logFiles.length} pod log file(s)`);
+
+    for (const logFile of logFiles) {
+      const relativePath: string = path.relative(rootDirectory, logFile);
+      this.logger.showUser(`  Reading: ${relativePath}`);
+      let content: string;
+      try {
+        content = fs.readFileSync(logFile, 'utf8');
+      } catch (error) {
+        this.logger.showUser(yellow(`  Unable to read log file ${relativePath}: ${(error as Error).message}`));
+        continue;
+      }
+
+      // Strip leading container-runtime timestamps so the pattern matches the application log line.
+      const strippedContent: string = content.replaceAll(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z\s+/gm, '');
+      if (!errorPattern.test(strippedContent)) {
+        continue;
+      }
+
+      const podName: string = path.basename(logFile, '.log');
+      const evidence: string[] = this.extractMatchSnippets(strippedContent, errorPattern, 8);
+      this.addDiagnosticsFinding(findings, {
+        category: 'app-error',
+        title: `Application ERROR detected in pod log: ${podName}`,
+        source: relativePath,
+        evidence,
+      });
+    }
+  }
+
+  /**
+   * Searches for `solo.log` in `hieroOutputDirectory` (recursively) and, when
+   * no custom output directory was specified, also checks the standard
+   * `~/.solo/logs/solo.log` location.  ERROR lines are extracted and reported
+   * as `app-error` findings.
+   *
+   */
+  private analyzeSoloLogFiles(
+    hieroOutputDirectory: string,
+    customOutputDirectory: string,
+    findings: DiagnosticsFinding[],
+  ): void {
+    const soloLogFiles: string[] = this.collectFilesRecursively(
+      hieroOutputDirectory,
+      (filePath: string): boolean => path.basename(filePath) === 'solo.log',
+    );
+
+    // When using the default output path, the solo.log lives one level up at
+    // ~/.solo/logs/solo.log — outside hieroOutputDirectory, so check it separately.
+    if (!customOutputDirectory) {
+      const defaultSoloLog: string = PathEx.join(constants.SOLO_LOGS_DIR, 'solo.log');
+      if (fs.existsSync(defaultSoloLog) && !soloLogFiles.includes(defaultSoloLog)) {
+        soloLogFiles.push(defaultSoloLog);
+      }
+    }
+
+    this.logger.showUser(`  Found ${soloLogFiles.length} solo log file(s)`);
+
+    const errorPattern: RegExp = /\]\s+ERROR:/;
+    // eslint-disable-next-line no-control-regex
+    const ansiPattern: RegExp = new RegExp('\u001B\\[[0-9;]*m', 'g');
+    const traceIdPattern: RegExp = /\s+\[traceId="[^"]*"\]/g;
+
+    for (const soloLogFile of soloLogFiles) {
+      const relativePath: string = path.relative(hieroOutputDirectory, soloLogFile);
+      const sourceLabel: string = relativePath || path.basename(soloLogFile);
+      this.logger.showUser(`  Reading: ${sourceLabel}`);
+      let content: string;
+      try {
+        content = fs.readFileSync(soloLogFile, 'utf8');
+      } catch (error) {
+        this.logger.showUser(yellow(`  Unable to read solo log ${sourceLabel}: ${(error as Error).message}`));
+        continue;
+      }
+
+      const cleanedContent: string = content.replaceAll(ansiPattern, '').replaceAll(traceIdPattern, '');
+      if (!errorPattern.test(cleanedContent)) {
+        continue;
+      }
+
+      const evidence: string[] = this.extractSoloLogErrorBlocks(cleanedContent, 3, 14);
+      this.addDiagnosticsFinding(findings, {
+        category: 'app-error',
+        title: 'ERROR detected in solo.log',
+        source: sourceLabel,
+        evidence,
+      });
     }
   }
 
@@ -423,6 +557,53 @@ export class DiagnosticsAnalyzer {
   }
 
   /**
+   * Extracts up to `maxBlocks` ERROR blocks from a solo.log file.
+   *
+   * Each block starts on a line matching `] ERROR:` and continues while
+   * subsequent lines are indented (part of the Pino `err:` object dump).
+   * A new log entry — any line starting with `[HH:MM:SS` — terminates the
+   * current block.  Each block is capped at `maxLinesPerBlock` lines.
+   *
+   * Evidence lines are returned flat (one string per line) in
+   * `"line <N>: <content>"` format so they render consistently with other
+   * findings.
+   */
+  private extractSoloLogErrorBlocks(content: string, maxBlocks: number, maxLinesPerBlock: number): string[] {
+    const lines: string[] = content.split(/\r?\n/);
+    const errorPattern: RegExp = /\]\s+ERROR:/;
+    // New Pino log entries start with a bracketed timestamp, e.g. "[17:25:23.788]"
+    const newEntryPattern: RegExp = /^\[\d{2}:\d{2}:\d{2}\.\d{3}]/;
+    const evidence: string[] = [];
+    let blocksCollected: number = 0;
+
+    for (let index: number = 0; index < lines.length && blocksCollected < maxBlocks; index++) {
+      if (!errorPattern.test(lines[index])) {
+        continue;
+      }
+
+      const blockLines: string[] = [`line ${index + 1}: ${lines[index].trim()}`];
+      let next: number = index + 1;
+      while (next < lines.length && blockLines.length < maxLinesPerBlock) {
+        const nextLine: string = lines[next];
+        // Stop at the next log entry or a blank line that precedes one
+        if (newEntryPattern.test(nextLine)) {
+          break;
+        }
+        if (nextLine.trim().length > 0) {
+          blockLines.push(`line ${next + 1}: ${nextLine.trim()}`);
+        }
+        next++;
+      }
+
+      evidence.push(...blockLines);
+      blocksCollected++;
+      index = next - 1;
+    }
+
+    return evidence;
+  }
+
+  /**
    * Returns up to `maxMatches` lines from `content` that match `pattern`,
    * formatted as `"line <N>: <trimmed line>"`.
    *
@@ -448,6 +629,52 @@ export class DiagnosticsAnalyzer {
   }
 
   /**
+   * Like {@link extractMatchSnippets} but joins indented continuation lines
+   * (YAML/kubectl-describe multi-line values) into a single evidence entry.
+   *
+   * When a matching key line is found, any immediately following lines whose
+   * leading whitespace is strictly greater than the key line's indentation are
+   * appended (space-separated) before the snippet is recorded.  This collapses
+   * a multi-line `message:` value into one readable line instead of surfacing
+   * only the truncated first line.
+   */
+  private extractMatchSnippetsJoiningContinuations(content: string, pattern: RegExp, maxMatches: number): string[] {
+    const snippets: string[] = [];
+    const lines: string[] = content.split(/\r?\n/);
+    const normalizedFlags: string = pattern.flags.includes('g') ? pattern.flags.replaceAll('g', '') : pattern.flags;
+    const matcher: RegExp = new RegExp(pattern.source, normalizedFlags);
+
+    for (let index: number = 0; index < lines.length && snippets.length < maxMatches; index++) {
+      const line: string = lines[index];
+      if (!matcher.test(line)) {
+        continue;
+      }
+
+      const keyIndent: number = (line.match(/^(\s*)/)?.[1] ?? '').length;
+      let joined: string = line.trim();
+
+      // Absorb continuation lines that are indented more than the key line.
+      let next: number = index + 1;
+      while (next < lines.length) {
+        const nextLine: string = lines[next];
+        if (nextLine.trim().length === 0) {
+          break;
+        }
+        const nextIndent: number = (nextLine.match(/^(\s*)/)?.[1] ?? '').length;
+        if (nextIndent <= keyIndent) {
+          break;
+        }
+        joined += ' ' + nextLine.trim();
+        next++;
+      }
+
+      snippets.push(`line ${index + 1}: ${joined}`);
+    }
+
+    return snippets;
+  }
+
+  /**
    * Extracts up to `maxBlocks` exception/stack-trace blocks from `content`.
    *
    * A block starts on any line matching `Exception`, `Error`, or `Caused by:`
@@ -459,27 +686,46 @@ export class DiagnosticsAnalyzer {
     const lines: string[] = content.split(/\r?\n/);
     const blocks: string[] = [];
     const timestampPattern: RegExp = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/;
-    const levelContextPattern: RegExp = /\b(?:ERROR|WARN|FATAL|SEVERE|EXCEPTION)\b/i;
     const exceptionTypeLinePattern: RegExp =
       /^\s*(?:[a-z_][A-Za-z0-9_$]*\.)*[A-Z][A-Za-z0-9_$]*(?:Exception|Error|Throwable)(?::|\b)/;
     const startPattern: RegExp = new RegExp(
       String.raw`${exceptionTypeLinePattern.source}|\b(?:Exception|Error)\b|^\s*Caused by:`,
     );
 
+    // Matches only the severity levels that indicate a real error.
+    const errorLevelPattern: RegExp = /\b(?:ERROR|FATAL|SEVERE)\b/i;
+
     for (let index: number = 0; index < lines.length && blocks.length < maxBlocks; index++) {
       if (!startPattern.test(lines[index])) {
         continue;
       }
 
+      // Look back up to 5 lines to find the nearest timestamped log line and
+      // determine its severity.  Stack traces following a WARN/INFO/DEBUG line
+      // are expected (e.g. FileAlreadyExistsException on a WARN archive attempt)
+      // and must not be reported as findings.
+      let precedingIsError: boolean = false;
+      let precedingLogLine: string = '';
+      for (let scan: number = index - 1; scan >= 0 && scan >= index - 5; scan--) {
+        if (timestampPattern.test(lines[scan])) {
+          precedingLogLine = lines[scan];
+          precedingIsError = errorLevelPattern.test(lines[scan]);
+          break;
+        }
+      }
+      // If the nearest timestamped line exists and is not an error level, skip.
+      if (precedingLogLine && !precedingIsError) {
+        continue;
+      }
+
       const blockLines: string[] = [lines[index]];
       // In swirlds/hgcaa logs, the actual throwable class line can follow a
-      // timestamped ERROR/WARN marker line. If parsing starts from the
-      // throwable line, include that marker line as context for the report.
+      // timestamped ERROR marker line. Include that marker line as context.
       if (
         index > 0 &&
         blockLines.length < maxLinesPerBlock &&
         (/\bERROR\s+EXCEPTION\b/i.test(lines[index - 1]) ||
-          (timestampPattern.test(lines[index - 1]) && levelContextPattern.test(lines[index - 1]))) &&
+          (timestampPattern.test(lines[index - 1]) && errorLevelPattern.test(lines[index - 1]))) &&
         !blockLines.includes(lines[index - 1])
       ) {
         blockLines.unshift(lines[index - 1]);
@@ -525,6 +771,7 @@ export class DiagnosticsAnalyzer {
       'pod-readiness': 3,
       'consensus-active': 4,
       'log-exception': 5,
+      'app-error': 6,
     };
     const categoryLabel: Record<DiagnosticsFindingCategory, string> = {
       'image-pull': 'Image Pull',
@@ -532,6 +779,7 @@ export class DiagnosticsAnalyzer {
       'pod-readiness': 'Pod Readiness',
       'consensus-active': 'Consensus Active State',
       'log-exception': 'Exception Stack',
+      'app-error': 'Application Error',
     };
 
     const lines: string[] = ['Solo Diagnostics Analysis Report', `Generated: ${new Date().toISOString()}`, ''];

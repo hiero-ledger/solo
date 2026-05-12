@@ -4,12 +4,22 @@ import {LoadImageArchiveOptions} from './load-image-archive-options.js';
 
 export class LoadImageArchiveOptionsBuilder {
   private constructor(
+    private _archivePath?: string,
     private _name?: string,
     private _nodes?: string,
   ) {}
 
   public static builder(): LoadImageArchiveOptionsBuilder {
     return new LoadImageArchiveOptionsBuilder();
+  }
+
+  /**
+   * Set the archive path.
+   * @param archivePath
+   */
+  public archivePath(archivePath: string): LoadImageArchiveOptionsBuilder {
+    this._archivePath = archivePath;
+    return this;
   }
 
   /**
@@ -31,16 +41,16 @@ export class LoadImageArchiveOptionsBuilder {
   }
 
   /**
-   * Build the ExportLogsOptions instance.
+   * Build the LoadImageArchiveOptions instance.
    */
   public build(): LoadImageArchiveOptions {
-    return new LoadImageArchiveOptions(this._name, this._nodes);
+    return new LoadImageArchiveOptions(this._archivePath, this._name, this._nodes);
   }
 
   public static from(options: LoadImageArchiveOptions): LoadImageArchiveOptionsBuilder {
     if (!options) {
       return new LoadImageArchiveOptionsBuilder();
     }
-    return new LoadImageArchiveOptionsBuilder(options.name, options.nodes);
+    return new LoadImageArchiveOptionsBuilder(options.archivePath, options.name, options.nodes);
   }
 }

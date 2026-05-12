@@ -30,9 +30,13 @@ type ChalkColor = typeof chalk.red;
 export class SoloPinoLogger implements SoloLogger {
   private readonly pinoLogger: PinoLogger;
   private traceId?: string;
+  private readonly logBindings: Record<string, unknown> = {};
   private messageGroupMap: Map<string, string[]> = new Map();
   private readonly MINOR_LINE_SEPARATOR: string =
     '-------------------------------------------------------------------------------';
+
+  private static readonly MAX_BOX_WIDTH: number = 120;
+  private static readonly MIN_BOX_WIDTH: number = 70;
 
   /**
    * @param logLevel - the log level to use (fatal|error|warn|info|debug|trace)
@@ -80,8 +84,11 @@ export class SoloPinoLogger implements SoloLogger {
 
     const baseOptions: LoggerOptions = {
       level: logLevel,
-      // Always include traceId when set via mixin
-      mixin: (): {traceId?: string} => (this.traceId ? {traceId: this.traceId} : {}),
+      // Always include traceId and active log bindings when set via mixin
+      mixin: (): Record<string, unknown> => ({
+        ...this.logBindings,
+        ...(this.traceId ? {traceId: this.traceId} : {}),
+      }),
       // Redact obvious secrets if they sneak into objects
       redact: {
         paths: ['*.authorization', '*.Authorization', '*.accessToken', '*.privateKey', '*.operatorKey'],
@@ -126,6 +133,34 @@ export class SoloPinoLogger implements SoloLogger {
     this.traceId = uuidv4();
   }
 
+  public setLogBinding(key: string, value: unknown): void {
+    if (value === undefined || value === null || value === '') {
+      delete this.logBindings[key];
+      return;
+    }
+
+    this.logBindings[key] = value;
+  }
+
+  public addLogBindings(bindings: Record<string, unknown>): void {
+    for (const [key, value] of Object.entries(bindings)) {
+      this.setLogBinding(key, value);
+    }
+  }
+
+  public clearLogBindings(...keys: string[]): void {
+    if (keys.length === 0) {
+      for (const key of Object.keys(this.logBindings)) {
+        delete this.logBindings[key];
+      }
+      return;
+    }
+
+    for (const key of keys) {
+      delete this.logBindings[key];
+    }
+  }
+
   public prepMeta(meta: Record<string, unknown> = {}): Record<string, unknown> {
     if (this.traceId) {
       (meta as Record<string, unknown>)['traceId'] = this.traceId;
@@ -142,31 +177,136 @@ export class SoloPinoLogger implements SoloLogger {
     this.info(formatted);
   }
 
-  public showUserError(error: unknown): void {
-    // Build chain of causes (up to 10 deep)
-    const errorObject: {message?: unknown; stack?: string; cause?: unknown} | undefined = error as
-      | {message?: unknown; stack?: string; cause?: unknown}
-      | undefined;
-    const stack: {message: string; stacktrace?: string}[] = [
-      {message: errorObject?.message ? String(errorObject.message) : String(error), stacktrace: errorObject?.stack},
-    ];
+  private stripAnsi(text: string): string {
+    // eslint-disable-next-line no-control-regex
+    return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+  }
 
-    if (errorObject?.cause) {
-      let depth: number = 0;
-      let cause: unknown = errorObject.cause;
-      while (cause && depth < 10) {
-        const c: {message?: unknown; stack?: string; cause?: unknown} = cause as {
-          message?: unknown;
-          stack?: string;
-          cause?: unknown;
-        };
-        if (c.stack) {
-          stack.push({message: c.message ? String(c.message) : String(c), stacktrace: c.stack});
+  public padWithBorder(
+    message: string,
+    chalkColor: (...text: unknown[]) => string = chalk.red,
+    length: number = 83,
+  ): string {
+    const border: string = chalkColor('│');
+    const messageLines: string[] = [];
+    for (const line of message.split('\n')) {
+      const repeats: number = Math.max(0, length - this.stripAnsi(line).length - 4);
+      messageLines.push(`${border} ${line}${' '.repeat(repeats)} ${border}`);
+    }
+    return messageLines.join('\n');
+  }
+
+  private buildCauseChain(error: Error): Error[] {
+    const chain: Error[] = [error];
+    let cause: unknown = error.cause;
+    let depth: number = 0;
+    while (cause instanceof Error && depth < 10) {
+      chain.push(cause);
+      cause = cause.cause;
+      depth += 1;
+    }
+    return chain;
+  }
+
+  private getFormattedCode(error: Error): string {
+    const formattedCode: string | undefined = error instanceof SoloError ? error.getFormattedCode() : undefined;
+    return formattedCode ? `[${formattedCode}] ` : '';
+  }
+
+  private buildContentLines(error: Error, causeChain: Error[]): string[] {
+    const lines: string[] = [];
+    if (this.developmentMode) {
+      let indent: string = ' ';
+      let prefix: string = '';
+      for (const entry of causeChain) {
+        const messageText: string = this.getFormattedCode(entry) + entry.message;
+        lines.push(chalk.red(indent + prefix + messageText));
+        if (entry.stack) {
+          const formatted: string = entry.stack
+            .split('\n')
+            .filter((line: string): boolean => !line.includes('node:internal'))
+            .join('\n')
+            .trim();
+          lines.push(...(indent + formatted).split('\n').map((line: string): string => chalk.gray(line)), '');
         }
-        cause = c.cause;
-        depth += 1;
+        indent += '  ';
+        prefix += 'Caused by: ';
+      }
+    } else {
+      const errorMessage: string = this.getFormattedCode(error) + error.message;
+      lines.push(...errorMessage.split('\n').map((line: string): string => chalk.red(line)));
+    }
+
+    if (error instanceof SoloError) {
+      const documentUrl: string | undefined = error.getDocumentUrl();
+      if (!this.developmentMode) {
+        const troubleshootingSteps: ReadonlyArray<string> | undefined = error.getTroubleshootingSteps();
+        if (troubleshootingSteps && troubleshootingSteps.length > 0) {
+          for (const step of troubleshootingSteps) {
+            lines.push(chalk.cyan('  →') + ' ' + step);
+          }
+        }
+      }
+      if (documentUrl) {
+        lines.push('', chalk.cyan(`Learn more: ${documentUrl}`));
       }
     }
+    return lines;
+  }
+
+  private wrapLine(line: string, maxWidth: number): string[] {
+    const plainText: string = this.stripAnsi(line);
+    if (plainText.length <= maxWidth) {
+      return [line];
+    }
+
+    // eslint-disable-next-line no-control-regex
+    const ansiPrefix: string = line.match(/^(?:\[[0-9;]*m)+/)?.[0] ?? '';
+    const ansiSuffix: string = ansiPrefix ? '[0m' : '';
+
+    const indent: string = plainText.match(/^(\s*)/)?.[1] ?? '';
+
+    const result: string[] = [];
+    let remaining: string = plainText;
+
+    while (remaining.length > maxWidth) {
+      // Search outside the indent so wrapping never splits within it and
+      // continuation lines stay at the same indentation level.
+      const relativeSpaceAt: number = remaining.slice(indent.length).lastIndexOf(' ', maxWidth - 1 - indent.length);
+      const spaceAt: number = relativeSpaceAt === -1 ? -1 : indent.length + relativeSpaceAt;
+      const breakAt: number = spaceAt > 0 ? spaceAt : maxWidth;
+      result.push(ansiPrefix + remaining.slice(0, breakAt) + ansiSuffix);
+      const afterBreak: string = remaining.slice(spaceAt > 0 ? breakAt + 1 : breakAt);
+      remaining = indent + afterBreak;
+    }
+
+    if (remaining) {
+      result.push(ansiPrefix + remaining + ansiSuffix);
+    }
+
+    return result.length > 0 ? result : [line];
+  }
+
+  private renderErrorBox(lines: string[]): void {
+    const maxInteriorWidth: number = SoloPinoLogger.MAX_BOX_WIDTH - 4;
+    const wrappedLines: string[] = lines.flatMap((line: string): string[] => this.wrapLine(line, maxInteriorWidth));
+    const maxContentWidth: number = Math.max(...wrappedLines.map((l): number => this.stripAnsi(l).length));
+    const boxWidth: number = Math.min(
+      SoloPinoLogger.MAX_BOX_WIDTH,
+      Math.max(SoloPinoLogger.MIN_BOX_WIDTH, maxContentWidth + 4),
+    );
+    const interiorWidth: number = boxWidth - 4;
+    console.log(chalk.red(`╭─ ERROR ─${'─'.repeat(interiorWidth - 7)}╮`));
+    for (const line of wrappedLines) {
+      console.log(this.padWithBorder(line, chalk.red, boxWidth));
+    }
+    console.log(chalk.red(`╰${'─'.repeat(interiorWidth + 2)}╯`));
+  }
+
+  public showUserError(error: unknown): void {
+    const normalizedError: Error = error instanceof Error ? error : new Error(String(error));
+    const causeChain: Error[] = this.buildCauseChain(normalizedError);
+    const lines: string[] = this.buildContentLines(normalizedError, causeChain);
 
     if (constants.SOLO_SILENT_MODE) {
       console.error(
@@ -185,35 +325,7 @@ export class SoloPinoLogger implements SoloLogger {
       return;
     }
 
-    console.log(chalk.red('*********************************** ERROR *****************************************'));
-    if (this.developmentMode) {
-      let prefix: string = '';
-      let indent: string = '';
-      for (const s of stack) {
-        console.log(indent + prefix + chalk.yellow(String(s.message)));
-        if (s.stacktrace) {
-          // Keep it readable; trim obvious internal noise
-          const formatted: string = String(s.stacktrace)
-            .split('\n')
-            .filter((l): boolean => !l.includes('node:internal'))
-            .join('\n')
-            .trim();
-          console.log(indent + chalk.gray(formatted) + '\n');
-        }
-        indent += '  ';
-        prefix = 'Caused by: ';
-      }
-    } else {
-      const lines: string[] = (error as Error)?.message
-        ? String((error as Error).message).split('\n')
-        : String(error).split('\n');
-      for (const line of lines) {
-        console.log(chalk.yellow(line));
-      }
-    }
-    console.log(chalk.red('***********************************************************************************'));
-
-    // Persist the error with structure
+    this.renderErrorBox(lines);
     this.toPino('error', error, []);
   }
 
