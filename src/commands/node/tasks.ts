@@ -600,7 +600,6 @@ export class NodeCommandTasks {
 
     let attempt: number = 0;
     let success: boolean = false;
-
     while (attempt < maxAttempts) {
       const controller: AbortController = new AbortController();
 
@@ -617,7 +616,7 @@ export class NodeCommandTasks {
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           clearTimeout(timeoutId);
-          throw new SoloError('empty response');
+          throw new SoloError('empty response'); // Guard
         }
 
         const statusLine: string | undefined = response
@@ -627,7 +626,7 @@ export class NodeCommandTasks {
         if (!statusLine) {
           task.title = `${title} - status ${chalk.yellow('STARTING')}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           clearTimeout(timeoutId);
-          throw new SoloError('missing status line');
+          throw new SoloError('missing status line'); // Guard
         }
 
         const statusNumber: number = Number.parseInt(statusLine.split(' ').pop() || '');
@@ -643,7 +642,6 @@ export class NodeCommandTasks {
         } else if (statusNumber) {
           task.title = `${title} - status ${chalk.yellow(NodeStatusEnums[statusNumber])}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
         }
-
         clearTimeout(timeoutId);
       } catch (error) {
         this.logger.debug(

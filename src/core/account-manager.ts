@@ -220,12 +220,10 @@ export class AccountManager {
       this.logger.debug(
         `loading node client: [!this._nodeClient=${!this._nodeClient}, this._nodeClient.isClientShutDown=${this._nodeClient?.isClientShutDown}]`,
       );
-
       if (!this._nodeClient || this._nodeClient?.isClientShutDown) {
         this.logger.debug(
           `refreshing node client: [!this._nodeClient=${!this._nodeClient}, this._nodeClient.isClientShutDown=${this._nodeClient?.isClientShutDown}]`,
         );
-
         await this.refreshNodeClient(namespace, clusterReferences, deployment, forcePortForward);
       } else {
         try {
@@ -270,13 +268,11 @@ export class AccountManager {
   ): Promise<Client> {
     try {
       await this.close();
-
       if (forcePortForward !== undefined) {
         this._forcePortForward = forcePortForward;
       }
 
       const treasuryAccountInfo: AccountIdWithKeyPairObject = await this.getTreasuryAccountKeys(namespace, deployment);
-
       const networkNodeServicesMap: NodeServiceMapping = await this.getNodeServiceMap(
         namespace,
         clusterReferences,
@@ -284,7 +280,6 @@ export class AccountManager {
       );
 
       const selectedNodeServicesMap: NodeServiceMapping = this.selectNodeServices(networkNodeServicesMap, selection);
-
       this._nodeClient = await this._getNodeClient(
         namespace,
         selectedNodeServicesMap,
