@@ -96,10 +96,6 @@ import {OneShotInfoContext} from './one-shot-info-context.js';
 import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
 import {CacheCommandDefinition} from '../command-definitions/cache-command-definition.js';
 
-function formatVersionValue(versionObject: {toString: () => string} | undefined): string {
-  return versionObject?.toString() ?? 'not available';
-}
-
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
   private static readonly SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
@@ -205,6 +201,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         value !== StringEx.EMPTY &&
         key !== flags.getFormattedFlagKey(Flags.deployment)
       ) {
+        // Keep argv deterministic for repeated keys: remove previous occurrences
+        // and keep the latest value (last-write-wins semantics).
+        let existingIndex: number = argv.indexOf(key);
+        while (existingIndex !== -1) {
+          const hasFollowingValue: boolean = existingIndex + 1 < argv.length && !argv[existingIndex + 1].startsWith('--');
+          argv.splice(existingIndex, hasFollowingValue ? 2 : 1);
+          existingIndex = argv.indexOf(key);
+        }
+
         argv.push(`${key}`, value.toString());
       }
     }
@@ -375,8 +380,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               // Ensure release tag is set in network configuration so subcommands use the correct version
               const releaseTagKey: string = flags.getFormattedFlagKey(Flags.releaseTag);
+              const soloChartVersionKey: string = flags.getFormattedFlagKey(Flags.soloChartVersion);
               if (!config.networkConfiguration[releaseTagKey]) {
                 config.networkConfiguration[releaseTagKey] = versions.consensus;
+              }
+              if (!config.networkConfiguration[soloChartVersionKey]) {
+                config.networkConfiguration[soloChartVersionKey] = versions.soloChart;
               }
               if (!config.setupConfiguration[releaseTagKey]) {
                 config.setupConfiguration[releaseTagKey] = versions.consensus;
@@ -727,10 +736,10 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             optionFromFlag(Flags.deployment),
                             config.deployment,
                           );
-                          this.appendConfigToArgv(argv, {
-                            [optionFromFlag(Flags.releaseTag)]: config.versions.consensus,
-                            ...config.networkConfiguration,
-                          });
+                          argv.push(optionFromFlag(Flags.soloChartVersion), config.versions.soloChart);
+                          if (config.networkConfiguration) {
+                            this.appendConfigToArgv(argv, config.networkConfiguration);
+                          }
                           return argvPushGlobalFlags(argv, config.cacheDir);
                         },
                         this.taskList,
@@ -933,6 +942,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         config.mirrorNodeConfiguration?.[flags.getFormattedFlagKey(Flags.valuesFile)];
                       const mirrorLocalConfig: AnyObject = {
                         [optionFromFlag(Flags.mirrorNodeVersion)]: config.versions.mirror,
+                        [optionFromFlag(Flags.soloChartVersion)]: config.versions.soloChart,
                         [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         ...config.mirrorNodeConfiguration,
                         [flags.getFormattedFlagKey(Flags.valuesFile)]: mirrorExistingValuesFile
@@ -963,6 +973,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         config.clusterRef,
                       );
                       this.appendConfigToArgv(argv, {
+                        [optionFromFlag(Flags.soloChartVersion)]: config.versions.soloChart,
                         [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         [optionFromFlag(Flags.explorerVersion)]: config.versions.explorer,
                         [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
@@ -1866,27 +1877,16 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
           task: async (context_): Promise<void> => {
             this.logger.showUser(chalk.cyan('\n=== Deployment Components ==='));
 
-            const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
-            const remoteVersions: ApplicationVersionsSchema | undefined = context_.remoteConfig?.versions;
+            const versions: ApplicationVersionsSchema = context_.remoteConfig.versions;
 
             // Show versions
             this.logger.showUser(chalk.cyan('\nVersions:'));
-            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(formatVersionValue(remoteVersions?.chart))}`);
-            this.logger.showUser(
-              `  Consensus Node Version: ${chalk.bold(formatVersionValue(remoteVersions?.consensusNode))}`,
-            );
-            this.logger.showUser(
-              `  Mirror Node Version: ${chalk.bold(formatVersionValue(remoteVersions?.mirrorNodeChart))}`,
-            );
-            this.logger.showUser(
-              `  Explorer Version: ${chalk.bold(formatVersionValue(remoteVersions?.explorerChart))}`,
-            );
-            this.logger.showUser(
-              `  JSON RPC Relay Version: ${chalk.bold(formatVersionValue(remoteVersions?.jsonRpcRelayChart))}`,
-            );
-            this.logger.showUser(
-              `  Block Node Version: ${chalk.bold(formatVersionValue(remoteVersions?.blockNodeChart))}`,
-            );
+            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(versions.chart?.toString())}`);
+            this.logger.showUser(`  Consensus Node Version: ${chalk.bold(versions.consensusNode?.toString())}`);
+            this.logger.showUser(`  Mirror Node Version: ${chalk.bold(versions.mirrorNodeChart?.toString())}`);
+            this.logger.showUser(`  Explorer Version: ${chalk.bold(versions.explorerChart?.toString())}`);
+            this.logger.showUser(`  JSON RPC Relay Version: ${chalk.bold(versions.jsonRpcRelayChart?.toString())}`);
+            this.logger.showUser(`  Block Node Version: ${chalk.bold(versions.blockNodeChart?.toString())}`);
 
             if (context_.remoteConfig) {
               const components: DeploymentStateSchema = context_.remoteConfig.state;
@@ -1941,6 +1941,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             // Show information about where files are stored
+            const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
+
             this.logger.showUser(chalk.cyan('\n=== Deployment Files ==='));
 
             if (fs.existsSync(outputDirectory)) {
