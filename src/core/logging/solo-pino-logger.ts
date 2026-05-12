@@ -29,6 +29,7 @@ type ChalkColor = typeof chalk.red;
 export class SoloPinoLogger implements SoloLogger {
   private readonly pinoLogger: PinoLogger;
   private traceId?: string;
+  private readonly logBindings: Record<string, unknown> = {};
   private messageGroupMap: Map<string, string[]> = new Map();
   private readonly MINOR_LINE_SEPARATOR: string =
     '-------------------------------------------------------------------------------';
@@ -82,8 +83,11 @@ export class SoloPinoLogger implements SoloLogger {
 
     const baseOptions: LoggerOptions = {
       level: logLevel,
-      // Always include traceId when set via mixin
-      mixin: (): {traceId?: string} => (this.traceId ? {traceId: this.traceId} : {}),
+      // Always include traceId and active log bindings when set via mixin
+      mixin: (): Record<string, unknown> => ({
+        ...this.logBindings,
+        ...(this.traceId ? {traceId: this.traceId} : {}),
+      }),
       // Redact obvious secrets if they sneak into objects
       redact: {
         paths: ['*.authorization', '*.Authorization', '*.accessToken', '*.privateKey', '*.operatorKey'],
@@ -126,6 +130,34 @@ export class SoloPinoLogger implements SoloLogger {
 
   public nextTraceId(): void {
     this.traceId = uuidv4();
+  }
+
+  public setLogBinding(key: string, value: unknown): void {
+    if (value === undefined || value === null || value === '') {
+      delete this.logBindings[key];
+      return;
+    }
+
+    this.logBindings[key] = value;
+  }
+
+  public addLogBindings(bindings: Record<string, unknown>): void {
+    for (const [key, value] of Object.entries(bindings)) {
+      this.setLogBinding(key, value);
+    }
+  }
+
+  public clearLogBindings(...keys: string[]): void {
+    if (keys.length === 0) {
+      for (const key of Object.keys(this.logBindings)) {
+        delete this.logBindings[key];
+      }
+      return;
+    }
+
+    for (const key of keys) {
+      delete this.logBindings[key];
+    }
   }
 
   public prepMeta(meta: Record<string, unknown> = {}): Record<string, unknown> {

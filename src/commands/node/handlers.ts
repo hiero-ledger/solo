@@ -39,6 +39,12 @@ import {Deployment} from '../../business/runtime-state/config/local/deployment.j
 import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {type ConfigManager} from '../../core/config-manager.js';
+import {getSoloVersion} from '../../../version.js';
+import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
+import {findDeploymentsFromRemoteConfig} from '../util/find-deployments-from-remote-config.js';
+import {GetSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
+import {type RemoteDeploymentInfo} from '../util/remote-deployment-info.js';
+import {type K8Factory} from '../../integration/kube/k8-factory.js';
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -51,6 +57,7 @@ export class NodeCommandHandlers extends CommandHandler {
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.NodeCommandTasks) private readonly tasks: NodeCommandTasks,
     @inject(InjectTokens.NodeCommandConfigs) private readonly configs: NodeCommandConfigs,
+    @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
   ) {
     super();
@@ -59,6 +66,7 @@ export class NodeCommandHandlers extends CommandHandler {
     this.configs = patchInject(configs, InjectTokens.NodeCommandConfigs, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.tasks = patchInject(tasks, InjectTokens.NodeCommandTasks, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
   }
@@ -68,14 +76,34 @@ export class NodeCommandHandlers extends CommandHandler {
   private static readonly UPDATE_CONTEXT_FILE: string = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE: string = 'node-upgrade.json';
 
-  private resolveOutputDirectory(argv: ArgvStruct, fallback = ''): string {
+  private resolveOutputDirectory(argv: ArgvStruct, fallback: string = ''): string {
     this.nodeConfigManager.update(argv);
     return this.nodeConfigManager.getFlag<string>(flags.outputDir) || fallback;
   }
 
   private resolveDeploymentFlag(argv: ArgvStruct): string {
+    const deploymentFromArgument: string = (argv[flags.deployment.name] as string) || '';
+    if (deploymentFromArgument) {
+      return deploymentFromArgument;
+    }
+
     this.nodeConfigManager.update(argv);
     return this.nodeConfigManager.getFlag<string>(flags.deployment) || '';
+  }
+
+  private resolveQuietFlag(argv: ArgvStruct): boolean {
+    if (argv[flags.quiet.name] !== undefined) {
+      return argv[flags.quiet.name] === true;
+    }
+
+    this.nodeConfigManager.update(argv);
+    return this.nodeConfigManager.getFlag<boolean>(flags.quiet) === true;
+  }
+
+  private ensureInteractiveSelectionPrompt(): void {
+    if (!process.stdout.isTTY || !process.stdin.isTTY) {
+      throw new SoloError('Cannot prompt for input in non-interactive mode');
+    }
   }
 
   /** ******** Task Lists **********/
@@ -217,7 +245,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.updateChartWithConfigMap(
         'Update chart to use new configMap due to account number change',
         NodeSubcommandType.UPDATE,
-        context_ => !context_.config.newAccountNumber && !context_.config.debugNodeAlias,
+        ({config}): boolean => !config.newAccountNumber && !config.debugNodeAlias,
       ),
       this.tasks.killNodesAndUpdateConfigMap(),
       this.tasks.checkNodePodsAreRunning(),
@@ -271,7 +299,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async prepareUpgrade(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.PREPARE_UPGRADE_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -297,14 +325,13 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.prepareUpgradeConfigBuilder.bind(this.configs), null),
+        this.tasks.initialize(argv, this.configs.prepareUpgradeConfigBuilder.bind(this.configs)),
         this.tasks.identifyExistingNodes(),
         this.tasks.prepareUpgradeZip(),
         this.tasks.sendFreezeUpgradeTransaction(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in executing node freeze upgrade',
-      null,
     );
 
     return true;
@@ -312,7 +339,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async update(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -332,7 +359,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async updatePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_PREPARE_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -350,7 +377,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async updateSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_SUBMIT_TRANSACTIONS_FLAGS);
 
     await this.commandAction(
@@ -370,7 +397,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async updateExecute(argv: ArgvStruct): Promise<boolean> {
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_EXECUTE_FLAGS);
 
     await this.commandAction(
@@ -397,7 +424,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgradePrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_PREPARE_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
     await this.commandAction(
       argv,
       [
@@ -413,7 +440,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgradeSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_SUBMIT_TRANSACTIONS_FLAGS);
 
     await this.commandAction(
@@ -433,7 +460,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgradeExecute(argv: ArgvStruct): Promise<boolean> {
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
     await this.commandAction(
       argv,
@@ -459,7 +486,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgrade(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
     await this.commandAction(
       argv,
       [
@@ -478,7 +505,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
     await this.commandAction(
       argv,
       [
@@ -497,7 +524,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async destroyPrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_PREPARE_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -516,7 +543,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async destroySubmitTransactions(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_SUBMIT_TRANSACTIONS_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -536,7 +563,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async destroyExecute(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_EXECUTE_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -556,7 +583,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async add(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -576,7 +603,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async addPrepare(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_PREPARE_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -595,7 +622,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async addSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_SUBMIT_TRANSACTIONS_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -615,7 +642,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async addExecute(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_EXECUTE_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -642,7 +669,9 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
-    await this.resolveDeploymentForLogs(argv);
+    if (!argv[flags.deployment.name]) {
+      argv[flags.deployment.name] = await this.resolveDeploymentForLogs(argv);
+    }
 
     const outputDirectory: string = this.resolveOutputDirectory(argv);
 
@@ -650,15 +679,23 @@ export class NodeCommandHandlers extends CommandHandler {
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
-        this.tasks.getNodeLogsAndConfigs(),
-        this.tasks.getHelmChartValues(),
+        this.tasks.getNodeLogsAndConfigs(undefined, outputDirectory),
+        this.tasks.getHelmChartValues(outputDirectory),
+        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
         this.tasks.reportActivePortForwards(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading logs from nodes',
-      null,
+    );
+
+    this.logger.showUser(
+      chalk.yellow(
+        '\n⚠  Warning: Collected diagnostic data contains sensitive node configuration\n' +
+          '   (TLS certificates, private keys, onboard data). Store it securely and do\n' +
+          '   not share publicly without reviewing the contents first.',
+      ),
     );
 
     return true;
@@ -675,16 +712,15 @@ export class NodeCommandHandlers extends CommandHandler {
       [this.tasks.analyzeCollectedDiagnostics(inputDirectory)],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error analyzing diagnostics logs',
-      null,
     );
 
     return true;
   }
 
-  private async resolveDeploymentForLogs(argv: ArgvStruct): Promise<void> {
-    const deploymentFromFlag: string = argv[flags.deployment.name] as string;
+  private async resolveDeploymentForLogs(argv: ArgvStruct): Promise<string> {
+    const deploymentFromFlag: string = this.resolveDeploymentFlag(argv);
     if (deploymentFromFlag && deploymentFromFlag.trim()) {
-      return;
+      return deploymentFromFlag;
     }
 
     await this.localConfig.load();
@@ -697,58 +733,92 @@ export class NodeCommandHandlers extends CommandHandler {
     }
 
     if (validDeployments.length === 0) {
-      throw new SoloError(
-        `No deployments found in local config. Please provide --${flags.deployment.name} or create a deployment first.`,
+      const remoteDeployments: Map<string, RemoteDeploymentInfo> = await findDeploymentsFromRemoteConfig(
+        this.k8Factory,
+        this.logger,
       );
+      if (remoteDeployments.size === 0) {
+        throw new SoloError(
+          `No deployments found in local or remote config. Please provide --${flags.deployment.name} or create a deployment first.`,
+        );
+      }
+
+      const remoteDeploymentNames: string[] = [...remoteDeployments.keys()];
+
+      if (remoteDeploymentNames.length === 1) {
+        const selectedFromRemote: string = remoteDeploymentNames[0];
+        this.logger.showUser(`Using deployment from remote config: ${selectedFromRemote}`);
+        return selectedFromRemote;
+      }
+
+      if (this.resolveQuietFlag(argv)) {
+        const names: string = remoteDeploymentNames.join(', ');
+        throw new SoloError(
+          `Multiple deployments found in remote config (${names}). Please provide --${flags.deployment.name}.`,
+        );
+      }
+
+      this.ensureInteractiveSelectionPrompt();
+      const selectedFromRemote: string = (await selectPrompt({
+        message: 'Select deployment for diagnostics logs:',
+        choices: remoteDeploymentNames.map((name: string) => ({name, value: name})),
+      })) as string;
+      this.logger.showUser(`Using selected deployment: ${selectedFromRemote}`);
+      return selectedFromRemote;
     }
 
     if (validDeployments.length === 1) {
-      const deployment: Deployment = validDeployments[0];
-      argv[flags.deployment.name] = deployment.name;
-      this.logger.showUser(`Using deployment from local config: ${deployment.name}`);
-      return;
+      const deploymentName: string = validDeployments[0].name;
+      this.logger.showUser(`Using deployment from local config: ${deploymentName}`);
+      return deploymentName;
     }
 
-    if ((argv[flags.quiet.name] as boolean) === true) {
+    if (this.resolveQuietFlag(argv)) {
       const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
       throw new SoloError(
         `Multiple deployments found in local config (${deploymentNames}). Please provide --${flags.deployment.name}.`,
       );
     }
 
+    this.ensureInteractiveSelectionPrompt();
     const selectedDeployment: string = (await selectPrompt({
       message: 'Select deployment for diagnostics logs:',
-      choices: validDeployments.map((deployment: Deployment) => ({name: deployment.name, value: deployment.name})),
+      choices: validDeployments.map((deployment): {name: string; value: string} => ({
+        name: deployment.name,
+        value: deployment.name,
+      })),
     })) as string;
-    argv[flags.deployment.name] = selectedDeployment;
     this.logger.showUser(`Using selected deployment: ${selectedDeployment}`);
+    return selectedDeployment;
   }
 
-  public async all(argv: ArgvStruct): Promise<boolean> {
+  public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    if (!argv[flags.deployment.name]) {
+      argv[flags.deployment.name] = await this.resolveDeploymentForLogs(argv);
+    }
     const outputDirectory: string = this.resolveOutputDirectory(argv);
     await this.commandAction(
       argv,
       [
         this.tasks.initialize(argv, this.configs.logsConfigBuilder.bind(this.configs), null, true, false),
-        this.tasks.getNodeLogsAndConfigs(),
-        this.tasks.getHelmChartValues(),
+        this.tasks.getNodeLogsAndConfigs(excludeSensitiveData, outputDirectory),
+        ...(excludeSensitiveData ? [] : [this.tasks.getHelmChartValues(outputDirectory)]),
+        GetSoloRemoteConfigMapTask.getTask(this.k8Factory, this.logger, outputDirectory),
         this.tasks.downloadHieroComponentLogs(outputDirectory),
         this.tasks.analyzeCollectedDiagnostics(outputDirectory),
-        this.tasks.getNodeStateFiles(),
         // do not call validateConnectionsTaskList since node could be stopped or not active but logs are still needed
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in diagnosing deployment',
-      null,
     );
 
     return true;
   }
 
-  public async debug(argv: ArgvStruct): Promise<boolean> {
+  public async debug(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     // First run all diagnostics
-    await this.all(argv);
+    await this.all(argv, excludeSensitiveData);
 
     // Then create a zip file from the logs directory
     const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
@@ -759,6 +829,15 @@ export class NodeCommandHandlers extends CommandHandler {
 
     this.logger.showUser(chalk.cyan(`\nCreating debug archive from: ${outputDirectory}`));
     this.logger.showUser(chalk.cyan(`Archive location: ${zipFilePath}`));
+    if (!excludeSensitiveData) {
+      this.logger.showUser(
+        chalk.yellow(
+          '\n⚠  Warning: The debug archive contains sensitive node configuration\n' +
+            '   (TLS certificates, private keys, onboard data). Review its contents\n' +
+            '   before sharing. Private keys under data/keys are NOT excluded.',
+        ),
+      );
+    }
 
     try {
       await this.zippy.zip(outputDirectory, zipFilePath);
@@ -777,12 +856,11 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.connectionsConfigBuilder.bind(this.configs), null),
+        this.tasks.initialize(argv, this.configs.connectionsConfigBuilder.bind(this.configs)),
         ...this.validateConnectionsTaskList(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in testing connections to components',
-      null,
     );
 
     return true;
@@ -798,18 +876,47 @@ export class NodeCommandHandlers extends CommandHandler {
     ];
   }
 
+  /**
+   * Collects a full debug archive for the deployment (logs + configs + zip) and
+   * then creates a GitHub issue using the `gh` CLI with a pre-filled title and body.
+   * The generated archive is referenced for the user to attach manually via the GitHub UI.
+   *
+   */
+  public async report(argv: ArgvStruct): Promise<boolean> {
+    argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
+    // Resolve deployment before calling collectDebug() so it's available for the issue title/body
+    const deployment: string = argv[flags.deployment.name]
+      ? String(argv[flags.deployment.name])
+      : await this.resolveDeploymentForLogs(argv);
+    if (!argv[flags.deployment.name]) {
+      argv[flags.deployment.name] = deployment;
+    }
+
+    await DiagnosticsReporter.runDiagnosticsReport({
+      logger: this.logger,
+      deployment,
+      outputDirectory: this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR),
+      soloVersion: getSoloVersion(),
+      isQuiet: this.resolveQuietFlag(argv),
+      collectDebug: async (): Promise<void> => {
+        await this.debug(argv, true);
+      },
+    });
+
+    return true;
+  }
+
   public async states(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.STATES_FLAGS);
 
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.statesConfigBuilder.bind(this.configs), null),
+        this.tasks.initialize(argv, this.configs.statesConfigBuilder.bind(this.configs)),
         this.tasks.getNodeStateFiles(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in downloading states from nodes',
-      null,
     );
 
     return true;
@@ -817,7 +924,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async refresh(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REFRESH_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -850,14 +957,14 @@ export class NodeCommandHandlers extends CommandHandler {
     await this.commandAction(
       argv,
       [
-        this.tasks.initialize(argv, this.configs.keysConfigBuilder.bind(this.configs), null),
+        this.tasks.initialize(argv, this.configs.keysConfigBuilder.bind(this.configs)),
         this.tasks.generateGossipKeys(),
         this.tasks.generateGrpcTlsKeys(),
         this.tasks.finalize(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error generating keys',
-      null,
+      undefined,
       'keys consensus generate',
     );
 
@@ -866,7 +973,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async stop(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.STOP_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -890,7 +997,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async start(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.START_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -905,7 +1012,7 @@ export class NodeCommandHandlers extends CommandHandler {
         ),
         this.validateAllNodePhases({acceptedPhases: [DeploymentPhase.CONFIGURED]}),
         this.tasks.identifyExistingNodes(),
-        this.tasks.uploadStateFiles(context_ => context_.config.stateFile.length === 0),
+        this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
         this.tasks.startNodes('nodeAliases'),
         this.tasks.enablePortForwarding(true),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
@@ -928,7 +1035,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async setup(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.SETUP_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -955,7 +1062,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async freeze(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.FREEZE_FLAGS);
-    const leaseWrapper: LeaseWrapper = {lease: null};
+    const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
       argv,
@@ -1021,7 +1128,7 @@ export class NodeCommandHandlers extends CommandHandler {
   public changeAllNodePhases(
     phase: DeploymentPhase,
     ledgerPhase: Optional<LedgerPhase> = undefined,
-  ): SoloListrTask<any> {
+  ): SoloListrTask<AnyListrContext> {
     interface Context {
       config: {namespace: NamespaceName; consensusNodes: ConsensusNode[]};
     }
@@ -1056,7 +1163,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }: {
     acceptedPhases?: DeploymentPhase[];
     excludedPhases?: DeploymentPhase[];
-  }): SoloListrTask<any> {
+  }): SoloListrTask<AnyListrContext> {
     interface Context {
       config: {namespace: string; nodeAliases: NodeAliases};
     }
@@ -1067,19 +1174,21 @@ export class NodeCommandHandlers extends CommandHandler {
       task: (context_: Context, task): SoloListr<Context> => {
         const nodeAliases: NodeAliases = context_.config.nodeAliases;
 
-        const subTasks: SoloListrTask<Context>[] = nodeAliases.map((nodeAlias: NodeAlias) => ({
-          title: `Validating state for node ${nodeAlias}`,
-          task: (_, task): void => {
-            const state: DeploymentPhase = this.validateNodeState(
-              nodeAlias,
-              this.remoteConfig.configuration.components,
-              acceptedPhases,
-              excludedPhases,
-            );
+        const subTasks: SoloListrTask<Context>[] = nodeAliases.map(
+          (nodeAlias): SoloListrTask<AnyListrContext> => ({
+            title: `Validating state for node ${nodeAlias}`,
+            task: (_, task): void => {
+              const state: DeploymentPhase = this.validateNodeState(
+                nodeAlias,
+                this.remoteConfig.configuration.components,
+                acceptedPhases,
+                excludedPhases,
+              );
 
-            task.title += ` - ${chalk.green('valid state')}: ${chalk.cyan(state)}`;
-          },
-        }));
+              task.title += ` - ${chalk.green('valid state')}: ${chalk.cyan(state)}`;
+            },
+          }),
+        );
 
         return task.newListr(subTasks, {
           concurrent: false,
