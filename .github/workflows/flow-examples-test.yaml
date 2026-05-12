@@ -39,11 +39,6 @@ on:
         type: boolean
         required: false
         default: false
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
-        required: false
-        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -71,11 +66,6 @@ on:
         type: boolean
         required: false
         default: false
-      enable_s6_image:
-        description: "Enable S6 image"
-        type: boolean
-        required: false
-        default: true
       example-directory:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
@@ -98,7 +88,6 @@ permissions:
   actions: read
 
 env:
-  ENABLE_S6_IMAGE: ${{ inputs.enable_s6_image }}
   STEP_TIMEOUT_MINUTES: '5'
 
 jobs:
@@ -241,10 +230,8 @@ jobs:
           max_attempts: 3
           timeout_minutes: 30
           command: |
-            export CONSENSUS_NODE_VERSION="${{ inputs.consensus-node-version }}"
-            if [ -z "${CONSENSUS_NODE_VERSION}" ]; then
-              export CONSENSUS_NODE_VERSION=$(.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)
-            fi
+            source .github/workflows/script/helper.sh
+            export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
             cd ..
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
             cd hiero-consensus-node
@@ -375,10 +362,8 @@ jobs:
           # test immediately rather than waiting up to 45 minutes for it to finish
           # on its own.
           echo "Starting task..."
-          export CONSENSUS_NODE_VERSION="${{ inputs.consensus-node-version }}"
-          if [ -z "${CONSENSUS_NODE_VERSION}" ]; then
-            export CONSENSUS_NODE_VERSION=$(../../.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION ../../version.ts)
-          fi
+          source ../../.github/workflows/script/helper.sh
+          export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION ../../version.ts)
           TASK_PID=""
           TASK_PGID=""
           TASK_RC=0

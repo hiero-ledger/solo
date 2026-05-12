@@ -88,6 +88,7 @@ tasks:
           --ignore 'test/e2e/commands/block-node.test.ts' 
           --ignore 'test/e2e/commands/dual-*.ts'
           --ignore 'test/e2e/commands/external-*.ts'
+          --ignore 'test/e2e/commands/cache-command.test.ts'
           --ignore 'test/e2e/commands/one-shot-single.test.ts'
           --ignore 'test/e2e/commands/separate-node-update.test.ts' 
           --ignore 'test/e2e/commands/separate-node-add.test.ts' 
@@ -139,8 +140,9 @@ tasks:
   test-external-database:
     desc: "Runs the external database example test without coverage (used for local development)"
     cmd: |
+        source .github/workflows/script/helper.sh
         if [ -z "$CONSENSUS_NODE_VERSION" ]; then
-          export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
+          export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
         fi
         cd examples/external-database-test
         task default
@@ -165,11 +167,6 @@ tasks:
   test-e2e-performance:
     desc: "Runs E2E Performance tests with coverage and generates reports in coverage/e2e-performance"
     cmds:
-      - |
-        if [ -z "$CONSENSUS_NODE_EDGE_VERSION" ]; then
-          echo "CONSENSUS_NODE_EDGE_VERSION=${CONSENSUS_NODE_EDGE_VERSION}" >> .env
-          echo "CONSENSUS_NODE_VERSION is set to '${CONSENSUS_NODE_VERSION}'"
-        fi
       - "{{ .test_prefix }}=\"Mocha E2E Performance Test\"
         {{ .reporter_prefix }}='coverage/e2e-performance'
         {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts'
@@ -206,3 +203,11 @@ tasks:
     cmds:
       - task
       - task destroy
+
+  test-e2e-cache:
+    desc: "Runs E2E Image Cache tests with coverage and generates reports in coverage/e2e-cache"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E Cache Tests\"
+        {{ .reporter_prefix }}='coverage/e2e-cache'
+        {{ .mocha_bin }} 'test/e2e/commands/cache-command.test.ts'
+        {{ .reporter_options_prefix }}-e2e-cache.xml"

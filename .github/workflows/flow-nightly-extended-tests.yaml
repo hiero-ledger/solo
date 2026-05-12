@@ -37,7 +37,8 @@ defaults:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
+  pull-requests: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -99,12 +100,12 @@ jobs:
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
           
-          # Read JSON file
-          JSON_CONTENT=$(cat .github/workflows/support/extended-test-matrix.json | jq -c .)
+          # Read script-only test array for matrix runner.
+          JSON_CONTENT=$(jq -c '.tests | map(select(.type == "script"))' .github/workflows/support/extended-test-matrix.json)
           
           echo "JSON_CONTENT: $JSON_CONTENT"
           
-          # Set the output variable 'matrix' with JSON content
+          # Set workflow outputs.
           echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
 
   matrix-tests:
@@ -146,10 +147,34 @@ jobs:
           timeout_minutes: 10
           command: npm ci
 
+      - name: Install jq
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@8489d0d7bf2110e44a330d8db821786e6e8c8d73 # pinned to v4.0.2
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: "v1.31.4"
+
+      - name: Setup Kind
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
       - name: Run Test (${{ matrix.test.name }})
         timeout-minutes: ${{ matrix.test.timeout_minutes }}
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN != '' && secrets.GH_ACCESS_TOKEN || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN != '' && secrets.GH_ACCESS_TOKEN || github.token }}
           TEST_NAME: ${{ matrix.test.name }}
           TEST_DESCRIPTION: ${{ matrix.test.description }}
         run: |
@@ -158,27 +183,12 @@ jobs:
           echo "Type: ${{ matrix.test.type }}"
           echo "Path: ${{ matrix.test.path }}"
           
-          if [ "${{ matrix.test.type }}" = "script" ]; then
-            echo "Executing script: ${{ matrix.test.path }}"
-            if [ -f "${{ matrix.test.path }}" ]; then
-              chmod +x "${{ matrix.test.path }}"
-              "${{ matrix.test.path }}"
-            else
-              echo "Error: Script file not found at ${{ matrix.test.path }}"
-              exit 1
-            fi
-          elif [ "${{ matrix.test.type }}" = "workflow" ]; then
-            echo "Triggering workflow: ${{ matrix.test.path }}"
-            # Trigger the workflow using GitHub CLI
-            gh workflow run "${{ matrix.test.path }}" \
-              --field "triggered-by=nightly-extended-tests" \
-              --field "test-name=${{ matrix.test.name }}" || {
-              echo "Error: Failed to trigger workflow ${{ matrix.test.path }}"
-              exit 1
-            }
-            echo "Workflow triggered successfully"
+          echo "Executing script: ${{ matrix.test.path }}"
+          if [ -f "${{ matrix.test.path }}" ]; then
+            chmod +x "${{ matrix.test.path }}"
+            "${{ matrix.test.path }}"
           else
-            echo "Error: Unknown test type '${{ matrix.test.type }}'"
+            echo "Error: Script file not found at ${{ matrix.test.path }}"
             exit 1
           fi
 
@@ -223,3 +233,19 @@ jobs:
             /tmp/solo-jdwp-probe.log
             /tmp/solo-${{ matrix.test.name }}*.log
           if-no-files-found: ignore
+
+  one-shot-timing:
+    name: Extended Test (one-shot-timing)
+    needs:
+      - generate_matrix
+    uses: ./.github/workflows/flow-one-shot-timing.yaml
+    secrets: inherit
+
+  flow-performance-test:
+    name: Extended Test (flow-performance-test)
+    needs:
+      - generate_matrix
+    uses: ./.github/workflows/flow-performance-test.yaml
+    with:
+      cn-edge-version: v0.74.0-rc.1
+    secrets: inherit
