@@ -10,10 +10,12 @@ import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import * as constants from '../../../../src/core/constants.js';
 
-function createNodeCommandTasksWithPvcData(
-  persistentVolumeClaimsByContext: Record<string, string[]>,
-): NodeCommandTasks {
+function createNodeCommandTasksWithPvcData(persistentVolumeClaimsByContext: Record<string, string[]>): {
+  tasks: NodeCommandTasks;
+  showUserMessages: string[];
+} {
   const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+  const showUserMessages: string[] = [];
 
   (nodeCommandTasks as unknown as {k8Factory: unknown}).k8Factory = {
     getK8: (context: string): {pvcs: () => {list: () => Promise<string[]>}} => ({
@@ -23,7 +25,13 @@ function createNodeCommandTasksWithPvcData(
     }),
   };
 
-  return nodeCommandTasks;
+  (nodeCommandTasks as unknown as {logger: unknown}).logger = {
+    showUser: (message: string): void => {
+      showUserMessages.push(message);
+    },
+  };
+
+  return {tasks: nodeCommandTasks, showUserMessages};
 }
 
 function invokeValidateNodePvcsForLocalBuildPath(
@@ -38,24 +46,24 @@ function invokeValidateNodePvcsForLocalBuildPath(
 }
 
 describe('NodeCommandTasks local build path PVC validation', (): void => {
-  it('throws when local build path is used without node PVCs', async (): Promise<void> => {
-    const nodeCommandTasks: NodeCommandTasks = createNodeCommandTasksWithPvcData({
+  it('warns when local build path is used without node PVCs', async (): Promise<void> => {
+    const {tasks, showUserMessages} = createNodeCommandTasksWithPvcData({
       'kind-solo': [],
     });
 
-    await expect(invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-solo'])).to.be.rejectedWith(
-      'Redeploy the consensus network with --pvcs true',
-    );
+    await expect(invokeValidateNodePvcsForLocalBuildPath(tasks, ['kind-solo'])).to.eventually.be.fulfilled;
+    expect(showUserMessages).to.have.length(1);
+    expect(showUserMessages[0]).to.include('--pvcs true');
   });
 
   it('passes when node PVCs exist for each context', async (): Promise<void> => {
-    const nodeCommandTasks: NodeCommandTasks = createNodeCommandTasksWithPvcData({
+    const {tasks} = createNodeCommandTasksWithPvcData({
       'kind-alpha': ['data-node1'],
       'kind-beta': ['data-node2'],
     });
 
-    await expect(invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-alpha', 'kind-beta'])).to.eventually
-      .be.fulfilled;
+    await expect(invokeValidateNodePvcsForLocalBuildPath(tasks, ['kind-alpha', 'kind-beta'])).to.eventually.be
+      .fulfilled;
   });
 });
 
