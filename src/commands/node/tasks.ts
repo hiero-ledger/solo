@@ -2702,14 +2702,10 @@ export class NodeCommandTasks {
     );
   }
 
-  private validateComponentData({
-    portForwards,
-    namespace,
-    clusterReference,
-    contextName,
-    componentId,
-    componentDisplayName,
-  }: ComponentData): SoloListrTask<NodeConnectionsContext> {
+  private validateComponentData(
+    {portForwards, namespace, clusterReference, contextName, componentId, componentDisplayName}: ComponentData,
+    check: boolean = false,
+  ): SoloListrTask<NodeConnectionsContext> {
     return {
       title: cyan(componentDisplayName),
       task: (_, task): SoloListr<NodeConnectionsContext> | void => {
@@ -2736,11 +2732,17 @@ export class NodeCommandTasks {
             task: async (_, task): Promise<void> => {
               task.title += '\n\t' + gray('Local port') + ' ' + yellow(`[${localPort}]`) + ' - ';
 
-              task.title += (await this.checkLocalPort(localPort))
-                ? green('Successfully pinged')
-                : red('Failed to ping');
+              const isReachable: boolean = await this.checkLocalPort(localPort);
+              task.title += isReachable ? green('Successfully pinged') : red('Failed to ping');
 
               task.title += '\n\t' + gray('Pod port') + ' ' + yellow(`[${podPort}]`);
+
+              if (check && !isReachable) {
+                throw new SoloError(
+                  `Configured port-forward is missing: ${componentDisplayName} ${componentId} ` +
+                    `localhost:${localPort} -> pod:${podPort}`,
+                );
+              }
             },
           });
         }
@@ -2789,14 +2791,14 @@ export class NodeCommandTasks {
     };
   }
 
-  public validateLocalPorts(): SoloListrTask<AnyListrContext> {
+  public validateLocalPorts(): SoloListrTask<NodeConnectionsContext> {
     return {
       title: 'Test local ports',
-      task: async ({config: {componentsData}}, task): Promise<SoloListr<AnyListrContext>> => {
-        const subTasks: SoloListrTask<AnyListrContext>[] = [];
+      task: async ({config: {check, componentsData}}, task): Promise<SoloListr<NodeConnectionsContext>> => {
+        const subTasks: SoloListrTask<NodeConnectionsContext>[] = [];
 
         for (const componentData of componentsData) {
-          subTasks.push(this.validateComponentData(componentData));
+          subTasks.push(this.validateComponentData(componentData, check));
         }
 
         return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
