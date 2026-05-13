@@ -419,7 +419,7 @@ export async function queryBalance(
   skipNodeAlias?: NodeAlias,
 ): Promise<void> {
   const argv: Argv = Argv.getDefaultArgv(namespace);
-  expect(accountManager._nodeClient).to.be.null;
+  expect(accountManager._nodeClient).to.be.undefined;
 
   await accountManager.refreshNodeClient(
     namespace,
@@ -428,7 +428,7 @@ export async function queryBalance(
     undefined,
     {type: 'all', skipNodeAlias},
   );
-  expect(accountManager._nodeClient).to.not.be.null;
+  expect(accountManager._nodeClient).to.not.be.undefined;
 
   const balance: AccountBalance = await new AccountBalanceQuery()
     .setAccountId(accountManager._nodeClient.getOperator().accountId)
@@ -466,7 +466,7 @@ export async function createAccount(
     undefined,
     {type: 'all', skipNodeAlias},
   );
-  expect(accountManager._nodeClient).not.to.be.null;
+  expect(accountManager._nodeClient).not.to.be.undefined;
   const privateKey: PrivateKey = PrivateKey.generate();
   const amount: number = 100;
   const newAccount: TransactionResponse = await new AccountCreateTransaction()
