@@ -271,6 +271,11 @@ export class K8ClientPod implements Pod {
         cmdArguments.push(`pods/${this.podReference.name}`, `${availablePort}:${podPort}`);
       }
 
+      if (os.platform() === 'win32' && !persist) {
+        cmdArguments = ['--headless', cmd, ...cmdArguments];
+        cmd = 'conhost.exe';
+      }
+
       await new ShellRunner().run(cmd, cmdArguments, true, true, {
         PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
       });
