@@ -694,7 +694,7 @@ export class NetworkCommand extends BaseCommand {
         ` --set "crds.serviceMonitor.enabled=${config.singleUseServiceMonitor}"` +
         ` --set "crds.podLog.enabled=${config.singleUsePodLog}"` +
         ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"` +
-        (config.pvcStorageClass && config.resolvedPvcStorageClass
+        (config.resolvedPvcStorageClass
           ? ` --set "defaults.volumeClaims.storageClassName=${config.resolvedPvcStorageClass}"`
           : '') +
         (config.resolvedPvcStorageClass
