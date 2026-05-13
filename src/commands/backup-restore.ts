@@ -2,8 +2,8 @@
 
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
-import {container, inject, injectable} from 'tsyringe-neo';
-import {AnyListrContext, type ArgvStruct, NodeAlias} from '../types/aliases.js';
+import {injectable, container} from 'tsyringe-neo';
+import {type ArgvStruct, NodeAlias} from '../types/aliases.js';
 import {type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
 import yaml from 'yaml';
@@ -14,7 +14,7 @@ import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloError} from '../core/errors/solo-error.js';
-import {type ClusterReferences, type Context, type DeploymentName, type SoloListrTask} from '../types/index.js';
+import {type Context, type ClusterReferences, type SoloListrTask} from '../types/index.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
@@ -26,6 +26,7 @@ import {plainToInstance} from 'class-transformer';
 import {RemoteConfigSchema} from '../data/schema/model/remote/remote-config-schema.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
 import {type DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
+import {type DeploymentName} from '../types/index.js';
 import {type ApplicationVersionsSchema} from '../data/schema/model/common/application-versions-schema.js';
 import {KeysCommandDefinition} from './command-definitions/keys-command-definition.js';
 import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
@@ -36,8 +37,9 @@ import {RelayCommandDefinition} from './command-definitions/relay-command-defini
 import {ClusterReferenceCommandDefinition} from './command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
 import * as CommandHelpers from './command-helpers.js';
-import {invokeSoloCommand, optionFromFlag, subTaskSoloCommand} from './command-helpers.js';
+import {optionFromFlag, subTaskSoloCommand, invokeSoloCommand} from './command-helpers.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
+import {inject} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
@@ -312,25 +314,15 @@ export class BackupRestoreCommand extends BaseCommand {
         {
           title: 'Compress backup directory',
           skip: (): boolean => {
-            const zipPassword: string = this.configManager.getFlag(flags.zipPassword);
+            const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
             return !zipPassword;
           },
           task: async (): Promise<void> => {
-            const zipPassword: string = this.configManager.getFlag(flags.zipPassword);
-            const zipFile: string = this.configManager.getFlag(flags.zipFile);
-
-            await new ShellRunner(this.logger).runCommand(
-              'zip',
-              ['-rX', '-P', zipPassword, zipFile, '.'],
-              true,
-              false,
-              {
-                PATH: process.env.PATH ?? '',
-              },
-              undefined,
-              outputDirectory,
-            );
-
+            const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
+            const zipFile: string = this.configManager.getFlag<string>(flags.zipFile);
+            const compressionCommand: string = `cd "${outputDirectory}" && zip -rX -P "${zipPassword}" "${zipFile}" .`;
+            const shellRunner: ShellRunner = new ShellRunner(this.logger);
+            await shellRunner.run(compressionCommand, [], true, false);
             this.logger.showUser(chalk.green(`Backup compressed to ${zipFile}`));
           },
         },
@@ -1365,11 +1357,9 @@ export class BackupRestoreCommand extends BaseCommand {
       fs.mkdirSync(targetDirectory, {recursive: true});
     }
 
+    const unzipCommand: string = `unzip -o -P "${zipPassword}" "${inputPath}" -d "${targetDirectory}"`;
     const shellRunner: ShellRunner = new ShellRunner(this.logger);
-
-    await shellRunner.runCommand('unzip', ['-o', '-P', zipPassword, inputPath, '-d', targetDirectory], true, false, {
-      PATH: process.env.PATH ?? '',
-    });
+    await shellRunner.run(unzipCommand, [], true, false);
 
     this.configManager.setFlag(flags.inputDir, targetDirectory);
 
@@ -1387,40 +1377,24 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build create Kind clusters tasks
    */
-  private buildKindNetworkTask(): SoloListrTask<AnyListrContext>[] {
-    // Add individual cluster creation tasks
-    return [
+  private buildKindNetworkTask(): SoloListrTask<any>[] {
+    const tasks: SoloListrTask<any>[] = [
       {
         title: 'Setup Docker network for multi-cluster',
-        skip: (context_): boolean => !context_.clusters || context_.clusters.length <= 1,
-        task: async (context_): Promise<void> => {
+        skip: (context_: any): boolean => !context_.clusters || context_.clusters.length <= 1,
+        task: async (context_: any): Promise<void> => {
           this.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
           try {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
-
-            try {
-              await shellRunner.runCommand('docker', ['network', 'rm', '-f', 'kind'], true, false, {
-                PATH: process.env.PATH ?? '',
-              });
-            } catch {
-              // Ignore: the network may not exist yet.
-            }
-
-            await shellRunner.runCommand(
-              'docker',
-              ['network', 'create', 'kind', '--scope', 'local', '--subnet', '172.19.0.0/16', '--driver', 'bridge'],
-              true,
-              false,
-              {
-                PATH: process.env.PATH ?? '',
-              },
+            await shellRunner.run(
+              'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
             );
 
             // Add MetalLB Helm repository for multi-cluster load balancing
             this.logger.info('Adding MetalLB Helm repository...');
             await this.helm.addRepository(new Repository('metallb', 'https://metallb.github.io/metallb'));
             await this.helm.updateRepositories();
-          } catch (error) {
+          } catch (error: any) {
             // Network might already exist, which is fine
             if (error.message && error.message.includes('already exists')) {
               this.logger.info('Kind Docker network already exists, continuing...');
@@ -1431,6 +1405,9 @@ export class BackupRestoreCommand extends BaseCommand {
         },
       },
     ];
+
+    // Add individual cluster creation tasks
+    return tasks;
   }
 
   /**

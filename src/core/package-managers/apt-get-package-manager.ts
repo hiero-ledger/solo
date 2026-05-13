@@ -6,12 +6,10 @@ import {injectable} from 'tsyringe-neo';
 
 @injectable()
 export class AptGetPackageManager extends ShellRunner implements PackageManager {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private onSudoRequested: (message: string) => void = (_message: string): void => {};
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private onSudoGranted: (message: string) => void = (_message: string): void => {};
+  private onSudoRequested: (message: string) => void = (_message: string) => {};
+  private onSudoGranted: (message: string) => void = (_message: string) => {};
 
-  public constructor() {
+  constructor() {
     super();
   }
 
@@ -24,19 +22,19 @@ export class AptGetPackageManager extends ShellRunner implements PackageManager 
   }
 
   public async installPackages(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['install', ...dependencies]);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, `apt-get install ${dependencies.join(' ')}`);
   }
 
   public async uninstallPackages(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['remove', ...dependencies]);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, `apt-get remove ${dependencies.join(' ')}`);
   }
 
   public async update(): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['update']);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get update');
   }
 
   public async upgrade(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['upgrade', ...dependencies]);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, `apt-get upgrade ${dependencies.join(' ')}`);
   }
 
   public async install(): Promise<boolean> {
@@ -49,7 +47,7 @@ export class AptGetPackageManager extends ShellRunner implements PackageManager 
 
   public async isAvailable(): Promise<boolean> {
     try {
-      await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['-v']);
+      await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get -v');
       return true;
     } catch {
       return false;

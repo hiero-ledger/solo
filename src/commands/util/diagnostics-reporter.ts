@@ -166,7 +166,7 @@ export class DiagnosticsReporter {
     try {
       const shellRunner: ShellRunner = new ShellRunner(logger);
       const command: string = os.platform() === 'win32' ? 'where' : 'which';
-      await shellRunner.runCommand(command, ['gh']);
+      await shellRunner.run(command, ['gh']);
       return true;
     } catch {
       return false;
@@ -284,11 +284,7 @@ export class DiagnosticsReporter {
    * @returns           The `SpawnSyncReturns` result from the `gh` process.
    */
   public static executeGhCommand(arguments_: string[]): SpawnSyncReturns<string> {
-    return spawnSync('gh', arguments_, {
-      encoding: 'utf8',
-      env: process.env,
-      shell: false,
-    });
+    return spawnSync('gh', arguments_, {encoding: 'utf8', env: process.env});
   }
 
   /**

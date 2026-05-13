@@ -27,7 +27,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags, Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
-import {execFileSync} from 'node:child_process';
+import {execSync} from 'node:child_process';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import yaml from 'yaml';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
@@ -566,13 +566,10 @@ export function checkDockerImageExists(imageName: string, imageTag: string): boo
   try {
     // Execute the 'docker images' command and filter by the image name
     // The --format "{{.Repository}}:{{.Tag}}" ensures consistent output
-    const output: string = execFileSync('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}'], {
-      encoding: 'utf8',
-      stdio: 'pipe',
-      shell: false,
-    }).toString();
-
-    return output.split(/\r?\n/).some((line: string): boolean => line.trim() === fullImageName);
+    // We use grep to filter for the exact image:tag
+    const command: string = `docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "^${fullImageName}$"`;
+    const output: string = execSync(command, {encoding: 'utf8', stdio: 'pipe'});
+    return output.trim() === fullImageName;
   } catch (error: unknown) {
     console.error(`Error checking Docker image ${fullImageName}:`, (error as Error).message);
     return false;

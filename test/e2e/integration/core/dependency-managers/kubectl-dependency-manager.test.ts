@@ -96,7 +96,7 @@ describe('KubectlDependencyManager', (): void => {
       downloaderFetchPackageSpy = sandbox.spy(packageDownloader, 'fetchPackage');
       kubectlDependencyManager = new KubectlDependencyManager(undefined, temporaryDirectory, process.arch, undefined);
       kubectlDependencyManager.uninstallLocal();
-      runStub = sandbox.stub(kubectlDependencyManager, 'runCommand');
+      runStub = sandbox.stub(kubectlDependencyManager, 'run');
       cpSyncStub = sandbox.stub(fs, 'cpSync').returns();
       chmodSyncStub = sandbox.stub(fs, 'chmodSync').returns();
       existsSyncStub = sandbox.stub(fs, 'existsSync').returns(true);
@@ -226,13 +226,13 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('getVersion should succeed with valid version output', async (): Promise<void> => {
-      sandbox.stub(kubectlDependencyManager, 'runCommand').resolves(mockVersionOutputValid.split('\n'));
+      sandbox.stub(kubectlDependencyManager, 'run').resolves(mockVersionOutputValid.split('\n'));
 
       expect(await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl')).to.equal('1.33.3');
     });
 
     it('getVersion should handle error if kubectl version fails', async (): Promise<void> => {
-      sandbox.stub(kubectlDependencyManager, 'runCommand').rejects(new Error('Command failed'));
+      sandbox.stub(kubectlDependencyManager, 'run').rejects(new Error('Command failed'));
 
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');
@@ -244,7 +244,7 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('getVersion should handle invalid output', async (): Promise<void> => {
-      sandbox.stub(kubectlDependencyManager, 'runCommand').resolves(mockVersionOutputInvalid.split('\n'));
+      sandbox.stub(kubectlDependencyManager, 'run').resolves(mockVersionOutputInvalid.split('\n'));
 
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');
@@ -256,7 +256,7 @@ describe('KubectlDependencyManager', (): void => {
     });
 
     it('getVersion should handle missing client version in output', async (): Promise<void> => {
-      sandbox.stub(kubectlDependencyManager, 'runCommand').resolves(mockVersionOutputMissingClient.split('\n'));
+      sandbox.stub(kubectlDependencyManager, 'run').resolves(mockVersionOutputMissingClient.split('\n'));
 
       try {
         await kubectlDependencyManager.getVersion('/usr/local/bin/kubectl');

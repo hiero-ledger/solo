@@ -15,7 +15,7 @@ describe('NpmClient', (): void => {
 
   beforeEach((): void => {
     npmClient = new NpmClient();
-    shellRunnerRunStub = sinon.stub(ShellRunner.prototype, 'runCommand');
+    shellRunnerRunStub = sinon.stub(ShellRunner.prototype, 'run');
   });
 
   afterEach((): void => sinon.restore());

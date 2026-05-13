@@ -51,7 +51,7 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import {execFileSync} from 'node:child_process';
+import {execSync} from 'node:child_process';
 import find from 'find-process';
 import type FindConfig from 'find-process';
 import type ProcessInfo from 'find-process';
@@ -2611,19 +2611,17 @@ export class NodeCommandTasks {
                 // Do NOT use "helm get all": it also outputs the full rendered K8s manifests
                 // which include Secret resources (base64-encoded credentials, TLS keys, etc.)
                 // and pod specs that may embed plaintext passwords from chart values.
-                const output: string = execFileSync(
-                  'helm',
-                  ['get', 'values', release.name, '-n', release.namespace, '--kube-context', context, '--all'],
-                  {
-                    encoding: 'utf8',
-                    cwd: process.cwd(),
-                    shell: false,
-                    maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-                    env: {
-                      PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${PathEx.delimiter}${process.env.PATH}`,
-                    },
+                const getAllCommand: string = `helm get values ${release.name} -n ${release.namespace} --kube-context ${context} --all`;
+                const output: string = execSync(getAllCommand, {
+                  encoding: 'utf8',
+                  cwd: process.cwd(),
+                  shell: '/bin/bash',
+                  maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+                  env: {
+                    ...process.env,
+                    PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${PathEx.delimiter}${process.env.PATH}`,
                   },
-                ).toString();
+                }).toString();
 
                 const valuesFile: string = PathEx.join(contextDirectory, `${release.name}.yaml`);
                 try {

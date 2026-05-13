@@ -80,7 +80,6 @@ export class K8ClientContainer implements Container {
         fullArguments,
         {
           env: {...process.env, PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`},
-          shell: false,
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: os.platform() === 'win32',
         },

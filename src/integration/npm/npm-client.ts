@@ -17,6 +17,6 @@ export class NpmClient {
    */
   public async listGlobal(): Promise<string[]> {
     const shellRunner: ShellRunner = new ShellRunner(this.logger);
-    return shellRunner.runCommand('npm', ['list', '--global', '--depth=0']);
+    return shellRunner.run('npm list --global --depth=0');
   }
 }

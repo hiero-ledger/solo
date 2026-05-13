@@ -34,7 +34,7 @@ describe('ShellRunner', (): void => {
 
   it('should run command', async (): Promise<void> => {
     const commandToRun: string = OperatingSystem.isWin32() ? 'dir' : 'ls -l';
-    await shellRunner.runCommand(commandToRun);
+    await shellRunner.run(commandToRun);
 
     loggerInfoStub.withArgs(`Executing command: '${commandToRun}'`).onFirstCall();
     loggerDebugStub.withArgs(`Finished executing: '${commandToRun}'`, sinon.match.any).onFirstCall();
@@ -47,20 +47,19 @@ describe('ShellRunner', (): void => {
   }).timeout(Duration.ofSeconds(10).toMillis());
 
   it('should complete successfully within timeout', async (): Promise<void> => {
-    const result: string[] = await shellRunner.runCommand('echo', ['hello'], false, false, {}, 10_000);
+    const result: string[] = await shellRunner.run('echo hello', [], false, false, {}, 10_000);
     expect(result).to.include('hello');
   }).timeout(Duration.ofSeconds(15).toMillis());
 
   it('should reject with timeout error when command exceeds timeoutMs', async (): Promise<void> => {
     // Use a node one-liner as a cross-platform long-running command: works on all platforms
     // (Windows `timeout /t N` exits immediately when stdin is non-interactive in CI environments)
-    const commandToRun: string = 'node';
-    const commandArguments: string[] = ['-e', 'setTimeout(()=>{}, 10000)'];
+    const commandToRun: string = 'node -e "setTimeout(()=>{}, 10000)"';
     const timeoutMs: number = 500;
 
-    await expect(
-      shellRunner.runCommand(commandToRun, commandArguments, false, false, {}, timeoutMs),
-    ).to.be.rejectedWith(`Command timed out after ${timeoutMs}ms`);
+    await expect(shellRunner.run(commandToRun, [], false, false, {}, timeoutMs)).to.be.rejectedWith(
+      `Command timed out after ${timeoutMs}ms`,
+    );
   }).timeout(Duration.ofSeconds(10).toMillis());
 
   describe('redactArguments', (): void => {
