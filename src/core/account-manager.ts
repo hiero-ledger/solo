@@ -22,6 +22,8 @@ import {
   Long,
   PrivateKey,
   Status,
+  TransactionReceipt,
+  TransactionResponse,
   TransferTransaction,
 } from '@hiero-ledger/sdk';
 import {MissingArgumentError} from './errors/missing-argument-error.js';
@@ -97,7 +99,7 @@ export class AccountManager {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
     this._portForwards = [];
-    this._nodeClient = null;
+    this._nodeClient = undefined;
   }
 
   /**
@@ -198,7 +200,7 @@ export class AccountManager {
       }
     }
 
-    this._nodeClient = null;
+    this._nodeClient = undefined;
     this._portForwards = [];
     this.logger.debug('node client and port forwards have been closed');
   }
@@ -624,7 +626,7 @@ export class AccountManager {
         serviceBuilder.withHaProxyPodName(podList[0].podReference.name);
       }
 
-      for (const [_, context] of clusterReferences) {
+      for (const [, context] of clusterReferences) {
         // get the pod name of the network node
         const pods: Pod[] = await this.k8Factory
           .getK8(context)
@@ -676,7 +678,9 @@ export class AccountManager {
     deploymentName: DeploymentName,
   ): Promise<{skippedCount: number; rejectedCount: number; fulfilledCount: number}> {
     const genesisKey: PrivateKey = PrivateKey.fromStringED25519(constants.OPERATOR_KEY);
-    const accountUpdatePromiseArray: any[] = [];
+    const accountUpdatePromiseArray: Promise<
+      {value: string; status: string} | {reason: string; value: string; status: string}
+    >[] = [];
 
     for (const accountNumber of currentSet) {
       accountUpdatePromiseArray.push(
@@ -872,7 +876,7 @@ export class AccountManager {
    * @returns the private key of the account
    */
   public async getAccountKeys(accountId: AccountId | string): Promise<Key[]> {
-    const accountInfo = await this.accountInfoQuery(accountId);
+    const accountInfo: AccountInfo = await this.accountInfoQuery(accountId);
 
     let keys: Key[] = [];
     if (accountInfo.key instanceof KeyList) {
@@ -891,7 +895,7 @@ export class AccountManager {
    * @param oldPrivateKey - the genesis key that is the current key
    * @returns whether the update was successful
    */
-  async sendAccountKeyUpdate(
+  public async sendAccountKeyUpdate(
     accountId: AccountId | string,
     newPrivateKey: PrivateKey | string,
     oldPrivateKey: PrivateKey | string,
@@ -905,20 +909,20 @@ export class AccountManager {
     }
 
     // Create the transaction to update the key on the account
-    const transaction: any = new AccountUpdateTransaction()
+    const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
       .setAccountId(accountId)
       .setKey(newPrivateKey.publicKey)
       .freezeWith(this._nodeClient);
 
     // Sign the transaction with the old key and new key
-    let signedTransaction: any = await transaction.sign(oldPrivateKey);
+    let signedTransaction: AccountUpdateTransaction = await transaction.sign(oldPrivateKey);
     signedTransaction = await signedTransaction.sign(newPrivateKey);
 
     // SIgn the transaction with the client operator private key and submit to a Hedera network
-    const txResponse: any = await signedTransaction.execute(this._nodeClient);
+    const txResponse: TransactionResponse = await signedTransaction.execute(this._nodeClient);
 
     // Request the receipt of the transaction
-    const receipt: any = await txResponse.getReceipt(this._nodeClient);
+    const receipt: TransactionReceipt = await txResponse.getReceipt(this._nodeClient);
 
     return receipt.status === Status.Success;
   }
@@ -932,14 +936,14 @@ export class AccountManager {
    * @param context
    * @returns a custom object with the account information in it
    */
-  async createNewAccount(
+  public async createNewAccount(
     namespace: NamespaceName,
     privateKey: PrivateKey,
     amount: number,
     setAlias: boolean = false,
     context: string,
   ): Promise<{accountId: string; privateKey: string; publicKey: string; balance: number; accountAlias?: string}> {
-    const newAccountTransaction: any = new AccountCreateTransaction()
+    const newAccountTransaction: AccountCreateTransaction = new AccountCreateTransaction()
       .setKey(privateKey)
       .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar));
 
@@ -947,10 +951,10 @@ export class AccountManager {
       newAccountTransaction.setAlias(privateKey.publicKey.toEvmAddress());
     }
 
-    const newAccountResponse: any = await newAccountTransaction.execute(this._nodeClient);
+    const newAccountResponse: TransactionResponse = await newAccountTransaction.execute(this._nodeClient);
 
     // Get the new account ID
-    const transactionReceipt: any = await newAccountResponse.getReceipt(this._nodeClient);
+    const transactionReceipt: TransactionReceipt = await newAccountResponse.getReceipt(this._nodeClient);
     const accountInfo: {
       accountId: string;
       privateKey: string;
@@ -967,9 +971,9 @@ export class AccountManager {
     // add the account alias if setAlias is true
     if (setAlias) {
       const accountId: string = accountInfo.accountId;
-      const realm: any = transactionReceipt.accountId!.realm;
-      const shard: any = transactionReceipt.accountId!.shard;
-      const accountInfoQueryResult = await this.accountInfoQuery(accountId);
+      const realm: Long = transactionReceipt.accountId!.realm;
+      const shard: Long = transactionReceipt.accountId!.shard;
+      const accountInfoQueryResult: AccountInfo = await this.accountInfoQuery(accountId);
       accountInfo.accountAlias = entityId(shard, realm, accountInfoQueryResult.contractAccountId);
     }
 
@@ -1017,20 +1021,20 @@ export class AccountManager {
    * @param hbarAmount - the amount of HBAR
    * @returns if the transaction was successfully posted
    */
-  async transferAmount(
+  public async transferAmount(
     fromAccountId: AccountId | string,
     toAccountId: AccountId | string,
     hbarAmount: number,
   ): Promise<boolean> {
     try {
-      const transaction: any = new TransferTransaction()
+      const transaction: TransferTransaction = new TransferTransaction()
         .addHbarTransfer(fromAccountId, new Hbar(-1 * hbarAmount))
         .addHbarTransfer(toAccountId, new Hbar(hbarAmount))
         .freezeWith(this._nodeClient);
 
-      const txResponse: any = await transaction.execute(this._nodeClient);
+      const txResponse: TransactionResponse = await transaction.execute(this._nodeClient);
 
-      const receipt: any = await txResponse.getReceipt(this._nodeClient);
+      const receipt: TransactionReceipt = await txResponse.getReceipt(this._nodeClient);
 
       this.logger.debug(
         `The transfer from account ${fromAccountId} to account ${toAccountId} for amount ${hbarAmount} was ${receipt.status.toString()} `,
@@ -1045,7 +1049,7 @@ export class AccountManager {
   /**
    * Fetch and prepare address book as a base64 string
    */
-  async prepareAddressBookBase64(
+  public async prepareAddressBookBase64(
     namespace: NamespaceName,
     clusterReferences: ClusterReferences,
     deployment: DeploymentName,
@@ -1080,8 +1084,8 @@ export class AccountManager {
     const client = this._nodeClient;
     const realm: number | Long = this.localConfig.configuration.realmForDeployment(deployment);
     const shard: number | Long = this.localConfig.configuration.shardForDeployment(deployment);
-    const fileId: any = FileId.fromString(entityId(shard, realm, fileNumber));
-    const queryFees: any = new FileContentsQuery().setFileId(fileId);
+    const fileId: FileId = FileId.fromString(entityId(shard, realm, fileNumber));
+    const queryFees: FileContentsQuery = new FileContentsQuery().setFileId(fileId);
     return Buffer.from(await queryFees.execute(client)).toString('hex');
   }
 
@@ -1152,7 +1156,7 @@ export class AccountManager {
 
   /**
    * Pings the network node with a grpc call to ensure it is working, throws a SoloError if the ping fails
-   * @param obj - the network node object where the key is the network endpoint and the value is the account id
+   * @param object
    * @param accountId - the account id to ping
    * @throws {@link SoloError} if the ping fails
    */
