@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import {type OneShotSingleDeployConfigClass} from '../../one-shot-single-deploy-config-class.js';
+import {type OneShotSingleDeployContext} from '../../one-shot-single-deploy-context.js';
+import {type Lock} from '../../../../core/lock/lock.js';
+import {type CommandFlags} from '../../../../types/flag-types.js';
+import {type ArgvStruct} from '../../../../types/aliases.js';
+import {type OrchestratorPipeline} from '../orchestrator-pipeline.js';
+
+/**
+ * Interface for the One-Shot Deploy Orchestrator, responsible for building the deployment pipeline for one-shot deploy commands.
+ */
+export interface OneShotDeployOrchestrator {
+  /**
+   * Builds the deployment pipeline for a one-shot deploy command.
+   * @param argv
+   * @param flagsList
+   * @param leaseReference
+   * @param configReference
+   */
+  buildDeployPipeline(
+    argv: ArgvStruct,
+    flagsList: CommandFlags,
+    leaseReference: {value?: Lock},
+    configReference: {value?: OneShotSingleDeployConfigClass},
+  ): OrchestratorPipeline<OneShotSingleDeployContext>;
+}
