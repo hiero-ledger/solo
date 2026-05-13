@@ -221,7 +221,12 @@ export class K8ClientPod implements Pod {
       // In a compiled build it ends in .js; use node to run the compiled .js.
       const isTsx: boolean = __filename.endsWith('.ts');
       const persistScriptExtension: string = isTsx ? '.ts' : '.js';
-      const persistCmd: string = isTsx ? 'tsx' : 'node';
+      const useDirectNodeRuntime: boolean = os.platform() === 'win32';
+      let persistCmd: string = isTsx ? 'tsx' : 'node';
+      if (useDirectNodeRuntime) {
+        persistCmd = process.execPath;
+      }
+      const persistRuntimeArguments: string[] = useDirectNodeRuntime && isTsx ? ['--import', 'tsx'] : [];
       const persistPortForwardScriptPath: string = path.resolve(
         __dirname,
         `persist-port-forward${persistScriptExtension}`,
@@ -232,6 +237,7 @@ export class K8ClientPod implements Pod {
       if (persist) {
         cmd = persistCmd;
         cmdArguments = [
+          ...persistRuntimeArguments,
           persistPortForwardScriptPath,
           this.podReference.namespace.name,
           `pods/${this.podReference.name}`,
@@ -239,42 +245,30 @@ export class K8ClientPod implements Pod {
           `${availablePort}:${podPort}`,
           constants.KUBECTL,
           this.kubectlInstallationDirectory,
-          localBindAddress,
-          '&',
         ];
+
+        // WSL2 has issues with kubectl port-forward when binding to localhost, binding to all interfaces will trigger
+        // a permission prompt which if hidden behind the terminal can cause the port-forward command to fail.
+        if (os.platform() !== 'win32') {
+          cmdArguments.push(localBindAddress, '&');
+        }
       } else {
         cmd = constants.KUBECTL;
         cmdArguments = [
           'port-forward',
           '-n',
           this.podReference.namespace.name,
-          '--address',
-          localBindAddress,
           '--context',
           this.kubeConfig.currentContext,
-          `pods/${this.podReference.name}`,
-          `${availablePort}:${podPort}`,
         ];
-      }
 
-      if (os.platform() === 'win32') {
-        const argumentsLength: number = cmdArguments.length;
-        cmdArguments = cmdArguments.map((anArgument, index): string => {
-          if (index < argumentsLength - 1) {
-            return `"${anArgument}",`;
-          }
-          return `"${anArgument}"`;
-        });
-        cmdArguments = [
-          'Start-Process',
-          '-FilePath',
-          `"${cmd}"`,
-          '-WindowStyle',
-          'Hidden',
-          '-ArgumentList',
-          ...cmdArguments,
-        ];
-        cmd = 'powershell.exe';
+        // WSL2 has issues with kubectl port-forward when binding to localhost, binding to all interfaces will trigger
+        // a permission prompt which if hidden behind the terminal can cause the port-forward command to fail.
+        if (os.platform() !== 'win32') {
+          cmdArguments.push('--address', localBindAddress);
+        }
+
+        cmdArguments.push(`pods/${this.podReference.name}`, `${availablePort}:${podPort}`);
       }
 
       await new ShellRunner().run(cmd, cmdArguments, true, true, {
