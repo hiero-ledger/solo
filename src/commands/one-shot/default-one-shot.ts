@@ -979,7 +979,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       await this.eventBus.waitFor(
                         SoloEventType.NodesStarted,
                         (soloEvent: NodesStartedEvent): boolean => soloEvent.deployment === config.deployment,
-                        Duration.ofMinutes(5),
+                        Duration.ofMinutes(10),
                       );
                       const argv: string[] = newArgv();
                       argv.push(
