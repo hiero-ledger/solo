@@ -277,9 +277,19 @@ export class K8ClientPod implements Pod {
         cmd = 'powershell.exe';
       }
 
-      await new ShellRunner().runCommand(cmd, cmdArguments, true, true, {
-        PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
-      });
+      await new ShellRunner().runExternalCommand(
+        {
+          commandPathOrName: cmd,
+          commandArguments: cmdArguments,
+          environmentVariables: {
+            PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+          },
+        },
+        {
+          verbose: true,
+          detached: true,
+        },
+      );
 
       return availablePort;
     } catch (error) {
@@ -288,7 +298,10 @@ export class K8ClientPod implements Pod {
         // Restarting the WinNAT service can resolve the issue, and then we can retry starting the port forwarder.
         // Example: listen EACCES: permission denied 127.0.0.1:50211
         try {
-          await new ShellRunner().runCommand('net', ['stop', 'winnat']);
+          await new ShellRunner().runExternalCommand({
+            commandPathOrName: 'net',
+            commandArguments: ['stop', 'winnat'],
+          });
         } catch (stopError) {
           const errorMessage: string =
             `Failed to stop WinNAT service: ${stopError.message}. Please open an administrator level terminal on Windows` +
@@ -298,7 +311,12 @@ export class K8ClientPod implements Pod {
           this.logger.error(errorMessage, stopError);
           throw new SoloError(errorMessage, stopError);
         }
-        await new ShellRunner().runCommand('net', ['start', 'winnat']);
+
+        await new ShellRunner().runExternalCommand({
+          commandPathOrName: 'net',
+          commandArguments: ['start', 'winnat'],
+        });
+
         this.logger.warn('Restarted WinNAT service to recover from port forwarding failure on Windows');
         await sleep(Duration.ofSeconds(5)); // wait a bit for the service to restart before retrying
         return await this.portForward(localPort, podPort, reuse, persist, externalAddress, true);

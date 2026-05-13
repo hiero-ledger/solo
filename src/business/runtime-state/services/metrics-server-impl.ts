@@ -237,9 +237,19 @@ export class MetricsServerImpl implements MetricsServer {
       arguments_.push('--context', context);
     }
 
-    const results: string[] = await new ShellRunner().runCommand('kubectl', arguments_, true, false, {
-      PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
-    });
+    const results: string[] = await new ShellRunner().runExternalCommand(
+      {
+        commandPathOrName: 'kubectl',
+        commandArguments: arguments_,
+        environmentVariables: {
+          PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
+        },
+      },
+      {
+        verbose: true,
+        detached: false,
+      },
+    );
 
     if (results?.length > 0) {
       const columns: string[] = results[0].trim().split(/\s+/);

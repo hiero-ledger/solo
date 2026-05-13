@@ -7,6 +7,7 @@ import {patchInject} from '../../../core/dependency-injection/container-helper.j
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import * as constants from '../../../core/constants.js';
 import {ExecutionBuilder} from '../../execution-builder.js';
+import {ExternalCommandInvocation} from '../../../core/execution/external-command-invocation.js';
 
 @injectable()
 /**
@@ -169,38 +170,43 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
    * @returns the HelmExecution instance
    */
   public build(): HelmExecution {
-    const command: string[] = this.buildCommand();
+    const invocation: ExternalCommandInvocation = this.buildCommand();
     const environment: Record<string, string> = {...process.env};
+
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }
+
     this.prefixPath(environment, this.helmInstallationDirectory);
 
-    return new HelmExecution(command, environment, this.logger);
+    return new HelmExecution({
+      ...invocation,
+      environmentVariables: environment,
+    });
   }
 
   /**
    * Builds the command array for the helm execution.
    * @returns the command array
    */
-  private buildCommand(): string[] {
-    const command: string[] = [this.helmExecutable, ...this._subcommands, ...this._flags];
+  private buildCommand(): ExternalCommandInvocation {
+    const commandArguments: string[] = [...this._subcommands, ...this._flags];
 
     for (const [key, value] of this._arguments.entries()) {
-      command.push(`--${key}`, value);
+      commandArguments.push(`--${key}`, value);
     }
 
     for (const entry of this._optionsWithMultipleValues) {
       for (const value of entry.value) {
-        command.push(`--${entry.key}`, value);
+        commandArguments.push(`--${entry.key}`, value);
       }
     }
 
-    command.push(...this._positionals);
+    commandArguments.push(...this._positionals);
 
-    const redactedCommand: string[] = HelmExecution.redactCommand(command);
-    this.logger.debug(`Helm command: helm ${redactedCommand.slice(1).join(' ')}`);
-
-    return command;
+    return {
+      commandPathOrName: this.helmExecutable,
+      commandArguments,
+    };
   }
 }

@@ -147,7 +147,7 @@ describe('HelmDependencyManager', (): void => {
         undefined,
       );
       helmDependencyManager.uninstallLocal();
-      runStub = sandbox.stub(helmDependencyManager, 'runCommand');
+      runStub = sandbox.stub(helmDependencyManager, 'runExternalCommand');
     });
 
     afterEach((): void => {

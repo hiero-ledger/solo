@@ -34,7 +34,10 @@ export class DockerClient implements ContainerEngineClient {
   public async pullImage(image: string): Promise<void> {
     const platform: string = Architecture.getLinuxPlatform();
 
-    await this.shellRunner.runCommand('docker', ['pull', '--platform', platform, image]);
+    await this.shellRunner.runExternalCommand({
+      commandPathOrName: 'docker',
+      commandArguments: ['pull', '--platform', platform, image],
+    });
   }
 
   public async saveImage(image: string, archivePath: string): Promise<void> {
@@ -42,11 +45,17 @@ export class DockerClient implements ContainerEngineClient {
 
     const platform: string = Architecture.getLinuxPlatform();
 
-    await this.shellRunner.runCommand('crane', ['pull', '--platform', platform, image, archivePath]);
+    await this.shellRunner.runExternalCommand({
+      commandPathOrName: 'crane',
+      commandArguments: ['pull', '--platform', platform, image, archivePath],
+    });
   }
 
   public async loadImage(archivePath: string): Promise<void> {
-    await this.shellRunner.runCommand('docker', ['load', '--input', archivePath]);
+    await this.shellRunner.runExternalCommand({
+      commandPathOrName: 'docker',
+      commandArguments: ['load', '--input', archivePath],
+    });
   }
 
   public async loadImageArchiveIntoCluster(archivePath: string, clusterReference?: string): Promise<void> {
@@ -62,22 +71,19 @@ export class DockerClient implements ContainerEngineClient {
   }
 
   public async removeImage(image: string): Promise<void> {
-    await this.shellRunner.runCommand('docker', ['image', 'rm', image]);
+    await this.shellRunner.runExternalCommand({
+      commandPathOrName: 'docker',
+      commandArguments: ['image', 'rm', image],
+    });
   }
 
   public async listLoadedImagesInCluster(clusterName: string): Promise<readonly string[]> {
     const nodeName: string = `${clusterName}-control-plane`;
 
-    const output: string[] = await this.shellRunner.runCommand('docker', [
-      'exec',
-      '--privileged',
-      nodeName,
-      'ctr',
-      '--namespace=k8s.io',
-      'images',
-      'ls',
-      '-q',
-    ]);
+    const output: string[] = await this.shellRunner.runExternalCommand({
+      commandPathOrName: 'docker',
+      commandArguments: ['exec', '--privileged', nodeName, 'ctr', '--namespace=k8s.io', 'images', 'ls', '-q'],
+    });
 
     return output
       .map((line): string => line.trim())

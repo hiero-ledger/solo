@@ -63,7 +63,10 @@ export class VfkitDependencyManager extends BaseDependencyManager {
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.runCommand(executableWithPath, ['--version']);
+        const output: string[] = await this.runExternalCommand({
+          commandPathOrName: executableWithPath,
+          commandArguments: ['--version'],
+        });
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
           return match[1];

@@ -6,6 +6,7 @@ import {HelmParserException} from '../helm-parser-exception.js';
 import {type Duration} from '../../../core/time/duration.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {SensitiveDataRedactor} from '../../../core/util/sensitive-data-redactor.js';
+import {type ExternalCommandInvocation} from '../../../core/execution/external-command-invocation.js';
 
 /**
  * Represents the execution of a helm command and is responsible for parsing the response.
@@ -51,23 +52,16 @@ export class HelmExecution {
 
   /**
    * Creates a new HelmExecution instance.
-   * @param command The command array to execute
-   * @param environmentVariables The environment variables to set
-   * @param logger Optional logger for command output
    */
-  public constructor(command: string[], environmentVariables: Record<string, string>, logger?: SoloLogger) {
-    this.logger = logger;
-
-    const redactedCommand: string[] = HelmExecution.redactCommand(command);
-    this.commandLine = redactedCommand.join(' ');
-
-    if (this.logger) {
-      this.logger.info(`Executing helm command: ${this.commandLine}`);
+  public constructor(invocation: ExternalCommandInvocation) {
+    if (!invocation.commandPathOrName) {
+      throw new Error('Helm executable path or name is required');
     }
 
-    this.process = spawn(command[0], command.slice(1), {
+    this.process = spawn(invocation.commandPathOrName, invocation.commandArguments, {
       shell: false,
-      env: {...process.env, ...environmentVariables},
+      env: {...process.env, ...invocation.environmentVariables},
+      cwd: invocation.workingDirectory,
     });
   }
 

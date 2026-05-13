@@ -70,10 +70,20 @@ describe('BaseCommand', () => {
     });
 
     it('should fail during invalid program check', async () => {
-      await expect(baseCmd.runCommand('INVALID_PROGRAM')).to.be.rejected;
+      await expect(
+        baseCmd.runExternalCommand({
+          commandPathOrName: 'INVALID_PROGRAM',
+          commandArguments: [],
+        }),
+      ).to.be.rejected;
     });
     it('should succeed during valid program check', async () => {
-      await expect(baseCmd.runCommand('echo')).to.eventually.not.be.null;
+      await expect(
+        baseCmd.runExternalCommand({
+          commandPathOrName: 'echo',
+          commandArguments: [],
+        }),
+      ).to.eventually.not.be.null;
     });
     it('getConfig tracks property usage', () => {
       const flagsList: CommandFlag[] = [flags.releaseTag, flags.tlsClusterIssuerType, flags.valuesFile];

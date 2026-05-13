@@ -166,7 +166,10 @@ export class DiagnosticsReporter {
     try {
       const shellRunner: ShellRunner = new ShellRunner(logger);
       const command: string = os.platform() === 'win32' ? 'where' : 'which';
-      await shellRunner.runCommand(command, ['gh']);
+      await shellRunner.runExternalCommand({
+        commandPathOrName: command,
+        commandArguments: ['gh'],
+      });
       return true;
     } catch {
       return false;

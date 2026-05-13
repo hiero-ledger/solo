@@ -218,15 +218,20 @@ describe('PodmanDependencyManager', (): void => {
     it('getVersion should return version from podman --version output', async (): Promise<void> => {
       const executableWithPath: string = '/usr/local/bin/podman';
       sandbox
-        .stub(ShellRunner.prototype, 'runCommand')
-        .withArgs(`"${executableWithPath}" --version`)
+        .stub(ShellRunner.prototype, 'runExternalCommand')
+        .withArgs(
+          sinon.match({
+            commandPathOrName: executableWithPath,
+            commandArguments: ['--version'],
+          }),
+        )
         .resolves([`podman version ${PODMAN_VERSION}`]);
       const version: string = await podmanDependencyManager.getVersion(executableWithPath);
       expect(version).to.equal(PODMAN_VERSION);
     });
 
     it('getVersion should throw error when command fails', async (): Promise<void> => {
-      sandbox.stub(ShellRunner.prototype, 'runCommand').rejects(new Error('Command failed'));
+      sandbox.stub(ShellRunner.prototype, 'runExternalCommand').rejects(new Error('Command failed'));
       try {
         await podmanDependencyManager.getVersion('/usr/local/bin/podman');
         expect.fail('Should have thrown an error');
@@ -236,7 +241,7 @@ describe('PodmanDependencyManager', (): void => {
     });
 
     it('getVersion should throw error when version pattern not found', async (): Promise<void> => {
-      sandbox.stub(ShellRunner.prototype, 'runCommand').resolves(['Invalid output']);
+      sandbox.stub(ShellRunner.prototype, 'runExternalCommand').resolves(['Invalid output']);
       try {
         await podmanDependencyManager.getVersion('/usr/local/bin/podman');
         expect.fail('Should have thrown an error');
@@ -247,8 +252,13 @@ describe('PodmanDependencyManager', (): void => {
 
     it('shouldInstall should return false when Docker is installed', async (): Promise<void> => {
       sandbox
-        .stub(ShellRunner.prototype, 'runCommand')
-        .withArgs(`"${constants.DOCKER}" --version`)
+        .stub(ShellRunner.prototype, 'runExternalCommand')
+        .withArgs(
+          sinon.match({
+            commandPathOrName: constants.DOCKER,
+            commandArguments: ['--version'],
+          }),
+        )
         .resolves(['Docker version 20.10.8']);
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.false;
@@ -256,8 +266,13 @@ describe('PodmanDependencyManager', (): void => {
 
     it('shouldInstall should return true when Docker is not installed', async (): Promise<void> => {
       sandbox
-        .stub(ShellRunner.prototype, 'runCommand')
-        .withArgs(`"${constants.DOCKER}" --version`)
+        .stub(ShellRunner.prototype, 'runExternalCommand')
+        .withArgs(
+          sinon.match({
+            commandPathOrName: constants.DOCKER,
+            commandArguments: ['--version'],
+          }),
+        )
         .rejects(new Error('Docker not found'));
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.true;
@@ -363,7 +378,7 @@ describe('PodmanDependencyManager', (): void => {
         undefined,
       );
       podmanDependencyManager.uninstallLocal();
-      runStub = sandbox.stub(podmanDependencyManager, 'runCommand');
+      runStub = sandbox.stub(podmanDependencyManager, 'runExternalCommand');
 
       // Mock fetch for fetchReleaseInfo
       originalFetch = globalThis.fetch;

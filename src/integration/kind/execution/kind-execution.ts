@@ -4,6 +4,7 @@ import {type ChildProcessWithoutNullStreams, spawn} from 'node:child_process';
 import {KindExecutionException} from '../errors/kind-execution-exception.js';
 import {KindParserException} from '../errors/kind-parser-exception.js';
 import {type Duration} from '../../../core/time/duration.js';
+import {type ExternalCommandInvocation} from '../../../core/execution/external-command-invocation.js';
 
 /**
  * Represents the execution of a kind command and is responsible for parsing the response.
@@ -36,13 +37,17 @@ export class KindExecution {
 
   /**
    * Creates a new KindExecution instance.
-   * @param command The command array to execute
-   * @param environmentVariables The environment variables to set
+   * @param invocation The external command invocation to execute
    */
-  public constructor(command: string[], environmentVariables: Record<string, string>) {
-    this.process = spawn(command[0], command.slice(1), {
+  public constructor(invocation: ExternalCommandInvocation) {
+    if (!invocation.commandPathOrName) {
+      throw new Error('Kind executable path or name is required');
+    }
+
+    this.process = spawn(invocation.commandPathOrName, invocation.commandArguments, {
       shell: false,
-      env: {...process.env, ...environmentVariables},
+      env: {...process.env, ...invocation.environmentVariables},
+      cwd: invocation.workingDirectory,
     });
   }
 

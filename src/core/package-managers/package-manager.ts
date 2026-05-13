@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {
+  type ExternalCommandExecutionOptions,
+  type ExternalCommandInvocation,
+} from '../execution/external-command-invocation.js';
+
 export interface PackageManager {
   installPackages(dependencies: string[]): Promise<void>;
   uninstallPackages(dependencies: string[]): Promise<void>;
@@ -8,13 +13,8 @@ export interface PackageManager {
   install(): Promise<boolean>;
   uninstall(): Promise<void>;
   isAvailable(): Promise<boolean>;
-  runCommand(
-    cmd: string,
-    arguments_?: string[],
-    verbose?: boolean,
-    detached?: boolean,
-    environmentVariablesToAppend?: Record<string, string>,
-    timeoutMs?: number,
-    cwd?: string,
+  runExternalCommand(
+    invocation: ExternalCommandInvocation,
+    options?: ExternalCommandExecutionOptions,
   ): Promise<string[]>;
 }

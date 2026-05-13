@@ -16,11 +16,25 @@ export class HelmSoftwareLoader {
       let helmPath: string;
       // Use the appropriate command based on the platform
       if (OperatingSystem.isLinux() || OperatingSystem.isDarwin()) {
-        // eslint-disable-next-line unicorn/no-await-expression-member
-        helmPath = (await shellRunner.runCommand('which', [constants.HELM])).join('').trim();
+        helmPath = (
+          await shellRunner.runExternalCommand({
+            commandPathOrName: 'which',
+            commandArguments: [constants.HELM],
+          })
+        )
+          // eslint-disable-next-line unicorn/no-await-expression-member
+          .join('')
+          .trim();
       } else if (OperatingSystem.isWin32()) {
-        // eslint-disable-next-line unicorn/no-await-expression-member
-        helmPath = (await shellRunner.runCommand('where', [constants.HELM])).join('').trim();
+        helmPath = (
+          await shellRunner.runExternalCommand({
+            commandPathOrName: 'where',
+            commandArguments: [constants.HELM],
+          })
+        )
+          // eslint-disable-next-line unicorn/no-await-expression-member
+          .join('')
+          .trim();
       } else {
         throw new HelmConfigurationException(`Unsupported operating system: ${OperatingSystem.getPlatform()}`);
       }

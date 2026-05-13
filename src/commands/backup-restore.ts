@@ -319,16 +319,19 @@ export class BackupRestoreCommand extends BaseCommand {
             const zipPassword: string = this.configManager.getFlag(flags.zipPassword);
             const zipFile: string = this.configManager.getFlag(flags.zipFile);
 
-            await new ShellRunner(this.logger).runCommand(
-              'zip',
-              ['-rX', '-P', zipPassword, zipFile, '.'],
-              true,
-              false,
+            await new ShellRunner(this.logger).runExternalCommand(
               {
-                PATH: process.env.PATH ?? '',
+                commandPathOrName: 'zip',
+                commandArguments: ['-rX', '-P', zipPassword, zipFile, '.'],
+                environmentVariables: {
+                  PATH: process.env.PATH ?? '',
+                },
+                workingDirectory: outputDirectory,
               },
-              undefined,
-              outputDirectory,
+              {
+                verbose: true,
+                detached: false,
+              },
             );
 
             this.logger.showUser(chalk.green(`Backup compressed to ${zipFile}`));
@@ -1367,9 +1370,19 @@ export class BackupRestoreCommand extends BaseCommand {
 
     const shellRunner: ShellRunner = new ShellRunner(this.logger);
 
-    await shellRunner.runCommand('unzip', ['-o', '-P', zipPassword, inputPath, '-d', targetDirectory], true, false, {
-      PATH: process.env.PATH ?? '',
-    });
+    await shellRunner.runExternalCommand(
+      {
+        commandPathOrName: 'unzip',
+        commandArguments: ['-o', '-P', zipPassword, inputPath, '-d', targetDirectory],
+        environmentVariables: {
+          PATH: process.env.PATH ?? '',
+        },
+      },
+      {
+        verbose: true,
+        detached: false,
+      },
+    );
 
     this.configManager.setFlag(flags.inputDir, targetDirectory);
 
@@ -1399,20 +1412,44 @@ export class BackupRestoreCommand extends BaseCommand {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
 
             try {
-              await shellRunner.runCommand('docker', ['network', 'rm', '-f', 'kind'], true, false, {
-                PATH: process.env.PATH ?? '',
-              });
+              await shellRunner.runExternalCommand(
+                {
+                  commandPathOrName: 'docker',
+                  commandArguments: ['network', 'rm', '-f', 'kind'],
+                  environmentVariables: {
+                    PATH: process.env.PATH ?? '',
+                  },
+                },
+                {
+                  verbose: true,
+                  detached: false,
+                },
+              );
             } catch {
               // Ignore: the network may not exist yet.
             }
 
-            await shellRunner.runCommand(
-              'docker',
-              ['network', 'create', 'kind', '--scope', 'local', '--subnet', '172.19.0.0/16', '--driver', 'bridge'],
-              true,
-              false,
+            await shellRunner.runExternalCommand(
               {
-                PATH: process.env.PATH ?? '',
+                commandPathOrName: 'docker',
+                commandArguments: [
+                  'network',
+                  'create',
+                  'kind',
+                  '--scope',
+                  'local',
+                  '--subnet',
+                  '172.19.0.0/16',
+                  '--driver',
+                  'bridge',
+                ],
+                environmentVariables: {
+                  PATH: process.env.PATH ?? '',
+                },
+              },
+              {
+                verbose: true,
+                detached: false,
               },
             );
 

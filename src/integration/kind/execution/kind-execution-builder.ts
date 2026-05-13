@@ -5,6 +5,8 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {ExecutionBuilder} from '../../execution-builder.js';
+import * as constants from '../../../core/constants.js';
+import {type ExternalCommandInvocation} from '../../../core/execution/external-command-invocation.js';
 
 /**
  * A builder for creating a kind command execution.
@@ -17,7 +19,7 @@ export class KindExecutionBuilder extends ExecutionBuilder {
   /**
    * The path to the kind executable.
    */
-  private kindExecutable: string;
+  private kindExecutable: string = constants.KIND;
 
   /**
    * The list of subcommands to be used when execute the kind command.
@@ -166,36 +168,43 @@ export class KindExecutionBuilder extends ExecutionBuilder {
    * @returns the KindExecution instance
    */
   public build(): KindExecution {
-    const command: string[] = this.buildCommand();
+    const invocation: ExternalCommandInvocation = this.buildCommand();
     const environment: Record<string, string> = {...process.env};
+
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }
 
     this.prefixPath(environment, this.kindInstallationDirectory);
 
-    return new KindExecution(command, environment);
+    return new KindExecution({
+      ...invocation,
+      environmentVariables: environment,
+    });
   }
 
   /**
    * Builds the command array for the kind execution.
    * @returns the command array
    */
-  private buildCommand(): string[] {
-    const command: string[] = [`${this.kindExecutable}`, ...this._subcommands, ...this._flags];
+  private buildCommand(): ExternalCommandInvocation {
+    const commandArguments: string[] = [...this._subcommands, ...this._flags];
 
     for (const [key, value] of this._arguments.entries()) {
-      command.push(`--${key}`, value);
+      commandArguments.push(`--${key}`, value);
     }
 
     for (const entry of this._optionsWithMultipleValues) {
       for (const value of entry.value) {
-        command.push(`--${entry.key}`, value);
+        commandArguments.push(`--${entry.key}`, value);
       }
     }
 
-    command.push(...this._positionals);
+    commandArguments.push(...this._positionals);
 
-    return command;
+    return {
+      commandPathOrName: this.kindExecutable,
+      commandArguments,
+    };
   }
 }

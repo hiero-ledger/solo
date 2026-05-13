@@ -132,12 +132,21 @@ export class ChartManager {
         this.logger.debug(`OK: chart is already installed:${chartReleaseName} (${chartName}) (${repoName})`);
       } else {
         this.logger.debug(`> installing chart:${chartName}`);
+
         const builder: InstallChartOptionsBuilder = InstallChartOptionsBuilder.builder()
           .version(version)
           .kubeContext(kubeContext)
           .atomic(atomic)
-          .waitFor(waitFor)
-          .extraArgs(valuesArgument);
+          .waitFor(waitFor);
+
+        if (valuesArgument) {
+          if (valuesArgument.startsWith('--set ')) {
+            builder.set([valuesArgument.slice('--set '.length)]);
+          } else {
+            builder.extraArgs(valuesArgument);
+          }
+        }
+
         if (namespaceName) {
           builder.createNamespace(true);
           builder.namespace(namespaceName.name);

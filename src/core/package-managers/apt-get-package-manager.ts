@@ -24,19 +24,44 @@ export class AptGetPackageManager extends ShellRunner implements PackageManager 
   }
 
   public async installPackages(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['install', ...dependencies]);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, {
+      commandPathOrName: 'apt-get',
+      commandArguments: ['install', ...dependencies],
+    });
   }
 
   public async uninstallPackages(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['remove', ...dependencies]);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, {
+      commandPathOrName: 'apt-get',
+      commandArguments: ['remove', ...dependencies],
+    });
   }
 
   public async update(): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['update']);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, {
+      commandPathOrName: 'apt-get',
+      commandArguments: ['update'],
+    });
   }
 
   public async upgrade(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['upgrade', ...dependencies]);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, {
+      commandPathOrName: 'apt-get',
+      commandArguments: ['upgrade', ...dependencies],
+    });
+  }
+
+  public async isAvailable(): Promise<boolean> {
+    try {
+      await this.sudoRun(this.onSudoRequested, this.onSudoGranted, {
+        commandPathOrName: 'apt-get',
+        commandArguments: ['-v'],
+      });
+
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   public async install(): Promise<boolean> {
@@ -45,14 +70,5 @@ export class AptGetPackageManager extends ShellRunner implements PackageManager 
 
   public async uninstall(): Promise<void> {
     throw new Error('Method not implemented.');
-  }
-
-  public async isAvailable(): Promise<boolean> {
-    try {
-      await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['-v']);
-      return true;
-    } catch {
-      return false;
-    }
   }
 }
