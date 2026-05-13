@@ -640,21 +640,26 @@ export class MirrorNodeCommand extends BaseCommand {
         .getK8(config.clusterContext)
         .ingressClasses()
         .list();
+
+      let mirrorIngressClassExists: boolean = false;
       for (const ingressClass of existingIngressClasses) {
         this.logger.debug(`Found existing IngressClass [${ingressClass.name}]`);
         if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
-          this.logger.showUser(`${constants.MIRROR_INGRESS_CLASS_NAME} already found, skipping`);
-          return;
+          mirrorIngressClassExists = true;
+          break;
         }
       }
 
-      await KeyManager.createTlsSecret(
-        this.k8Factory,
-        config.namespace,
-        config.domainName,
-        config.cacheDir,
-        constants.MIRROR_INGRESS_TLS_SECRET_NAME,
-      );
+      if (!mirrorIngressClassExists) {
+        await KeyManager.createTlsSecret(
+          this.k8Factory,
+          config.namespace,
+          config.domainName,
+          config.cacheDir,
+          constants.MIRROR_INGRESS_TLS_SECRET_NAME,
+        );
+      }
+
       // patch ingressClassName of mirror ingress, so it can be recognized by haproxy ingress controller
       const k8: K8 = this.k8Factory.getK8(config.clusterContext);
       const tlsSpec: object = {
@@ -683,13 +688,15 @@ export class MirrorNodeCommand extends BaseCommand {
         });
       }
 
-      await this.k8Factory
-        .getK8(config.clusterContext)
-        .ingressClasses()
-        .create(
-          constants.MIRROR_INGRESS_CLASS_NAME,
-          constants.INGRESS_CONTROLLER_PREFIX + constants.MIRROR_INGRESS_CONTROLLER,
-        );
+      if (!mirrorIngressClassExists) {
+        await this.k8Factory
+          .getK8(config.clusterContext)
+          .ingressClasses()
+          .create(
+            constants.MIRROR_INGRESS_CLASS_NAME,
+            constants.INGRESS_CONTROLLER_PREFIX + constants.MIRROR_INGRESS_CONTROLLER,
+          );
+      }
     }
   }
 
