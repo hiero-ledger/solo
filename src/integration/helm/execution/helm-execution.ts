@@ -58,6 +58,13 @@ export class HelmExecution {
       throw new Error('Helm executable path or name is required');
     }
 
+    const redactedCommand: string[] = HelmExecution.redactCommand([
+      invocation.commandPathOrName,
+      ...invocation.commandArguments,
+    ]);
+
+    this.commandLine = redactedCommand.join(' ');
+
     this.process = spawn(invocation.commandPathOrName, invocation.commandArguments, {
       shell: false,
       env: {...process.env, ...invocation.environmentVariables},

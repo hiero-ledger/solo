@@ -209,4 +209,31 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
       commandArguments,
     };
   }
+
+  public positionalsFromString(value: string): HelmExecutionBuilder {
+    if (!value) {
+      throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
+    }
+
+    for (const argument of HelmExecutionBuilder.splitShellArguments(value)) {
+      this.positional(argument);
+    }
+
+    return this;
+  }
+
+  private static splitShellArguments(value: string): string[] {
+    const arguments_: string[] = [];
+    const pattern: RegExp = /"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|(\S+)/g;
+
+    for (const match of value.matchAll(pattern)) {
+      const argument: string = match[1] ?? match[2] ?? match[3];
+
+      if (argument) {
+        arguments_.push(argument);
+      }
+    }
+
+    return arguments_;
+  }
 }

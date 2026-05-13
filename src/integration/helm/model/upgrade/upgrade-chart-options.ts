@@ -84,7 +84,7 @@ export class UpgradeChartOptions implements Options {
       builder.flag('--reuse-values');
     }
     if (this._extraArgs) {
-      builder.positional(this._extraArgs);
+      builder.positionalsFromString(this._extraArgs);
     }
 
     if (this._version) {

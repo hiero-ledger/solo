@@ -224,7 +224,7 @@ export class InstallChartOptions implements Options {
     }
 
     if (this._extraArgs) {
-      builder.positional(this._extraArgs);
+      builder.positionalsFromString(this._extraArgs);
     }
 
     if (this._version) {

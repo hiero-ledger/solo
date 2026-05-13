@@ -140,10 +140,12 @@ export class ChartManager {
           .waitFor(waitFor);
 
         if (valuesArgument) {
-          if (valuesArgument.startsWith('--set ')) {
-            builder.set([valuesArgument.slice('--set '.length)]);
+          const trimmedValuesArgument: string = valuesArgument.trim();
+
+          if (trimmedValuesArgument.startsWith('--set ')) {
+            builder.set([trimmedValuesArgument.slice('--set '.length)]);
           } else {
-            builder.extraArgs(valuesArgument);
+            builder.extraArgs(trimmedValuesArgument);
           }
         }
 
@@ -224,7 +226,7 @@ export class ChartManager {
         namespaceName?.name,
         kubeContext,
         reuseValues ?? true,
-        valuesArgument,
+        valuesArgument.trim(),
         version,
       );
       const chart: Chart = new Chart(chartName, repoName);
