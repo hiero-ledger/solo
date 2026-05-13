@@ -27,6 +27,10 @@ import {MissingActiveContextError} from '../integration/kube/errors/missing-acti
 import {MissingActiveClusterError} from '../integration/kube/errors/missing-active-cluster-error.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {type GitClient} from '../integration/git/git-client.js';
+import {ImageCacheHandler} from '../integration/cache/impl/image-cache-handler.js';
+import {KindNodeImageTargetProvider} from '../integration/cache/target-providers/kind-image-target-provider.js';
+import {ImageCacheHandlerBuilder} from '../integration/cache/impl/image-cache-handler-builder.js';
+import {type ContainerEngineClient} from '../integration/container-engine/container-engine-client.js';
 
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
@@ -41,6 +45,7 @@ export class ClusterTaskManager extends ShellRunner {
     @inject(InjectTokens.DependencyManager) protected readonly depManager: DependencyManager,
     @inject(InjectTokens.KindInstallationDirectory) protected readonly kindInstallationDirectory: string,
     @inject(InjectTokens.GitClient) protected readonly gitClient: GitClient,
+    @inject(InjectTokens.ContainerEngineClient) protected readonly containerEngineClient: ContainerEngineClient,
   ) {
     super();
 
@@ -66,6 +71,11 @@ export class ClusterTaskManager extends ShellRunner {
       ClusterTaskManager.name,
     );
     this.gitClient = patchInject(gitClient, InjectTokens.GitClient, ClusterTaskManager.name);
+    this.containerEngineClient = patchInject(
+      containerEngineClient,
+      InjectTokens.ContainerEngineClient,
+      ClusterTaskManager.name,
+    );
   }
 
   private sudoCallbacks(task: SoloListrTaskWrapper<InitContext>): {
@@ -288,10 +298,22 @@ export class ClusterTaskManager extends ShellRunner {
       task: async (): Promise<void> => {
         const kindExecutable: string = await this.kindDependencyManager.getExecutable();
         const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+
+        if (constants.CONFIG.ENABLE_IMAGE_CACHE) {
+          const kindImageCacheHandler: ImageCacheHandler = new ImageCacheHandlerBuilder()
+            .provider(new KindNodeImageTargetProvider())
+            .engine(this.containerEngineClient)
+            .build();
+
+          await kindImageCacheHandler.pullKindNodeImageIfMissing();
+          await kindImageCacheHandler.loadKindNodeImageIntoEngine();
+        }
+
         const clusterCreateOptions: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder()
           .image(constants.KIND_NODE_IMAGE)
           .config(constants.KIND_CLUSTER_CONFIG_FILE)
           .build();
+
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
           constants.DEFAULT_CLUSTER,
           clusterCreateOptions,
