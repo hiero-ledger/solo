@@ -33,13 +33,23 @@ describe('ShellRunner', (): void => {
   afterEach((): void => sinon.restore());
 
   it('should run command', async (): Promise<void> => {
-    const commandToRun: string = OperatingSystem.isWin32() ? 'dir' : 'ls -l';
+    const commandPathOrName: string = OperatingSystem.isWin32() ? 'cmd' : 'ls';
+    const commandArguments: string[] = OperatingSystem.isWin32() ? ['/c', 'dir'] : ['-l'];
+
     await shellRunner.runExternalCommand({
-      commandPathOrName: commandToRun,
-      commandArguments: [],
+      commandPathOrName,
+      commandArguments,
     });
-    loggerInfoStub.withArgs(`Executing command: '${commandToRun}'`).onFirstCall();
-    loggerDebugStub.withArgs(`Finished executing: '${commandToRun}'`, sinon.match.any).onFirstCall();
+
+    loggerInfoStub
+      .withArgs(
+        `Executing external command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${commandPathOrName} ${commandArguments.join(' ')}`,
+      )
+      .onFirstCall();
+
+    loggerDebugStub
+      .withArgs(sinon.match(`Finished executing external command: '${commandPathOrName}'`), sinon.match.any)
+      .onFirstCall();
 
     expect(loggerDebugStub).to.have.been.calledOnce;
     expect(loggerInfoStub).to.have.been.calledOnce;
@@ -78,7 +88,7 @@ describe('ShellRunner', (): void => {
           timeoutMs,
         },
       ),
-    ).to.be.rejectedWith(`Command timed out after ${timeoutMs}ms`);
+    ).to.be.rejectedWith(`External command timed out after ${timeoutMs}ms: '${commandToRun}'`);
   }).timeout(Duration.ofSeconds(10).toMillis());
 
   describe('redactArguments', (): void => {
