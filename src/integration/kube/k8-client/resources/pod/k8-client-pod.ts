@@ -271,6 +271,8 @@ export class K8ClientPod implements Pod {
         cmdArguments.push(`pods/${this.podReference.name}`, `${availablePort}:${podPort}`);
       }
 
+      // On Windows, if not using a detached process, run the port-forward command via conhost.exe to work around an
+      //  issue where the port-forward process comes to the foreground
       if (os.platform() === 'win32' && !persist) {
         cmdArguments = ['--headless', cmd, ...cmdArguments];
         cmd = 'conhost.exe';
