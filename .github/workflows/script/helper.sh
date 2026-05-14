@@ -143,100 +143,56 @@ extract_version() {
 
   local TARGET="$1"
   local SOURCE_FILE="$2"
-  local value
 
   if [[ ! -f "${SOURCE_FILE}" ]]; then
     echo "Source file not found: ${SOURCE_FILE}" >&2
     return 1
   fi
 
-  # Use octal escapes for both quote characters to avoid awk regex escape warnings in CI shells.
-  value="$({
-    awk -v target="${TARGET}" '
-      BEGIN {
-        RS = ";"
-        value = ""
-        declarationFound = 0
+  local value
+  value="$(awk -v target="${TARGET}" '
+    BEGIN {
+      RS = ";"
+      value = ""
+      declarationFound = 0
+    }
+
+    function extract_value(text,    idx, candidate, s, token, v) {
+      idx = index(text, "||")
+      if (idx > 0) {
+        candidate = substr(text, idx + 2)
+      } else {
+        candidate = text
       }
 
-      function extract_value(text,    idx, candidate, s, token, v) {
-        idx = index(text, "||")
-        if (idx > 0) {
-          candidate = substr(text, idx + 2)
-        } else {
-          candidate = text
-        }
-
-        s = candidate
-        v = ""
-        while (match(s, /\047[^\047]*\047|\042[^\042]*\042/)) {
-          token = substr(s, RSTART, RLENGTH)
-          v = substr(token, 2, length(token) - 2)
-          s = substr(s, RSTART + RLENGTH)
-        }
-
-        return v
+      s = candidate
+      v = ""
+      while (match(s, /\047[^\047]*\047|\"[^\"]*\"/)) {
+        token = substr(s, RSTART, RLENGTH)
+        v = substr(token, 2, length(token) - 2)
+        s = substr(s, RSTART + RLENGTH)
       }
 
-      {
-        if ($0 ~ "(^|[[:space:]])(export[[:space:]]+)?const[[:space:]]+" target "([[:space:]]|:)" ) {
-          declarationFound = 1
-          value = extract_value($0)
-          if (value != "") {
-            print value
-            exit
-          }
+      return v
+    }
+
+    {
+      if ($0 ~ "(^|[[:space:]])(export[[:space:]]+)?const[[:space:]]+" target "([[:space:]]|:)" ) {
+        declarationFound = 1
+        value = extract_value($0)
+        if (value != "") {
+          print value
+          exit
         }
       }
+    }
 
-      END {
-        if (declarationFound == 0 || value == "") {
-          exit 1
-        }
+    END {
+      if (declarationFound == 0 || value == "") {
+        exit 1
       }
-    ' "${SOURCE_FILE}" || true
-  } | head -n 1)"
-
-  if [[ -z "${value}" ]]; then
-    value="$({
-      awk -v target="${TARGET}" '
-        function extract_value(text,    idx, candidate, s, token, v) {
-          idx = index(text, "||")
-          if (idx > 0) {
-            candidate = substr(text, idx + 2)
-          } else {
-            candidate = text
-          }
-
-          s = candidate
-          v = ""
-          while (match(s, /\047[^\047]*\047|\042[^\042]*\042/)) {
-            token = substr(s, RSTART, RLENGTH)
-            v = substr(token, 2, length(token) - 2)
-            s = substr(s, RSTART + RLENGTH)
-          }
-
-          return v
-        }
-
-        {
-          if (index($0, target) > 0) {
-            value = extract_value($0)
-            if (value != "") {
-              print value
-              exit
-            }
-          }
-        }
-
-        END {
-          if (value == "") {
-            exit 1
-          }
-        }
-      ' "${SOURCE_FILE}" || true
-    } | head -n 1)"
-  fi
+    }
+  ' "${SOURCE_FILE}" | head -n 1)"
 
   if [[ -z "${value}" ]]; then
     echo "Unable to extract value for target \"${TARGET}\" from ${SOURCE_FILE}" >&2
