@@ -48,8 +48,7 @@ export class ShellRunner {
         env: {...process.env, ...environmentVariablesToAppend},
         shell: useShell,
         detached,
-        stdio: detached ? 'ignore' : undefined,
-        windowsHide: OperatingSystem.isWin32(), // hide the console window on Windows
+        stdio: detached && !OperatingSystem.isWin32() ? 'ignore' : undefined,
       });
 
       if (detached) {
