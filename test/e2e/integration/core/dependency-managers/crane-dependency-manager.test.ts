@@ -362,8 +362,8 @@ describe('CraneDependencyManager', (): void => {
 
     it('should install crane locally if the global installation does not meet the requirements', async (): Promise<void> => {
       runStub.withArgs('which crane').resolves(['/usr/local/bin/crane']);
-      runStub.withArgs('"/usr/local/bin/crane" version').resolves([`0.1.0`]);
-      runStub.withArgs(`"${PathEx.join(temporaryDirectory, 'crane')}" version`).resolves([`0.1.0`]);
+      runStub.withArgs('"/usr/local/bin/crane" version').resolves(['0.1.0']);
+      runStub.withArgs(`"${PathEx.join(temporaryDirectory, 'crane')}" version`).resolves(['0.1.0']);
       existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'crane')).returns(true);
 
       const dummyDownloadedArchive: string = PathEx.join(getTemporaryDirectory(), 'crane.tar.gz');
