@@ -201,6 +201,16 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         value !== StringEx.EMPTY &&
         key !== flags.getFormattedFlagKey(Flags.deployment)
       ) {
+        // Keep argv deterministic for repeated keys: remove previous occurrences
+        // and keep the latest value (last-write-wins semantics).
+        let existingIndex: number = argv.indexOf(key);
+        while (existingIndex !== -1) {
+          const hasFollowingValue: boolean =
+            existingIndex + 1 < argv.length && !argv[existingIndex + 1].startsWith('--');
+          argv.splice(existingIndex, hasFollowingValue ? 2 : 1);
+          existingIndex = argv.indexOf(key);
+        }
+
         argv.push(`${key}`, value.toString());
       }
     }
@@ -371,8 +381,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
               // Ensure release tag is set in network configuration so subcommands use the correct version
               const releaseTagKey: string = flags.getFormattedFlagKey(Flags.releaseTag);
+              const soloChartVersionKey: string = flags.getFormattedFlagKey(Flags.soloChartVersion);
               if (!config.networkConfiguration[releaseTagKey]) {
                 config.networkConfiguration[releaseTagKey] = versions.consensus;
+              }
+              if (!config.networkConfiguration[soloChartVersionKey]) {
+                config.networkConfiguration[soloChartVersionKey] = versions.soloChart;
               }
               if (!config.setupConfiguration[releaseTagKey]) {
                 config.setupConfiguration[releaseTagKey] = versions.consensus;
@@ -722,6 +736,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                             ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
                             optionFromFlag(Flags.deployment),
                             config.deployment,
+                            optionFromFlag(Flags.soloChartVersion),
+                            config.versions.soloChart,
                           );
                           if (config.networkConfiguration) {
                             this.appendConfigToArgv(argv, config.networkConfiguration);
@@ -894,6 +910,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       const blockExistingValuesFile: string =
                         config.blockNodeConfiguration?.[flags.getFormattedFlagKey(Flags.valuesFile)];
                       const blockLocalConfig: AnyObject = {
+                        [optionFromFlag(Flags.blockNodeChartVersion)]: config.versions.blockNode,
                         ...config.blockNodeConfiguration,
                         [flags.getFormattedFlagKey(Flags.valuesFile)]: blockExistingValuesFile
                           ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
@@ -926,6 +943,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       const mirrorExistingValuesFile: string =
                         config.mirrorNodeConfiguration?.[flags.getFormattedFlagKey(Flags.valuesFile)];
                       const mirrorLocalConfig: AnyObject = {
+                        [optionFromFlag(Flags.mirrorNodeVersion)]: config.versions.mirror,
+                        [optionFromFlag(Flags.soloChartVersion)]: config.versions.soloChart,
                         [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         ...config.mirrorNodeConfiguration,
                         [flags.getFormattedFlagKey(Flags.valuesFile)]: mirrorExistingValuesFile
@@ -956,6 +975,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         config.clusterRef,
                       );
                       this.appendConfigToArgv(argv, {
+                        [optionFromFlag(Flags.soloChartVersion)]: config.versions.soloChart,
                         [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         [optionFromFlag(Flags.explorerVersion)]: config.versions.explorer,
                         [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
@@ -992,6 +1012,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                         'node1',
                       );
                       this.appendConfigToArgv(argv, {
+                        [optionFromFlag(Flags.relayReleaseTag)]: config.versions.relay,
                         [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
                         [optionFromFlag(Flags.mirrorNodeId)]: mirrorNodeId,
                         [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
@@ -1862,7 +1883,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             // Show versions
             this.logger.showUser(chalk.cyan('\nVersions:'));
-            this.logger.showUser(`  Solo Chart Version: ${chalk.bold()}`);
+            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(versions.chart?.toString())}`);
             this.logger.showUser(`  Consensus Node Version: ${chalk.bold(versions.consensusNode?.toString())}`);
             this.logger.showUser(`  Mirror Node Version: ${chalk.bold(versions.mirrorNodeChart?.toString())}`);
             this.logger.showUser(`  Explorer Version: ${chalk.bold(versions.explorerChart?.toString())}`);
