@@ -273,5 +273,43 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       expect(result.consensus).to.equal('0.73.0');
       expect(result.relay).to.equal('v0.77.0');
     });
+
+    it('resolves the exact versions from the PR review comment (with and without v prefix)', (): void => {
+      // Exact flags from the review comment:
+      // --consensus-node-version v0.73.0 --mirror-node-version v0.153.0
+      // --block-node-version 0.33.0 --relay-version 0.76.0 --explorer-version 25.0.0
+      const resultWithPrefix: OneShotVersionsObject = command.resolveOneShotComponentVersions(
+        makeArgv({
+          [flags.consensusNodeVersion.name]: 'v0.73.0',
+          [flags.mirrorNodeVersion.name]: 'v0.153.0',
+          [flags.relayVersion.name]: '0.76.0',
+          [flags.explorerVersion.name]: '25.0.0',
+          [flags.blockNodeVersion.name]: '0.33.0',
+        }),
+        false,
+      );
+      expect(resultWithPrefix.consensus).to.equal('v0.73.0');
+      expect(resultWithPrefix.mirror).to.equal('v0.153.0');
+      expect(resultWithPrefix.relay).to.equal('0.76.0');
+      expect(resultWithPrefix.explorer).to.equal('25.0.0');
+      expect(resultWithPrefix.blockNode).to.equal('0.33.0');
+
+      // Same versions without the v prefix
+      const resultNoPrefix: OneShotVersionsObject = command.resolveOneShotComponentVersions(
+        makeArgv({
+          [flags.consensusNodeVersion.name]: '0.73.0',
+          [flags.mirrorNodeVersion.name]: '0.153.0',
+          [flags.relayVersion.name]: '0.76.0',
+          [flags.explorerVersion.name]: '25.0.0',
+          [flags.blockNodeVersion.name]: '0.33.0',
+        }),
+        false,
+      );
+      expect(resultNoPrefix.consensus).to.equal('0.73.0');
+      expect(resultNoPrefix.mirror).to.equal('0.153.0');
+      expect(resultNoPrefix.relay).to.equal('0.76.0');
+      expect(resultNoPrefix.explorer).to.equal('25.0.0');
+      expect(resultNoPrefix.blockNode).to.equal('0.33.0');
+    });
   });
 });
