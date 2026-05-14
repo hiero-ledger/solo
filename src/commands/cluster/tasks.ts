@@ -138,7 +138,7 @@ export class ClusterCommandTasks {
 
     const tokens: string[] = ClusterCommandTasks.tokenizeHelmArguments(valuesArguments);
 
-    for (let index = 0; index < tokens.length; index++) {
+    for (let index: number = 0; index < tokens.length; index++) {
       const argument: string = tokens[index];
 
       if (argument === '--set') {
