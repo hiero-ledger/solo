@@ -340,25 +340,6 @@ if [ -z "${SOLO_NAMESPACE}" ]; then
 fi
 
 create_test_account "${SOLO_DEPLOYMENT}"
-
-echo "Waiting for mirror node to index test accounts before running contract tests..."
-for account_id in "${OPERATOR_ID}" "${SECOND_KEY}"; do
-  echo "  Polling mirror node for account ${account_id}..."
-  attempt=0
-  while [[ ${attempt} -lt 60 ]]; do
-    if curl -sf "http://127.0.0.1:38081/api/v1/accounts/${account_id}?transactions=false" 2>/dev/null | grep -q '"account"'; then
-      echo "  Account ${account_id} indexed after $((attempt * 5))s"
-      break
-    fi
-    sleep 5
-    attempt=$((attempt + 1))
-  done
-  if [[ ${attempt} -eq 60 ]]; then
-    echo "  ERROR: account ${account_id} not found in mirror node after 5 minutes"
-    log_and_exit 1
-  fi
-done
-
 clone_smart_contract_repo
 setup_smart_contract_test
 check_port_forward
