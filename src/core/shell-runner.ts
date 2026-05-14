@@ -83,7 +83,6 @@ export class ShellRunner {
         for (const item of items) {
           if (item) {
             output.push(item);
-            this.logger.debug(item);
           }
         }
       });
@@ -94,7 +93,6 @@ export class ShellRunner {
         for (const item of items) {
           if (item) {
             errorOutput.push(item.trim());
-            this.logger.error(item.trim());
           }
         }
       });
