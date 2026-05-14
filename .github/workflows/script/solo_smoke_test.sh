@@ -92,6 +92,57 @@ function start_contract_test ()
   fi
 }
 
+function wait_for_relay_accounts_ready()
+{
+  local rpc_url="http://127.0.0.1:37546"
+  local max_attempts=24
+  local sleep_seconds=5
+
+  if [[ -z "${CONTRACT_TEST_KEY_ONE:-}" || -z "${CONTRACT_TEST_KEY_TWO:-}" ]]; then
+    echo "CONTRACT_TEST_KEY_ONE or CONTRACT_TEST_KEY_TWO is empty; skipping relay account readiness check"
+    return 0
+  fi
+
+  local wallet1
+  local wallet2
+  wallet1=$(node -e "const {Wallet}=require('ethers'); console.log(new Wallet(process.argv[1]).address)" "${CONTRACT_TEST_KEY_ONE}" 2>/dev/null || true)
+  wallet2=$(node -e "const {Wallet}=require('ethers'); console.log(new Wallet(process.argv[1]).address)" "${CONTRACT_TEST_KEY_TWO}" 2>/dev/null || true)
+
+  if [[ -z "${wallet1}" || -z "${wallet2}" ]]; then
+    echo "Could not derive wallet addresses from contract test keys; skipping relay account readiness check"
+    return 0
+  fi
+
+  echo "Waiting for relay to resolve test wallet addresses"
+  echo "wallet1 = ${wallet1}"
+  echo "wallet2 = ${wallet2}"
+
+  local attempt
+  for attempt in $(seq 1 "${max_attempts}"); do
+    local payload1
+    local payload2
+    local response1
+    local response2
+
+    payload1=$(printf '{"jsonrpc":"2.0","id":1,"method":"eth_getBalance","params":["%s","latest"]}' "${wallet1}")
+    payload2=$(printf '{"jsonrpc":"2.0","id":2,"method":"eth_getBalance","params":["%s","latest"]}' "${wallet2}")
+
+    response1=$(curl -sS -H 'Content-Type: application/json' -d "${payload1}" "${rpc_url}" || true)
+    response2=$(curl -sS -H 'Content-Type: application/json' -d "${payload2}" "${rpc_url}" || true)
+
+    if echo "${response1}" | grep -q '"result"' && echo "${response2}" | grep -q '"result"'; then
+      echo "Relay account readiness check passed on attempt ${attempt}/${max_attempts}"
+      return 0
+    fi
+
+    echo "Relay account readiness pending (attempt ${attempt}/${max_attempts}); retrying in ${sleep_seconds}s"
+    sleep "${sleep_seconds}"
+  done
+
+  echo "Relay account readiness check did not pass after ${max_attempts} attempts"
+  return 1
+}
+
 function start_sdk_test ()
 {
   realm_num="${1:-0}"
@@ -340,6 +391,7 @@ if [ -z "${SOLO_NAMESPACE}" ]; then
 fi
 
 create_test_account "${SOLO_DEPLOYMENT}"
+wait_for_relay_accounts_ready || log_and_exit 1
 clone_smart_contract_repo
 setup_smart_contract_test
 check_port_forward
