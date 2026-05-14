@@ -11,6 +11,7 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {Repository} from '../integration/helm/model/repository.js';
 import {type ReleaseItem} from '../integration/helm/model/release/release-item.js';
 import {UpgradeChartOptions} from '../integration/helm/model/upgrade/upgrade-chart-options.js';
+import {UpgradeChartOptionsBuilder} from '../integration/helm/model/upgrade/upgrade-chart-options-builder.js';
 import {Chart} from '../integration/helm/model/chart.js';
 import {type InstallChartOptions} from '../integration/helm/model/install/install-chart-options.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
@@ -19,6 +20,7 @@ import {UnInstallChartOptionsBuilder} from '../integration/helm/model/install/un
 import {AddRepoOptionsBuilder} from '../integration/helm/model/add/add-repo-options-builder.js';
 import {AddRepoOptions} from '../integration/helm/model/add/add-repo-options.js';
 import {UnInstallChartOptions} from '../integration/helm/model/install/un-install-chart-options.js';
+import {HelmChartValues} from '../integration/helm/model/values.js';
 
 @injectable()
 export class ChartManager {
@@ -121,7 +123,7 @@ export class ChartManager {
     chartName: string,
     repoName: string,
     version: string,
-    valuesArgument: string = '',
+    chartValues: HelmChartValues,
     kubeContext: string,
     atomic: boolean = false,
     waitFor: boolean = false,
@@ -132,16 +134,37 @@ export class ChartManager {
         this.logger.debug(`OK: chart is already installed:${chartReleaseName} (${chartName}) (${repoName})`);
       } else {
         this.logger.debug(`> installing chart:${chartName}`);
+
         const builder: InstallChartOptionsBuilder = InstallChartOptionsBuilder.builder()
-          .version(version)
           .kubeContext(kubeContext)
           .atomic(atomic)
-          .waitFor(waitFor)
-          .extraArgs(valuesArgument);
+          .waitFor(waitFor);
+
+        if (version) {
+          builder.version(version);
+        }
+
+        if (chartValues.setValues.length > 0) {
+          builder.set(chartValues.setValues);
+        }
+
+        if (chartValues.setLiteralValues.length > 0) {
+          builder.setLiteral(chartValues.setLiteralValues);
+        }
+
+        if (chartValues.setFileValues.length > 0) {
+          builder.setFile(chartValues.setFileValues);
+        }
+
+        if (chartValues.valueFiles.length > 0) {
+          builder.values(chartValues.valueFiles);
+        }
+
         if (namespaceName) {
           builder.createNamespace(true);
           builder.namespace(namespaceName.name);
         }
+
         const options: InstallChartOptions = builder.build();
         await this.helm.installChart(chartReleaseName, new Chart(chartName, repoName), options);
         this.logger.debug(`OK: chart is installed: ${chartReleaseName} (${chartName}) (${repoName})`);
@@ -205,20 +228,45 @@ export class ChartManager {
     chartName: string,
     repoName: string,
     version: string = '',
-    valuesArgument: string = '',
-    kubeContext?: string,
-    reuseValues?: boolean,
+    chartValues: HelmChartValues,
+    kubeContext: string,
+    reuseValues: boolean = false,
+    install: boolean = false,
+    createNamespace: boolean = false,
   ): Promise<boolean> {
     try {
       this.logger.debug(chalk.cyan('> upgrading chart:'), chalk.yellow(`${chartReleaseName}`));
-      const options: UpgradeChartOptions = new UpgradeChartOptions(
-        namespaceName?.name,
-        kubeContext,
-        reuseValues ?? true,
-        valuesArgument,
-        version,
-      );
+
+      const builder: UpgradeChartOptionsBuilder = UpgradeChartOptionsBuilder.builder()
+        .reuseValues(reuseValues)
+        .install(install)
+        .createNamespace(createNamespace)
+        .namespace(namespaceName.name)
+        .kubeContext(kubeContext);
+
+      if (version) {
+        builder.version(version);
+      }
+
+      if (chartValues.setValues.length > 0) {
+        builder.set(chartValues.setValues);
+      }
+
+      if (chartValues.setLiteralValues.length > 0) {
+        builder.setLiteral(chartValues.setLiteralValues);
+      }
+
+      if (chartValues.setFileValues.length > 0) {
+        builder.setFile(chartValues.setFileValues);
+      }
+
+      if (chartValues.valueFiles.length > 0) {
+        builder.values(chartValues.valueFiles);
+      }
+
+      const options: UpgradeChartOptions = builder.build();
       const chart: Chart = new Chart(chartName, repoName);
+
       await this.helm.upgradeChart(chartReleaseName, chart, options);
       this.logger.debug(chalk.green('OK'), `chart '${chartReleaseName}' is upgraded`);
     } catch (error) {

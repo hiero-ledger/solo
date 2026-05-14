@@ -27,7 +27,6 @@ describe('InstallChartOptionsBuilder Tests', () => {
       .version('version')
       .waitFor(true)
       .kubeContext('my-context')
-      .extraArgs('--debug')
       .build();
 
     // Verify all options are set correctly
@@ -52,7 +51,6 @@ describe('InstallChartOptionsBuilder Tests', () => {
     expect(options.version).to.equal('version');
     expect(options.waitFor).to.be.true;
     expect(options.kubeContext).to.equal('my-context');
-    expect(options.extraArgs).to.equal('--debug');
 
     // Test apply method with mock
     const builderMock = {
@@ -65,5 +63,6 @@ describe('InstallChartOptionsBuilder Tests', () => {
     options.apply(builderMock);
 
     expect(builderMock.optionsWithMultipleValues).to.have.been.callCount(2);
+    expect(builderMock.positional).to.not.have.been.called;
   });
 });

@@ -16,6 +16,8 @@ export class InstallChartOptionsBuilder {
   private _password?: string;
   private _repo?: string;
   private _set?: string[];
+  private _setLiteral?: string[];
+  private _setFile?: string[];
   private _skipCrds: boolean = false;
   private _timeout?: string;
   private _username?: string;
@@ -25,7 +27,6 @@ export class InstallChartOptionsBuilder {
   private _waitFor: boolean = false;
   private _kubeContext?: string;
   private _namespace?: string;
-  private _extraArgs?: string;
 
   private constructor() {}
 
@@ -150,6 +151,28 @@ export class InstallChartOptionsBuilder {
   }
 
   /**
+   * set literal values on the command line.
+   *
+   * @param valueOverride set literal values on the command line.
+   * @returns the current InstallChartOptionsBuilder.
+   */
+  public setLiteral(valueOverride: string[]): InstallChartOptionsBuilder {
+    this._setLiteral = valueOverride;
+    return this;
+  }
+
+  /**
+   * set values from files on the command line.
+   *
+   * @param valueOverride set-file values on the command line.
+   * @returns the current InstallChartOptionsBuilder.
+   */
+  public setFile(valueOverride: string[]): InstallChartOptionsBuilder {
+    this._setFile = valueOverride;
+    return this;
+  }
+
+  /**
    * if set, no CRDs will be installed. By default, CRDs are installed if not already present.
    *
    * @param skipCrds if set, no CRDs will be installed. By default, CRDs are installed if not already present.
@@ -233,10 +256,6 @@ export class InstallChartOptionsBuilder {
   }
 
   /**
-   * build the InstallChartOptions.
-   * @returns the created InstallChartOptions.
-   */
-  /**
    * Sets the Kubernetes context to use.
    * @param context The Kubernetes context.
    * @returns This builder instance.
@@ -258,15 +277,9 @@ export class InstallChartOptionsBuilder {
   }
 
   /**
-   * Sets additional arguments to pass to the helm command.
-   * @param arguments_ The additional arguments.
-   * @returns This builder instance.
+   * build the InstallChartOptions.
+   * @returns the created InstallChartOptions.
    */
-  public extraArgs(arguments_: string): InstallChartOptionsBuilder {
-    this._extraArgs = arguments_;
-    return this;
-  }
-
   public build(): InstallChartOptions {
     return new InstallChartOptions(
       this._atomic,
@@ -279,6 +292,8 @@ export class InstallChartOptionsBuilder {
       this._password,
       this._repo,
       this._set,
+      this._setLiteral,
+      this._setFile,
       this._skipCrds,
       this._timeout,
       this._username,
@@ -288,7 +303,6 @@ export class InstallChartOptionsBuilder {
       this._waitFor,
       this._kubeContext,
       this._namespace,
-      this._extraArgs,
     );
   }
 }

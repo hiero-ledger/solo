@@ -26,7 +26,7 @@ export class HelmMetalLoadBalancer {
         this.CHART_NAME,
         this.REPOSITORY_NAME,
         this.VERSION,
-        this.INSTALL_ARGS,
+        this.INSTALL_ARGS as unknown as Parameters<ChartManager['install']>[5],
         k8Factory.default().contexts().readCurrent(),
         true,
         true,

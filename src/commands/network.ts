@@ -12,7 +12,6 @@ import * as constants from '../core/constants.js';
 import {getEnvironmentVariable} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
-  addRootImageValues,
   createAndCopyBlockNodeJsonFileForConsensusNode,
   parseNodeAliases,
   prepareValuesFilesMapMultipleCluster,
@@ -75,6 +74,7 @@ import {Zippy} from '../core/zippy.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 import {NetworkDeployedEvent} from '../core/events/event-types/network-deployed-event.js';
 import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
+import {HelmChartValues} from '../integration/helm/model/values.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -94,7 +94,7 @@ export interface NetworkDeployConfigClass {
   stagingDir: string;
   stagingKeysDir: string;
   valuesFile: string;
-  valuesArgMap: Record<ClusterReferenceName, string>;
+  chartValuesMap: Record<ClusterReferenceName, HelmChartValues>;
   grpcTlsCertificatePath: string;
   grpcWebTlsCertificatePath: string;
   grpcTlsKeyPath: string;
@@ -281,6 +281,28 @@ export class NetworkCommand extends BaseCommand {
     };
   }
 
+  private addValuesFiles(chartValues: HelmChartValues, valuesFile: string): void {
+    if (!valuesFile) {
+      return;
+    }
+
+    for (const filePath of valuesFile.split(',')) {
+      const trimmedFilePath: string = filePath.trim();
+
+      if (trimmedFilePath) {
+        chartValues.file(PathEx.resolve(trimmedFilePath));
+      }
+    }
+  }
+
+  private addValueFileArguments(chartValues: HelmChartValues, valuesArgument: string): void {
+    const valuesFilePaths: string[] = helmValuesHelper.parseValuesFilePaths(valuesArgument);
+
+    for (const valuesFilePath of valuesFilePaths) {
+      chartValues.file(valuesFilePath);
+    }
+  }
+
   private async prepareMinioSecrets(
     config: NetworkDeployConfigClass,
     minioAccessKey: string,
@@ -401,11 +423,13 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /**
-   * Prepare values args string for each cluster-ref
+   * Prepare values for each cluster-ref
    * @param config
    */
-  private async prepareValuesArgMap(config: NetworkDeployConfigClass): Promise<Record<ClusterReferenceName, string>> {
-    const valuesArguments: Record<ClusterReferenceName, string> = this.prepareValuesArg(config);
+  private async prepareChartValuesMap(
+    config: NetworkDeployConfigClass,
+  ): Promise<Record<ClusterReferenceName, HelmChartValues>> {
+    const chartValuesMap: Record<ClusterReferenceName, HelmChartValues> = this.prepareChartValues(config);
 
     // prepare values files for each cluster
     const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
@@ -530,30 +554,36 @@ export class NetworkCommand extends BaseCommand {
       // Keep --set flags last so they override values files. This is critical when we also
       // provide per-node extraEnv via a values file (e.g. --debug-node-alias), because a later
       // values file can replace array elements and drop fields like node labels/account IDs.
-      let valuesArgument: string = valuesFiles[clusterReference];
+      const chartValues: HelmChartValues = chartValuesMap[clusterReference] ?? new HelmChartValues();
+
+      this.addValueFileArguments(chartValues, valuesFiles[clusterReference]);
 
       // Add per-cluster extraEnv values file if any extraEnv customizations are needed
       if (perClusterExtraEnvironmentValuesFiles[clusterReference]) {
-        valuesArgument += ` --values "${perClusterExtraEnvironmentValuesFiles[clusterReference]}"`;
+        chartValues.file(perClusterExtraEnvironmentValuesFiles[clusterReference]);
       }
 
-      valuesArgument += valuesArguments[clusterReference];
+      chartValuesMap[clusterReference] = chartValues;
 
-      valuesArgumentMap[clusterReference] = valuesArgument;
+      valuesArgumentMap[clusterReference] = [
+        ...chartValues.valueFiles.map((valueFile): string => `--values ${valueFile}`),
+        ...chartValues.setValues.map((value): string => `--set ${value}`),
+      ].join(' ');
+
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
         valuesArgument: valuesArgumentMap[clusterReference],
       });
     }
 
-    return valuesArgumentMap;
+    return chartValuesMap;
   }
 
   /**
-   * Prepare the values argument for the helm chart for a given config
+   * Prepare the values for the helm chart for a given config
    * @param config
    */
-  private prepareValuesArg(config: NetworkDeployConfigClass): Record<ClusterReferenceName, string> {
-    const valuesArguments: Record<ClusterReferenceName, string> = {};
+  private prepareChartValues(config: NetworkDeployConfigClass): Record<ClusterReferenceName, HelmChartValues> {
+    const chartValuesMap: Record<ClusterReferenceName, HelmChartValues> = {};
     const clusterReferences: ClusterReferenceName[] = [];
 
     // initialize the valueArgs
@@ -563,22 +593,22 @@ export class NetworkCommand extends BaseCommand {
         clusterReferences.push(consensusNode.cluster);
       }
 
-      // Initialize empty valuesArg for each cluster
+      // Initialize empty values for each cluster
       // All extraEnv logic (JAVA_MAIN_CLASS, TSS wraps, debug) is now handled via values files
-      if (!valuesArguments[consensusNode.cluster]) {
-        valuesArguments[consensusNode.cluster] = '';
+      if (!chartValuesMap[consensusNode.cluster]) {
+        chartValuesMap[consensusNode.cluster] = new HelmChartValues();
       }
     }
 
     // All extraEnv customizations (wraps, debug, JAVA_MAIN_CLASS) are handled
-    // via generateExtraEnvironmentValuesFile() in prepareValuesArgMap() to avoid Helm --set replacement issues
+    // via generateExtraEnvironmentValuesFile() in prepareChartValuesMap() to avoid Helm --set replacement issues
 
     if (
       config.storageType === constants.StorageType.AWS_AND_GCS ||
       config.storageType === constants.StorageType.GCS_ONLY
     ) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] += ' --set cloud.gcs.enabled=true';
+        chartValuesMap[clusterReference].set('cloud.gcs.enabled', true);
       }
     }
 
@@ -587,7 +617,7 @@ export class NetworkCommand extends BaseCommand {
       config.storageType === constants.StorageType.AWS_ONLY
     ) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] += ' --set cloud.s3.enabled=true';
+        chartValuesMap[clusterReference].set('cloud.s3.enabled', true);
       }
     }
 
@@ -597,55 +627,55 @@ export class NetworkCommand extends BaseCommand {
       config.storageType === constants.StorageType.AWS_AND_GCS
     ) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] += ' --set cloud.minio.enabled=false';
+        chartValuesMap[clusterReference].set('cloud.minio.enabled', false);
       }
     }
 
     if (config.storageType !== constants.StorageType.MINIO_ONLY) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] += ' --set cloud.generateNewSecrets=false';
+        chartValuesMap[clusterReference].set('cloud.generateNewSecrets', false);
       }
     }
 
     if (config.gcsBucket) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] +=
-          ` --set cloud.buckets.streamBucket=${config.gcsBucket}` +
-          ` --set minio-server.tenant.buckets[0].name=${config.gcsBucket}`;
+        chartValuesMap[clusterReference]
+          .set('cloud.buckets.streamBucket', config.gcsBucket)
+          .set('minio-server.tenant.buckets[0].name', config.gcsBucket);
       }
     }
 
     if (config.gcsBucketPrefix) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketPrefix=${config.gcsBucketPrefix}`;
+        chartValuesMap[clusterReference].set('cloud.buckets.streamBucketPrefix', config.gcsBucketPrefix);
       }
     }
 
     if (config.awsBucket) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] +=
-          ` --set cloud.buckets.streamBucket=${config.awsBucket}` +
-          ` --set minio-server.tenant.buckets[0].name=${config.awsBucket}`;
+        chartValuesMap[clusterReference]
+          .set('cloud.buckets.streamBucket', config.awsBucket)
+          .set('minio-server.tenant.buckets[0].name', config.awsBucket);
       }
     }
 
     if (config.awsBucketPrefix) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketPrefix=${config.awsBucketPrefix}`;
+        chartValuesMap[clusterReference].set('cloud.buckets.streamBucketPrefix', config.awsBucketPrefix);
       }
     }
 
     if (config.awsBucketRegion) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] += ` --set cloud.buckets.streamBucketRegion=${config.awsBucketRegion}`;
+        chartValuesMap[clusterReference].set('cloud.buckets.streamBucketRegion', config.awsBucketRegion);
       }
     }
 
     if (config.backupBucket) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] +=
-          ' --set defaults.sidecars.backupUploader.enabled=true' +
-          ` --set defaults.sidecars.backupUploader.config.backupBucket=${config.backupBucket}`;
+        chartValuesMap[clusterReference]
+          .set('defaults.sidecars.backupUploader.enabled', true)
+          .set('defaults.sidecars.backupUploader.config.backupBucket', config.backupBucket);
       }
     }
 
@@ -665,44 +695,38 @@ export class NetworkCommand extends BaseCommand {
         continue;
       }
 
-      let valuesArgument: string = valuesArguments[consensusNode.cluster] ?? '';
-      valuesArgument += ` --set "hedera.nodes[${nodeIndex}].name=${consensusNode.name}"`;
-      valuesArgument = addRootImageValues(
-        valuesArgument,
-        `hedera.nodes[${nodeIndex}]`,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
-      valuesArguments[consensusNode.cluster] = valuesArgument;
+      chartValuesMap[consensusNode.cluster]
+        .set(`hedera.nodes[${nodeIndex}].name`, consensusNode.name)
+        .set(`hedera.nodes[${nodeIndex}].image.registry`, constants.S6_NODE_IMAGE_REGISTRY)
+        .set(`hedera.nodes[${nodeIndex}].image.repository`, constants.S6_NODE_IMAGE_REPOSITORY)
+        .set(`hedera.nodes[${nodeIndex}].image.tag`, versions.S6_NODE_IMAGE_VERSION);
     }
 
     for (const clusterReference of clusterReferences) {
-      valuesArguments[clusterReference] +=
-        ' --install' +
-        ' --set "telemetry.prometheus.svcMonitor.enabled=false"' + // remove after chart version is bumped
-        ` --set "crds.serviceMonitor.enabled=${config.singleUseServiceMonitor}"` +
-        ` --set "crds.podLog.enabled=${config.singleUsePodLog}"` +
-        ` --set "defaults.volumeClaims.enabled=${config.persistentVolumeClaims}"`;
+      chartValuesMap[clusterReference]
+        .set('telemetry.prometheus.svcMonitor.enabled', false) // remove after chart version is bumped
+        .set('crds.serviceMonitor.enabled', config.singleUseServiceMonitor)
+        .set('crds.podLog.enabled', config.singleUsePodLog)
+        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims);
     }
 
     config.singleUseServiceMonitor = 'false';
     config.singleUsePodLog = 'false';
 
     // Iterate over each node and set static IPs for HAProxy
-    this.addArgForEachRecord(
+    this.addValueForEachRecord(
       config.haproxyIpsParsed,
       config.consensusNodes,
-      valuesArguments,
-      ' --set "hedera.nodes[${nodeId}].haproxyStaticIP=${recordValue}"',
+      chartValuesMap,
+      'hedera.nodes[${nodeId}].haproxyStaticIP',
     );
 
     // Iterate over each node and set static IPs for Envoy Proxy
-    this.addArgForEachRecord(
+    this.addValueForEachRecord(
       config.envoyIpsParsed,
       config.consensusNodes,
-      valuesArguments,
-      ' --set "hedera.nodes[${nodeId}].envoyProxyStaticIP=${recordValue}"',
+      chartValuesMap,
+      'hedera.nodes[${nodeId}].envoyProxyStaticIP',
     );
 
     if (config.resolvedThrottlesFile) {
@@ -710,50 +734,46 @@ export class NetworkCommand extends BaseCommand {
       const throttlesFilePath: string = config.resolvedThrottlesFile.replaceAll('\\', '/');
 
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] +=
-          ` --set-file "hedera.configMaps.genesisThrottlesJson=${throttlesFilePath}"`;
+        chartValuesMap[clusterReference].setFile('hedera.configMaps.genesisThrottlesJson', throttlesFilePath);
       }
     }
 
     if (config.loadBalancerEnabled) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] +=
-          ' --set "defaults.haproxy.service.type=LoadBalancer"' +
-          ' --set "defaults.envoyProxy.service.type=LoadBalancer"' +
-          ' --set "defaults.consensus.service.type=LoadBalancer"';
+        chartValuesMap[clusterReference]
+          .set('defaults.haproxy.service.type', 'LoadBalancer')
+          .set('defaults.envoyProxy.service.type', 'LoadBalancer')
+          .set('defaults.consensus.service.type', 'LoadBalancer');
       }
     }
 
     if (config.enableMonitoringSupport) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] += ' --set "crs.podLog.enabled=true" --set "crs.serviceMonitor.enabled=true"';
+        chartValuesMap[clusterReference].set('crs.podLog.enabled', true).set('crs.serviceMonitor.enabled', true);
       }
     }
 
-    return valuesArguments;
+    return chartValuesMap;
   }
 
   /**
-   * Adds the template string to the argument for each record
+   * Adds the value for each record
    * @param records - the records to iterate over
    * @param consensusNodes - the consensus nodes to iterate over
-   * @param valuesArguments - the values arguments to add to
-   * @param templateString - the template string to add
+   * @param chartValuesMap - the chart values to add to
+   * @param keyTemplate - the key template to add
    */
-  private addArgForEachRecord(
+  private addValueForEachRecord(
     records: Record<NodeAlias, string>,
     consensusNodes: ConsensusNode[],
-    valuesArguments: Record<ClusterReferenceName, string>,
-    templateString: string,
+    chartValuesMap: Record<ClusterReferenceName, HelmChartValues>,
+    keyTemplate: string,
   ): void {
     if (records) {
       for (const consensusNode of consensusNodes) {
         if (records[consensusNode.name]) {
-          const newTemplateString: string = templateString.replace('{nodeId}', consensusNode.nodeId.toString());
-          valuesArguments[consensusNode.cluster] += newTemplateString.replace(
-            '{recordValue}',
-            records[consensusNode.name],
-          );
+          const key: string = keyTemplate.replace('${nodeId}', consensusNode.nodeId.toString());
+          chartValuesMap[consensusNode.cluster].set(key, records[consensusNode.name]);
         }
       }
     }
@@ -834,7 +854,7 @@ export class NetworkCommand extends BaseCommand {
         'nodeAliases',
         'stagingDir',
         'stagingKeysDir',
-        'valuesArgMap',
+        'chartValuesMap',
         'resolvedThrottlesFile',
         'namespace',
         'consensusNodes',
@@ -896,7 +916,7 @@ export class NetworkCommand extends BaseCommand {
     config.singleUseServiceMonitor = config.serviceMonitor;
     config.singleUsePodLog = config.podLog;
 
-    config.valuesArgMap = await this.prepareValuesArgMap(config);
+    config.chartValuesMap = await this.prepareChartValuesMap(config);
 
     // need to prepare the namespaces before we can proceed
     config.namespace = namespace;
@@ -1168,13 +1188,13 @@ export class NetworkCommand extends BaseCommand {
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     for (const [_, context] of clusterRefs) {
-      let valuesArgument: string = '';
+      const chartValues: HelmChartValues = new HelmChartValues();
       let missingCount: number = 0;
 
       for (const {key, crd} of CRDS) {
         const exists: boolean = await this.crdExists(context, crd);
         if (exists) {
-          valuesArgument += ` --set "${key}.enabled=false"`;
+          chartValues.set(`${key}.enabled`, false);
         } else {
           missingCount++;
         }
@@ -1197,7 +1217,7 @@ export class NetworkCommand extends BaseCommand {
         constants.PROMETHEUS_OPERATOR_CRDS_CHART,
         constants.PROMETHEUS_OPERATOR_CRDS_CHART,
         versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
-        valuesArgument,
+        chartValues,
         context,
       );
 
@@ -1390,7 +1410,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async ({config}): Promise<void> => {
-            const {namespace, clusterRefs, valuesArgMap, chartDirectory} = config;
+            const {namespace, clusterRefs, chartValuesMap, chartDirectory} = config;
 
             for (const [clusterReference] of clusterRefs) {
               const isInstalled: boolean = await this.chartManager.isChartInstalled(
@@ -1419,8 +1439,10 @@ export class NetworkCommand extends BaseCommand {
                 constants.SOLO_DEPLOYMENT_CHART,
                 chartDirectory || constants.SOLO_TESTING_CHART_URL,
                 config.soloChartVersion,
-                valuesArgMap[clusterReference],
+                chartValuesMap[clusterReference],
                 clusterRefs.get(clusterReference),
+                false,
+                true,
               );
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
@@ -1495,9 +1517,9 @@ export class NetworkCommand extends BaseCommand {
           task: async ({config}, task): Promise<SoloListr<NetworkDeployContext>> => {
             const {namespace, chartDirectory, soloChartVersion, clusterRefs} = config;
 
-            // Update the valuesArgMap with the external IP addresses
+            // Update the chartValuesMap with the external IP addresses
             // This regenerates the config.txt and genesis-network.json files with the external IP addresses
-            config.valuesArgMap = await this.prepareValuesArgMap(config);
+            config.chartValuesMap = await this.prepareChartValuesMap(config);
 
             // Perform a helm upgrade for each cluster
             const subTasks: SoloListrTask<NetworkDeployContext>[] = [];
@@ -1511,8 +1533,10 @@ export class NetworkCommand extends BaseCommand {
                     constants.SOLO_DEPLOYMENT_CHART,
                     chartDirectory || constants.SOLO_TESTING_CHART_URL,
                     soloChartVersion,
-                    config.valuesArgMap[clusterReference],
+                    config.chartValuesMap[clusterReference],
                     clusterRefs.get(clusterReference),
+                    false,
+                    true,
                   );
                   showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, soloChartVersion, 'Upgraded');
 

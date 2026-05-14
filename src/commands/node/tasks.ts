@@ -189,6 +189,7 @@ import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-eve
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+import {HelmChartValues} from '../../integration/helm/model/values.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -236,6 +237,164 @@ export class NodeCommandTasks {
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
     configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
     this.soloConfig = SoloConfig.getConfig(configProvider);
+  }
+
+  private addValuesFiles(chartValues: HelmChartValues, valuesFile?: Optional<string>): void {
+    if (!valuesFile) {
+      return;
+    }
+
+    for (const filePath of valuesFile.split(',')) {
+      const trimmedFilePath: string = filePath.trim();
+
+      if (trimmedFilePath) {
+        chartValues.file(PathEx.resolve(trimmedFilePath));
+      }
+    }
+  }
+
+  private addRootImageChartValues(
+    chartValues: HelmChartValues,
+    rootPath: string,
+    registry: string,
+    repository: string,
+    tag: string,
+  ): void {
+    chartValues.add(
+      NodeCommandTasks.parseChartValuesArguments(addRootImageValues('', rootPath, registry, repository, tag)),
+    );
+  }
+
+  private static parseChartValuesArguments(valuesArguments: string): HelmChartValues {
+    const chartValues: HelmChartValues = new HelmChartValues();
+
+    if (!valuesArguments) {
+      return chartValues;
+    }
+
+    const tokens: string[] = NodeCommandTasks.tokenizeHelmArguments(valuesArguments);
+
+    for (let index = 0; index < tokens.length; index++) {
+      const argument: string = tokens[index];
+
+      if (argument === '--set') {
+        const value: string = tokens[++index];
+        if (!value) {
+          throw new SoloError('Missing value for --set in chart values arguments');
+        }
+        chartValues.setValues.push(value);
+        continue;
+      }
+
+      if (argument.startsWith('--set=')) {
+        chartValues.setValues.push(argument.slice('--set='.length));
+        continue;
+      }
+
+      if (argument === '--set-literal') {
+        const value: string = tokens[++index];
+        if (!value) {
+          throw new SoloError('Missing value for --set-literal in chart values arguments');
+        }
+        chartValues.setLiteralValues.push(value);
+        continue;
+      }
+
+      if (argument.startsWith('--set-literal=')) {
+        chartValues.setLiteralValues.push(argument.slice('--set-literal='.length));
+        continue;
+      }
+
+      if (argument === '--set-file') {
+        const value: string = tokens[++index];
+        if (!value) {
+          throw new SoloError('Missing value for --set-file in chart values arguments');
+        }
+        chartValues.setFileValues.push(value);
+        continue;
+      }
+
+      if (argument.startsWith('--set-file=')) {
+        chartValues.setFileValues.push(argument.slice('--set-file='.length));
+        continue;
+      }
+
+      if (argument === '--values' || argument === '-f') {
+        const value: string = tokens[++index];
+        if (!value) {
+          throw new SoloError(`Missing value for ${argument} in chart values arguments`);
+        }
+        chartValues.file(value);
+        continue;
+      }
+
+      if (argument.startsWith('--values=')) {
+        chartValues.file(argument.slice('--values='.length));
+        continue;
+      }
+
+      throw new SoloError(`Unsupported Helm chart value argument: ${argument}`);
+    }
+
+    return chartValues;
+  }
+
+  private static tokenizeHelmArguments(argumentsString: string): string[] {
+    const tokens: string[] = [];
+    let currentToken: string = '';
+    let quote: '"' | "'" | undefined;
+    let escaping: boolean = false;
+
+    for (const character of argumentsString) {
+      if (escaping) {
+        currentToken += character;
+        escaping = false;
+        continue;
+      }
+
+      if (character === '\\') {
+        escaping = true;
+        continue;
+      }
+
+      if (quote) {
+        if (character === quote) {
+          quote = undefined;
+        } else {
+          currentToken += character;
+        }
+        continue;
+      }
+
+      if (character === '"' || character === "'") {
+        quote = character;
+        continue;
+      }
+
+      if (/\s/.test(character)) {
+        if (currentToken.length > 0) {
+          tokens.push(currentToken);
+          currentToken = '';
+        }
+        continue;
+      }
+
+      currentToken += character;
+    }
+
+    if (escaping) {
+      currentToken += '\\';
+    }
+
+    if (quote) {
+      throw new SoloError(`Unclosed quote in Helm chart value arguments: ${argumentsString}`);
+    }
+
+    if (currentToken.length > 0) {
+      tokens.push(currentToken);
+    }
+
+    return tokens;
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -2467,7 +2626,6 @@ export class NodeCommandTasks {
         }
 
         const profileValuesFile: Record<ClusterReferenceName, string> = {};
-
         const clusterReferences: ClusterReferenceName[] = [];
 
         for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
@@ -2484,6 +2642,11 @@ export class NodeCommandTasks {
           profileValuesFile,
           config.valuesFile,
         );
+
+        const chartValuesMap: Record<ClusterReferenceName, HelmChartValues> = {};
+        for (const clusterReference of clusterReferences) {
+          chartValuesMap[clusterReference] = NodeCommandTasks.parseChartValuesArguments(valuesFiles[clusterReference]);
+        }
 
         // `helm upgrade` triggers a rolling restart of the node pods when there is a change to items from the
         // StatefulSet's pod template spec, which only includes application.env from the possible configuration files
@@ -2510,8 +2673,10 @@ export class NodeCommandTasks {
                     constants.SOLO_DEPLOYMENT_CHART,
                     config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
                     config.soloChartVersion,
-                    valuesFiles[clusterReference],
+                    chartValuesMap[clusterReference],
                     context,
+                    false,
+                    true,
                   );
 
                   showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
@@ -3409,10 +3574,10 @@ export class NodeCommandTasks {
         const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
         const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
-        // Make sure valuesArgMap is initialized with empty strings
-        const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
+        // Make sure chartValuesMap is initialized with empty chart values
+        const chartValuesMap: Record<ClusterReferenceName, HelmChartValues> = {};
         for (const [clusterReference] of clusterReferences) {
-          valuesArgumentMap[clusterReference] = '';
+          chartValuesMap[clusterReference] = new HelmChartValues();
         }
 
         config.serviceMap ||= await this.accountManager.getNodeServiceMap(
@@ -3448,9 +3613,9 @@ export class NodeCommandTasks {
 
         switch (transactionType) {
           case NodeSubcommandType.UPDATE: {
-            this.prepareValuesArgForNodeUpdate(
+            this.prepareChartValuesForNodeUpdate(
               consensusNodes,
-              valuesArgumentMap,
+              chartValuesMap,
               config.serviceMap,
               clusterNodeIndexMap,
               (config as NodeUpdateConfigClass).newAccountNumber,
@@ -3459,9 +3624,9 @@ export class NodeCommandTasks {
             break;
           }
           case NodeSubcommandType.DESTROY: {
-            this.prepareValuesArgForNodeDestroy(
+            this.prepareChartValuesForNodeDestroy(
               consensusNodes,
-              valuesArgumentMap,
+              chartValuesMap,
               config.nodeAlias,
               config.serviceMap,
               clusterReferences,
@@ -3469,9 +3634,9 @@ export class NodeCommandTasks {
             break;
           }
           case NodeSubcommandType.ADD: {
-            this.prepareValuesArgForNodeAdd(
+            this.prepareChartValuesForNodeAdd(
               consensusNodes,
-              valuesArgumentMap,
+              chartValuesMap,
               config.serviceMap,
               clusterNodeIndexMap,
               (config as NodeAddConfigClass).clusterRef,
@@ -3503,9 +3668,11 @@ export class NodeCommandTasks {
           );
 
           for (const clusterReference of Object.keys(valuesFiles)) {
-            valuesArgumentMap[clusterReference] += valuesFiles[clusterReference];
+            chartValuesMap[clusterReference].add(
+              NodeCommandTasks.parseChartValuesArguments(valuesFiles[clusterReference]),
+            );
             this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
-              valuesArg: valuesArgumentMap,
+              chartValues: chartValuesMap,
             });
           }
         }
@@ -3523,7 +3690,7 @@ export class NodeCommandTasks {
             // Always include the chart's own defaults file so default JAVA_OPTS/heap vars
             // are preserved when no per-node override exists in the user-provided files.
             const existingValuesFilePaths: string[] = [constants.SOLO_DEPLOYMENT_VALUES_FILE];
-            for (const filePath of helmValuesHelper.parseValuesFilePaths(valuesArgumentMap[clusterReference])) {
+            for (const filePath of chartValuesMap[clusterReference].valueFiles) {
               if (!existingValuesFilePaths.includes(filePath)) {
                 existingValuesFilePaths.push(filePath);
               }
@@ -3559,15 +3726,8 @@ export class NodeCommandTasks {
               },
               constants.SOLO_CACHE_DIR,
             );
-            // Append the generated file after all existing --values entries but before
-            // any --set overrides so it wins in Helm's merge order without being overridden
-            // by subsequent --values files that could still replace the hedera.nodes array.
-            const existingArguments: string = valuesArgumentMap[clusterReference] ?? '';
-            const firstSetArgumentIndex: number = existingArguments.search(/\s--set(?:\s|=|-)/);
-            valuesArgumentMap[clusterReference] =
-              firstSetArgumentIndex === -1
-                ? `${existingArguments} --values "${extraEnvironmentValuesFile}"`
-                : `${existingArguments.slice(0, firstSetArgumentIndex)} --values "${extraEnvironmentValuesFile}"${existingArguments.slice(firstSetArgumentIndex)}`;
+
+            chartValuesMap[clusterReference].file(extraEnvironmentValuesFile);
           }
         }
 
@@ -3594,8 +3754,10 @@ export class NodeCommandTasks {
               constants.SOLO_DEPLOYMENT_CHART,
               config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
-              valuesArgumentMap[clusterReference],
+              chartValuesMap[clusterReference],
               context,
+              false,
+              true,
             );
             showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
@@ -3610,9 +3772,9 @@ export class NodeCommandTasks {
    * - Updates the selected node
    * - Keep the rest the same
    */
-  private prepareValuesArgForNodeUpdate(
+  private prepareChartValuesForNodeUpdate(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReferenceName, string>,
+    chartValuesMap: Record<ClusterReferenceName, HelmChartValues>,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
     newAccountNumber: string,
@@ -3621,18 +3783,20 @@ export class NodeCommandTasks {
     for (const consensusNode of consensusNodes) {
       const clusterReference: string = consensusNode.cluster;
       const index: number = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
+      const chartValues: HelmChartValues = chartValuesMap[clusterReference];
 
-      valuesArgumentMap[clusterReference] +=
-        newAccountNumber && consensusNode.name === nodeAlias
-          ? ` --set "hedera.nodes[${index}].accountId=${newAccountNumber}"` +
-            ` --set "hedera.nodes[${index}].name=${nodeAlias}"` +
-            ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`
-          : ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
-            ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-            ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
+      if (newAccountNumber && consensusNode.name === nodeAlias) {
+        chartValues.set(`hedera.nodes[${index}].accountId`, newAccountNumber);
+        chartValues.set(`hedera.nodes[${index}].name`, nodeAlias);
+        chartValues.set(`hedera.nodes[${index}].nodeId`, consensusNode.nodeId);
+      } else {
+        chartValues.set(`hedera.nodes[${index}].accountId`, serviceMap.get(consensusNode.name).accountId);
+        chartValues.set(`hedera.nodes[${index}].name`, consensusNode.name);
+        chartValues.set(`hedera.nodes[${index}].nodeId`, consensusNode.nodeId);
+      }
 
-      valuesArgumentMap[clusterReference] = addRootImageValues(
-        valuesArgumentMap[clusterReference],
+      this.addRootImageChartValues(
+        chartValues,
         `hedera.nodes[${index}]`,
         constants.S6_NODE_IMAGE_REGISTRY,
         constants.S6_NODE_IMAGE_REPOSITORY,
@@ -3647,9 +3811,9 @@ export class NodeCommandTasks {
    * - Adds the new node
    * - Keeps the rest the same
    */
-  private prepareValuesArgForNodeAdd(
+  private prepareChartValuesForNodeAdd(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReferenceName, string>,
+    chartValuesMap: Record<ClusterReferenceName, HelmChartValues>,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
     clusterReference: ClusterReferenceName,
@@ -3669,14 +3833,14 @@ export class NodeCommandTasks {
         continue;
       }
       const index: number = clusterNodeIndexMap[node.cluster][node.nodeId];
+      const chartValues: HelmChartValues = chartValuesMap[node.cluster];
 
-      valuesArgumentMap[node.cluster] +=
-        ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
-        ` --set "hedera.nodes[${index}].name=${node.name}"` +
-        ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+      chartValues.set(`hedera.nodes[${index}].accountId`, serviceMap.get(node.name).accountId);
+      chartValues.set(`hedera.nodes[${index}].name`, node.name);
+      chartValues.set(`hedera.nodes[${index}].nodeId`, node.nodeId);
 
-      valuesArgumentMap[node.cluster] = addRootImageValues(
-        valuesArgumentMap[node.cluster],
+      this.addRootImageChartValues(
+        chartValues,
         `hedera.nodes[${index}]`,
         constants.S6_NODE_IMAGE_REGISTRY,
         constants.S6_NODE_IMAGE_REPOSITORY,
@@ -3686,13 +3850,14 @@ export class NodeCommandTasks {
 
     // Add new node
     const index: number = clusterNodeIndexMap[clusterReference][nodeId];
-    valuesArgumentMap[clusterReference] +=
-      ` --set "hedera.nodes[${index}].accountId=${newNode.accountId}"` +
-      ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
-      ` --set "hedera.nodes[${index}].nodeId=${nodeId}" `;
+    const chartValues: HelmChartValues = chartValuesMap[clusterReference];
 
-    valuesArgumentMap[clusterReference] = addRootImageValues(
-      valuesArgumentMap[clusterReference],
+    chartValues.set(`hedera.nodes[${index}].accountId`, newNode.accountId);
+    chartValues.set(`hedera.nodes[${index}].name`, newNode.name);
+    chartValues.set(`hedera.nodes[${index}].nodeId`, nodeId);
+
+    this.addRootImageChartValues(
+      chartValues,
       `hedera.nodes[${index}]`,
       constants.S6_NODE_IMAGE_REGISTRY,
       constants.S6_NODE_IMAGE_REPOSITORY,
@@ -3704,7 +3869,7 @@ export class NodeCommandTasks {
       config.haproxyIpsParsed = Templates.parseNodeAliasToIpMapping(config.haproxyIps);
       const ip: string = config.haproxyIpsParsed?.[nodeAlias];
       if (ip) {
-        valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].haproxyStaticIP=${ip}"`;
+        chartValues.set(`hedera.nodes[${index}].haproxyStaticIP`, ip);
       }
     }
 
@@ -3713,7 +3878,7 @@ export class NodeCommandTasks {
       config.envoyIpsParsed = Templates.parseNodeAliasToIpMapping(config.envoyIps);
       const ip: string = config.envoyIpsParsed?.[nodeAlias];
       if (ip) {
-        valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].envoyProxyStaticIP=${ip}"`;
+        chartValues.set(`hedera.nodes[${index}].envoyProxyStaticIP`, ip);
       }
     }
 
@@ -3725,9 +3890,9 @@ export class NodeCommandTasks {
    * - Remove the specified node
    * - Keeps the rest the same
    */
-  private prepareValuesArgForNodeDestroy(
+  private prepareChartValuesForNodeDestroy(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReferenceName, string>,
+    chartValuesMap: Record<ClusterReferenceName, HelmChartValues>,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterReferences: ClusterReferences,
@@ -3746,14 +3911,15 @@ export class NodeCommandTasks {
           continue;
         }
 
-        // For nodes that are not being deleted
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
-          ` --set "hedera.nodes[${index}].name=${node.name}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+        const chartValues: HelmChartValues = chartValuesMap[clusterReference];
 
-        valuesArgumentMap[clusterReference] = addRootImageValues(
-          valuesArgumentMap[clusterReference],
+        // For nodes that are not being deleted
+        chartValues.set(`hedera.nodes[${index}].accountId`, serviceMap.get(node.name).accountId);
+        chartValues.set(`hedera.nodes[${index}].name`, node.name);
+        chartValues.set(`hedera.nodes[${index}].nodeId`, node.nodeId);
+
+        this.addRootImageChartValues(
+          chartValues,
           `hedera.nodes[${index}]`,
           constants.S6_NODE_IMAGE_REGISTRY,
           constants.S6_NODE_IMAGE_REPOSITORY,

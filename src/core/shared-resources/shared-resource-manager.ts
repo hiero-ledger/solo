@@ -8,12 +8,13 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {type ChartManager} from '../chart-manager.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import * as constants from '../../core/constants.js';
+import {HelmChartValue, HelmChartValues} from '../../integration/helm/model/values.js';
 
 @injectable()
 export class SharedResourceManager {
   private postgresEnabled: boolean = false;
   private redisEnabled: boolean = false;
-  private additionalValuesArgument: string = '';
+  private additionalChartValues: HelmChartValues = new HelmChartValues();
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -26,7 +27,11 @@ export class SharedResourceManager {
   }
 
   public setAdditionalValuesArgument(additionalArguments: string): void {
-    this.additionalValuesArgument = additionalArguments;
+    this.additionalChartValues = SharedResourceManager.parseAdditionalValuesArgument(additionalArguments);
+  }
+
+  public setAdditionalChartValues(additionalChartValues: HelmChartValues): void {
+    this.additionalChartValues = additionalChartValues;
   }
 
   public enablePostgres(): void {
@@ -68,7 +73,7 @@ export class SharedResourceManager {
     chartDirectory: string,
     soloChartVersion: string,
     context?: string,
-    valuesArgumentsMap?: Record<string, string>,
+    valuesArgumentsMap?: Record<string, HelmChartValue>,
   ): Promise<boolean> {
     const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
       namespace,
@@ -85,16 +90,15 @@ export class SharedResourceManager {
 
     valuesArgumentsMap = {
       ...valuesArgumentsMap,
-      'postgresql.enabled': this.postgresEnabled.toString(),
-      'redis.enabled': this.redisEnabled.toString(),
+      'postgresql.enabled': this.postgresEnabled,
+      'redis.enabled': this.redisEnabled,
     };
 
-    const values: string = Object.entries(valuesArgumentsMap)
-      .map(([key, value]): string => `--set ${key}=${value}`)
-      .join(' ');
+    const chartValues: HelmChartValues = new HelmChartValues()
+      .setMany(valuesArgumentsMap)
+      .add(this.additionalChartValues);
 
-    const fullValues: string = this.additionalValuesArgument ? `${values} ${this.additionalValuesArgument}` : values;
-    this.additionalValuesArgument = '';
+    this.additionalChartValues = new HelmChartValues();
 
     await this.chartManager.install(
       namespace,
@@ -102,10 +106,142 @@ export class SharedResourceManager {
       constants.SOLO_SHARED_RESOURCES_CHART,
       chartDirectory || constants.SOLO_TESTING_CHART_URL,
       soloChartVersion,
-      fullValues,
+      chartValues,
       context,
     );
 
     return true;
+  }
+
+  private static parseAdditionalValuesArgument(additionalArguments: string): HelmChartValues {
+    const chartValues: HelmChartValues = new HelmChartValues();
+
+    if (!additionalArguments) {
+      return chartValues;
+    }
+
+    const tokens: string[] = SharedResourceManager.tokenizeHelmArguments(additionalArguments);
+
+    for (let index = 0; index < tokens.length; index++) {
+      const argument: string = tokens[index];
+
+      if (argument === '--set') {
+        const value: string = tokens[++index];
+        if (!value) {
+          throw new Error('Missing value for --set in shared resources additional values arguments');
+        }
+        chartValues.setValues.push(value);
+        continue;
+      }
+
+      if (argument.startsWith('--set=')) {
+        chartValues.setValues.push(argument.slice('--set='.length));
+        continue;
+      }
+
+      if (argument === '--set-literal') {
+        const value: string = tokens[++index];
+        if (!value) {
+          throw new Error('Missing value for --set-literal in shared resources additional values arguments');
+        }
+        chartValues.setLiteralValues.push(value);
+        continue;
+      }
+
+      if (argument.startsWith('--set-literal=')) {
+        chartValues.setLiteralValues.push(argument.slice('--set-literal='.length));
+        continue;
+      }
+
+      if (argument === '--set-file') {
+        const value: string = tokens[++index];
+        if (!value) {
+          throw new Error('Missing value for --set-file in shared resources additional values arguments');
+        }
+        chartValues.setFileValues.push(value);
+        continue;
+      }
+
+      if (argument.startsWith('--set-file=')) {
+        chartValues.setFileValues.push(argument.slice('--set-file='.length));
+        continue;
+      }
+
+      if (argument === '--values' || argument === '-f') {
+        const value: string = tokens[++index];
+        if (!value) {
+          throw new Error(`Missing value for ${argument} in shared resources additional values arguments`);
+        }
+        chartValues.file(value);
+        continue;
+      }
+
+      if (argument.startsWith('--values=')) {
+        chartValues.file(argument.slice('--values='.length));
+        continue;
+      }
+
+      throw new Error(`Unsupported shared resources additional Helm argument: ${argument}`);
+    }
+
+    return chartValues;
+  }
+
+  private static tokenizeHelmArguments(argumentsString: string): string[] {
+    const tokens: string[] = [];
+    let currentToken: string = '';
+    let quote: '"' | "'" | undefined;
+    let escaping: boolean = false;
+
+    for (const character of argumentsString) {
+      if (escaping) {
+        currentToken += character;
+        escaping = false;
+        continue;
+      }
+
+      if (character === '\\') {
+        escaping = true;
+        continue;
+      }
+
+      if (quote) {
+        if (character === quote) {
+          quote = undefined;
+        } else {
+          currentToken += character;
+        }
+        continue;
+      }
+
+      if (character === '"' || character === "'") {
+        quote = character;
+        continue;
+      }
+
+      if (/\s/.test(character)) {
+        if (currentToken.length > 0) {
+          tokens.push(currentToken);
+          currentToken = '';
+        }
+        continue;
+      }
+
+      currentToken += character;
+    }
+
+    if (escaping) {
+      currentToken += '\\';
+    }
+
+    if (quote) {
+      throw new Error(`Unclosed quote in shared resources additional Helm arguments: ${argumentsString}`);
+    }
+
+    if (currentToken.length > 0) {
+      tokens.push(currentToken);
+    }
+
+    return tokens;
   }
 }

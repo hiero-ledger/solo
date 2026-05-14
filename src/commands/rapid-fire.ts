@@ -20,13 +20,14 @@ import {type Lock} from '../core/lock/lock.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {injectable} from 'tsyringe-neo';
 import {NETWORK_LOAD_GENERATOR_CHART_VERSION} from '../../version.js';
-import * as helpers from '../core/helpers.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {Containers} from '../integration/kube/resources/container/containers.js';
 import {Container} from '../integration/kube/resources/container/container.js';
 import chalk from 'chalk';
 import {PassThrough} from 'node:stream';
+import {HelmChartValues} from '../integration/helm/model/values.js';
+import {PathEx} from '../business/utils/path-ex.js';
 
 interface RapidFireStartConfigClass {
   clusterRef: ClusterReferenceName;
@@ -36,7 +37,7 @@ interface RapidFireStartConfigClass {
   valuesFile: Optional<string>;
   namespace: NamespaceName;
   context: string;
-  valuesArg: string;
+  chartValues: HelmChartValues;
   nlgArguments: string;
   parsedNlgArguments: string;
   javaHeap: number;
@@ -106,6 +107,46 @@ export class RapidFireCommand extends BaseCommand {
     optional: [flags.devMode, flags.force, flags.quiet],
   };
 
+  private addValuesFiles(chartValues: HelmChartValues, valuesFile: Optional<string>): void {
+    if (!valuesFile) {
+      return;
+    }
+
+    for (const filePath of valuesFile.split(',')) {
+      const trimmedFilePath: string = filePath.trim();
+
+      if (trimmedFilePath) {
+        chartValues.file(PathEx.resolve(trimmedFilePath));
+      }
+    }
+  }
+
+  private async prepareChartValuesForNlg(config: RapidFireStartConfigClass): Promise<HelmChartValues> {
+    const chartValues: HelmChartValues = new HelmChartValues();
+
+    this.addValuesFiles(chartValues, constants.RAPID_FIRE_VALUES_FILE);
+    this.addValuesFiles(chartValues, config.valuesFile);
+
+    const haproxyPods: Pod[] = await this.k8Factory
+      .getK8(config.context)
+      .pods()
+      .list(config.namespace, ['solo.hedera.com/type=haproxy']);
+
+    const port: number = constants.GRPC_PORT;
+    const networkProperties: string[] = haproxyPods.map((pod: Pod) => {
+      const accountId: string = pod.labels['solo.hedera.com/account-id'] ?? 'unknown';
+      // Using multiple backslashes to ensure it is not stripped when the network.properties file is generated
+      // Final result should look like: x.x.x.x\:50211=0.0.y
+      return String.raw`${pod.podIp}\\\:${port}=${accountId}`;
+    });
+
+    for (const [index, row] of networkProperties.entries()) {
+      chartValues.setLiteral(`loadGenerator.properties[${index}]`, row);
+    }
+
+    return chartValues;
+  }
+
   private nglChartIsDeployed(context_: RapidFireStartContext): Promise<boolean> {
     return this.chartManager.isChartInstalled(
       context_.config.namespace,
@@ -122,28 +163,7 @@ export class RapidFireCommand extends BaseCommand {
           {
             title: 'Install Network Load Generator chart',
             task: async (context_): Promise<void> => {
-              let valuesArgument: string = helpers.prepareValuesFiles(constants.RAPID_FIRE_VALUES_FILE);
-
-              if (context_.config.valuesFile) {
-                valuesArgument += helpers.prepareValuesFiles(context_.config.valuesFile);
-              }
-
-              const haproxyPods: Pod[] = await this.k8Factory
-                .getK8(context_.config.context)
-                .pods()
-                .list(context_.config.namespace, ['solo.hedera.com/type=haproxy']);
-
-              const port: number = constants.GRPC_PORT;
-              const networkProperties: string[] = haproxyPods.map((pod: Pod) => {
-                const accountId: string = pod.labels['solo.hedera.com/account-id'] ?? 'unknown';
-                // Using multiple backslashes to ensure it is not stripped when the network.properties file is generated
-                // Final result should look like: x.x.x.x\:50211=0.0.y
-                return String.raw`${pod.podIp}\\\:${port}=${accountId}`;
-              });
-
-              for (const row of networkProperties) {
-                valuesArgument += ` --set loadGenerator.properties[${networkProperties.indexOf(row)}]="${row}"`;
-              }
+              context_.config.chartValues = await this.prepareChartValuesForNlg(context_.config);
 
               await this.chartManager.install(
                 context_.config.namespace,
@@ -151,7 +171,7 @@ export class RapidFireCommand extends BaseCommand {
                 constants.NETWORK_LOAD_GENERATOR_CHART,
                 constants.NETWORK_LOAD_GENERATOR_CHART_URL,
                 NETWORK_LOAD_GENERATOR_CHART_VERSION,
-                valuesArgument,
+                context_.config.chartValues,
                 context_.config.context,
               );
             },
@@ -241,7 +261,11 @@ export class RapidFireCommand extends BaseCommand {
               await leaseReference.lease?.release();
             }
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
-            let commandString: string = `/usr/bin/env java -Xmx${context_.config.javaHeap}g ${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ${testClass} ${context_.config.parsedNlgArguments}`;
+            let commandString: string =
+              `/usr/bin/env java -Xmx${context_.config.javaHeap}g ` +
+              `${tpsSetting} -cp /app/lib/*:/app/network-load-generator-${NETWORK_LOAD_GENERATOR_CHART_VERSION}.jar ` +
+              `${testClass} ${context_.config.parsedNlgArguments}`;
+
             commandString = commandString.replaceAll('  ', ' ').trim();
             await container.execContainer(commandString, outputStream, errorStream);
           } catch (error) {
@@ -285,7 +309,7 @@ export class RapidFireCommand extends BaseCommand {
             const config: RapidFireStartConfigClass = this.configManager.getConfig(
               RapidFireCommand.CRYPTO_TRANSFER_START_CONFIG_NAME,
               allFlags,
-              ['parsedNlgArguments'],
+              ['parsedNlgArguments', 'chartValues'],
             ) as RapidFireStartConfigClass;
 
             context_.config = config;
