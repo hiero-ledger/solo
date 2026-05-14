@@ -57,16 +57,6 @@ function check_port_forward ()
   done &
 }
 
-function start_background_transactions ()
-{
-  echo "Start background transaction"
-  # generate accounts as background traffic for two minutes
-  # so record stream files can be kept pushing to mirror node
-  cd solo
-  npm run solo-test -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --create-amount 1000 > /dev/null 2>&1 &
-  cd -
-}
-
 function start_contract_test ()
 {
   cd hedera-smart-contracts
@@ -105,8 +95,8 @@ function wait_for_relay_accounts_ready()
 
   local wallet1
   local wallet2
-  wallet1=$(node -e "const {Wallet}=require('ethers'); console.log(new Wallet(process.argv[1]).address)" "${CONTRACT_TEST_KEY_ONE}" 2>/dev/null || true)
-  wallet2=$(node -e "const {Wallet}=require('ethers'); console.log(new Wallet(process.argv[1]).address)" "${CONTRACT_TEST_KEY_TWO}" 2>/dev/null || true)
+  wallet1=$(cd hedera-smart-contracts 2>/dev/null && node -e "const {Wallet}=require('ethers'); console.log(new Wallet(process.argv[1]).address)" "${CONTRACT_TEST_KEY_ONE}" 2>/dev/null || true)
+  wallet2=$(cd hedera-smart-contracts 2>/dev/null && node -e "const {Wallet}=require('ethers'); console.log(new Wallet(process.argv[1]).address)" "${CONTRACT_TEST_KEY_TWO}" 2>/dev/null || true)
 
   if [[ -z "${wallet1}" || -z "${wallet2}" ]]; then
     echo "Could not derive wallet addresses from contract test keys; skipping relay account readiness check"
@@ -140,6 +130,117 @@ function wait_for_relay_accounts_ready()
   done
 
   echo "Relay account readiness check did not pass after ${max_attempts} attempts"
+  return 1
+}
+
+function probe_relay_write_path_once()
+{
+  local rpc_url="http://127.0.0.1:37546"
+  local receipt_timeout_ms=90000
+
+  if [[ -z "${CONTRACT_TEST_KEY_ONE:-}" || -z "${CONTRACT_TEST_KEY_TWO:-}" ]]; then
+    echo "[RELAY_WRITE_PROBE] missing CONTRACT_TEST_KEY_ONE/CONTRACT_TEST_KEY_TWO"
+    return 1
+  fi
+
+  echo "[RELAY_WRITE_PROBE] submitting a small relay transaction and waiting for receipt"
+  (
+    cd hedera-smart-contracts
+    node - "${rpc_url}" "${CONTRACT_TEST_KEY_ONE}" "${CONTRACT_TEST_KEY_TWO}" "${receipt_timeout_ms}" <<'NODE'
+const { JsonRpcProvider, Wallet } = require("ethers");
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function main() {
+  const rpcUrl = process.argv[2];
+  const keyOne = process.argv[3];
+  const keyTwo = process.argv[4];
+  const timeoutMs = Number(process.argv[5] || "90000");
+  const provider = new JsonRpcProvider(rpcUrl);
+  const sender = new Wallet(keyOne, provider);
+  const recipient = new Wallet(keyTwo).address;
+
+  const chainId = (await provider.getNetwork()).chainId.toString();
+  const oneTinybarWei = 10_000_000_000n;
+  console.log(`[RELAY_WRITE_PROBE] chainId=${chainId}`);
+  console.log(`[RELAY_WRITE_PROBE] sender=${sender.address} recipient=${recipient}`);
+
+  const tx = await sender.sendTransaction({
+    to: recipient,
+    // Hedera relay rejects non-zero transfers below 1 tinybar.
+    value: oneTinybarWei,
+    gasLimit: 21000n
+  });
+  console.log(`[RELAY_WRITE_PROBE] txHash=${tx.hash}`);
+
+  const receipt = await provider.waitForTransaction(tx.hash, 1, timeoutMs);
+  if (!receipt) {
+    console.error(`[RELAY_WRITE_PROBE] timeout waiting for receipt after ${timeoutMs}ms`);
+    process.exit(2);
+  }
+  if (receipt.status !== 1) {
+    console.error(`[RELAY_WRITE_PROBE] tx mined with non-success status=${receipt.status}`);
+    process.exit(3);
+  }
+
+  console.log(`[RELAY_WRITE_PROBE] success block=${receipt.blockNumber}`);
+}
+
+main().catch(async (err) => {
+  const msg = err && err.stack ? err.stack : String(err);
+  console.error(`[RELAY_WRITE_PROBE] failed: ${msg}`);
+  await sleep(50);
+  process.exit(1);
+});
+NODE
+  )
+}
+
+function refresh_relay_after_write_probe_failure()
+{
+  local relayDeployments
+  echo "[RELAY_WRITE_PROBE] write-path probe failed, refreshing relay config and restarting relay pods"
+  (
+    cd solo
+    npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+  )
+
+  relayDeployments=$(kubectl get deployment -n "${SOLO_NAMESPACE}" -o name | grep -E '^deployment.apps/relay(-[0-9]+)?(-ws)?$' || true)
+  if [[ -z "${relayDeployments}" ]]; then
+    echo "[RELAY_WRITE_PROBE] no relay deployments found in namespace ${SOLO_NAMESPACE}"
+  else
+    while IFS= read -r deploymentName; do
+      [[ -z "${deploymentName}" ]] && continue
+      kubectl rollout restart "${deploymentName}" -n "${SOLO_NAMESPACE}" || true
+      kubectl rollout status "${deploymentName}" -n "${SOLO_NAMESPACE}" --timeout=240s || true
+    done <<< "${relayDeployments}"
+  fi
+
+  (
+    cd solo
+    npm run solo -- deployment refresh port-forwards --deployment "${SOLO_DEPLOYMENT}"
+  ) || true
+}
+
+function ensure_relay_write_path_ready()
+{
+  local max_attempts=2
+  local attempt
+
+  for attempt in $(seq 1 "${max_attempts}"); do
+    if probe_relay_write_path_once; then
+      echo "[RELAY_WRITE_PROBE] relay write path ready (attempt ${attempt}/${max_attempts})"
+      return 0
+    fi
+
+    if [[ "${attempt}" -lt "${max_attempts}" ]]; then
+      refresh_relay_after_write_probe_failure
+    fi
+  done
+
+  echo "[RELAY_WRITE_PROBE] relay write path not ready after ${max_attempts} attempts"
   return 1
 }
 
@@ -391,9 +492,10 @@ if [ -z "${SOLO_NAMESPACE}" ]; then
 fi
 
 create_test_account "${SOLO_DEPLOYMENT}"
-wait_for_relay_accounts_ready || log_and_exit 1
 clone_smart_contract_repo
 setup_smart_contract_test
+wait_for_relay_accounts_ready || log_and_exit 1
+ensure_relay_write_path_ready || log_and_exit 1
 check_port_forward
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
