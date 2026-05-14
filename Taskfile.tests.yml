@@ -12,12 +12,12 @@ tasks:
   test-setup:
     desc: "Setup for E2E tests that require a single cluster environment"
     cmds:
-      - SOLO_CLUSTER_DUALITY=1 sh {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
+      - SOLO_CLUSTER_DUALITY=1 bash {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
 
   dual-cluster-setup:
     desc: "Setup for E2E tests that require a dual cluster environment"
     cmds:
-      - sh {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
+      - bash {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
 
   test:
     desc: "Runs all unit tests with coverage and generates reports in coverage/unit"
