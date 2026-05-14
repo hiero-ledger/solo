@@ -168,7 +168,7 @@ extract_version() {
 
         s = candidate
         v = ""
-        while (match(s, /\047[^\047]*\047|"[^"]*"/)) {
+        while (match(s, /\047[^\047]*\047|\042[^\042]*\042/)) {
           token = substr(s, RSTART, RLENGTH)
           v = substr(token, 2, length(token) - 2)
           s = substr(s, RSTART + RLENGTH)
@@ -209,7 +209,7 @@ extract_version() {
 
           s = candidate
           v = ""
-          while (match(s, /\047[^\047]*\047|"[^"]*"/)) {
+          while (match(s, /\047[^\047]*\047|\042[^\042]*\042/)) {
             token = substr(s, RSTART, RLENGTH)
             v = substr(token, 2, length(token) - 2)
             s = substr(s, RSTART + RLENGTH)
