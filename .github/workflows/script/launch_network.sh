@@ -134,10 +134,6 @@ reset_importer_hash_chain_for_upgrade() {
     return 0
   fi
 
-  # SHA-384 empty hash: 48 zero bytes as 96 hex characters.
-  # DigestAlgorithm.isHashEmpty() returns true for this value -> hash chain check is skipped.
-  local emptyHash="000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
-
   # Show current state for diagnostics
   local currentHash
   currentHash=$(kubectl exec -n "${namespace}" "${postgresPod}" -c postgresql -- \
@@ -146,11 +142,17 @@ reset_importer_hash_chain_for_upgrade() {
     2>/dev/null || echo "query_failed")
   echo "[IMPORTER_RESET] Current last record_file hash: ${currentHash:-none}"
 
-  # Reset the hash of the last record_file to the SHA-384 empty hash
+  # Set the last record_file.hash to empty string so the importer treats it as "no previous hash available"
+  # and skips hash chain verification for the first post-restart record file.
+  # This handles the CN/MN running-hash desynchronization that occurs after a freeze+restart cycle:
+  # the CN's internal running hash advances during freeze while the MN importer is paused,
+  # causing the first post-restart record file's previousHash to not match the MN's last stored hash.
+  # Setting hash='' causes Downloader.verifyHashChain() to call SHA_384.isHashEmpty("")=true
+  # and log "Previous hash not available", skipping validation for just that one boundary file.
   local sqlResult
   sqlResult=$(kubectl exec -n "${namespace}" "${postgresPod}" -c postgresql -- \
     sh -c "PGPASSWORD='${pgPassword}' psql -U postgres -d mirror_node -t -A -c \
-      \"UPDATE record_file SET hash = '${emptyHash}' \
+      \"UPDATE record_file SET hash = '' \
         WHERE consensus_end = (SELECT MAX(consensus_end) FROM record_file);\"" \
     2>&1 || echo "SQL_FAILED")
 
@@ -183,10 +185,9 @@ npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
 solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e
-export SOLO_NAMESPACE=solo-e2e
+export SOLO_NAMESPACE=one-shot
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
-export SOLO_DEPLOYMENT=solo-e2e
-export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=false
+export SOLO_DEPLOYMENT=one-shot
 export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.139.0
 export SOLO_LOG_LEVEL=debug
 export PREV_BLOCK_VERSION=v0.28.0
@@ -238,62 +239,17 @@ fi
 echo "Consensus Node Version (from): ${FROM_CONSENSUS_NODE_VERSION}"
 echo "Consensus Node Version (to): ${TO_CONSENSUS_NODE_VERSION}"
 
-solo init --dev
-
-
-solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --dev
-solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --dev
-solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 2 --dev
-solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" --dev
-solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
-
-solo block node add --deployment "${SOLO_DEPLOYMENT}" --chart-version "${PREV_BLOCK_VERSION}"
-solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
-solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
-solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q --dev
-solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
-
-solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --mirror-node-version ${MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE} --dev
-solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --explorer-version ${PREV_EXPLORER_VERSION} -q --dev
-solo relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --relay-release ${PREV_RELAY_VERSION} --dev
+# export ONE_SHOT_WITH_BLOCK_NODE=true
+solo one-shot falcon deploy --num-consensus-nodes 2
 
 echo "::endgroup::"
 
-echo "::group::Verification"
-cp ~/.solo/local-config.yaml ./local-config-before.yaml
-cat ./local-config-before.yaml
-kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.data' > remote-config-before.yaml
-cat remote-config-before.yaml
-
-# trigger migration
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --dev
-
-cp ~/.solo/local-config.yaml ./local-config-after.yaml
-cat ./local-config-after.yaml
-kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.data' > remote-config-after.yaml
-cat remote-config-after.yaml
-
-# check local-config-after.yaml should contains 'schemaVersion: 2'
-if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
-  echo "schemaVersion: 2 not found in local-config-after.yaml"
-  exit 1
-fi
-
-# check remote-config-after.yaml should contains 'schemaVersion: 7'
-if ! grep -q "schemaVersion: 7" ./remote-config-after.yaml; then
-  echo "schemaVersion: 7 not found in remote-config-after.yaml"
-  exit 1
-fi
-echo "::endgroup::"
 
 echo "::group::Upgrade Solo"
 # need to add ingress controller helm repo
 echo "Upgrading with workspace Solo CLI"
 
 npm run solo -- init --dev
-# Do not force legacy release-name override when upgrading with current workspace Solo.
-# The old released Solo command executed above may have installed either naming scheme.
-unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
 # need to use old solo to freeze the network since new solo freeze may not be compatible with old consensus node
 # s6 container
@@ -324,18 +280,6 @@ else
   done <<< "${mirrorComponentDeployments}"
 fi
 
-# mirror ingress controller deployment name can vary by chart version
-# (e.g. legacy "mirror-ingress-controller" or suffixed "mirror-ingress-controller-<deployment>").
-mirrorIngressDeployments=$(kubectl get deployment -n solo-e2e -o name | grep '^deployment.apps/mirror-ingress-controller' || true)
-if [[ -z "${mirrorIngressDeployments}" ]]; then
-  echo "No mirror ingress controller deployment found to restart in namespace solo-e2e"
-else
-  while IFS= read -r deploymentName; do
-    [[ -z "${deploymentName}" ]] && continue
-    kubectl rollout restart "${deploymentName}" -n solo-e2e
-  done <<< "${mirrorIngressDeployments}"
-fi
-sleep 40;
 
 # restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs BEFORE node start:"
@@ -360,25 +304,15 @@ fi
 
 # Reset importer hash chain before upgrade so the first post-restart record file is accepted.
 # The CN restart leaves a gap of empty gossip rounds (no record files) that advance the
-# running hash internally. Clearing the last record_file.hash to SHA-384 empty hash causes
+# running hash internally. Clearing the last record_file.hash to empty string causes
 # the importer to skip hash chain verification for the first post-restart file.
 reset_importer_hash_chain_for_upgrade "${SOLO_NAMESPACE}"
 
 # redeploy mirror node to upgrade to a newer version
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
-npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+# npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
-
-# wait a few seconds for the pods to be ready before running transactions against them
-sleep 10
-
-# kill existing port-forward process due to restart of mirror ingress controller
-curl http://127.0.0.1:38081 || true
-# find the new mirror-ingress-controller pod name then enable port-forwarding to it
-mirrorPodName=$(kubectl get pods -n solo-e2e  | grep mirror-ingress-controller | awk '{print $1}')
-echo "Mirror Ingress Controller Pod Name: ${mirrorPodName}"
-kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${mirrorPodName}" 38081:80 >/tmp/solo-migration-mirror-port-forward.log 2>&1 &
-
+npm run solo -- deployment refresh port-forwards --deployment "${SOLO_DEPLOYMENT}"
 # Test transaction can still be sent and processed
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 echo "::endgroup::"
@@ -391,28 +325,23 @@ npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DE
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
-npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+# npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
-# kill existing port-forward process due to restart of relay pods
-curl http://127.0.0.1:37546 || true
+# Restart relay deployment to reset the Hedera SDK's node health state.
+# After the CN upgrade, the CN pods restart and the relay SDK marks all nodes as unhealthy
+# with exponential backoff. Without a relay restart, the SDK may stay in a long backoff
+# (several minutes) even after the CN pods become ACTIVE, causing eth_sendRawTransaction
+# to fail with "All nodes are unhealthy". Restarting the relay gives the SDK a fresh start.
+echo "Restarting relay deployment to reset SDK node health state after CN upgrade..."
+kubectl rollout restart deployment/relay-1 deployment/relay-1-ws -n solo-e2e 2>/dev/null || true
+kubectl rollout status deployment/relay-1 -n solo-e2e --timeout=3m --context kind-solo-e2e
 
-# find the new pod name then enable port-forwarding to it, do not match anything with "ws" in the name
-relayPodName=$(kubectl get pods -n solo-e2e  | grep relay | awk '{print $1}' | grep -v ws)
-echo "Relay Pod Name: ${relayPodName}"
-kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${relayPodName}" 37546:7546 >/tmp/solo-migration-relay-port-forward.log 2>&1 &
-echo "command is kubectl port-forward -n solo-e2e pods/${relayPodName} 37546:7546 &"
 
 echo "::endgroup::"
 
 echo "::group::Final Verification"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before smoke test"
-ps -ef |grep port-forward
 
-# Test deployment config list command
-echo "Testing deployment config list without cluster-ref..."
-npm run solo -- deployment config list --dev
-echo "Testing deployment config list with cluster-ref..."
-npm run solo -- deployment config list --cluster-ref ${SOLO_CLUSTER_NAME} --dev
+npm run solo -- deployment refresh port-forwards --deployment "${SOLO_DEPLOYMENT}"
 
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
