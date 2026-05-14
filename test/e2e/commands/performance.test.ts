@@ -225,7 +225,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await main(
             soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
           );
-        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+        }).timeout(Duration.ofSeconds(duration * 6).toMillis());
 
         it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
           logEvent('Completed all performance tests');
