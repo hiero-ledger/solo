@@ -150,6 +150,7 @@ extract_version() {
     return 1
   fi
 
+  # Use octal escapes for both quote characters to avoid awk regex escape warnings in CI shells.
   value="$({
     awk -v target="${TARGET}" '
       BEGIN {
