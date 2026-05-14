@@ -464,6 +464,7 @@ export class NodeCommandTasks {
             try {
               // filter the data/config and data/keys to avoid failures due to config and secret mounts
               await this.copyLocalBuildPathToNode(k8, podReference, this.configManager, localDataLibraryBuildPath);
+              break;
             } catch (error) {
               storedError = error;
             }
@@ -3887,6 +3888,30 @@ export class NodeCommandTasks {
         );
 
         for (const service of config.serviceMap.values()) {
+          // Disable the network-node autostart BEFORE killing the pod so the restarted
+          // pod does not auto-launch the JVM while fetchPlatformSoftware is still
+          // rm-ing and re-copying jars under data/lib (HederaNode.jar has an explicit
+          // Class-Path manifest; a JVM that lazy-loads a jar mid-rm crashes with
+          // NoSuchFileException). startNodes() re-enables autostart after the upload.
+          try {
+            const podReference: PodReference = PodReference.of(config.namespace, service.nodePodName);
+            const containerReference: ContainerReference = ContainerReference.of(
+              podReference,
+              constants.ROOT_CONTAINER,
+            );
+            await this.k8Factory
+              .getK8(service.context)
+              .containers()
+              .readByRef(containerReference)
+              .execContainer([
+                'bash',
+                '-c',
+                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
+              ]);
+          } catch {
+            // Best-effort: container may already be restarting; the kill below will follow
+          }
+
           await this.k8Factory
             .getK8(service.context)
             .pods()
