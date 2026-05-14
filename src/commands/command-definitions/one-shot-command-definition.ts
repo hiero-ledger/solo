@@ -10,6 +10,7 @@ import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import * as constants from '../../core/constants.js';
 import {FALCON_DEPLOY_COMMAND, FALCON_PREPARE_COMMAND} from '../one-shot/one-shot-command-paths.js';
+import {Flags as flags} from '../flags.js';
 
 @injectable()
 export class OneShotCommandDefinition extends BaseCommandDefinition {
@@ -137,7 +138,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               OneShotCommandDefinition.FALCON_PREPARE,
-              'Generates a configuration file for falcon deployment.',
+              `Generates a falcon values file for use with ${OneShotCommandDefinition.FALCON_DEPLOY_COMMAND}. Writes to ${flags.outputValuesFile.definition.defaultValue} by default.`,
               this.oneShotCommand,
               this.oneShotCommand.prepareFalcon,
               DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST,

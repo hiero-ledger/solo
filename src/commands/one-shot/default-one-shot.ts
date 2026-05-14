@@ -2016,7 +2016,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   public async prepareFalcon(argv: ArgvStruct): Promise<boolean> {
     this.configManager.update(argv);
 
-    const configuredOutputPath: string = this.configManager.getFlag<string>(flags.outputValuesFile);
+    const configuredOutputPath: string = this.configManager.getFlag(flags.outputValuesFile);
     const resolvedOutputPath: string = path.isAbsolute(configuredOutputPath)
       ? configuredOutputPath
       : PathEx.resolve(process.env.INIT_CWD || process.cwd(), configuredOutputPath);
@@ -2208,7 +2208,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       '# This file configures all components of the Hiero network deployment\n' +
       `#\n# Consensus nodes: ${config.numberOfConsensusNodes}\n` +
       '#\n# Usage:\n' +
-      `#   ${soloCommand(FALCON_DEPLOY_COMMAND, optionFromFlag(flags.valuesFile), '<path-to-this-file>')}\n` +
+      `#   ${soloCommand(FALCON_DEPLOY_COMMAND, optionFromFlag(flags.valuesFile), config.outputPath)}\n` +
       '#\n# To disable optional components, pass CLI flags:\n' +
       `#   ${negatedOptionFromFlag(flags.deployMirrorNode)}\n` +
       `#   ${negatedOptionFromFlag(flags.deployExplorer)}\n` +
