@@ -359,9 +359,12 @@ export class NodeCommandTasks {
           .list(namespace, ['solo.hedera.com/type=node-pvc']);
 
         if (pvcs.length === 0) {
-          throw new SoloError(
-            'Custom JARs provided via --local-build-path require node PVCs to persist across pod restarts. ' +
-              'Redeploy the consensus network with --pvcs true and run consensus node setup again.',
+          this.logger.showUser(
+            chalk.yellow(
+              'Warning: Custom JARs provided via --local-build-path require node PVCs to persist across pod restarts. ' +
+                'To prevent losing data after node restarts redeploy the consensus network with ' +
+                '`consensus network deploy --pvcs true` and run `consensus node setup` again.',
+            ),
           );
         }
       }),
