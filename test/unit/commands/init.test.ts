@@ -12,6 +12,7 @@ import {type InitContext} from '../../../src/commands/init/init-context.js';
 import {type SoloListrTask} from '../../../src/types/index.js';
 
 describe('InitCommand unit tests', (): void => {
+  const COPY_TEMPLATES_TASK_INDEX: number = 2;
   let initCommand: InitCommand;
   let showListStub: SinonStub;
 
@@ -31,15 +32,15 @@ describe('InitCommand unit tests', (): void => {
 
   it('should print dev system file lists only once per process', async (): Promise<void> => {
     const setupTasks: SoloListrTask<InitContext>[] = initCommand.setupSystemFilesTasks({dev: true});
-    const copyTemplatesTask: SoloListrTask<InitContext> = setupTasks[2];
+    const copyTemplatesTask: SoloListrTask<InitContext> = setupTasks[COPY_TEMPLATES_TASK_INDEX];
     const context: InitContext = {
       repoURLs: ['https://example.com/charts'],
       dirs: ['/tmp/home-dir'],
       config: {username: ''},
     };
 
-    await copyTemplatesTask.task(context, undefined as never);
-    await copyTemplatesTask.task(context, undefined as never);
+    await copyTemplatesTask.task(context);
+    await copyTemplatesTask.task(context);
 
     expect(showListStub.callCount).to.equal(2);
     expect(showListStub.firstCall.args[0]).to.equal('Home Directories');
