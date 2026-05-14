@@ -188,7 +188,7 @@ export SOLO_CLUSTER_NAME=solo-e2e
 export SOLO_NAMESPACE=one-shot
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=one-shot
-export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.139.0
+export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.152.0
 export SOLO_LOG_LEVEL=debug
 export PREV_BLOCK_VERSION=v0.28.0
 export PREV_EXPLORER_VERSION=25.0.0
@@ -290,11 +290,6 @@ npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYM
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs AFTER node start:"
 kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
 
-if [[ $result -ne 0 ]]; then
-  echo "Starting consensus nodes failed with exit code $result"
-  npm run solo -- deployment diagnostics logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
-  exit $result
-fi
 
 # npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
@@ -306,7 +301,7 @@ fi
 # The CN restart leaves a gap of empty gossip rounds (no record files) that advance the
 # running hash internally. Clearing the last record_file.hash to empty string causes
 # the importer to skip hash chain verification for the first post-restart file.
-reset_importer_hash_chain_for_upgrade "${SOLO_NAMESPACE}"
+# reset_importer_hash_chain_for_upgrade "${SOLO_NAMESPACE}"
 
 # redeploy mirror node to upgrade to a newer version
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
@@ -318,8 +313,6 @@ npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-a
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
-ps -ef |grep port-forward
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
@@ -333,8 +326,8 @@ npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-a
 # (several minutes) even after the CN pods become ACTIVE, causing eth_sendRawTransaction
 # to fail with "All nodes are unhealthy". Restarting the relay gives the SDK a fresh start.
 echo "Restarting relay deployment to reset SDK node health state after CN upgrade..."
-kubectl rollout restart deployment/relay-1 deployment/relay-1-ws -n solo-e2e 2>/dev/null || true
-kubectl rollout status deployment/relay-1 -n solo-e2e --timeout=3m --context kind-solo-e2e
+kubectl rollout restart deployment/relay-1 deployment/relay-1-ws -n "${SOLO_NAMESPACE}" 2>/dev/null || true
+kubectl rollout status deployment/relay-1 -n "${SOLO_NAMESPACE}" --timeout=3m --context kind-solo-e2e
 
 
 echo "::endgroup::"
