@@ -141,7 +141,7 @@ tasks:
       - cmd: |
           # Solo consensus dev-node-update execute
           $SOLO_COMMAND consensus dev-node-update execute --deployment {{ .SOLO_DEPLOYMENT }} --input-dir {{ .PREPARE_OUTPUT_DIR }} \
-          --dev
+          {{ .LOCAL_BUILD_FLAG }} --dev
 
       - cmd: |
           # Mirror Node gRPC port forward
