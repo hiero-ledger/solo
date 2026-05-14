@@ -249,6 +249,20 @@ export class RelayCommand extends BaseCommand {
     valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
 
     valuesArgument += ' --set ws.enabled=true';
+    // Keep relay behavior deterministic during migration flows where mirror data is reset/replayed.
+    // This avoids stale cache lookups and reduces noisy logging in CI.
+    valuesArgument += ' --set relay.config.WORKERS_POOL_ENABLED=false';
+    valuesArgument += ' --set relay.config.LOG_LEVEL=error';
+    valuesArgument += ' --set relay.config.PRETTY_LOGS_ENABLED=false';
+    valuesArgument += ' --set relay.config.REDIS_ENABLED=false';
+    valuesArgument += ' --set relay.config.CACHE_MAX=50';
+    valuesArgument += ' --set relay.config.CACHE_TTL=300';
+    valuesArgument += ' --set ws.config.WORKERS_POOL_ENABLED=false';
+    valuesArgument += ' --set ws.config.LOG_LEVEL=error';
+    valuesArgument += ' --set ws.config.PRETTY_LOGS_ENABLED=false';
+    valuesArgument += ' --set ws.config.REDIS_ENABLED=false';
+    valuesArgument += ' --set ws.config.CACHE_MAX=50';
+    valuesArgument += ' --set ws.config.CACHE_TTL=300';
     valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
     valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
 
