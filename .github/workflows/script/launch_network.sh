@@ -591,8 +591,7 @@ auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
 
 # redeploy mirror node to upgrade to a newer version
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
-# Re-apply after mirror rollout since importer pods are recreated.
-auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
+# Mirror rollout recreates importer pods; recovery is intentionally single-pass before this step.
 # npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 npm run solo -- deployment refresh port-forwards --deployment "${SOLO_DEPLOYMENT}"
