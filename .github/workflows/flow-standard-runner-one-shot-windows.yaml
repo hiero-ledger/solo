@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Windows One-Shot Deploy and Destroy"
+name: 'Windows One-Shot Deploy and Destroy'
 # Compatibility gate: verifies that Solo one-shot deploy continues to work on native Windows.
 # Solo runs natively in PowerShell on a standard GitHub-hosted Windows runner.
 # Docker runs inside WSL2 (replicating how Docker Desktop works for Windows users) and is
@@ -131,8 +131,7 @@ jobs:
           wsl-version: 2
           use-cache: false
           set-as-default: true
-          additional-packages:
-            apt-transport-https
+          additional-packages: apt-transport-https
             ca-certificates
             curl
             software-properties-common
@@ -212,6 +211,13 @@ jobs:
         run: |
           $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
           npm run solo -- one-shot single deploy --dev
+
+      - name: Check Port Forwarding Still Works After Deploy
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- deployment diagnostics connections -d one-shot --check
 
       - name: Collect Diagnostics on Failure
         if: ${{ failure() }}
