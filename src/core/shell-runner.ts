@@ -36,6 +36,7 @@ export class ShellRunner {
     detached: boolean = false,
     environmentVariablesToAppend: Record<string, string> = {},
     timeoutMs?: number,
+    useShell: boolean = true,
   ): Promise<string[]> {
     const redactedArguments: string[] = ShellRunner.redactArguments(arguments_);
     const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${redactedArguments.join(' ')}`;
@@ -43,7 +44,6 @@ export class ShellRunner {
     this.logger.info(message);
 
     return new Promise<string[]>((resolve, reject): void => {
-      const useShell: boolean = !(OperatingSystem.isWin32() && detached && arguments_.length > 0);
       const child: ChildProcessWithoutNullStreams | ChildProcess = spawn(cmd, arguments_, {
         env: {...process.env, ...environmentVariablesToAppend},
         shell: useShell,
@@ -83,6 +83,7 @@ export class ShellRunner {
         for (const item of items) {
           if (item) {
             output.push(item);
+            this.logger.debug(item);
           }
         }
       });
@@ -93,6 +94,7 @@ export class ShellRunner {
         for (const item of items) {
           if (item) {
             errorOutput.push(item.trim());
+            this.logger.error(item.trim());
           }
         }
       });

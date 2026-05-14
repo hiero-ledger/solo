@@ -109,6 +109,7 @@ export class K8ClientPod implements Pod {
   ): Promise<number> {
     let availablePort: number = localPort;
     const localBindAddress: string = externalAddress || constants.LOCAL_HOST;
+    const isWindows: boolean = os.platform() === 'win32';
 
     try {
       // first use http.request(url[, options][, callback]) GET method against localhost:localPort to kill any pre-existing
@@ -249,7 +250,7 @@ export class K8ClientPod implements Pod {
 
         // WSL2 has issues with kubectl port-forward when binding to localhost, binding to all interfaces will trigger
         // a permission prompt which if hidden behind the terminal can cause the port-forward command to fail.
-        if (os.platform() !== 'win32') {
+        if (isWindows) {
           cmdArguments.push(localBindAddress, '&');
         }
       } else {
@@ -264,23 +265,33 @@ export class K8ClientPod implements Pod {
 
         // WSL2 has issues with kubectl port-forward when binding to localhost, binding to all interfaces will trigger
         // a permission prompt which if hidden behind the terminal can cause the port-forward command to fail.
-        if (os.platform() !== 'win32') {
+        if (!isWindows) {
           cmdArguments.push('--address', localBindAddress);
         }
 
         cmdArguments.push(`pods/${this.podReference.name}`, `${availablePort}:${podPort}`);
+
+        // if (isWindows) {
+        //   cmdArguments = [cmd, ...cmdArguments];
+        //   // cmdArguments = ['--headless', cmd, ...cmdArguments];
+        //   cmd = 'conhost.exe';
+        // }
       }
 
-      // On Windows, if not using a detached process, run the port-forward command via conhost.exe to work around an
-      //  issue where the port-forward process comes to the foreground
-      if (os.platform() === 'win32' && !persist) {
-        cmdArguments = ['--headless', cmd, ...cmdArguments];
-        cmd = 'conhost.exe';
-      }
+      // Don't use shell on Windows when doing persist mode to avoid argument parsing issues
+      const useShell: boolean = isWindows && persist ? false : true;
 
-      await new ShellRunner().run(cmd, cmdArguments, true, true, {
-        PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
-      });
+      await new ShellRunner().run(
+        cmd,
+        cmdArguments,
+        true,
+        true,
+        {
+          PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+        },
+        undefined,
+        useShell,
+      );
 
       return availablePort;
     } catch (error) {
