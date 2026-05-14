@@ -1983,11 +1983,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
     const edgeVersions: OneShotVersionsObject = {
       soloChart: version.SOLO_CHART_EDGE_VERSION,
-      consensus: version.HEDERA_PLATFORM_VERSION,
-      mirror: version.MIRROR_NODE_VERSION,
-      explorer: version.EXPLORER_VERSION,
-      relay: version.HEDERA_JSON_RPC_RELAY_VERSION,
-      blockNode: version.BLOCK_NODE_VERSION,
+      consensus: version.HEDERA_PLATFORM_EDGE_VERSION,
+      mirror: version.MIRROR_NODE_EDGE_VERSION,
+      explorer: version.EXPLORER_EDGE_VERSION,
+      relay: version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION,
+      blockNode: version.BLOCK_NODE_EDGE_VERSION,
     };
 
     const resolvedComponentVersions: EdgeVersionsObject = await resolveEdgeVersions({
