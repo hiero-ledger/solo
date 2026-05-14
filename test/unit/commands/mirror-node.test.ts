@@ -33,7 +33,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
     sinon.restore();
   });
 
-  it('should keep the legacy web3 image override on arm64 before mirror node 0.155.0', (): void => {
+  it('should keep the legacy web3 image override on arm64 for versions below mirror node 0.155.0', (): void => {
     const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
     const config: MirrorNodeMemoryOverrideConfig = {
@@ -50,7 +50,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(config.valuesArg).to.include(`--set web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`);
   });
 
-  it('should keep the native web3 image on arm64 starting with mirror node 0.155.0', (): void => {
+  it('should not override the web3 image on arm64 for mirror node 0.155.0 and above', (): void => {
     const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
     const config: MirrorNodeMemoryOverrideConfig = {
@@ -62,6 +62,12 @@ describe('MirrorNodeCommand unit tests', (): void => {
 
     mirrorNodeCommandInternal.addMirrorNodeMemoryOverrides(true, config);
 
-    expect(config.valuesArg).to.equal('');
+    expect(config.valuesArg).to.not.include(`--set web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`);
+    expect(config.valuesArg).to.not.include(
+      `--set web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`,
+    );
+    expect(config.valuesArg).to.not.include(
+      `--set web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`,
+    );
   });
 });
