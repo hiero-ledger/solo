@@ -22,7 +22,7 @@ export class HelmMetricsServer {
         constants.METRICS_SERVER_CHART,
         this.REPOSITORY_NAME,
         this.VERSION,
-        constants.METRICS_SERVER_INSTALL_ARGS as unknown as Parameters<ChartManager['install']>[5],
+        constants.METRICS_SERVER_INSTALL_ARGS,
         k8Factory.default().contexts().readCurrent(),
       );
     } catch (error) {

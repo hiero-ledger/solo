@@ -7,37 +7,85 @@ import {type Options} from '../options.js';
  * Options for upgrading a Helm chart.
  */
 export class UpgradeChartOptions implements Options {
+  private readonly _namespace?: string;
+  private readonly _kubeContext?: string;
+  private readonly _reuseValues?: boolean;
+  private readonly _valueArguments: string[];
+  private readonly _version?: string;
+  private readonly _install?: boolean;
+  private readonly _createNamespace?: boolean;
+
   public constructor(
-    /** the namespace where the release should be upgraded. */
-    public readonly namespace?: string,
+    namespace?: string,
+    kubeContext?: string,
+    reuseValues: boolean = false,
+    valueArguments: string[] = [],
+    version?: string,
+    install: boolean = false,
+    createNamespace: boolean = false,
+  ) {
+    this._namespace = namespace;
+    this._kubeContext = kubeContext;
+    this._reuseValues = reuseValues;
+    this._valueArguments = [...valueArguments];
+    this._version = version;
+    this._install = install;
+    this._createNamespace = createNamespace;
+  }
 
-    /** the Kubernetes context to use. */
-    public readonly kubeContext?: string,
+  /**
+   * Gets the namespace where the release should be upgraded.
+   * @returns The namespace or undefined if not set.
+   */
+  public get namespace(): string | undefined {
+    return this._namespace;
+  }
 
-    /** whether to reuse the last release's values. */
-    public readonly reuseValues: boolean = false,
+  /**
+   * Gets the Kubernetes context to use.
+   * @returns The Kubernetes context or undefined if not set.
+   */
+  public get kubeContext(): string | undefined {
+    return this._kubeContext;
+  }
 
-    /** values set on the command line. */
-    public readonly set?: string[],
+  /**
+   * Gets whether to reuse the last release's values.
+   * @returns True if values should be reused, false otherwise.
+   */
+  public get reuseValues(): boolean {
+    return this._reuseValues;
+  }
 
-    /** literal values set on the command line. */
-    public readonly setLiteral?: string[],
+  /**
+   * Gets ordered Helm value arguments.
+   * @returns The ordered Helm value arguments.
+   */
+  public get valueArguments(): string[] {
+    return [...this._valueArguments];
+  }
 
-    /** file values set on the command line. */
-    public readonly setFile?: string[],
+  /**
+   * Gets the version of the chart to upgrade to.
+   * @returns The version or undefined if not set.
+   */
+  public get version(): string {
+    return this._version;
+  }
 
-    /** values files. */
-    public readonly values?: string[],
+  /**
+   * Gets whether to perform an install during upgrade if the release is not created
+   */
+  public get install(): boolean {
+    return this._install;
+  }
 
-    /** the version of the chart to upgrade to. */
-    public readonly version?: string,
-
-    /** whether to perform an install during upgrade if the release is not created */
-    public readonly install: boolean = false,
-
-    /** whether to create the namespace if it's not found */
-    public readonly createNamespace: boolean = false,
-  ) {}
+  /**
+   * Gets whether to create the namespace if it's not found
+   */
+  public get createNamespace(): boolean {
+    return this._createNamespace;
+  }
 
   /**
    * Applies the options to the given builder.
@@ -66,20 +114,8 @@ export class UpgradeChartOptions implements Options {
       builder.flag('--create-namespace');
     }
 
-    if (this.set) {
-      builder.optionsWithMultipleValues('set', this.set);
-    }
-
-    if (this.setLiteral) {
-      builder.optionsWithMultipleValues('set-literal', this.setLiteral);
-    }
-
-    if (this.setFile) {
-      builder.optionsWithMultipleValues('set-file', this.setFile);
-    }
-
-    if (this.values) {
-      builder.optionsWithMultipleValues('values', this.values);
+    if (this.valueArguments.length > 0) {
+      builder.arguments(...this.valueArguments);
     }
 
     if (this.version) {

@@ -138,26 +138,11 @@ export class ChartManager {
         const builder: InstallChartOptionsBuilder = InstallChartOptionsBuilder.builder()
           .kubeContext(kubeContext)
           .atomic(atomic)
-          .waitFor(waitFor);
+          .waitFor(waitFor)
+          .valueArguments(chartValues.toArguments());
 
         if (version) {
           builder.version(version);
-        }
-
-        if (chartValues.setValues.length > 0) {
-          builder.set(chartValues.setValues);
-        }
-
-        if (chartValues.setLiteralValues.length > 0) {
-          builder.setLiteral(chartValues.setLiteralValues);
-        }
-
-        if (chartValues.setFileValues.length > 0) {
-          builder.setFile(chartValues.setFileValues);
-        }
-
-        if (chartValues.valueFiles.length > 0) {
-          builder.values(chartValues.valueFiles);
         }
 
         if (namespaceName) {
@@ -242,26 +227,11 @@ export class ChartManager {
         .install(install)
         .createNamespace(createNamespace)
         .namespace(namespaceName.name)
-        .kubeContext(kubeContext);
+        .kubeContext(kubeContext)
+        .valueArguments(chartValues.toArguments());
 
       if (version) {
         builder.version(version);
-      }
-
-      if (chartValues.setValues.length > 0) {
-        builder.set(chartValues.setValues);
-      }
-
-      if (chartValues.setLiteralValues.length > 0) {
-        builder.setLiteral(chartValues.setLiteralValues);
-      }
-
-      if (chartValues.setFileValues.length > 0) {
-        builder.setFile(chartValues.setFileValues);
-      }
-
-      if (chartValues.valueFiles.length > 0) {
-        builder.values(chartValues.valueFiles);
       }
 
       const options: UpgradeChartOptions = builder.build();

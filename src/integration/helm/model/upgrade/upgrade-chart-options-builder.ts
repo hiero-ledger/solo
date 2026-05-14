@@ -9,10 +9,7 @@ export class UpgradeChartOptionsBuilder {
   private _namespace?: string;
   private _kubeContext?: string;
   private _reuseValues: boolean = false;
-  private _set?: string[];
-  private _setLiteral?: string[];
-  private _setFile?: string[];
-  private _values?: string[];
+  private _valueArguments: string[] = [];
   private _version?: string;
   private _install: boolean = false;
   private _createNamespace: boolean = false;
@@ -54,50 +51,28 @@ export class UpgradeChartOptionsBuilder {
   }
 
   /**
-   * Set values on the command line.
-   * @param valueOverride Values in key=value format.
+   * Sets ordered Helm value arguments.
+   * @param valueArguments Ordered Helm value arguments.
    * @returns This builder instance.
    */
-  public set(valueOverride: string[]): UpgradeChartOptionsBuilder {
-    this._set = valueOverride;
+  public valueArguments(valueArguments: string[]): UpgradeChartOptionsBuilder {
+    this._valueArguments = [...valueArguments];
     return this;
   }
 
   /**
-   * Set literal values on the command line.
-   * @param valueOverride Values in key=value format.
-   * @returns This builder instance.
+   * Specify whether to install if release is not found
+   * @param install
    */
-  public setLiteral(valueOverride: string[]): UpgradeChartOptionsBuilder {
-    this._setLiteral = valueOverride;
-    return this;
-  }
-
-  /**
-   * Set values from files on the command line.
-   * @param valueOverride Values in key=path format.
-   * @returns This builder instance.
-   */
-  public setFile(valueOverride: string[]): UpgradeChartOptionsBuilder {
-    this._setFile = valueOverride;
-    return this;
-  }
-
-  /**
-   * Specify values in a YAML file.
-   * @param values Values file paths.
-   * @returns This builder instance.
-   */
-  public values(values: string[]): UpgradeChartOptionsBuilder {
-    this._values = values;
-    return this;
-  }
-
   public install(install: boolean): UpgradeChartOptionsBuilder {
     this._install = install;
     return this;
   }
 
+  /**
+   * Specify whether to create the namespace if not found
+   * @param createNamespace
+   */
   public createNamespace(createNamespace: boolean): UpgradeChartOptionsBuilder {
     this._createNamespace = createNamespace;
     return this;
@@ -118,10 +93,7 @@ export class UpgradeChartOptionsBuilder {
       this._namespace,
       this._kubeContext,
       this._reuseValues,
-      this._set,
-      this._setLiteral,
-      this._setFile,
-      this._values,
+      [...this._valueArguments],
       this._version,
       this._install,
       this._createNamespace,

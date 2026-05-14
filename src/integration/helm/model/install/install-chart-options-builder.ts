@@ -15,13 +15,10 @@ export class InstallChartOptionsBuilder {
   private _passCredentials: boolean = false;
   private _password?: string;
   private _repo?: string;
-  private _set?: string[];
-  private _setLiteral?: string[];
-  private _setFile?: string[];
+  private _valueArguments: string[] = [];
   private _skipCrds: boolean = false;
   private _timeout?: string;
   private _username?: string;
-  private _values?: string[];
   private _verify: boolean = false;
   private _version?: string;
   private _waitFor: boolean = false;
@@ -140,35 +137,13 @@ export class InstallChartOptionsBuilder {
   }
 
   /**
-   * set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
+   * ordered Helm value arguments to pass directly to Helm.
    *
-   * @param valueOverride set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
+   * @param valueArguments ordered Helm value arguments to pass directly to Helm.
    * @returns the current InstallChartOptionsBuilder.
    */
-  public set(valueOverride: string[]): InstallChartOptionsBuilder {
-    this._set = valueOverride;
-    return this;
-  }
-
-  /**
-   * set literal values on the command line.
-   *
-   * @param valueOverride set literal values on the command line.
-   * @returns the current InstallChartOptionsBuilder.
-   */
-  public setLiteral(valueOverride: string[]): InstallChartOptionsBuilder {
-    this._setLiteral = valueOverride;
-    return this;
-  }
-
-  /**
-   * set values from files on the command line.
-   *
-   * @param valueOverride set-file values on the command line.
-   * @returns the current InstallChartOptionsBuilder.
-   */
-  public setFile(valueOverride: string[]): InstallChartOptionsBuilder {
-    this._setFile = valueOverride;
+  public valueArguments(valueArguments: string[]): InstallChartOptionsBuilder {
+    this._valueArguments = [...valueArguments];
     return this;
   }
 
@@ -202,17 +177,6 @@ export class InstallChartOptionsBuilder {
    */
   public username(username: string): InstallChartOptionsBuilder {
     this._username = username;
-    return this;
-  }
-
-  /**
-   * specify values in a YAML file or a URL (can specify multiple).
-   *
-   * @param values specify values in a YAML file or a URL (can specify multiple).
-   * @returns the current InstallChartOptionsBuilder.
-   */
-  public values(values: string[]): InstallChartOptionsBuilder {
-    this._values = values;
     return this;
   }
 
@@ -291,13 +255,10 @@ export class InstallChartOptionsBuilder {
       this._passCredentials,
       this._password,
       this._repo,
-      this._set,
-      this._setLiteral,
-      this._setFile,
+      [...this._valueArguments],
       this._skipCrds,
       this._timeout,
       this._username,
-      this._values,
       this._verify,
       this._version,
       this._waitFor,

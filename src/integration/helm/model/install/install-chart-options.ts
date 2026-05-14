@@ -16,13 +16,10 @@ import {type Options} from '../options.js';
  * @param passCredentials  - pass credentials to all domains.
  * @param password         - chart repository password where to locate the requested chart.
  * @param repo             - chart repository url where to locate the requested chart.
- * @param set              - set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
- * @param setLiteral       - set literal values on the command line.
- * @param setFile          - set values from files on the command line.
+ * @param valueArguments   - ordered Helm value arguments to pass directly to Helm.
  * @param skipCrds         - if set, no CRDs will be installed. By default, CRDs are installed if not already present.
  * @param timeout          - time to wait for any individual Kubernetes operation (like Jobs for hooks) (default 5m0s).
  * @param username         - chart repository username where to locate the requested chart.
- * @param values           - specify values in a YAML file or a URL (can specify multiple).
  * @param verify           - verify the package before installing it.
  * @param version          - specify a version constraint for the chart version to use. This constraint can be a
  *                         specific tag (e.g. 1.1.1) or it may reference a valid range (e.g. ^2.0.0). If this is not
@@ -82,19 +79,9 @@ export class InstallChartOptions implements Options {
     public readonly repo: string | null,
 
     /**
-     * set values on the command line (can specify multiple or separate values with commas: key1=val1,key2=val2)
+     * ordered Helm value arguments to pass directly to Helm.
      */
-    public readonly set: string[] | null,
-
-    /**
-     * set literal values on the command line.
-     */
-    public readonly setLiteral: string[] | null,
-
-    /**
-     * set values from files on the command line.
-     */
-    public readonly setFile: string[] | null,
+    public readonly valueArguments: string[],
 
     /**
      * if set, no CRDs will be installed. By default, CRDs are installed if not already present.
@@ -110,11 +97,6 @@ export class InstallChartOptions implements Options {
      * chart repository username where to locate the requested chart.
      */
     public readonly username: string | null,
-
-    /**
-     * specify values in a YAML file or a URL (can specify multiple).
-     */
-    public readonly values: string[] | null,
 
     /**
      * verify the package before installing it.
@@ -159,16 +141,8 @@ export class InstallChartOptions implements Options {
       builder.argument('repo', this.repo);
     }
 
-    if (this.set) {
-      builder.optionsWithMultipleValues('set', this.set);
-    }
-
-    if (this.setLiteral) {
-      builder.optionsWithMultipleValues('set-literal', this.setLiteral);
-    }
-
-    if (this.setFile) {
-      builder.optionsWithMultipleValues('set-file', this.setFile);
+    if (this.valueArguments.length > 0) {
+      builder.arguments(...this.valueArguments);
     }
 
     if (this.timeout) {
@@ -177,10 +151,6 @@ export class InstallChartOptions implements Options {
 
     if (this.username) {
       builder.argument('username', this.username);
-    }
-
-    if (this.values) {
-      builder.optionsWithMultipleValues('values', this.values);
     }
 
     if (this.kubeContext) {

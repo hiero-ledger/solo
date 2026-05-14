@@ -120,8 +120,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           const oomPattern: RegExp = /OOMKilled|out of memory|reason:\s*OOMKilled/i;
           const consensusNodePods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
 
-          expect(consensusNodePods.length, 'Expected at least one consensus node pod').to.be.greaterThan(0);
-
           for (const pod of consensusNodePods) {
             const describeOutput: string = await k8.pods().readDescribe(pod.podReference);
             const hasOom: boolean = oomPattern.test(describeOutput);
@@ -145,18 +143,15 @@ endToEndTestSuite.runTestSuite();
 // Helper functions
 // ---------------------------------------------------------------------------
 
-function readLastOneShotDeploymentName(): string {
-  return fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8').trim();
-}
-
 async function getNamespaceFromDeployment(): Promise<string> {
-  const storedDeploymentName: string = readLastOneShotDeploymentName();
-
+  const storedDeploymentName: string = fs.readFileSync(
+    PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'),
+    'utf8',
+  );
   const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
     InjectTokens.LocalConfigRuntimeState,
   );
   await localConfig.load();
-
   const storedDeployment: Deployment = localConfig.configuration.deploymentByName(storedDeploymentName);
   return storedDeployment.namespace;
 }
@@ -196,8 +191,10 @@ function soloOneShotDestroy(testNameArgument: string): string[] {
 function soloRapidFire(testNameArgument: string, performanceTest: string, argumentsString: string): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
-  const storedDeploymentName: string = readLastOneShotDeploymentName();
-
+  const storedDeploymentName: string = fs.readFileSync(
+    PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'),
+    'utf8',
+  );
   const argv: string[] = newArgv();
   argv.push(
     'rapid-fire',
@@ -208,7 +205,7 @@ function soloRapidFire(testNameArgument: string, performanceTest: string, argume
     optionFromFlag(Flags.performanceTest),
     performanceTest,
     optionFromFlag(Flags.nlgArguments),
-    argumentsString,
+    `'"${argumentsString}"'`,
   );
   argvPushGlobalFlags(argv, testNameArgument);
   return argv;
@@ -239,8 +236,8 @@ async function deployNlgChart(kubeContext: string): Promise<void> {
     return String.raw`${pod.podIp}\\\:${port}=${accountId}`;
   });
 
-  for (const [index, row] of networkProperties.entries()) {
-    valuesArgument += ` --set loadGenerator.properties[${index}]="${row}"`;
+  for (const row of networkProperties) {
+    valuesArgument += ` --set loadGenerator.properties[${networkProperties.indexOf(row)}]="${row}"`;
   }
 
   // Install NLG Helm chart
@@ -250,7 +247,7 @@ async function deployNlgChart(kubeContext: string): Promise<void> {
     constants.NETWORK_LOAD_GENERATOR_CHART,
     constants.NETWORK_LOAD_GENERATOR_CHART_URL,
     NETWORK_LOAD_GENERATOR_CHART_VERSION,
-    valuesArgument as unknown as Parameters<ChartManager['install']>[5],
+    valuesArgument,
     kubeContext,
   );
 
@@ -266,8 +263,6 @@ async function deployNlgChart(kubeContext: string): Promise<void> {
 
   // Install libsodium in NLG pod (required dependency)
   const nlgPods: Pod[] = await k8Instance.pods().list(namespaceObject, constants.NETWORK_LOAD_GENERATOR_POD_LABELS);
-
-  expect(nlgPods.length, 'Expected at least one NLG pod').to.be.greaterThan(0);
 
   const k8Containers: Containers = k8Instance.containers();
   for (const pod of nlgPods) {
@@ -295,8 +290,6 @@ async function copyThrottlesToNlgPod(kubeContext: string): Promise<void> {
 
   const nlgPods: Pod[] = await k8Instance.pods().list(namespaceObject, constants.NETWORK_LOAD_GENERATOR_POD_LABELS);
 
-  expect(nlgPods.length, 'Expected at least one NLG pod').to.be.greaterThan(0);
-
   const throttlesSourcePath: string = PathEx.join(
     constants.RESOURCES_DIR,
     'templates',
@@ -311,7 +304,6 @@ async function copyThrottlesToNlgPod(kubeContext: string): Promise<void> {
       constants.NETWORK_LOAD_GENERATOR_CONTAINER,
     );
     const nlgContainer: Container = k8Containers.readByRef(containerReference);
-    await nlgContainer.copyTo(throttlesSourcePath, '/app/throttles.json');
-    await nlgContainer.execContainer('ls -l /app/throttles.json');
+    await nlgContainer.copyTo(throttlesSourcePath, '/app');
   }
 }

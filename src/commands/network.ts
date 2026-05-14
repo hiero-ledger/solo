@@ -14,7 +14,6 @@ import {Templates} from '../core/templates.js';
 import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
   parseNodeAliases,
-  prepareValuesFilesMapMultipleCluster,
   resolveValidJsonFilePath,
   showVersionBanner,
   sleep,
@@ -281,26 +280,68 @@ export class NetworkCommand extends BaseCommand {
     };
   }
 
-  private addValuesFiles(chartValues: HelmChartValues, valuesFile: string): void {
-    if (!valuesFile) {
-      return;
+  private prepareValuesFilesMap(
+    clusterReferences: ClusterReferences,
+    chartDirectory?: string,
+    profileValuesFile?: Record<ClusterReferenceName, string>,
+    valuesFileInput?: string,
+    baseValuesFiles?: string[],
+  ): Record<ClusterReferenceName, HelmChartValues> {
+    const chartValuesMap: Record<ClusterReferenceName, HelmChartValues> = {
+      [flags.KEY_COMMON]: new HelmChartValues(),
+    };
+
+    for (const [clusterReference] of clusterReferences) {
+      chartValuesMap[clusterReference] = new HelmChartValues();
     }
 
-    for (const filePath of valuesFile.split(',')) {
-      const trimmedFilePath: string = filePath.trim();
+    if (chartDirectory) {
+      const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
 
-      if (trimmedFilePath) {
-        chartValues.file(PathEx.resolve(trimmedFilePath));
+      for (const chartValues of Object.values(chartValuesMap)) {
+        chartValues.file(chartValuesFile);
       }
     }
-  }
 
-  private addValueFileArguments(chartValues: HelmChartValues, valuesArgument: string): void {
-    const valuesFilePaths: string[] = helmValuesHelper.parseValuesFilePaths(valuesArgument);
-
-    for (const valuesFilePath of valuesFilePaths) {
-      chartValues.file(valuesFilePath);
+    if (baseValuesFiles) {
+      for (const file of baseValuesFiles) {
+        for (const chartValues of Object.values(chartValuesMap)) {
+          chartValues.file(file);
+        }
+      }
     }
+
+    if (profileValuesFile) {
+      for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
+        if (clusterReference === flags.KEY_COMMON) {
+          for (const chartValues of Object.values(chartValuesMap)) {
+            chartValues.file(file);
+          }
+        } else {
+          chartValuesMap[clusterReference]?.file(file);
+        }
+      }
+    }
+
+    if (valuesFileInput) {
+      const parsed: Record<string, string[]> = flags.parseValuesFilesInput(valuesFileInput);
+
+      for (const [clusterReference, files] of Object.entries(parsed)) {
+        if (clusterReference === flags.KEY_COMMON) {
+          for (const chartValues of Object.values(chartValuesMap)) {
+            chartValues.files(files);
+          }
+        } else {
+          chartValuesMap[clusterReference]?.files(files);
+        }
+      }
+    }
+
+    if (Object.keys(chartValuesMap).length > 1) {
+      delete chartValuesMap[flags.KEY_COMMON];
+    }
+
+    return chartValuesMap;
   }
 
   private async prepareMinioSecrets(
@@ -432,7 +473,6 @@ export class NetworkCommand extends BaseCommand {
     const chartValuesMap: Record<ClusterReferenceName, HelmChartValues> = this.prepareChartValues(config);
 
     // prepare values files for each cluster
-    const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const applicationPropertiesPath: string = PathEx.joinWithRealPath(
       config.cacheDir,
@@ -458,7 +498,7 @@ export class NetworkCommand extends BaseCommand {
       },
     );
 
-    const valuesFiles: Record<ClusterReferenceName, string> = prepareValuesFilesMapMultipleCluster(
+    const valueFilesByCluster: Record<ClusterReferenceName, HelmChartValues> = this.prepareValuesFilesMap(
       config.clusterRefs,
       config.chartDirectory,
       this.profileValuesFile,
@@ -478,7 +518,7 @@ export class NetworkCommand extends BaseCommand {
       const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
       const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
-      for (const clusterReference of Object.keys(valuesFiles)) {
+      for (const clusterReference of Object.keys(valueFilesByCluster)) {
         // Only include nodes belonging to this cluster so the generated hedera.nodes array
         // matches the cluster-specific node set and does not overwrite nodes in other clusters.
         // Sort deterministically by nodeId so per-node Helm values align with the chart's
@@ -525,7 +565,7 @@ export class NetworkCommand extends BaseCommand {
         // Collect extraEnv entries already present in this cluster's values files so that the
         // generated file can include them and avoid Helm array replacement silently dropping
         // env vars set by user-provided values files.
-        const existingValuesFilePaths: string[] = helmValuesHelper.parseValuesFilePaths(valuesFiles[clusterReference]);
+        const existingValuesFilePaths: string[] = valueFilesByCluster[clusterReference]?.valueFiles ?? [];
 
         const clusterExtraEnvironmentValuesFile: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
           clusterConsensusNodes,
@@ -550,28 +590,22 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    for (const clusterReference of Object.keys(valuesFiles)) {
-      // Keep --set flags last so they override values files. This is critical when we also
-      // provide per-node extraEnv via a values file (e.g. --debug-node-alias), because a later
-      // values file can replace array elements and drop fields like node labels/account IDs.
+    for (const clusterReference of Object.keys(valueFilesByCluster)) {
+      // Keep value files before --set values so explicit set values override values files.
+      // This is critical when we also provide per-node extraEnv via a values file.
       const chartValues: HelmChartValues = chartValuesMap[clusterReference] ?? new HelmChartValues();
 
-      this.addValueFileArguments(chartValues, valuesFiles[clusterReference]);
+      chartValues.add(valueFilesByCluster[clusterReference]);
 
-      // Add per-cluster extraEnv values file if any extraEnv customizations are needed
+      // Add per-cluster extraEnv values file if any extraEnv customizations are needed.
       if (perClusterExtraEnvironmentValuesFiles[clusterReference]) {
         chartValues.file(perClusterExtraEnvironmentValuesFiles[clusterReference]);
       }
 
       chartValuesMap[clusterReference] = chartValues;
 
-      valuesArgumentMap[clusterReference] = [
-        ...chartValues.valueFiles.map((valueFile): string => `--values ${valueFile}`),
-        ...chartValues.setValues.map((value): string => `--set ${value}`),
-      ].join(' ');
-
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
-        valuesArgument: valuesArgumentMap[clusterReference],
+        chartValues: chartValues.toCommandSummary(),
       });
     }
 

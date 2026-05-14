@@ -62,8 +62,6 @@ import {
   entityId,
   extractContextFromConsensusNodes,
   prepareEndpoints,
-  prepareValuesFilesMap,
-  prepareValuesFilesMapMultipleCluster,
   renameAndCopyFile,
   showVersionBanner,
   sleep,

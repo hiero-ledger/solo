@@ -3,44 +3,47 @@
 export type HelmChartValue = string | number | boolean;
 
 export class HelmChartValues {
-  public readonly setValues: string[] = [];
-  public readonly setLiteralValues: string[] = [];
-  public readonly setFileValues: string[] = [];
-  public readonly valueFiles: string[] = [];
+  private readonly _arguments: string[] = [];
 
   public set(name: string, value: HelmChartValue): this {
-    this.setValues.push(`${name}=${value}`);
+    this._arguments.push('--set', `${name}=${value}`);
     return this;
   }
 
   public setLiteral(name: string, value: HelmChartValue): this {
-    this.setLiteralValues.push(`${name}=${value}`);
+    this._arguments.push('--set-literal', `${name}=${value}`);
     return this;
   }
 
   public setFile(name: string, path: string): this {
-    this.setFileValues.push(`${name}=${path}`);
-    return this;
-  }
-
-  public setMany(values: Record<string, HelmChartValue>): this {
-    for (const [name, value] of Object.entries(values)) {
-      this.set(name, value);
-    }
-
+    this._arguments.push('--set-file', `${name}=${path}`);
     return this;
   }
 
   public file(path: string): this {
-    this.valueFiles.push(path);
+    this._arguments.push('--values', path);
     return this;
   }
 
   public add(values: HelmChartValues): this {
-    this.setValues.push(...values.setValues);
-    this.setLiteralValues.push(...values.setLiteralValues);
-    this.setFileValues.push(...values.setFileValues);
-    this.valueFiles.push(...values.valueFiles);
+    this._arguments.push(...values.toArguments());
     return this;
+  }
+
+  public arguments(...arguments_: string[]): this {
+    this._arguments.push(...arguments_);
+    return this;
+  }
+
+  public toArguments(): string[] {
+    return [...this._arguments];
+  }
+
+  public isEmpty(): boolean {
+    return this._arguments.length === 0;
+  }
+
+  public clone(): HelmChartValues {
+    return new HelmChartValues().arguments(...this._arguments);
   }
 }
