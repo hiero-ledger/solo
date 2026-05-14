@@ -525,7 +525,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               ),
           })
             .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
-            .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(5)),
+            .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(10)),
         ],
         (getConfig: () => OneShotSingleDeployConfigClass): ExecutionMode =>
           getConfig().parallelDeploy
