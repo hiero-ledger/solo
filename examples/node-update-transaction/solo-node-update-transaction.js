@@ -1,17 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  AccountBalanceQuery,
-  AccountId,
-  Client,
-  Hbar,
-  Logger,
-  LogLevel,
-  Long,
-  NodeUpdateTransaction,
-  PrivateKey,
-  TransferTransaction,
-} from '@hiero-ledger/sdk';
+import {AccountId, Client, Logger, LogLevel, Long, NodeUpdateTransaction, PrivateKey} from '@hiero-ledger/sdk';
 import {readFileSync} from 'node:fs';
 
 const TREASURY_ACCOUNT_ID = '0.0.2';
@@ -46,8 +35,6 @@ async function main() {
   // console.log(`${logPrefix} ${JSON.stringify(prepareOutput)}`);
   const transformedPrepareOutput = prepareOutputParser(prepareOutput);
   try {
-    await ensureAccountHasBalance(nodeClient, transformedPrepareOutput.newAccountNumber);
-
     const nodeUpdateTx = new NodeUpdateTransaction()
       .setNodeId(new Long(nodeIdFromNodeAlias('node2')))
       .setAccountId(transformedPrepareOutput.newAccountNumber)
@@ -75,24 +62,6 @@ function prepareOutputParser(prepareOutput) {
   return transformedPrepareOutput;
 }
 
-async function ensureAccountHasBalance(client, accountIdString) {
-  const accountId = AccountId.fromString(accountIdString);
-  const balance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
-  if (balance.hbars.toTinybars().toNumber() > 0) {
-    console.log(`${logPrefix} account ${accountIdString} already funded: ${balance.hbars.toString()}`);
-    return;
-  }
-
-  console.log(`${logPrefix} funding account ${accountIdString} with 1 hbar`);
-  const transferTx = await new TransferTransaction()
-    .addHbarTransfer(TREASURY_ACCOUNT_ID, new Hbar(-1))
-    .addHbarTransfer(accountId, new Hbar(1))
-    .freezeWith(client);
-  const transferResp = await transferTx.execute(client);
-  const transferReceipt = await transferResp.getReceipt(client);
-  console.log(`${logPrefix} funding receipt status: ${transferReceipt.status.toString()}`);
-}
-
 function nodeIdFromNodeAlias(nodeAlias) {
   for (let index = nodeAlias.length - 1; index > 0; index--) {
     if (Number.isNaN(Number.parseInt(nodeAlias[index]))) {
@@ -107,7 +76,6 @@ main()
   .then()
   .catch(e => {
     console.log(`${logPrefix} failure`, e);
-    process.exitCode = 1;
   })
   .finally(() => {
     console.log(`${logPrefix} finally`);
