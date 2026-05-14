@@ -4335,6 +4335,7 @@ export class NodeCommandTasks {
           {name: 'explorer', labels: [constants.SOLO_EXPLORER_LABEL]},
           {name: 'block node', labels: [constants.SOLO_BLOCK_NODE_NAME_LABEL]},
           {name: 'ingress controller', labels: [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
+          {name: 'network load generator', labels: constants.NETWORK_LOAD_GENERATOR_POD_LABELS},
         ];
 
         // Create output directory structure - use custom dir if provided, otherwise use default
