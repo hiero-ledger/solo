@@ -423,43 +423,10 @@ restart_importer_pods_for_recovery() {
   done <<< "${importerDeployments}"
 }
 
-# Function to apply one-shot importer hash-chain recovery after CN restart if mismatch is detected.
+# Function to apply one-shot importer hash-chain recovery after CN restart.
 auto_recover_importer_hash_chain() {
   local namespace="${1}"
-  local forceReset="${2:-false}"
-  local waitSeconds=120
-  local pollInterval=5
-  local waited=0
-
-  if [[ "${forceReset}" == "true" ]]; then
-    echo "[IMPORTER_RECOVERY] Applying preventive importer hash-chain recovery for migration boundary"
-    collect_restart_boundary_diagnostics "${namespace}"
-    reset_importer_hash_chain_for_upgrade "${namespace}"
-    restart_importer_pods_for_recovery "${namespace}"
-
-    if importer_hash_mismatch_detected "${namespace}" "10m"; then
-      echo "[IMPORTER_RECOVERY] WARNING: mismatch still present after one-shot recovery"
-    else
-      echo "[IMPORTER_RECOVERY] Recovery completed; mismatch not observed in recent importer logs"
-    fi
-    return 0
-  fi
-
-  # Observation window because mismatch can surface after node start/rollout delays.
-  while [[ ${waited} -lt ${waitSeconds} ]]; do
-    if importer_hash_mismatch_detected "${namespace}" "90m"; then
-      break
-    fi
-    sleep "${pollInterval}"
-    waited=$((waited + pollInterval))
-  done
-
-  if ! importer_hash_mismatch_detected "${namespace}" "90m"; then
-    echo "[IMPORTER_RECOVERY] No hash mismatch detected in ${waitSeconds}s observation window; skipping recovery"
-    return 0
-  fi
-
-  echo "[IMPORTER_RECOVERY] Detected importer hash mismatch; collecting diagnostics and applying one-shot recovery"
+  echo "[IMPORTER_RECOVERY] Applying preventive importer hash-chain recovery for migration boundary"
   collect_restart_boundary_diagnostics "${namespace}"
   reset_importer_hash_chain_for_upgrade "${namespace}"
   restart_importer_pods_for_recovery "${namespace}"
@@ -608,7 +575,7 @@ fi
 
 restore_tx_generators_after_freeze "${SOLO_NAMESPACE}"
 # Apply preventive reset at the known freeze/restart boundary.
-auto_recover_importer_hash_chain "${SOLO_NAMESPACE}" "true"
+auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
 
 # npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
@@ -625,7 +592,7 @@ auto_recover_importer_hash_chain "${SOLO_NAMESPACE}" "true"
 # redeploy mirror node to upgrade to a newer version
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
 # Re-apply after mirror rollout since importer pods are recreated.
-auto_recover_importer_hash_chain "${SOLO_NAMESPACE}" "true"
+auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
 # npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 npm run solo -- deployment refresh port-forwards --deployment "${SOLO_DEPLOYMENT}"
