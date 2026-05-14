@@ -30,6 +30,7 @@ import {OneShotSingleDeployConfigClass, OneShotVersionsObject} from './one-shot-
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
 import * as version from '../../../version.js';
+import {resolveEdgeVersions, type EdgeVersionsObject} from '../../core/edge-version-fetcher.js';
 import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
 import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
@@ -294,7 +295,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.oneShotState.activate();
 
               const edgeEnabled: boolean = this.configManager.getFlag(Flags.edgeEnabled);
-              const versions: OneShotVersionsObject = this.resolveOneShotComponentVersions(edgeEnabled);
+              const versions: OneShotVersionsObject = await this.resolveOneShotComponentVersions(edgeEnabled);
 
               // Pre-set component version flags in configManager so they are available
               // for all sub-commands during concurrent execution
@@ -1968,23 +1969,42 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public async close(): Promise<void> {} // no-op
 
-  private resolveOneShotComponentVersions(useEdge: boolean): OneShotVersionsObject {
-    return useEdge
-      ? {
-          soloChart: version.SOLO_CHART_EDGE_VERSION,
-          consensus: version.HEDERA_PLATFORM_EDGE_VERSION,
-          mirror: version.MIRROR_NODE_EDGE_VERSION,
-          explorer: version.EXPLORER_EDGE_VERSION,
-          relay: version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION,
-          blockNode: version.BLOCK_NODE_EDGE_VERSION,
-        }
-      : {
-          soloChart: version.SOLO_CHART_VERSION,
-          consensus: version.HEDERA_PLATFORM_VERSION,
-          mirror: version.MIRROR_NODE_VERSION,
-          explorer: version.EXPLORER_VERSION,
-          relay: version.HEDERA_JSON_RPC_RELAY_VERSION,
-          blockNode: version.BLOCK_NODE_VERSION,
-        };
+  private async resolveOneShotComponentVersions(useEdge: boolean): Promise<OneShotVersionsObject> {
+    if (!useEdge) {
+      return {
+        soloChart: version.SOLO_CHART_VERSION,
+        consensus: version.HEDERA_PLATFORM_VERSION,
+        mirror: version.MIRROR_NODE_VERSION,
+        explorer: version.EXPLORER_VERSION,
+        relay: version.HEDERA_JSON_RPC_RELAY_VERSION,
+        blockNode: version.BLOCK_NODE_VERSION,
+      };
+    }
+
+    const edgeVersions: OneShotVersionsObject = {
+      soloChart: version.SOLO_CHART_EDGE_VERSION,
+      consensus: version.HEDERA_PLATFORM_VERSION,
+      mirror: version.MIRROR_NODE_VERSION,
+      explorer: version.EXPLORER_VERSION,
+      relay: version.HEDERA_JSON_RPC_RELAY_VERSION,
+      blockNode: version.BLOCK_NODE_VERSION,
+    };
+
+    const resolvedComponentVersions: EdgeVersionsObject = await resolveEdgeVersions({
+      consensus: edgeVersions.consensus,
+      mirror: edgeVersions.mirror,
+      blockNode: edgeVersions.blockNode,
+      explorer: edgeVersions.explorer,
+      relay: edgeVersions.relay,
+    });
+
+    return {
+      soloChart: edgeVersions.soloChart,
+      consensus: resolvedComponentVersions.consensus,
+      mirror: resolvedComponentVersions.mirror,
+      explorer: resolvedComponentVersions.explorer,
+      relay: resolvedComponentVersions.relay,
+      blockNode: resolvedComponentVersions.blockNode,
+    };
   }
 }
