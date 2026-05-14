@@ -215,7 +215,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          consensus_node_version="$(bash ./.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)"
+          source .github/workflows/script/helper.sh
+          consensus_node_version="$(extract_version HEDERA_PLATFORM_VERSION version.ts)"
           normalized_version="$(echo "${consensus_node_version}" | sed -E 's/^v//; s/-.*$//')"
 
           java_version="21"

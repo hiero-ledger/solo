@@ -347,9 +347,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source .github/workflows/script/helper.sh
 
           if [ -z "${{ inputs.consensus-node-version }}" ]; then
-            consensus_node_version="$(bash ./.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)"
+            consensus_node_version="$(extract_version HEDERA_PLATFORM_VERSION version.ts)"
           else
             consensus_node_version="${{ inputs.consensus-node-version }}"
           fi
