@@ -117,6 +117,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.parallelDeploy,
       flags.externalAddress,
       flags.edgeEnabled,
+      flags.consensusNodeVersion,
+      flags.mirrorNodeVersion,
+      flags.relayVersion,
+      flags.explorerVersion,
+      flags.blockNodeVersion,
     ],
   };
 
@@ -147,6 +152,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.rollback,
       flags.parallelDeploy,
       flags.externalAddress,
+      flags.consensusNodeVersion,
+      flags.mirrorNodeVersion,
+      flags.relayVersion,
+      flags.explorerVersion,
+      flags.blockNodeVersion,
     ],
   };
 
@@ -294,7 +304,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               this.oneShotState.activate();
 
               const edgeEnabled: boolean = this.configManager.getFlag(Flags.edgeEnabled);
-              const versions: OneShotVersionsObject = this.resolveOneShotComponentVersions(edgeEnabled);
+              const versions: OneShotVersionsObject = this.resolveOneShotComponentVersions(argv, edgeEnabled);
 
               // Pre-set component version flags in configManager so they are available
               // for all sub-commands during concurrent execution
@@ -1968,23 +1978,175 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   public async close(): Promise<void> {} // no-op
 
-  private resolveOneShotComponentVersions(useEdge: boolean): OneShotVersionsObject {
-    return useEdge
-      ? {
-          soloChart: version.SOLO_CHART_EDGE_VERSION,
-          consensus: version.HEDERA_PLATFORM_EDGE_VERSION,
-          mirror: version.MIRROR_NODE_EDGE_VERSION,
-          explorer: version.EXPLORER_EDGE_VERSION,
-          relay: version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION,
-          blockNode: version.BLOCK_NODE_EDGE_VERSION,
+  /**
+   * Searches for a solo.config.yaml or solo.config.json file starting from the current working
+   * directory and walking up to the filesystem root.  Returns the full path to the first match, or
+   * undefined if none is found.
+   */
+  private findSoloConfigFile(): string | undefined {
+    const fileNames: string[] = ['solo.config.yaml', 'solo.config.json'];
+    let current: string = process.cwd();
+
+    while (true) {
+      for (const name of fileNames) {
+        const fullPath: string = path.join(current, name);
+        if (fs.existsSync(fullPath)) {
+          return fullPath;
         }
-      : {
-          soloChart: version.SOLO_CHART_VERSION,
-          consensus: version.HEDERA_PLATFORM_VERSION,
-          mirror: version.MIRROR_NODE_VERSION,
-          explorer: version.EXPLORER_VERSION,
-          relay: version.HEDERA_JSON_RPC_RELAY_VERSION,
-          blockNode: version.BLOCK_NODE_VERSION,
-        };
+      }
+      const parent: string = path.dirname(current);
+      if (parent === current) {
+        return undefined;
+      }
+      current = parent;
+    }
+  }
+
+  /**
+   * Reads component version overrides from a solo.config.yaml or solo.config.json file found in
+   * the current working directory or any parent.  Supports both camelCase and kebab-case keys.
+   * Returns an empty object if no file is found or if it cannot be parsed.
+   */
+  private loadVersionsFromSoloConfigFile(): {
+    consensusNodeVersion?: string;
+    mirrorNodeVersion?: string;
+    relayVersion?: string;
+    explorerVersion?: string;
+    blockNodeVersion?: string;
+  } {
+    const filePath: string | undefined = this.findSoloConfigFile();
+    if (!filePath) {
+      return {};
+    }
+
+    try {
+      const content: string = fs.readFileSync(filePath, 'utf8');
+      const parsed: Record<string, unknown> = filePath.endsWith('.json')
+        ? (JSON.parse(content) as Record<string, unknown>)
+        : (yaml.parse(content) as Record<string, unknown>);
+      if (!parsed || typeof parsed !== 'object') {
+        return {};
+      }
+      this.logger.debug(`Loaded solo config file for version overrides: ${filePath}`);
+      return {
+        consensusNodeVersion:
+          (parsed['consensusNodeVersion'] as string | undefined) ||
+          (parsed['consensus-node-version'] as string | undefined),
+        mirrorNodeVersion:
+          (parsed['mirrorNodeVersion'] as string | undefined) || (parsed['mirror-node-version'] as string | undefined),
+        relayVersion: (parsed['relayVersion'] as string | undefined) || (parsed['relay-version'] as string | undefined),
+        explorerVersion:
+          (parsed['explorerVersion'] as string | undefined) || (parsed['explorer-version'] as string | undefined),
+        blockNodeVersion:
+          (parsed['blockNodeVersion'] as string | undefined) || (parsed['block-node-version'] as string | undefined),
+      };
+    } catch (error) {
+      this.logger.warn(`Failed to parse solo config file at ${filePath}: ${(error as Error).message}`);
+      return {};
+    }
+  }
+
+  /**
+   * Resolves the component versions for a one-shot deploy using the following precedence (highest
+   * to lowest):
+   *
+   *  1. Explicit CLI flag (e.g. --consensus-node-version, --mirror-node-version, …)
+   *  2. Environment variable (CONSENSUS_NODE_VERSION / _EDGE_VERSION, etc.)
+   *  3. solo.config.yaml or solo.config.json found in CWD or any parent directory
+   *  4. Hard-coded defaults from version.ts (optionally the edge variant when --edge is passed)
+   */
+  private resolveOneShotComponentVersions(argv: ArgvStruct, useEdge: boolean): OneShotVersionsObject {
+    const configFile: {
+      consensusNodeVersion?: string;
+      mirrorNodeVersion?: string;
+      relayVersion?: string;
+      explorerVersion?: string;
+      blockNodeVersion?: string;
+    } = this.loadVersionsFromSoloConfigFile();
+    const getEnvironment: (name: string) => string | undefined = constants.getEnvironmentVariable.bind(constants);
+
+    // Returns the first non-empty string from the candidates array.
+    const pick: (...candidates: (string | undefined)[]) => string = (...candidates: (string | undefined)[]): string => {
+      for (const candidate of candidates) {
+        if (candidate) {
+          return candidate;
+        }
+      }
+      return '';
+    };
+
+    // Detects whether the user explicitly provided a value for a flag that has a non-empty default.
+    // Compares the raw argv value against both the standard and edge defaults to avoid false positives
+    // when only one of the env vars is set.
+    const isExplicitFlag: (argvValue: string | undefined, stdDefault: string, edgeDefault: string) => boolean = (
+      argvValue: string | undefined,
+      stdDefault: string,
+      edgeDefault: string,
+    ): boolean => {
+      if (!argvValue) {
+        return false;
+      }
+      return argvValue !== stdDefault && argvValue !== edgeDefault;
+    };
+
+    // --- Consensus ---
+    const consensusCli: string | undefined = argv[Flags.consensusNodeVersion.name] as string | undefined;
+    const consensusEnvironment: string | undefined = useEdge
+      ? getEnvironment('CONSENSUS_NODE_EDGE_VERSION') || getEnvironment('CONSENSUS_NODE_VERSION')
+      : getEnvironment('CONSENSUS_NODE_VERSION');
+    const consensusDefault: string = useEdge ? version.HEDERA_PLATFORM_EDGE_VERSION : version.HEDERA_PLATFORM_VERSION;
+
+    // --- Mirror ---
+    const mirrorArgv: string | undefined = argv[Flags.mirrorNodeVersion.name] as string | undefined;
+    const mirrorCli: string | undefined = isExplicitFlag(
+      mirrorArgv,
+      version.MIRROR_NODE_VERSION,
+      version.MIRROR_NODE_EDGE_VERSION,
+    )
+      ? mirrorArgv
+      : undefined;
+    const mirrorEnvironment: string | undefined = useEdge
+      ? getEnvironment('MIRROR_NODE_EDGE_VERSION') || getEnvironment('MIRROR_NODE_VERSION')
+      : getEnvironment('MIRROR_NODE_VERSION');
+    const mirrorDefault: string = useEdge ? version.MIRROR_NODE_EDGE_VERSION : version.MIRROR_NODE_VERSION;
+
+    // --- Explorer ---
+    const explorerArgv: string | undefined = argv[Flags.explorerVersion.name] as string | undefined;
+    const explorerCli: string | undefined = isExplicitFlag(
+      explorerArgv,
+      version.EXPLORER_VERSION,
+      version.EXPLORER_EDGE_VERSION,
+    )
+      ? explorerArgv
+      : undefined;
+    const explorerEnvironment: string | undefined = useEdge
+      ? getEnvironment('EXPLORER_EDGE_VERSION') || getEnvironment('EXPLORER_VERSION')
+      : getEnvironment('EXPLORER_VERSION');
+    const explorerDefault: string = useEdge ? version.EXPLORER_EDGE_VERSION : version.EXPLORER_VERSION;
+
+    // --- Relay ---
+    const relayCli: string | undefined = argv[Flags.relayVersion.name] as string | undefined;
+    const relayEnvironment: string | undefined = useEdge
+      ? getEnvironment('RELAY_EDGE_VERSION') || getEnvironment('RELAY_VERSION')
+      : getEnvironment('RELAY_VERSION');
+    const relayDefault: string = useEdge
+      ? version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION
+      : version.HEDERA_JSON_RPC_RELAY_VERSION;
+
+    // --- Block Node ---
+    const blockNodeCli: string | undefined = argv[Flags.blockNodeVersion.name] as string | undefined;
+    const blockNodeEnvironment: string | undefined = useEdge
+      ? getEnvironment('BLOCK_NODE_EDGE_VERSION') || getEnvironment('BLOCK_NODE_VERSION')
+      : getEnvironment('BLOCK_NODE_VERSION');
+    const blockNodeDefault: string = useEdge ? version.BLOCK_NODE_EDGE_VERSION : version.BLOCK_NODE_VERSION;
+
+    return {
+      soloChart: useEdge ? version.SOLO_CHART_EDGE_VERSION : version.SOLO_CHART_VERSION,
+      consensus: pick(consensusCli, consensusEnvironment, configFile.consensusNodeVersion, consensusDefault),
+      mirror: pick(mirrorCli, mirrorEnvironment, configFile.mirrorNodeVersion, mirrorDefault),
+      explorer: pick(explorerCli, explorerEnvironment, configFile.explorerVersion, explorerDefault),
+      relay: pick(relayCli, relayEnvironment, configFile.relayVersion, relayDefault),
+      blockNode: pick(blockNodeCli, blockNodeEnvironment, configFile.blockNodeVersion, blockNodeDefault),
+    };
   }
 }

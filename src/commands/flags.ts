@@ -2936,6 +2936,47 @@ export class Flags {
     prompt: undefined,
   };
 
+  // --------------- One Shot Version Pins --------------- //
+
+  public static readonly consensusNodeVersion: CommandFlag = {
+    constName: 'consensusNodeVersion',
+    name: 'consensus-node-version',
+    definition: {
+      describe:
+        'Consensus node version to deploy for one-shot (e.g. v0.73.0 or 0.73.0). ' +
+        'Overrides CONSENSUS_NODE_VERSION / CONSENSUS_NODE_EDGE_VERSION env vars.',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly relayVersion: CommandFlag = {
+    constName: 'relayVersion',
+    name: 'relay-version',
+    definition: {
+      describe:
+        'JSON-RPC relay version to deploy for one-shot (e.g. v0.76.2 or 0.76.2). ' +
+        'Overrides RELAY_VERSION / RELAY_EDGE_VERSION env vars.',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeVersion: CommandFlag = {
+    constName: 'blockNodeVersion',
+    name: 'block-node-version',
+    definition: {
+      describe:
+        'Block node version to deploy for one-shot (e.g. v0.31.0 or 0.31.0). ' +
+        'Overrides BLOCK_NODE_VERSION / BLOCK_NODE_EDGE_VERSION env vars.',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   // ------------------ Edge ---------------- //
 
   public static readonly edgeEnabled: CommandFlag = {
@@ -3127,6 +3168,9 @@ export class Flags {
     Flags.rollback,
     Flags.parallelDeploy,
     Flags.edgeEnabled,
+    Flags.consensusNodeVersion,
+    Flags.relayVersion,
+    Flags.blockNodeVersion,
   ];
 
   /** Resets the definition.disablePrompt for all flags */
