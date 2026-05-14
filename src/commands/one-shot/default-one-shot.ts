@@ -94,6 +94,7 @@ import {StringFacade} from '../../business/runtime-state/facade/string-facade.js
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {OneShotInfoContext} from './one-shot-info-context.js';
 import {ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
+import {CacheCommandDefinition} from '../command-definitions/cache-command-definition.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -368,6 +369,21 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
               config.force = argv.force;
 
+              // Ensure release tag is set in network configuration so subcommands use the correct version
+              const releaseTagKey: string = flags.getFormattedFlagKey(Flags.releaseTag);
+              if (!config.networkConfiguration[releaseTagKey]) {
+                config.networkConfiguration[releaseTagKey] = versions.consensus;
+              }
+              if (!config.setupConfiguration[releaseTagKey]) {
+                config.setupConfiguration[releaseTagKey] = versions.consensus;
+              }
+              this.logger.addLogBindings({
+                clusterReference: config.clusterRef,
+                context: config.context,
+                deployment: config.deployment,
+                namespace: config.namespace.name,
+              });
+
               // Apply small-memory node configuration only for CN >= 0.72.0 and when not using `one-shot falcon deploy`
               const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
               const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
@@ -490,6 +506,36 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             skip: (context_: OneShotSingleDeployContext): boolean =>
               context_.config.force === true || context_.config.quiet === true,
           },
+          invokeSoloCommand(
+            `solo ${CacheCommandDefinition.IMAGE_PULL_COMMAND}`,
+            CacheCommandDefinition.IMAGE_PULL_COMMAND,
+            (): string[] => {
+              const argv: string[] = newArgv();
+              argv.push(
+                ...CacheCommandDefinition.IMAGE_PULL_COMMAND.split(' '),
+                optionFromFlag(Flags.edgeEnabled),
+                (!!config.edgeEnabled).toString(),
+              );
+              return argvPushGlobalFlags(argv);
+            },
+            this.taskList,
+            (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
+          ),
+          invokeSoloCommand(
+            `solo ${CacheCommandDefinition.IMAGE_LOAD_COMMAND}`,
+            CacheCommandDefinition.IMAGE_LOAD_COMMAND,
+            (): string[] => {
+              const argv: string[] = newArgv();
+              argv.push(
+                ...CacheCommandDefinition.IMAGE_LOAD_COMMAND.split(' '),
+                optionFromFlag(Flags.clusterRef),
+                config.clusterRef,
+              );
+              return argvPushGlobalFlags(argv);
+            },
+            this.taskList,
+            (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
+          ),
           invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
             ClusterReferenceCommandDefinition.CONNECT_COMMAND,
@@ -933,7 +979,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                       await this.eventBus.waitFor(
                         SoloEventType.NodesStarted,
                         (soloEvent: NodesStartedEvent): boolean => soloEvent.deployment === config.deployment,
-                        Duration.ofMinutes(5),
+                        Duration.ofMinutes(10),
                       );
                       const argv: string[] = newArgv();
                       argv.push(

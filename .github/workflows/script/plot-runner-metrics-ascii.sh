@@ -282,12 +282,6 @@ else
   ASCII+=$'\n'
   ASCII+="⏱️  Test Duration: ${DURATION_MIN}.0 minutes (${NUM_POINTS} data points)"$'\n'
   ASCII+=$'\n'
-  ASCII+="📉 CPU Usage"$'\n'
-  ASCII+="$cpu_chart"$'\n'
-  ASCII+=$'\n'
-  ASCII+="📉 Host Memory Usage (MB)"$'\n'
-  ASCII+="$mem_chart"$'\n'
-  ASCII+=$'\n'
   if [[ -n "$pod_cpu_chart" ]]; then
     ASCII+="⚙️  Pod CPU Usage — sum of all containers (millicores)"$'\n'
     ASCII+="$pod_cpu_chart"$'\n'
