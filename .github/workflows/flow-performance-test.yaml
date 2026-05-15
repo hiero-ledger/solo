@@ -387,53 +387,6 @@ jobs:
           # Include the summary JSON in the metrics artifact
           cp ~/.solo/logs/*.json ~/.solo/metrics/ 2>/dev/null || true
 
-      # Solo diagnostics already pull pod logs + describe for many components (including NLG).
-      # This step adds CI-specific signal for NLG/SDK timeouts: recent cluster events, full pod
-      # listing, previous-container logs after restarts, and a process snapshot inside NLG.
-      - name: Collect cluster triage snapshot (events, NLG restarts, process list)
-        if: ${{ !cancelled() && always() }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          set +e
-          export PATH=~/.solo/bin:${PATH}
-          LOG_DIR="${HOME}/.solo/logs"
-          mkdir -p "${LOG_DIR}"
-          for CTX in kind-solo-e2e-c1 kind-solo-e2e-c2; do
-            if ! kubectl config get-contexts -o name | grep -qx "${CTX}"; then
-              continue
-            fi
-            {
-              echo "===== ${CTX}: kubectl get pods -A -o wide ====="
-              kubectl --context "${CTX}" get pods -A -o wide 2>&1
-              echo ""
-              echo "===== ${CTX}: recent events (all namespaces, tail 500) ====="
-              kubectl --context "${CTX}" get events -A --sort-by='.lastTimestamp' 2>&1 | tail -500
-            } > "${LOG_DIR}/ci-triage-${CTX}-cluster.txt" 2>&1
-            kubectl --context "${CTX}" get pods -A \
-              -l 'app.kubernetes.io/name=network-load-generator' \
-              -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null \
-            | while read -r triageNamespace triagePodName; do
-                if [[ -z "${triageNamespace}" || -z "${triagePodName}" ]]; then
-                  continue
-                fi
-                safeSlug="${triageNamespace}-${triagePodName}"
-                safeSlug="${safeSlug//[^a-zA-Z0-9._-]/_}"
-                {
-                  echo "===== describe pod ${triageNamespace}/${triagePodName} ====="
-                  kubectl --context "${CTX}" -n "${triageNamespace}" describe pod "${triagePodName}" 2>&1
-                  echo ""
-                  echo "===== logs -c nlg --tail=400 (current) ====="
-                  kubectl --context "${CTX}" -n "${triageNamespace}" logs "${triagePodName}" -c nlg --tail=400 2>&1
-                  echo ""
-                  echo "===== logs -c nlg --previous --tail=200 (if container restarted) ====="
-                  kubectl --context "${CTX}" -n "${triageNamespace}" logs "${triagePodName}" -c nlg --previous --tail=200 2>&1
-                  echo ""
-                  echo "===== ps aux (NLG container) ====="
-                  kubectl --context "${CTX}" -n "${triageNamespace}" exec "${triagePodName}" -c nlg -- ps aux 2>&1
-                } > "${LOG_DIR}/ci-triage-${CTX}-nlg-${safeSlug}.txt" 2>&1
-              done
-          done
-
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -4570,9 +4570,7 @@ export class NodeCommandTasks {
         const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
         let dumpResult: string;
         try {
-          dumpResult = await k8Container.execContainer(
-            `jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`,
-          );
+          dumpResult = await k8Container.execContainer(`jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`);
           this.logger.info(`JFR dump command output: ${dumpResult}`);
         } catch (error) {
           throw new SoloError(`Failed to create JFR recording on node pod ${nodeFullyQualifiedPodName}`, error);
