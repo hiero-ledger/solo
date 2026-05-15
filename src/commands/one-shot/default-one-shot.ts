@@ -147,6 +147,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.rollback,
       flags.parallelDeploy,
       flags.externalAddress,
+      flags.edgeEnabled,
     ],
   };
 
