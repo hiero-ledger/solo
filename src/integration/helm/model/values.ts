@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {PathEx} from '../../../business/utils/path-ex.js';
+
 export type HelmChartValue = string | number | boolean;
 
 export class HelmChartValues {
@@ -43,7 +45,31 @@ export class HelmChartValues {
     return this._arguments.length === 0;
   }
 
+  public setMany(values: Record<string, HelmChartValue>): this {
+    for (const [name, value] of Object.entries(values)) {
+      this.set(name, value);
+    }
+
+    return this;
+  }
+
   public clone(): HelmChartValues {
     return new HelmChartValues().arguments(...this._arguments);
+  }
+
+  public filesFromCommaSeparatedInput(input?: string): this {
+    if (!input) {
+      return this;
+    }
+
+    for (const path of input.split(',')) {
+      const trimmedPath: string = path.trim();
+
+      if (trimmedPath) {
+        this.file(PathEx.resolve(trimmedPath));
+      }
+    }
+
+    return this;
   }
 }

@@ -3,7 +3,7 @@
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {injectable, container} from 'tsyringe-neo';
-import {type ArgvStruct, NodeAlias} from '../types/aliases.js';
+import {AnyListrContext, type ArgvStruct, NodeAlias} from '../types/aliases.js';
 import {type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
 import yaml from 'yaml';
@@ -14,7 +14,7 @@ import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloError} from '../core/errors/solo-error.js';
-import {type Context, type ClusterReferences, type SoloListrTask} from '../types/index.js';
+import {type Context, type ClusterReferences, type SoloListrTask, SoloListr} from '../types/index.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
@@ -50,6 +50,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {Chart} from '../integration/helm/model/chart.js';
 import {Repository} from '../integration/helm/model/repository.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
+import {HelmChartValues} from '../integration/helm/model/values.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Container} from '../integration/kube/resources/container/container.js';
@@ -1481,7 +1482,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 .createNamespace(true)
                 .atomic(true)
                 .waitFor(true)
-                .set(['speaker.frr.enabled=true'])
+                .valueArguments(new HelmChartValues().set('speaker.frr.enabled', true).toArguments())
                 .kubeContext(clusterResponse.context)
                 .build(),
             );
@@ -1655,7 +1656,7 @@ export class BackupRestoreCommand extends BaseCommand {
       };
     }
 
-    const tasks: any = new Listr<RestoreClustersContext>(
+    const tasks: SoloListr<RestoreClustersContext> = new Listr(
       [
         this.buildInitializationTask(argv),
         {
@@ -1664,7 +1665,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
             return !zipPassword;
           },
-          task: async (context_: RestoreClustersContext, task): Promise<void> => {
+          task: async (context_, task): Promise<void> => {
             await this.extractEncryptedBackup(context_.inputDirectory, task);
           },
         },
@@ -1673,8 +1674,8 @@ export class BackupRestoreCommand extends BaseCommand {
         ...this.buildKindNetworkTask(),
         {
           title: 'Create individual clusters',
-          task: (context_: any, taskListWrapper: any): any => {
-            const clusterTasks: SoloListrTask<any>[] = this.buildIndividualClusterCreationTasks(
+          task: (context_, taskListWrapper): SoloListr<RestoreClustersContext> => {
+            const clusterTasks: SoloListrTask<AnyListrContext>[] = this.buildIndividualClusterCreationTasks(
               context_,
               metallbConfig,
             );
@@ -1702,13 +1703,13 @@ export class BackupRestoreCommand extends BaseCommand {
           '\nℹ️  Clusters have been created and initialized. Run "solo config ops restore-network" to deploy network components.',
         ),
       );
-    } catch (error: any) {
+    } catch (error) {
       throw new SoloError(`Restore clusters failed: ${error.message}`, error);
     } finally {
       await this.taskList
         .callCloseFunctions()
         .then()
-        .catch((error: any): void => this.logger.error('Error during closing task list:', error));
+        .catch((error): void => this.logger.error('Error during closing task list:', error));
     }
 
     return true;
@@ -1744,15 +1745,19 @@ export class BackupRestoreCommand extends BaseCommand {
       };
     }
 
-    const tasks: any = new Listr<RestoreNetworkContext>(
+    const tasks: SoloListr<RestoreNetworkContext> = new Listr(
       [
         this.buildInitializationTask(argv),
         // Flatten scan backup directory task (to load config and deployment state)
         this.buildScanBackupDirectoryTask(),
         {
           title: 'Initialize cluster configurations',
-          task: (context_: any, taskListWrapper: any): any => {
-            const initTasks: any[] = this.buildClusterInitializationTasks(context_, shard, realm);
+          task: (context_, taskListWrapper): SoloListr<RestoreNetworkContext> => {
+            const initTasks: SoloListrTask<AnyListrContext>[] = this.buildClusterInitializationTasks(
+              context_,
+              shard,
+              realm,
+            );
             return taskListWrapper.newListr(initTasks, {
               concurrent: false,
               rendererOptions: {collapseSubtasks: false},
@@ -1775,13 +1780,13 @@ export class BackupRestoreCommand extends BaseCommand {
       await tasks.run();
       this.logger.showUser(chalk.green('\n✅ Network components deployed successfully!'));
       this.logger.showUser(chalk.cyan('\nℹ️  All network components have been deployed to existing clusters.'));
-    } catch (error: any) {
+    } catch (error) {
       throw new SoloError(`Deploy network failed: ${error.message}`, error);
     } finally {
       await this.taskList
         .callCloseFunctions()
         .then()
-        .catch((error: any): void => this.logger.error('Error during closing task list:', error));
+        .catch((error): void => this.logger.error('Error during closing task list:', error));
     }
 
     return true;

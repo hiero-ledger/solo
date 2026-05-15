@@ -52,6 +52,8 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
    */
   private readonly _environmentVariables: Map<string, string> = new Map();
 
+  private readonly _orderedArguments: string[] = [];
+
   /**
    * Creates a new HelmExecutionBuilder instance.
    */
@@ -94,6 +96,11 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     }
 
     this._arguments.set(name, value);
+    return this;
+  }
+
+  public arguments(...arguments_: string[]): HelmExecutionBuilder {
+    this._orderedArguments.push(...arguments_);
     return this;
   }
 
@@ -173,7 +180,7 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
       }
     }
 
-    commandArguments.push(...this._positionals);
+    commandArguments.push(...this._orderedArguments, ...this._positionals);
 
     const redactedCommand: string[] = HelmExecution.redactCommand([this.helmExecutable, ...commandArguments]);
 
