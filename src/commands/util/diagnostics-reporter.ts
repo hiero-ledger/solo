@@ -75,7 +75,7 @@ export class DiagnosticsReporter {
       [
         {
           title: 'Verify GitHub CLI availability',
-          task: async (): Promise<void> => {
+          task: async (_context_): Promise<void> => {
             if (!(await DiagnosticsReporter.isGhCliAvailable(logger))) {
               throw new SoloError(
                 'The GitHub CLI (gh) is required for this command but was not found.\n' +

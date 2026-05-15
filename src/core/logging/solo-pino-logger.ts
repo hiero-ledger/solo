@@ -365,7 +365,7 @@ export class SoloPinoLogger implements SoloLogger {
   public showJSON(title: string, object: object): void {
     this.showUser(chalk.green(`\n *** ${title} ***`));
     this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
-    if (SOLO_SILENT_MODE) {
+    if (!SOLO_SILENT_MODE) {
       console.log(JSON.stringify(object, undefined, 2));
     }
   }
