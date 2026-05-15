@@ -339,7 +339,7 @@ function assertNonZeroTps(performanceTest: string, startedAt: Date): void {
     throw new Error(`${performanceTest}: solo.log not found at ${soloLogPath}; cannot verify TPS`);
   }
   const log: string = fs.readFileSync(soloLogPath, 'utf8');
-  const pattern: RegExp = new RegExp(`Finished\\s+${performanceTest}:\\s+(\\d+).*TPS:\\s+(\\d+)`);
+  const pattern: RegExp = new RegExp(String.raw`Finished\s+${performanceTest}:\s+(\d+).*TPS:\s+(\d+)`);
   const startedAtMs: number = startedAt.getTime();
   let matchedTps: number | undefined;
   for (const line of log.split('\n')) {
@@ -353,7 +353,9 @@ function assertNonZeroTps(performanceTest: string, startedAt: Date): void {
     }
   }
   if (matchedTps === undefined) {
-    throw new Error(`${performanceTest}: no "Finished ${performanceTest}: ... TPS: N" line found in solo.log after test start`);
+    throw new Error(
+      `${performanceTest}: no "Finished ${performanceTest}: ... TPS: N" line found in solo.log after test start`,
+    );
   }
   if (matchedTps === 0) {
     throw new Error(
