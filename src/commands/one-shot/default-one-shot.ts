@@ -157,6 +157,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.relayVersion,
       flags.explorerVersion,
       flags.blockNodeVersion,
+      flags.edgeEnabled,
     ],
   };
 
