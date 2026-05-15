@@ -53,8 +53,6 @@ import {
   type ComponentUpgradeMigrationStep,
 } from './migrations/component-upgrade-rules.js';
 import {optionFromFlag} from './command-helpers.js';
-import {PathEx} from '../business/utils/path-ex.js';
-import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -72,7 +70,7 @@ interface BlockNodeDeployConfigClass {
   imageTag: Optional<string>;
   namespace: NamespaceName;
   context: string;
-  chartValues: HelmChartValues;
+  valuesArg: string;
   newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
   livenessCheckPort: number;
@@ -92,6 +90,7 @@ interface BlockNodeDestroyConfigClass {
   namespace: NamespaceName;
   context: string;
   isChartInstalled: boolean;
+  valuesArg: string;
   releaseName: string;
   id: number;
   isLegacyChartInstalled: boolean;
@@ -116,7 +115,7 @@ interface BlockNodeUpgradeConfigClass {
   upgradeVersion: string;
   currentVersion: string;
   migrationPlan: ComponentUpgradeMigrationStep[];
-  chartValues: HelmChartValues;
+  valuesArg: string;
   id: number;
   isLegacyChartInstalled: boolean;
   /** Set by recreateBlockNodeChart; used by the readiness check to ignore the terminating predecessor pod. */
@@ -230,40 +229,28 @@ export class BlockNodeCommand extends BaseCommand {
     ],
   };
 
-  private addValuesFiles(chartValues: HelmChartValues, valuesFile: Optional<string>): void {
-    if (!valuesFile) {
-      return;
-    }
-
-    for (const filePath of valuesFile.split(',')) {
-      const trimmedFilePath: string = filePath.trim();
-
-      if (trimmedFilePath) {
-        chartValues.file(PathEx.resolve(trimmedFilePath));
-      }
-    }
-  }
-
-  private async prepareChartValuesForBlockNode(
+  private async prepareValuesArgForBlockNode(
     config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
-  ): Promise<HelmChartValues> {
-    const chartValues: HelmChartValues = new HelmChartValues();
+  ): Promise<string> {
+    let valuesArgument: string = '';
 
-    this.addValuesFiles(chartValues, constants.BLOCK_NODE_VALUES_FILE);
+    valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_VALUES_FILE);
 
     // Block node can be deployed before consensus deploy persists tssEnabled into remote config.
     // The explicit CLI switch allows users to opt into TSS sizing and message limits in that order-of-operations.
     if (this.remoteConfig.configuration.state.tssEnabled || config.blockNodeTssOverlay) {
-      this.addValuesFiles(chartValues, constants.BLOCK_NODE_TSS_VALUES_FILE);
+      valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_TSS_VALUES_FILE);
     }
 
-    this.addValuesFiles(chartValues, config.valuesFile);
+    if (config.valuesFile) {
+      valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
+    }
 
-    chartValues.set('nameOverride', config.releaseName);
+    valuesArgument += helpers.populateHelmArguments({nameOverride: config.releaseName});
 
     // Only handle domainName and imageTag for deploy config (not upgrade config)
     if ('domainName' in config && config.domainName) {
-      chartValues.setMany({
+      valuesArgument += helpers.populateHelmArguments({
         'ingress.enabled': true,
         'ingress.hosts[0].host': config.domainName,
         'ingress.hosts[0].paths[0].path': '/',
@@ -277,7 +264,7 @@ export class BlockNodeCommand extends BaseCommand {
         throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
       }
       // use local image from docker engine
-      chartValues.setMany({
+      valuesArgument += helpers.populateHelmArguments({
         'image.repository': constants.BLOCK_NODE_IMAGE_NAME,
         'image.tag': config.imageTag,
         'image.pullPolicy': 'Never',
@@ -295,85 +282,21 @@ export class BlockNodeCommand extends BaseCommand {
         cluster.dnsBaseDomain,
       );
 
-      chartValues.setMany({
+      valuesArgument += helpers.populateHelmArguments({
         [`blockNode.sources[${index}].address`]: fqdn,
         [`blockNode.sources[${index}].port`]: constants.BLOCK_NODE_PORT,
         [`blockNode.sources[${index}].priority`]: 1,
       });
     }
 
-    return chartValues;
+    return valuesArgument;
   }
 
-  private static appendExtraCommandArgs(
-    baseChartValues: HelmChartValues,
-    extraCommandArguments: string[],
-  ): HelmChartValues {
-    const chartValues: HelmChartValues = new HelmChartValues().add(baseChartValues);
-
-    for (let index = 0; index < extraCommandArguments.length; index++) {
-      const argument: string = extraCommandArguments[index];
-
-      if (argument === '--set') {
-        const value: string = extraCommandArguments[++index];
-        if (!value) {
-          throw new SoloError('Missing value for --set in block node upgrade migration');
-        }
-        chartValues.setValues.push(value);
-        continue;
-      }
-
-      if (argument.startsWith('--set=')) {
-        chartValues.setValues.push(argument.slice('--set='.length));
-        continue;
-      }
-
-      if (argument === '--set-literal') {
-        const value: string = extraCommandArguments[++index];
-        if (!value) {
-          throw new SoloError('Missing value for --set-literal in block node upgrade migration');
-        }
-        chartValues.setLiteralValues.push(value);
-        continue;
-      }
-
-      if (argument.startsWith('--set-literal=')) {
-        chartValues.setLiteralValues.push(argument.slice('--set-literal='.length));
-        continue;
-      }
-
-      if (argument === '--set-file') {
-        const value: string = extraCommandArguments[++index];
-        if (!value) {
-          throw new SoloError('Missing value for --set-file in block node upgrade migration');
-        }
-        chartValues.setFileValues.push(value);
-        continue;
-      }
-
-      if (argument.startsWith('--set-file=')) {
-        chartValues.setFileValues.push(argument.slice('--set-file='.length));
-        continue;
-      }
-
-      if (argument === '--values' || argument === '-f') {
-        const value: string = extraCommandArguments[++index];
-        if (!value) {
-          throw new SoloError(`Missing value for ${argument} in block node upgrade migration`);
-        }
-        chartValues.file(value);
-        continue;
-      }
-
-      if (argument.startsWith('--values=')) {
-        chartValues.file(argument.slice('--values='.length));
-        continue;
-      }
-
-      throw new SoloError(`Unsupported block node migration Helm argument: ${argument}`);
+  private static appendExtraCommandArgs(baseArgument: string, extraCommandArguments: string[]): string {
+    if (extraCommandArguments.length === 0) {
+      return baseArgument;
     }
-
-    return chartValues;
+    return `${baseArgument} ${extraCommandArguments.join(' ')}`.trim();
   }
 
   private getReleaseName(): string {
@@ -601,7 +524,7 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
-            config.chartValues = await this.prepareChartValuesForBlockNode(config);
+            config.valuesArg = await this.prepareValuesArgForBlockNode(config);
           },
         },
         {
@@ -612,7 +535,7 @@ export class BlockNodeCommand extends BaseCommand {
               namespace,
               releaseName,
               chartVersion,
-              chartValues,
+              valuesArg,
               clusterRef,
               imageTag,
               blockNodeChartDirectory,
@@ -625,7 +548,7 @@ export class BlockNodeCommand extends BaseCommand {
               constants.BLOCK_NODE_CHART,
               blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
               chartVersion,
-              chartValues,
+              valuesArg,
               context,
             );
 
@@ -916,7 +839,7 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
-            config.chartValues = await this.prepareChartValuesForBlockNode(config);
+            config.valuesArg = await this.prepareValuesArgForBlockNode(config);
           },
         },
         {
@@ -944,8 +867,8 @@ export class BlockNodeCommand extends BaseCommand {
                 false,
                 'Block node chart version',
               );
-              const stepChartValues: HelmChartValues = BlockNodeCommand.appendExtraCommandArgs(
-                config.chartValues,
+              const stepValuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(
+                config.valuesArg,
                 step.extraCommandArgs,
               );
 
@@ -962,7 +885,7 @@ export class BlockNodeCommand extends BaseCommand {
                     constants.BLOCK_NODE_CHART,
                     config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
                     stepTargetVersion,
-                    stepChartValues,
+                    stepValuesArgument,
                     context,
                   );
                 } catch (error) {
@@ -1294,10 +1217,7 @@ export class BlockNodeCommand extends BaseCommand {
     validatedUpgradeVersion: string,
     step: ComponentUpgradeMigrationStep,
   ): Promise<void> {
-    const chartValues: HelmChartValues = BlockNodeCommand.appendExtraCommandArgs(
-      config.chartValues,
-      step.extraCommandArgs,
-    );
+    const valuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(config.valuesArg, step.extraCommandArgs);
     await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
     // Wait for the old pod to be fully terminated before creating the new StatefulSet.
@@ -1316,7 +1236,7 @@ export class BlockNodeCommand extends BaseCommand {
       constants.BLOCK_NODE_CHART,
       config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
       validatedUpgradeVersion,
-      chartValues,
+      valuesArgument,
       config.context,
     );
   }

@@ -44,12 +44,11 @@ import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
+import {OperatingSystem} from '../business/utils/operating-system.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {optionFromFlag} from './command-helpers.js';
-import {PathEx} from '../business/utils/path-ex.js';
-import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -84,7 +83,7 @@ interface RelayDeployConfigClass {
   isChartInstalled: boolean;
   nodeAliases: NodeAliases;
   releaseName: string;
-  chartValues: HelmChartValues;
+  valuesArg: string;
   clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
   context: Optional<string>;
@@ -121,7 +120,7 @@ interface RelayUpgradeConfigClass {
   isChartInstalled: boolean;
   nodeAliases: NodeAliases;
   releaseName: string;
-  chartValues: HelmChartValues;
+  valuesArg: string;
   clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
   context: Optional<string>;
@@ -227,21 +226,7 @@ export class RelayCommand extends BaseCommand {
     optional: [flags.chartDirectory, flags.clusterRef, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode, flags.id],
   };
 
-  private addValuesFiles(chartValues: HelmChartValues, valuesFile: string): void {
-    if (!valuesFile) {
-      return;
-    }
-
-    for (const filePath of valuesFile.split(',')) {
-      const trimmedFilePath: string = filePath.trim();
-
-      if (trimmedFilePath) {
-        chartValues.file(PathEx.resolve(trimmedFilePath));
-      }
-    }
-  }
-
-  private async prepareChartValuesForRelay({
+  private async prepareValuesArgForRelay({
     valuesFile,
     nodeAliases,
     chainId,
@@ -256,81 +241,68 @@ export class RelayCommand extends BaseCommand {
     releaseName,
     deployment,
     mirrorNamespace,
-  }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<HelmChartValues> {
-    const chartValues: HelmChartValues = new HelmChartValues();
+  }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
+    let valuesArgument: string = '';
 
-    chartValues
-      .file(constants.RELAY_VALUES_FILE)
-      .set('nameOverride', releaseName)
-      .set('ws.enabled', true)
-      .set(
-        'relay.config.MIRROR_NODE_URL',
-        `http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`,
-      )
-      .set(
-        'relay.config.MIRROR_NODE_URL_WEB3',
-        `http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`,
-      )
-      .set(
-        'ws.config.MIRROR_NODE_URL',
-        `http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`,
-      );
+    valuesArgument += helpers.prepareValuesFiles(constants.RELAY_VALUES_FILE);
+    valuesArgument += ' --install';
+    valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
+
+    valuesArgument += ' --set ws.enabled=true';
+    valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
+    valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
+
+    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
 
     if (chainId) {
-      chartValues.set('relay.config.CHAIN_ID', chainId).set('ws.config.CHAIN_ID', chainId);
+      valuesArgument += ` --set relay.config.CHAIN_ID=${chainId}`;
+      valuesArgument += ` --set ws.config.CHAIN_ID=${chainId}`;
     }
 
     if (relayReleaseTag) {
       relayReleaseTag = SemanticVersion.getValidSemanticVersion(relayReleaseTag, false, 'Relay release');
-
-      chartValues.set('relay.image.tag', relayReleaseTag).set('ws.image.tag', relayReleaseTag);
+      valuesArgument += ` --set relay.image.tag=${relayReleaseTag}`;
+      valuesArgument += ` --set ws.image.tag=${relayReleaseTag}`;
     }
 
     if (componentImage) {
       const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(componentImage);
-
-      chartValues
-        .set('relay.image.registry', parsedImageReference.registry)
-        .set('ws.image.registry', parsedImageReference.registry)
-        .set('relay.image.repository', parsedImageReference.repository)
-        .set('ws.image.repository', parsedImageReference.repository)
-        .set('relay.image.tag', parsedImageReference.tag)
-        .set('ws.image.tag', parsedImageReference.tag);
+      valuesArgument += ` --set relay.image.registry=${parsedImageReference.registry}`;
+      valuesArgument += ` --set ws.image.registry=${parsedImageReference.registry}`;
+      valuesArgument += ` --set relay.image.repository=${parsedImageReference.repository}`;
+      valuesArgument += ` --set ws.image.repository=${parsedImageReference.repository}`;
+      valuesArgument += ` --set relay.image.tag=${parsedImageReference.tag}`;
+      valuesArgument += ` --set ws.image.tag=${parsedImageReference.tag}`;
     }
 
     if (replicaCount) {
-      chartValues.set('relay.replicaCount', replicaCount).set('ws.replicaCount', replicaCount);
+      valuesArgument += ` --set relay.replicaCount=${replicaCount}`;
+      valuesArgument += ` --set ws.replicaCount=${replicaCount}`;
     }
 
     const operatorIdUsing: string = operatorId || this.accountManager.getOperatorAccountId(deployment).toString();
-
-    chartValues
-      .set('relay.config.OPERATOR_ID_MAIN', operatorIdUsing)
-      .set('ws.config.OPERATOR_ID_MAIN', operatorIdUsing);
+    valuesArgument += ` --set relay.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
+    valuesArgument += ` --set ws.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
 
     if (operatorKey) {
-      chartValues.set('relay.config.OPERATOR_KEY_MAIN', operatorKey).set('ws.config.OPERATOR_KEY_MAIN', operatorKey);
+      // use user provided operatorKey if available
+      valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKey}`;
+      valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKey}`;
     } else {
       try {
         const secrets: Secret[] = await this.k8Factory
           .getK8(context)
           .secrets()
           .list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
-
         if (secrets.length === 0) {
           this.logger.info(`No k8s secret found for operator account id ${operatorIdUsing}, use default one`);
-
-          chartValues
-            .set('relay.config.OPERATOR_KEY_MAIN', constants.OPERATOR_KEY)
-            .set('ws.config.OPERATOR_KEY_MAIN', constants.OPERATOR_KEY);
+          valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
+          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
         } else {
           this.logger.info('Using operator key from k8s secret');
-
           const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
-
-          chartValues
-            .set('relay.config.OPERATOR_KEY_MAIN', operatorKeyFromK8)
-            .set('ws.config.OPERATOR_KEY_MAIN', operatorKeyFromK8);
+          valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
+          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
         }
       } catch (error) {
         throw new SoloError(`Error getting operator key: ${error.message}`, error);
@@ -342,13 +314,14 @@ export class RelayCommand extends BaseCommand {
     }
 
     const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace, deployment);
-
-    chartValues
-      .setLiteral('relay.config.HEDERA_NETWORK', networkJsonString)
-      .setLiteral('ws.config.HEDERA_NETWORK', networkJsonString);
+    const quotedNetworkJsonString: string = OperatingSystem.isWin32()
+      ? `"${networkJsonString.replaceAll('"', String.raw`\"`)}"`
+      : `'${networkJsonString}'`;
+    valuesArgument += ` --set-literal relay.config.HEDERA_NETWORK=${quotedNetworkJsonString}`;
+    valuesArgument += ` --set-literal ws.config.HEDERA_NETWORK=${quotedNetworkJsonString}`;
 
     if (domainName) {
-      chartValues.setMany({
+      valuesArgument += helpers.populateHelmArguments({
         'relay.ingress.enabled': true,
         'relay.ingress.hosts[0].host': domainName,
         'relay.ingress.hosts[0].paths[0].path': '/',
@@ -356,9 +329,11 @@ export class RelayCommand extends BaseCommand {
       });
     }
 
-    this.addValuesFiles(chartValues, valuesFile);
+    if (valuesFile) {
+      valuesArgument += helpers.prepareValuesFiles(valuesFile);
+    }
 
-    return chartValues;
+    return valuesArgument;
   }
 
   /**
@@ -430,7 +405,7 @@ export class RelayCommand extends BaseCommand {
     return {
       title: 'Prepare chart values',
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
-        config.chartValues = await this.prepareChartValuesForRelay(config);
+        config.valuesArg = await this.prepareValuesArgForRelay(config);
       },
     };
   }
@@ -445,10 +420,8 @@ export class RelayCommand extends BaseCommand {
           constants.JSON_RPC_RELAY_CHART,
           config.relayChartDirectory || constants.JSON_RPC_RELAY_CHART,
           config.relayChartDirectory ? '' : config.relayReleaseTag, // pin chart version to match image version
-          config.chartValues,
+          config.valuesArg,
           config.context,
-          commandType === RelayCommandType.UPGRADE,
-          true,
         );
 
         showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);

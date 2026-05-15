@@ -36,7 +36,6 @@ import {type OneShotState} from '../../core/one-shot-state.js';
 import * as versions from '../../../version.js';
 import {findMinioOperator} from '../../core/helpers.js';
 import {K8} from '../../integration/kube/k8.js';
-import {HelmChartValues} from '../../integration/helm/model/values.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -127,138 +126,6 @@ export class ClusterCommandTasks {
       'Installed Charts',
       await this.chartManager.getInstalledCharts(clusterSetupNamespace, context),
     );
-  }
-
-  private static parseChartValuesArguments(valuesArguments: string): HelmChartValues {
-    const chartValues: HelmChartValues = new HelmChartValues();
-
-    if (!valuesArguments) {
-      return chartValues;
-    }
-
-    const tokens: string[] = ClusterCommandTasks.tokenizeHelmArguments(valuesArguments);
-
-    for (let index: number = 0; index < tokens.length; index++) {
-      const argument: string = tokens[index];
-
-      if (argument === '--set') {
-        const value: string = tokens[++index];
-        if (!value) {
-          throw new SoloError('Missing value for --set in chart values arguments');
-        }
-        chartValues.setValues.push(value);
-        continue;
-      }
-
-      if (argument.startsWith('--set=')) {
-        chartValues.setValues.push(argument.slice('--set='.length));
-        continue;
-      }
-
-      if (argument === '--set-literal') {
-        const value: string = tokens[++index];
-        if (!value) {
-          throw new SoloError('Missing value for --set-literal in chart values arguments');
-        }
-        chartValues.setLiteralValues.push(value);
-        continue;
-      }
-
-      if (argument.startsWith('--set-literal=')) {
-        chartValues.setLiteralValues.push(argument.slice('--set-literal='.length));
-        continue;
-      }
-
-      if (argument === '--set-file') {
-        const value: string = tokens[++index];
-        if (!value) {
-          throw new SoloError('Missing value for --set-file in chart values arguments');
-        }
-        chartValues.setFileValues.push(value);
-        continue;
-      }
-
-      if (argument.startsWith('--set-file=')) {
-        chartValues.setFileValues.push(argument.slice('--set-file='.length));
-        continue;
-      }
-
-      if (argument === '--values' || argument === '-f') {
-        const value: string = tokens[++index];
-        if (!value) {
-          throw new SoloError(`Missing value for ${argument} in chart values arguments`);
-        }
-        chartValues.file(value);
-        continue;
-      }
-
-      if (argument.startsWith('--values=')) {
-        chartValues.file(argument.slice('--values='.length));
-        continue;
-      }
-
-      throw new SoloError(`Unsupported Helm chart value argument: ${argument}`);
-    }
-
-    return chartValues;
-  }
-
-  private static tokenizeHelmArguments(argumentsString: string): string[] {
-    const tokens: string[] = [];
-    let currentToken: string = '';
-    let quote: '"' | "'" | undefined;
-    let escaping: boolean = false;
-
-    for (const character of argumentsString) {
-      if (escaping) {
-        currentToken += character;
-        escaping = false;
-        continue;
-      }
-
-      if (character === '\\') {
-        escaping = true;
-        continue;
-      }
-
-      if (quote) {
-        if (character === quote) {
-          quote = undefined;
-        } else {
-          currentToken += character;
-        }
-        continue;
-      }
-
-      if (character === '"' || character === "'") {
-        quote = character;
-        continue;
-      }
-
-      if (/\s/.test(character)) {
-        if (currentToken.length > 0) {
-          tokens.push(currentToken);
-          currentToken = '';
-        }
-        continue;
-      }
-
-      currentToken += character;
-    }
-
-    if (escaping) {
-      currentToken += '\\';
-    }
-
-    if (quote) {
-      throw new SoloError(`Unclosed quote in Helm chart value arguments: ${argumentsString}`);
-    }
-
-    if (currentToken.length > 0) {
-      tokens.push(currentToken);
-    }
-
-    return tokens;
   }
 
   public initialize(
@@ -354,15 +221,13 @@ export class ClusterCommandTasks {
         }
 
         try {
-          const chartValues: HelmChartValues = new HelmChartValues().set('operator.replicaCount', 1);
-
           await this.chartManager.install(
             clusterSetupNamespace,
             constants.MINIO_OPERATOR_RELEASE_NAME,
             constants.MINIO_OPERATOR_CHART,
             constants.MINIO_OPERATOR_CHART,
             versions.MINIO_OPERATOR_VERSION,
-            chartValues,
+            '--set operator.replicaCount=1',
             context,
           );
 
@@ -403,7 +268,7 @@ export class ClusterCommandTasks {
               constants.PROMETHEUS_STACK_CHART,
               constants.PROMETHEUS_STACK_CHART,
               versions.PROMETHEUS_STACK_VERSION,
-              new HelmChartValues(),
+              '',
               context_.config.context,
             );
             this.logger.showUser('✅ Prometheus Stack chart installed successfully');
@@ -448,7 +313,7 @@ export class ClusterCommandTasks {
             constants.METRICS_SERVER_CHART,
             constants.METRICS_SERVER_CHART,
             versions.METRICS_SERVER_VERSION,
-            ClusterCommandTasks.parseChartValuesArguments(constants.METRICS_SERVER_INSTALL_ARGS),
+            constants.METRICS_SERVER_INSTALL_ARGS,
             context,
           );
           this.logger.showUser('metrics-server chart installed successfully');
