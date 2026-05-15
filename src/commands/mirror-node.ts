@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
@@ -487,7 +487,7 @@ export class MirrorNodeCommand extends BaseCommand {
       } else if (config.storageType === constants.StorageType.AWS_ONLY) {
         storageType = 's3';
       } else {
-        throw new IllegalArgumentError(`Invalid cloud storage type: ${config.storageType}`);
+        throw new SoloErrors.validation.illegalArgument(`Invalid cloud storage type: ${config.storageType}`);
       }
 
       const mapping: Record<string, string | boolean | number> = {

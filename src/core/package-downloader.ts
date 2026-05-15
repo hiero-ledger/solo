@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import {pipeline as streamPipeline} from 'node:stream/promises';
 import got from 'got';
 import path from 'node:path';
-import {DataValidationError} from './errors/data-validation-error.js';
 import {SoloError} from './errors/solo-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
-import {ResourceNotFoundError} from './errors/resource-not-found-error.js';
 import * as https from 'node:https';
 import * as http from 'node:http';
 import {Templates} from './templates.js';
@@ -124,19 +121,19 @@ export class PackageDownloader {
    */
   public async fetchFile(url: string, destinationPath: string): Promise<string> {
     if (!url) {
-      throw new IllegalArgumentError('package URL is required', url);
+      throw new SoloErrors.validation.illegalArgument('package URL is required', url);
     }
 
     if (!destinationPath) {
-      throw new IllegalArgumentError('destination path is required', destinationPath);
+      throw new SoloErrors.validation.illegalArgument('destination path is required', destinationPath);
     }
 
     if (!this.isValidURL(url)) {
-      throw new IllegalArgumentError(`package URL '${url}' is invalid`, url);
+      throw new SoloErrors.validation.illegalArgument(`package URL '${url}' is invalid`, url);
     }
 
     if (!(await this.urlExists(url))) {
-      throw new ResourceNotFoundError(`package URL '${url}' does not exist`, url);
+      throw new SoloErrors.system.resourceNotFound(`package URL '${url}' does not exist`, url);
     }
 
     try {
@@ -204,7 +201,7 @@ export class PackageDownloader {
   private async verifyChecksum(sourceFile: string, checksum: string, algo: string = 'sha256'): Promise<void> {
     const computed: string = await this.computeFileHash(sourceFile, algo);
     if (checksum !== computed) {
-      throw new DataValidationError('checksum', checksum, computed);
+      throw new SoloErrors.validation.dataValidation('checksum', checksum, computed);
     }
   }
 
@@ -296,10 +293,10 @@ export class PackageDownloader {
    */
   public async fetchPlatform(tag: string, destinationDirectory: string, force: boolean = false): Promise<string> {
     if (!tag) {
-      throw new MissingArgumentError('tag is required');
+      throw new SoloErrors.validation.missingArgument('tag is required');
     }
     if (!destinationDirectory) {
-      throw new MissingArgumentError('destination directory path is required');
+      throw new SoloErrors.validation.missingArgument('destination directory path is required');
     }
 
     const releaseDirectory: string = Templates.prepareReleasePrefix(tag);

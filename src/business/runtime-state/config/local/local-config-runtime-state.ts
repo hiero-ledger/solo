@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../core/errors/solo-errors.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
 import {LocalConfigSource} from '../../../../data/configuration/impl/local-config-source.js';
@@ -10,8 +11,6 @@ import {ClassToObjectMapper} from '../../../../data/mapper/impl/class-to-object-
 import {ConfigKeyFormatter} from '../../../../data/key/config-key-formatter.js';
 import {LocalConfigSchemaDefinition} from '../../../../data/schema/migration/impl/local/local-config-schema-definition.js';
 import {LocalConfigSchema} from '../../../../data/schema/model/local/local-config-schema.js';
-import {RefreshLocalConfigSourceError} from '../../../errors/refresh-local-config-source-error.js';
-import {WriteLocalConfigFileError} from '../../../errors/write-local-config-file-error.js';
 import {PathEx} from '../../../utils/path-ex.js';
 import fs, {existsSync, mkdirSync} from 'node:fs';
 import {LocalConfig} from './local-config.js';
@@ -83,7 +82,7 @@ export class LocalConfigRuntimeState {
       await this.source.refresh();
       this.refresh();
     } catch (error) {
-      throw new RefreshLocalConfigSourceError('Failed to refresh local config source', error);
+      throw new SoloErrors.config.refreshLocalConfigSource('Failed to refresh local config source', error);
     }
     await this.persist();
 
@@ -179,7 +178,7 @@ export class LocalConfigRuntimeState {
       await this.source.persist();
       this.isLoaded = true;
     } catch (error) {
-      throw new WriteLocalConfigFileError('Failed to write local config file', error);
+      throw new SoloErrors.config.writeLocalConfig('Failed to write local config file', error);
     }
   }
 
