@@ -868,16 +868,6 @@ export class ProfileManager {
     }
   }
 
-  private parseGossipFqdnRestricted(applicationPropertiesText: string): boolean | undefined {
-    const match: RegExpMatchArray | null = applicationPropertiesText.match(
-      /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
-    );
-    if (match?.[1]) {
-      return match[1].toLowerCase() === 'true';
-    }
-    return undefined;
-  }
-
   private async getGossipFqdnRestricted(
     consensusNodes: ConsensusNode[],
     applicationPropertiesPath: string,
@@ -891,7 +881,7 @@ export class ProfileManager {
           .read(NamespaceName.of(firstNode.namespace), constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
         const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
         if (configMapProperties) {
-          const parsedFromConfigMap: boolean | undefined = this.parseGossipFqdnRestricted(configMapProperties);
+          const parsedFromConfigMap: boolean | undefined = helpers.parseGossipFqdnRestricted(configMapProperties);
           if (parsedFromConfigMap !== undefined) {
             return parsedFromConfigMap;
           }
@@ -904,9 +894,35 @@ export class ProfileManager {
     if (fs.existsSync(applicationPropertiesPath)) {
       const applicationPropertiesContent: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
       const parsedFromApplicationProperties: boolean | undefined =
-        this.parseGossipFqdnRestricted(applicationPropertiesContent);
+        helpers.parseGossipFqdnRestricted(applicationPropertiesContent);
       if (parsedFromApplicationProperties !== undefined) {
         return parsedFromApplicationProperties;
+      }
+    }
+
+    const cacheApplicationPropertiesPath: string = PathEx.join(
+      constants.SOLO_CACHE_DIR,
+      'templates',
+      constants.APPLICATION_PROPERTIES,
+    );
+    if (fs.existsSync(cacheApplicationPropertiesPath)) {
+      const cacheProperties: string = fs.readFileSync(cacheApplicationPropertiesPath, 'utf8');
+      const parsedFromCache: boolean | undefined = helpers.parseGossipFqdnRestricted(cacheProperties);
+      if (parsedFromCache !== undefined) {
+        return parsedFromCache;
+      }
+    }
+
+    const repoApplicationPropertiesPath: string = PathEx.join(
+      constants.RESOURCES_DIR,
+      'templates',
+      constants.APPLICATION_PROPERTIES,
+    );
+    if (fs.existsSync(repoApplicationPropertiesPath)) {
+      const repoProperties: string = fs.readFileSync(repoApplicationPropertiesPath, 'utf8');
+      const parsedFromRepo: boolean | undefined = helpers.parseGossipFqdnRestricted(repoProperties);
+      if (parsedFromRepo !== undefined) {
+        return parsedFromRepo;
       }
     }
 

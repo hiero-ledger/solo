@@ -85,6 +85,24 @@ export function splitFlagInput(input: string, separator: string = ','): string[]
     .filter(Boolean);
 }
 
+export function parseGossipFqdnRestricted(applicationPropertiesText: string): boolean | undefined {
+  const match: RegExpMatchArray | null = applicationPropertiesText.match(
+    /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
+  );
+  if (match?.[1]) {
+    return match[1].toLowerCase() === 'true';
+  }
+  return undefined;
+}
+
+export function readGossipFqdnRestrictedFromFile(filePath: string): boolean | undefined {
+  if (!fs.existsSync(filePath)) {
+    return undefined;
+  }
+  const applicationPropertiesContent: string = fs.readFileSync(filePath, 'utf8');
+  return parseGossipFqdnRestricted(applicationPropertiesContent);
+}
+
 /**
  * @param arr - The array to be cloned
  * @returns a new array with the same elements as the input array

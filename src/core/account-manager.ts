@@ -40,7 +40,7 @@ import {
 } from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type NodeId, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {entityId, sleep} from './helpers.js';
+import {entityId, readGossipFqdnRestrictedFromFile, parseGossipFqdnRestricted, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -211,6 +211,7 @@ export class AccountManager {
     clusterReferences: ClusterReferences,
     deployment: DeploymentName,
     forcePortForward?: boolean,
+    gossipFqdnRestricted?: boolean,
   ): Promise<Client> {
     try {
       this.logger.debug(
@@ -220,7 +221,14 @@ export class AccountManager {
         this.logger.debug(
           `refreshing node client: [!this._nodeClient=${!this._nodeClient}, this._nodeClient.isClientShutDown=${this._nodeClient?.isClientShutDown}]`,
         );
-        await this.refreshNodeClient(namespace, clusterReferences, undefined, deployment, forcePortForward);
+        await this.refreshNodeClient(
+          namespace,
+          clusterReferences,
+          undefined,
+          deployment,
+          forcePortForward,
+          gossipFqdnRestricted,
+        );
       } else {
         try {
           if (!constants.SKIP_NODE_PING) {
@@ -228,7 +236,14 @@ export class AccountManager {
           }
         } catch {
           this.logger.debug('node client ping failed, refreshing node client');
-          await this.refreshNodeClient(namespace, clusterReferences, undefined, deployment, forcePortForward);
+          await this.refreshNodeClient(
+            namespace,
+            clusterReferences,
+            undefined,
+            deployment,
+            forcePortForward,
+            gossipFqdnRestricted,
+          );
         }
       }
 
@@ -253,6 +268,7 @@ export class AccountManager {
     skipNodeAlias: NodeAlias,
     deployment: DeploymentName,
     forcePortForward?: boolean,
+    gossipFqdnRestricted?: boolean,
   ): Promise<Client> {
     try {
       await this.close();
@@ -265,6 +281,7 @@ export class AccountManager {
         namespace,
         clusterReferences,
         deployment,
+        gossipFqdnRestricted,
       );
 
       this._nodeClient = await this._getNodeClient(
@@ -476,6 +493,7 @@ export class AccountManager {
     namespace: NamespaceName,
     clusterReferences: ClusterReferences,
     deployment: DeploymentName,
+    gossipFqdnRestricted?: boolean,
   ): Promise<NodeServiceMapping> {
     const labelSelector: string = 'solo.hedera.com/node-name';
 
@@ -491,6 +509,10 @@ export class AccountManager {
           ),
         );
       }
+
+      // Resolve once at this boundary so children inherit a single explicit value.
+      const resolvedGossipFqdnRestricted: boolean =
+        gossipFqdnRestricted ?? (await this.getGossipFqdnRestricted(namespace, clusterReferences));
 
       // retrieve the list of services and build custom objects for the attributes we need
       for (const service of services) {
@@ -586,6 +608,7 @@ export class AccountManager {
           consensusNode,
           this.k8Factory.getK8(serviceBuilder.context),
           0,
+          resolvedGossipFqdnRestricted,
         );
         serviceBuilder.withExternalAddress(address.hostString());
         serviceBuilderMap.set(serviceBuilder.key(), serviceBuilder);
@@ -629,6 +652,54 @@ export class AccountManager {
     } catch (error) {
       throw new SoloError(`failed to get node services: ${error.message}`, error);
     }
+  }
+
+  private async getGossipFqdnRestricted(
+    namespace: NamespaceName,
+    clusterReferences: ClusterReferences,
+  ): Promise<boolean> {
+    // Prefer live cluster config when available.
+    for (const context of clusterReferences.values()) {
+      try {
+        const configMap = await this.k8Factory
+          .getK8(context)
+          .configMaps()
+          .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+        const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
+        if (configMapProperties) {
+          const parsedFromConfigMap: boolean | undefined = parseGossipFqdnRestricted(configMapProperties);
+          if (parsedFromConfigMap !== undefined) {
+            return parsedFromConfigMap;
+          }
+        }
+      } catch {
+        // fall through
+      }
+    }
+
+    // Then fallback to local cache templates and finally repo templates.
+    const cacheApplicationPropertiesPath: string = PathEx.join(
+      constants.SOLO_CACHE_DIR,
+      'templates',
+      constants.APPLICATION_PROPERTIES,
+    );
+    const parsedFromCache: boolean | undefined = readGossipFqdnRestrictedFromFile(cacheApplicationPropertiesPath);
+    if (parsedFromCache !== undefined) {
+      return parsedFromCache;
+    }
+
+    const repoApplicationPropertiesPath: string = PathEx.join(
+      constants.RESOURCES_DIR,
+      'templates',
+      constants.APPLICATION_PROPERTIES,
+    );
+    const parsedFromRepo: boolean | undefined = readGossipFqdnRestrictedFromFile(repoApplicationPropertiesPath);
+    if (parsedFromRepo !== undefined) {
+      return parsedFromRepo;
+    }
+
+    // Last-resort fallback keeps existing behavior.
+    return true;
   }
 
   /**

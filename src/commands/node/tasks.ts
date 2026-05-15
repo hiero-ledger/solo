@@ -3104,25 +3104,15 @@ export class NodeCommandTasks {
     };
   }
 
-  private parseGossipFqdnRestricted(applicationPropertiesText: string): boolean | undefined {
-    const match: RegExpMatchArray | null = applicationPropertiesText.match(
-      /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
-    );
-    if (match?.[1]) {
-      return match[1].toLowerCase() === 'true';
-    }
-    return undefined;
-  }
-
   private async getGossipFqdnRestricted(config: NodeAddConfigClass, k8: K8): Promise<boolean> {
-    // Prefer live cluster config when present, then staged file, then default true.
+    // Prefer live cluster config when present, then staged/cache/repo templates.
     try {
       const configMap: ConfigMap = await k8
         .configMaps()
         .read(config.namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
       const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
       if (configMapProperties) {
-        const parsedFromConfigMap: boolean | undefined = this.parseGossipFqdnRestricted(configMapProperties);
+        const parsedFromConfigMap: boolean | undefined = helpers.parseGossipFqdnRestricted(configMapProperties);
         if (parsedFromConfigMap !== undefined) {
           return parsedFromConfigMap;
         }
@@ -3138,9 +3128,35 @@ export class NodeCommandTasks {
     );
     if (fs.existsSync(applicationPropertiesPath)) {
       const appProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-      const parsedFromStaging: boolean | undefined = this.parseGossipFqdnRestricted(appProperties);
+      const parsedFromStaging: boolean | undefined = helpers.parseGossipFqdnRestricted(appProperties);
       if (parsedFromStaging !== undefined) {
         return parsedFromStaging;
+      }
+    }
+
+    const cacheApplicationPropertiesPath: string = PathEx.join(
+      constants.SOLO_CACHE_DIR,
+      'templates',
+      constants.APPLICATION_PROPERTIES,
+    );
+    if (fs.existsSync(cacheApplicationPropertiesPath)) {
+      const cacheProperties: string = fs.readFileSync(cacheApplicationPropertiesPath, 'utf8');
+      const parsedFromCache: boolean | undefined = helpers.parseGossipFqdnRestricted(cacheProperties);
+      if (parsedFromCache !== undefined) {
+        return parsedFromCache;
+      }
+    }
+
+    const repoApplicationPropertiesPath: string = PathEx.join(
+      constants.RESOURCES_DIR,
+      'templates',
+      constants.APPLICATION_PROPERTIES,
+    );
+    if (fs.existsSync(repoApplicationPropertiesPath)) {
+      const repoProperties: string = fs.readFileSync(repoApplicationPropertiesPath, 'utf8');
+      const parsedFromRepo: boolean | undefined = helpers.parseGossipFqdnRestricted(repoProperties);
+      if (parsedFromRepo !== undefined) {
+        return parsedFromRepo;
       }
     }
 
