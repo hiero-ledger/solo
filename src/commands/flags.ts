@@ -2966,8 +2966,7 @@ export class Flags {
     name: 'relay-version',
     definition: {
       describe:
-        'JSON-RPC relay version to deploy for one-shot (e.g. v0.76.2 or 0.76.2). ' +
-        'Overrides RELAY_VERSION / RELAY_EDGE_VERSION env vars.',
+        'JSON-RPC relay version to deploy (e.g. v0.76.2 or 0.76.2). ',
       defaultValue: '',
       type: 'string',
     },
