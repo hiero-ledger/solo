@@ -216,12 +216,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         }).timeout(Duration.ofSeconds(duration * 6).toMillis());
 
         async function runLoadTest(performanceTest: string, argumentsString: string): Promise<void> {
-          const startedAt: Date = new Date();
+          // rapid-fire enforces the TPS!=0 + "Finished" check internally and throws
+          // on degraded runs (proxy backpressure, NFT-vs-fungible token mismatch, etc.).
           await main(soloRapidFire(testName, performanceTest, argumentsString, maxTps));
-          // Per-test TPS gate: the NLG harness exits 0 even when 0 transactions
-          // were submitted (e.g. proxy backpressure), so without this assertion
-          // a degraded test silently passes.
-          assertNonZeroTps(performanceTest, startedAt);
           // Cool-down lets haproxy drain tunnel sockets before the next test.
           await sleep(Duration.ofSeconds(30));
         }
@@ -328,40 +325,6 @@ function logEvent(event: string): void {
 
 function flushEvents(): void {
   events = [];
-}
-
-// Parses the NLG "Finished <Test>: N <units> in S sec, TPS: N" line that
-// rapid-fire captures into solo.log. We restrict to lines logged after the
-// test started so a stale prior run's log lines can't mask a current 0 TPS.
-function assertNonZeroTps(performanceTest: string, startedAt: Date): void {
-  const soloLogPath: string = PathEx.join(constants.SOLO_LOGS_DIR, 'solo.log');
-  if (!fs.existsSync(soloLogPath)) {
-    throw new Error(`${performanceTest}: solo.log not found at ${soloLogPath}; cannot verify TPS`);
-  }
-  const log: string = fs.readFileSync(soloLogPath, 'utf8');
-  const pattern: RegExp = new RegExp(String.raw`Finished\s+${performanceTest}:\s+(\d+).*TPS:\s+(\d+)`);
-  const startedAtMs: number = startedAt.getTime();
-  let matchedTps: number | undefined;
-  for (const line of log.split('\n')) {
-    const isoMatch: RegExpMatchArray | null = line.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)/);
-    if (isoMatch && new Date(isoMatch[1]).getTime() < startedAtMs) {
-      continue;
-    }
-    const tpsMatch: RegExpMatchArray | null = line.match(pattern);
-    if (tpsMatch) {
-      matchedTps = Number.parseInt(tpsMatch[2], 10);
-    }
-  }
-  if (matchedTps === undefined) {
-    throw new Error(
-      `${performanceTest}: no "Finished ${performanceTest}: ... TPS: N" line found in solo.log after test start`,
-    );
-  }
-  if (matchedTps === 0) {
-    throw new Error(
-      `${performanceTest}: completed with TPS: 0 (no transactions executed); likely consensus-node proxy backpressure`,
-    );
-  }
 }
 
 export function soloRapidFire(

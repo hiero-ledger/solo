@@ -387,13 +387,6 @@ jobs:
           # Include the summary JSON in the metrics artifact
           cp ~/.solo/logs/*.json ~/.solo/metrics/ 2>/dev/null || true
 
-      - name: Collect Deployment Diagnostics Logs
-        if: ${{ !cancelled() && always() }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          npm run solo-test -- deployment diagnostics logs -q --dev || true
-
       # Solo diagnostics already pull pod logs + describe for many components (including NLG).
       # This step adds CI-specific signal for NLG/SDK timeouts: recent cluster events, full pod
       # listing, previous-container logs after restarts, and a process snapshot inside NLG.
