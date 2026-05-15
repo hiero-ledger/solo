@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import {SoloError} from '../../solo-error.js';
+import {ErrorOwnership} from '../../error-ownership.js';
+import {ErrorCodeRegistry} from '../../error-code-registry.js';
+
+export class ContextNotFoundForClusterError extends SoloError {
+  protected override readonly retryable: boolean = false;
+  protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
+
+  public constructor(clusterReference: string) {
+    super({
+      message: `Context not found for cluster reference ${clusterReference}`,
+      code: ErrorCodeRegistry.CONTEXT_NOT_FOUND_FOR_CLUSTER,
+      troubleshootingSteps:
+        'Connect a kubeconfig context to the cluster: solo cluster-ref config connect --cluster-ref <name> --context <context>',
+    });
+  }
+}
