@@ -9,7 +9,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {InitCommand} from '../../../src/commands/init/init.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type InitContext} from '../../../src/commands/init/init-context.js';
-import {type SoloListrTask} from '../../../src/types/index.js';
+import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../src/types/index.js';
 
 describe('InitCommand unit tests', (): void => {
   const COPY_TEMPLATES_TASK_INDEX: number = 2;
@@ -38,9 +38,10 @@ describe('InitCommand unit tests', (): void => {
       dirs: ['/tmp/home-dir'],
       config: {username: ''},
     };
+    const copyTemplatesTaskWrapper: SoloListrTaskWrapper<InitContext> = {} as SoloListrTaskWrapper<InitContext>;
 
-    await copyTemplatesTask.task(context);
-    await copyTemplatesTask.task(context);
+    await copyTemplatesTask.task(context, copyTemplatesTaskWrapper);
+    await copyTemplatesTask.task(context, copyTemplatesTaskWrapper);
 
     expect(showListStub.callCount).to.equal(2);
     expect(showListStub.firstCall.args[0]).to.equal('Home Directories');
