@@ -39,7 +39,7 @@ export async function update () {
   await run(`rm ~/.solo/local-config.yaml || true`);
 
   await runAndSave(
-    `kind create cluster -n ${process.env.SOLO_CLUSTER_NAME}`,
+    `kind create cluster -n ${process.env.SOLO_CLUSTER_NAME} --config resources/kind-config.yaml`,
     'KIND_CREATE_CLUSTER_OUTPUT',
     `${BUILD_DIR}/create-cluster.log`,
   );
