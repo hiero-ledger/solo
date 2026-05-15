@@ -241,7 +241,7 @@ export class ExplorerCommand extends BaseCommand {
     }
     valuesArgument += ` --set fullnameOverride=${config.releaseName}-${config.namespace.name}`;
 
-    valuesArgument += ` --set proxyPass./api="http://${config.mirrorNodeReleaseName}-rest.${config.mirrorNamespace}.svc.cluster.local" `;
+    valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_INGRESS_CONTROLLER}-${config.mirrorNamespace}.${config.mirrorNamespace}.svc.cluster.local" `;
 
     if (config.domainName) {
       valuesArgument += helpers.populateHelmArguments({
