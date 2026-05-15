@@ -44,7 +44,6 @@ import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
-import {OperatingSystem} from '../business/utils/operating-system.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';

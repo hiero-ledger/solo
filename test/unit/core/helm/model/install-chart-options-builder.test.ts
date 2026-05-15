@@ -5,7 +5,7 @@ import sinon from 'sinon';
 import {describe, it} from 'mocha';
 import {type HelmExecutionBuilder} from '../../../../../src/integration/helm/execution/helm-execution-builder.js';
 import {InstallChartOptionsBuilder} from '../../../../../src/integration/helm/model/install/install-chart-options-builder.js';
-import {InstallChartOptions} from '../../../../../src/integration/helm/model/install/install-chart-options.js';
+import {type InstallChartOptions} from '../../../../../src/integration/helm/model/install/install-chart-options.js';
 
 describe('InstallChartOptionsBuilder Tests', (): void => {
   it('Test InstallChartOptionsBuilder', (): void => {

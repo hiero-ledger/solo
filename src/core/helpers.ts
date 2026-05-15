@@ -14,18 +14,13 @@ import {type SoloLogger} from './logging/solo-logger.js';
 import {type Duration} from './time/duration.js';
 import {type NodeAddConfigClass} from '../commands/node/config-interfaces/node-add-config-class.js';
 import {type ConsensusNode} from './model/consensus-node.js';
-import {
-  type ClusterReferenceName,
-  type ClusterReferences,
-  type Optional,
-  type ReleaseNameData,
-} from '../types/index.js';
+import {type Optional, type ReleaseNameData} from '../types/index.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import chalk from 'chalk';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
-import {Flags, Flags as flags} from '../commands/flags.js';
+import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
 import {execSync} from 'node:child_process';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
