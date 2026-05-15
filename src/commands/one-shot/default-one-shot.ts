@@ -2067,10 +2067,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   /**
-   * Resolves the component versions for a one-shot deploy using the following precedence (highest
-   * to lowest):
-   *
-  /**
    * Returns the first non-empty string from the supplied candidates, or an empty string if all
    * candidates are empty or undefined.
    */
