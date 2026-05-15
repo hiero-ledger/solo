@@ -30,20 +30,74 @@ export type DiagnosticsFindingCategory =
   | 'app-error';
 
 /** A single detected problem with its supporting evidence lines. */
-export type DiagnosticsFinding = {
+export interface DiagnosticsFinding {
   category: DiagnosticsFindingCategory;
   title: string;
   /** Relative path of the source file (or "archive:entry") that triggered this finding. */
   source: string;
   /** Up to 14 verbatim lines from the source that match the failure pattern. */
   evidence: string[];
-};
+}
 
-type ConsensusLogDefinition = {
+interface ConsensusLogDefinition {
   entrySuffix: 'output/swirlds.log' | 'output/hgcaa.log';
   displayName: 'swirlds.log' | 'hgcaa.log';
   checkConsensusActive: boolean;
-};
+}
+
+/**
+ * Binds a log file path pattern to a message pattern that should be treated
+ * as transient (and therefore suppressed) when analyzing that file. Used to
+ * filter out known startup races and benign-but-noisy server messages while
+ * still surfacing genuine errors.
+ *
+ * Path patterns are matched against the file's relative path normalized to
+ * forward slashes, so authors can write them portably.
+ */
+interface TransientErrorPattern {
+  /** Matches the log file's relative path (forward-slash form). */
+  logFilePattern: RegExp;
+  /** Matches the error line text to suppress within that log file. */
+  messagePattern: RegExp;
+  /** Short reason describing why this match is treated as transient. */
+  reason: string;
+}
+
+/**
+ * Suppresses any error line whose timestamp falls within `windowSeconds` of
+ * the first timestamped line in a log file matching `logFilePattern`. Use
+ * this when a component is known to emit transient retry/connect errors
+ * during initial startup that self-heal once dependencies are ready (e.g.
+ * Mirror Node importer retrying downloads while the consensus node is still
+ * becoming ACTIVE and the database is still migrating).
+ */
+interface StartupErrorSuppression {
+  /** Matches the log file's relative path (forward-slash form). */
+  logFilePattern: RegExp;
+  /** Suppress error lines within this many seconds of the first log timestamp. */
+  windowSeconds: number;
+  /** Short reason describing why early errors in this file are suppressed. */
+  reason: string;
+}
+
+/**
+ * Suppresses error lines matching `errorPattern` in files matching
+ * `logFilePattern` **only if** a corresponding success line matching
+ * `successPattern` appears anywhere in the same file. Use this for
+ * retry-until-success patterns where a later success message proves the
+ * earlier errors were transient (e.g. REST API retrying its Redis
+ * connection and eventually logging "Startup Connected to redis://...").
+ */
+interface ConditionalErrorSuppression {
+  /** Matches the log file's relative path (forward-slash form). */
+  logFilePattern: RegExp;
+  /** Matches error lines that should be dropped when `successPattern` is present. */
+  errorPattern: RegExp;
+  /** Must appear somewhere in the same file for `errorPattern` matches to be dropped. */
+  successPattern: RegExp;
+  /** Short reason describing why this conditional suppression applies. */
+  reason: string;
+}
 
 /**
  * DiagnosticsAnalyzer scans a previously-collected diagnostics output directory
@@ -103,6 +157,64 @@ export class DiagnosticsAnalyzer {
     {entrySuffix: 'output/swirlds.log', displayName: 'swirlds.log', checkConsensusActive: true},
     {entrySuffix: 'output/hgcaa.log', displayName: 'hgcaa.log', checkConsensusActive: false},
   ];
+
+  /**
+   * Known transient errors that surface during normal startup and should not
+   * be reported as failures. Each entry binds a log-file path pattern to a
+   * message pattern; lines matching both are dropped from `app-error`
+   * findings. New entries can be added here without touching scanner logic.
+   */
+  private static readonly TRANSIENT_ERROR_PATTERNS: readonly TransientErrorPattern[] = [
+    {
+      // Mirror Node's FixCryptoAllowanceAmountMigration (an AsyncJavaMigration)
+      // queries a temporary working table before it has been created on a
+      // fresh database. The Java side handles this gracefully (logs WARN,
+      // falls back to Long.MAX_VALUE), but Postgres still emits an ERROR
+      // line into its server log, which would otherwise surface as a finding.
+      logFilePattern: /solo-shared-resources-postgres[^/]*\.log$/i,
+      messagePattern: /relation "[^"]+" does not exist/i,
+      reason: 'Postgres "relation does not exist" during Flyway async-migration startup race',
+    },
+  ];
+
+  /**
+   * Per-file startup grace windows. Any error line whose log timestamp falls
+   * within `windowSeconds` of the first timestamped line in the same file is
+   * dropped from findings. Used for components that emit retry/connect
+   * errors while waiting on their dependencies during cluster bring-up.
+   */
+  private static readonly STARTUP_ERROR_SUPPRESSIONS: readonly StartupErrorSuppression[] = [
+    {
+      // The mirror node importer logs download / connect / timeout errors
+      // while it waits for the consensus node to become ACTIVE and the
+      // database to finish migrating. These stop on their own once
+      // dependencies are ready (typically well within one minute).
+      logFilePattern: /mirror[^/]*-importer[^/]*\.log$/i,
+      windowSeconds: 60,
+      reason: 'Mirror Node importer retries during initial startup window',
+    },
+  ];
+
+  /**
+   * Error/success pairings. When the success line is present, matching
+   * error lines are dropped because the retry loop eventually succeeded.
+   */
+  private static readonly CONDITIONAL_ERROR_SUPPRESSIONS: readonly ConditionalErrorSuppression[] = [
+    {
+      // Mirror Node REST API retries its Redis connection until the Redis
+      // pod is reachable, logging an ERROR per attempt. A subsequent
+      // "Startup Connected to redis://..." line proves the retry loop
+      // succeeded — the earlier errors are then noise, not failures.
+      logFilePattern: /mirror[^/]*-rest[^/]*\.log$/i,
+      errorPattern: /Startup Error connecting to/i,
+      successPattern: /Startup Connected to/i,
+      reason: 'Mirror Node REST retry succeeded after initial connection errors',
+    },
+  ];
+
+  /** Matches an ISO-8601 timestamp at the start of an application log line. */
+  private static readonly LOG_LINE_TIMESTAMP_PATTERN: RegExp =
+    /^\s*(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)/;
 
   public constructor(private readonly logger: SoloLogger) {}
 
@@ -329,12 +441,23 @@ export class DiagnosticsAnalyzer {
       }
 
       const podName: string = path.basename(logFile, '.log');
-      const evidence: string[] = this.extractMatchSnippets(strippedContent, errorPattern, 8);
+      const errorScan: {evidence: string[]; suppressed: number} = this.extractFilteredErrorSnippets(
+        strippedContent,
+        errorPattern,
+        relativePath,
+        8,
+      );
+      if (errorScan.suppressed > 0) {
+        this.logger.showUser(`  Suppressed ${errorScan.suppressed} transient error line(s) in ${relativePath}`);
+      }
+      if (errorScan.evidence.length === 0) {
+        continue;
+      }
       this.addDiagnosticsFinding(findings, {
         category: 'app-error',
         title: `Application ERROR detected in pod log: ${podName}`,
         source: relativePath,
-        evidence,
+        evidence: errorScan.evidence,
       });
     }
   }
@@ -367,7 +490,10 @@ export class DiagnosticsAnalyzer {
 
     this.logger.showUser(`  Found ${soloLogFiles.length} solo log file(s)`);
 
-    const errorPattern: RegExp = /\]\s+ERROR:/;
+    // Anchor to the Pino entry prefix "[HH:MM:SS.mmm] ERROR:" so that INFO/WARN
+    // entries which quote a downstream "] ERROR:" fragment (e.g. when the
+    // diagnostics report itself is logged) do not produce false-positive matches.
+    const errorPattern: RegExp = /^\[\d{2}:\d{2}:\d{2}\.\d{3}]\s+ERROR:/m;
     // eslint-disable-next-line no-control-regex
     const ansiPattern: RegExp = new RegExp('\u001B\\[[0-9;]*m', 'g');
     const traceIdPattern: RegExp = /\s+\[traceId="[^"]*"\]/g;
@@ -570,7 +696,9 @@ export class DiagnosticsAnalyzer {
    */
   private extractSoloLogErrorBlocks(content: string, maxBlocks: number, maxLinesPerBlock: number): string[] {
     const lines: string[] = content.split(/\r?\n/);
-    const errorPattern: RegExp = /\]\s+ERROR:/;
+    // Anchored to the Pino entry prefix to skip INFO/WARN lines that quote
+    // a downstream "] ERROR:" fragment as part of their message body.
+    const errorPattern: RegExp = /^\[\d{2}:\d{2}:\d{2}\.\d{3}]\s+ERROR:/;
     // New Pino log entries start with a bracketed timestamp, e.g. "[17:25:23.788]"
     const newEntryPattern: RegExp = /^\[\d{2}:\d{2}:\d{2}\.\d{3}]/;
     const evidence: string[] = [];
@@ -626,6 +754,190 @@ export class DiagnosticsAnalyzer {
     }
 
     return snippets;
+  }
+
+  /**
+   * Returns the subset of {@link TRANSIENT_ERROR_PATTERNS} that apply to the
+   * given log file. The path is normalized to forward slashes so patterns
+   * can be authored portably.
+   */
+  private getTransientPatternsForFile(relativePath: string): readonly TransientErrorPattern[] {
+    const normalizedPath: string = relativePath.replaceAll('\\', '/');
+    return DiagnosticsAnalyzer.TRANSIENT_ERROR_PATTERNS.filter((transientPattern: TransientErrorPattern): boolean =>
+      transientPattern.logFilePattern.test(normalizedPath),
+    );
+  }
+
+  /**
+   * Returns the longest startup-suppression window (in seconds) that applies
+   * to `relativePath`, or 0 if no entry matches.  Multiple matching entries
+   * are merged by taking the maximum window so the more-permissive rule wins.
+   */
+  private getStartupSuppressionWindowForFile(relativePath: string): number {
+    const normalizedPath: string = relativePath.replaceAll('\\', '/');
+    const matchingWindows: number[] = DiagnosticsAnalyzer.STARTUP_ERROR_SUPPRESSIONS.filter(
+      (suppression: StartupErrorSuppression): boolean => suppression.logFilePattern.test(normalizedPath),
+    ).map((suppression: StartupErrorSuppression): number => suppression.windowSeconds);
+    return matchingWindows.length === 0 ? 0 : Math.max(...matchingWindows);
+  }
+
+  /**
+   * Returns the error patterns from {@link CONDITIONAL_ERROR_SUPPRESSIONS}
+   * whose `successPattern` is present in `content` for the given file —
+   * i.e. the retry eventually succeeded.  Lines matching one of the
+   * returned patterns can be safely suppressed.
+   */
+  private getActiveConditionalErrorPatterns(relativePath: string, content: string): readonly RegExp[] {
+    const normalizedPath: string = relativePath.replaceAll('\\', '/');
+    return DiagnosticsAnalyzer.CONDITIONAL_ERROR_SUPPRESSIONS.filter(
+      (suppression: ConditionalErrorSuppression): boolean =>
+        suppression.logFilePattern.test(normalizedPath) && suppression.successPattern.test(content),
+    ).map((suppression: ConditionalErrorSuppression): RegExp => suppression.errorPattern);
+  }
+
+  /**
+   * Parses an ISO-8601 timestamp possibly carrying sub-millisecond precision
+   * (e.g. nanoseconds from container runtimes).  JavaScript Date only handles
+   * three fractional digits, so longer precision is truncated.  Returns
+   * undefined when the string cannot be parsed.
+   */
+  private parseLogTimestamp(text: string): Date | undefined {
+    const normalizedText: string = text.replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1');
+    const parsedDate: Date = new Date(normalizedText);
+    return Number.isNaN(parsedDate.getTime()) ? undefined : parsedDate;
+  }
+
+  /**
+   * Returns the timestamp of the first line in `content` that carries one,
+   * or undefined if no timestamped line is found.  Used as the start-of-log
+   * reference point for {@link isWithinStartupWindow}.
+   */
+  private findFirstTimestamp(content: string): Date | undefined {
+    const lines: string[] = content.split(/\r?\n/);
+    for (const line of lines) {
+      const timestampMatch: RegExpMatchArray | null = line.match(DiagnosticsAnalyzer.LOG_LINE_TIMESTAMP_PATTERN);
+      if (!timestampMatch) {
+        continue;
+      }
+      const parsedDate: Date | undefined = this.parseLogTimestamp(timestampMatch[1]);
+      if (parsedDate) {
+        return parsedDate;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Returns true when `line` carries a timestamp at or before
+   * `startTime + windowSeconds`.  Lines without a parseable timestamp are
+   * NOT considered within the window — we err on the side of surfacing the
+   * error rather than hiding it.
+   */
+  private isWithinStartupWindow(line: string, startTime: Date, windowSeconds: number): boolean {
+    const timestampMatch: RegExpMatchArray | null = line.match(DiagnosticsAnalyzer.LOG_LINE_TIMESTAMP_PATTERN);
+    if (!timestampMatch) {
+      return false;
+    }
+    const lineTime: Date | undefined = this.parseLogTimestamp(timestampMatch[1]);
+    if (!lineTime) {
+      return false;
+    }
+    const deltaSeconds: number = (lineTime.getTime() - startTime.getTime()) / 1000;
+    return deltaSeconds <= windowSeconds;
+  }
+
+  /**
+   * Like {@link extractMatchSnippets} but drops error lines that fall into
+   * any of three suppression categories configured for `relativePath`:
+   *   1. transient message patterns       — known benign messages
+   *   2. startup grace window              — within N seconds of log start
+   *   3. retry-with-eventual-success pair  — success marker present elsewhere
+   *
+   * Suppression is block-aware: a log entry is a header line (timestamp at
+   * start of line) plus all following lines until the next header. When the
+   * header is suppressed, every continuation match within the block (e.g.
+   * `Suppressed: ... terminated with an error` inside a stack trace) is
+   * cascaded into the same suppression — so a single suppressed error never
+   * leaks through as separate evidence via its own stack frames. The same
+   * cascading collapses non-suppressed blocks so each surfaces at most once.
+   *
+   * Returns both the captured evidence (capped at `maxMatches`) and the
+   * number of lines that were suppressed so callers can surface a note.
+   */
+  private extractFilteredErrorSnippets(
+    content: string,
+    errorPattern: RegExp,
+    relativePath: string,
+    maxMatches: number,
+  ): {evidence: string[]; suppressed: number} {
+    const lines: string[] = content.split(/\r?\n/);
+    const transientPatterns: readonly TransientErrorPattern[] = this.getTransientPatternsForFile(relativePath);
+    const startupWindowSeconds: number = this.getStartupSuppressionWindowForFile(relativePath);
+    const startupReferenceTime: Date | undefined =
+      startupWindowSeconds > 0 ? this.findFirstTimestamp(content) : undefined;
+    const activeConditionalPatterns: readonly RegExp[] = this.getActiveConditionalErrorPatterns(relativePath, content);
+    const normalizedFlags: string = errorPattern.flags.includes('g')
+      ? errorPattern.flags.replaceAll('g', '')
+      : errorPattern.flags;
+    const matcher: RegExp = new RegExp(errorPattern.source, normalizedFlags);
+
+    const evidence: string[] = [];
+    let suppressed: number = 0;
+    let inErrorBlock: boolean = false;
+    let blockSuppressed: boolean = false;
+
+    for (const [index, line] of lines.entries()) {
+      // A new timestamped log entry ends any open error block. Stack-trace
+      // continuation lines (no leading timestamp) inherit the prior block.
+      if (DiagnosticsAnalyzer.LOG_LINE_TIMESTAMP_PATTERN.test(line)) {
+        inErrorBlock = false;
+        blockSuppressed = false;
+      }
+
+      if (!matcher.test(line)) {
+        continue;
+      }
+
+      // Continuation matches (e.g. "Suppressed: ... terminated with an error"
+      // inside a stack trace) inherit the header's suppression decision and
+      // are never reported as separate evidence even if the block was not
+      // suppressed — they belong to the already-surfaced header.
+      if (inErrorBlock) {
+        if (blockSuppressed) {
+          suppressed++;
+        }
+        continue;
+      }
+
+      inErrorBlock = true;
+
+      const isTransientMessage: boolean = transientPatterns.some((transientPattern: TransientErrorPattern): boolean =>
+        transientPattern.messagePattern.test(line),
+      );
+      if (isTransientMessage) {
+        suppressed++;
+        blockSuppressed = true;
+        continue;
+      }
+      if (startupReferenceTime && this.isWithinStartupWindow(line, startupReferenceTime, startupWindowSeconds)) {
+        suppressed++;
+        blockSuppressed = true;
+        continue;
+      }
+      const isConditionallySuppressed: boolean = activeConditionalPatterns.some((conditionalPattern: RegExp): boolean =>
+        conditionalPattern.test(line),
+      );
+      if (isConditionallySuppressed) {
+        suppressed++;
+        blockSuppressed = true;
+        continue;
+      }
+      if (evidence.length < maxMatches) {
+        evidence.push(`line ${index + 1}: ${line.trim()}`);
+      }
+    }
+
+    return {evidence, suppressed};
   }
 
   /**
