@@ -38,10 +38,10 @@ describe('InitCommand unit tests', (): void => {
       dirs: ['/tmp/home-dir'],
       config: {username: ''},
     };
-    const copyTemplatesTaskWrapper: SoloListrTaskWrapper<InitContext> = {} as SoloListrTaskWrapper<InitContext>;
+    const taskWrapper: SoloListrTaskWrapper<InitContext> = {} as SoloListrTaskWrapper<InitContext>;
 
-    await copyTemplatesTask.task(context, copyTemplatesTaskWrapper);
-    await copyTemplatesTask.task(context, copyTemplatesTaskWrapper);
+    await copyTemplatesTask.task(context, taskWrapper);
+    await copyTemplatesTask.task(context, taskWrapper);
 
     expect(showListStub.callCount).to.equal(2);
     expect(showListStub.firstCall.args[0]).to.equal('Home Directories');
