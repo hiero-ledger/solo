@@ -322,11 +322,14 @@ export class RapidFireCommand extends BaseCommand {
     };
   }
 
-  // Pattern: "Finished <TestClass>: N <units> in S sec, TPS: M"
-  // The units portion varies by test class — e.g. "transferred", "messages sent" (two words).
-  // Use a non-greedy match up to "in \d+ sec" to handle any number of unit words.
+  // Pattern: "Finished <TestClass>: ... in S sec, TPS: M"
+  // NLG formats vary by test class, for example:
+  //   TokenTransferLoadTest:  "500 transferred in 300 sec, TPS: 100"  (N word in)
+  //   HCSLoadTest:            "28483 messages sent in 288 sec, TPS: 98"  (N word word in)
+  //   SmartContractLoadTest:  "made 29077 calls in 297 sec, TPS: 97"  (word N word in)
+  // .*? skips any prefix before the count; (?:\w+\s+)+ matches one or more unit words after it.
   private static readonly NLG_FINISHED_PATTERN: RegExp =
-    /Finished\s+([\w.]+):\s+(\d+)\s+.+?\s+in\s+(\d+)\s+sec,\s+TPS:\s+(\d+)/;
+    /Finished\s+([\w.]+):.*?(\d+)\s+(?:\w+\s+)+in\s+(\d+)\s+sec,\s+TPS:\s+(\d+)/;
 
   private static analyzeNlgOutput(output: string, testClass: string, performanceTest: string): NlgResult {
     const lines: string[] = output.split('\n');
