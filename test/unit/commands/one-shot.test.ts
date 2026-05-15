@@ -12,7 +12,10 @@ import {Flags as flags} from '../../../src/commands/flags.js';
 import {resetForTest} from '../../test-container.js';
 import * as version from '../../../version.js';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
-import {type OneShotVersionsObject} from '../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import {
+  type OneShotVersionsObject,
+  type SoloConfigFileVersions,
+} from '../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 /**
@@ -20,13 +23,7 @@ import {PathEx} from '../../../src/business/utils/path-ex.js';
  */
 interface DefaultOneShotInternal {
   findSoloConfigFile(): string | undefined;
-  loadVersionsFromSoloConfigFile(): {
-    consensusNodeVersion?: string;
-    mirrorNodeVersion?: string;
-    relayVersion?: string;
-    explorerVersion?: string;
-    blockNodeVersion?: string;
-  };
+  loadVersionsFromSoloConfigFile(): SoloConfigFileVersions;
   resolveOneShotComponentVersions(argv: ArgvStruct, useEdge: boolean): OneShotVersionsObject;
 }
 
@@ -184,7 +181,7 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       // Cast to access the private method for stubbing.
       loadVersionsStub = sinon.stub(
         command as unknown as {
-          loadVersionsFromSoloConfigFile: () => Record<string, string | undefined>;
+          loadVersionsFromSoloConfigFile: () => SoloConfigFileVersions;
         },
         'loadVersionsFromSoloConfigFile',
       );

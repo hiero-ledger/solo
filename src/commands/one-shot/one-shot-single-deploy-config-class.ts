@@ -3,6 +3,18 @@
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type AnyObject} from '../../types/aliases.js';
 
+/**
+ * The shape of component version keys read from a {@code solo.config.yaml} or
+ * {@code solo.config.json} file (both camelCase and kebab-case keys are normalised to this form).
+ */
+export interface SoloConfigFileVersions {
+  consensusNodeVersion?: string;
+  mirrorNodeVersion?: string;
+  relayVersion?: string;
+  explorerVersion?: string;
+  blockNodeVersion?: string;
+}
+
 export interface OneShotVersionsObject {
   soloChart: string;
   consensus: string;

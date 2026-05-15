@@ -26,7 +26,11 @@ import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {StringEx} from '../../business/utils/string-ex.js';
 import {OneShotCommand} from './one-shot.js';
-import {OneShotSingleDeployConfigClass, OneShotVersionsObject} from './one-shot-single-deploy-config-class.js';
+import {
+  OneShotSingleDeployConfigClass,
+  OneShotVersionsObject,
+  SoloConfigFileVersions,
+} from './one-shot-single-deploy-config-class.js';
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
 import * as version from '../../../version.js';
@@ -2029,13 +2033,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
    * the current working directory or any parent.  Supports both camelCase and kebab-case keys.
    * Returns an empty object if no file is found or if it cannot be parsed.
    */
-  private loadVersionsFromSoloConfigFile(): {
-    consensusNodeVersion?: string;
-    mirrorNodeVersion?: string;
-    relayVersion?: string;
-    explorerVersion?: string;
-    blockNodeVersion?: string;
-  } {
+  private loadVersionsFromSoloConfigFile(): SoloConfigFileVersions {
     const filePath: string | undefined = this.findSoloConfigFile();
     if (!filePath) {
       return {};
@@ -2072,103 +2070,110 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
    * Resolves the component versions for a one-shot deploy using the following precedence (highest
    * to lowest):
    *
+  /**
+   * Returns the first non-empty string from the supplied candidates, or an empty string if all
+   * candidates are empty or undefined.
+   */
+  private returnFirstTruthyString(...candidates: (string | undefined)[]): string {
+    for (const candidate of candidates) {
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return '';
+  }
+
+  /**
+   * Resolves the effective version for a single component.
+   *
+   * Precedence (highest to lowest):
+   *  1. Explicit CLI flag — detected by comparing the raw argv value against both version
+   *     defaults; a value that matches a default is assumed to have been Yargs-injected rather
+   *     than explicitly supplied by the user.
+   *  2. {@code solo.config.yaml} / {@code solo.config.json} entry for this component.
+   *  3. The appropriate version constant from {@code version.ts}, which already incorporates any
+   *     environment-variable override (e.g. {@code CONSENSUS_NODE_VERSION}).
+   *
+   * @param argv - The argv object captured at task creation time (treated as immutable here).
+   * @param flagName - The CLI flag name whose value to read from argv.
+   * @param stdVersion - The standard version constant (env var already baked in).
+   * @param edgeVersion - The edge version constant (env var already baked in).
+   * @param configFileVersion - Optional version read from a solo.config file.
+   * @param useEdge - When true the edge variant is used as the fallback default.
+   */
+  private resolveComponentVersion(
+    argv: ArgvStruct,
+    flagName: string,
+    stdVersion: string,
+    edgeVersion: string,
+    configFileVersion: string | undefined,
+    useEdge: boolean,
+  ): string {
+    const argvValue: string | undefined = argv[flagName] as string | undefined;
+    // argvValue is considered explicit only if it is non-empty and does not match either of the
+    // version defaults (which would indicate a Yargs-injected default rather than a user value).
+    const isExplicit: boolean = !!argvValue && argvValue !== stdVersion && argvValue !== edgeVersion;
+    return this.returnFirstTruthyString(
+      isExplicit ? argvValue : undefined,
+      configFileVersion,
+      useEdge ? edgeVersion : stdVersion,
+    );
+  }
+
+  /**
+   * Resolves the component versions for a one-shot deploy using the following precedence (highest
+   * to lowest):
+   *
    *  1. Explicit CLI flag (e.g. --consensus-node-version, --mirror-node-version, …)
-   *  2. Environment variable (CONSENSUS_NODE_VERSION / _EDGE_VERSION, etc.)
-   *  3. solo.config.yaml or solo.config.json found in CWD or any parent directory
-   *  4. Hard-coded defaults from version.ts (optionally the edge variant when --edge is passed)
+   *  2. solo.config.yaml or solo.config.json found in CWD or any parent directory
+   *  3. Hard-coded defaults from version.ts (which already incorporate env-var overrides such as
+   *     CONSENSUS_NODE_VERSION; optionally the edge variant when --edge is passed)
    */
   private resolveOneShotComponentVersions(argv: ArgvStruct, useEdge: boolean): OneShotVersionsObject {
-    const configFile: {
-      consensusNodeVersion?: string;
-      mirrorNodeVersion?: string;
-      relayVersion?: string;
-      explorerVersion?: string;
-      blockNodeVersion?: string;
-    } = this.loadVersionsFromSoloConfigFile();
-    const getEnvironment: (name: string) => string | undefined = constants.getEnvironmentVariable.bind(constants);
-
-    // Returns the first non-empty string from the candidates array.
-    const pick: (...candidates: (string | undefined)[]) => string = (...candidates: (string | undefined)[]): string => {
-      for (const candidate of candidates) {
-        if (candidate) {
-          return candidate;
-        }
-      }
-      return '';
-    };
-
-    // Detects whether the user explicitly provided a value for a flag that has a non-empty default.
-    // Compares the raw argv value against both the standard and edge defaults to avoid false positives
-    // when only one of the env vars is set.
-    const isExplicitFlag: (argvValue: string | undefined, stdDefault: string, edgeDefault: string) => boolean = (
-      argvValue: string | undefined,
-      stdDefault: string,
-      edgeDefault: string,
-    ): boolean => {
-      if (!argvValue) {
-        return false;
-      }
-      return argvValue !== stdDefault && argvValue !== edgeDefault;
-    };
-
-    // --- Consensus ---
-    const consensusCli: string | undefined = argv[Flags.consensusNodeVersion.name] as string | undefined;
-    const consensusEnvironment: string | undefined = useEdge
-      ? getEnvironment('CONSENSUS_NODE_EDGE_VERSION') || getEnvironment('CONSENSUS_NODE_VERSION')
-      : getEnvironment('CONSENSUS_NODE_VERSION');
-    const consensusDefault: string = useEdge ? version.HEDERA_PLATFORM_EDGE_VERSION : version.HEDERA_PLATFORM_VERSION;
-
-    // --- Mirror ---
-    const mirrorArgv: string | undefined = argv[Flags.mirrorNodeVersion.name] as string | undefined;
-    const mirrorCli: string | undefined = isExplicitFlag(
-      mirrorArgv,
-      version.MIRROR_NODE_VERSION,
-      version.MIRROR_NODE_EDGE_VERSION,
-    )
-      ? mirrorArgv
-      : undefined;
-    const mirrorEnvironment: string | undefined = useEdge
-      ? getEnvironment('MIRROR_NODE_EDGE_VERSION') || getEnvironment('MIRROR_NODE_VERSION')
-      : getEnvironment('MIRROR_NODE_VERSION');
-    const mirrorDefault: string = useEdge ? version.MIRROR_NODE_EDGE_VERSION : version.MIRROR_NODE_VERSION;
-
-    // --- Explorer ---
-    const explorerArgv: string | undefined = argv[Flags.explorerVersion.name] as string | undefined;
-    const explorerCli: string | undefined = isExplicitFlag(
-      explorerArgv,
-      version.EXPLORER_VERSION,
-      version.EXPLORER_EDGE_VERSION,
-    )
-      ? explorerArgv
-      : undefined;
-    const explorerEnvironment: string | undefined = useEdge
-      ? getEnvironment('EXPLORER_EDGE_VERSION') || getEnvironment('EXPLORER_VERSION')
-      : getEnvironment('EXPLORER_VERSION');
-    const explorerDefault: string = useEdge ? version.EXPLORER_EDGE_VERSION : version.EXPLORER_VERSION;
-
-    // --- Relay ---
-    const relayCli: string | undefined = argv[Flags.relayVersion.name] as string | undefined;
-    const relayEnvironment: string | undefined = useEdge
-      ? getEnvironment('RELAY_EDGE_VERSION') || getEnvironment('RELAY_VERSION')
-      : getEnvironment('RELAY_VERSION');
-    const relayDefault: string = useEdge
-      ? version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION
-      : version.HEDERA_JSON_RPC_RELAY_VERSION;
-
-    // --- Block Node ---
-    const blockNodeCli: string | undefined = argv[Flags.blockNodeVersion.name] as string | undefined;
-    const blockNodeEnvironment: string | undefined = useEdge
-      ? getEnvironment('BLOCK_NODE_EDGE_VERSION') || getEnvironment('BLOCK_NODE_VERSION')
-      : getEnvironment('BLOCK_NODE_VERSION');
-    const blockNodeDefault: string = useEdge ? version.BLOCK_NODE_EDGE_VERSION : version.BLOCK_NODE_VERSION;
+    const configFile: SoloConfigFileVersions = this.loadVersionsFromSoloConfigFile();
 
     return {
       soloChart: useEdge ? version.SOLO_CHART_EDGE_VERSION : version.SOLO_CHART_VERSION,
-      consensus: pick(consensusCli, consensusEnvironment, configFile.consensusNodeVersion, consensusDefault),
-      mirror: pick(mirrorCli, mirrorEnvironment, configFile.mirrorNodeVersion, mirrorDefault),
-      explorer: pick(explorerCli, explorerEnvironment, configFile.explorerVersion, explorerDefault),
-      relay: pick(relayCli, relayEnvironment, configFile.relayVersion, relayDefault),
-      blockNode: pick(blockNodeCli, blockNodeEnvironment, configFile.blockNodeVersion, blockNodeDefault),
+      consensus: this.resolveComponentVersion(
+        argv,
+        Flags.consensusNodeVersion.name,
+        version.HEDERA_PLATFORM_VERSION,
+        version.HEDERA_PLATFORM_EDGE_VERSION,
+        configFile.consensusNodeVersion,
+        useEdge,
+      ),
+      mirror: this.resolveComponentVersion(
+        argv,
+        Flags.mirrorNodeVersion.name,
+        version.MIRROR_NODE_VERSION,
+        version.MIRROR_NODE_EDGE_VERSION,
+        configFile.mirrorNodeVersion,
+        useEdge,
+      ),
+      explorer: this.resolveComponentVersion(
+        argv,
+        Flags.explorerVersion.name,
+        version.EXPLORER_VERSION,
+        version.EXPLORER_EDGE_VERSION,
+        configFile.explorerVersion,
+        useEdge,
+      ),
+      relay: this.resolveComponentVersion(
+        argv,
+        Flags.relayVersion.name,
+        version.HEDERA_JSON_RPC_RELAY_VERSION,
+        version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION,
+        configFile.relayVersion,
+        useEdge,
+      ),
+      blockNode: this.resolveComponentVersion(
+        argv,
+        Flags.blockNodeVersion.name,
+        version.BLOCK_NODE_VERSION,
+        version.BLOCK_NODE_EDGE_VERSION,
+        configFile.blockNodeVersion,
+        useEdge,
+      ),
     };
   }
 }
