@@ -1620,11 +1620,13 @@ export class MirrorNodeCommand extends BaseCommand {
           `MIRROR_NODE_OLD_MEMORY_${configRoot.toUpperCase()}` as keyof typeof constants;
         config.valuesArg += ` --set ${configRoot}.resources.limits.memory=${constants[memoryKey]}`;
       }
-    } else if (process.arch === 'arm64') {
-      /** Unable to build linux/arm64 native images due to limitation in web3j.
-       * Upstream ticket https://github.com/LFDT-web3j/web3j-sokt/issues/40
-       * will need to be resolved before we can disable this logic
-       */
+    } else if (
+      process.arch === 'arm64' &&
+      new SemanticVersion<string>(config.mirrorNodeVersion).lessThan(
+        versions.MINIMUM_MIRROR_NODE_VERSION_FOR_ARM64_WEB3_NATIVE_IMAGE,
+      )
+    ) {
+      // web3 arm64 native images are only published starting with mirror node 0.155.0.
       config.valuesArg += ` --set web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
       config.valuesArg += ` --set web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`;
       config.valuesArg += ` --set web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`;
