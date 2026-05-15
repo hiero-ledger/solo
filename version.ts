@@ -50,7 +50,7 @@ export const REDIS_SENTINEL_IMAGE_VERSION: string =
 export const SOLO_CHART_EDGE_VERSION: string =
   constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || SOLO_CHART_VERSION;
 export const HEDERA_PLATFORM_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || HEDERA_PLATFORM_VERSION;
+  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.74.0-rc.1';
 export const MIRROR_NODE_EDGE_VERSION: string =
   constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || MIRROR_NODE_VERSION;
 export const EXPLORER_EDGE_VERSION: string =
@@ -81,6 +81,8 @@ export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: stri
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR: string = 'v0.72.0-0';
 export const NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72: string = '0.8.0';
 export const NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72: string = '0.14.0';
+export const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
+export const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
 
 export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
   const versionTag: SemanticVersion<string> = new SemanticVersion(releaseTag || HEDERA_PLATFORM_VERSION);
