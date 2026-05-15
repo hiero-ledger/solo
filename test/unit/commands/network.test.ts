@@ -92,6 +92,9 @@ describe('NetworkCommand unit tests', (): void => {
     let containerOverrides: InstanceOverrides;
 
     beforeEach(async (): Promise<void> => {
+      argv.setArg(flags.chartDirectory, undefined);
+      argv.setArg(flags.networkDeploymentValuesFile, undefined);
+
       containerOverrides = new Map<symbol, ValueContainer>([
         [InjectTokens.K8Factory, new ValueContainer(InjectTokens.K8Factory, k8SFactoryStub)],
         [InjectTokens.ClusterChecks, new ValueContainer(InjectTokens.ClusterChecks, clusterChecksStub)],
@@ -192,7 +195,7 @@ describe('NetworkCommand unit tests', (): void => {
       container.registerInstance(InjectTokens.PlatformInstaller, options.platformInstaller);
 
       options.profileManager = container.resolve<ProfileManager>(InjectTokens.ProfileManager);
-      options.profileManager.prepareValuesForSoloChart = sinon.stub();
+      options.profileManager.prepareValuesForSoloChart = sinon.stub().resolves({});
 
       options.certificateManager = certificateManagerStub;
       container.registerInstance(InjectTokens.CertificateManager, options.certificateManager);
@@ -231,7 +234,11 @@ describe('NetworkCommand unit tests', (): void => {
     it('Install function is called with expected parameters', async (): Promise<void> => {
       try {
         const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
-        options.remoteConfig.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'solo-e2e', 'context1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
         options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
         const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
         options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
@@ -267,7 +274,11 @@ describe('NetworkCommand unit tests', (): void => {
         argv.setArg(flags.force, true);
         const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
 
-        options.remoteConfig.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'solo-e2e', 'context1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
         options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
         options.remoteConfig.updateComponentVersion = sinon.stub();
         const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
@@ -331,24 +342,38 @@ describe('NetworkCommand unit tests', (): void => {
 
         const chartValueArguments: string[] = config.chartValuesMap['cluster'].toArguments();
 
-        expect(chartValueArguments).to.include(PathEx.join('solo-deployment', 'values.yaml'));
-        expect(chartValueArguments).to.include('values.yaml');
-        expect(chartValueArguments).to.include('test-values1.yaml');
-        expect(chartValueArguments).to.include('test-values2.yaml');
+        const indexOfValueArgumentEndingWith = (suffix: string): number =>
+          chartValueArguments.findIndex((argument: string): boolean => argument.endsWith(suffix));
+
+        const soloDeploymentValuesFileIndex: number = indexOfValueArgumentEndingWith(
+          PathEx.join('solo-deployment', 'values.yaml'),
+        );
+        const soloValuesFileIndex: number = indexOfValueArgumentEndingWith(
+          PathEx.join('resources', 'solo-values.yaml'),
+        );
+        const commonValuesFileIndex: number = indexOfValueArgumentEndingWith(
+          PathEx.join('test', 'data', 'test-values.yaml'),
+        );
+        const values1FileIndex: number = indexOfValueArgumentEndingWith(
+          PathEx.join('test', 'data', 'test-values1.yaml'),
+        );
+        const values2FileIndex: number = indexOfValueArgumentEndingWith(
+          PathEx.join('test', 'data', 'test-values2.yaml'),
+        );
+
+        expect(soloDeploymentValuesFileIndex).to.not.equal(-1);
+        expect(soloValuesFileIndex).to.not.equal(-1);
+        expect(commonValuesFileIndex).to.not.equal(-1);
+        expect(values1FileIndex).to.not.equal(-1);
+        expect(values2FileIndex).to.not.equal(-1);
 
         // chart values file should precede the values file passed in the command
-        expect(chartValueArguments.indexOf('solo-deployment/values.yaml')).to.be.lt(
-          chartValueArguments.indexOf('test-values1.yaml'),
-        );
-        expect(chartValueArguments.indexOf('solo-deployment/values.yaml')).to.be.lt(
-          chartValueArguments.indexOf('test-values2.yaml'),
-        );
+        expect(soloDeploymentValuesFileIndex).to.be.lt(values1FileIndex);
+        expect(soloDeploymentValuesFileIndex).to.be.lt(values2FileIndex);
 
-        expect(chartValueArguments.indexOf('values.yaml')).to.be.lt(chartValueArguments.indexOf('test-values1.yaml'));
-        expect(chartValueArguments.indexOf('test-values1.yaml')).to.be.lt(
-          chartValueArguments.indexOf('test-values2.yaml'),
-        );
-        expect(chartValueArguments.indexOf('values.yaml')).to.be.lt(chartValueArguments.indexOf('test-values2.yaml'));
+        expect(soloValuesFileIndex).to.be.lt(commonValuesFileIndex);
+        expect(commonValuesFileIndex).to.be.lt(values1FileIndex);
+        expect(values1FileIndex).to.be.lt(values2FileIndex);
       } finally {
         sinon.restore();
       }
