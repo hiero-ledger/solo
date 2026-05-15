@@ -58,6 +58,8 @@ import {type NodeConnectionsContext} from './config-interfaces/node-connections-
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
 import {optionFromFlag} from '../command-helpers.js';
+import {type AccountIdWithKeyPairObject, type ComponentData, type Context} from '../../types/index.js';
+import {type K8} from '../../integration/kube/k8.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME: string = 'prepareUpgradeConfig';
 const ADD_CONFIGS_NAME: string = 'addConfigs';
@@ -130,7 +132,7 @@ export class NodeCommandConfigs {
     );
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
@@ -174,7 +176,7 @@ export class NodeCommandConfigs {
       const BUILD_ZIP_URL: string = `${HEDERA_BUILDS_URL}/node/software/v${semVersion.major}.${semVersion.minor}/build-${context_.config.upgradeVersion}.zip`;
       try {
         // do not fetch or download, just check if URL exists or not
-        const response = await fetch(BUILD_ZIP_URL, {
+        const response: Response = await fetch(BUILD_ZIP_URL, {
           method: 'HEAD',
           headers: {
             'User-Agent': SOLO_USER_AGENT_HEADER,
@@ -207,7 +209,7 @@ export class NodeCommandConfigs {
     }
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
@@ -259,17 +261,17 @@ export class NodeCommandConfigs {
     );
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
 
-    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(
+    const treasuryAccount: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
       context_.config.namespace,
       context_.config.deployment,
     );
-    const treasuryAccountPrivateKey = treasuryAccount.privateKey;
+    const treasuryAccountPrivateKey: string = treasuryAccount.privateKey;
     context_.config.treasuryKey = PrivateKey.fromStringED25519(treasuryAccountPrivateKey);
 
     if (context_.config.domainNames) {
@@ -317,17 +319,17 @@ export class NodeCommandConfigs {
     }
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
 
-    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(
+    const treasuryAccount: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
       context_.config.namespace,
       context_.config.deployment,
     );
-    const treasuryAccountPrivateKey = treasuryAccount.privateKey;
+    const treasuryAccountPrivateKey: string = treasuryAccount.privateKey;
     context_.config.treasuryKey = PrivateKey.fromStringED25519(treasuryAccountPrivateKey);
 
     if (context_.config.domainNames) {
@@ -381,17 +383,17 @@ export class NodeCommandConfigs {
     }
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
 
-    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(
+    const treasuryAccount: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
       context_.config.namespace,
       context_.config.deployment,
     );
-    const treasuryAccountPrivateKey = treasuryAccount.privateKey;
+    const treasuryAccountPrivateKey: string = treasuryAccount.privateKey;
     context_.config.treasuryKey = PrivateKey.fromStringED25519(treasuryAccountPrivateKey);
 
     context_.config.serviceMap = await this.accountManager.getNodeServiceMap(
@@ -443,12 +445,15 @@ export class NodeCommandConfigs {
     context_: NodeConnectionsContext,
     task: SoloListrTaskWrapper<NodeConnectionsContext>,
   ): Promise<NodeConnectionsConfigClass> {
+    const context: Context = this.remoteConfig.getContexts()[0];
     context_.config = {
       deployment: this.configManager.getFlag(flags.deployment),
       check: this.configManager.getFlag<boolean>(flags.check),
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
-      contexts: this.remoteConfig.getContexts()[0],
-    } as any as NodeConnectionsConfigClass;
+      context,
+      componentsData: [] as ComponentData[],
+      newAccount: undefined,
+    } as NodeConnectionsConfigClass;
 
     return context_.config;
   }
@@ -566,7 +571,7 @@ export class NodeCommandConfigs {
     await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
@@ -590,7 +595,7 @@ export class NodeCommandConfigs {
     context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
     for (const consensusNode of context_.config.consensusNodes) {
-      const k8 = this.k8Factory.getK8(consensusNode.context);
+      const k8: K8 = this.k8Factory.getK8(consensusNode.context);
       if (!(await k8.namespaces().has(context_.config.namespace))) {
         throw new SoloError(`namespace ${context_.config.namespace} does not exist`);
       }

@@ -7,7 +7,10 @@ import {ConsensusCommandDefinition} from '../../../../../../src/commands/command
 import * as constants from '../../../../../../src/core/constants.js';
 import * as version from '../../../../../../version.js';
 import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
-import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import {
+  type OneShotSingleDeployConfigClass,
+  type OneShotVersionsObject,
+} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
 import {ClusterReferenceCommandDefinition} from '../../../../../../src/commands/command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../../../../src/commands/command-definitions/keys-command-definition.js';
@@ -290,7 +293,7 @@ describe('resolveOneShotComponentVersions', (): void => {
       [Flags.explorerVersion.name]: version.EXPLORER_VERSION,
       [Flags.blockNodeVersion.name]: '',
     };
-    const versions = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, false);
+    const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, false);
     expect(versions.consensus).to.equal(version.HEDERA_PLATFORM_VERSION);
     expect(versions.mirror).to.equal(version.MIRROR_NODE_VERSION);
     expect(versions.relay).to.equal(version.HEDERA_JSON_RPC_RELAY_VERSION);
@@ -330,7 +333,7 @@ describe('resolveOneShotComponentVersions', (): void => {
       [Flags.explorerVersion.name]: version.EXPLORER_VERSION,
       [Flags.blockNodeVersion.name]: '',
     };
-    const versions = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, true);
+    const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, true);
     expect(versions.consensus).to.equal('v0.79.0');
     expect(versions.mirror).to.equal('v0.200.1');
     expect(versions.explorer).to.equal('v31.0.0');
