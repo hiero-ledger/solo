@@ -206,6 +206,26 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.numberOfConsensusNodes ||= 1;
             config.force = argv.force as boolean;
 
+            // Ensure release tag is set in network configuration so subcommands use the correct version
+            const releaseTagKey: string = flags.getFormattedFlagKey(flags.releaseTag);
+            const soloChartVersionKey: string = flags.getFormattedFlagKey(flags.soloChartVersion);
+            if (!config.networkConfiguration[releaseTagKey]) {
+              config.networkConfiguration[releaseTagKey] = versions.consensus;
+            }
+            if (!config.networkConfiguration[soloChartVersionKey]) {
+              config.networkConfiguration[soloChartVersionKey] = versions.soloChart;
+            }
+            if (!config.setupConfiguration[releaseTagKey]) {
+              config.setupConfiguration[releaseTagKey] = versions.consensus;
+            }
+            this.logger.addLogBindings({
+              clusterReference: config.clusterRef,
+              context: config.context,
+              deployment: config.deployment,
+              namespace: config.namespace.name,
+            });
+
+            // Apply small-memory node configuration only for CN >= 0.72.0 and when not using `one-shot falcon deploy`
             const cnVersion: SemanticVersion<string> = new SemanticVersion(versions.consensus);
             if (!config.valuesFile && cnVersion.greaterThanOrEqual(MINIMUM_CN_VERSION_FOR_SMALL_MEMORY)) {
               const defaultsDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, 'templates');

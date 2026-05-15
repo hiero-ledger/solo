@@ -32,6 +32,7 @@ export class DeployArgvBuilders {
     const blockExistingValuesFile: string =
       config.blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     const blockLocalConfig: AnyObject = {
+      [optionFromFlag(Flags.blockNodeChartVersion)]: config.versions.blockNode,
       ...config.blockNodeConfiguration,
       [Flags.getFormattedFlagKey(Flags.valuesFile)]: blockExistingValuesFile
         ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
@@ -58,6 +59,8 @@ export class DeployArgvBuilders {
     const mirrorExistingValuesFile: string =
       config.mirrorNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     const mirrorLocalConfig: AnyObject = {
+      [optionFromFlag(Flags.mirrorNodeVersion)]: config.versions.mirror,
+      [optionFromFlag(Flags.soloChartVersion)]: config.versions.soloChart,
       [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
       ...config.mirrorNodeConfiguration,
       [Flags.getFormattedFlagKey(Flags.valuesFile)]: mirrorExistingValuesFile
@@ -78,6 +81,7 @@ export class DeployArgvBuilders {
       config.clusterRef,
     );
     appendConfigToArgv(argv, {
+      [optionFromFlag(Flags.soloChartVersion)]: config.versions.soloChart,
       [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
       [optionFromFlag(Flags.explorerVersion)]: config.versions.explorer,
       [optionFromFlag(Flags.mirrorNodeId)]: MIRROR_NODE_ID,
@@ -99,6 +103,7 @@ export class DeployArgvBuilders {
       'node1',
     );
     appendConfigToArgv(argv, {
+      [optionFromFlag(Flags.relayReleaseTag)]: config.versions.relay,
       [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
       [optionFromFlag(Flags.mirrorNodeId)]: MIRROR_NODE_ID,
       [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,
@@ -113,6 +118,8 @@ export class DeployArgvBuilders {
       ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
       optionFromFlag(Flags.deployment),
       config.deployment,
+      optionFromFlag(Flags.soloChartVersion),
+      config.versions.soloChart,
     );
     if (config.networkConfiguration) {
       appendConfigToArgv(argv, config.networkConfiguration);
