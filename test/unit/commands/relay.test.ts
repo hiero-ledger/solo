@@ -8,8 +8,7 @@ import {RelayCommand} from '../../../src/commands/relay.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {resetForTest} from '../../test-container.js';
-
-import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
+import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
 
 interface RelayCommandInternal {
   prepareNetworkJsonString: (nodeAliases: string[], namespace: NamespaceName, deployment: string) => Promise<string>;
@@ -19,6 +18,7 @@ interface RelayCommandInternal {
 const prepareRelayValueArguments = async (
   relayCommandInternal: RelayCommandInternal,
   configuration: Record<string, unknown>,
+  // eslint-disable-next-line unicorn/no-await-expression-member
 ): Promise<string[]> => (await relayCommandInternal.prepareHelmChartValuesForRelay(configuration)).toArguments();
 
 const createRelayConfig: (overrides?: Record<string, unknown>) => Record<string, unknown> = (
