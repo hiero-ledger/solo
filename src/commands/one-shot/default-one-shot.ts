@@ -80,6 +80,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.rollback,
       flags.parallelDeploy,
       flags.externalAddress,
+      flags.edgeEnabled,
     ],
   };
 
@@ -421,7 +422,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             // Show versions
             this.logger.showUser(chalk.cyan('\nVersions:'));
-            this.logger.showUser(`  Solo Chart Version: ${chalk.bold()}`);
+            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(versions.chart?.toString())}`);
             this.logger.showUser(`  Consensus Node Version: ${chalk.bold(versions.consensusNode?.toString())}`);
             this.logger.showUser(`  Mirror Node Version: ${chalk.bold(versions.mirrorNodeChart?.toString())}`);
             this.logger.showUser(`  Explorer Version: ${chalk.bold(versions.explorerChart?.toString())}`);
