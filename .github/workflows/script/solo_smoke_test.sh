@@ -76,31 +76,7 @@ function start_contract_test ()
   ps -ef | grep port-forward
   echo "Run smart contract test"
   result=0
-  max_attempts=3
-  attempt=1
-  while [ $attempt -le $max_attempts ]; do
-    echo "Running hh:test attempt ${attempt}/${max_attempts}"
-    test_output="$(mktemp)"
-
-    if npm run hh:test 2>&1 | tee "${test_output}"; then
-      result=0
-      rm -f "${test_output}"
-      break
-    fi
-
-    result=$?
-    # Retry transient post-deploy read races where contract calls decode empty '0x'.
-    if grep -q "could not decode result data" "${test_output}" && [ $attempt -lt $max_attempts ]; then
-      echo "Detected transient decode/read race, retrying hh:test in 15 seconds..."
-      rm -f "${test_output}"
-      sleep 15
-      attempt=$((attempt + 1))
-      continue
-    fi
-
-    rm -f "${test_output}"
-    break
-  done
+  npm run hh:test || result=$?
   cd -
 
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
