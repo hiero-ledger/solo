@@ -10,6 +10,8 @@ import {ArgumentProcessor} from '../argument-processor.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ConfigManager} from '../core/config-manager.js';
+import {type AnyObject} from '../types/aliases.js';
+import {StringEx} from '../business/utils/string-ex.js';
 
 /**
  * Helper function to convert a flag object to CLI option string
@@ -150,4 +152,35 @@ export async function subTaskSoloCommand(
   });
 
   return taskNode.children;
+}
+
+/**
+ * Appends non-empty config entries to the argv array as CLI flags.
+ * Skips entries where the value is undefined, null, empty string, or the key is '--deployment'.
+ * @param argv - The argument array to append to
+ * @param configSection - The config object to extract key-value pairs from
+ */
+export function appendConfigToArgv(argv: string[], configSection: AnyObject): void {
+  if (!configSection) {
+    return;
+  }
+  for (const [key, value] of Object.entries(configSection)) {
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== StringEx.EMPTY &&
+      key !== flags.getFormattedFlagKey(flags.deployment)
+    ) {
+      // Keep argv deterministic for repeated keys: remove previous occurrences
+      // and keep the latest value (last-write-wins semantics).
+      let existingIndex: number = argv.indexOf(key);
+      while (existingIndex !== -1) {
+        const hasFollowingValue: boolean = existingIndex + 1 < argv.length && !argv[existingIndex + 1].startsWith('--');
+        argv.splice(existingIndex, hasFollowingValue ? 2 : 1);
+        existingIndex = argv.indexOf(key);
+      }
+
+      argv.push(`${key}`, value.toString());
+    }
+  }
 }
