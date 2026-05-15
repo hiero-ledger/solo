@@ -624,6 +624,12 @@ export class MirrorNodeCommand extends BaseCommand {
         DeploymentPhase.DEPLOYED,
       );
 
+      // update mirror node version in remote config after successful deployment
+      this.remoteConfig.updateComponentVersion(
+        ComponentTypes.MirrorNode,
+        new SemanticVersion<string>(config.mirrorNodeVersion),
+      );
+
       await this.remoteConfig.persist();
     } else if (commandType === MirrorNodeCommandType.UPGRADE) {
       // update mirror node version in remote config after successful upgrade

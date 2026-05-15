@@ -80,6 +80,12 @@ jobs:
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single deploy --dev
 
+      - name: Check Port Forwarding Still Works After Deploy
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          npm run solo -- deployment diagnostics connections -d one-shot --check
+
       - name: Verify Mirror REST API
         timeout-minutes: 10
         run: |

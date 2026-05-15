@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {ChildProcessWithoutNullStreams, spawn} from 'node:child_process';
+import {ChildProcess, ChildProcessWithoutNullStreams, spawn} from 'node:child_process';
 import chalk from 'chalk';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {inject, injectable} from 'tsyringe-neo';
@@ -36,6 +36,7 @@ export class ShellRunner {
     detached: boolean = false,
     environmentVariablesToAppend: Record<string, string> = {},
     timeoutMs?: number,
+    useShell: boolean = true,
   ): Promise<string[]> {
     const redactedArguments: string[] = ShellRunner.redactArguments(arguments_);
     const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${redactedArguments.join(' ')}`;
@@ -43,17 +44,22 @@ export class ShellRunner {
     this.logger.info(message);
 
     return new Promise<string[]>((resolve, reject): void => {
-      const child: ChildProcessWithoutNullStreams = spawn(cmd, arguments_, {
+      const child: ChildProcessWithoutNullStreams | ChildProcess = spawn(cmd, arguments_, {
         env: {...process.env, ...environmentVariablesToAppend},
-        shell: true,
+        shell: useShell,
         detached,
-        stdio: detached ? 'ignore' : undefined,
-        windowsHide: OperatingSystem.isWin32(), // hide the console window on Windows
+        stdio: detached && !OperatingSystem.isWin32() ? 'ignore' : undefined,
       });
 
       if (detached) {
-        child.unref(); // allow the parent process to exit independently of this child
-        resolve([]);
+        child.once('error', (error): void => {
+          error.stack = callStack;
+          reject(error);
+        });
+        child.once('spawn', (): void => {
+          child.unref(); // allow the parent process to exit independently of this child
+          resolve([]);
+        });
         return;
       }
 
@@ -151,14 +157,14 @@ export class ShellRunner {
   ): Promise<string[]> {
     // Use Promise.race to handle sudo whoami and timeout
     let whoamiResolved: boolean = false;
-    const whoamiPromise: Promise<string[]> = this.run('sudo whoami').then(async result => {
+    const whoamiPromise: Promise<string[]> = this.run('sudo whoami').then(async (result): Promise<string[]> => {
       whoamiResolved = true;
       sudoGranted('Root access granted.');
       return result;
     });
     // eslint-disable-next-line no-async-promise-executor
-    const timeoutPromise = new Promise<string[]>(async resolve => {
-      await new Promise(callback => setTimeout(callback, 500));
+    const timeoutPromise: Promise<string[]> = new Promise<string[]>(async (resolve): Promise<void> => {
+      await new Promise((callback): NodeJS.Timeout => setTimeout(callback, 500));
       if (!whoamiResolved) {
         sudoRequested('Please provide root permissions to proceed...');
       }
