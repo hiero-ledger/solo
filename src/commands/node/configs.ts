@@ -50,6 +50,7 @@ import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-u
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
+import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {assertUpgradeVersionNotOlder} from '../../core/upgrade-version-guard.js';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 import {type NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
@@ -651,8 +652,16 @@ export class NodeCommandConfigs {
       'contexts',
     ]) as NodeSetupConfigClass;
 
+    // Only enforce the saved-version match when there is at least one consensus node that has actually
+    // progressed past REQUESTED. On a fresh deployment the remote-config version may have been
+    // backfilled from a flag default before the user-supplied release-tag was recorded, so comparing
+    // against it would falsely reject a valid first-time setup.
     const savedVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
+    const hasDeployedConsensusNode: boolean = (
+      this.remoteConfig.configuration.state.consensusNodes ?? []
+    ).some((node): boolean => node.metadata?.phase && node.metadata.phase !== DeploymentPhase.REQUESTED);
     if (
+      hasDeployedConsensusNode &&
       !savedVersion.equals(context_.config.releaseTag) && // allow different versions only for local builds
       !context_.config.localBuildPath
     ) {
