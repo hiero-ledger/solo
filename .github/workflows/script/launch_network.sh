@@ -524,7 +524,7 @@ fi
 echo "Consensus Node Version (from): ${FROM_CONSENSUS_NODE_VERSION}"
 echo "Consensus Node Version (to): ${TO_CONSENSUS_NODE_VERSION}"
 
-# export ONE_SHOT_WITH_BLOCK_NODE=true
+export ONE_SHOT_WITH_BLOCK_NODE=true
 solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
   --values-file .github/workflows/script/falcon-values-migration.yaml
@@ -580,7 +580,6 @@ kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o cu
 collect_restart_boundary_diagnostics "${SOLO_NAMESPACE}"
 if [[ ${result} -ne 0 ]]; then
   echo "Consensus node start failed with exit code ${result}"
-  restore_tx_generators_after_freeze "${SOLO_NAMESPACE}"
   # stop consensus node 
   npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev || true
   exit "${result}"
@@ -590,22 +589,16 @@ restore_tx_generators_after_freeze "${SOLO_NAMESPACE}"
 # Apply preventive reset at the known freeze/restart boundary.
 auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
 
-# npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
-# # force restart relay pod to pick up changes of configMap
-# kubectl rollout restart deployment/relay-1 -n solo-e2e
-# kubectl rollout restart deployment/relay-1-ws -n solo-e2e
-
-# Reset importer hash chain before upgrade so the first post-restart record file is accepted.
-# The CN restart leaves a gap of empty gossip rounds (no record files) that advance the
-# running hash internally. Clearing the last record_file.hash to empty string causes
-# the importer to skip hash chain verification for the first post-restart file.
-# reset_importer_hash_chain_for_upgrade "${SOLO_NAMESPACE}"
+# force restart relay pod to pick up changes of configMap
+kubectl rollout restart deployment/relay-1 -n "${SOLO_NAMESPACE}"
+kubectl rollout restart deployment/relay-1-ws -n "${SOLO_NAMESPACE}"
 
 # redeploy mirror node to upgrade to a newer version
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
 # Mirror rollout recreates importer pods; recovery is intentionally single-pass before this step.
-# npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 npm run solo -- deployment refresh port-forwards --deployment "${SOLO_DEPLOYMENT}"
 # Test transaction can still be sent and processed
@@ -617,8 +610,7 @@ echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
-# block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
-# npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
 # Rebuild relay HEDERA_NETWORK from current node services and reset relay SDK state.
 refresh_relay_network_config "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}" "node1,node2"
