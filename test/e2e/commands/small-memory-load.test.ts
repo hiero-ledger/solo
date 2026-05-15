@@ -26,7 +26,7 @@ import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
 import {NETWORK_LOAD_GENERATOR_CHART_VERSION} from '../../../version.js';
-import * as helpers from '../../../src/core/helpers.js';
+import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
 import {type Containers} from '../../../src/integration/kube/resources/container/containers.js';
@@ -226,7 +226,7 @@ async function deployNlgChart(kubeContext: string): Promise<void> {
   const namespaceObject: NamespaceName = NamespaceName.of(namespaceName);
 
   // Build values argument with HAProxy pod IPs (same as rapid-fire does)
-  let valuesArgument: string = helpers.prepareValuesFiles(constants.RAPID_FIRE_VALUES_FILE);
+  const chartValues: HelmChartValues = new HelmChartValues().file(constants.RAPID_FIRE_VALUES_FILE);
 
   const haproxyPods: Pod[] = await k8Instance.pods().list(namespaceObject, ['solo.hedera.com/type=haproxy']);
 
@@ -236,8 +236,8 @@ async function deployNlgChart(kubeContext: string): Promise<void> {
     return String.raw`${pod.podIp}\\\:${port}=${accountId}`;
   });
 
-  for (const row of networkProperties) {
-    valuesArgument += ` --set loadGenerator.properties[${networkProperties.indexOf(row)}]="${row}"`;
+  for (const [index, row] of networkProperties.entries()) {
+    chartValues.setLiteral(`loadGenerator.properties[${index}]`, row);
   }
 
   // Install NLG Helm chart
@@ -247,7 +247,7 @@ async function deployNlgChart(kubeContext: string): Promise<void> {
     constants.NETWORK_LOAD_GENERATOR_CHART,
     constants.NETWORK_LOAD_GENERATOR_CHART_URL,
     NETWORK_LOAD_GENERATOR_CHART_VERSION,
-    valuesArgument,
+    chartValues,
     kubeContext,
   );
 

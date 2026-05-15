@@ -326,30 +326,29 @@ describe('NetworkCommand unit tests', (): void => {
         // @ts-expect-error - to access private method
         const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
 
-        expect(config.valuesArgMap).to.not.empty;
-        expect(config.valuesArgMap['cluster']).to.not.empty;
-        expect(config.valuesArgMap['cluster'].indexOf(PathEx.join('solo-deployment', 'values.yaml'))).to.not.equal(-1);
-        expect(config.valuesArgMap['cluster'].indexOf('values.yaml')).to.not.equal(-1);
-        expect(config.valuesArgMap['cluster'].indexOf('test-values1.yaml')).to.not.equal(-1);
-        expect(config.valuesArgMap['cluster'].indexOf('test-values2.yaml')).to.not.equal(-1);
+        expect(config.chartValuesMap).to.not.empty;
+        expect(config.chartValuesMap['cluster']).to.not.empty;
+
+        const chartValueArguments: string[] = config.chartValuesMap['cluster'].toArguments();
+
+        expect(chartValueArguments).to.include(PathEx.join('solo-deployment', 'values.yaml'));
+        expect(chartValueArguments).to.include('values.yaml');
+        expect(chartValueArguments).to.include('test-values1.yaml');
+        expect(chartValueArguments).to.include('test-values2.yaml');
 
         // chart values file should precede the values file passed in the command
-        expect(config.valuesArgMap['cluster'].indexOf('solo-deployment/values.yaml')).to.be.lt(
-          config.valuesArgMap['cluster'].indexOf('test-values1.yaml'),
+        expect(chartValueArguments.indexOf('solo-deployment/values.yaml')).to.be.lt(
+          chartValueArguments.indexOf('test-values1.yaml'),
         );
-        expect(config.valuesArgMap['cluster'].indexOf('solo-deployment/values.yaml')).to.be.lt(
-          config.valuesArgMap['cluster'].indexOf('test-values2.yaml'),
+        expect(chartValueArguments.indexOf('solo-deployment/values.yaml')).to.be.lt(
+          chartValueArguments.indexOf('test-values2.yaml'),
         );
 
-        expect(config.valuesArgMap['cluster'].indexOf('values.yaml')).to.be.lt(
-          config.valuesArgMap['cluster'].indexOf('test-values1.yaml'),
+        expect(chartValueArguments.indexOf('values.yaml')).to.be.lt(chartValueArguments.indexOf('test-values1.yaml'));
+        expect(chartValueArguments.indexOf('test-values1.yaml')).to.be.lt(
+          chartValueArguments.indexOf('test-values2.yaml'),
         );
-        expect(config.valuesArgMap['cluster'].indexOf('test-values1.yaml')).to.be.lt(
-          config.valuesArgMap['cluster'].indexOf('test-values2.yaml'),
-        );
-        expect(config.valuesArgMap['cluster'].indexOf('values.yaml')).to.be.lt(
-          config.valuesArgMap['cluster'].indexOf('test-values2.yaml'),
-        );
+        expect(chartValueArguments.indexOf('values.yaml')).to.be.lt(chartValueArguments.indexOf('test-values2.yaml'));
       } finally {
         sinon.restore();
       }
