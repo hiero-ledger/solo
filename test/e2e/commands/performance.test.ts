@@ -184,9 +184,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: finished ${testName}: destroy`);
         }).timeout(Duration.ofMinutes(8).toMillis());
 
-        // TokenTransferLoadTest runs first so it creates fungible tokens.
-        // NftTransferLoadTest runs second: it creates NFT tokens, and if TokenTransferLoadTest
-        // ran after it with -R it would reuse those NFT tokens as fungible, yielding 0 TPS.
+        // NOTE: NLG 0.14.0 expanded -R (reuse) to cover tokens as well as accounts. It reuses
+        // tokens without filtering by type, so if TokenTransferLoadTest ran first and created
+        // fungible tokens, NftTransferLoadTest with -R would load those fungible tokens as NFTs
+        // and produce 0 TPS (and vice versa). To avoid this cross-contamination, NftTransferLoadTest
+        // does NOT use -R so it always creates its own fresh NFT tokens.
         it('TokenTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting TokenTransferLoadTest');
           await runLoadTest(
@@ -199,7 +201,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           logEvent('Starting NftTransferLoadTest');
           await runLoadTest(
             'NftTransferLoadTest',
-            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -t ${duration}`,
           );
         }).timeout(Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier).toMillis());
 
