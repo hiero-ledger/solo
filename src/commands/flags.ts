@@ -2979,8 +2979,7 @@ export class Flags {
     name: 'block-node-version',
     definition: {
       describe:
-        'Block node version to deploy for one-shot (e.g. v0.31.0 or 0.31.0). ' +
-        'Overrides BLOCK_NODE_VERSION / BLOCK_NODE_EDGE_VERSION env vars.',
+        'Block node version to deploy for (e.g. v0.31.0 or 0.31.0). ',
       defaultValue: '',
       type: 'string',
     },
