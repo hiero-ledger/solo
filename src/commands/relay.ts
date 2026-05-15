@@ -423,6 +423,8 @@ export class RelayCommand extends BaseCommand {
           config.relayChartDirectory ? '' : config.relayReleaseTag, // pin chart version to match image version
           config.relayHelmChartValues,
           config.context,
+          commandType !== RelayCommandType.ADD,
+          commandType === RelayCommandType.ADD,
         );
 
         showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);

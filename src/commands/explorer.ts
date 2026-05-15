@@ -329,7 +329,7 @@ export class ExplorerCommand extends BaseCommand {
             new HelmChartValues().set('cert-manager.installCRDs', true),
             config.clusterContext,
             commandType !== ExplorerCommandType.ADD,
-            true,
+            commandType === ExplorerCommandType.ADD,
             true,
           );
           showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion);
@@ -359,7 +359,8 @@ export class ExplorerCommand extends BaseCommand {
           soloChartVersion,
           soloCertManagerChartValues,
           config.clusterContext,
-          false,
+          commandType !== ExplorerCommandType.ADD,
+          commandType === ExplorerCommandType.ADD,
           true,
         );
         showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion, 'Upgraded');

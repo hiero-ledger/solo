@@ -152,7 +152,6 @@ export const METRICS_SERVER_CHART_URL: string =
 export const METRICS_SERVER_CHART: string = 'metrics-server';
 export const METRICS_SERVER_RELEASE_NAME: string = 'metrics-server';
 export const METRICS_SERVER_NAMESPACE: NamespaceName = NamespaceName.of('kube-system');
-export const METRICS_SERVER_INSTALL_ARGS: string = '--set "args[0]=--kubelet-insecure-tls"';
 
 export const EXPLORER_CHART_URL: string =
   getEnvironmentVariable('EXPLORER_CHART_URL') ??
