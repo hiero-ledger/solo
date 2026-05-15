@@ -27,11 +27,14 @@ import {
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import * as helpers from '../core/helpers.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {type Pods} from '../integration/kube/resources/pod/pods.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {Containers} from '../integration/kube/resources/container/containers.js';
 import {Container} from '../integration/kube/resources/container/container.js';
 import chalk from 'chalk';
 import {PassThrough} from 'node:stream';
+import fs from 'node:fs';
+import {PathEx} from '../business/utils/path-ex.js';
 
 interface RapidFireStartConfigClass {
   clusterRef: ClusterReferenceName;
@@ -67,6 +70,16 @@ interface RapidFireStartContext {
 
 interface RapidFireStopContext {
   config: RapidFireStopConfigClass;
+}
+
+interface NlgResult {
+  status: 'success' | 'zero-tps' | 'no-result';
+  testClass: string;
+  performanceTest: string;
+  transactionCount?: number;
+  durationSeconds?: number;
+  tps?: number;
+  hint?: string;
 }
 
 export enum NLGTestClass {
@@ -239,13 +252,20 @@ export class RapidFireCommand extends BaseCommand {
           const container: Container = k8Containers.readByRef(containerReference);
           const outputStream: PassThrough = new PassThrough();
           const errorStream: PassThrough = new PassThrough();
-          for (const stream_ of [errorStream, outputStream]) {
-            stream_.on('data', (chunk: Buffer) => {
-              const string_: string = chunk.toString();
-              task.output = (task.output || '') + chalk.gray(string_);
-            });
-          }
+          const stdoutBuffer: string[] = [];
+          const stderrBuffer: string[] = [];
+          outputStream.on('data', (chunk: Buffer): void => {
+            const string_: string = chunk.toString();
+            stdoutBuffer.push(string_);
+            task.output = (task.output || '') + chalk.gray(string_);
+          });
+          errorStream.on('data', (chunk: Buffer): void => {
+            const string_: string = chunk.toString();
+            stderrBuffer.push(string_);
+            task.output = (task.output || '') + chalk.gray(string_);
+          });
 
+          let execError: Error | undefined;
           try {
             if (!this.oneShotState.isActive()) {
               await leaseReference.lease?.release();
@@ -261,16 +281,268 @@ export class RapidFireCommand extends BaseCommand {
             commandString = commandString.replaceAll('  ', ' ').trim();
             await container.execContainer(commandString, outputStream, errorStream);
           } catch (error) {
-            throw new SoloError(`Error running ${testClass} load test: ${error.message}`, error);
+            execError = error instanceof Error ? error : new Error(String(error));
           }
 
           if (task.output) {
             const showOutput: string = '>   ' + task.output.replaceAll('\n', '\n    ');
             this.logger.showUser(showOutput);
           }
+
+          const stdoutText: string = stdoutBuffer.join('');
+          const stderrText: string = stderrBuffer.join('');
+          const result: NlgResult = RapidFireCommand.analyzeNlgOutput(
+            stdoutText + stderrText,
+            testClass,
+            performanceTest,
+          );
+
+          if (execError || result.status !== 'success') {
+            const diagnosticsFilePath: string = await this.collectFailureDiagnostics(
+              context_.config.context,
+              context_.config.namespace,
+              testClass,
+              stdoutText,
+              stderrText,
+              result,
+              execError,
+            );
+            throw new SoloError(
+              RapidFireCommand.buildFailureMessage(result, execError, stdoutText, stderrText, diagnosticsFilePath),
+            );
+          }
+
+          this.logger.showUser(
+            chalk.green(
+              `${testClass}: TPS ${result.tps} (${result.transactionCount} transactions in ${result.durationSeconds} sec)`,
+            ),
+          );
         }
       },
     };
+  }
+
+  // Pattern: "Finished <TestClass>: ... in S sec, TPS: M"
+  // NLG formats vary by test class, for example:
+  //   TokenTransferLoadTest:  "500 transferred in 300 sec, TPS: 100"  (N word in)
+  //   HCSLoadTest:            "28483 messages sent in 288 sec, TPS: 98"  (N word word in)
+  //   SmartContractLoadTest:  "made 29077 calls in 297 sec, TPS: 97"  (word N word in)
+  // .*? skips any prefix before the count; (?:\w+\s+)+ matches one or more unit words after it.
+  private static readonly NLG_FINISHED_PATTERN: RegExp =
+    /Finished\s+([\w.]+):.*?(\d+)\s+(?:\w+\s+)+in\s+(\d+)\s+sec,\s+TPS:\s+(\d+)/;
+
+  private static analyzeNlgOutput(output: string, testClass: string, performanceTest: string): NlgResult {
+    const lines: string[] = output.split('\n');
+    let lastMatch: RegExpMatchArray | undefined;
+    for (const line of lines) {
+      const match: RegExpMatchArray | null = line.match(RapidFireCommand.NLG_FINISHED_PATTERN);
+      if (match && (match[1] === performanceTest || match[1] === testClass)) {
+        lastMatch = match;
+      }
+    }
+
+    if (!lastMatch) {
+      return {
+        status: 'no-result',
+        testClass,
+        performanceTest,
+        hint: RapidFireCommand.classifyFailure(output),
+      };
+    }
+
+    const transactionCount: number = Number.parseInt(lastMatch[2], 10);
+    const durationSeconds: number = Number.parseInt(lastMatch[3], 10);
+    const tps: number = Number.parseInt(lastMatch[4], 10);
+
+    if (tps === 0) {
+      return {
+        status: 'zero-tps',
+        testClass,
+        performanceTest,
+        transactionCount,
+        durationSeconds,
+        tps,
+        hint: RapidFireCommand.classifyFailure(output),
+      };
+    }
+
+    return {
+      status: 'success',
+      testClass,
+      performanceTest,
+      transactionCount,
+      durationSeconds,
+      tps,
+    };
+  }
+
+  // Returns a short hint string based on patterns found in the NLG output.
+  private static classifyFailure(output: string): string | undefined {
+    if (/INVALID_TOKEN_FOR_NFT_TRANSACTION|TOKEN_NOT_ASSOCIATED_TO_ACCOUNT|INVALID_TOKEN_ID/.test(output)) {
+      return 'token-type / association mismatch detected (e.g. trying fungible transfer against NFT tokens from a previous reused run — consider dropping -R or running TokenTransferLoadTest before NftTransferLoadTest)';
+    }
+    // Silent zero-TPS: FungibleTransferJob ran for the full duration with 0 transfers.
+    // This happens when TokenTransferLoadTest runs after NftTransferLoadTest with -R:
+    // it silently reuses the NFT tokens as fungible, every CryptoTransfer fails,
+    // and the NLG just reports "Finished ... 0 transfers ... TPS: 0" with no exception.
+    if (/FungibleTransferJob.*Starting token transfer/.test(output)) {
+      return 'FungibleTransferJob ran but recorded 0 transfers — all transactions likely rejected because existing tokens are NFTs (reused from a prior NftTransferLoadTest run); run TokenTransferLoadTest before NftTransferLoadTest, or drop -R to force fresh fungible token creation';
+    }
+    if (/BUSY|THROTTLED_AT_CONSENSUS|PLATFORM_NOT_ACTIVE/.test(output)) {
+      return 'consensus node reported throttling or backpressure (BUSY/THROTTLED_AT_CONSENSUS/PLATFORM_NOT_ACTIVE) — increase cool-down between tests or lower max-tps';
+    }
+    if (/UNAVAILABLE|Connection refused|UNAUTHENTICATED|DEADLINE_EXCEEDED/.test(output)) {
+      return 'gRPC transport error (UNAVAILABLE/DEADLINE_EXCEEDED/connection refused) — check haproxy and consensus-node pod health';
+    }
+    if (/OutOfMemoryError|java\.lang\.OutOfMemory/.test(output)) {
+      return 'NLG process ran out of heap — raise --java-heap';
+    }
+    if (/Exception in thread|Caused by:|java\.lang\.|com\.hedera\..*Exception/.test(output)) {
+      return 'Java exception thrown inside NLG — see stderr extract above and full output in diagnostics file';
+    }
+    return undefined;
+  }
+
+  private static buildFailureMessage(
+    result: NlgResult,
+    execError: Error | undefined,
+    stdoutText: string,
+    stderrText: string,
+    diagnosticsFilePath: string,
+  ): string {
+    const lines: string[] = [];
+    if (execError) {
+      lines.push(`NLG process error: ${execError.message}`);
+    }
+    switch (result.status) {
+      case 'zero-tps': {
+        lines.push(
+          `${result.testClass} completed with TPS: 0 (${result.transactionCount} transactions in ${result.durationSeconds} sec). No transactions were processed.`,
+        );
+        break;
+      }
+      case 'no-result': {
+        lines.push(
+          `${result.testClass} produced no "Finished <test>: ... TPS: N" result line. The NLG process exited or hung without reporting a benchmark result.`,
+        );
+        break;
+      }
+      // success case handled by caller
+    }
+    if (result.hint) {
+      lines.push(`hint: ${result.hint}`);
+    }
+    const stderrTail: string = RapidFireCommand.tailLines(stderrText, 20);
+    if (stderrTail) {
+      lines.push(`--- last 20 stderr lines ---\n${stderrTail}`);
+    }
+    const stdoutTail: string = RapidFireCommand.tailLines(stdoutText, 30);
+    if (stdoutTail) {
+      lines.push(`--- last 30 stdout lines ---\n${stdoutTail}`);
+    }
+    lines.push(`Full output and cluster diagnostics written to ${diagnosticsFilePath}`);
+    return lines.join('\n');
+  }
+
+  private static tailLines(text: string, count: number): string {
+    if (!text) {
+      return '';
+    }
+    return text.replace(/\n+$/, '').split('\n').slice(-count).join('\n');
+  }
+
+  // Best-effort: returns appendable diagnostic sections for network-node and haproxy pods.
+  // Each pod's last 200 log lines are extracted. Failures are recorded inline.
+  private async collectPodLogSections(context: string, namespace: NamespaceName): Promise<string[]> {
+    const podsApi: Pods = this.k8Factory.getK8(context).pods();
+    const podLogTargets: {label: string; selector: string}[] = [
+      {label: 'network-node', selector: 'solo.hedera.com/type=network-node'},
+      {label: 'haproxy', selector: 'solo.hedera.com/type=haproxy'},
+    ];
+    const result: string[] = [];
+    for (const target of podLogTargets) {
+      let pods: Pod[];
+      try {
+        pods = await podsApi.list(namespace, [target.selector]);
+      } catch (error) {
+        result.push(
+          '',
+          `==== ${target.label} pods (list failed) ====`,
+          error instanceof Error ? error.message : String(error),
+        );
+        continue;
+      }
+      for (const pod of pods) {
+        const header: string = `==== ${target.label} pod ${pod.podReference.name.toString()} (last 200 lines) ====`;
+        try {
+          const log: string = await podsApi.readLogs(pod.podReference);
+          result.push('', header, RapidFireCommand.tailLines(log, 200));
+        } catch (error) {
+          result.push('', header, `Failed to read logs: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    }
+    return result;
+  }
+
+  // Best-effort: write a diagnostics file capturing full NLG output plus
+  // consensus-node and haproxy pod logs (last 200 lines each). Returns the
+  // file path even if some log fetches fail.
+  private async collectFailureDiagnostics(
+    context: string,
+    namespace: NamespaceName,
+    testClass: string,
+    stdoutText: string,
+    stderrText: string,
+    result: NlgResult,
+    execError: Error | undefined,
+  ): Promise<string> {
+    const timestamp: string = new Date().toISOString().replaceAll(':', '-');
+    const safeTestClass: string = testClass.replaceAll(/[^a-zA-Z0-9.-]/g, '_');
+    const fileName: string = `rapid-fire-failure-${safeTestClass}-${timestamp}.log`;
+    const filePath: string = PathEx.join(constants.SOLO_LOGS_DIR, fileName);
+
+    const headerLines: string[] = [
+      '==== rapid-fire failure diagnostics ====',
+      `time:        ${new Date().toISOString()}`,
+      `testClass:   ${testClass}`,
+      `status:      ${result.status}`,
+    ];
+    if (result.tps !== undefined) {
+      headerLines.push(
+        `tps:         ${result.tps}`,
+        `transactions:${result.transactionCount}`,
+        `duration:    ${result.durationSeconds}s`,
+      );
+    }
+    if (result.hint) {
+      headerLines.push(`hint:        ${result.hint}`);
+    }
+    if (execError) {
+      headerLines.push(`execError:   ${execError.message}`);
+    }
+
+    const sections: string[] = [
+      ...headerLines,
+      '',
+      '==== NLG stdout (full) ====',
+      stdoutText || '(empty)',
+      '',
+      '==== NLG stderr (full) ====',
+      stderrText || '(empty)',
+      ...(await this.collectPodLogSections(context, namespace)),
+    ];
+
+    try {
+      fs.mkdirSync(constants.SOLO_LOGS_DIR, {recursive: true});
+      fs.writeFileSync(filePath, sections.join('\n'), 'utf8');
+      this.logger.info(`Wrote rapid-fire failure diagnostics to ${filePath}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to write rapid-fire failure diagnostics to ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    return filePath;
   }
 
   public async start(argv: ArgvStruct): Promise<boolean> {
