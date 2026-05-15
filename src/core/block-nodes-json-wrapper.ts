@@ -35,7 +35,6 @@ type BlockNodeConnectionData =
 
 interface BlockNodesJsonStructure {
   nodes: BlockNodeConnectionData[];
-  blockItemBatchSize: number;
 }
 
 /**
@@ -136,7 +135,6 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
     return {
       nodes: blockNodeConnectionData,
-      blockItemBatchSize: constants.BLOCK_ITEM_BATCH_SIZE,
     };
   }
 }
