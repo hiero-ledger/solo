@@ -658,9 +658,9 @@ export class NodeCommandConfigs {
     // backfilled from a flag default before the user-supplied release-tag was recorded, so comparing
     // against it would falsely reject a valid first-time setup.
     const savedVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
-    const hasDeployedConsensusNode: boolean = (
-      this.remoteConfig.configuration.state.consensusNodes ?? []
-    ).some((node): boolean => node.metadata?.phase && node.metadata.phase !== DeploymentPhase.REQUESTED);
+    const hasDeployedConsensusNode: boolean = (this.remoteConfig.configuration.state.consensusNodes ?? []).some(
+      (node): boolean => node.metadata?.phase && node.metadata.phase !== DeploymentPhase.REQUESTED,
+    );
     if (
       hasDeployedConsensusNode &&
       !savedVersion.equals(context_.config.releaseTag) && // allow different versions only for local builds

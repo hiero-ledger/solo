@@ -302,34 +302,24 @@ describe('resolveOneShotComponentVersions', (): void => {
     const fetchStub: sinon.SinonStub = sinon.stub(globalThis, 'fetch');
     // consensus
     fetchStub.onCall(0).resolves(
-      new Response(
-        JSON.stringify([
-          {tag_name: 'v0.80.0-rc1', prerelease: true, draft: false},
-          {tag_name: 'v0.79.0', prerelease: false, draft: false},
-          {tag_name: 'v0.78.9', prerelease: false, draft: false},
-        ]),
-      ),
+      Response.json([
+        {tag_name: 'v0.80.0-rc1', prerelease: true, draft: false},
+        {tag_name: 'v0.79.0', prerelease: false, draft: false},
+        {tag_name: 'v0.78.9', prerelease: false, draft: false},
+      ]),
     );
     // mirror
-    fetchStub.onCall(1).resolves(
-      new Response(JSON.stringify([{tag_name: 'v0.200.1', prerelease: false, draft: false}])),
-    );
+    fetchStub.onCall(1).resolves(Response.json([{tag_name: 'v0.200.1', prerelease: false, draft: false}]));
     // explorer
-    fetchStub.onCall(2).resolves(
-      new Response(JSON.stringify([{tag_name: 'v31.0.0', prerelease: false, draft: false}])),
-    );
+    fetchStub.onCall(2).resolves(Response.json([{tag_name: 'v31.0.0', prerelease: false, draft: false}]));
     // relay
-    fetchStub.onCall(3).resolves(
-      new Response(JSON.stringify([{tag_name: 'v0.90.0', prerelease: false, draft: false}])),
-    );
+    fetchStub.onCall(3).resolves(Response.json([{tag_name: 'v0.90.0', prerelease: false, draft: false}]));
     // block node
     fetchStub.onCall(4).resolves(
-      new Response(
-        JSON.stringify([
-          {tag_name: 'v0.40.0-rc2', prerelease: true, draft: false},
-          {tag_name: 'v0.39.0', prerelease: false, draft: false},
-        ]),
-      ),
+      Response.json([
+        {tag_name: 'v0.40.0-rc2', prerelease: true, draft: false},
+        {tag_name: 'v0.39.0', prerelease: false, draft: false},
+      ]),
     );
 
     const argv: ArgvStruct = {

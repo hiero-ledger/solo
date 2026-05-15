@@ -11,22 +11,7 @@ import {type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {OneShotCommand} from './one-shot.js';
-import {
-  OneShotSingleDeployConfigClass,
-  OneShotVersionsObject,
-  SoloConfigFileVersions,
-} from './one-shot-single-deploy-config-class.js';
-import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
-import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
-import * as version from '../../../version.js';
-import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
-import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
-import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
-import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
-import {KeysCommandDefinition} from '../command-definitions/keys-command-definition.js';
-import {MirrorCommandDefinition} from '../command-definitions/mirror-command-definition.js';
-import {ExplorerCommandDefinition} from '../command-definitions/explorer-command-definition.js';
-import {RelayCommandDefinition} from '../command-definitions/relay-command-definition.js';
+import {OneShotSingleDeployConfigClass, SoloConfigFileVersions} from './one-shot-single-deploy-config-class.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import fs from 'node:fs';
@@ -627,99 +612,5 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       }
     }
     return '';
-  }
-
-  /**
-   * Resolves the effective version for a single component.
-   *
-   * Precedence (highest to lowest):
-   *  1. Explicit CLI flag — detected by comparing the raw argv value against both version
-   *     defaults; a value that matches a default is assumed to have been Yargs-injected rather
-   *     than explicitly supplied by the user.
-   *  2. {@code solo.config.yaml} / {@code solo.config.json} entry for this component.
-   *  3. The appropriate version constant from {@code version.ts}, which already incorporates any
-   *     environment-variable override (e.g. {@code CONSENSUS_NODE_VERSION}).
-   *
-   * @param argv - The argv object captured at task creation time (treated as immutable here).
-   * @param flagName - The CLI flag name whose value to read from argv.
-   * @param stdVersion - The standard version constant (env var already baked in).
-   * @param edgeVersion - The edge version constant (env var already baked in).
-   * @param configFileVersion - Optional version read from a solo.config file.
-   * @param useEdge - When true the edge variant is used as the fallback default.
-   */
-  private resolveComponentVersion(
-    argv: ArgvStruct,
-    flagName: string,
-    stdVersion: string,
-    edgeVersion: string,
-    configFileVersion: string | undefined,
-    useEdge: boolean,
-  ): string {
-    const argvValue: string | undefined = argv[flagName] as string | undefined;
-    // argvValue is considered explicit only if it is non-empty and does not match either of the
-    // version defaults (which would indicate a Yargs-injected default rather than a user value).
-    const isExplicit: boolean = !!argvValue && argvValue !== stdVersion && argvValue !== edgeVersion;
-    return this.returnFirstTruthyString(
-      isExplicit ? argvValue : undefined,
-      configFileVersion,
-      useEdge ? edgeVersion : stdVersion,
-    );
-  }
-
-  /**
-   * Resolves the component versions for a one-shot deploy using the following precedence (highest
-   * to lowest):
-   *
-   *  1. Explicit CLI flag (e.g. --consensus-node-version, --mirror-node-version, …)
-   *  2. solo.config.yaml or solo.config.json found in CWD or any parent directory
-   *  3. Hard-coded defaults from version.ts (which already incorporate env-var overrides such as
-   *     CONSENSUS_NODE_VERSION; optionally the edge variant when --edge is passed)
-   */
-  private resolveOneShotComponentVersions(argv: ArgvStruct, useEdge: boolean): OneShotVersionsObject {
-    const configFile: SoloConfigFileVersions = this.loadVersionsFromSoloConfigFile();
-
-    return {
-      soloChart: useEdge ? version.SOLO_CHART_EDGE_VERSION : version.SOLO_CHART_VERSION,
-      consensus: this.resolveComponentVersion(
-        argv,
-        flags.consensusNodeVersion.name,
-        version.HEDERA_PLATFORM_VERSION,
-        version.HEDERA_PLATFORM_EDGE_VERSION,
-        configFile.consensusNodeVersion,
-        useEdge,
-      ),
-      mirror: this.resolveComponentVersion(
-        argv,
-        flags.mirrorNodeVersion.name,
-        version.MIRROR_NODE_VERSION,
-        version.MIRROR_NODE_EDGE_VERSION,
-        configFile.mirrorNodeVersion,
-        useEdge,
-      ),
-      explorer: this.resolveComponentVersion(
-        argv,
-        flags.explorerVersion.name,
-        version.EXPLORER_VERSION,
-        version.EXPLORER_EDGE_VERSION,
-        configFile.explorerVersion,
-        useEdge,
-      ),
-      relay: this.resolveComponentVersion(
-        argv,
-        flags.relayVersion.name,
-        version.HEDERA_JSON_RPC_RELAY_VERSION,
-        version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION,
-        configFile.relayVersion,
-        useEdge,
-      ),
-      blockNode: this.resolveComponentVersion(
-        argv,
-        flags.blockNodeVersion.name,
-        version.BLOCK_NODE_VERSION,
-        version.BLOCK_NODE_EDGE_VERSION,
-        configFile.blockNodeVersion,
-        useEdge,
-      ),
-    };
   }
 }

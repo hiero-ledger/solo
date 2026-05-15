@@ -36,12 +36,14 @@ interface GitHubReleaseWithMetadata {
 export class DeployArgvBuilders {
   private static readonly CONSENSUS_RELEASES_URL: string =
     'https://api.github.com/repos/hiero-ledger/hiero-consensus-node/releases';
-  private static readonly MIRROR_RELEASES_URL: string = 'https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases';
+  private static readonly MIRROR_RELEASES_URL: string =
+    'https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases';
   private static readonly EXPLORER_RELEASES_URL: string =
     'https://api.github.com/repos/hiero-ledger/hiero-mirror-node-explorer/releases';
   private static readonly RELAY_RELEASES_URL: string =
     'https://api.github.com/repos/hiero-ledger/hiero-json-rpc-relay/releases';
-  private static readonly BLOCK_NODE_RELEASES_URL: string = 'https://api.github.com/repos/hiero-ledger/hiero-block-node/releases';
+  private static readonly BLOCK_NODE_RELEASES_URL: string =
+    'https://api.github.com/repos/hiero-ledger/hiero-block-node/releases';
 
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
     const argv: string[] = newArgv();
@@ -257,7 +259,10 @@ export class DeployArgvBuilders {
     return argvPushGlobalFlags(argv);
   }
 
-  public static async resolveOneShotComponentVersions(argv: ArgvStruct, useEdge: boolean): Promise<OneShotVersionsObject> {
+  public static async resolveOneShotComponentVersions(
+    argv: ArgvStruct,
+    useEdge: boolean,
+  ): Promise<OneShotVersionsObject> {
     const configFile: SoloConfigFileVersions = this.loadVersionsFromSoloConfigFile();
 
     const edgeDefaults: OneShotVersionsObject = useEdge
@@ -317,13 +322,15 @@ export class DeployArgvBuilders {
   }
 
   private static async resolveLatestStableEdgeVersions(): Promise<OneShotVersionsObject> {
-    const [consensus, mirror, explorer, relay, blockNode]: [string, string, string, string, string] = await Promise.all([
-      this.fetchLatestStableReleaseTag(this.CONSENSUS_RELEASES_URL, version.HEDERA_PLATFORM_EDGE_VERSION),
-      this.fetchLatestStableReleaseTag(this.MIRROR_RELEASES_URL, version.MIRROR_NODE_EDGE_VERSION),
-      this.fetchLatestStableReleaseTag(this.EXPLORER_RELEASES_URL, version.EXPLORER_EDGE_VERSION),
-      this.fetchLatestStableReleaseTag(this.RELAY_RELEASES_URL, version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION),
-      this.fetchLatestStableReleaseTag(this.BLOCK_NODE_RELEASES_URL, version.BLOCK_NODE_EDGE_VERSION),
-    ]);
+    const [consensus, mirror, explorer, relay, blockNode]: [string, string, string, string, string] = await Promise.all(
+      [
+        this.fetchLatestStableReleaseTag(this.CONSENSUS_RELEASES_URL, version.HEDERA_PLATFORM_EDGE_VERSION),
+        this.fetchLatestStableReleaseTag(this.MIRROR_RELEASES_URL, version.MIRROR_NODE_EDGE_VERSION),
+        this.fetchLatestStableReleaseTag(this.EXPLORER_RELEASES_URL, version.EXPLORER_EDGE_VERSION),
+        this.fetchLatestStableReleaseTag(this.RELAY_RELEASES_URL, version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION),
+        this.fetchLatestStableReleaseTag(this.BLOCK_NODE_RELEASES_URL, version.BLOCK_NODE_EDGE_VERSION),
+      ],
+    );
 
     return {
       soloChart: version.SOLO_CHART_EDGE_VERSION,
