@@ -186,46 +186,45 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         it('NftTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting NftTransferLoadTest');
-          await main(
-            soloRapidFire(
-              testName,
-              'NftTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
-              maxTps,
-            ),
+          await runLoadTest(
+            'NftTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
           );
         }).timeout(Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier).toMillis());
 
         it('TokenTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting TokenTransferLoadTest');
-          await main(
-            soloRapidFire(
-              testName,
-              'TokenTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
-              maxTps,
-            ),
+          await runLoadTest(
+            'TokenTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
           );
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('CryptoTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting CryptoTransferLoadTest');
-          await main(
-            soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-          );
+          await runLoadTest('CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('HCSLoadTest', async (): Promise<void> => {
           logEvent('Starting HCSLoadTest');
-          await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+          await runLoadTest('HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('SmartContractLoadTest', async (): Promise<void> => {
           logEvent('Starting SmartContractLoadTest');
-          await main(
-            soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-          );
+          await runLoadTest('SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 6).toMillis());
+
+        async function runLoadTest(performanceTest: string, argumentsString: string): Promise<void> {
+          const startedAt: Date = new Date();
+          await main(soloRapidFire(testName, performanceTest, argumentsString, maxTps));
+          // Per-test TPS gate: the NLG harness exits 0 even when 0 transactions
+          // were submitted (e.g. proxy backpressure), so without this assertion
+          // a degraded test silently passes.
+          assertNonZeroTps(performanceTest, startedAt);
+          // Cool-down lets haproxy drain tunnel sockets before the next test.
+          await sleep(Duration.ofSeconds(30));
+        }
 
         it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
           logEvent('Completed all performance tests');
@@ -329,6 +328,38 @@ function logEvent(event: string): void {
 
 function flushEvents(): void {
   events = [];
+}
+
+// Parses the NLG "Finished <Test>: N <units> in S sec, TPS: N" line that
+// rapid-fire captures into solo.log. We restrict to lines logged after the
+// test started so a stale prior run's log lines can't mask a current 0 TPS.
+function assertNonZeroTps(performanceTest: string, startedAt: Date): void {
+  const soloLogPath: string = PathEx.join(constants.SOLO_LOGS_DIR, 'solo.log');
+  if (!fs.existsSync(soloLogPath)) {
+    throw new Error(`${performanceTest}: solo.log not found at ${soloLogPath}; cannot verify TPS`);
+  }
+  const log: string = fs.readFileSync(soloLogPath, 'utf8');
+  const pattern: RegExp = new RegExp(`Finished\\s+${performanceTest}:\\s+(\\d+).*TPS:\\s+(\\d+)`);
+  const startedAtMs: number = startedAt.getTime();
+  let matchedTps: number | undefined;
+  for (const line of log.split('\n')) {
+    const isoMatch: RegExpMatchArray | null = line.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)/);
+    if (isoMatch && new Date(isoMatch[1]).getTime() < startedAtMs) {
+      continue;
+    }
+    const tpsMatch: RegExpMatchArray | null = line.match(pattern);
+    if (tpsMatch) {
+      matchedTps = Number.parseInt(tpsMatch[2], 10);
+    }
+  }
+  if (matchedTps === undefined) {
+    throw new Error(`${performanceTest}: no "Finished ${performanceTest}: ... TPS: N" line found in solo.log after test start`);
+  }
+  if (matchedTps === 0) {
+    throw new Error(
+      `${performanceTest}: completed with TPS: 0 (no transactions executed); likely consensus-node proxy backpressure`,
+    );
+  }
 }
 
 export function soloRapidFire(
