@@ -2954,8 +2954,7 @@ export class Flags {
     name: 'consensus-node-version',
     definition: {
       describe:
-        'Consensus node version to deploy for one-shot (e.g. v0.73.0 or 0.73.0). ' +
-        'Overrides CONSENSUS_NODE_VERSION / CONSENSUS_NODE_EDGE_VERSION env vars.',
+        'Consensus node version to deploy (e.g. v0.73.0 or 0.73.0).',
       defaultValue: '',
       type: 'string',
     },
