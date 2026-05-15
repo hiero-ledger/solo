@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
-import {type AnyObject} from '../../types/aliases.js';
+import {type AnyObject, type ArgvStruct} from '../../types/aliases.js';
 
 /**
  * The shape of component version keys read from a {@code solo.config.yaml} or
@@ -52,4 +52,5 @@ export interface OneShotSingleDeployConfigClass {
   externalAddress: string;
   edgeEnabled: boolean;
   versions: OneShotVersionsObject;
+  argv: ArgvStruct;
 }
