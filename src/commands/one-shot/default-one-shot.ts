@@ -444,7 +444,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                   config.networkConfiguration[flags.getFormattedFlagKey(flags.genesisThrottlesFile)] = throttlesFile;
                 }
 
-                // For CN >= 0.73.0, cap K8s container memory at 1Gi to prevent unbounded mmap'd state-on-disk page cache growth
+                // For CN >= 0.73.0, cap K8s container memory (via helm-overrides.yaml) to prevent unbounded mmap'd state-on-disk page cache growth
                 if (useStateOnDisk) {
                   const helmOverrideFile: string = PathEx.join(stateOnDiskDirectory, 'helm-overrides.yaml');
                   if (fs.existsSync(helmOverrideFile)) {
