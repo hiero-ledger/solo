@@ -4,11 +4,8 @@ import {expect} from 'chai';
 import {describe, it, beforeEach, afterEach} from 'mocha';
 import sinon, {type SinonStub} from 'sinon';
 
-import {
-  fetchLatestStableGitHubRelease,
-  resolveEdgeVersions,
-  type EdgeVersionsObject,
-} from '../../../src/core/edge-version-fetcher.js';
+import {fetchLatestStableGitHubRelease, resolveEdgeVersions} from '../../../src/core/edge-version-fetcher.js';
+import {type EdgeVersionsObject} from '../../../src/core/edge-versions-object.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 
 const STABLE_RELEASE: {tag_name: string; prerelease: boolean; draft: boolean} = {

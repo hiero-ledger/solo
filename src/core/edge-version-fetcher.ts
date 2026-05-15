@@ -3,6 +3,7 @@
 import * as constants from './constants.js';
 import {type GitHubRelease} from '../types/index.js';
 import {SoloError} from './errors/solo-error.js';
+import {type EdgeVersionsObject} from './edge-versions-object.js';
 
 const GITHUB_RELEASES_LATEST_URL: string = 'https://api.github.com/repos/{owner}/{repo}/releases/latest';
 
@@ -125,13 +126,4 @@ export async function resolveEdgeVersions(fallbackVersions: EdgeVersionsObject):
   );
 
   return resolvedVersions;
-}
-
-/** The subset of {@link OneShotVersionsObject} that is resolved dynamically for `--edge`. */
-export interface EdgeVersionsObject {
-  consensus: string;
-  mirror: string;
-  blockNode: string;
-  explorer: string;
-  relay: string;
 }

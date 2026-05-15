@@ -30,7 +30,8 @@ import {OneShotSingleDeployConfigClass, OneShotVersionsObject} from './one-shot-
 import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
 import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
 import * as version from '../../../version.js';
-import {resolveEdgeVersions, type EdgeVersionsObject} from '../../core/edge-version-fetcher.js';
+import {resolveEdgeVersions} from '../../core/edge-version-fetcher.js';
+import {type EdgeVersionsObject} from '../../core/edge-versions-object.js';
 import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
 import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
