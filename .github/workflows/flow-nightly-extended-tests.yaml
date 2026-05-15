@@ -154,7 +154,7 @@ jobs:
           sudo apt-get install -y jq
 
       - name: Install Kubectl
-        uses: step-security/setup-kubectl@8489d0d7bf2110e44a330d8db821786e6e8c8d73 # pinned to v4.0.2
+        uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: "v1.31.4"
