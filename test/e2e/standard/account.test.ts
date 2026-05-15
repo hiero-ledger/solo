@@ -30,7 +30,7 @@ import {entityId} from '../../../src/core/helpers.js';
 import {Templates} from '../../../src/core/templates.js';
 import * as Base64 from 'js-base64';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {type DeploymentName, type Realm, type Shard} from '../../../src/types/index.js';
+import {type DeploymentName, type Realm, type Shard} from '../../../src/types';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
