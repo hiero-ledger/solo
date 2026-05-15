@@ -524,7 +524,7 @@ export class RapidFireCommand extends BaseCommand {
     try {
       fs.mkdirSync(constants.SOLO_LOGS_DIR, {recursive: true});
       fs.writeFileSync(filePath, sections.join('\n'), 'utf8');
-      this.logger.error(`Wrote rapid-fire failure diagnostics to ${filePath}`);
+      this.logger.info(`Wrote rapid-fire failure diagnostics to ${filePath}`);
     } catch (error) {
       this.logger.error(
         `Failed to write rapid-fire failure diagnostics to ${filePath}: ${error instanceof Error ? error.message : String(error)}`,
