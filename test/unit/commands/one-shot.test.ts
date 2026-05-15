@@ -6,10 +6,7 @@ import sinon from 'sinon';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {container} from 'tsyringe-neo';
-import {DefaultOneShotCommand} from '../../../src/commands/one-shot/default-one-shot.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
-import {resetForTest} from '../../test-container.js';
 import * as version from '../../../version.js';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
 import {
@@ -17,14 +14,15 @@ import {
   type SoloConfigFileVersions,
 } from '../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {DeployArgvBuilders} from '../../../src/commands/one-shot/orchestrator/deploy/deploy-argv-builders.js';
 
 /**
- * Exposes private methods of DefaultOneShotCommand for testing.
+ * Exposes private static methods of DeployArgvBuilders for testing.
  */
-interface DefaultOneShotInternal {
+interface DeployArgvBuildersInternal {
   findSoloConfigFile(): string | undefined;
   loadVersionsFromSoloConfigFile(): SoloConfigFileVersions;
-  resolveOneShotComponentVersions(argv: ArgvStruct, useEdge: boolean): OneShotVersionsObject;
+  resolveOneShotComponentVersions(argv: ArgvStruct, useEdge: boolean): Promise<OneShotVersionsObject>;
 }
 
 /**
@@ -44,16 +42,15 @@ const makeArgv: (overrides?: Partial<Record<string, string>>) => ArgvStruct = (
   ...overrides,
 });
 
-describe('DefaultOneShotCommand: version resolution', (): void => {
-  let command: DefaultOneShotInternal;
+describe('DeployArgvBuilders: version resolution', (): void => {
+  let command: DeployArgvBuildersInternal;
   /** Path to a temporary directory created fresh for each test. */
   let temporaryDirectory: string;
   /** Original CWD, restored after each test that calls process.chdir(). */
   let originalCwd: string;
 
   beforeEach((): void => {
-    resetForTest();
-    command = container.resolve(DefaultOneShotCommand) as unknown as DefaultOneShotInternal;
+    command = DeployArgvBuilders as unknown as DeployArgvBuildersInternal;
     temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-test-'));
     originalCwd = process.cwd();
   });
@@ -80,14 +77,14 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       const filePath: string = path.join(temporaryDirectory, 'solo.config.yaml');
       fs.writeFileSync(filePath, 'consensusNodeVersion: v0.73.0\n');
       process.chdir(temporaryDirectory);
-      expect(command.findSoloConfigFile()).to.equal(filePath);
+      expect(fs.realpathSync(command.findSoloConfigFile()!)).to.equal(fs.realpathSync(filePath));
     });
 
     it('returns the path to solo.config.json when solo.config.yaml is absent', (): void => {
       const filePath: string = path.join(temporaryDirectory, 'solo.config.json');
       fs.writeFileSync(filePath, '{"consensusNodeVersion":"v0.73.0"}');
       process.chdir(temporaryDirectory);
-      expect(command.findSoloConfigFile()).to.equal(filePath);
+      expect(fs.realpathSync(command.findSoloConfigFile()!)).to.equal(fs.realpathSync(filePath));
     });
 
     it('prefers solo.config.yaml over solo.config.json', (): void => {
@@ -96,7 +93,7 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       fs.writeFileSync(yamlPath, 'consensusNodeVersion: v0.73.0\n');
       fs.writeFileSync(jsonPath, '{"consensusNodeVersion":"v9.9.9"}');
       process.chdir(temporaryDirectory);
-      expect(command.findSoloConfigFile()).to.equal(yamlPath);
+      expect(fs.realpathSync(command.findSoloConfigFile()!)).to.equal(fs.realpathSync(yamlPath));
     });
 
     it('walks up to a parent directory to find the config file', (): void => {
@@ -106,7 +103,7 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       const subDirectory: string = path.join(temporaryDirectory, 'sub');
       fs.mkdirSync(subDirectory);
       process.chdir(subDirectory);
-      expect(command.findSoloConfigFile()).to.equal(parentPath);
+      expect(fs.realpathSync(command.findSoloConfigFile()!)).to.equal(fs.realpathSync(parentPath));
     });
   });
 
@@ -188,8 +185,8 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       loadVersionsStub.returns({});
     });
 
-    it('returns hard-coded defaults when no overrides are provided', (): void => {
-      const result: OneShotVersionsObject = command.resolveOneShotComponentVersions(makeArgv(), false);
+    it('returns hard-coded defaults when no overrides are provided', async (): Promise<void> => {
+      const result: OneShotVersionsObject = await command.resolveOneShotComponentVersions(makeArgv(), false);
       expect(result.consensus).to.equal(version.HEDERA_PLATFORM_VERSION);
       expect(result.mirror).to.equal(version.MIRROR_NODE_VERSION);
       expect(result.relay).to.equal(version.HEDERA_JSON_RPC_RELAY_VERSION);
@@ -198,8 +195,23 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       expect(result.soloChart).to.equal(version.SOLO_CHART_VERSION);
     });
 
-    it('returns edge defaults when useEdge is true', (): void => {
-      const result: OneShotVersionsObject = command.resolveOneShotComponentVersions(makeArgv(), true);
+    it('returns edge defaults when useEdge is true', async (): Promise<void> => {
+      const resolveLatestStableEdgeVersionsStub: sinon.SinonStub = sinon.stub(
+        DeployArgvBuilders as unknown as {
+          resolveLatestStableEdgeVersions: () => Promise<OneShotVersionsObject>;
+        },
+        'resolveLatestStableEdgeVersions',
+      );
+      resolveLatestStableEdgeVersionsStub.resolves({
+        soloChart: version.SOLO_CHART_EDGE_VERSION,
+        consensus: version.HEDERA_PLATFORM_EDGE_VERSION,
+        mirror: version.MIRROR_NODE_EDGE_VERSION,
+        relay: version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION,
+        explorer: version.EXPLORER_EDGE_VERSION,
+        blockNode: version.BLOCK_NODE_EDGE_VERSION,
+      });
+
+      const result: OneShotVersionsObject = await command.resolveOneShotComponentVersions(makeArgv(), true);
       expect(result.consensus).to.equal(version.HEDERA_PLATFORM_EDGE_VERSION);
       expect(result.mirror).to.equal(version.MIRROR_NODE_EDGE_VERSION);
       expect(result.relay).to.equal(version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION);
@@ -208,8 +220,8 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       expect(result.soloChart).to.equal(version.SOLO_CHART_EDGE_VERSION);
     });
 
-    it('CLI flags (empty-default) override defaults: consensus, relay, block-node', (): void => {
-      const result: OneShotVersionsObject = command.resolveOneShotComponentVersions(
+    it('CLI flags (empty-default) override defaults: consensus, relay, block-node', async (): Promise<void> => {
+      const result: OneShotVersionsObject = await command.resolveOneShotComponentVersions(
         makeArgv({
           [flags.consensusNodeVersion.name]: 'v0.73.0',
           [flags.relayVersion.name]: '0.77.0',
@@ -222,8 +234,8 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       expect(result.blockNode).to.equal('0.32.0');
     });
 
-    it('CLI flags override defaults for mirror-node-version and explorer-version', (): void => {
-      const result: OneShotVersionsObject = command.resolveOneShotComponentVersions(
+    it('CLI flags override defaults for mirror-node-version and explorer-version', async (): Promise<void> => {
+      const result: OneShotVersionsObject = await command.resolveOneShotComponentVersions(
         makeArgv({
           [flags.mirrorNodeVersion.name]: 'v0.999.0',
           [flags.explorerVersion.name]: '99.0.0',
@@ -234,13 +246,13 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       expect(result.explorer).to.equal('99.0.0');
     });
 
-    it('config file versions are used when no CLI flag or env var is set', (): void => {
+    it('config file versions are used when no CLI flag or env var is set', async (): Promise<void> => {
       loadVersionsStub.returns({
         consensusNodeVersion: 'v0.73.0',
         relayVersion: '0.77.0',
         blockNodeVersion: '0.32.0',
       });
-      const result: OneShotVersionsObject = command.resolveOneShotComponentVersions(makeArgv(), false);
+      const result: OneShotVersionsObject = await command.resolveOneShotComponentVersions(makeArgv(), false);
       expect(result.consensus).to.equal('v0.73.0');
       expect(result.relay).to.equal('0.77.0');
       expect(result.blockNode).to.equal('0.32.0');
@@ -249,9 +261,9 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       expect(result.explorer).to.equal(version.EXPLORER_VERSION);
     });
 
-    it('CLI flag takes precedence over config file', (): void => {
+    it('CLI flag takes precedence over config file', async (): Promise<void> => {
       loadVersionsStub.returns({consensusNodeVersion: 'v0.50.0'});
-      const result: OneShotVersionsObject = command.resolveOneShotComponentVersions(
+      const result: OneShotVersionsObject = await command.resolveOneShotComponentVersions(
         makeArgv({[flags.consensusNodeVersion.name]: 'v0.73.0'}),
         false,
       );
@@ -259,8 +271,8 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       expect(result.consensus).to.equal('v0.73.0');
     });
 
-    it('accepts versions with or without a leading "v" prefix', (): void => {
-      const result: OneShotVersionsObject = command.resolveOneShotComponentVersions(
+    it('accepts versions with or without a leading "v" prefix', async (): Promise<void> => {
+      const result: OneShotVersionsObject = await command.resolveOneShotComponentVersions(
         makeArgv({
           [flags.consensusNodeVersion.name]: '0.73.0', // no "v" prefix
           [flags.relayVersion.name]: 'v0.77.0', // with "v" prefix
@@ -271,11 +283,11 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       expect(result.relay).to.equal('v0.77.0');
     });
 
-    it('resolves the exact versions from the PR review comment (with and without v prefix)', (): void => {
+    it('resolves the exact versions from the PR review comment (with and without v prefix)', async (): Promise<void> => {
       // Exact flags from the review comment:
       // --consensus-node-version v0.73.0 --mirror-node-version v0.153.0
       // --block-node-version 0.33.0 --relay-version 0.76.0 --explorer-version 25.0.0
-      const resultWithPrefix: OneShotVersionsObject = command.resolveOneShotComponentVersions(
+      const resultWithPrefix: OneShotVersionsObject = await command.resolveOneShotComponentVersions(
         makeArgv({
           [flags.consensusNodeVersion.name]: 'v0.73.0',
           [flags.mirrorNodeVersion.name]: 'v0.153.0',
@@ -292,7 +304,7 @@ describe('DefaultOneShotCommand: version resolution', (): void => {
       expect(resultWithPrefix.blockNode).to.equal('0.33.0');
 
       // Same versions without the v prefix
-      const resultNoPrefix: OneShotVersionsObject = command.resolveOneShotComponentVersions(
+      const resultNoPrefix: OneShotVersionsObject = await command.resolveOneShotComponentVersions(
         makeArgv({
           [flags.consensusNodeVersion.name]: '0.73.0',
           [flags.mirrorNodeVersion.name]: '0.153.0',
