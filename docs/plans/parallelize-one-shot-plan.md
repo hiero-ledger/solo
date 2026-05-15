@@ -114,10 +114,10 @@ The "Create Accounts" task (step 14) is an **inline task** in `default-one-shot.
 
 ## Proposed Parallelized Flow
 
-### Phase 1: Quick Wins (single lease + parallel accounts + parallel explorer/relay)
+### OrchestratorPipelinePhase 1: Quick Wins (single lease + parallel accounts + parallel explorer/relay)
 
 ```
-Sequential Phase A (Infrastructure):
+Sequential OrchestratorPipelinePhase A (Infrastructure):
   1. Initialize + acquire SINGLE lease
   2. Check for other deployments
   3. cluster-ref connect
@@ -126,13 +126,13 @@ Sequential Phase A (Infrastructure):
   6. cluster-ref setup
   7. keys generate
 
-Sequential Phase B (Block + Consensus):
+Sequential OrchestratorPipelinePhase B (Block + Consensus):
   8. block add (if enabled)
   9. consensus deploy
  10. consensus setup
  11. consensus start
 
-Parallel Phase C (Components + Accounts):          ← NEW
+Parallel OrchestratorPipelinePhase C (Components + Accounts):          ← NEW
   ┌─ Pipeline A (sequential internally):
   │    12. mirror add (if deployMirrorNode)
   │    13. Extended setup (explorer + relay, concurrent: true)  ← CHANGED
@@ -141,40 +141,40 @@ Parallel Phase C (Components + Accounts):          ← NEW
   └─ Pipeline B (concurrent with Pipeline A):
        14. create accounts
 
-Sequential Phase D:
+Sequential OrchestratorPipelinePhase D:
   15. Finish
 ```
 
 **Time savings**: Create accounts (~1-2 min) runs fully in parallel with the mirror+explorer+relay pipeline (~6-13 min), saving ~1-2 minutes. Explorer + relay run concurrently with each other, saving another ~1-3 minutes.
 
-**Total Phase 1 savings: ~2-5 minutes per deploy.**
+**Total OrchestratorPipelinePhase 1 savings: ~2-5 minutes per deploy.**
 
-### Phase 2: Deep Parallelism (ConfigManager isolation + RemoteConfig mutex)
+### OrchestratorPipelinePhase 2: Deep Parallelism (ConfigManager isolation + RemoteConfig mutex)
 
 ```
-Sequential Phase A (Infrastructure): same as Phase 1
+Sequential OrchestratorPipelinePhase A (Infrastructure): same as OrchestratorPipelinePhase 1
 
-Sequential Phase B (Consensus core):
+Sequential OrchestratorPipelinePhase B (Consensus core):
   8. consensus deploy
 
-Parallel Phase B2 (Block + Consensus setup):       ← NEW
+Parallel OrchestratorPipelinePhase B2 (Block + Consensus setup):       ← NEW
   ┌─ block add (if enabled)
   └─ consensus setup
 
-Sequential Phase B3:
+Sequential OrchestratorPipelinePhase B3:
   9. consensus start
 
-Parallel Phase C (Components + Accounts):
+Parallel OrchestratorPipelinePhase C (Components + Accounts):
   ┌─ Pipeline A:
   │    12. mirror add
   │    → Parallel: explorer add || relay add
   └─ Pipeline B:
        14. create accounts
 
-Sequential Phase D: Finish
+Sequential OrchestratorPipelinePhase D: Finish
 ```
 
-**Additional savings from Phase 2: ~1-3 minutes** (block add overlaps with consensus setup).
+**Additional savings from OrchestratorPipelinePhase 2: ~1-3 minutes** (block add overlaps with consensus setup).
 
 ---
 
@@ -323,9 +323,9 @@ Replace the flat task array (steps 12-14) with a parallel group structure. The n
 
 **Key detail**: Explorer and relay's Initialize tasks run sequentially within the Extended Setup subtask group (Listr2 runs task function to get children, then runs children). With `concurrent: true`, both explorer's and relay's Initialize tasks would call `configManager.update()` concurrently -- BUT since explorer and relay receive different argv (different command names), and they capture their config into `context_.config` in Initialize, the ConfigManager state is only needed during Initialize. Since Listr2 resolves task functions sequentially even in concurrent mode (it awaits each task's setup function, then runs the returned subtasks concurrently), the Initialize tasks actually serialize while the heavy-lifting subtasks (Helm install, pod waiting) run concurrently.
 
-**Important**: Verify this Listr2 behavior in testing. If Listr2 truly runs the `task:` functions concurrently (not just the returned subtasks), then explorer+relay would need to remain `concurrent: false` in Phase 1 and wait for Phase 2's ConfigManager isolation.
+**Important**: Verify this Listr2 behavior in testing. If Listr2 truly runs the `task:` functions concurrently (not just the returned subtasks), then explorer+relay would need to remain `concurrent: false` in OrchestratorPipelinePhase 1 and wait for OrchestratorPipelinePhase 2's ConfigManager isolation.
 
-**Note on `argvPushGlobalFlags()`**: This function now reads from ConfigManager at call time (line 38). The callbacks that build argv (e.g., `() => { ... return argvPushGlobalFlags(argv); }`) are invoked during the task's `task()` function, so they would see the current ConfigManager state. In Phase 1, this is safe because Explorer and Relay argv are built before their concurrent Helm tasks start. In Phase 2, ConfigManager isolation would fully protect this.
+**Note on `argvPushGlobalFlags()`**: This function now reads from ConfigManager at call time (line 38). The callbacks that build argv (e.g., `() => { ... return argvPushGlobalFlags(argv); }`) are invoked during the task's `task()` function, so they would see the current ConfigManager state. In OrchestratorPipelinePhase 1, this is safe because Explorer and Relay argv are built before their concurrent Helm tasks start. In OrchestratorPipelinePhase 2, ConfigManager isolation would fully protect this.
 
 **Estimate**: 2-3 days
 
@@ -368,7 +368,7 @@ Proposed:
 
 ---
 
-### Work Item 7 (Phase 2): ConfigManager Scope Isolation
+### Work Item 7 (OrchestratorPipelinePhase 2): ConfigManager Scope Isolation
 **File**: `src/core/config-manager.ts`
 
 Add snapshot/restore capability so concurrent sub-commands get isolated config views:
@@ -386,7 +386,7 @@ Wrap `subTaskSoloCommand()` with snapshot/restore when in one-shot mode. Also en
 
 ---
 
-### Work Item 8 (Phase 2): RemoteConfig Persist Mutex
+### Work Item 8 (OrchestratorPipelinePhase 2): RemoteConfig Persist Mutex
 **File**: `src/business/runtime-state/config/remote/remote-config-runtime-state.ts`
 
 Add a simple async mutex around `persist()` to prevent concurrent ConfigMap writes:
@@ -407,29 +407,29 @@ public async persist(): Promise<void> {
 }
 ```
 
-This enables safe concurrent remote config modifications in Phase 2, allowing block add to overlap with consensus setup.
+This enables safe concurrent remote config modifications in OrchestratorPipelinePhase 2, allowing block add to overlap with consensus setup.
 
 **Estimate**: 1-2 days
 
 ---
 
-### Work Item 9 (Phase 2): Block Add Parallel with Consensus Setup
+### Work Item 9 (OrchestratorPipelinePhase 2): Block Add Parallel with Consensus Setup
 **File**: `src/commands/one-shot/default-one-shot.ts`
 
-Restructure Phase B:
+Restructure OrchestratorPipelinePhase B:
 ```typescript
 // consensus deploy (sequential)
 // then parallel: [block add || consensus setup]
 // then consensus start (sequential)
 ```
 
-**Estimate**: 2-3 days (including Phase 2 tests)
+**Estimate**: 2-3 days (including OrchestratorPipelinePhase 2 tests)
 
 ---
 
 ## Engineer Time Estimates Summary
 
-| # | Work Item | Phase | Estimate | Risk |
+| # | Work Item | OrchestratorPipelinePhase | Estimate | Risk |
 |---|-----------|-------|----------|------|
 | 1 | Add `oneShotMode` flag | 1 | 0.5 days | Low |
 | 2 | Single lease in one-shot deploy/destroy | 1 | 1 day | Low |
@@ -437,16 +437,16 @@ Restructure Phase B:
 | 4 | Restructure deploy task list for parallel phases | 1 | 2-3 days | Medium |
 | 5 | Parallel destroy flow | 1 | 1 day | Low |
 | 6 | Unit & integration tests | 1 | 2-3 days | Low |
-| **Phase 1 Total** | | | **7-11 days** | |
+| **OrchestratorPipelinePhase 1 Total** | | | **7-11 days** | |
 | 7 | ConfigManager scope isolation | 2 | 2-3 days | Medium |
 | 8 | RemoteConfig persist mutex | 2 | 1-2 days | Medium |
 | 9 | Block add parallel with consensus setup + tests | 2 | 2-3 days | Medium |
-| **Phase 2 Total** | | | **5-8 days** | |
+| **OrchestratorPipelinePhase 2 Total** | | | **5-8 days** | |
 | **Grand Total** | | | **12-19 days** | |
 
 ## Expected Time Savings
 
-| Improvement | Savings | Phase |
+| Improvement | Savings | OrchestratorPipelinePhase |
 |------------|---------|-------|
 | Eliminate per-command lease acquire/release overhead | ~30s | 1 |
 | Create accounts in parallel with mirror pipeline | ~1-2 min | 1 |
@@ -479,7 +479,7 @@ Restructure Phase B:
 - `src/commands/one-shot/default-one-shot.ts` -- Primary orchestration (restructure task list, add single lease)
 - `src/commands/one-shot/one-shot-single-deploy-config-class.ts` -- Config interface (has deployment toggles)
 - `src/commands/flags.ts` -- Add `oneShotMode` internal flag (note: `deployMirrorNode`, `deployExplorer`, `deployRelay` already added)
-- `src/commands/command-helpers.ts` -- `argvPushGlobalFlags()` reads ConfigManager (constraint for Phase 2)
+- `src/commands/command-helpers.ts` -- `argvPushGlobalFlags()` reads ConfigManager (constraint for OrchestratorPipelinePhase 2)
 - `src/commands/block-node.ts` -- Guard lease acquisition (5 methods, 10 locations)
 - `src/commands/mirror-node.ts` -- Guard lease acquisition (3 methods, 6 locations)
 - `src/commands/relay.ts` -- Guard lease acquisition (3 methods, 6 locations)
@@ -491,5 +491,5 @@ Restructure Phase B:
 - `src/core/command-handler.ts` -- Guard lease release in `commandAction()` (2 locations)
 - `src/core/lock/listr-lock.ts` -- No changes needed
 - `src/core/lock/lock-manager.ts` -- No changes needed
-- `src/core/config-manager.ts` -- Phase 2: add snapshot/restore
-- `src/business/runtime-state/config/remote/remote-config-runtime-state.ts` -- Phase 2: add persist mutex
+- `src/core/config-manager.ts` -- OrchestratorPipelinePhase 2: add snapshot/restore
+- `src/business/runtime-state/config/remote/remote-config-runtime-state.ts` -- OrchestratorPipelinePhase 2: add persist mutex
