@@ -453,7 +453,20 @@ then
 fi
 
 echo "::group::Prerequisites"
-npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
+expectedSoloVersion="${fromSoloVersion#v}"
+installedSoloVersion=""
+
+if command -v solo &> /dev/null; then
+  installedSoloVersion=$(solo --version 2>/dev/null | grep -Eo '([0-9]+\.){2}[0-9]+' | head -n 1 || true)
+  installedSoloVersion="${installedSoloVersion#v}"
+fi
+
+if [[ -n "${installedSoloVersion}" && "${installedSoloVersion}" == "${expectedSoloVersion}" ]]; then
+  echo "Solo version ${installedSoloVersion} already installed, skipping npm install"
+else
+  npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
+fi
+
 solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e
