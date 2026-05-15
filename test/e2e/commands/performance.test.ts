@@ -184,14 +184,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: finished ${testName}: destroy`);
         }).timeout(Duration.ofMinutes(8).toMillis());
 
-        it('NftTransferLoadTest', async (): Promise<void> => {
-          logEvent('Starting NftTransferLoadTest');
-          await runLoadTest(
-            'NftTransferLoadTest',
-            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
-          );
-        }).timeout(Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier).toMillis());
-
+        // TokenTransferLoadTest runs first so it creates fungible tokens.
+        // NftTransferLoadTest runs second: it creates NFT tokens, and if TokenTransferLoadTest
+        // ran after it with -R it would reuse those NFT tokens as fungible, yielding 0 TPS.
         it('TokenTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting TokenTransferLoadTest');
           await runLoadTest(
@@ -199,6 +194,14 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
           );
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+
+        it('NftTransferLoadTest', async (): Promise<void> => {
+          logEvent('Starting NftTransferLoadTest');
+          await runLoadTest(
+            'NftTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
+          );
+        }).timeout(Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier).toMillis());
 
         it('CryptoTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting CryptoTransferLoadTest');

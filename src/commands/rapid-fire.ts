@@ -376,6 +376,13 @@ export class RapidFireCommand extends BaseCommand {
     if (/INVALID_TOKEN_FOR_NFT_TRANSACTION|TOKEN_NOT_ASSOCIATED_TO_ACCOUNT|INVALID_TOKEN_ID/.test(output)) {
       return 'token-type / association mismatch detected (e.g. trying fungible transfer against NFT tokens from a previous reused run — consider dropping -R or running TokenTransferLoadTest before NftTransferLoadTest)';
     }
+    // Silent zero-TPS: FungibleTransferJob ran for the full duration with 0 transfers.
+    // This happens when TokenTransferLoadTest runs after NftTransferLoadTest with -R:
+    // it silently reuses the NFT tokens as fungible, every CryptoTransfer fails,
+    // and the NLG just reports "Finished ... 0 transfers ... TPS: 0" with no exception.
+    if (/FungibleTransferJob.*Starting token transfer/.test(output)) {
+      return 'FungibleTransferJob ran but recorded 0 transfers — all transactions likely rejected because existing tokens are NFTs (reused from a prior NftTransferLoadTest run); run TokenTransferLoadTest before NftTransferLoadTest, or drop -R to force fresh fungible token creation';
+    }
     if (/BUSY|THROTTLED_AT_CONSENSUS|PLATFORM_NOT_ACTIVE/.test(output)) {
       return 'consensus node reported throttling or backpressure (BUSY/THROTTLED_AT_CONSENSUS/PLATFORM_NOT_ACTIVE) — increase cool-down between tests or lower max-tps';
     }
