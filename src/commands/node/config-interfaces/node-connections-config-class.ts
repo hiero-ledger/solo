@@ -5,6 +5,7 @@ import {type ComponentData, type Context, type DeploymentName, type Optional} fr
 
 export interface NodeConnectionsConfigClass {
   deployment: DeploymentName;
+  check: boolean;
   componentsData: ComponentData[];
   context: Context;
   namespace: NamespaceName;

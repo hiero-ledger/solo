@@ -446,6 +446,7 @@ export class NodeCommandConfigs {
   ): Promise<NodeConnectionsConfigClass> {
     context_.config = {
       deployment: this.configManager.getFlag(flags.deployment),
+      check: this.configManager.getFlag<boolean>(flags.check),
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
       contexts: this.remoteConfig.getContexts()[0],
     } as any as NodeConnectionsConfigClass;
