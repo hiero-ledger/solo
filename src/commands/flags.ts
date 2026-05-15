@@ -2953,7 +2953,8 @@ export class Flags {
     constName: 'consensusNodeVersion',
     name: 'consensus-node-version',
     definition: {
-      describe: 'Consensus node version to deploy (e.g. v0.73.0 or 0.73.0).',
+      describe:
+        'Consensus node version to deploy (e.g. v0.73.0 or 0.73.0).',
       defaultValue: '',
       type: 'string',
     },
@@ -2964,7 +2965,8 @@ export class Flags {
     constName: 'relayVersion',
     name: 'relay-version',
     definition: {
-      describe: 'JSON-RPC relay version to deploy (e.g. v0.76.2 or 0.76.2).',
+      describe:
+        'JSON-RPC relay version to deploy (e.g. v0.76.2 or 0.76.2). ',
       defaultValue: '',
       type: 'string',
     },
@@ -2975,7 +2977,8 @@ export class Flags {
     constName: 'blockNodeVersion',
     name: 'block-node-version',
     definition: {
-      describe: 'Block node version to deploy (e.g. v0.31.0 or 0.31.0).',
+      describe:
+        'Block node version to deploy for (e.g. v0.31.0 or 0.31.0). ',
       defaultValue: '',
       type: 'string',
     },
