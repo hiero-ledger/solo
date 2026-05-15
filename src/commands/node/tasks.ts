@@ -4527,7 +4527,10 @@ export class NodeCommandTasks {
   public downloadJavaFlightRecorderLogs(): SoloListrTask<NodeCollectJfrLogsContext> {
     return {
       title: 'Download Java Flight Recorder logs from node pod',
-      task: async (context_: NodeCollectJfrLogsContext): Promise<void> => {
+      task: async (
+        context_: NodeCollectJfrLogsContext,
+        task: SoloListrTaskWrapper<NodeCollectJfrLogsContext>,
+      ): Promise<void> => {
         this.logger.info(`Downloading Java Flight Recorder logs from node ${context_.config.nodeAlias}...`);
         const config: NodeCollectJfrLogsConfigClass = context_.config;
         const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
@@ -4553,13 +4556,26 @@ export class NodeCommandTasks {
         }
 
         const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
+        let dumpResult: string;
         try {
-          const result: string = await k8Container.execContainer(
+          dumpResult = await k8Container.execContainer(
             `jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`,
           );
-          this.logger.info(`JFR dump command output: ${result}`);
+          this.logger.info(`JFR dump command output: ${dumpResult}`);
         } catch (error) {
           throw new SoloError(`Failed to create JFR recording on node pod ${nodeFullyQualifiedPodName}`, error);
+        }
+
+        // jcmd exits 0 even when no JFR recording is active and just prints an
+        // informational message. Detect that case and skip the task gracefully
+        // rather than failing the subsequent copy — performance-test runs
+        // without JFR enabled should not fail at teardown.
+        const jfrNotEnabledPattern: RegExp = /Could not find any recording|No recording (?:with|named)|No recordings/i;
+        if (jfrNotEnabledPattern.test(dumpResult)) {
+          const reason: string = `Java Flight Recorder is not enabled on node pod ${nodeFullyQualifiedPodName}`;
+          this.logger.warn(reason);
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey(reason)}`);
+          return;
         }
 
         try {
