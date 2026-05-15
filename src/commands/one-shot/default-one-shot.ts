@@ -11,11 +11,10 @@ import {type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {OneShotCommand} from './one-shot.js';
-import {OneShotSingleDeployConfigClass, SoloConfigFileVersions} from './one-shot-single-deploy-config-class.js';
+import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import fs from 'node:fs';
-import path from 'node:path';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import yaml from 'yaml';
@@ -538,79 +537,4 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   public async close(): Promise<void> {} // no-op
-
-  /**
-   * Searches for a solo.config.yaml or solo.config.json file starting from the current working
-   * directory and walking up to the filesystem root.  Returns the full path to the first match, or
-   * undefined if none is found.
-   */
-  private findSoloConfigFile(): string | undefined {
-    const fileNames: string[] = ['solo.config.yaml', 'solo.config.json'];
-    let current: string = process.cwd();
-
-    while (true) {
-      for (const name of fileNames) {
-        const fullPath: string = path.join(current, name);
-        if (fs.existsSync(fullPath)) {
-          return fullPath;
-        }
-      }
-      const parent: string = path.dirname(current);
-      if (parent === current) {
-        return undefined;
-      }
-      current = parent;
-    }
-  }
-
-  /**
-   * Reads component version overrides from a solo.config.yaml or solo.config.json file found in
-   * the current working directory or any parent.  Supports both camelCase and kebab-case keys.
-   * Returns an empty object if no file is found or if it cannot be parsed.
-   */
-  private loadVersionsFromSoloConfigFile(): SoloConfigFileVersions {
-    const filePath: string | undefined = this.findSoloConfigFile();
-    if (!filePath) {
-      return {};
-    }
-
-    try {
-      const content: string = fs.readFileSync(filePath, 'utf8');
-      const parsed: Record<string, unknown> = filePath.endsWith('.json')
-        ? (JSON.parse(content) as Record<string, unknown>)
-        : (yaml.parse(content) as Record<string, unknown>);
-      if (!parsed || typeof parsed !== 'object') {
-        return {};
-      }
-      this.logger.debug(`Loaded solo config file for version overrides: ${filePath}`);
-      return {
-        consensusNodeVersion:
-          (parsed['consensusNodeVersion'] as string | undefined) ||
-          (parsed['consensus-node-version'] as string | undefined),
-        mirrorNodeVersion:
-          (parsed['mirrorNodeVersion'] as string | undefined) || (parsed['mirror-node-version'] as string | undefined),
-        relayVersion: (parsed['relayVersion'] as string | undefined) || (parsed['relay-version'] as string | undefined),
-        explorerVersion:
-          (parsed['explorerVersion'] as string | undefined) || (parsed['explorer-version'] as string | undefined),
-        blockNodeVersion:
-          (parsed['blockNodeVersion'] as string | undefined) || (parsed['block-node-version'] as string | undefined),
-      };
-    } catch (error) {
-      this.logger.warn(`Failed to parse solo config file at ${filePath}: ${(error as Error).message}`);
-      return {};
-    }
-  }
-
-  /**
-   * Returns the first non-empty string from the supplied candidates, or an empty string if all
-   * candidates are empty or undefined.
-   */
-  private returnFirstTruthyString(...candidates: (string | undefined)[]): string {
-    for (const candidate of candidates) {
-      if (candidate) {
-        return candidate;
-      }
-    }
-    return '';
-  }
 }
