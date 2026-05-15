@@ -2988,7 +2988,10 @@ export class Flags {
     constName: 'edgeEnabled',
     name: 'edge',
     definition: {
-      describe: 'Use edge component versions (newer than the defaults)',
+      describe:
+        'Use edge component versions (newer than defaults). Also supports version overrides from solo.config.yaml ' +
+        'and solo.config.json, for example: `consensus-node-version: v0.73.0` (YAML) or ' +
+        '`{"consensusNodeVersion":"v0.73.0"}` (JSON).',
       defaultValue: false,
       type: 'boolean',
     },

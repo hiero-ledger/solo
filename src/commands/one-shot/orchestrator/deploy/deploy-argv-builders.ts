@@ -406,6 +406,16 @@ export class DeployArgvBuilders {
     }
   }
 
+  /**
+   * Reads version overrides from the nearest {@code solo.config.yaml} or {@code solo.config.json}
+   * in the current working directory chain.
+   *
+   * Accepted keys per component:
+   * - camelCase: {@code consensusNodeVersion}, {@code mirrorNodeVersion},
+   *   {@code relayVersion}, {@code explorerVersion}, {@code blockNodeVersion}
+   * - kebab-case: {@code consensus-node-version}, {@code mirror-node-version},
+   *   {@code relay-version}, {@code explorer-version}, {@code block-node-version}
+   */
   private static loadVersionsFromSoloConfigFile(): SoloConfigFileVersions {
     const filePath: string | undefined = this.findSoloConfigFile();
     if (!filePath) {
