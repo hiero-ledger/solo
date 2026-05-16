@@ -15,6 +15,7 @@ vars:
   SOLO_CLUSTER_NAME: "rapid-fire-cluster"
   SOLO_CLUSTER_REF: "rapid-fire-cluster-reference"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{.SOLO_NAMESPACE}}"
+  RAPID_FIRE_DURATION_SECONDS: "60"
 
 tasks:
   deploy:
@@ -87,30 +88,19 @@ tasks:
           # Solo consensus node start
           $SOLO_COMMAND consensus node start --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
-      # Run load test with the com.hedera.benchmark.TokenTransferLoadTest class first
-      # so NFT tests do not contaminate reused token state.
+      # Run load test with the com.hedera.benchmark.TokenTransferLoadTest class
       # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-A <associations>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
-      # Warm-up pass: short best-effort run to provision reusable accounts/tokens.
-      # In CI, first-run provisioning can consume the full -t 10 window and cause
-      # an immediate "0 transfers in 0 sec" result on the first measured run.
       - cmd: |
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
           --test TokenTransferLoadTest \
-          --args '"-c 1 -a 10 -T 2 -A 10 -R -t 30"' || true
+          --args '"-c 5 -a 1 -T 1 -A 1 -t {{ .RAPID_FIRE_DURATION_SECONDS }}"'
 
-      # Measured pass.
-      - cmd: |
-          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
-          --test TokenTransferLoadTest \
-          --args '"-c 5 -a 10 -T 2 -A 10 -R -t 10"'
-
-      # Run load test with the com.hedera.benchmark.NftTransferLoadTest class.
-      # Do not use -R so this test always creates fresh NFT tokens.
-      # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-n <NFTs/token>] [-S flat|hot -p <percent>] [-K ED25519|ECDSA] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      # Run load test with the com.hedera.benchmark.NftTransferLoadTest class
+      # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-n <NFTs/token>] [-S flat|hot -p <percent>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
           --test NftTransferLoadTest \
-          --args '"-c 5 -a 10 -T 2 -n 3 -S flat -p 50 -t 10"'
+          --args '"-c 5 -a 10 -T 2 -n 3 -S flat -p 50 -t {{ .RAPID_FIRE_DURATION_SECONDS }}"'
 
       # Run load test with the com.hedera.benchmark.CryptoTransferLoadTest class
       # Args: [-c <clients>] [-a <accounts>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [transfer|query|mixed] [-metrics]
@@ -118,36 +108,35 @@ tasks:
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
           --values-file {{ .USER_WORKING_DIR }}/nlg-values.yaml \
           --test CryptoTransferLoadTest \
-          --args '"-c 5 -a 10 -R -t 10"'
-
-      # Run load test with the com.hedera.benchmark.SmartContractLoadTest class
-      # Args: [-c <clients>] [-a <accounts>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
-      - cmd: |
-          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
-          --test SmartContractLoadTest \
-          --args '"-c 5 -a 10 -R -t 10"'
-
-      # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
-      # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
-      - cmd: |
-          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
-          --test HeliSwapLoadTest \
-          --args '"-c 5 -a 10 -R -t 10"'
-
-      # Run load test with the com.hedera.benchmark.LongevityLoadTest class
-      # Args: LongevityLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
-      - cmd: |
-          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
-          --test LongevityLoadTest \
-          --args '"-c 5 -a 10 -R -t 10"'
+          --args '"-c 5 -a 10 -t {{ .RAPID_FIRE_DURATION_SECONDS }}"'
 
       # Run load test with the com.hedera.benchmark.HCSLoadTest class
       # Args: HCSLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
       - cmd: |
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
           --test HCSLoadTest \
-          --args '"-c 5 -a 10 -R -t 10"'
+          --args '"-c 5 -a 10 -t {{ .RAPID_FIRE_DURATION_SECONDS }}"'
 
+      # Run load test with the com.hedera.benchmark.SmartContractLoadTest class
+      # Args: [-c <clients>] [-a <accounts>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test SmartContractLoadTest \
+          --args '"-c 5 -a 10 -t {{ .RAPID_FIRE_DURATION_SECONDS }}"'
+
+      # Run load test with the com.hedera.benchmark.HeliSwapLoadTest class
+      # Args: HeliSwapLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test HeliSwapLoadTest \
+          --args '"-c 5 -a 10 -t {{ .RAPID_FIRE_DURATION_SECONDS }}"'
+
+      # Run load test with the com.hedera.benchmark.LongevityLoadTest class
+      # Args: LongevityLoadTest [-c <clients>] [-a <accounts>] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test LongevityLoadTest \
+          --args '"-c 5 -a 10 -t {{ .RAPID_FIRE_DURATION_SECONDS }}"'
 
   destroy:
     desc: Destroy the Solo network using one-shot single destroy

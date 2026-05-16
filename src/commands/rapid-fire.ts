@@ -354,7 +354,10 @@ export class RapidFireCommand extends BaseCommand {
     const durationSeconds: number = Number.parseInt(lastMatch[3], 10);
     const tps: number = Number.parseInt(lastMatch[4], 10);
 
-    if (tps === 0) {
+    // NLG reports integer TPS. For short/low-volume runs it can print "TPS: 0"
+    // even when transfers occurred (for example 12 tx in 29 sec -> 0 when rounded).
+    // Treat this as success and only fail when there were no processed transactions.
+    if (tps === 0 && transactionCount === 0) {
       return {
         status: 'zero-tps',
         testClass,
