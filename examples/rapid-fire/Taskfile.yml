@@ -96,13 +96,13 @@ tasks:
       - cmd: |
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
           --test TokenTransferLoadTest \
-          --args '"-c 1 -a 1 -T 1 -A 1 -R -t 1"' || true
+          --args '"-c 1 -a 10 -T 2 -A 10 -R -t 30"' || true
 
       # Measured pass.
       - cmd: |
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
           --test TokenTransferLoadTest \
-          --args '"-c 5 -a 1 -T 1 -A 1 -R -t 10"'
+          --args '"-c 5 -a 10 -T 2 -A 10 -R -t 10"'
 
       # Run load test with the com.hedera.benchmark.NftTransferLoadTest class.
       # Do not use -R so this test always creates fresh NFT tokens.
