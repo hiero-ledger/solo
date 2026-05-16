@@ -51,6 +51,7 @@ import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ClusterReferences, type DeploymentName, Realm, Shard} from './../types/index.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
+import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {SoloService} from './model/solo-service.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
@@ -661,7 +662,7 @@ export class AccountManager {
     // Prefer live cluster config when available.
     for (const context of clusterReferences.values()) {
       try {
-        const configMap = await this.k8Factory
+        const configMap: ConfigMap = await this.k8Factory
           .getK8(context)
           .configMaps()
           .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
@@ -1016,7 +1017,7 @@ export class AccountManager {
       const accountId: string = accountInfo.accountId;
       const realm: any = transactionReceipt.accountId!.realm;
       const shard: any = transactionReceipt.accountId!.shard;
-      const accountInfoQueryResult = await this.accountInfoQuery(accountId);
+      const accountInfoQueryResult: AccountInfo = await this.accountInfoQuery(accountId);
       accountInfo.accountAlias = entityId(shard, realm, accountInfoQueryResult.contractAccountId);
     }
 

@@ -441,7 +441,10 @@ nodes.gossipFqdnRestricted=false`;
       };
 
       sinon.stub(fs, 'existsSync').callsFake((filePath: string | Buffer): boolean => {
-        const filePathString: string = typeof filePath === 'string' ? filePath : filePath.toString();
+        const filePathString: string = (typeof filePath === 'string' ? filePath : filePath.toString()).replaceAll(
+          '\\',
+          '/',
+        );
         return filePathString.includes('/cache');
       });
       sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=false');

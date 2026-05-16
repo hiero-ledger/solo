@@ -35,6 +35,13 @@ function createNodeCommandTasksWithPvcData(persistentVolumeClaimsByContext: Reco
   return {tasks: nodeCommandTasks, showUserMessages};
 }
 
+function invokeParseGossipFqdnRestricted(
+  _nodeCommandTasks: NodeCommandTasks,
+  applicationPropertiesText: string,
+): boolean | undefined {
+  return helpers.parseGossipFqdnRestricted(applicationPropertiesText);
+}
+
 function invokeValidateNodePvcsForLocalBuildPath(
   nodeCommandTasks: NodeCommandTasks,
   contexts: string[],
@@ -73,13 +80,6 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
     data: {[constants.APPLICATION_PROPERTIES]: 'nodes.gossipFqdnRestricted=false\n'},
   };
   const emptyConfigMapData: {data: Record<string, string>} = {data: {}};
-
-  function invokeParseGossipFqdnRestricted(
-    _nodeCommandTasks: NodeCommandTasks,
-    applicationPropertiesText: string,
-  ): boolean | undefined {
-    return helpers.parseGossipFqdnRestricted(applicationPropertiesText);
-  }
 
   function invokeGetGossipFqdnRestricted(
     nodeCommandTasks: NodeCommandTasks,
