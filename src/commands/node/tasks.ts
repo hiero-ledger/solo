@@ -3607,6 +3607,7 @@ export class NodeCommandTasks {
               config.soloChartVersion,
               chartValues,
               context,
+              true,
             );
             showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
