@@ -18,57 +18,26 @@ interface ConsensusLogDefinition {
 }
 
 /**
- * Binds a log file path pattern to a message pattern that should be treated
- * as transient (and therefore suppressed) when analyzing that file. Used to
- * filter out known startup races and benign-but-noisy server messages while
- * still surfacing genuine errors.
+ * Binds a log file path pattern to one or more suppression criteria used
+ * while analyzing pod logs. Criteria can suppress known transient messages,
+ * startup-only errors, or retry errors that later self-heal.
  *
  * Path patterns are matched against the file's relative path normalized to
  * forward slashes, so authors can write them portably.
  */
-interface TransientErrorPattern {
+interface PodLogErrorSuppression {
   /** Matches the log file's relative path (forward-slash form). */
   logFilePattern: RegExp;
-  /** Matches the error line text to suppress within that log file. */
-  messagePattern: RegExp;
-  /** Short reason describing why this match is treated as transient. */
+  /** Short reason describing why this suppression applies. */
   reason: string;
-}
-
-/**
- * Suppresses any error line whose timestamp falls within `windowSeconds` of
- * the first timestamped line in a log file matching `logFilePattern`. Use
- * this when a component is known to emit transient retry/connect errors
- * during initial startup that self-heal once dependencies are ready (e.g.
- * Mirror Node importer retrying downloads while the consensus node is still
- * becoming ACTIVE and the database is still migrating).
- */
-interface StartupErrorSuppression {
-  /** Matches the log file's relative path (forward-slash form). */
-  logFilePattern: RegExp;
-  /** Suppress error lines within this many seconds of the first log timestamp. */
-  windowSeconds: number;
-  /** Short reason describing why early errors in this file are suppressed. */
-  reason: string;
-}
-
-/**
- * Suppresses error lines matching `errorPattern` in files matching
- * `logFilePattern` **only if** a corresponding success line matching
- * `successPattern` appears anywhere in the same file. Use this for
- * retry-until-success patterns where a later success message proves the
- * earlier errors were transient (e.g. REST API retrying its Redis
- * connection and eventually logging "Startup Connected to redis://...").
- */
-interface ConditionalErrorSuppression {
-  /** Matches the log file's relative path (forward-slash form). */
-  logFilePattern: RegExp;
-  /** Matches error lines that should be dropped when `successPattern` is present. */
-  errorPattern: RegExp;
-  /** Must appear somewhere in the same file for `errorPattern` matches to be dropped. */
-  successPattern: RegExp;
-  /** Short reason describing why this conditional suppression applies. */
-  reason: string;
+  /** Suppress matching message lines for this file. */
+  transientMessagePattern?: RegExp;
+  /** Suppress any error line within this many seconds from first log timestamp. */
+  startupWindowSeconds?: number;
+  /** Conditionally suppress this error pattern when success pattern appears in file. */
+  conditionalErrorPattern?: RegExp;
+  /** Presence of this line in same file activates conditional suppression. */
+  conditionalSuccessPattern?: RegExp;
 }
 
 /**
@@ -131,12 +100,11 @@ export class DiagnosticsAnalyzer {
   ];
 
   /**
-   * Known transient errors that surface during normal startup and should not
-   * be reported as failures. Each entry binds a log-file path pattern to a
-   * message pattern; lines matching both are dropped from `app-error`
-   * findings. New entries can be added here without touching scanner logic.
+   * Per-log suppression registry. Each entry binds a log-file pattern to one
+   * or more suppression criteria and a reason. New suppressions can be added
+   * here without touching scanner logic.
    */
-  private static readonly TRANSIENT_ERROR_PATTERNS: readonly TransientErrorPattern[] = [
+  private static readonly POD_LOG_ERROR_SUPPRESSIONS: readonly PodLogErrorSuppression[] = [
     {
       // Mirror Node's FixCryptoAllowanceAmountMigration (an AsyncJavaMigration)
       // queries a temporary working table before it has been created on a
@@ -144,42 +112,27 @@ export class DiagnosticsAnalyzer {
       // falls back to Long.MAX_VALUE), but Postgres still emits an ERROR
       // line into its server log, which would otherwise surface as a finding.
       logFilePattern: /solo-shared-resources-postgres[^/]*\.log$/i,
-      messagePattern: /relation "[^"]+" does not exist/i,
+      transientMessagePattern: /relation "[^"]+" does not exist/i,
       reason: 'Postgres "relation does not exist" during Flyway async-migration startup race',
     },
-  ];
-
-  /**
-   * Per-file startup grace windows. Any error line whose log timestamp falls
-   * within `windowSeconds` of the first timestamped line in the same file is
-   * dropped from findings. Used for components that emit retry/connect
-   * errors while waiting on their dependencies during cluster bring-up.
-   */
-  private static readonly STARTUP_ERROR_SUPPRESSIONS: readonly StartupErrorSuppression[] = [
     {
       // The mirror node importer logs download / connect / timeout errors
       // while it waits for the consensus node to become ACTIVE and the
       // database to finish migrating. These stop on their own once
-      // dependencies are ready (typically well within one minute).
+      // dependencies are ready. Keep this bounded to startup; post-startup
+      // errors should still be surfaced as findings.
       logFilePattern: /mirror[^/]*-importer[^/]*\.log$/i,
-      windowSeconds: 60,
+      startupWindowSeconds: 60,
       reason: 'Mirror Node importer retries during initial startup window',
     },
-  ];
-
-  /**
-   * Error/success pairings. When the success line is present, matching
-   * error lines are dropped because the retry loop eventually succeeded.
-   */
-  private static readonly CONDITIONAL_ERROR_SUPPRESSIONS: readonly ConditionalErrorSuppression[] = [
     {
       // Mirror Node REST API retries its Redis connection until the Redis
       // pod is reachable, logging an ERROR per attempt. A subsequent
       // "Startup Connected to redis://..." line proves the retry loop
       // succeeded — the earlier errors are then noise, not failures.
       logFilePattern: /mirror[^/]*-rest[^/]*\.log$/i,
-      errorPattern: /Startup Error connecting to/i,
-      successPattern: /Startup Connected to/i,
+      conditionalErrorPattern: /Startup Error connecting to/i,
+      conditionalSuccessPattern: /Startup Connected to/i,
       reason: 'Mirror Node REST retry succeeded after initial connection errors',
     },
   ];
@@ -391,7 +344,7 @@ export class DiagnosticsAnalyzer {
     );
 
     // Strip Docker/containerd timestamp prefix (e.g. "2026-04-06T03:24:32.470558065Z ") before matching.
-    const errorPattern: RegExp = /\b(?:ERROR|FATAL)\b/i;
+    const errorPattern: RegExp = /\b(?:ERROR|FATAL)\b/;
 
     this.logger.showUser(`  Found ${logFiles.length} pod log file(s)`);
 
@@ -712,9 +665,7 @@ export class DiagnosticsAnalyzer {
    */
   private extractMatchSnippets(content: string, pattern: RegExp, maxMatches: number): string[] {
     const snippets: string[] = [];
-    const lines: string[] = content.split(/\r?\n/);
-    const normalizedFlags: string = pattern.flags.includes('g') ? pattern.flags.replaceAll('g', '') : pattern.flags;
-    const matcher: RegExp = new RegExp(pattern.source, normalizedFlags);
+    const {lines, matcher}: {lines: string[]; matcher: RegExp} = this.initializeLineMatcher(content, pattern);
 
     for (const [index, line] of lines.entries()) {
       if (matcher.test(line)) {
@@ -728,43 +679,58 @@ export class DiagnosticsAnalyzer {
     return snippets;
   }
 
-  /**
-   * Returns the subset of {@link TRANSIENT_ERROR_PATTERNS} that apply to the
-   * given log file. The path is normalized to forward slashes so patterns
-   * can be authored portably.
-   */
-  private getTransientPatternsForFile(relativePath: string): readonly TransientErrorPattern[] {
+  private initializeLineMatcher(content: string, pattern: RegExp): {lines: string[]; matcher: RegExp} {
+    return {
+      lines: content.split(/\r?\n/),
+      matcher: new RegExp(
+        pattern.source,
+        pattern.flags.includes('g') ? pattern.flags.replaceAll('g', '') : pattern.flags,
+      ),
+    };
+  }
+
+  private getPodLogErrorSuppressionsForFile(relativePath: string): readonly PodLogErrorSuppression[] {
     const normalizedPath: string = relativePath.replaceAll('\\', '/');
-    return DiagnosticsAnalyzer.TRANSIENT_ERROR_PATTERNS.filter((transientPattern: TransientErrorPattern): boolean =>
-      transientPattern.logFilePattern.test(normalizedPath),
+    return DiagnosticsAnalyzer.POD_LOG_ERROR_SUPPRESSIONS.filter((suppression: PodLogErrorSuppression): boolean =>
+      suppression.logFilePattern.test(normalizedPath),
     );
   }
 
-  /**
-   * Returns the longest startup-suppression window (in seconds) that applies
-   * to `relativePath`, or 0 if no entry matches.  Multiple matching entries
-   * are merged by taking the maximum window so the more-permissive rule wins.
-   */
-  private getStartupSuppressionWindowForFile(relativePath: string): number {
-    const normalizedPath: string = relativePath.replaceAll('\\', '/');
-    const matchingWindows: number[] = DiagnosticsAnalyzer.STARTUP_ERROR_SUPPRESSIONS.filter(
-      (suppression: StartupErrorSuppression): boolean => suppression.logFilePattern.test(normalizedPath),
-    ).map((suppression: StartupErrorSuppression): number => suppression.windowSeconds);
+  private getStartupSuppressionWindow(suppressions: readonly PodLogErrorSuppression[]): number {
+    const matchingWindows: number[] = [];
+    for (const suppression of suppressions) {
+      if (suppression.startupWindowSeconds !== undefined) {
+        matchingWindows.push(suppression.startupWindowSeconds);
+      }
+    }
     return matchingWindows.length === 0 ? 0 : Math.max(...matchingWindows);
   }
 
-  /**
-   * Returns the error patterns from {@link CONDITIONAL_ERROR_SUPPRESSIONS}
-   * whose `successPattern` is present in `content` for the given file —
-   * i.e. the retry eventually succeeded.  Lines matching one of the
-   * returned patterns can be safely suppressed.
-   */
-  private getActiveConditionalErrorPatterns(relativePath: string, content: string): readonly RegExp[] {
-    const normalizedPath: string = relativePath.replaceAll('\\', '/');
-    return DiagnosticsAnalyzer.CONDITIONAL_ERROR_SUPPRESSIONS.filter(
-      (suppression: ConditionalErrorSuppression): boolean =>
-        suppression.logFilePattern.test(normalizedPath) && suppression.successPattern.test(content),
-    ).map((suppression: ConditionalErrorSuppression): RegExp => suppression.errorPattern);
+  private getTransientMessagePatterns(suppressions: readonly PodLogErrorSuppression[]): readonly RegExp[] {
+    const patterns: RegExp[] = [];
+    for (const suppression of suppressions) {
+      if (suppression.transientMessagePattern !== undefined) {
+        patterns.push(suppression.transientMessagePattern);
+      }
+    }
+    return patterns;
+  }
+
+  private getActiveConditionalErrorPatterns(
+    suppressions: readonly PodLogErrorSuppression[],
+    content: string,
+  ): readonly RegExp[] {
+    const patterns: RegExp[] = [];
+    for (const suppression of suppressions) {
+      if (
+        suppression.conditionalErrorPattern !== undefined &&
+        suppression.conditionalSuccessPattern !== undefined &&
+        suppression.conditionalSuccessPattern.test(content)
+      ) {
+        patterns.push(suppression.conditionalErrorPattern);
+      }
+    }
+    return patterns;
   }
 
   /**
@@ -829,9 +795,7 @@ export class DiagnosticsAnalyzer {
    * start of line) plus all following lines until the next header. When the
    * header is suppressed, every continuation match within the block (e.g.
    * `Suppressed: ... terminated with an error` inside a stack trace) is
-   * cascaded into the same suppression — so a single suppressed error never
-   * leaks through as separate evidence via its own stack frames. The same
-   * cascading collapses non-suppressed blocks so each surfaces at most once.
+   * cascaded into the same suppression.
    *
    * Returns both the captured evidence (capped at `maxMatches`) and the
    * number of lines that were suppressed so callers can surface a note.
@@ -842,16 +806,17 @@ export class DiagnosticsAnalyzer {
     relativePath: string,
     maxMatches: number,
   ): {evidence: string[]; suppressed: number} {
-    const lines: string[] = content.split(/\r?\n/);
-    const transientPatterns: readonly TransientErrorPattern[] = this.getTransientPatternsForFile(relativePath);
-    const startupWindowSeconds: number = this.getStartupSuppressionWindowForFile(relativePath);
+    const {lines, matcher}: {lines: string[]; matcher: RegExp} = this.initializeLineMatcher(content, errorPattern);
+    const matchingSuppressions: readonly PodLogErrorSuppression[] =
+      this.getPodLogErrorSuppressionsForFile(relativePath);
+    const transientPatterns: readonly RegExp[] = this.getTransientMessagePatterns(matchingSuppressions);
+    const startupWindowSeconds: number = this.getStartupSuppressionWindow(matchingSuppressions);
     const startupReferenceTime: Date | undefined =
       startupWindowSeconds > 0 ? this.findFirstTimestamp(content) : undefined;
-    const activeConditionalPatterns: readonly RegExp[] = this.getActiveConditionalErrorPatterns(relativePath, content);
-    const normalizedFlags: string = errorPattern.flags.includes('g')
-      ? errorPattern.flags.replaceAll('g', '')
-      : errorPattern.flags;
-    const matcher: RegExp = new RegExp(errorPattern.source, normalizedFlags);
+    const activeConditionalPatterns: readonly RegExp[] = this.getActiveConditionalErrorPatterns(
+      matchingSuppressions,
+      content,
+    );
 
     const evidence: string[] = [];
     let suppressed: number = 0;
@@ -871,20 +836,20 @@ export class DiagnosticsAnalyzer {
       }
 
       // Continuation matches (e.g. "Suppressed: ... terminated with an error"
-      // inside a stack trace) inherit the header's suppression decision and
-      // are never reported as separate evidence even if the block was not
-      // suppressed — they belong to the already-surfaced header.
+      // inside a stack trace) inherit the header's suppression decision.
       if (inErrorBlock) {
         if (blockSuppressed) {
           suppressed++;
+        } else if (evidence.length < maxMatches) {
+          evidence.push(`line ${index + 1}: ${line.trim()}`);
         }
         continue;
       }
 
       inErrorBlock = true;
 
-      const isTransientMessage: boolean = transientPatterns.some((transientPattern: TransientErrorPattern): boolean =>
-        transientPattern.messagePattern.test(line),
+      const isTransientMessage: boolean = transientPatterns.some((transientPattern: RegExp): boolean =>
+        transientPattern.test(line),
       );
       if (isTransientMessage) {
         suppressed++;

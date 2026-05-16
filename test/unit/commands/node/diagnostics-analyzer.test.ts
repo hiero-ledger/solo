@@ -183,4 +183,94 @@ events:
     expect(reportText).to.include('message: "Error: ImagePullBackOff"');
     expect(reportText).to.not.include('Pod not ready/running: network-node1-0');
   });
+
+  it('suppresses known transient postgres migration race errors but keeps other errors', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const postgresLogPath: string = path.join(componentLogDirectory, 'solo-shared-resources-postgres-main.log');
+    fs.writeFileSync(
+      postgresLogPath,
+      [
+        '2026-03-27T16:52:37.539Z 2026-03-27T16:52:37.539Z ERROR relation "account_balance_temp" does not exist',
+        '2026-03-27T16:52:38.539Z 2026-03-27T16:52:38.539Z ERROR unrecoverable postgres failure',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Application ERROR detected in pod log: solo-shared-resources-postgres-main');
+    expect(reportText).to.include('ERROR unrecoverable postgres failure');
+    expect(reportText).to.not.include('relation "account_balance_temp" does not exist');
+  });
+
+  it('suppresses mirror importer errors only inside the configured startup window', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const importerLogPath: string = path.join(componentLogDirectory, 'mirror-main-importer.log');
+    fs.writeFileSync(
+      importerLogPath,
+      [
+        '2026-03-27T16:52:00.000Z 2026-03-27T16:52:00.000Z INFO startup begins',
+        '2026-03-27T16:52:30.000Z 2026-03-27T16:52:30.000Z ERROR transient connection retry',
+        '2026-03-27T16:53:30.000Z 2026-03-27T16:53:30.000Z ERROR importer still failing after startup',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Application ERROR detected in pod log: mirror-main-importer');
+    expect(reportText).to.include('ERROR importer still failing after startup');
+    expect(reportText).to.not.include('ERROR transient connection retry');
+  });
+
+  it('suppresses conditional mirror rest retry errors when success marker exists', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const restLogPath: string = path.join(componentLogDirectory, 'mirror-main-rest.log');
+    fs.writeFileSync(
+      restLogPath,
+      [
+        '2026-03-27T16:52:00.000Z 2026-03-27T16:52:00.000Z ERROR Startup Error connecting to redis://redis:6379',
+        '2026-03-27T16:52:05.000Z 2026-03-27T16:52:05.000Z INFO Startup Connected to redis://redis:6379',
+        '2026-03-27T16:52:10.000Z 2026-03-27T16:52:10.000Z ERROR unrelated rest failure',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Application ERROR detected in pod log: mirror-main-rest');
+    expect(reportText).to.include('ERROR unrelated rest failure');
+    expect(reportText).to.not.include('ERROR Startup Error connecting to redis://redis:6379');
+  });
+
+  it('keeps non-suppressed continuation-line error matches as evidence', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const relayLogPath: string = path.join(componentLogDirectory, 'relay-main.log');
+    fs.writeFileSync(
+      relayLogPath,
+      [
+        '2026-03-27T16:52:00.000Z ERROR relay startup failed',
+        '  java.lang.RuntimeException: root cause',
+        '  Caused by: nested ERROR detail',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('line 1: ERROR relay startup failed');
+    expect(reportText).to.include('line 3: Caused by: nested ERROR detail');
+  });
 });
