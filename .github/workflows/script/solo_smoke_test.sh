@@ -46,16 +46,6 @@ function setup_smart_contract_test ()
   cd -
 }
 
-function check_port_forward ()
-{
-  # run background task for few minutes
-  for i in {1..20}
-  do
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - Check port forward i = $i out of 20" >> port-forward.log
-    ps -ef |grep port-forward >> port-forward.log
-    sleep 10
-  done &
-}
 
 function start_contract_test ()
 {
@@ -496,7 +486,6 @@ clone_smart_contract_repo
 setup_smart_contract_test
 wait_for_relay_accounts_ready || log_and_exit 1
 ensure_relay_write_path_ready || log_and_exit 1
-check_port_forward
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"

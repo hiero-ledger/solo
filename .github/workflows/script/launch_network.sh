@@ -549,33 +549,15 @@ else
   done <<< "${mirrorComponentDeployments}"
 fi
 
-
-# restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs BEFORE node start:"
-kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
-result=0
-npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev || result=$?
-
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs AFTER node start:"
-kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
+npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 collect_restart_boundary_diagnostics "${SOLO_NAMESPACE}"
-if [[ ${result} -ne 0 ]]; then
-  echo "Consensus node start failed with exit code ${result}"
-  # stop consensus node 
-  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev || true
-  exit "${result}"
-fi
 
 restore_tx_generators_after_freeze "${SOLO_NAMESPACE}"
 # Apply preventive reset at the known freeze/restart boundary.
 auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
 
-# redeploy mirror node to upgrade to a newer version
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
-# Mirror rollout recreates importer pods; recovery is intentionally single-pass before this step.
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
-
-
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
@@ -587,8 +569,6 @@ npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 # Rebuild relay HEDERA_NETWORK from current node services and reset relay SDK state.
 refresh_relay_network_config "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}" "node1,node2"
-
-
 echo "::endgroup::"
 
 echo "::group::Final Verification"
