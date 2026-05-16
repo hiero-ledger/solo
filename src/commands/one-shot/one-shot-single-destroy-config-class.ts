@@ -9,4 +9,8 @@ export interface OneShotSingleDestroyConfigClass {
   namespace: NamespaceName;
   cacheDir: string;
   skipAll: boolean;
+  hasExplorers: boolean;
+  hasRelays: boolean;
+  hasMirrorNodes: boolean;
+  hasBlockNodes: boolean | undefined;
 }
