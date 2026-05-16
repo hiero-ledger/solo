@@ -87,6 +87,22 @@ tasks:
           # Solo consensus node start
           $SOLO_COMMAND consensus node start --deployment {{ .SOLO_DEPLOYMENT }} --dev
 
+      # Run load test with the com.hedera.benchmark.TokenTransferLoadTest class first
+      # so NFT tests do not contaminate reused token state.
+      # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-A <associations>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test TokenTransferLoadTest \
+          --args '"-c 5 -a 1 -T 1 -A 1 -R -t 10"'
+
+      # Run load test with the com.hedera.benchmark.NftTransferLoadTest class.
+      # Do not use -R so this test always creates fresh NFT tokens.
+      # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-n <NFTs/token>] [-S flat|hot -p <percent>] [-K ED25519|ECDSA] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      - cmd: |
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test NftTransferLoadTest \
+          --args '"-c 5 -a 10 -T 2 -n 3 -S flat -p 50 -t 10"'
+
       # Run load test with the com.hedera.benchmark.CryptoTransferLoadTest class
       # Args: [-c <clients>] [-a <accounts>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [transfer|query|mixed] [-metrics]
       - cmd: |
@@ -94,13 +110,6 @@ tasks:
           --values-file {{ .USER_WORKING_DIR }}/nlg-values.yaml \
           --test CryptoTransferLoadTest \
           --args '"-c 5 -a 10 -R -t 10"'
-
-      # Run load test with the com.hedera.benchmark.NftTransferLoadTest class
-      # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-n <NFTs/token>] [-S flat|hot -p <percent>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
-      - cmd: |
-          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
-          --test NftTransferLoadTest \
-          --args '"-c 5 -a 10 -T 2 -n 3 -S flat -p 50 -R -t 10"'
 
       # Run load test with the com.hedera.benchmark.SmartContractLoadTest class
       # Args: [-c <clients>] [-a <accounts>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
@@ -130,12 +139,6 @@ tasks:
           --test HCSLoadTest \
           --args '"-c 5 -a 10 -R -t 10"'
 
-      # Run load test with the com.hedera.benchmark.TokenTransferLoadTest class
-      # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-A <associations>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
-      - cmd: |
-          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
-          --test TokenTransferLoadTest \
-          --args '"-c 5 -a 1 -T 1 -A 1 -R -t 10"'
 
   destroy:
     desc: Destroy the Solo network using one-shot single destroy
