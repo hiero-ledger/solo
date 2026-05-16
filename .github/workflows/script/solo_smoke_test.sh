@@ -50,8 +50,6 @@ function setup_smart_contract_test ()
 function start_contract_test ()
 {
   cd hedera-smart-contracts
-  echo "Wait a few seconds for background transactions to start"
-  sleep 10
   echo "Show current port forward for debugging purpose"
   ps -ef | grep port-forward
   echo "Run smart contract test"
