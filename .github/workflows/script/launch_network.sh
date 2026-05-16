@@ -4,23 +4,6 @@ set -eo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/helper.sh"
 
-collect_failure_diagnostics() {
-  local rc="${1}"
-
-  echo "::group::Failure diagnostics"
-  echo "launch_network.sh failed with exit code ${rc}"
-
-  if command -v npm &> /dev/null; then
-    echo "Collecting Solo deployment diagnostics for ${SOLO_DEPLOYMENT}..."
-    npm run solo -- deployment diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev || true
-    echo "Solo diagnostics collection finished. Check ~/.solo/logs for downloaded artifacts."
-  else
-    echo "npm is not available; skipping Solo diagnostics collection"
-  fi
-
-  echo "::endgroup::"
-}
-
 on_exit() {
   local rc=$?
 
@@ -31,7 +14,6 @@ on_exit() {
   if [[ ${rc} -ne 0 ]]; then
     echo "Test failed, current port forward process: "
     ps -ef | grep port-forward
-    collect_failure_diagnostics "${rc}"
   fi
 
   exit "${rc}"
@@ -427,7 +409,6 @@ restart_importer_pods_for_recovery() {
 auto_recover_importer_hash_chain() {
   local namespace="${1}"
   echo "[IMPORTER_RECOVERY] Applying preventive importer hash-chain recovery for migration boundary"
-  collect_restart_boundary_diagnostics "${namespace}"
   reset_importer_hash_chain_for_upgrade "${namespace}"
   restart_importer_pods_for_recovery "${namespace}"
 
@@ -543,10 +524,10 @@ npm run solo -- init --dev
 scale_down_tx_generators_for_freeze "${SOLO_NAMESPACE}"
 solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 
-# using new solo to redeploy solo deployment chart to new version
 show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
 save_cluster_ips "${SOLO_NAMESPACE}"
 
+# using new solo to redeploy solo deployment chart to new version
 npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "AFTER network deploy"
@@ -589,29 +570,21 @@ restore_tx_generators_after_freeze "${SOLO_NAMESPACE}"
 # Apply preventive reset at the known freeze/restart boundary.
 auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
 
-npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-
-# force restart relay pod to pick up changes of configMap
-kubectl rollout restart deployment/relay-1 -n "${SOLO_NAMESPACE}"
-kubectl rollout restart deployment/relay-1-ws -n "${SOLO_NAMESPACE}"
-
 # redeploy mirror node to upgrade to a newer version
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
 # Mirror rollout recreates importer pods; recovery is intentionally single-pass before this step.
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
-npm run solo -- deployment refresh port-forwards --deployment "${SOLO_DEPLOYMENT}"
-# Test transaction can still be sent and processed
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
+
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 # Rebuild relay HEDERA_NETWORK from current node services and reset relay SDK state.
 refresh_relay_network_config "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}" "node1,node2"
 
