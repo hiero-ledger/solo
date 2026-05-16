@@ -521,7 +521,7 @@ npm run solo -- init --dev
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
 # need to use old solo to freeze the network since new solo freeze may not be compatible with old consensus node
 # s6 container
-scale_down_tx_generators_for_freeze "${SOLO_NAMESPACE}"
+# scale_down_tx_generators_for_freeze "${SOLO_NAMESPACE}"
 solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
@@ -552,7 +552,7 @@ fi
 npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 collect_restart_boundary_diagnostics "${SOLO_NAMESPACE}"
 
-restore_tx_generators_after_freeze "${SOLO_NAMESPACE}"
+# restore_tx_generators_after_freeze "${SOLO_NAMESPACE}"
 # Apply preventive reset at the known freeze/restart boundary.
 auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
 
