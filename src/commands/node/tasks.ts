@@ -190,6 +190,7 @@ import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
+import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -4495,7 +4496,10 @@ export class NodeCommandTasks {
 
     try {
       const k8: K8 = this.k8Factory.getK8(context);
-      const containerReference: ContainerReference = ContainerReference.of(pod.podReference, constants.ROOT_CONTAINER);
+      const containerReference: ContainerReference = ContainerReference.of(
+        pod.podReference,
+        ContainerName.of(constants.BLOCK_NODE_IMAGE_NAME),
+      );
       const container: Container = k8.containers().readByRef(containerReference);
 
       // Create directory for block node log files
@@ -4504,7 +4508,25 @@ export class NodeCommandTasks {
         fs.mkdirSync(blockNodeLogDirectory, {recursive: true});
       }
 
-      await container.copyFrom('/opt/hiero/block-node/logs/*.log', blockNodeLogDirectory);
+      const blockNodeLogsDirectory: string = '/opt/hiero/block-node/logs';
+      if (!(await container.hasDir(blockNodeLogsDirectory))) {
+        this.logger.info(`Block node logs directory not found for ${podName}: ${blockNodeLogsDirectory}`);
+        return;
+      }
+
+      const directoryEntries: TDirectoryData[] = await container.listDir(blockNodeLogsDirectory);
+      const logFiles: TDirectoryData[] = directoryEntries.filter(
+        (entry: TDirectoryData): boolean => !entry.directory && entry.name.endsWith('.log'),
+      );
+
+      if (logFiles.length === 0) {
+        this.logger.info(`No block node .log files found for ${podName} in ${blockNodeLogsDirectory}`);
+        return;
+      }
+
+      for (const logFile of logFiles) {
+        await container.copyFrom(`${blockNodeLogsDirectory}/${logFile.name}`, blockNodeLogDirectory);
+      }
     } catch (error) {
       this.logger.error(`Failed to download block node log files from ${podName}: ${error}`);
     }

@@ -32,6 +32,8 @@ interface PodLogErrorSuppression {
   reason: string;
   /** Suppress matching message lines for this file. */
   transientMessagePattern?: RegExp;
+  /** Suppress matching message lines only during the file's startup window. */
+  startupTransientMessagePattern?: RegExp;
   /** Suppress any error line within this many seconds from first log timestamp. */
   startupWindowSeconds?: number;
   /** Conditionally suppress this error pattern when success pattern appears in file. */
@@ -116,6 +118,17 @@ export class DiagnosticsAnalyzer {
       reason: 'Postgres "relation does not exist" during Flyway async-migration startup race',
     },
     {
+      // PostgreSQL logs FATAL authentication failures while mirror_rest user
+      // and database roles are being created during pod initialization. These
+      // transient failures occur only during the startup window and resolve
+      // once roles are fully provisioned. Keep this bounded to the first ~90
+      // seconds of pod startup; post-startup auth failures are real problems.
+      logFilePattern: /solo-shared-resources-postgres[^/]*\.log$/i,
+      startupTransientMessagePattern: /password authentication failed for user "mirror_rest"/i,
+      startupWindowSeconds: 90,
+      reason: 'Postgres user authentication failures during startup role provisioning',
+    },
+    {
       // The mirror node importer logs download / connect / timeout errors
       // while it waits for the consensus node to become ACTIVE and the
       // database to finish migrating. These stop on their own once
@@ -124,6 +137,17 @@ export class DiagnosticsAnalyzer {
       logFilePattern: /mirror[^/]*-importer[^/]*\.log$/i,
       startupWindowSeconds: 60,
       reason: 'Mirror Node importer retries during initial startup window',
+    },
+    {
+      // Mirror Node REST probes its database before the mirror_rest role is
+      // fully provisioned in Postgres, producing transient startup-only
+      // healthcheck failures. Keep this suppression narrow to the known auth
+      // message and to the initial startup window.
+      logFilePattern: /mirror[^/]*-rest[^/]*\.log$/i,
+      startupTransientMessagePattern:
+        /Startup healthcheck failed DbError: password authentication failed for user "mirror_rest"/i,
+      startupWindowSeconds: 60,
+      reason: 'Mirror Node REST DB healthcheck retries during initial startup window',
     },
     {
       // Mirror Node REST API retries its Redis connection until the Redis
@@ -699,7 +723,7 @@ export class DiagnosticsAnalyzer {
   private getStartupSuppressionWindow(suppressions: readonly PodLogErrorSuppression[]): number {
     const matchingWindows: number[] = [];
     for (const suppression of suppressions) {
-      if (suppression.startupWindowSeconds !== undefined) {
+      if (suppression.startupWindowSeconds !== undefined && suppression.startupTransientMessagePattern === undefined) {
         matchingWindows.push(suppression.startupWindowSeconds);
       }
     }
@@ -787,9 +811,10 @@ export class DiagnosticsAnalyzer {
   /**
    * Like {@link extractMatchSnippets} but drops error lines that fall into
    * any of three suppression categories configured for `relativePath`:
-   *   1. transient message patterns       — known benign messages
-   *   2. startup grace window              — within N seconds of log start
-   *   3. retry-with-eventual-success pair  — success marker present elsewhere
+   *   1. transient message patterns        — known benign messages
+   *   2. startup-scoped message patterns   — known benign messages only during bring-up
+   *   3. startup grace window              — within N seconds of log start
+   *   4. retry-with-eventual-success pair  — success marker present elsewhere
    *
    * Suppression is block-aware: a log entry is a header line (timestamp at
    * start of line) plus all following lines until the next header. When the
@@ -810,9 +835,15 @@ export class DiagnosticsAnalyzer {
     const matchingSuppressions: readonly PodLogErrorSuppression[] =
       this.getPodLogErrorSuppressionsForFile(relativePath);
     const transientPatterns: readonly RegExp[] = this.getTransientMessagePatterns(matchingSuppressions);
+    const hasStartupSuppression: boolean = matchingSuppressions.some(
+      (suppression: PodLogErrorSuppression): boolean => suppression.startupWindowSeconds !== undefined,
+    );
     const startupWindowSeconds: number = this.getStartupSuppressionWindow(matchingSuppressions);
-    const startupReferenceTime: Date | undefined =
-      startupWindowSeconds > 0 ? this.findFirstTimestamp(content) : undefined;
+    const startupReferenceTime: Date | undefined = hasStartupSuppression ? this.findFirstTimestamp(content) : undefined;
+    const hasStartupTransientSuppression: boolean = matchingSuppressions.some(
+      (suppression: PodLogErrorSuppression): boolean =>
+        suppression.startupTransientMessagePattern !== undefined && suppression.startupWindowSeconds !== undefined,
+    );
     const activeConditionalPatterns: readonly RegExp[] = this.getActiveConditionalErrorPatterns(
       matchingSuppressions,
       content,
@@ -856,7 +887,26 @@ export class DiagnosticsAnalyzer {
         blockSuppressed = true;
         continue;
       }
-      if (startupReferenceTime && this.isWithinStartupWindow(line, startupReferenceTime, startupWindowSeconds)) {
+      const isStartupTransientMessage: boolean =
+        startupReferenceTime !== undefined &&
+        hasStartupTransientSuppression &&
+        matchingSuppressions.some(
+          (suppression: PodLogErrorSuppression): boolean =>
+            suppression.startupTransientMessagePattern !== undefined &&
+            suppression.startupWindowSeconds !== undefined &&
+            suppression.startupTransientMessagePattern.test(line) &&
+            this.isWithinStartupWindow(line, startupReferenceTime, suppression.startupWindowSeconds),
+        );
+      if (isStartupTransientMessage) {
+        suppressed++;
+        blockSuppressed = true;
+        continue;
+      }
+      if (
+        startupReferenceTime !== undefined &&
+        startupWindowSeconds > 0 &&
+        this.isWithinStartupWindow(line, startupReferenceTime, startupWindowSeconds)
+      ) {
         suppressed++;
         blockSuppressed = true;
         continue;

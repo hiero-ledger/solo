@@ -252,6 +252,38 @@ events:
     expect(reportText).to.not.include('ERROR Startup Error connecting to redis://redis:6379');
   });
 
+  it('suppresses mirror rest db auth failures only during startup', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const restLogPath: string = path.join(componentLogDirectory, 'mirror-1-rest-7447d9dd48-fzz6t.log');
+    fs.writeFileSync(
+      restLogPath,
+      [
+        '2026-05-16T20:04:01.696Z 2026-05-16T20:04:01.696Z INFO Startup Loaded configuration source: /home/node/app/config/application.yml',
+        '2026-05-16T20:04:03.795Z 2026-05-16T20:04:03.795Z ERROR Startup Error connecting to redis://redis:6379: connect ECONNREFUSED 10.96.225.68:6379',
+        '2026-05-16T20:04:03.912Z 2026-05-16T20:04:03.912Z ERROR Startup healthcheck failed DbError: password authentication failed for user "mirror_rest"',
+        '2026-05-16T20:04:03.912Z     at file:///home/node/app/health.js:26:13',
+        '2026-05-16T20:04:09.801Z 2026-05-16T20:04:09.801Z INFO Startup Connected to redis://redis:6379',
+        '2026-05-16T20:04:13.909Z 2026-05-16T20:04:13.909Z ERROR Startup healthcheck failed NotFoundError: Application readiness check failed',
+        '2026-05-16T20:05:10.000Z 2026-05-16T20:05:10.000Z ERROR Startup healthcheck failed DbError: password authentication failed for user "mirror_rest"',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Application ERROR detected in pod log: mirror-1-rest-7447d9dd48-fzz6t');
+    expect(reportText).to.include('ERROR Startup healthcheck failed NotFoundError: Application readiness check failed');
+    expect(reportText).to.include(
+      'line 7: 2026-05-16T20:05:10.000Z ERROR Startup healthcheck failed DbError: password authentication failed for user "mirror_rest"',
+    );
+    expect(reportText).to.not.include(
+      'line 3: 2026-05-16T20:04:03.912Z ERROR Startup healthcheck failed DbError: password authentication failed for user "mirror_rest"',
+    );
+  });
+
   it('keeps non-suppressed continuation-line error matches as evidence', (): void => {
     const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
     fs.mkdirSync(componentLogDirectory, {recursive: true});
@@ -272,5 +304,35 @@ events:
     const reportText: string = fs.readFileSync(reportPath, 'utf8');
     expect(reportText).to.include('line 1: ERROR relay startup failed');
     expect(reportText).to.include('line 3: Caused by: nested ERROR detail');
+  });
+
+  it('suppresses postgres authentication failures only within startup window', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const postgresLogPath: string = path.join(componentLogDirectory, 'solo-shared-resources-postgres-0.log');
+    fs.writeFileSync(
+      postgresLogPath,
+      [
+        '2026-05-16T20:03:43.159Z 2026-05-16 20:03:43.159 GMT [1] LOG:  pgaudit extension initialized',
+        '2026-05-16T20:03:43.185Z 2026-05-16 20:03:43.185 GMT [1] LOG:  database system is ready to accept connections',
+        '2026-05-16T20:04:03.911Z 2026-05-16 20:04:03.911 GMT [245] FATAL:  password authentication failed for user "mirror_rest"',
+        '2026-05-16T20:04:03.911Z 2026-05-16 20:04:03.911 GMT [245] DETAIL:  Role "mirror_rest" does not exist.',
+        '2026-05-16T20:04:04.906Z 2026-05-16 20:04:04.906 GMT [246] FATAL:  password authentication failed for user "mirror_rest"',
+        '2026-05-16T20:04:04.906Z 2026-05-16 20:04:04.906 GMT [246] DETAIL:  Role "mirror_rest" does not exist.',
+        '2026-05-16T20:04:12.906Z 2026-05-16 20:04:12.906 GMT [271] FATAL:  password authentication failed for user "mirror_rest"',
+        '2026-05-16T20:04:12.906Z 2026-05-16 20:04:12.906 GMT [271] DETAIL:  Role "mirror_rest" does not exist.',
+        '2026-05-16T20:04:24.616Z 2026-05-16 20:04:24.616 GMT [260] ERROR:  relation "crypto_allowance_migration" does not exist at character 8',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Application ERROR detected in pod log: solo-shared-resources-postgres-0');
+    expect(reportText).to.include('ERROR:  relation "crypto_allowance_migration" does not exist');
+    // Auth failures within 90-second startup window should be suppressed
+    expect(reportText).to.not.include('FATAL:  password authentication failed');
   });
 });
