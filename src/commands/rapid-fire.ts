@@ -334,11 +334,31 @@ export class RapidFireCommand extends BaseCommand {
   private static analyzeNlgOutput(output: string, testClass: string, performanceTest: string): NlgResult {
     const lines: string[] = output.split('\n');
     let lastMatch: RegExpMatchArray | undefined;
+    const longevityMatches: RegExpMatchArray[] = [];
     for (const line of lines) {
       const match: RegExpMatchArray | null = line.match(RapidFireCommand.NLG_FINISHED_PATTERN);
       if (match && (match[1] === performanceTest || match[1] === testClass)) {
         lastMatch = match;
       }
+
+      // LongevityLoadTest reports "Finished" lines for internal sub-tests
+      // (e.g. HeliSwapLoadTest/HCSLoadTest) rather than LongevityLoadTest itself.
+      if (match && performanceTest === NLGTestClass.LongevityLoadTest) {
+        longevityMatches.push(match);
+      }
+    }
+
+    if (!lastMatch && performanceTest === NLGTestClass.LongevityLoadTest && longevityMatches.length > 0) {
+      // Prefer the sub-test result that processed the most transactions.
+      let selectedMatch: RegExpMatchArray = longevityMatches[0];
+      for (const match of longevityMatches) {
+        const currentTransactionCount: number = Number.parseInt(match[2], 10);
+        const selectedTransactionCount: number = Number.parseInt(selectedMatch[2], 10);
+        if (currentTransactionCount > selectedTransactionCount) {
+          selectedMatch = match;
+        }
+      }
+      lastMatch = selectedMatch;
     }
 
     if (!lastMatch) {
