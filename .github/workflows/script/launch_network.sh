@@ -77,23 +77,17 @@ show_service_ips() {
   kubectl get svc -n "${namespace}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
 }
 
-# Restart relay after upgrade to clear any stale SDK node-health backoff
-# and force reconnection against current network endpoints.
+# Restart relay after upgrade, wait for rollout, and ensure localhost JSON-RPC
+# forwarding is stable before smoke tests.
 refresh_relay_network_config() {
-  local namespace="${1}"
-
-  echo "[RELAY_RECOVERY] Relay already upgraded; restarting relay deployment to reset SDK node health state"
-
-  kubectl rollout restart deployment/relay-1 deployment/relay-1-ws -n "${namespace}" 2>/dev/null || true
-}
-
-# Ensure relay rollout and localhost JSON-RPC forwarding are stable before smoke tests.
-ensure_relay_port_forward_stable() {
   local namespace="${1}"
   local deployment="${2}"
   local max_attempts=18
   local sleep_seconds=5
   local attempt
+
+  echo "[RELAY_RECOVERY] Relay already upgraded; restarting relay deployment to reset SDK node health state"
+  kubectl rollout restart deployment/relay-1 deployment/relay-1-ws -n "${namespace}" 2>/dev/null || true
 
   echo "[RELAY_STABILITY] Waiting for relay deployments to report rolled out"
   kubectl rollout status deployment/relay-1 -n "${namespace}" --timeout=4m --context kind-solo-e2e || return 1
@@ -501,15 +495,7 @@ echo "::endgroup::"
 
 
 echo "::group::Upgrade Solo"
-# need to add ingress controller helm repo
-echo "Upgrading with workspace Solo CLI"
-
-npm run solo -- init --dev
-# freeze network instead of using "node stop" to make sure the network is stopped elegantly
-# need to use old solo to freeze the network since new solo freeze may not be compatible with old consensus node
-# s6 container
 solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
-
 show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
 save_cluster_ips "${SOLO_NAMESPACE}"
 
@@ -554,10 +540,10 @@ npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 # Restart relay and refresh forwards after upgrade to reduce stale-connection windows.
 refresh_relay_network_config "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}"
-echo "::endgroup::"
-ensure_relay_port_forward_stable "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}"
-echo "::group::Final Verification"
 
+echo "::endgroup::"
+
+echo "::group::Final Verification"
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 echo "::endgroup::"
