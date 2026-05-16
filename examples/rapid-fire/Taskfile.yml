@@ -90,6 +90,15 @@ tasks:
       # Run load test with the com.hedera.benchmark.TokenTransferLoadTest class first
       # so NFT tests do not contaminate reused token state.
       # Args: [-c <clients>] [-a <accounts>] [-T <tokens>] [-A <associations>] [-K ED25519|ECDSA] [-R] [-t|tt <time>] [-host <host>] [-port <port>] [-endpoint <endpoint>] [-metrics]
+      # Warm-up pass: short best-effort run to provision reusable accounts/tokens.
+      # In CI, first-run provisioning can consume the full -t 10 window and cause
+      # an immediate "0 transfers in 0 sec" result on the first measured run.
+      - cmd: |
+          $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
+          --test TokenTransferLoadTest \
+          --args '"-c 1 -a 1 -T 1 -A 1 -R -t 1"' || true
+
+      # Measured pass.
       - cmd: |
           $SOLO_COMMAND rapid-fire load start --deployment {{ .SOLO_DEPLOYMENT }} \
           --test TokenTransferLoadTest \
