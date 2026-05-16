@@ -186,52 +186,6 @@ NODE
   )
 }
 
-function refresh_relay_after_write_probe_failure()
-{
-  local relayDeployments
-  echo "[RELAY_WRITE_PROBE] write-path probe failed, refreshing relay config and restarting relay pods"
-  (
-    cd solo
-    npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-  )
-
-  relayDeployments=$(kubectl get deployment -n "${SOLO_NAMESPACE}" -o name | grep -E '^deployment.apps/relay(-[0-9]+)?(-ws)?$' || true)
-  if [[ -z "${relayDeployments}" ]]; then
-    echo "[RELAY_WRITE_PROBE] no relay deployments found in namespace ${SOLO_NAMESPACE}"
-  else
-    while IFS= read -r deploymentName; do
-      [[ -z "${deploymentName}" ]] && continue
-      kubectl rollout restart "${deploymentName}" -n "${SOLO_NAMESPACE}" || true
-      kubectl rollout status "${deploymentName}" -n "${SOLO_NAMESPACE}" --timeout=240s || true
-    done <<< "${relayDeployments}"
-  fi
-
-  (
-    cd solo
-    npm run solo -- deployment refresh port-forwards --deployment "${SOLO_DEPLOYMENT}"
-  ) || true
-}
-
-function ensure_relay_write_path_ready()
-{
-  local max_attempts=2
-  local attempt
-
-  for attempt in $(seq 1 "${max_attempts}"); do
-    if probe_relay_write_path_once; then
-      echo "[RELAY_WRITE_PROBE] relay write path ready (attempt ${attempt}/${max_attempts})"
-      return 0
-    fi
-
-    if [[ "${attempt}" -lt "${max_attempts}" ]]; then
-      refresh_relay_after_write_probe_failure
-    fi
-  done
-
-  echo "[RELAY_WRITE_PROBE] relay write path not ready after ${max_attempts} attempts"
-  return 1
-}
-
 function start_sdk_test ()
 {
   realm_num="${1:-0}"
@@ -482,8 +436,6 @@ fi
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
-wait_for_relay_accounts_ready || log_and_exit 1
-ensure_relay_write_path_ready || log_and_exit 1
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"

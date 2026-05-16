@@ -77,19 +77,52 @@ show_service_ips() {
   kubectl get svc -n "${namespace}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
 }
 
-# Refresh relay chart values so relay.config.HEDERA_NETWORK matches current HAProxy
-# ClusterIPs, then restart relay to clear any stale SDK node-health backoff.
+# Restart relay after upgrade to clear any stale SDK node-health backoff
+# and force reconnection against current network endpoints.
 refresh_relay_network_config() {
   local namespace="${1}"
-  local deployment="${2}"
-  local nodeAliases="${3:-node1,node2}"
 
-  echo "[RELAY_RECOVERY] Refreshing relay HEDERA_NETWORK mapping from current cluster services"
-  npm run solo -- relay node upgrade -i "${nodeAliases}" --deployment "${deployment}" -q --dev
+  echo "[RELAY_RECOVERY] Relay already upgraded; restarting relay deployment to reset SDK node health state"
 
-  echo "[RELAY_RECOVERY] Restarting relay deployment to reset SDK node health state"
   kubectl rollout restart deployment/relay-1 deployment/relay-1-ws -n "${namespace}" 2>/dev/null || true
-  kubectl rollout status deployment/relay-1 -n "${namespace}" --timeout=3m --context kind-solo-e2e
+}
+
+# Ensure relay rollout and localhost JSON-RPC forwarding are stable before smoke tests.
+ensure_relay_port_forward_stable() {
+  local namespace="${1}"
+  local deployment="${2}"
+  local max_attempts=18
+  local sleep_seconds=5
+  local attempt
+
+  echo "[RELAY_STABILITY] Waiting for relay deployments to report rolled out"
+  kubectl rollout status deployment/relay-1 -n "${namespace}" --timeout=4m --context kind-solo-e2e || return 1
+  kubectl rollout status deployment/relay-1-ws -n "${namespace}" --timeout=4m --context kind-solo-e2e || return 1
+
+  echo "[RELAY_STABILITY] Refreshing port-forwards for deployment ${deployment}"
+  npm run solo -- deployment refresh port-forwards --deployment "${deployment}"
+
+  for attempt in $(seq 1 "${max_attempts}"); do
+    local processCount
+    local rpcResponse
+
+    processCount=$(ps -ef | grep -E "kubectl port-forward.*37546:7546" | grep -v grep | wc -l | tr -d ' ' || echo '0')
+    rpcResponse=$(curl -sS -m 3 -H 'Content-Type: application/json' \
+      -d '{"jsonrpc":"2.0","method":"web3_clientVersion","params":[],"id":1}' \
+      http://127.0.0.1:37546 || true)
+
+    if [[ "${processCount}" == "1" ]] && echo "${rpcResponse}" | grep -q '"result"'; then
+      echo "[RELAY_STABILITY] Relay port-forward and JSON-RPC are stable (${attempt}/${max_attempts})"
+      return 0
+    fi
+
+    echo "[RELAY_STABILITY] Pending relay stability (${attempt}/${max_attempts}), refreshing and retrying"
+    npm run solo -- deployment refresh port-forwards --deployment "${deployment}" >/dev/null 2>&1 || true
+    sleep "${sleep_seconds}"
+  done
+
+  echo "[RELAY_STABILITY] Relay port-forward did not stabilize after ${max_attempts} attempts"
+  return 1
 }
 
 # Resolve the active importer pod deterministically.
@@ -319,52 +352,6 @@ reset_importer_hash_chain_for_upgrade() {
   echo ""
 }
 
-# Snapshot file for pinger deployments scaled down during freeze prep.
-TX_GENERATOR_SNAPSHOT_FILE="/tmp/solo-tx-generators-replicas.txt"
-
-# Function to reduce background transaction noise before freeze.
-# This makes the freeze/restart boundary more deterministic and reduces race windows
-# between record-file closure and state snapshot persistence.
-scale_down_tx_generators_for_freeze() {
-  local namespace="${1}"
-  local txGeneratorDeployments
-
-  : > "${TX_GENERATOR_SNAPSHOT_FILE}"
-  txGeneratorDeployments=$(kubectl get deployment -n "${namespace}" -o name | grep -E '^deployment.apps/mirror(-[0-9]+)?-pinger$' || true)
-  if [[ -z "${txGeneratorDeployments}" ]]; then
-    echo "[FREEZE_QUIESCE] No mirror pinger deployment found in namespace ${namespace}"
-    return 0
-  fi
-
-  echo "[FREEZE_QUIESCE] Scaling down background transaction generators before freeze"
-  while IFS= read -r deploymentName; do
-    [[ -z "${deploymentName}" ]] && continue
-    local currentReplicas
-    currentReplicas=$(kubectl get -n "${namespace}" "${deploymentName}" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
-    echo "${deploymentName} ${currentReplicas}" >> "${TX_GENERATOR_SNAPSHOT_FILE}"
-    kubectl scale -n "${namespace}" "${deploymentName}" --replicas=0 >/dev/null
-    kubectl rollout status -n "${namespace}" "${deploymentName}" --timeout=2m || true
-  done <<< "${txGeneratorDeployments}"
-}
-
-# Function to restore transaction generators to their original replica counts.
-restore_tx_generators_after_freeze() {
-  local namespace="${1}"
-
-  if [[ ! -s "${TX_GENERATOR_SNAPSHOT_FILE}" ]]; then
-    return 0
-  fi
-
-  echo "[FREEZE_QUIESCE] Restoring background transaction generators after restart"
-  while read -r deploymentName originalReplicas; do
-    [[ -z "${deploymentName}" ]] && continue
-    kubectl scale -n "${namespace}" "${deploymentName}" --replicas="${originalReplicas}" >/dev/null || true
-    kubectl rollout status -n "${namespace}" "${deploymentName}" --timeout=2m || true
-  done < "${TX_GENERATOR_SNAPSHOT_FILE}"
-
-  rm -f "${TX_GENERATOR_SNAPSHOT_FILE}"
-}
-
 # Function to check whether importer currently reports the known post-restart hash mismatch.
 importer_hash_mismatch_detected() {
   local namespace="${1}"
@@ -521,7 +508,6 @@ npm run solo -- init --dev
 # freeze network instead of using "node stop" to make sure the network is stopped elegantly
 # need to use old solo to freeze the network since new solo freeze may not be compatible with old consensus node
 # s6 container
-# scale_down_tx_generators_for_freeze "${SOLO_NAMESPACE}"
 solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
@@ -552,7 +538,6 @@ fi
 npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 collect_restart_boundary_diagnostics "${SOLO_NAMESPACE}"
 
-# restore_tx_generators_after_freeze "${SOLO_NAMESPACE}"
 # Apply preventive reset at the known freeze/restart boundary.
 auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
 
@@ -567,13 +552,11 @@ npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DE
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
 npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-# Rebuild relay HEDERA_NETWORK from current node services and reset relay SDK state.
-refresh_relay_network_config "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}" "node1,node2"
+# Restart relay and refresh forwards after upgrade to reduce stale-connection windows.
+refresh_relay_network_config "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}"
 echo "::endgroup::"
-
+ensure_relay_port_forward_stable "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}"
 echo "::group::Final Verification"
-
-npm run solo -- deployment refresh port-forwards --deployment "${SOLO_DEPLOYMENT}"
 
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
