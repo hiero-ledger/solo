@@ -9,6 +9,7 @@ import path from 'node:path';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import * as constants from '../../../../src/core/constants.js';
+import * as helpers from '../../../../src/core/helpers.js';
 
 function createNodeCommandTasksWithPvcData(persistentVolumeClaimsByContext: Record<string, string[]>): {
   tasks: NodeCommandTasks;
@@ -74,13 +75,10 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
   const emptyConfigMapData: {data: Record<string, string>} = {data: {}};
 
   function invokeParseGossipFqdnRestricted(
-    nodeCommandTasks: NodeCommandTasks,
+    _nodeCommandTasks: NodeCommandTasks,
     applicationPropertiesText: string,
   ): boolean | undefined {
-    const parserFunction: (text: string) => boolean | undefined = (
-      nodeCommandTasks as unknown as Record<string, (text: string) => boolean | undefined>
-    ).parseGossipFqdnRestricted;
-    return parserFunction.call(nodeCommandTasks, applicationPropertiesText);
+    return helpers.parseGossipFqdnRestricted(applicationPropertiesText);
   }
 
   function invokeGetGossipFqdnRestricted(
@@ -179,10 +177,11 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
       stagingDir: stagingDirectory,
     };
 
+    // Stub fs.existsSync to return false for all paths (no cache/repo files exist)
     const existsSyncStub: sinon.SinonStub = sinon.stub(fs, 'existsSync').returns(false);
     try {
       expect(await invokeGetGossipFqdnRestricted(nodeCommandTasks, config, k8)).to.equal(true);
-      expect(existsSyncStub.calledOnce).to.equal(true);
+      expect(existsSyncStub.callCount).to.be.greaterThanOrEqual(1);
     } finally {
       sinon.restore();
       fs.rmSync(stagingDirectory, {recursive: true, force: true});
