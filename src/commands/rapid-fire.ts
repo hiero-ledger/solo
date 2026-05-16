@@ -334,11 +334,31 @@ export class RapidFireCommand extends BaseCommand {
   private static analyzeNlgOutput(output: string, testClass: string, performanceTest: string): NlgResult {
     const lines: string[] = output.split('\n');
     let lastMatch: RegExpMatchArray | undefined;
+    const longevityMatches: RegExpMatchArray[] = [];
     for (const line of lines) {
       const match: RegExpMatchArray | null = line.match(RapidFireCommand.NLG_FINISHED_PATTERN);
       if (match && (match[1] === performanceTest || match[1] === testClass)) {
         lastMatch = match;
       }
+
+      // LongevityLoadTest reports "Finished" lines for internal sub-tests
+      // (e.g. HeliSwapLoadTest/HCSLoadTest) rather than LongevityLoadTest itself.
+      if (match && performanceTest === NLGTestClass.LongevityLoadTest) {
+        longevityMatches.push(match);
+      }
+    }
+
+    if (!lastMatch && performanceTest === NLGTestClass.LongevityLoadTest && longevityMatches.length > 0) {
+      // Prefer the sub-test result that processed the most transactions.
+      let selectedMatch: RegExpMatchArray = longevityMatches[0];
+      for (const match of longevityMatches) {
+        const currentTransactionCount: number = Number.parseInt(match[2], 10);
+        const selectedTransactionCount: number = Number.parseInt(selectedMatch[2], 10);
+        if (currentTransactionCount > selectedTransactionCount) {
+          selectedMatch = match;
+        }
+      }
+      lastMatch = selectedMatch;
     }
 
     if (!lastMatch) {
@@ -354,7 +374,10 @@ export class RapidFireCommand extends BaseCommand {
     const durationSeconds: number = Number.parseInt(lastMatch[3], 10);
     const tps: number = Number.parseInt(lastMatch[4], 10);
 
-    if (tps === 0) {
+    // NLG reports integer TPS. For short/low-volume runs it can print "TPS: 0"
+    // even when transfers occurred (for example 12 tx in 29 sec -> 0 when rounded).
+    // Treat this as success and only fail when there were no processed transactions.
+    if (tps === 0 && transactionCount === 0) {
       return {
         status: 'zero-tps',
         testClass,
