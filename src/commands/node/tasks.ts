@@ -187,7 +187,6 @@ import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-eve
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
-import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -2670,9 +2669,8 @@ export class NodeCommandTasks {
   private async getComponentData(
     schema: BaseStateSchema,
     componentDisplayName: ComponentDisplayName,
-    haProxyState?: HaProxyStateSchema,
   ): Promise<ComponentData> {
-    const metadata: ComponentStateMetadataSchema = haProxyState ? haProxyState.metadata : schema.metadata;
+    const metadata: ComponentStateMetadataSchema = schema.metadata;
 
     const clusterSchema: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
       (cluster: Readonly<ClusterSchema>): boolean => cluster.name === metadata.cluster,
@@ -2696,24 +2694,20 @@ export class NodeCommandTasks {
   private extractDataFromGroup(
     states: BaseStateSchema[],
     componentDisplayName: ComponentDisplayName,
-    haProxyStates: HaProxyStateSchema[] = [],
   ): Promise<ComponentData>[] {
     return states.map(
-      (state: BaseStateSchema): Promise<ComponentData> =>
-        this.getComponentData(
-          state,
-          componentDisplayName,
-          haProxyStates.find(
-            (haProxyState: HaProxyStateSchema): boolean => haProxyState.metadata.id === state.metadata.id,
-          ),
-        ),
+      (state: BaseStateSchema): Promise<ComponentData> => this.getComponentData(state, componentDisplayName),
     );
   }
 
-  private validateComponentData(
-    {portForwards, namespace, clusterReference, contextName, componentId, componentDisplayName}: ComponentData,
-    check: boolean = false,
-  ): SoloListrTask<NodeConnectionsContext> {
+  private validateComponentData({
+    portForwards,
+    namespace,
+    clusterReference,
+    contextName,
+    componentId,
+    componentDisplayName,
+  }: ComponentData): SoloListrTask<NodeConnectionsContext> {
     return {
       title: cyan(componentDisplayName),
       task: (_, task): SoloListr<NodeConnectionsContext> | void => {
@@ -2740,17 +2734,11 @@ export class NodeCommandTasks {
             task: async (_, task): Promise<void> => {
               task.title += '\n\t' + gray('Local port') + ' ' + yellow(`[${localPort}]`) + ' - ';
 
-              const isReachable: boolean = await this.checkLocalPort(localPort);
-              task.title += isReachable ? green('Successfully pinged') : red('Failed to ping');
+              task.title += (await this.checkLocalPort(localPort))
+                ? green('Successfully pinged')
+                : red('Failed to ping');
 
               task.title += '\n\t' + gray('Pod port') + ' ' + yellow(`[${podPort}]`);
-
-              if (check && !isReachable) {
-                throw new SoloError(
-                  `Configured port-forward is missing: ${componentDisplayName} ${componentId} ` +
-                    `localhost:${localPort} -> pod:${podPort}`,
-                );
-              }
             },
           });
         }
@@ -2791,7 +2779,7 @@ export class NodeCommandTasks {
         config.componentsData = await Promise.all([
           ...this.extractDataFromGroup(state.mirrorNodes, 'Mirror node'),
           ...this.extractDataFromGroup(state.relayNodes, 'Relay node'),
-          ...this.extractDataFromGroup(state.consensusNodes, 'Consensus node', state.haProxies),
+          ...this.extractDataFromGroup(state.consensusNodes, 'Consensus node'),
           ...this.extractDataFromGroup(state.explorers, 'Explorer node'),
           ...this.extractDataFromGroup(state.blockNodes, 'Block node'),
         ]);
@@ -2799,14 +2787,14 @@ export class NodeCommandTasks {
     };
   }
 
-  public validateLocalPorts(): SoloListrTask<NodeConnectionsContext> {
+  public validateLocalPorts(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Test local ports',
-      task: async ({config: {check, componentsData}}, task): Promise<SoloListr<NodeConnectionsContext>> => {
-        const subTasks: SoloListrTask<NodeConnectionsContext>[] = [];
+      task: async ({config: {componentsData}}, task): Promise<SoloListr<AnyListrContext>> => {
+        const subTasks: SoloListrTask<AnyListrContext>[] = [];
 
         for (const componentData of componentsData) {
-          subTasks.push(this.validateComponentData(componentData, check));
+          subTasks.push(this.validateComponentData(componentData));
         }
 
         return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
@@ -3503,9 +3491,11 @@ export class NodeCommandTasks {
           configTxtPath,
         );
 
+        const extraEnvironmentChartValuesMap: Record<ClusterReferenceName, HelmChartValues> = {};
         const valuesFilesMap: Record<ClusterReferenceName, HelmChartValues> = {};
         const valueFilePathsMap: Record<ClusterReferenceName, string[]> = {};
         for (const [clusterReference] of clusterReferences) {
+          extraEnvironmentChartValuesMap[clusterReference] = new HelmChartValues();
           valuesFilesMap[clusterReference] = new HelmChartValues();
           valueFilePathsMap[clusterReference] = [];
         }
@@ -3579,10 +3569,10 @@ export class NodeCommandTasks {
               },
               constants.SOLO_CACHE_DIR,
             );
-            // Append the generated file after all existing --values entries but before
-            // any --set overrides so it wins in Helm's merge order without being overridden
-            // by subsequent --values files that could still replace the hedera.nodes array.
-            valuesFilesMap[clusterReference].file(extraEnvironmentValuesFile);
+            // Preserve the old effective Helm merge order for node transactions:
+            // generated extraEnv file first, node --set/--set-literal overrides second,
+            // and transaction/profile/user values files last.
+            extraEnvironmentChartValuesMap[clusterReference].file(extraEnvironmentValuesFile);
             valueFilePathsMap[clusterReference].push(extraEnvironmentValuesFile);
           }
         }
@@ -3604,9 +3594,10 @@ export class NodeCommandTasks {
               false,
               'Solo chart version',
             );
-            const chartValues: HelmChartValues = valuesFilesMap[clusterReference]
+            const chartValues: HelmChartValues = extraEnvironmentChartValuesMap[clusterReference]
               .clone()
-              .add(nodeChartValuesMap[clusterReference]);
+              .add(nodeChartValuesMap[clusterReference])
+              .add(valuesFilesMap[clusterReference]);
 
             await this.chartManager.upgrade(
               config.namespace,

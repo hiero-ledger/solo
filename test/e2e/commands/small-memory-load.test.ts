@@ -233,7 +233,8 @@ async function deployNlgChart(kubeContext: string): Promise<void> {
   const port: number = constants.GRPC_PORT;
   const networkProperties: string[] = haproxyPods.map((pod: Pod): string => {
     const accountId: string = pod.labels['solo.hedera.com/account-id'] ?? 'unknown';
-    return `${pod.podIp}:${port}=${accountId}`;
+    // eslint-disable-next-line unicorn/prefer-string-raw
+    return `${pod.podIp}\\:${port}=${accountId}`;
   });
 
   for (const [index, row] of networkProperties.entries()) {
