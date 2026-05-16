@@ -79,19 +79,6 @@ interface PortEntry {
   podPort: number;
 }
 
-interface PortsReport {
-  deployment: DeploymentName;
-  clusterReference: ClusterReferenceName;
-  namespace: string;
-  services: {
-    consensusNodeGrpc: PortEntry[];
-    mirrorNodeRest: PortEntry[];
-    jsonRpcRelay: PortEntry[];
-    explorer: PortEntry[];
-    blockNode: PortEntry[];
-  };
-}
-
 function collectPortEntries(components: BaseStateSchema[]): PortEntry[] {
   const entries: PortEntry[] = [];
 
@@ -106,7 +93,6 @@ function collectPortEntries(components: BaseStateSchema[]): PortEntry[] {
       });
     }
   }
-
   return entries;
 }
 

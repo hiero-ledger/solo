@@ -1,5 +1,70 @@
 // SPDX-License-Identifier: Apache-2.0
 
+export async function resolveGossipFqdnRestricted(options: {
+  k8?: {
+    configMaps: () => {
+      read: (namespace: unknown, configMapName: string) => Promise<{data?: Record<string, string>}>;
+    };
+  };
+  namespace?: unknown;
+  stagingDir?: string;
+  cacheDir?: string;
+  resourcesDir?: string;
+}): Promise<boolean> {
+  const {k8, namespace, stagingDir, cacheDir, resourcesDir} = options;
+  // 1. K8s configMap
+  if (k8 && namespace) {
+    try {
+      const configMap: {data?: Record<string, string>} = await k8
+        .configMaps()
+        .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+      const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
+      if (configMapProperties) {
+        const parsed: boolean | undefined = parseGossipFqdnRestricted(configMapProperties);
+        if (parsed !== undefined) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore errors and continue to next source
+    }
+  }
+  // 2. Staged application.properties
+  if (stagingDir) {
+    const stagedPath: string = PathEx.join(stagingDir, 'templates', constants.APPLICATION_PROPERTIES);
+    if (fs.existsSync(stagedPath)) {
+      const appProperties: string = fs.readFileSync(stagedPath, 'utf8');
+      const parsed: boolean | undefined = parseGossipFqdnRestricted(appProperties);
+      if (parsed !== undefined) {
+        return parsed;
+      }
+    }
+  }
+  // 3. Cache template
+  if (cacheDir) {
+    const cachePath: string = PathEx.join(cacheDir, 'templates', constants.APPLICATION_PROPERTIES);
+    if (fs.existsSync(cachePath)) {
+      const cacheProperties: string = fs.readFileSync(cachePath, 'utf8');
+      const parsed: boolean | undefined = parseGossipFqdnRestricted(cacheProperties);
+      if (parsed !== undefined) {
+        return parsed;
+      }
+    }
+  }
+  // 4. Repo template
+  if (resourcesDir) {
+    const repoPath: string = PathEx.join(resourcesDir, 'templates', constants.APPLICATION_PROPERTIES);
+    if (fs.existsSync(repoPath)) {
+      const repoProperties: string = fs.readFileSync(repoPath, 'utf8');
+      const parsed: boolean | undefined = parseGossipFqdnRestricted(repoProperties);
+      if (parsed !== undefined) {
+        return parsed;
+      }
+    }
+  }
+  return true;
+}
+// SPDX-License-Identifier: Apache-2.0
 import fs, {type Stats} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,6 +72,7 @@ import {format} from 'node:util';
 import {SoloError} from './errors/solo-error.js';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
+import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
 import {type AnyYargs, type AnyListrContext, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {type CommandFlag} from '../types/flag-types.js';
@@ -23,7 +89,6 @@ import {
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import chalk from 'chalk';
-import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags, Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
