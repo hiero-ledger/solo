@@ -415,12 +415,6 @@ export class RelayCommand extends BaseCommand {
     return {
       title: 'Deploy JSON RPC Relay',
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
-        console.log('----------------------------------------');
-        console.log('----------------------------------------');
-        console.log(config.relayHelmChartValues);
-        console.log('----------------------------------------');
-        console.log('----------------------------------------');
-
         await this.chartManager.upgrade(
           config.namespace,
           config.releaseName,

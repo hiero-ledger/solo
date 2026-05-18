@@ -77,6 +77,11 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     }
   }
 
+  /**
+   * Adds the list of subcommands to the helm execution.
+   * @param commands the list of subcommands to be added
+   * @returns this builder
+   */
   public subcommands(...commands: string[]): HelmExecutionBuilder {
     if (!commands) {
       throw new Error('commands must not be null');
@@ -86,6 +91,12 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     return this;
   }
 
+  /**
+   * Adds an argument to the helm execution.
+   * @param name the name of the argument
+   * @param value the value of the argument
+   * @returns this builder
+   */
   public argument(name: string, value: string): HelmExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
@@ -104,6 +115,12 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     return this;
   }
 
+  /**
+   * Adds an option with multiple values to the helm execution.
+   * @param name the name of the option
+   * @param value the list of values for the option
+   * @returns this builder
+   */
   public optionsWithMultipleValues(name: string, value: string[]): HelmExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
@@ -117,6 +134,11 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     return this;
   }
 
+  /**
+   * Adds a positional argument to the helm execution.
+   * @param value the value of the positional argument
+   * @returns this builder
+   */
   public positional(value: string): HelmExecutionBuilder {
     if (!value) {
       throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
@@ -126,6 +148,12 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     return this;
   }
 
+  /**
+   * Adds an environment variable to the helm execution.
+   * @param name the name of the environment variable
+   * @param value the value of the environment variable
+   * @returns this builder
+   */
   public environmentVariable(name: string, value: string): HelmExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
@@ -139,6 +167,11 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     return this;
   }
 
+  /**
+   * Adds a flag to the helm execution.
+   * @param flag the flag to be added
+   * @returns this builder
+   */
   public flag(flag: string): HelmExecutionBuilder {
     if (!flag) {
       throw new Error('flag must not be null');
@@ -148,6 +181,10 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     return this;
   }
 
+  /**
+   * Builds the HelmExecution instance.
+   * @returns the HelmExecution instance
+   */
   public build(): HelmExecution {
     const invocation: ExternalCommandInvocation = this.buildCommand();
     const environment: Record<string, string> = {...process.env};
@@ -167,6 +204,10 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
     );
   }
 
+  /**
+   * Builds the command array for the helm execution.
+   * @returns the command array
+   */
   private buildCommand(): ExternalCommandInvocation {
     const commandArguments: string[] = [...this._subcommands, ...this._flags];
 
