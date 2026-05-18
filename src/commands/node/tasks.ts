@@ -2510,6 +2510,7 @@ export class NodeCommandTasks {
                     config.soloChartVersion,
                     valuesFiles[clusterReference],
                     context,
+                    true,
                   );
 
                   showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
