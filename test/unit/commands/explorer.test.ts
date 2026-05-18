@@ -421,14 +421,12 @@ describe('ExplorerCommand unit tests', (): void => {
     expect(chartUpgradeStub.getCall(2).args[1]).to.equal(releaseName);
     expect(chartUpgradeStub.getCall(3).args[1]).to.equal(ingressReleaseName);
 
-    const kubernetesClient: Record<string, unknown> =
-      harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
-    // @ts-expect-error: TypeScript doesn't recognize Record<string, unknown>.pods as callable
-    const podClient: Record<string, unknown> = kubernetesClient.pods() as Record<string, unknown>;
-    // @ts-expect-error: TypeScript doesn't know untyped object has callable methods
-    const ingressClient: Record<string, unknown> = kubernetesClient.ingresses() as Record<string, unknown>;
-    // @ts-expect-error: TypeScript doesn't know untyped object has callable methods
-    const ingressClassClient: Record<string, unknown> = kubernetesClient.ingressClasses() as Record<string, unknown>;
+    // @ts-expect-error: Type '{}' has no call signatures (Kubernetes client methods are stubbed)
+    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
+    const podClient: Record<string, unknown> = (kubernetesClient as any).pods() as Record<string, unknown>;
+    const ingressClient: Record<string, unknown> = (kubernetesClient as any).ingresses() as Record<string, unknown>;
+    const ingressClassClient: Record<string, unknown> = (kubernetesClient as any).ingressClasses() as Record<string, unknown>;
+    // @ts-check
     const waitForReadyStatusStub: SinonStub = podClient.waitForReadyStatus as SinonStub;
     const ingressUpdateStub: SinonStub = ingressClient.update as SinonStub;
     const ingressCreateStub: SinonStub = ingressClassClient.create as SinonStub;
@@ -518,14 +516,12 @@ describe('ExplorerCommand unit tests', (): void => {
     expect(chartUpgradeStub.getCall(0).args[1]).to.equal(releaseName);
     expect(chartUpgradeStub.getCall(1).args[1]).to.equal(ingressReleaseName);
 
-    const kubernetesClient: Record<string, unknown> =
-      harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
-    // @ts-expect-error: TypeScript doesn't know untyped object has callable methods
-    const podClient: Record<string, unknown> = kubernetesClient.pods() as Record<string, unknown>;
-    // @ts-expect-error: TypeScript doesn't know untyped object has callable methods
-    const ingressClient: Record<string, unknown> = kubernetesClient.ingresses() as Record<string, unknown>;
-    // @ts-expect-error: TypeScript doesn't know untyped object has callable methods
-    const ingressClassClient: Record<string, unknown> = kubernetesClient.ingressClasses() as Record<string, unknown>;
+    // @ts-expect-error: Type '{}' has no call signatures (Kubernetes client methods are stubbed)
+    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
+    const podClient: Record<string, unknown> = (kubernetesClient as any).pods() as Record<string, unknown>;
+    const ingressClient: Record<string, unknown> = (kubernetesClient as any).ingresses() as Record<string, unknown>;
+    const ingressClassClient: Record<string, unknown> = (kubernetesClient as any).ingressClasses() as Record<string, unknown>;
+    // @ts-check
     const waitForReadyStatusStub: SinonStub = podClient.waitForReadyStatus as SinonStub;
     const ingressUpdateStub: SinonStub = ingressClient.update as SinonStub;
     const ingressCreateStub: SinonStub = ingressClassClient.create as SinonStub;
@@ -550,12 +546,12 @@ describe('ExplorerCommand unit tests', (): void => {
       {name: 'other-ingress'},
     ]);
     const ingressClassesDeleteStub: SinonStub = sandbox.stub().resolves();
-    const kubernetesClient: Record<string, unknown> =
-      harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
-    // @ts-expect-error: TypeScript doesn't know untyped object has callable methods
-    (kubernetesClient.ingressClasses() as Record<string, unknown>).list = ingressClassesListStub;
-    // @ts-expect-error: TypeScript doesn't know untyped object has callable methods
-    (kubernetesClient.ingressClasses() as Record<string, unknown>).delete = ingressClassesDeleteStub;
+    // @ts-expect-error: Type '{}' has no call signatures (Kubernetes client methods are stubbed)
+    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
+    const ingressClassesClient: Record<string, unknown> = (kubernetesClient as any).ingressClasses() as Record<string, unknown>;
+    // @ts-check
+    (ingressClassesClient as any).list = ingressClassesListStub;
+    (ingressClassesClient as any).delete = ingressClassesDeleteStub;
 
     await harness.command.destroy(argv as never);
 
@@ -651,10 +647,10 @@ describe('ExplorerCommand unit tests', (): void => {
     expect(persistStub).to.have.been.calledOnce;
     expect(chartUpgradeStub).to.have.been.calledOnce;
 
-    const kubernetesClient: Record<string, unknown> =
-      harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
-    // @ts-expect-error: TypeScript doesn't know Record<string, unknown> has callable methods
-    const podClient: Record<string, unknown> = kubernetesClient.pods() as Record<string, unknown>;
+    // @ts-expect-error: Type '{}' has no call signatures (Kubernetes client methods are stubbed)
+    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
+    const podClient: Record<string, unknown> = (kubernetesClient as any).pods() as Record<string, unknown>;
+    // @ts-check
     const waitForReadyStatusStub: SinonStub = podClient.waitForReadyStatus as SinonStub;
     expect(waitForReadyStatusStub).to.not.have.been.called;
   });
