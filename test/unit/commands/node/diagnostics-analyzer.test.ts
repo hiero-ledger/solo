@@ -322,7 +322,7 @@ events:
         '2026-05-16T20:04:12.906Z 2026-05-16 20:04:12.906 GMT [271] FATAL:  password authentication failed for user "mirror_rest"',
         '2026-05-16T20:04:12.906Z 2026-05-16 20:04:12.906 GMT [271] DETAIL:  Role "mirror_rest" does not exist.',
         '2026-05-16T20:04:24.616Z 2026-05-16 20:04:24.616 GMT [260] ERROR:  relation "crypto_allowance_migration" does not exist at character 8',
-        '2026-05-16T20:05:20.616Z 2026-05-16 20:05:20.616 GMT [260] ERROR:  relation "critical_table" does not exist at character 8',
+        '2026-05-16T20:05:20.616Z 2026-05-16 20:05:20.616 GMT [260] ERROR:  deadlock detected',
       ].join('\n'),
       'utf8',
     );
@@ -332,7 +332,7 @@ events:
     const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
     const reportText: string = fs.readFileSync(reportPath, 'utf8');
     expect(reportText).to.include('Application ERROR detected in pod log: solo-shared-resources-postgres-0');
-    expect(reportText).to.include('ERROR:  relation "critical_table" does not exist');
+    expect(reportText).to.include('ERROR:  deadlock detected');
     expect(reportText).to.not.include('ERROR:  relation "crypto_allowance_migration" does not exist');
     // Auth failures within 90-second startup window should be suppressed
     expect(reportText).to.not.include('FATAL:  password authentication failed');
