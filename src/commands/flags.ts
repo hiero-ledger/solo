@@ -148,6 +148,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly check: CommandFlag = {
+    constName: 'check',
+    name: 'check',
+    definition: {
+      describe: 'Fail if any configured remote port-forward is not reachable locally',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly predefinedAccounts: CommandFlag = {
     constName: 'predefinedAccounts',
     name: 'predefined-accounts',
@@ -3034,6 +3045,8 @@ export class Flags {
     prompt: undefined,
   };
 
+  // Every static CommandFlag defined in this class must be listed here.
+  // Helpers derive behavior from allFlags/allFlagsMap, so new flags are incomplete until registered in this array.
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.acceptDefaults,
@@ -3050,6 +3063,7 @@ export class Flags {
     Flags.bootstrapProperties,
     Flags.cacheDir,
     Flags.chainId,
+    Flags.check,
 
     //* Chart directories
     Flags.chartDirectory,
@@ -3081,6 +3095,7 @@ export class Flags {
     Flags.enableTimeout,
     Flags.endpointType,
     Flags.envoyIps,
+    Flags.force,
     Flags.forcePortForward,
     Flags.externalAddress,
     Flags.generateEcdsaKey,

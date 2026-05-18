@@ -17,12 +17,12 @@ import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
-import {type BaseTestOptions} from './tests/base-test-options.js';
+import {type BaseTestOptions} from '../commands/tests/base-test-options.js';
 import {type ClusterReferenceName, type Context} from '../../../src/types/index.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
-import {ClusterReferenceTest} from './tests/cluster-reference-test.js';
+import {ClusterReferenceTest} from '../commands/tests/cluster-reference-test.js';
 import {main} from '../../../src/index.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 
