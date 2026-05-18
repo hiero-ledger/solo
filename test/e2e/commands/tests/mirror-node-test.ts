@@ -33,6 +33,7 @@ import {type Container} from '../../../../src/integration/kube/resources/contain
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {MIRROR_NODE_PORT} from '../../../../src/core/constants.js';
+import {PortUtilities} from '../../../../src/business/utils/port-utilities.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -98,6 +99,10 @@ export class MirrorNodeTest extends BaseCommandTest {
     namespace: NamespaceName,
     testName: string,
   ): Promise<number> {
+    if (!(await PortUtilities.isPortAvailable(MIRROR_NODE_PORT))) {
+      return 0;
+    }
+
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
     const k8: K8 = k8Factory.getK8(lastContext);
@@ -135,7 +140,12 @@ export class MirrorNodeTest extends BaseCommandTest {
     consensusNodesCount: number,
     testName: string,
   ): Promise<void> {
-    const portForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(contexts, namespace, testName);
+    const createdPortForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(
+      contexts,
+      namespace,
+      testName,
+    );
+    const portForwarder: number = createdPortForwarder || MIRROR_NODE_PORT;
     try {
       const queryUrl: string = `http://localhost:${portForwarder}/api/v1/network/nodes`;
 
@@ -222,8 +232,8 @@ export class MirrorNodeTest extends BaseCommandTest {
         await sleep(Duration.ofSeconds(1));
       }
     } finally {
-      if (portForwarder) {
-        await MirrorNodeTest.stopPortForward(contexts, portForwarder);
+      if (createdPortForwarder) {
+        await MirrorNodeTest.stopPortForward(contexts, createdPortForwarder);
       }
     }
   }
@@ -234,7 +244,12 @@ export class MirrorNodeTest extends BaseCommandTest {
     pingerIsEnabled: boolean,
     testName: string,
   ): Promise<void> {
-    const portForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(contexts, namespace, testName);
+    const createdPortForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(
+      contexts,
+      namespace,
+      testName,
+    );
+    const portForwarder: number = createdPortForwarder || MIRROR_NODE_PORT;
     try {
       const transactionsEndpoint: string = `http://localhost:${portForwarder}/api/v1/transactions`;
       // force to fetch new data instead of using cache
@@ -281,8 +296,8 @@ export class MirrorNodeTest extends BaseCommandTest {
         expect(firstData.transactions[0]).to.deep.equal(secondData.transactions[0]);
       }
     } finally {
-      if (portForwarder) {
-        await MirrorNodeTest.stopPortForward(contexts, portForwarder);
+      if (createdPortForwarder) {
+        await MirrorNodeTest.stopPortForward(contexts, createdPortForwarder);
       }
     }
   }
@@ -506,11 +521,12 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static pullAddressBook(options: BaseTestOptions): void {
     const {consensusNodesCount} = options;
     it('should pull address book from mirror node', async (): Promise<void> => {
-      const srv: number = await MirrorNodeTest.forwardMirrorIngressServicePort(
+      const createdSrv: number = await MirrorNodeTest.forwardMirrorIngressServicePort(
         options.contexts,
         options.namespace,
         options.testName,
       );
+      const srv: number = createdSrv || MIRROR_NODE_PORT;
 
       const stdOut: string[] = await new ShellRunner().run(`curl http://localhost:${srv}/api/v1/network/nodes`);
 
@@ -529,7 +545,9 @@ export class MirrorNodeTest extends BaseCommandTest {
       expect(betaNode.grpc_proxy_endpoint.domain_name).to.equal(ConsensusNodeTest.betaClusterGrpcWebAddress);
       expect(betaNode.grpc_proxy_endpoint.port).to.equal(ConsensusNodeTest.baseGrpcWebPort + alphaCount);
 
-      await MirrorNodeTest.stopPortForward(options.contexts, srv);
+      if (createdSrv) {
+        await MirrorNodeTest.stopPortForward(options.contexts, createdSrv);
+      }
     });
   }
 }
