@@ -570,15 +570,20 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   /**
-   * Flags whose existing `prompt` functions are reused verbatim for the
-   * falcon prepare wizard. Keeping the list in declaration-order makes the
-   * wizard flow match the CLI help output.
+   * Flags whose `prompt` functions are invoked by the falcon prepare wizard.
+   * Keeping the list in declaration-order makes the wizard flow match the
+   * CLI help output.
    */
   private static readonly FALCON_PREPARE_PROMPTS: CommandFlag[] = [
     flags.numberOfConsensusNodes,
     flags.releaseTag,
     flags.relayReleaseTag,
     flags.soloChartVersion,
+    flags.mirrorNodeVersion,
+    flags.blockNodeChartVersion,
+    flags.explorerVersion,
+    flags.loadBalancerEnabled,
+    flags.forcePortForward,
   ];
 
   public async prepareFalcon(argv: ArgvStruct): Promise<boolean> {
