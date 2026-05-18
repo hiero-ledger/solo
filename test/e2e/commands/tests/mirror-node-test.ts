@@ -93,13 +93,20 @@ export class MirrorNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static async forwardMirrorIngressServicePort(contexts: string[], namespace: NamespaceName): Promise<number> {
+  private static async forwardMirrorIngressServicePort(
+    contexts: string[],
+    namespace: NamespaceName,
+    testName: string,
+  ): Promise<number> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
     const k8: K8 = k8Factory.getK8(lastContext);
     const mirrorNodeRestPods: Pod[] = await k8
       .pods()
-      .list(namespace, ['app.kubernetes.io/instance=haproxy-ingress-1', 'app.kubernetes.io/name=haproxy-ingress']);
+      .list(namespace, [
+        `app.kubernetes.io/instance=haproxy-ingress-${testName}`,
+        'app.kubernetes.io/name=haproxy-ingress',
+      ]);
     expect(mirrorNodeRestPods).to.have.lengthOf(1);
 
     const portForwarder: number = await k8
@@ -123,8 +130,9 @@ export class MirrorNodeTest extends BaseCommandTest {
     testLogger: SoloLogger,
     createdAccountIds: string[],
     consensusNodesCount: number,
+    testName: string,
   ): Promise<void> {
-    const portForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(contexts, namespace);
+    const portForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(contexts, namespace, testName);
     try {
       const queryUrl: string = `http://localhost:${portForwarder}/api/v1/network/nodes`;
 
@@ -221,8 +229,9 @@ export class MirrorNodeTest extends BaseCommandTest {
     contexts: string[],
     namespace: NamespaceName,
     pingerIsEnabled: boolean,
+    testName: string,
   ): Promise<void> {
-    const portForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(contexts, namespace);
+    const portForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(contexts, namespace, testName);
     try {
       const transactionsEndpoint: string = `http://localhost:${portForwarder}/api/v1/transactions`;
       // force to fetch new data instead of using cache
@@ -298,8 +307,9 @@ export class MirrorNodeTest extends BaseCommandTest {
         testLogger,
         createdAccountIds,
         consensusNodesCount,
+        testName,
       );
-      await verifyPingerStatus(contexts, namespace, pinger);
+      await verifyPingerStatus(contexts, namespace, pinger, testName);
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
@@ -425,8 +435,9 @@ export class MirrorNodeTest extends BaseCommandTest {
         testLogger,
         createdAccountIds,
         consensusNodesCount,
+        testName,
       );
-      await verifyPingerStatus(contexts, namespace, pinger);
+      await verifyPingerStatus(contexts, namespace, pinger, testName);
     }).timeout(Duration.ofMinutes(10).toMillis());
 
     it('Enable port-forward for mirror node gRPC', async (): Promise<void> => {
@@ -492,7 +503,11 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static pullAddressBook(options: BaseTestOptions): void {
     const {consensusNodesCount} = options;
     it('should pull address book from mirror node', async (): Promise<void> => {
-      const srv: number = await MirrorNodeTest.forwardMirrorIngressServicePort(options.contexts, options.namespace);
+      const srv: number = await MirrorNodeTest.forwardMirrorIngressServicePort(
+        options.contexts,
+        options.namespace,
+        options.testName,
+      );
 
       const stdOut: string[] = await new ShellRunner().run(`curl http://localhost:${srv}/api/v1/network/nodes`);
 

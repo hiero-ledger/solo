@@ -656,15 +656,15 @@ export class MirrorNodeCommand extends BaseCommand {
         }
       }
 
-      if (!mirrorIngressClassExists) {
-        await KeyManager.createTlsSecret(
-          this.k8Factory,
-          config.namespace,
-          config.domainName,
-          config.cacheDir,
-          constants.MIRROR_INGRESS_TLS_SECRET_NAME,
-        );
-      }
+      // TLS secret is namespace-scoped: always create it so the ingress can reference it,
+      // even when the cluster-scoped IngressClass already exists from a prior run.
+      await KeyManager.createTlsSecret(
+        this.k8Factory,
+        config.namespace,
+        config.domainName,
+        config.cacheDir,
+        constants.MIRROR_INGRESS_TLS_SECRET_NAME,
+      );
 
       // patch ingressClassName of mirror ingress, so it can be recognized by haproxy ingress controller
       const k8: K8 = this.k8Factory.getK8(config.clusterContext);
