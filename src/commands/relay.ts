@@ -319,11 +319,10 @@ export class RelayCommand extends BaseCommand {
     }
 
     const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace, deployment);
-    const networkJsonLiteral: string = this.quoteHelmSetLiteralValue(networkJsonString);
 
     chartValues
-      .setLiteral('relay.config.HEDERA_NETWORK', networkJsonLiteral)
-      .setLiteral('ws.config.HEDERA_NETWORK', networkJsonLiteral);
+      .setLiteral('relay.config.HEDERA_NETWORK', networkJsonString)
+      .setLiteral('ws.config.HEDERA_NETWORK', networkJsonString);
 
     if (domainName) {
       chartValues
@@ -336,11 +335,6 @@ export class RelayCommand extends BaseCommand {
     chartValues.filesFromCommaSeparatedInput(valuesFile);
 
     return chartValues;
-  }
-
-  private quoteHelmSetLiteralValue(value: string): string {
-    // eslint-disable-next-line unicorn/prefer-string-raw
-    return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
   }
 
   /**
@@ -421,6 +415,12 @@ export class RelayCommand extends BaseCommand {
     return {
       title: 'Deploy JSON RPC Relay',
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        console.log('----------------------------------------');
+        console.log('----------------------------------------');
+        console.log(config.relayHelmChartValues);
+        console.log('----------------------------------------');
+        console.log('----------------------------------------');
+
         await this.chartManager.upgrade(
           config.namespace,
           config.releaseName,
