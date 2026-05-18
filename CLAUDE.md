@@ -42,6 +42,7 @@ npm run solo-test -- <COMMAND> <ARGS>
 ```
 
 To run a single unit test file directly:
+
 ```bash
 npx mocha 'test/unit/path/to/test.ts'
 ```
@@ -88,10 +89,10 @@ The layered config system (`EnvironmentConfigSource`, prefix `SOLO`) allows envi
 
 **Naming convention:** Each camelCase property name segment is converted to `UPPER-KEBAB-CASE` (dashes separate words within a segment); schema object nesting levels are joined with `_`; the whole thing is prefixed with `SOLO_`.
 
-| Config property path | Env var |
-|---|---|
-| `helmChart.directory` | `SOLO_HELM-CHART_DIRECTORY` |
-| `tss.readyMaxAttempts` | `SOLO_TSS_READY-MAX-ATTEMPTS` |
+| Config property path           | Env var                               |
+| ------------------------------ | ------------------------------------- |
+| `helmChart.directory`          | `SOLO_HELM-CHART_DIRECTORY`           |
+| `tss.readyMaxAttempts`         | `SOLO_TSS_READY-MAX-ATTEMPTS`         |
 | `tss.wraps.libraryDownloadUrl` | `SOLO_TSS_WRAPS_LIBRARY-DOWNLOAD-URL` |
 
 This is **not** the same as plain `UPPER_SNAKE_CASE` — dashes within a segment represent camelCase word boundaries, not underscores.
@@ -130,6 +131,21 @@ Key rules enforced as ESLint **errors** (not warnings):
 Run `task format` to auto-fix formatting and lint issues before committing. Note that
 `task format` fixes Prettier and some ESLint issues automatically, but **abbreviation violations
 and missing type annotations must be fixed manually** — they appear as errors in the lint output.
+
+## Repository Gotchas
+
+### Adding CLI Flags
+
+When adding a new `CommandFlag` in `src/commands/flags.ts`:
+
+1. Add the `public static readonly ...: CommandFlag` definition.
+2. Add the new flag to `Flags.allFlags`. `Flags.allFlagsMap` and helpers such as
+   `Flags.stringifyArgv()` are derived from `Flags.allFlags`, so an unregistered flag is incomplete.
+3. Add the flag to the relevant command-specific flag list, for example `src/commands/node/flags.ts`.
+4. If the flag belongs to a special registry, also update it there:
+   `nodeConfigFileFlags` or `integerFlags`.
+5. Run the focused flag registry unit test:
+   `npx mocha 'test/unit/commands/flags.test.ts'`.
 
 ## PR Requirements
 
