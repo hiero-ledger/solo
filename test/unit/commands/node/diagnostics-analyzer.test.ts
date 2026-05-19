@@ -206,16 +206,18 @@ events:
     expect(reportText).to.not.include('relation "account_balance_temp" does not exist');
   });
 
-  it('suppresses mirror importer errors only inside the configured startup window', (): void => {
+  it('suppresses mirror importer begin-phase downloader errors only after repeated parse success', (): void => {
     const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
     fs.mkdirSync(componentLogDirectory, {recursive: true});
     const importerLogPath: string = path.join(componentLogDirectory, 'mirror-main-importer.log');
     fs.writeFileSync(
       importerLogPath,
       [
-        '2026-03-27T16:52:00.000Z 2026-03-27T16:52:00.000Z INFO startup begins',
-        '2026-03-27T16:52:30.000Z 2026-03-27T16:52:30.000Z ERROR transient connection retry',
-        '2026-03-27T16:53:30.000Z 2026-03-27T16:53:30.000Z ERROR importer still failing after startup',
+        '2026-03-27T16:52:00.000Z 2026-03-27T16:52:00.000Z ERROR RecordFileDownloader Error downloading files',
+        '2026-03-27T16:52:01.000Z 2026-03-27T16:52:01.000Z INFO RecordFileParser Successfully processed 1 items',
+        '2026-03-27T16:52:02.000Z 2026-03-27T16:52:02.000Z ERROR AccountBalancesDownloader Error downloading signature files for node 0',
+        '2026-03-27T16:52:03.000Z 2026-03-27T16:52:03.000Z INFO RecordFileParser Successfully processed 1 items',
+        '2026-03-27T16:52:04.000Z 2026-03-27T16:52:04.000Z ERROR RecordFileDownloader Error downloading files',
       ].join('\n'),
       'utf8',
     );
@@ -225,8 +227,47 @@ events:
     const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
     const reportText: string = fs.readFileSync(reportPath, 'utf8');
     expect(reportText).to.include('Application ERROR detected in pod log: mirror-main-importer');
-    expect(reportText).to.include('ERROR importer still failing after startup');
-    expect(reportText).to.not.include('ERROR transient connection retry');
+    expect(reportText).to.include(
+      'line 5: 2026-03-27T16:52:04.000Z ERROR RecordFileDownloader Error downloading files',
+    );
+    expect(reportText).to.not.include(
+      'line 1: 2026-03-27T16:52:00.000Z ERROR RecordFileDownloader Error downloading files',
+    );
+    expect(reportText).to.not.include(
+      'line 3: 2026-03-27T16:52:02.000Z ERROR AccountBalancesDownloader Error downloading signature files for node 0',
+    );
+  });
+
+  it('suppresses mirror importer begin-phase block-node source errors only after repeated parse success', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const importerLogPath: string = path.join(componentLogDirectory, 'mirror-main-importer.log');
+    fs.writeFileSync(
+      importerLogPath,
+      [
+        '2026-05-19T17:08:39.170Z 2026-05-19T17:08:39.170Z ERROR scheduling-6 o.h.m.i.d.b.BlockNode Failed to get server status for BlockNode(block-node-1.one-shot.svc.cluster.local:40840) io.grpc.StatusRuntimeException: UNAVAILABLE: io exception',
+        '2026-05-19T17:08:39.170Z 2026-05-19T17:08:39.170Z ERROR scheduling-6 o.h.m.i.d.b.CompositeBlockSource Failed to get block from BLOCK_NODE source org.hiero.mirror.importer.exception.BlockStreamException: No block node can provide block 0',
+        '2026-05-19T17:08:40.170Z 2026-05-19T17:08:40.170Z INFO RecordFileParser Successfully processed 1 items',
+        '2026-05-19T17:08:41.170Z 2026-05-19T17:08:41.170Z INFO RecordFileParser Successfully processed 1 items',
+        '2026-05-19T17:08:42.170Z 2026-05-19T17:08:42.170Z ERROR scheduling-6 o.h.m.i.d.b.BlockNode Failed to get server status for BlockNode(block-node-1.one-shot.svc.cluster.local:40840) io.grpc.StatusRuntimeException: UNAVAILABLE: io exception',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Application ERROR detected in pod log: mirror-main-importer');
+    expect(reportText).to.include(
+      'line 5: 2026-05-19T17:08:42.170Z ERROR scheduling-6 o.h.m.i.d.b.BlockNode Failed to get server status for BlockNode(block-node-1.one-shot.svc.cluster.local:40840) io.grpc.StatusRuntimeException: UNAVAILABLE: io exception',
+    );
+    expect(reportText).to.not.include(
+      'line 1: 2026-05-19T17:08:39.170Z ERROR scheduling-6 o.h.m.i.d.b.BlockNode Failed to get server status for BlockNode(block-node-1.one-shot.svc.cluster.local:40840) io.grpc.StatusRuntimeException: UNAVAILABLE: io exception',
+    );
+    expect(reportText).to.not.include(
+      'line 2: 2026-05-19T17:08:39.170Z ERROR scheduling-6 o.h.m.i.d.b.CompositeBlockSource Failed to get block from BLOCK_NODE source org.hiero.mirror.importer.exception.BlockStreamException: No block node can provide block 0',
+    );
   });
 
   it('suppresses conditional mirror rest retry errors when success marker exists', (): void => {
@@ -336,5 +377,29 @@ events:
     expect(reportText).to.not.include('ERROR:  relation "crypto_allowance_migration" does not exist');
     // Auth failures within 90-second startup window should be suppressed
     expect(reportText).to.not.include('FATAL:  password authentication failed');
+  });
+
+  it('suppresses transient solo.log block-node copy verification size mismatch errors', (): void => {
+    const soloLogPath: string = path.join(temporaryDirectory, 'solo.log');
+    fs.writeFileSync(
+      soloLogPath,
+      [
+        '[17:15:44.153] ERROR: Failed to download block node log files from block-node-1-0: SoloError: copy verification failed: expected size 3422030 but found 3429506 at /Users/jeffrey/.solo/logs/hiero-components-logs/kind-solo-cluster/block-node-1-0-block-logs/blocknode-0.log',
+        '[17:15:44.200] INFO: continuing diagnostics collection',
+        '[17:15:45.153] ERROR: real analyzer failure that must be reported',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('ERROR detected in solo.log');
+    expect(reportText).to.include('line 3: [17:15:45.153] ERROR: real analyzer failure that must be reported');
+    expect(reportText).to.not.include('copy verification failed: expected size 3422030 but found 3429506');
+
+    const consoleSummary: string = userMessages.join('\n');
+    expect(consoleSummary).to.include('Suppressed 1 transient error line(s) in solo.log');
   });
 });

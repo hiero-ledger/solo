@@ -36,10 +36,32 @@ interface PodLogErrorSuppression {
   startupTransientMessagePattern?: RegExp;
   /** Suppress any error line within this many seconds from first log timestamp. */
   startupWindowSeconds?: number;
-  /** Conditionally suppress this error pattern when success pattern appears in file. */
-  conditionalErrorPattern?: RegExp;
-  /** Presence of this line in same file activates conditional suppression. */
-  conditionalSuccessPattern?: RegExp;
+  /** Conditional suppression rules activated by success markers in the same file. */
+  conditionalSuppressions?: readonly ConditionalLogSuppression[];
+}
+
+/**
+ * A conditional suppression rule with simple state support:
+ * activation occurs after N success matches, and suppression can optionally
+ * apply only before that activation point to ignore startup-only failures.
+ */
+interface ConditionalLogSuppression {
+  /** Error line pattern that may be suppressed when this rule activates. */
+  errorPattern: RegExp;
+  /** Success marker pattern that drives activation. */
+  successPattern: RegExp;
+  /** Minimum success matches required to activate. Defaults to 1. */
+  minimumSuccessMatches?: number;
+  /**
+   * If true, suppress only error lines that occur before activation line.
+   * If false, suppress matching errors anywhere once activated.
+   */
+  suppressOnlyBeforeActivation?: boolean;
+}
+
+interface ActiveConditionalLogSuppression {
+  rule: ConditionalLogSuppression;
+  activationLineIndex: number;
 }
 
 /**
@@ -118,36 +140,33 @@ export class DiagnosticsAnalyzer {
       reason: 'Postgres "relation does not exist" during Flyway async-migration startup race',
     },
     {
-      // PostgreSQL logs FATAL authentication failures while mirror_rest user
-      // and database roles are being created during pod initialization. These
-      // transient failures occur only during the startup window and resolve
-      // once roles are fully provisioned. Keep this bounded to the first ~90
-      // seconds of pod startup; post-startup auth failures are real problems.
-      logFilePattern: /solo-shared-resources-postgres[^/]*\.log$/i,
-      startupTransientMessagePattern: /password authentication failed for user "mirror_rest"/i,
-      startupWindowSeconds: 90,
-      reason: 'Postgres user authentication failures during startup role provisioning',
-    },
-    {
-      // The mirror node importer logs download / connect / timeout errors
-      // while it waits for the consensus node to become ACTIVE and the
-      // database to finish migrating. These stop on their own once
-      // dependencies are ready. Keep this bounded to startup; post-startup
-      // errors should still be surfaced as findings.
+      // Mirror importer may log downloader errors early in startup, before
+      // stream processing stabilizes. If we later observe repeated
+      // RecordFileParser success, suppress those begin-phase downloader
+      // errors only; keep post-activation errors visible.
       logFilePattern: /mirror[^/]*-importer[^/]*\.log$/i,
-      startupWindowSeconds: 60,
-      reason: 'Mirror Node importer retries during initial startup window',
-    },
-    {
-      // Mirror Node REST probes its database before the mirror_rest role is
-      // fully provisioned in Postgres, producing transient startup-only
-      // healthcheck failures. Keep this suppression narrow to the known auth
-      // message and to the initial startup window.
-      logFilePattern: /mirror[^/]*-rest[^/]*\.log$/i,
-      startupTransientMessagePattern:
-        /Startup healthcheck failed DbError: password authentication failed for user "mirror_rest"/i,
-      startupWindowSeconds: 60,
-      reason: 'Mirror Node REST DB healthcheck retries during initial startup window',
+      conditionalSuppressions: [
+        {
+          errorPattern: /Error downloading (?:signature )?files/i,
+          successPattern: /RecordFileParser Successfully processed /i,
+          minimumSuccessMatches: 2,
+          suppressOnlyBeforeActivation: true,
+        },
+        {
+          errorPattern: /BlockNode Failed to get server status for BlockNode\(/i,
+          successPattern: /RecordFileParser Successfully processed /i,
+          minimumSuccessMatches: 2,
+          suppressOnlyBeforeActivation: true,
+        },
+        {
+          errorPattern:
+            /CompositeBlockSource Failed to get block from BLOCK_NODE source .*No block node can provide block \d+/i,
+          successPattern: /RecordFileParser Successfully processed /i,
+          minimumSuccessMatches: 2,
+          suppressOnlyBeforeActivation: true,
+        },
+      ],
+      reason: 'Mirror Node importer begin-phase downloader errors after repeated record processing success',
     },
     {
       // Mirror Node REST API retries its Redis connection until the Redis
@@ -155,8 +174,12 @@ export class DiagnosticsAnalyzer {
       // "Startup Connected to redis://..." line proves the retry loop
       // succeeded — the earlier errors are then noise, not failures.
       logFilePattern: /mirror[^/]*-rest[^/]*\.log$/i,
-      conditionalErrorPattern: /Startup Error connecting to/i,
-      conditionalSuccessPattern: /Startup Connected to/i,
+      conditionalSuppressions: [
+        {
+          errorPattern: /Startup Error connecting to/i,
+          successPattern: /Startup Connected to/i,
+        },
+      ],
       reason: 'Mirror Node REST retry succeeded after initial connection errors',
     },
   ];
@@ -164,6 +187,14 @@ export class DiagnosticsAnalyzer {
   /** Matches an ISO-8601 timestamp at the start of an application log line. */
   private static readonly LOG_LINE_TIMESTAMP_PATTERN: RegExp =
     /^\s*(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)/;
+  /**
+   * Known solo.log transient errors that should not produce diagnostics findings.
+   * When block-node logs are copied while the file is still being written,
+   * copy verification can fail with a size mismatch.
+   */
+  private static readonly SOLO_LOG_TRANSIENT_ERROR_PATTERNS: readonly RegExp[] = [
+    /Failed to download block node log files from .*copy verification failed: expected size \d+ but found \d+ at .*blocknode-\d+\.log/i,
+  ];
 
   public constructor(private readonly logger: SoloLogger) {}
 
@@ -464,12 +495,18 @@ export class DiagnosticsAnalyzer {
         continue;
       }
 
-      const evidence: string[] = this.extractSoloLogErrorBlocks(cleanedContent, 3, 14);
+      const errorScan: {evidence: string[]; suppressed: number} = this.extractSoloLogErrorBlocks(cleanedContent, 3, 14);
+      if (errorScan.suppressed > 0) {
+        this.logger.showUser(`  Suppressed ${errorScan.suppressed} transient error line(s) in ${sourceLabel}`);
+      }
+      if (errorScan.evidence.length === 0) {
+        continue;
+      }
       this.addDiagnosticsFinding(findings, {
         category: 'app-error',
         title: 'ERROR detected in solo.log',
         source: sourceLabel,
-        evidence,
+        evidence: errorScan.evidence,
       });
     }
   }
@@ -643,7 +680,11 @@ export class DiagnosticsAnalyzer {
    * `"line <N>: <content>"` format so they render consistently with other
    * findings.
    */
-  private extractSoloLogErrorBlocks(content: string, maxBlocks: number, maxLinesPerBlock: number): string[] {
+  private extractSoloLogErrorBlocks(
+    content: string,
+    maxBlocks: number,
+    maxLinesPerBlock: number,
+  ): {evidence: string[]; suppressed: number} {
     const lines: string[] = content.split(/\r?\n/);
     // Anchored to the Pino entry prefix to skip INFO/WARN lines that quote
     // a downstream "] ERROR:" fragment as part of their message body.
@@ -652,6 +693,7 @@ export class DiagnosticsAnalyzer {
     const newEntryPattern: RegExp = /^\[\d{2}:\d{2}:\d{2}\.\d{3}]/;
     const evidence: string[] = [];
     let blocksCollected: number = 0;
+    let suppressed: number = 0;
 
     for (let index: number = 0; index < lines.length && blocksCollected < maxBlocks; index++) {
       if (!errorPattern.test(lines[index])) {
@@ -672,12 +714,23 @@ export class DiagnosticsAnalyzer {
         next++;
       }
 
+      const blockText: string = blockLines.join('\n');
+      if (
+        DiagnosticsAnalyzer.SOLO_LOG_TRANSIENT_ERROR_PATTERNS.some((pattern: RegExp): boolean =>
+          pattern.test(blockText),
+        )
+      ) {
+        suppressed++;
+        index = next - 1;
+        continue;
+      }
+
       evidence.push(...blockLines);
       blocksCollected++;
       index = next - 1;
     }
 
-    return evidence;
+    return {evidence, suppressed};
   }
 
   /**
@@ -740,21 +793,47 @@ export class DiagnosticsAnalyzer {
     return patterns;
   }
 
-  private getActiveConditionalErrorPatterns(
+  private getActiveConditionalSuppressions(
     suppressions: readonly PodLogErrorSuppression[],
-    content: string,
-  ): readonly RegExp[] {
-    const patterns: RegExp[] = [];
+    lines: readonly string[],
+  ): readonly ActiveConditionalLogSuppression[] {
+    const activeSuppressions: ActiveConditionalLogSuppression[] = [];
     for (const suppression of suppressions) {
-      if (
-        suppression.conditionalErrorPattern !== undefined &&
-        suppression.conditionalSuccessPattern !== undefined &&
-        suppression.conditionalSuccessPattern.test(content)
-      ) {
-        patterns.push(suppression.conditionalErrorPattern);
+      if (suppression.conditionalSuppressions === undefined) {
+        continue;
+      }
+      for (const rule of suppression.conditionalSuppressions) {
+        const minimumSuccessMatches: number = Math.max(1, rule.minimumSuccessMatches ?? 1);
+        let successMatches: number = 0;
+        for (const [index, line] of lines.entries()) {
+          if (!rule.successPattern.test(line)) {
+            continue;
+          }
+          successMatches++;
+          if (successMatches >= minimumSuccessMatches) {
+            activeSuppressions.push({rule, activationLineIndex: index});
+            break;
+          }
+        }
       }
     }
-    return patterns;
+    return activeSuppressions;
+  }
+
+  private isConditionallySuppressed(
+    line: string,
+    lineIndex: number,
+    activeSuppressions: readonly ActiveConditionalLogSuppression[],
+  ): boolean {
+    return activeSuppressions.some((activeSuppression: ActiveConditionalLogSuppression): boolean => {
+      if (!activeSuppression.rule.errorPattern.test(line)) {
+        return false;
+      }
+      if (activeSuppression.rule.suppressOnlyBeforeActivation) {
+        return lineIndex < activeSuppression.activationLineIndex;
+      }
+      return true;
+    });
   }
 
   /**
@@ -814,7 +893,7 @@ export class DiagnosticsAnalyzer {
    *   1. transient message patterns        — known benign messages
    *   2. startup-scoped message patterns   — known benign messages only during bring-up
    *   3. startup grace window              — within N seconds of log start
-   *   4. retry-with-eventual-success pair  — success marker present elsewhere
+   *   4. success-activated conditional rules
    *
    * Suppression is block-aware: a log entry is a header line (timestamp at
    * start of line) plus all following lines until the next header. When the
@@ -844,10 +923,8 @@ export class DiagnosticsAnalyzer {
       (suppression: PodLogErrorSuppression): boolean =>
         suppression.startupTransientMessagePattern !== undefined && suppression.startupWindowSeconds !== undefined,
     );
-    const activeConditionalPatterns: readonly RegExp[] = this.getActiveConditionalErrorPatterns(
-      matchingSuppressions,
-      content,
-    );
+    const activeConditionalSuppressions: readonly ActiveConditionalLogSuppression[] =
+      this.getActiveConditionalSuppressions(matchingSuppressions, lines);
 
     const evidence: string[] = [];
     let suppressed: number = 0;
@@ -911,10 +988,7 @@ export class DiagnosticsAnalyzer {
         blockSuppressed = true;
         continue;
       }
-      const isConditionallySuppressed: boolean = activeConditionalPatterns.some((conditionalPattern: RegExp): boolean =>
-        conditionalPattern.test(line),
-      );
-      if (isConditionallySuppressed) {
+      if (this.isConditionallySuppressed(line, index, activeConditionalSuppressions)) {
         suppressed++;
         blockSuppressed = true;
         continue;

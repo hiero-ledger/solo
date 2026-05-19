@@ -4440,6 +4440,9 @@ export class NodeCommandTasks {
       if (!processInfo?.cmd?.includes('port-forward')) {
         continue;
       }
+      if (processInfo.cmd.includes('persist-port-forward')) {
+        continue;
+      }
       uniqueByPid.set(processInfo.pid, processInfo);
     }
 
