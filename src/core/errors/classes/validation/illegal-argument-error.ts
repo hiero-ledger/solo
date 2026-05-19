@@ -8,7 +8,15 @@ export class IllegalArgumentError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
 
-  public constructor(message: string, value?: any, cause?: Error) {
-    super({message, code: ErrorCodeRegistry.ILLEGAL_ARGUMENT}, cause, value === undefined ? undefined : {value});
+  public constructor(reason: string, value?: any, cause?: Error) {
+    super(
+      {
+        message: reason,
+        code: ErrorCodeRegistry.ILLEGAL_ARGUMENT,
+        troubleshootingSteps: 'Run solo --help for usage information\nVerify the argument value before retrying',
+      },
+      cause,
+      value === undefined ? undefined : {value},
+    );
   }
 }

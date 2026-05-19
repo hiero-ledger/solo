@@ -133,7 +133,7 @@ export class PackageDownloader {
     }
 
     if (!(await this.urlExists(url))) {
-      throw new SoloErrors.system.resourceNotFound(`package URL '${url}' does not exist`, url);
+      throw new SoloErrors.system.resourceNotFound(url);
     }
 
     try {

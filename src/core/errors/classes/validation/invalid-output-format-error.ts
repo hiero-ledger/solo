@@ -12,6 +12,7 @@ export class InvalidOutputFormatError extends SoloError {
     super({
       message: `Invalid output format: ${format}. Allowed values: json, yaml, wide`,
       code: ErrorCodeRegistry.INVALID_OUTPUT_FORMAT,
+      troubleshootingSteps: 'Valid output formats are: json, yaml, wide',
     });
   }
 }

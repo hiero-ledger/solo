@@ -8,7 +8,14 @@ export class MissingArgumentError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
 
-  public constructor(message: string, cause: Error | any = {}) {
-    super({message, code: ErrorCodeRegistry.MISSING_ARGUMENT}, cause);
+  public constructor(argumentDescription: string, cause: Error | any = {}) {
+    super(
+      {
+        message: argumentDescription,
+        code: ErrorCodeRegistry.MISSING_ARGUMENT,
+        troubleshootingSteps: 'Provide the missing argument. Run solo --help for usage information',
+      },
+      cause,
+    );
   }
 }

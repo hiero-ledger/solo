@@ -8,7 +8,14 @@ export class ReadRemoteConfigBeforeLoadError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;
 
-  public constructor(message: string, cause?: Error) {
-    super({message, code: ErrorCodeRegistry.READ_REMOTE_CONFIG_BEFORE_LOAD}, cause);
+  public constructor(cause?: Error) {
+    super(
+      {
+        message: 'Attempted to read remote config before it was loaded',
+        code: ErrorCodeRegistry.READ_REMOTE_CONFIG_BEFORE_LOAD,
+        troubleshootingSteps: 'This is an internal Solo error. File a bug report if it occurs in production',
+      },
+      cause,
+    );
   }
 }

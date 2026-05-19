@@ -82,7 +82,7 @@ export class LocalConfigRuntimeState {
       await this.source.refresh();
       this.refresh();
     } catch (error) {
-      throw new SoloErrors.config.refreshLocalConfigSource('Failed to refresh local config source', error);
+      throw new SoloErrors.config.refreshLocalConfigSource(error);
     }
     await this.persist();
 
@@ -178,7 +178,7 @@ export class LocalConfigRuntimeState {
       await this.source.persist();
       this.isLoaded = true;
     } catch (error) {
-      throw new SoloErrors.config.writeLocalConfig('Failed to write local config file', error);
+      throw new SoloErrors.config.writeLocalConfig(error);
     }
   }
 

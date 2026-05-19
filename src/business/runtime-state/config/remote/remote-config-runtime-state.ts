@@ -158,13 +158,13 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   private failIfNotLoaded(): void {
     if (!this.isLoaded()) {
-      throw new SoloErrors.config.readRemoteConfigBeforeLoad('Attempting to read from remote config before loading it');
+      throw new SoloErrors.config.readRemoteConfigBeforeLoad();
     }
   }
 
   public async persist(): Promise<void> {
     if (!this.isLoaded()) {
-      throw new SoloErrors.config.writeRemoteConfigBeforeLoad('Attempting to persist remote config before loading it');
+      throw new SoloErrors.config.writeRemoteConfigBeforeLoad();
     }
 
     await this.source.persist();

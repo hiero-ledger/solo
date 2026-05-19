@@ -9,6 +9,14 @@ export class PortForwardRefreshFailedError extends SoloError {
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
   public constructor(cause?: Error) {
-    super({message: 'Error refreshing port-forwards', code: ErrorCodeRegistry.PORT_FORWARD_REFRESH_FAILED}, cause);
+    super(
+      {
+        message: 'Error refreshing port-forwards',
+        code: ErrorCodeRegistry.PORT_FORWARD_REFRESH_FAILED,
+        troubleshootingSteps:
+          'Check cluster connectivity: kubectl get nodes\nRestart the port-forward: solo network refresh-port-forwards',
+      },
+      cause,
+    );
   }
 }

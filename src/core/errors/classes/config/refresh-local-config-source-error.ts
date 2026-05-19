@@ -6,9 +6,17 @@ import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
 export class RefreshLocalConfigSourceError extends SoloError {
   protected override readonly retryable: boolean = false;
-  protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;
+  protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
-  public constructor(message: string, cause?: Error) {
-    super({message, code: ErrorCodeRegistry.REFRESH_LOCAL_CONFIG_SOURCE}, cause);
+  public constructor(cause?: Error) {
+    super(
+      {
+        message: 'Failed to refresh local configuration source',
+        code: ErrorCodeRegistry.REFRESH_LOCAL_CONFIG_SOURCE,
+        troubleshootingSteps:
+          'Check file system permissions for ~/.solo\nVerify the config file exists: solo deployment config info',
+      },
+      cause,
+    );
   }
 }

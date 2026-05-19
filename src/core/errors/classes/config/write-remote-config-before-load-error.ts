@@ -8,7 +8,14 @@ export class WriteRemoteConfigBeforeLoadError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;
 
-  public constructor(message: string, cause?: Error) {
-    super({message, code: ErrorCodeRegistry.WRITE_REMOTE_CONFIG_BEFORE_LOAD}, cause);
+  public constructor(cause?: Error) {
+    super(
+      {
+        message: 'Attempted to write remote config before it was loaded',
+        code: ErrorCodeRegistry.WRITE_REMOTE_CONFIG_BEFORE_LOAD,
+        troubleshootingSteps: 'This is an internal Solo error. File a bug report if it occurs in production',
+      },
+      cause,
+    );
   }
 }

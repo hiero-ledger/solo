@@ -8,7 +8,14 @@ export class UnsupportedOperationError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;
 
-  public constructor(message: string, cause?: Error) {
-    super({message, code: ErrorCodeRegistry.UNSUPPORTED_OPERATION}, cause);
+  public constructor(reason: string, cause?: Error) {
+    super(
+      {
+        message: reason,
+        code: ErrorCodeRegistry.UNSUPPORTED_OPERATION,
+        troubleshootingSteps: 'This is an internal Solo error. File a bug report if it occurs in production',
+      },
+      cause,
+    );
   }
 }

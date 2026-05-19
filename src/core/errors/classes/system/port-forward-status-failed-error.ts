@@ -9,6 +9,14 @@ export class PortForwardStatusFailedError extends SoloError {
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
   public constructor(cause?: Error) {
-    super({message: 'Error displaying port-forward status', code: ErrorCodeRegistry.PORT_FORWARD_STATUS_FAILED}, cause);
+    super(
+      {
+        message: 'Error displaying port-forward status',
+        code: ErrorCodeRegistry.PORT_FORWARD_STATUS_FAILED,
+        troubleshootingSteps:
+          'Check cluster connectivity: kubectl get nodes\nVerify running port-forwards: kubectl get services -A',
+      },
+      cause,
+    );
   }
 }

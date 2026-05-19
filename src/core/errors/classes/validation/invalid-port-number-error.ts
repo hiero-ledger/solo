@@ -12,6 +12,7 @@ export class InvalidPortNumberError extends SoloError {
     super({
       message: `Invalid port number: ${port}`,
       code: ErrorCodeRegistry.INVALID_PORT_NUMBER,
+      troubleshootingSteps: 'Port numbers must be integers between 1 and 65535',
     });
   }
 }

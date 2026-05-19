@@ -8,7 +8,16 @@ export class ResourceNotFoundError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
-  public constructor(message: string, resource: string, cause: Error | any = {}) {
-    super({message, code: ErrorCodeRegistry.RESOURCE_NOT_FOUND}, cause, {resource});
+  public constructor(resource: string, cause: Error | any = {}) {
+    super(
+      {
+        message: `Resource not found: ${resource}`,
+        code: ErrorCodeRegistry.RESOURCE_NOT_FOUND,
+        troubleshootingSteps:
+          'Verify the resource name and namespace are correct\nCheck cluster state: kubectl get all -A',
+      },
+      cause,
+      {resource},
+    );
   }
 }
