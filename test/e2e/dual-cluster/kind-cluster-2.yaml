@@ -7,6 +7,9 @@ nodes:
         kind: ClusterConfiguration
         networking:
           dnsDomain: "cluster.local"
+        apiServer:
+          extraArgs:
+            profiling: "false"
 networking:
 #  apiServerAddress: "172.19.0.3"
 #  apiServerPort: 6443
