@@ -11,9 +11,9 @@ spec:
           valueFrom:
             resourceFieldRef:
               containerName: kube-apiserver
-              resource: requests.memory
-        #- name: GOGC
-        #  value: '50'
+              resource: '250MiB'
+        - name: GOGC
+          value: '50'
       resources:
         requests:
           memory: '300Mi'
