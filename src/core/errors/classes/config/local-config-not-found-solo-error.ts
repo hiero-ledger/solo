@@ -13,7 +13,8 @@ export class LocalConfigNotFoundSoloError extends SoloError {
       {
         message: 'Local configuration file not found',
         code: ErrorCodeRegistry.LOCAL_CONFIG_NOT_FOUND,
-        troubleshootingSteps: 'Create a local config: solo deployment config create',
+        troubleshootingSteps:
+          'Create a local config: solo deployment config create --deployment <deployment-name> --namespace <namespace>',
       },
       cause,
     );

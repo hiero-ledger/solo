@@ -3,6 +3,7 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {BUG_REPORT_URL} from '../../../constants.js';
 
 export class UnsupportedOperationError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -13,7 +14,7 @@ export class UnsupportedOperationError extends SoloError {
       {
         message: reason,
         code: ErrorCodeRegistry.UNSUPPORTED_OPERATION,
-        troubleshootingSteps: 'This is an internal Solo error. File a bug report if it occurs in production',
+        troubleshootingSteps: `This is an internal Solo error. File a bug report: ${BUG_REPORT_URL}`,
       },
       cause,
     );

@@ -14,7 +14,9 @@ export class CreateDeploymentSoloError extends SoloError {
         message: 'Error creating deployment',
         code: ErrorCodeRegistry.CREATE_DEPLOYMENT,
         troubleshootingSteps:
-          'Check the logs for details: tail -f ~/.solo/logs/solo.log\nReview your configuration: solo deployment config info',
+          'Make sure if the deployment is already created: solo deployment config list\n' +
+          'Check the logs for details: tail -f ~/.solo/logs/solo.log\n' +
+          'Review your configuration: solo deployment config info',
       },
       cause,
     );

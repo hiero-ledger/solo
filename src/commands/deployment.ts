@@ -1183,8 +1183,8 @@ export class DeploymentCommand extends BaseCommand {
 
     try {
       await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloErrors.system.portForwardRefreshFailed(error instanceof Error ? error : undefined);
+    } catch (error) {
+      throw new SoloErrors.system.portForwardRefreshFailed(error);
     }
 
     return true;
@@ -1437,8 +1437,8 @@ export class DeploymentCommand extends BaseCommand {
 
     try {
       await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloErrors.system.portForwardStatusFailed(error instanceof Error ? error : undefined);
+    } catch (error) {
+      throw new SoloErrors.system.portForwardStatusFailed(error);
     }
 
     return true;

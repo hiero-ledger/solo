@@ -14,7 +14,7 @@ export class RemoteConfigsMismatchSoloError extends SoloError {
         message: `Remote configurations in clusters ${cluster1} and ${cluster2} do not match`,
         code: ErrorCodeRegistry.REMOTE_CONFIGS_MISMATCH,
         troubleshootingSteps:
-          'Inspect both configs: kubectl get configmap -n YOUR_NAMESPACE\nSync manually before retrying',
+          'Inspect both configs: kubectl get configmap -n <namespace>\nSync manually before retrying',
       },
       cause,
     );

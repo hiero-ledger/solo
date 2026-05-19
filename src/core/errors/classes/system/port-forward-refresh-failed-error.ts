@@ -14,7 +14,9 @@ export class PortForwardRefreshFailedError extends SoloError {
         message: 'Error refreshing port-forwards',
         code: ErrorCodeRegistry.PORT_FORWARD_REFRESH_FAILED,
         troubleshootingSteps:
-          'Check cluster connectivity: kubectl get nodes\nRestart the port-forward: solo network refresh-port-forwards',
+          'Check the all pods exist and are running: kubectl get pods -n <namespace>\n' +
+          'Check the port-forwards of your deployment: solo deployment config ports --deployment <deployment-name>\n' +
+          'Restart the port-forward: solo deployment refresh port-forwards --deployment <deployment-name>',
       },
       cause,
     );

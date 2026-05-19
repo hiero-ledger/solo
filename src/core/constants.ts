@@ -509,3 +509,5 @@ export const CERT_MANAGER_CRDS: string[] = [
 
 export const TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS: number =
   +getEnvironmentVariable('TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS') || 60;
+
+export const BUG_REPORT_URL: string = 'https://github.com/hiero-ledger/solo/issues';

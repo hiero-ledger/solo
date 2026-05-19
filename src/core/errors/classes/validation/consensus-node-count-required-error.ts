@@ -12,8 +12,7 @@ export class ConsensusNodeCountRequiredError extends SoloError {
     super({
       message: `--${flagName} must be specified ${phase}`,
       code: ErrorCodeRegistry.CONSENSUS_NODE_COUNT_REQUIRED,
-      troubleshootingSteps:
-        'Provide the number of consensus nodes: solo deployment cluster attach --num-consensus-nodes <count>',
+      troubleshootingSteps: `Specify the number of consensus nodes using the --${flagName} flag, e.g. --${flagName} 3`,
     });
   }
 }
