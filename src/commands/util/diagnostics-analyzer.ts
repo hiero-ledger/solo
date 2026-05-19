@@ -135,8 +135,12 @@ export class DiagnosticsAnalyzer {
       // fresh database. The Java side handles this gracefully (logs WARN,
       // falls back to Long.MAX_VALUE), but Postgres still emits an ERROR
       // line into its server log, which would otherwise surface as a finding.
+      // During startup, mirror-rest may attempt DB auth before role creation;
+      // those FATAL auth lines are transient if they occur in early bring-up.
       logFilePattern: /solo-shared-resources-postgres[^/]*\.log$/i,
       transientMessagePattern: /relation "[^"]+" does not exist/i,
+      startupTransientMessagePattern: /FATAL:\s+password authentication failed for user "mirror_rest"/i,
+      startupWindowSeconds: 90,
       reason: 'Postgres "relation does not exist" during Flyway async-migration startup race',
     },
     {
@@ -180,6 +184,9 @@ export class DiagnosticsAnalyzer {
           successPattern: /Startup Connected to/i,
         },
       ],
+      startupTransientMessagePattern:
+        /Startup healthcheck failed DbError:\s+password authentication failed for user "mirror_rest"/i,
+      startupWindowSeconds: 60,
       reason: 'Mirror Node REST retry succeeded after initial connection errors',
     },
   ];
