@@ -50,7 +50,7 @@ export const REDIS_SENTINEL_IMAGE_VERSION: string =
 export const SOLO_CHART_EDGE_VERSION: string =
   constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || SOLO_CHART_VERSION;
 export const HEDERA_PLATFORM_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.74.0-rc.1';
+  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.74.0-rc.4';
 export const MIRROR_NODE_EDGE_VERSION: string =
   constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || MIRROR_NODE_VERSION;
 export const EXPLORER_EDGE_VERSION: string =
