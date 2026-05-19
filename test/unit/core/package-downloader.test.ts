@@ -62,7 +62,7 @@ describe('PackageDownloader', (): void => {
     it('should fail with an invalid URL', async (): Promise<void> => {
       await expect(downloader.fetchFile('https://localhost/INVALID_FILE', os.tmpdir())).to.be.rejectedWith(
         ResourceNotFoundError,
-        "package URL 'https://localhost/INVALID_FILE' does not exist",
+        'Resource not found: https://localhost/INVALID_FILE',
       );
     });
 
