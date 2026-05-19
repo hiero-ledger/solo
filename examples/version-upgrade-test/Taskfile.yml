@@ -54,7 +54,7 @@ tasks:
       # Install Solo CLI
       - cmd: |
           if [ "${USE_RELEASED_VERSION}" = "true" ]; then
-            SOLO_NO_CACHE=true npm i @hashgraph/solo@latest
+            npm i @hashgraph/solo@latest
           else
             echo "Skipping npm install - using development version"
           fi
