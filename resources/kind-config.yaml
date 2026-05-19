@@ -8,11 +8,17 @@ containerdConfigPatches:
       endpoint = ["https://mirror.gcr.io", "https://hub.mirror.docker.lat.ope.eng.hashgraph.io", "https://registry-1.docker.io"]
 nodes:
   - role: control-plane
-    extraMounts:
-      - hostPath: ./patches
-        containerPath: /patches
     kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiVersion: kubeadm.k8s.io/v1beta3
+        apiServer:
+          extraArgs:
+            "enable-admission-plugins": "NodeRestriction,MyCustomPlugin"
       - |
         kind: InitConfiguration
         patches:
           directory: /patches
+    extraMounts:
+      - hostPath: ./patches
+        containerPath: /patches
