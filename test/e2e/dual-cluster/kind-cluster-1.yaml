@@ -9,7 +9,7 @@ nodes:
           dnsDomain: "cluster.local"
         apiServer:
           extraArgs:
-            "enable-admission-plugins": "NodeRestriction,MyCustomPlugin"
+            watch-cache: "false"
       - |
         kind: InitConfiguration
         patches:

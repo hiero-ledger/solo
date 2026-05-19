@@ -11,10 +11,9 @@ nodes:
     kubeadmConfigPatches:
       - |
         kind: ClusterConfiguration
-        apiVersion: kubeadm.k8s.io/v1beta3
         apiServer:
           extraArgs:
-            "enable-admission-plugins": "NodeRestriction,MyCustomPlugin"
+            watch-cache: "false"
       - |
         kind: InitConfiguration
         patches:

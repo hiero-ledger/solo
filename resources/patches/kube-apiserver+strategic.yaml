@@ -10,11 +10,12 @@ spec:
         - name: GOMEMLIMIT
           valueFrom:
             resourceFieldRef:
+              containerName: kube-apiserver
               resource: requests.memory
-        - name: GOGC
-          value: '50'
+        #- name: GOGC
+        #  value: '50'
       resources:
         requests:
-          memory: '250Mi'
-        limits:
           memory: '300Mi'
+        limits:
+          memory: '400Mi'
