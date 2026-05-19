@@ -1,14 +1,5 @@
 # Idempotent One-Shot Commands
 
-| | |
-|---|---|
-| **Status** | Draft — proposed |
-| **Author** | Boris Bonin |
-| **Tracking issue** | TBD (umbrella issue) |
-| **Affects** | `src/commands/one-shot/`, `src/commands/command-helpers.ts`, remote config schema |
-| **Phase 1 scope** | Binding |
-| **Phase 2 / 3 scope** | Stated direction, deferred to follow-up RFCs |
-
 ## 1. Context
 
 `solo one-shot single deploy` and `solo one-shot falcon deploy` orchestrate a full Hiero network deployment by sequentially invoking ~15 sub-commands through `deployInternal()` in `src/commands/one-shot/default-one-shot.ts`. The flow today has three properties that make operator life difficult:
