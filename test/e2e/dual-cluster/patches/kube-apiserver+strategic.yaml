@@ -5,9 +5,16 @@ metadata:
   namespace: kube-system
 spec:
   containers:
-  - name: kube-apiserver
-    env:
-    - name: GOMEMLIMIT
-      value: "250MiB"
-    - name: GOGC
-      value: "50"
+    - name: kube-apiserver
+      env:
+        - name: GOMEMLIMIT
+          valueFrom:
+            resourceFieldRef:
+              resource: requests.memory
+        - name: GOGC
+          value: '50'
+      resources:
+        requests:
+          memory: '250Mi'
+        limits:
+          memory: '300Mi'
