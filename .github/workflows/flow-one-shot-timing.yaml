@@ -151,7 +151,7 @@ jobs:
       - name: Install Solo CLI (released)
         if: ${{ inputs.use-released-solo == true }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: npm i @hashgraph/solo@latest
+        run: SOLO_NO_CACHE=true npm i @hashgraph/solo@latest
 
       - name: Compile Project (from source)
         if: ${{ inputs.use-released-solo != true }}

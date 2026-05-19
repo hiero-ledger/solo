@@ -139,7 +139,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
           npm ci
-          npm install -g @hashgraph/solo
+          SOLO_NO_CACHE=true npm install -g @hashgraph/solo
 
       - name: Compile Project
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
