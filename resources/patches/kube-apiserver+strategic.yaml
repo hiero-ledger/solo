@@ -8,6 +8,6 @@ spec:
   - name: kube-apiserver
     env:
     - name: GOMEMLIMIT
-      value: "384MiB"
+      value: "300MiB"
     - name: GOGC
       value: "50"
