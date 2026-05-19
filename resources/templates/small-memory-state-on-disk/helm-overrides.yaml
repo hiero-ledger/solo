@@ -2,8 +2,6 @@ defaults:
   root:
     resources:
       requests:
-        memory: 512Mi
+        memory: 256Mi
       limits:
-        # 2Gi gives the JVM (1G heap + ~500M non-heap) enough room under load tests
-        # while still capping mmap'd state-on-disk page cache growth on the host.
-        memory: 2Gi
+        memory: 1Gi
