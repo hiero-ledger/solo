@@ -1,6 +1,9 @@
 #!/bin/bash
 set -eo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/helper.sh"
+
 collect_failure_diagnostics() {
   local rc="${1}"
 
@@ -115,7 +118,7 @@ export SOLO_NAMESPACE=solo-e2e
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=solo-e2e
 export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=false
-export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.139.0
+export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.152.0
 export SOLO_LOG_LEVEL=debug
 export PREV_BLOCK_VERSION=v0.28.0
 export PREV_EXPLORER_VERSION=25.0.0
@@ -148,7 +151,7 @@ echo "::endgroup::"
 echo "::group::Launch solo using released Solo version ${fromSoloVersion}"
 
 if [[ -z "${toConsensusNodeVersion}" ]]; then
-  export TO_CONSENSUS_NODE_VERSION=$(grep 'TEST_UPGRADE_TO_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+  export TO_CONSENSUS_NODE_VERSION=$(extract_version TEST_UPGRADE_TO_VERSION version-test.ts)
   if [[ -z "${TO_CONSENSUS_NODE_VERSION}" ]]; then
     echo "TO_CONSENSUS_NODE_VERSION is empty, please check version-test.ts for TEST_UPGRADE_TO_VERSION"
     exit 1
@@ -157,7 +160,7 @@ else
   export TO_CONSENSUS_NODE_VERSION="${toConsensusNodeVersion}"
 fi
 
-export FROM_CONSENSUS_NODE_VERSION=$(grep 'TEST_UPGRADE_FROM_VERSION' version-test.ts | sed -E "s/.*'([^']+)';/\1/")
+export FROM_CONSENSUS_NODE_VERSION=$(extract_version TEST_UPGRADE_FROM_VERSION version-test.ts)
 if [[ -z "${FROM_CONSENSUS_NODE_VERSION}" ]]; then
   echo "FROM_CONSENSUS_NODE_VERSION is empty, please check version-test.ts for TEST_UPGRADE_FROM_VERSION"
   exit 1

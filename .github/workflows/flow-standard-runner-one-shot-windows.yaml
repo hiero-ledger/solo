@@ -47,6 +47,11 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        with:
+          egress-policy: audit
+
       - name: Windows Diagnostics
         shell: pwsh
         timeout-minutes: 5
@@ -119,7 +124,7 @@ jobs:
         # Kind requires Linux containers. GitHub's windows-latest runner has Docker in Windows
         # container mode with no Docker Desktop to switch it. WSL2 + Docker inside it replicates
         # what Docker Desktop does for Windows users, exposing a Linux daemon via TCP.
-        uses: Vampire/setup-wsl@6a8db447be7ed35f2f499c02c6e60ff77ef11278 # v6.0.0
+        uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364 # v7.0.0
         timeout-minutes: 10
         with:
           distribution: Ubuntu-24.04
@@ -207,6 +212,13 @@ jobs:
         run: |
           $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
           npm run solo -- one-shot single deploy --dev
+
+      - name: Check Port Forwarding Still Works After Deploy
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
+          npm run solo -- deployment diagnostics connections -d one-shot --check
 
       - name: Collect Diagnostics on Failure
         if: ${{ failure() }}

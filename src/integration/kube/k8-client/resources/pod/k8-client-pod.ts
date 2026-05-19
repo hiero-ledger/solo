@@ -109,6 +109,7 @@ export class K8ClientPod implements Pod {
   ): Promise<number> {
     let availablePort: number = localPort;
     const localBindAddress: string = externalAddress || constants.LOCAL_HOST;
+    const isWindows: boolean = os.platform() === 'win32';
 
     try {
       // first use http.request(url[, options][, callback]) GET method against localhost:localPort to kill any pre-existing
@@ -217,21 +218,28 @@ export class K8ClientPod implements Pod {
       // If the persist flag is set, we need to run the port-forward in a detached process that restarts on failure even after the typescript process ends.
       const __filename: string = fileURLToPath(import.meta.url);
       const __dirname: string = path.dirname(__filename);
-      // When running via tsx (dev/test), __filename ends in .ts; use tsx to run the .ts source.
-      // In a compiled build it ends in .js; use node to run the compiled .js.
-      const isTsx: boolean = __filename.endsWith('.ts');
-      const persistScriptExtension: string = isTsx ? '.ts' : '.js';
-      const persistCmd: string = isTsx ? 'tsx' : 'node';
-      const persistPortForwardScriptPath: string = path.resolve(
-        __dirname,
-        `persist-port-forward${persistScriptExtension}`,
-      );
 
       let cmd: string;
       let cmdArguments: string[];
       if (persist) {
+        // When running via tsx (dev/test), __filename ends in .ts; use tsx to run the .ts source.
+        // In a compiled build it ends in .js; use node to run the compiled .js.
+        const isTsx: boolean = __filename.endsWith('.ts');
+        const persistScriptExtension: string = isTsx ? '.ts' : '.js';
+        const useDirectNodeRuntime: boolean = isWindows;
+        let persistCmd: string = isTsx ? 'tsx' : 'node';
+        if (useDirectNodeRuntime) {
+          persistCmd = process.execPath;
+        }
+        const persistRuntimeArguments: string[] = useDirectNodeRuntime && isTsx ? ['--import', 'tsx'] : [];
+        const persistPortForwardScriptPath: string = path.resolve(
+          __dirname,
+          `persist-port-forward${persistScriptExtension}`,
+        );
+
         cmd = persistCmd;
         cmdArguments = [
+          ...persistRuntimeArguments,
           persistPortForwardScriptPath,
           this.podReference.namespace.name,
           `pods/${this.podReference.name}`,
@@ -239,51 +247,55 @@ export class K8ClientPod implements Pod {
           `${availablePort}:${podPort}`,
           constants.KUBECTL,
           this.kubectlInstallationDirectory,
-          localBindAddress,
-          '&',
         ];
+
+        // WSL2 has issues with kubectl port-forward when binding to localhost, binding to all interfaces will trigger
+        // a permission prompt which if hidden behind the terminal can cause the port-forward command to fail.
+        if (!isWindows) {
+          cmdArguments.push(localBindAddress, '&');
+        }
       } else {
         cmd = constants.KUBECTL;
         cmdArguments = [
           'port-forward',
           '-n',
           this.podReference.namespace.name,
-          '--address',
-          localBindAddress,
           '--context',
           this.kubeConfig.currentContext,
-          `pods/${this.podReference.name}`,
-          `${availablePort}:${podPort}`,
         ];
+
+        // WSL2 has issues with kubectl port-forward when binding to localhost, binding to all interfaces will trigger
+        // a permission prompt which if hidden behind the terminal can cause the port-forward command to fail.
+        if (!isWindows) {
+          cmdArguments.push('--address', localBindAddress);
+        }
+
+        cmdArguments.push(`pods/${this.podReference.name}`, `${availablePort}:${podPort}`);
+
+        if (isWindows) {
+          cmdArguments = ['--headless', cmd, ...cmdArguments];
+          cmd = String.raw`C:\Windows\System32\conhost.exe`;
+        }
       }
 
-      if (os.platform() === 'win32') {
-        const argumentsLength: number = cmdArguments.length;
-        cmdArguments = cmdArguments.map((anArgument, index): string => {
-          if (index < argumentsLength - 1) {
-            return `"${anArgument}",`;
-          }
-          return `"${anArgument}"`;
-        });
-        cmdArguments = [
-          'Start-Process',
-          '-FilePath',
-          `"${cmd}"`,
-          '-WindowStyle',
-          'Hidden',
-          '-ArgumentList',
-          ...cmdArguments,
-        ];
-        cmd = 'powershell.exe';
-      }
+      // Don't use shell on Windows when doing persist mode to avoid argument parsing issues
+      const useShell: boolean = isWindows && persist ? false : true;
 
-      await new ShellRunner().run(cmd, cmdArguments, true, true, {
-        PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
-      });
+      await new ShellRunner().run(
+        cmd,
+        cmdArguments,
+        true,
+        true,
+        {
+          PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+        },
+        undefined,
+        useShell,
+      );
 
       return availablePort;
     } catch (error) {
-      if (os.platform() === 'win32' && !isRetry && error?.message?.includes('listen EACCES')) {
+      if (isWindows && !isRetry && error?.message?.includes('listen EACCES')) {
         // handle the case where port forwarding fails on Windows due to an issue with the WinNAT service.
         // Restarting the WinNAT service can resolve the issue, and then we can retry starting the port forwarder.
         // Example: listen EACCES: permission denied 127.0.0.1:50211

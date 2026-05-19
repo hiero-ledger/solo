@@ -189,6 +189,7 @@ import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-eve
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -350,60 +351,6 @@ export class NodeCommandTasks {
     }
   }
 
-  private async verifyLocalBuildPathOnNode(
-    k8: K8,
-    podReference: PodReference,
-    localDataLibraryBuildPath: string,
-  ): Promise<void> {
-    const expectedEntriesByDirectory: Record<string, string[]> = {};
-    const directoryPairs: Array<{local: string; remote: string}> = [
-      {
-        local: PathEx.join(localDataLibraryBuildPath, 'apps'),
-        remote: `${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}`,
-      },
-      {
-        local: PathEx.join(localDataLibraryBuildPath, 'lib'),
-        remote: `${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}`,
-      },
-    ];
-
-    for (const pair of directoryPairs) {
-      expectedEntriesByDirectory[pair.remote] = fs
-        .readdirSync(pair.local)
-        .filter((fileName: string): boolean => fileName.endsWith('.jar'))
-        .sort()
-        .map((fileName: string): string => `${fileName}:${fs.statSync(PathEx.join(pair.local, fileName)).size}`);
-    }
-
-    const container: Container = k8
-      .containers()
-      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
-
-    for (const pair of directoryPairs) {
-      const output: string = await container.execContainer([
-        'bash',
-        '-c',
-        `set -euo pipefail; shopt -s nullglob; for file in "${pair.remote}"/*.jar; do printf "%s:%s\\n" "$(basename "$file")" "$(wc -c < "$file" | tr -d "[:space:]")"; done | sort`,
-      ]);
-      const actualEntries: string[] = output
-        .split('\n')
-        .map((line: string): string => line.trim())
-        .filter(Boolean)
-        .sort();
-      const expectedEntries: string[] = expectedEntriesByDirectory[pair.remote];
-
-      if (
-        expectedEntries.length !== actualEntries.length ||
-        expectedEntries.some((entry: string, index: number): boolean => entry !== actualEntries[index])
-      ) {
-        throw new SoloError(
-          `Local build verification failed for '${pair.remote}'. ` +
-            `Expected ${expectedEntries.length} jar(s) with matching sizes but found ${actualEntries.length}.`,
-        );
-      }
-    }
-  }
-
   private async validateNodePvcsForLocalBuildPath(namespace: NamespaceName, contexts: string[]): Promise<void> {
     await Promise.all(
       contexts.map(async (context): Promise<void> => {
@@ -413,9 +360,12 @@ export class NodeCommandTasks {
           .list(namespace, ['solo.hedera.com/type=node-pvc']);
 
         if (pvcs.length === 0) {
-          throw new SoloError(
-            'Custom JARs provided via --local-build-path require node PVCs to persist across pod restarts. ' +
-              'Redeploy the consensus network with --pvcs true and run consensus node setup again.',
+          this.logger.showUser(
+            chalk.yellow(
+              'Warning: Custom JARs provided via --local-build-path require node PVCs to persist across pod restarts. ' +
+                'To prevent losing data after node restarts redeploy the consensus network with ' +
+                '`consensus network deploy --pvcs true` and run `consensus node setup` again.',
+            ),
           );
         }
       }),
@@ -515,7 +465,6 @@ export class NodeCommandTasks {
             try {
               // filter the data/config and data/keys to avoid failures due to config and secret mounts
               await this.copyLocalBuildPathToNode(k8, podReference, this.configManager, localDataLibraryBuildPath);
-              await this.verifyLocalBuildPathOnNode(k8, podReference, localDataLibraryBuildPath);
               break;
             } catch (error) {
               storedError = error;
@@ -2376,13 +2325,16 @@ export class NodeCommandTasks {
     };
   }
 
-  public getNodeLogsAndConfigs(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
-  > {
+  public getNodeLogsAndConfigs(
+    excludeSensitiveData?: boolean,
+    outputDirectory?: string,
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext> {
     return {
       title: 'Get consensus node logs and configs',
       task: async ({config: {namespace, contexts}}): Promise<void> => {
-        await container.resolve<NetworkNodes>(InjectTokens.NetworkNodes).getLogs(namespace, contexts);
+        await container
+          .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
+          .getLogs(namespace, contexts, outputDirectory, excludeSensitiveData);
       },
     };
   }
@@ -2607,25 +2559,27 @@ export class NodeCommandTasks {
     };
   }
 
-  public getHelmChartValues(): SoloListrTask<AnyListrContext> {
+  public getHelmChartValues(outputDirectory?: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Get Helm chart values from all releases',
       task: async (): Promise<void> => {
         const contexts: Contexts = this.k8Factory.default().contexts();
         const helmClient: HelmClient = new DefaultHelmClient();
         container.registerInstance(InjectTokens.Helm, helmClient);
-        const outputDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
+        const helmChartValuesDirectory: string = outputDirectory
+          ? PathEx.join(outputDirectory, 'helm-chart-values')
+          : PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
 
         try {
-          if (!fs.existsSync(outputDirectory)) {
-            fs.mkdirSync(outputDirectory, {recursive: true});
+          if (!fs.existsSync(helmChartValuesDirectory)) {
+            fs.mkdirSync(helmChartValuesDirectory, {recursive: true});
           }
         } catch (error) {
-          this.logger.warn(`Failed to create output directory ${outputDirectory}: ${error}`);
+          this.logger.warn(`Failed to create output directory ${helmChartValuesDirectory}: ${error}`);
           return;
         }
 
-        this.logger.info(`Helm chart values will be saved to: ${outputDirectory}`);
+        this.logger.info(`Helm chart values will be saved to: ${helmChartValuesDirectory}`);
 
         const contextList: string[] = contexts.list();
         this.logger.info(`Processing Helm releases for contexts: ${contextList.join(', ')}`);
@@ -2644,7 +2598,7 @@ export class NodeCommandTasks {
             this.logger.info(`Found ${releases.length} Helm release(s) in context ${context}`);
 
             // Create directory for this context
-            const contextDirectory: string = PathEx.join(outputDirectory, context);
+            const contextDirectory: string = PathEx.join(helmChartValuesDirectory, context);
             try {
               if (!fs.existsSync(contextDirectory)) {
                 fs.mkdirSync(contextDirectory, {recursive: true});
@@ -2658,7 +2612,11 @@ export class NodeCommandTasks {
               try {
                 this.logger.info(`Getting values for release: ${release.name} in namespace: ${release.namespace}`);
 
-                const getAllCommand: string = `helm get all ${release.name} -n ${release.namespace} --kube-context ${context}`;
+                // Use "helm get values --all" (user-supplied + chart defaults only).
+                // Do NOT use "helm get all": it also outputs the full rendered K8s manifests
+                // which include Secret resources (base64-encoded credentials, TLS keys, etc.)
+                // and pod specs that may embed plaintext passwords from chart values.
+                const getAllCommand: string = `helm get values ${release.name} -n ${release.namespace} --kube-context ${context} --all`;
                 const output: string = execSync(getAllCommand, {
                   encoding: 'utf8',
                   cwd: process.cwd(),
@@ -2689,7 +2647,7 @@ export class NodeCommandTasks {
           }
         }
 
-        this.logger.showUser(`Helm chart values saved to ${outputDirectory}`);
+        this.logger.showUser(`Helm chart values saved to ${helmChartValuesDirectory}`);
       },
     };
   }
@@ -2715,8 +2673,9 @@ export class NodeCommandTasks {
   private async getComponentData(
     schema: BaseStateSchema,
     componentDisplayName: ComponentDisplayName,
+    haProxyState?: HaProxyStateSchema,
   ): Promise<ComponentData> {
-    const metadata: ComponentStateMetadataSchema = schema.metadata;
+    const metadata: ComponentStateMetadataSchema = haProxyState ? haProxyState.metadata : schema.metadata;
 
     const clusterSchema: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
       (cluster: Readonly<ClusterSchema>): boolean => cluster.name === metadata.cluster,
@@ -2740,20 +2699,24 @@ export class NodeCommandTasks {
   private extractDataFromGroup(
     states: BaseStateSchema[],
     componentDisplayName: ComponentDisplayName,
+    haProxyStates: HaProxyStateSchema[] = [],
   ): Promise<ComponentData>[] {
     return states.map(
-      (state: BaseStateSchema): Promise<ComponentData> => this.getComponentData(state, componentDisplayName),
+      (state: BaseStateSchema): Promise<ComponentData> =>
+        this.getComponentData(
+          state,
+          componentDisplayName,
+          haProxyStates.find(
+            (haProxyState: HaProxyStateSchema): boolean => haProxyState.metadata.id === state.metadata.id,
+          ),
+        ),
     );
   }
 
-  private validateComponentData({
-    portForwards,
-    namespace,
-    clusterReference,
-    contextName,
-    componentId,
-    componentDisplayName,
-  }: ComponentData): SoloListrTask<NodeConnectionsContext> {
+  private validateComponentData(
+    {portForwards, namespace, clusterReference, contextName, componentId, componentDisplayName}: ComponentData,
+    check: boolean = false,
+  ): SoloListrTask<NodeConnectionsContext> {
     return {
       title: cyan(componentDisplayName),
       task: (_, task): SoloListr<NodeConnectionsContext> | void => {
@@ -2780,11 +2743,17 @@ export class NodeCommandTasks {
             task: async (_, task): Promise<void> => {
               task.title += '\n\t' + gray('Local port') + ' ' + yellow(`[${localPort}]`) + ' - ';
 
-              task.title += (await this.checkLocalPort(localPort))
-                ? green('Successfully pinged')
-                : red('Failed to ping');
+              const isReachable: boolean = await this.checkLocalPort(localPort);
+              task.title += isReachable ? green('Successfully pinged') : red('Failed to ping');
 
               task.title += '\n\t' + gray('Pod port') + ' ' + yellow(`[${podPort}]`);
+
+              if (check && !isReachable) {
+                throw new SoloError(
+                  `Configured port-forward is missing: ${componentDisplayName} ${componentId} ` +
+                    `localhost:${localPort} -> pod:${podPort}`,
+                );
+              }
             },
           });
         }
@@ -2825,7 +2794,7 @@ export class NodeCommandTasks {
         config.componentsData = await Promise.all([
           ...this.extractDataFromGroup(state.mirrorNodes, 'Mirror node'),
           ...this.extractDataFromGroup(state.relayNodes, 'Relay node'),
-          ...this.extractDataFromGroup(state.consensusNodes, 'Consensus node'),
+          ...this.extractDataFromGroup(state.consensusNodes, 'Consensus node', state.haProxies),
           ...this.extractDataFromGroup(state.explorers, 'Explorer node'),
           ...this.extractDataFromGroup(state.blockNodes, 'Block node'),
         ]);
@@ -2833,14 +2802,14 @@ export class NodeCommandTasks {
     };
   }
 
-  public validateLocalPorts(): SoloListrTask<AnyListrContext> {
+  public validateLocalPorts(): SoloListrTask<NodeConnectionsContext> {
     return {
       title: 'Test local ports',
-      task: async ({config: {componentsData}}, task): Promise<SoloListr<AnyListrContext>> => {
-        const subTasks: SoloListrTask<AnyListrContext>[] = [];
+      task: async ({config: {check, componentsData}}, task): Promise<SoloListr<NodeConnectionsContext>> => {
+        const subTasks: SoloListrTask<NodeConnectionsContext>[] = [];
 
         for (const componentData of componentsData) {
-          subTasks.push(this.validateComponentData(componentData));
+          subTasks.push(this.validateComponentData(componentData, check));
         }
 
         return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
@@ -3931,6 +3900,30 @@ export class NodeCommandTasks {
         );
 
         for (const service of config.serviceMap.values()) {
+          // Disable the network-node autostart BEFORE killing the pod so the restarted
+          // pod does not auto-launch the JVM while fetchPlatformSoftware is still
+          // rm-ing and re-copying jars under data/lib (HederaNode.jar has an explicit
+          // Class-Path manifest; a JVM that lazy-loads a jar mid-rm crashes with
+          // NoSuchFileException). startNodes() re-enables autostart after the upload.
+          try {
+            const podReference: PodReference = PodReference.of(config.namespace, service.nodePodName);
+            const containerReference: ContainerReference = ContainerReference.of(
+              podReference,
+              constants.ROOT_CONTAINER,
+            );
+            await this.k8Factory
+              .getK8(service.context)
+              .containers()
+              .readByRef(containerReference)
+              .execContainer([
+                'bash',
+                '-c',
+                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
+              ]);
+          } catch {
+            // Best-effort: container may already be restarting; the kill below will follow
+          }
+
           await this.k8Factory
             .getK8(service.context)
             .pods()
@@ -4175,7 +4168,7 @@ export class NodeCommandTasks {
   public initialize(
     argv: ArgvStruct,
     configInit: ConfigBuilder,
-    lease: Lock | null,
+    lease?: Lock,
     shouldLoadNodeClient: boolean = true,
     validateRemoteConfig: boolean = true,
   ): SoloListrTask<AnyListrContext> {
@@ -4206,7 +4199,7 @@ export class NodeCommandTasks {
 
         await this.configManager.executePrompt(task, flagsToPrompt);
 
-        const config: any = await configInit(argv, context_, task, shouldLoadNodeClient);
+        const config: AnyListrContext = await configInit(argv, context_, task, shouldLoadNodeClient);
         context_.config = config;
         config.consensusNodes = this.remoteConfig.getConsensusNodes();
         config.contexts = this.remoteConfig.getContexts();
@@ -4354,6 +4347,7 @@ export class NodeCommandTasks {
           {name: 'explorer', labels: [constants.SOLO_EXPLORER_LABEL]},
           {name: 'block node', labels: [constants.SOLO_BLOCK_NODE_NAME_LABEL]},
           {name: 'ingress controller', labels: [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
+          {name: 'network load generator', labels: constants.NETWORK_LOAD_GENERATOR_POD_LABELS},
         ];
 
         // Create output directory structure - use custom dir if provided, otherwise use default
@@ -4545,7 +4539,10 @@ export class NodeCommandTasks {
   public downloadJavaFlightRecorderLogs(): SoloListrTask<NodeCollectJfrLogsContext> {
     return {
       title: 'Download Java Flight Recorder logs from node pod',
-      task: async (context_: NodeCollectJfrLogsContext): Promise<void> => {
+      task: async (
+        context_: NodeCollectJfrLogsContext,
+        task: SoloListrTaskWrapper<NodeCollectJfrLogsContext>,
+      ): Promise<void> => {
         this.logger.info(`Downloading Java Flight Recorder logs from node ${context_.config.nodeAlias}...`);
         const config: NodeCollectJfrLogsConfigClass = context_.config;
         const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
@@ -4571,13 +4568,24 @@ export class NodeCommandTasks {
         }
 
         const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
+        let dumpResult: string;
         try {
-          const result: string = await k8Container.execContainer(
-            `jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`,
-          );
-          this.logger.info(`JFR dump command output: ${result}`);
+          dumpResult = await k8Container.execContainer(`jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`);
+          this.logger.info(`JFR dump command output: ${dumpResult}`);
         } catch (error) {
           throw new SoloError(`Failed to create JFR recording on node pod ${nodeFullyQualifiedPodName}`, error);
+        }
+
+        // jcmd exits 0 even when no JFR recording is active and just prints an
+        // informational message. Detect that case and skip the task gracefully
+        // rather than failing the subsequent copy — performance-test runs
+        // without JFR enabled should not fail at teardown.
+        const jfrNotEnabledPattern: RegExp = /Could not find any recording|No recording (?:with|named)|No recordings/i;
+        if (jfrNotEnabledPattern.test(dumpResult)) {
+          const reason: string = `Java Flight Recorder is not enabled on node pod ${nodeFullyQualifiedPodName}`;
+          this.logger.warn(reason);
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey(reason)}`);
+          return;
         }
 
         try {

@@ -59,6 +59,48 @@ on:
         type: number
         required: false
         default: 3
+  workflow_call:
+    inputs:
+      use-released-solo:
+        description: "Use latest released Solo CLI (true) or build from source (false)"
+        type: boolean
+        required: false
+        default: false
+      use-local-build:
+        description: "Build consensus node from source using --local-build-path"
+        type: boolean
+        required: false
+        default: false
+      consensus-node-version:
+        description: "Consensus node version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      block-node-version:
+        description: "Block node chart version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      mirror-node-version:
+        description: "Mirror node version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      relay-version:
+        description: "JSON RPC Relay version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      explorer-version:
+        description: "Explorer version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      cycles:
+        description: "Number of cold/warm cycles to run"
+        type: number
+        required: false
+        default: 3
 
 defaults:
   run:
@@ -76,7 +118,7 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -135,11 +177,12 @@ jobs:
         id: versions
         run: |
           # Read defaults from version.ts and allow input overrides
-          DEFAULT_CN=$(awk -F"'" '/^export const HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_BN=$(awk -F"'" '/^export const BLOCK_NODE_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_MN=$(awk -F"'" '/^export const MIRROR_NODE_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_RELAY=$(awk -F"'" '/^export const HEDERA_JSON_RPC_RELAY_VERSION/ {print $(NF-1); exit}' version.ts)
-          DEFAULT_EXPLORER=$(awk -F"'" '/^export const EXPLORER_VERSION/ {print $(NF-1); exit}' version.ts)
+          source .github/workflows/script/helper.sh
+          DEFAULT_CN=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
+          DEFAULT_BN=$(extract_version BLOCK_NODE_VERSION version.ts)
+          DEFAULT_MN=$(extract_version MIRROR_NODE_VERSION version.ts)
+          DEFAULT_RELAY=$(extract_version HEDERA_JSON_RPC_RELAY_VERSION version.ts)
+          DEFAULT_EXPLORER=$(extract_version EXPLORER_VERSION version.ts)
 
           CN_VERSION="${{ inputs.consensus-node-version }}"
           BN_VERSION="${{ inputs.block-node-version }}"

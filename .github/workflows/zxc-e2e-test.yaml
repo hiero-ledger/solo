@@ -241,7 +241,7 @@ jobs:
     runs-on: ${{ inputs.runner || 'hiero-solo-linux-large' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -347,9 +347,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          source .github/workflows/script/helper.sh
 
           if [ -z "${{ inputs.consensus-node-version }}" ]; then
-            consensus_node_version="$(bash ./.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)"
+            consensus_node_version="$(extract_version HEDERA_PLATFORM_VERSION version.ts)"
           else
             consensus_node_version="${{ inputs.consensus-node-version }}"
           fi
@@ -395,7 +396,12 @@ jobs:
           max_attempts: 3
           timeout_minutes: 30
           command: |
-            export CONSENSUS_NODE_VERSION="${{ steps.resolve_consensus_java.outputs.consensus-node-version }}"
+            source .github/workflows/script/helper.sh
+            if [ -z "${{ inputs.consensus-node-version }}" ]; then
+                export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
+            else
+                export CONSENSUS_NODE_VERSION=${{ inputs.consensus-node-version }}
+            fi
             cd ..
             git clone https://github.com/hiero-ledger/hiero-consensus-node.git --depth 1 --branch ${CONSENSUS_NODE_VERSION}
             cd hiero-consensus-node
@@ -419,40 +425,6 @@ jobs:
               SOLO_TEST_CLUSTER=${{ inputs.cluster-name }} ./test/e2e/dual-cluster/setup-dual-e2e.sh
             fi
 
-      - name: Build Block Code Locally
-        if: ${{ runner.os == 'linux' && (inputs.test-script == 'test-e2e-block-node') && !cancelled() && !failure() }}
-        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
-        with:
-          max_attempts: 3
-          timeout_minutes: 20
-          command: |
-            TEST_LOCAL_BLOCK_NODE_VERSION="$(bash ./.github/workflows/script/extract-version.sh PREV_BLOCK_NODE_VERSION version-test.ts)"
-            echo "Using PREV_BLOCK_NODE_VERSION: ${TEST_LOCAL_BLOCK_NODE_VERSION}"
-            cd ..
-            git clone https://github.com/hiero-ledger/hiero-block-node.git --depth 1 --branch ${TEST_LOCAL_BLOCK_NODE_VERSION}
-            cd hiero-block-node
-            
-            # Configure apt to use multiple mirror sources with fallback
-            # This adds fallback mirrors while keeping the original sources
-            find . -name "Dockerfile*" -type f | while read dockerfile; do
-              # Create a backup of sources.list configuration in the Dockerfile
-              sed -i '/RUN apt-get update/i \
-            # Add fallback Ubuntu mirrors for reliability\n\
-            RUN echo "deb http://archive.ubuntu.com/ubuntu/ mantic main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
-                echo "deb http://archive.ubuntu.com/ubuntu/ mantic-updates main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
-                echo "deb http://archive.ubuntu.com/ubuntu/ mantic-security main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
-                echo "deb http://security.ubuntu.com/ubuntu/ mantic-security main restricted universe multiverse" >> /etc/apt/sources.list && \\\n\
-                echo "Acquire::Retries \"3\";" > /etc/apt/apt.conf.d/80-retries && \\\n\
-                echo "Acquire::http::Timeout \"30\";" >> /etc/apt/apt.conf.d/80-retries && \\\n\
-                echo "Acquire::https::Timeout \"30\";" >> /etc/apt/apt.conf.d/80-retries\n' "$dockerfile"
-            done
-            
-            ./gradlew :block-node-app:createDockerImage
-            timeout 30 kind get clusters
-            kind load docker-image "block-node-server:${TEST_LOCAL_BLOCK_NODE_VERSION}" --name ${{ inputs.cluster-name }}-c1
-            ${{ env.CG_EXEC }} ./gradlew :block-node-app:createDockerImage
-            cd ../solo
-
       - name: Run E2E Tests
         id: run-e2e-tests
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
@@ -460,6 +432,7 @@ jobs:
         run: |
           export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
+          source .github/workflows/script/helper.sh
           if [[ -z "${{ inputs.consensus-node-version }}" ]]; then
               if [[ "${{ inputs.local-java-build }}" != "true" ]]; then
                   echo "No consensus node version provided, using default from version-test.ts"
@@ -467,7 +440,7 @@ jobs:
                   if [[ "${{ inputs.test-script }}" == "test-e2e-block-node" ]]; then
                     echo "Use default from version.ts for block node test"
                   else
-                    export CONSENSUS_NODE_VERSION="$(bash ./.github/workflows/script/extract-version.sh HEDERA_PLATFORM_VERSION version.ts)"
+                    export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
                   fi
               fi
           else
@@ -488,6 +461,10 @@ jobs:
           else 
             echo "SOLO_ONE_SHOT_MINIMAL_SETUP=true" >> .env
             echo "FORCE_PODMAN=true" >> .env
+          fi
+          
+          if [[ "${{ inputs.custom-job-label }}" == "One Shot Single" ]]; then
+            echo "ENABLE_IMAGE_CACHE=true" >> .env
           fi
           
           cat .env
