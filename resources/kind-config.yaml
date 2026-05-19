@@ -14,3 +14,4 @@ nodes:
         apiServer:
           extraArgs:
             profiling: "false"
+            watch-cache: "false"
