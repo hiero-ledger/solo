@@ -10,18 +10,15 @@ includes:
   install:
     taskfile: ./Taskfile.install.yaml
     flatten: true
-  mutate:
-    taskfile: ./Taskfile.mutate.yaml
-    flatten: true
   npmjs:
     taskfile: ./Taskfile.npmjs.yaml
     flatten: true
 env:
   HUGO_ENVIRONMENT: production
   HUGO_ENV: production
-  HUGO_ORIGIN: https://solo.hiero.org/
-  HUGO_LOCAL_ORIGIN: http://localhost:1313/
-  HUGO_HOST: solo.hiero.org
+  HUGO_ORIGIN: https://hiero-ledger.github.io/solo/
+  HUGO_LOCAL_ORIGIN: http://localhost:1313/solo/
+  HUGO_HOST: hiero-ledger.github.io
   HUGO_SOLO_VERSION: main
   HUGO_BASEPATH: /
   PATH:
@@ -47,24 +44,6 @@ tasks:
     cmds:
       - task: "check-doc-dir"
       - task: "install"
-      - task: "mutate:readme"
-      - task: "mutate:dev"
-      - task: "mutate:address-book-example"
-      - task: "mutate:external-database-test-example"
-      - task: "mutate:hardhat-with-solo-example"
-      - task: "mutate:local-build-with-custom-config-example"
-      - task: "mutate:network-with-domain-names-example"
-      - task: "mutate:node-create-example"
-      - task: "mutate:node-delete-example"
-      - task: "mutate:node-update-example"
-      - task: "mutate:one-shot-falcon-example"
-      - task: "mutate:rapid-fire-example"
-      - task: "mutate:state-save-and-restore-example"
-      - task: "mutate:multicluster-backup-restore-example"
-      - task: "mutate:version-upgrade-test-example"
-      - task: "mutate:ledger-reset-smoke-example"
-      - task: "mutate:consensus-node-jvm-parameters-example"
-      - task: "mutate:one-shot-local-build-example"
       - task: "build:all"
 
   check-doc-dir:
@@ -95,7 +74,7 @@ tasks:
     cmds:
       - task: "build:typedoc"
       - task: "build:cli:help"
-      - task: "build:guide"
+      - task: "build:solo:command:output"
       - task: "solo:version"
       - task: "npmjs:latest:solo:version"
       - task: "npmjs:list:solo:versions"
@@ -132,7 +111,7 @@ tasks:
       - version.ts
       - solo.ts
       - docs/site/scripts/generateHelp.mjs
-    generates:
+    generates: # TODO change location and ensure gitignore
       - docs/site/content/en/docs/solo-commands.md
     cmds:
       - printf "\r::group::Generating CLI help documentation\n"
@@ -142,22 +121,16 @@ tasks:
       - (cd docs/site/ && node scripts/generateHelp.mjs)
       - printf "\r::endgroup::--------------\n"
 
-  build:guide:
-    desc: "Build Solo User Guide"
+  build:solo:command:output:
+    desc: "Build Solo Command Output"
     silent: true
     dir: ../..
     sources:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/site/content/en/templates/solo-user-guide.template.md
-      - docs/site/content/en/templates/advanced-deployments.template.md
-      - docs/site/content/en/templates/example-index.template.md
       - docs/site/scripts/wrapperForUpdateDocs.mjs
       - docs/site/scripts/executeUpdateDocs.mjs
-    generates:
-      - docs/site/content/en/docs/solo-user-guide.md
-      - docs/site/content/en/docs/advanced-deployments.md
     cmds:
       - printf "\r::group::Building Solo User Guide\n"
       - rm -f docs/site/content/en/solo-user-guide.md
@@ -211,7 +184,7 @@ tasks:
          echo "    - {version: $SOLO_VERSION, url: /$SOLO_VERSION}">> docs/site/hugo.yaml
         fi
 
-  build:doc:artifacts:
+  build:doc:artifacts: # TODO no longer need this artifact
     desc: "Builds a ./build/latest.tar.gz file and a ./build/${SOLO_VERSION}.tar.gz file from the directories in the public directory"
     silent: true
     preconditions:
