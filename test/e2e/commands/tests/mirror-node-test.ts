@@ -106,12 +106,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
     const k8: K8 = k8Factory.getK8(lastContext);
-    // Use the HAProxy chart name label so the selector works regardless of whether the Helm
-    // release uses the legacy namespace-based name (haproxy-ingress-<namespace>) or the
-    // component-ID-based name (haproxy-ingress-<id>).  Then filter by pod name prefix to
-    // pick the mirror ingress controller pod specifically (not the explorer's HAProxy pod).
     const haproxyPods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]);
-
     const mirrorIngressPod: Pod | undefined = haproxyPods.find(
       (pod: Pod): boolean => !!pod.podReference?.name?.name?.startsWith(`mirror-ingress-controller-${testName}`),
     );

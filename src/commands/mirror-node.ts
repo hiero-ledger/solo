@@ -657,7 +657,7 @@ export class MirrorNodeCommand extends BaseCommand {
       }
 
       // TLS secret is namespace-scoped: always create it so the ingress can reference it,
-      // even when the cluster-scoped IngressClass already exists from a prior run.
+      // even when the cluster-scoped IngressClass already exists.
       await KeyManager.createTlsSecret(
         this.k8Factory,
         config.namespace,
