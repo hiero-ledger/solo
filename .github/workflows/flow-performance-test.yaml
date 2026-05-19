@@ -30,7 +30,7 @@ on:
         description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)"
         type: string
         required: false
-        default: "v0.74.0-rc.1"
+        default: ""
   pull_request:
     types:
       - opened
