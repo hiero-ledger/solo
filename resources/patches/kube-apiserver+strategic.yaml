@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+  - name: kube-apiserver
+    env:
+    - name: GOMEMLIMIT
+      value: "384MiB"
+    - name: GOGC
+      value: "50"
