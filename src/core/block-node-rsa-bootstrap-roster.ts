@@ -72,14 +72,14 @@ export class BlockNodeRsaBootstrapRoster {
     return BlockNodeRsaBootstrapRoster.buildBlockNodeRsaBootstrapRosterJson(nodeAddresses);
   }
 
-  private static extractRsaPublicKeyHexFromPemCertificate(pemCertificate: string): string {
+  public static extractRsaPublicKeyHexFromPemCertificate(pemCertificate: string): string {
     const cert: X509Certificate = new X509Certificate(pemCertificate);
     const publicKeyDer: Buffer = cert.publicKey.export({type: 'spki', format: 'der'}) as Buffer;
 
     return publicKeyDer.toString('hex');
   }
 
-  private static buildBlockNodeRsaBootstrapRosterJson(nodeAddresses: BlockNodeRsaRosterNodeAddress[]): string {
+  public static buildBlockNodeRsaBootstrapRosterJson(nodeAddresses: BlockNodeRsaRosterNodeAddress[]): string {
     return JSON.stringify(
       {
         // eslint-disable-next-line unicorn/no-array-sort

@@ -188,6 +188,7 @@ export class BlockNodeCommand extends BaseCommand {
   private static readonly ADD_EXTERNAL_CONFIGS_NAME: string = 'addExternalConfigs';
 
   private static readonly DELETE_CONFIGS_NAME: string = 'deleteExternalConfigs';
+
   private static readonly MIGRATION_COMPONENT_KEY: string = 'block-node';
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
@@ -1470,92 +1471,21 @@ export class BlockNodeCommand extends BaseCommand {
       `${config.releaseName}-rsa-bootstrap-values.yaml`,
     );
 
-    // The block-node chart does not expose a dedicated RSA bootstrap file mount.
-    // Use the existing blockNode.initContainers hook to write the generated roster into
-    // verification-storage before the main JVM starts, then point app.state.rsaBootstrapFilePath
-    // to that file through APP_STATE_RSA_BOOTSTRAP_FILE_PATH.
+    // The block-node chart owns writing the RSA bootstrap roster into the pod before JVM startup.
+    // Solo only supplies the generated roster through chart-native values.
     fs.writeFileSync(
       valuesFile,
       yaml.stringify({
         blockNode: {
-          config: {
-            APP_STATE_RSA_BOOTSTRAP_FILE_PATH: constants.BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH,
+          rsaBootstrap: {
+            enabled: true,
+            rosterBase64,
           },
-          initContainers: [
-            this.buildDefaultBlockNodeInitStorageDirsContainer(),
-            this.buildRsaBootstrapRosterInitContainer(rosterBase64),
-          ],
         },
       }),
     );
 
     return valuesFile;
-  }
-
-  private buildDefaultBlockNodeInitStorageDirsContainer(): object {
-    // The block-node chart exposes blockNode.initContainers as a replacement list.
-    // Keep the chart's default init-storage-dirs container when adding the RSA bootstrap writer.
-    return {
-      name: 'init-storage-dirs',
-      image: 'busybox',
-      command: [
-        'sh',
-        '-c',
-        [
-          'mkdir -p /live-pvc/live-data && \\',
-          'chown 2000:2000 /live-pvc/live-data && \\',
-          'chmod 700 /live-pvc/live-data && \\',
-          'mkdir -p /archive-pvc/archive-data && \\',
-          'chown 2000:2000 /archive-pvc/archive-data && \\',
-          'chmod 700 /archive-pvc/archive-data && \\',
-          'chown 2000:2000 /verification-pvc && \\',
-          'chmod 700 /verification-pvc',
-        ].join('\n'),
-      ],
-      volumeMounts: [
-        {
-          name: 'live-storage',
-          mountPath: '/live-pvc',
-        },
-        {
-          name: 'archive-storage',
-          mountPath: '/archive-pvc',
-        },
-        {
-          name: 'verification-storage',
-          mountPath: '/verification-pvc',
-        },
-      ],
-    };
-  }
-
-  private buildRsaBootstrapRosterInitContainer(rosterBase64: string): object {
-    return {
-      name: 'write-rsa-bootstrap-roster',
-      image: 'busybox',
-      command: [
-        'sh',
-        '-c',
-        [
-          `mkdir -p ${constants.BLOCK_NODE_RSA_BOOTSTRAP_VERIFICATION_MOUNT_PATH} && \\`,
-          `printf "%s" "$RSA_BOOTSTRAP_ROSTER_BASE64" | base64 -d > ${constants.BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH} && \\`,
-          `chown 2000:2000 ${constants.BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH} && \\`,
-          `chmod 0444 ${constants.BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH}`,
-        ].join('\n'),
-      ],
-      env: [
-        {
-          name: 'RSA_BOOTSTRAP_ROSTER_BASE64',
-          value: rosterBase64,
-        },
-      ],
-      volumeMounts: [
-        {
-          name: 'verification-storage',
-          mountPath: constants.BLOCK_NODE_RSA_BOOTSTRAP_VERIFICATION_MOUNT_PATH,
-        },
-      ],
-    };
   }
 
   public async close(): Promise<void> {} // no-op
