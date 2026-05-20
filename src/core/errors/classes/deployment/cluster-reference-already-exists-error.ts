@@ -12,6 +12,8 @@ export class ClusterReferenceAlreadyExistsError extends SoloError {
     super({
       message: `Cluster ref ${clusterReference} is already added for deployment`,
       code: ErrorCodeRegistry.CLUSTER_REF_ALREADY_EXISTS,
+      troubleshootingSteps:
+        'List current cluster references: solo cluster-ref config list\nDisconnect it first if you want to re-add it: solo cluster-ref config disconnect --cluster-ref <name>',
     });
   }
 }

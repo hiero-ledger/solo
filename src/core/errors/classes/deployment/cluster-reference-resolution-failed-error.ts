@@ -12,6 +12,8 @@ export class ClusterReferenceResolutionFailedError extends SoloError {
     super({
       message: `Failed to get cluster reference for deployment ${deployment}`,
       code: ErrorCodeRegistry.CLUSTER_REFERENCE_RESOLUTION_FAILED,
+      troubleshootingSteps:
+        'Verify the deployment has clusters attached: solo deployment config info --deployment <name>\nIf the issue persists, please report it at https://github.com/hiero-ledger/solo/issues',
     });
   }
 }

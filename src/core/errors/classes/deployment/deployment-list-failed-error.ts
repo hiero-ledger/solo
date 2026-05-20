@@ -9,6 +9,13 @@ export class DeploymentListFailedError extends SoloError {
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
   public constructor(cause?: Error) {
-    super({message: 'Error listing deployments', code: ErrorCodeRegistry.DEPLOYMENT_LIST_FAILED}, cause);
+    super(
+      {
+        message: 'Error listing deployments',
+        code: ErrorCodeRegistry.DEPLOYMENT_LIST_FAILED,
+        troubleshootingSteps: 'Check cluster connectivity: kubectl get nodes\nCheck logs for details: tail -f ~/.solo/logs/solo.log',
+      },
+      cause,
+    );
   }
 }

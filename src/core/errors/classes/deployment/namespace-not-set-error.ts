@@ -9,6 +9,11 @@ export class NamespaceNotSetError extends SoloError {
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;
 
   public constructor() {
-    super({message: 'Namespace not set', code: ErrorCodeRegistry.NAMESPACE_NOT_SET});
+    super({
+      message: 'Namespace not set',
+      code: ErrorCodeRegistry.NAMESPACE_NOT_SET,
+      troubleshootingSteps:
+        'Ensure a namespace is specified: pass --namespace <name> to your command\nCheck deployment config: solo deployment config info --deployment <name>',
+    });
   }
 }

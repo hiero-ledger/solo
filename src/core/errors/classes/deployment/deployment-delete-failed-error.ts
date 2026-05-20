@@ -9,6 +9,13 @@ export class DeploymentDeleteFailedError extends SoloError {
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
   public constructor(cause?: Error) {
-    super({message: 'Error deleting deployment', code: ErrorCodeRegistry.DEPLOYMENT_DELETE_FAILED}, cause);
+    super(
+      {
+        message: 'Error deleting deployment',
+        code: ErrorCodeRegistry.DEPLOYMENT_DELETE_FAILED,
+        troubleshootingSteps: 'Check cluster connectivity: kubectl get nodes\nCheck logs for details: tail -f ~/.solo/logs/solo.log',
+      },
+      cause,
+    );
   }
 }

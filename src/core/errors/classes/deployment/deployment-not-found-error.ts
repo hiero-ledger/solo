@@ -9,6 +9,14 @@ export class DeploymentNotFoundError extends SoloError {
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
 
   public constructor(message: string, cause?: Error) {
-    super({message, code: ErrorCodeRegistry.DEPLOYMENT_NOT_FOUND}, cause);
+    super(
+      {
+        message,
+        code: ErrorCodeRegistry.DEPLOYMENT_NOT_FOUND,
+        troubleshootingSteps:
+          'List available deployments: solo deployment config list\nCreate a deployment if needed: solo deployment config create',
+      },
+      cause,
+    );
   }
 }
