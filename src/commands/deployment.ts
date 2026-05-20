@@ -355,8 +355,8 @@ export class DeploymentCommand extends BaseCommand {
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-      } catch (error: Error | unknown) {
-        throw new SoloErrors.deployment.deleteFailed(error instanceof Error ? error : undefined);
+      } catch (error) {
+        throw new SoloErrors.deployment.deleteFailed(error);
       }
     }
 
@@ -386,8 +386,8 @@ export class DeploymentCommand extends BaseCommand {
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-      } catch (error: Error | unknown) {
-        throw new SoloErrors.deployment.clusterAddFailed(error instanceof Error ? error : undefined);
+      } catch (error) {
+        throw new SoloErrors.deployment.clusterAddFailed(error);
       }
     }
 
@@ -492,8 +492,8 @@ export class DeploymentCommand extends BaseCommand {
 
     try {
       await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloErrors.deployment.listFailed(error instanceof Error ? error : undefined);
+    } catch (error) {
+      throw new SoloErrors.deployment.listFailed(error);
     }
 
     return true;

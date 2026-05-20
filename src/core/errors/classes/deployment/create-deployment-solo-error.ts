@@ -13,8 +13,7 @@ export class CreateDeploymentSoloError extends SoloError {
       {
         message: 'Error creating deployment',
         code: ErrorCodeRegistry.CREATE_DEPLOYMENT,
-        troubleshootingSteps:
-          'Check the logs for details: tail -f ~/.solo/logs/solo.log\nVerify cluster connectivity: kubectl get nodes\nReview your configuration: solo deployment config info',
+        troubleshootingSteps: 'Check the logs for details: tail -n 100 ~/.solo/logs/solo.log',
       },
       cause,
     );

@@ -13,7 +13,10 @@ export class DeploymentListPortsFailedError extends SoloError {
       {
         message: 'Error listing deployment ports',
         code: ErrorCodeRegistry.DEPLOYMENT_LIST_PORTS_FAILED,
-        troubleshootingSteps: 'Check cluster connectivity: kubectl get nodes\nCheck logs for details: tail -f ~/.solo/logs/solo.log',
+        troubleshootingSteps:
+          'Check logs for details: tail -n 100 ~/.solo/logs/solo.log\n' +
+          'Verify the Kubernetes API server is reachable: kubectl cluster-info\n' +
+          'List port-forwards in the namespace to check for any issues: kubectl get port-forwards -n <namespace>',
       },
       cause,
     );

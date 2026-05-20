@@ -6,14 +6,15 @@ import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
 export class NamespaceNotSetError extends SoloError {
   protected override readonly retryable: boolean = false;
-  protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;
+  protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
 
   public constructor() {
     super({
       message: 'Namespace not set',
       code: ErrorCodeRegistry.NAMESPACE_NOT_SET,
       troubleshootingSteps:
-        'Ensure a namespace is specified: pass --namespace <name> to your command\nCheck deployment config: solo deployment config info --deployment <name>',
+        'Ensure a namespace is specified: pass --namespace <name> to your command\n' +
+        'Check deployment config: solo deployment config info --deployment <name>',
     });
   }
 }

@@ -15,7 +15,7 @@ export class DeploymentAlreadyExistsSoloError extends SoloError {
         message: `A deployment named '${deploymentName}' already exists. Please select a different name`,
         code: ErrorCodeRegistry.DEPLOYMENT_NAME_ALREADY_EXISTS,
         troubleshootingSteps:
-          'Check existing deployments: solo deployment config list\nChoose a different name for your deployment',
+          'Check existing deployments: solo deployment config list\n' + 'Choose a different name for your deployment',
       },
       cause,
     );

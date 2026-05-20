@@ -13,7 +13,7 @@ export class DeploymentListFailedError extends SoloError {
       {
         message: 'Error listing deployments',
         code: ErrorCodeRegistry.DEPLOYMENT_LIST_FAILED,
-        troubleshootingSteps: 'Check cluster connectivity: kubectl get nodes\nCheck logs for details: tail -f ~/.solo/logs/solo.log',
+        troubleshootingSteps: 'Check logs for details: tail -n 100 ~/.solo/logs/solo.log',
       },
       cause,
     );

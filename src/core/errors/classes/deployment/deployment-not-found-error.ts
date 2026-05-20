@@ -14,7 +14,8 @@ export class DeploymentNotFoundError extends SoloError {
         message,
         code: ErrorCodeRegistry.DEPLOYMENT_NOT_FOUND,
         troubleshootingSteps:
-          'List available deployments: solo deployment config list\nCreate a deployment if needed: solo deployment config create',
+          'List available deployments: solo deployment config list\n' +
+          'Create a deployment if needed: solo deployment config create',
       },
       cause,
     );

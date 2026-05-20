@@ -13,7 +13,9 @@ export class DeploymentDeleteFailedError extends SoloError {
       {
         message: 'Error deleting deployment',
         code: ErrorCodeRegistry.DEPLOYMENT_DELETE_FAILED,
-        troubleshootingSteps: 'Check cluster connectivity: kubectl get nodes\nCheck logs for details: tail -f ~/.solo/logs/solo.log',
+        troubleshootingSteps:
+          'Check logs for details: tail -n 100 ~/.solo/logs/solo.log\n' +
+          'Verify cluster references and their contexts are valid: solo cluster-ref config list',
       },
       cause,
     );
