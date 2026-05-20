@@ -291,4 +291,45 @@ export class BlockNodeTest extends BaseCommandTest {
       }
     });
   }
+
+  public static verifyRsaBootstrapRoster(options: BaseTestOptions, blockNodeId: number): void {
+    const {namespace, contexts, testName} = options;
+
+    it(`${testName}: verify RSA bootstrap roster for block node ${blockNodeId}`, async (): Promise<void> => {
+      const blockNodeContainer: Container = await new K8Helper(contexts[0]).getBlockNodeContainer(
+        namespace,
+        blockNodeId,
+      );
+
+      expect(blockNodeContainer).to.not.be.undefined;
+
+      const rsaBootstrapFilePath: string = await blockNodeContainer.execContainer([
+        'bash',
+        '-c',
+        'printenv APP_STATE_RSA_BOOTSTRAP_FILE_PATH',
+      ]);
+
+      expect(rsaBootstrapFilePath.trim()).to.equal(constants.BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH);
+
+      const rosterJson: string = await blockNodeContainer.execContainer([
+        'bash',
+        '-c',
+        `cat ${constants.BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH}`,
+      ]);
+
+      const roster: {
+        nodeAddress: Array<{
+          nodeId: number;
+          RSAPubKey: string;
+        }>;
+      } = JSON.parse(rosterJson);
+
+      expect(roster.nodeAddress).to.not.be.empty;
+
+      for (const nodeAddress of roster.nodeAddress) {
+        expect(nodeAddress.nodeId).to.be.a('number');
+        expect(nodeAddress.RSAPubKey).to.match(/^[\da-f]+$/);
+      }
+    }).timeout(Duration.ofMinutes(2).toMillis());
+  }
 }

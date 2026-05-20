@@ -46,4 +46,10 @@ export class K8Helper {
       .list(namespace, Templates.renderBlockNodeLabels(id))
       .then((pods: Pod[]): Pod => pods[0]);
   }
+
+  public async getBlockNodeContainer(namespace: NamespaceName, id: ComponentId): Promise<Container> {
+    return await this.getBlockNodePod(namespace, id)
+      .then((pod): ContainerReference => ContainerReference.of(pod.podReference, constants.BLOCK_NODE_CONTAINER_NAME))
+      .then((containerReference): Container => this.k8.containers().readByRef(containerReference));
+  }
 }

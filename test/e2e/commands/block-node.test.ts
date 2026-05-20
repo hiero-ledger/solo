@@ -88,6 +88,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         BlockNodeTest.testBlockNode(options, 1);
 
         BlockNodeTest.add(options, ['node2']);
+        BlockNodeTest.verifyRsaBootstrapRoster(options, 2);
         DeploymentTest.info(options);
         DeploymentTest.verifyDeploymentConfigInfo(options);
 
