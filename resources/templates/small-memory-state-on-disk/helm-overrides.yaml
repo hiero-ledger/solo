@@ -4,4 +4,4 @@ defaults:
       requests:
         memory: 256Mi
       limits:
-        memory: 768Mi
+        memory: 896Mi
