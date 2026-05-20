@@ -19,10 +19,10 @@ kubeadmConfigPatches:
     patches:
       directory: /patches
 networking:
-  #  apiServerAddress: "172.19.0.2"
-  #  apiServerPort: 6443
-  podSubnet: '10.10.0.0/16'
-  serviceSubnet: '10.20.0.0/16'
+#  apiServerAddress: "172.19.0.2"
+#  apiServerPort: 6443
+  podSubnet: "10.10.0.0/16"
+  serviceSubnet: "10.20.0.0/16"
 containerdConfigPatches:
   - |-
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
