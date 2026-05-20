@@ -1503,7 +1503,7 @@ export class MirrorNodeCommand extends BaseCommand {
               ).greaterThanOrEqual(versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_PINGER_ENV_VARS_UPDATE);
               if (updatePingerEnvironmentVariables) {
                 config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_REST=http://${this.renderReleaseName(context_.config.id)}-restjava:80`;
-                config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_NETWORK=other`;
+                config.valuesArg += ' --set pinger.env.HIERO_MIRROR_PINGER_NETWORK=other';
               }
 
               const operatorId: string =
