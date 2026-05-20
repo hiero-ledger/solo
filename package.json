@@ -14,7 +14,8 @@
     "solo-test": "tsx --no-deprecation --no-warnings solo.ts",
     "solo-test-debug": "tsx --inspect-brk --no-deprecation --no-warnings solo.ts",
     "solo": "node --no-deprecation --no-warnings dist/solo.js",
-    "prepare": "node c8-nyc-bridge.mjs"
+    "prepare": "node c8-nyc-bridge.mjs",
+    "postinstall": "node scripts/postinstall.mjs"
   },
   "keywords": [
     "solo",

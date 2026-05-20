@@ -110,7 +110,7 @@ then
 fi
 
 echo "::group::Prerequisites"
-npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
+SOLO_NO_CACHE=true npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
 solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e
