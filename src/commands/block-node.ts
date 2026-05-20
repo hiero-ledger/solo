@@ -539,7 +539,6 @@ export class BlockNodeCommand extends BaseCommand {
           title: 'Prepare RSA bootstrap roster',
           task: async ({config}): Promise<void> => {
             config.rsaBootstrapValuesFile = await this.prepareRsaBootstrapValuesFile(config);
-            console.log('RSA bootstrap values file:', config.rsaBootstrapValuesFile);
           },
         },
         this.addBlockNodeComponent(),
