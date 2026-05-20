@@ -1496,6 +1496,16 @@ export class MirrorNodeCommand extends BaseCommand {
                 config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
               }
 
+              // This is the mirror node version that switches the rest url configuration for the pinger from the rest to the restjava
+              // service. The configuration needs to be updated when an upgrade crosses this version threshold.
+              const updatePingerEnvironmentVariables: boolean = new SemanticVersion<string>(
+                config.mirrorNodeVersion,
+              ).greaterThanOrEqual(versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_PINGER_ENV_VARS_UPDATE);
+              if (updatePingerEnvironmentVariables) {
+                config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_REST=http://${this.renderReleaseName(context_.config.id)}-restjava:80`;
+                config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_NETWORK=other`;
+              }
+
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
               const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
