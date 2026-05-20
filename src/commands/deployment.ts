@@ -778,7 +778,9 @@ export class DeploymentCommand extends BaseCommand {
 
           // if the user can't be prompted for '--num-consensus-nodes' fail
           if (!numberOfConsensusNodes && quiet) {
-            throw new SoloError(`--${flags.numberOfConsensusNodes.name} must be specified ${DeploymentStates.PRE_GENESIS}`);
+            throw new SoloError(
+              `--${flags.numberOfConsensusNodes.name} must be specified ${DeploymentStates.PRE_GENESIS}`,
+            );
           }
 
           // prompt the user for the '--num-consensus-nodes'
