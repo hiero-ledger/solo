@@ -70,6 +70,8 @@ import {type SoloConfigSchema} from '../../data/schema/model/solo/solo-config-sc
 import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
 import {DefaultOneShotCommand} from '../../commands/one-shot/default-one-shot.js';
+import {DefaultOneShotDeployOrchestrator} from '../../commands/one-shot/orchestrator/deploy/default-one-shot-deploy-orchestrator.js';
+import {DefaultOneShotDestroyOrchestrator} from '../../commands/one-shot/orchestrator/destroy/default-one-shot-destroy-orchestrator.js';
 import {DefaultTaskList} from '../task-list/default-task-list.js';
 import {Commands} from '../../commands/commands.js';
 import {BlockCommandDefinition} from '../../commands/command-definitions/block-command-definition.js';
@@ -192,6 +194,8 @@ export class Container {
       new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
       new SingletonContainer(InjectTokens.OneShotState, OneShotState),
+      new SingletonContainer(InjectTokens.OneShotDeployOrchestrator, DefaultOneShotDeployOrchestrator),
+      new SingletonContainer(InjectTokens.OneShotDestroyOrchestrator, DefaultOneShotDestroyOrchestrator),
       new SingletonContainer(InjectTokens.OneShotCommand, DefaultOneShotCommand),
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),

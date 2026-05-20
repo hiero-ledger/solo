@@ -14,7 +14,8 @@
     "solo-test": "tsx --no-deprecation --no-warnings solo.ts",
     "solo-test-debug": "tsx --inspect-brk --no-deprecation --no-warnings solo.ts",
     "solo": "node --no-deprecation --no-warnings dist/solo.js",
-    "prepare": "node c8-nyc-bridge.mjs"
+    "prepare": "node c8-nyc-bridge.mjs",
+    "postinstall": "node scripts/postinstall.mjs"
   },
   "keywords": [
     "solo",
@@ -57,7 +58,7 @@
     "tsyringe-neo": "5.1.0",
     "uuid": "14.0.0",
     "validator": "13.15.35",
-    "ws": "8.20.0",
+    "ws": "8.20.1",
     "yaml": "2.8.4",
     "yargs": "18.0.0"
   },
@@ -87,7 +88,7 @@
     "chai": "6.2.2",
     "chai-as-promised": "8.0.2",
     "cross-env": "10.1.0",
-    "dpdm": "4.0.1",
+    "dpdm": "4.2.0",
     "eslint": "9.39.2",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-headers": "1.3.4",
