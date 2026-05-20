@@ -73,6 +73,29 @@ export interface DeploymentAddClusterContext {
   config: DeploymentAddClusterConfig;
 }
 
+interface PortEntry {
+  componentId: number;
+  localPort: number;
+  podPort: number;
+}
+
+function collectPortEntries(components: BaseStateSchema[]): PortEntry[] {
+  const entries: PortEntry[] = [];
+
+  for (const component of components) {
+    const portForwardConfigs: PortForwardConfig[] = component.metadata?.portForwardConfigs || [];
+
+    for (const portForwardConfig of portForwardConfigs) {
+      entries.push({
+        componentId: component.metadata.id,
+        localPort: portForwardConfig.localPort,
+        podPort: portForwardConfig.podPort,
+      });
+    }
+  }
+  return entries;
+}
+
 @injectable()
 export class DeploymentCommand extends BaseCommand {
   public constructor(@inject(InjectTokens.ClusterCommandTasks) private readonly tasks: ClusterCommandTasks) {
@@ -587,36 +610,16 @@ export class DeploymentCommand extends BaseCommand {
             const {deployment, namespace, clusterReference, output} = config;
             const state: DeploymentStateSchema = this.remoteConfig.configuration.state;
 
-            const collectEntries: (components: BaseStateSchema[]) => PortEntry[] = (
-              components: BaseStateSchema[],
-            ): PortEntry[] => {
-              const entries: PortEntry[] = [];
-
-              for (const component of components) {
-                const portForwardConfigs: PortForwardConfig[] = component.metadata?.portForwardConfigs || [];
-
-                for (const portForwardConfig of portForwardConfigs) {
-                  entries.push({
-                    componentId: component.metadata.id,
-                    localPort: portForwardConfig.localPort,
-                    podPort: portForwardConfig.podPort,
-                  });
-                }
-              }
-
-              return entries;
-            };
-
             const report: PortsReport = {
               deployment,
               clusterReference,
               namespace: namespace.name,
               services: {
-                consensusNodeGrpc: collectEntries(state.haProxies || []),
-                mirrorNodeRest: collectEntries(state.mirrorNodes || []),
-                jsonRpcRelay: collectEntries(state.relayNodes || []),
-                explorer: collectEntries(state.explorers || []),
-                blockNode: collectEntries(state.blockNodes || []),
+                consensusNodeGrpc: collectPortEntries(state.haProxies || []),
+                mirrorNodeRest: collectPortEntries(state.mirrorNodes || []),
+                jsonRpcRelay: collectPortEntries(state.relayNodes || []),
+                explorer: collectPortEntries(state.explorers || []),
+                blockNode: collectPortEntries(state.blockNodes || []),
               },
             };
 
@@ -1100,14 +1103,21 @@ export class DeploymentCommand extends BaseCommand {
                   .get(clusterReference)
                   ?.toString();
                 const k8Client: K8 = this.k8Factory.getK8(context);
+                const namespaceName: NamespaceName = NamespaceName.of(namespace);
+                const podName: PodName | null = await this.getPodNameForComponent(
+                  component,
+                  type,
+                  k8Client,
+                  namespaceName,
+                );
 
                 for (const portForwardConfig of component.metadata.portForwardConfigs) {
                   totalChecked++;
                   const {localPort, podPort} = portForwardConfig;
                   const componentLabel: string = `${type} ${component.metadata.id}`;
 
-                  // Check if port-forward is running
-                  const isRunning: boolean = await this.isPortForwardRunning(localPort);
+                  // Check if port-forward is running against the current pod target.
+                  const isRunning: boolean = await this.isPortForwardRunning(localPort, podName?.toString());
 
                   if (isRunning) {
                     alreadyRunningCount++;
@@ -1120,18 +1130,14 @@ export class DeploymentCommand extends BaseCommand {
                     this.logger.showUser(chalk.yellow(missingDetail));
 
                     try {
-                      // Find the pod reference for this component
-                      const namespaceName: NamespaceName = NamespaceName.of(namespace);
-                      const podName: PodName | null = await this.getPodNameForComponent(
-                        component,
-                        type,
-                        k8Client,
-                        namespaceName,
-                      );
-
                       if (podName) {
                         // Re-enable port forward
                         const podReference: PodReference = PodReference.of(namespaceName, podName);
+
+                        // Clear any stale process still holding the configured local port
+                        // so the restored port-forward binds to the expected port instead
+                        // of allocating the next free one.
+                        await k8Client.pods().readByReference(podReference).stopPortForward(localPort);
 
                         // portForward parameters:
                         // - localPort: the port to forward to on localhost
@@ -1187,7 +1193,7 @@ export class DeploymentCommand extends BaseCommand {
   /**
    * Check if a port-forward process is running on the specified port
    */
-  private async isPortForwardRunning(port: number): Promise<boolean> {
+  private async isPortForwardRunning(port: number, targetPodName?: string): Promise<boolean> {
     // Validate port before process matching.
     if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
       throw new SoloError(`Invalid port number: ${port}`);
@@ -1197,7 +1203,15 @@ export class DeploymentCommand extends BaseCommand {
       const foundProcess: ProcessInfo[] = await find('name', 'port-forward', {skipSelf: true});
       return foundProcess.some((process: ProcessInfo): boolean => {
         const command: string = (process.cmd ?? '').toLowerCase();
-        return command.includes('port-forward') && command.includes(`${port}:`);
+        if (!command.includes('port-forward') || !command.includes(`${port}:`)) {
+          return false;
+        }
+
+        if (!targetPodName) {
+          return true;
+        }
+
+        return command.includes(targetPodName.toLowerCase());
       });
     } catch {
       return false;
