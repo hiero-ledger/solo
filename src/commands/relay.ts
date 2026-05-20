@@ -447,6 +447,12 @@ export class RelayCommand extends BaseCommand {
             DeploymentPhase.DEPLOYED,
           );
 
+          // update relay version in remote config after successful deployment
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.RelayNodes,
+            new SemanticVersion<string>(config.relayReleaseTag),
+          );
+
           await this.remoteConfig.persist();
         }
       },

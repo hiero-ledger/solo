@@ -511,3 +511,7 @@ export const TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS: number =
   +getEnvironmentVariable('TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS') || 60;
 
 export const BUG_REPORT_URL: string = 'https://github.com/hiero-ledger/solo/issues';
+
+export const DISABLE_IMPORTER_SPRING_PROFILES: boolean =
+  getEnvironmentVariable('DISABLE_IMPORTER_SPRING_PROFILES') === 'true' || false;
+export const SPRING_PROFILES_ACTIVE: string = getEnvironmentVariable('SPRING_PROFILES_ACTIVE') || 'blocknode';

@@ -393,9 +393,11 @@ export class MirrorNodeCommand extends BaseCommand {
       });
     }
 
-    const data: {SPRING_PROFILES_ACTIVE: string} & Record<string, string | number> = {
-      SPRING_PROFILES_ACTIVE: 'blocknode',
-    };
+    const data: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number> = {};
+
+    if (!constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+      data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
+    }
 
     for (const [index, node] of blockNodeFqdnList.entries()) {
       data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_HOST`] = node.host;
@@ -406,7 +408,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const mirrorNodeBlockNodeValues: {
       importer: {
-        env: {SPRING_PROFILES_ACTIVE: string} & Record<string, string | number>;
+        env: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number>;
       };
     } = {
       importer: {
@@ -621,6 +623,12 @@ export class MirrorNodeCommand extends BaseCommand {
         (config as MirrorNodeDeployConfigClass).newMirrorNodeComponent.metadata.id,
         ComponentTypes.MirrorNode,
         DeploymentPhase.DEPLOYED,
+      );
+
+      // update mirror node version in remote config after successful deployment
+      this.remoteConfig.updateComponentVersion(
+        ComponentTypes.MirrorNode,
+        new SemanticVersion<string>(config.mirrorNodeVersion),
       );
 
       await this.remoteConfig.persist();

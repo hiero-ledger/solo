@@ -311,5 +311,5 @@ export const COLLECT_JFR_FLAGS: CommandFlags = {
 
 export const DIAGNOSTICS_CONNECTIONS: CommandFlags = {
   required: [],
-  optional: [flags.deployment, flags.quiet, flags.devMode],
+  optional: [flags.deployment, flags.quiet, flags.devMode, flags.check],
 };
