@@ -26,7 +26,7 @@ void async function main() {
   await run("task build");
 
   console.log(kleur.cyan("ℹ Installing and linking @hashgraph/solo"));
-  await run("npm install -g @hashgraph/solo");
+  await run('SOLO_NO_CACHE=true npm install -g @hashgraph/solo');
   await run("npm link");
 
   await run("which solo");
