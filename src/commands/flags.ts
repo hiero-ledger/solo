@@ -3122,6 +3122,7 @@ export class Flags {
     Flags.blockNodeChartVersion,
     Flags.blockNodeTssOverlay,
     Flags.priorityMapping,
+    Flags.blockNodeRsaBootstrapFile,
     Flags.externalBlockNodeAddress,
     Flags.realm,
     Flags.shard,
