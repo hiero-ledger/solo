@@ -450,6 +450,12 @@ export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('BLOCK_
 export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT') || 40_840;
 export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NODE_PORT_LEGACY') || 8080;
 
+// Block Node RSA Bootstrap
+export const BLOCK_NODE_RSA_BOOTSTRAP_FILE_NAME: string = 'rsa-bootstrap-roster.json';
+export const BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH: string =
+  '/opt/hiero/block-node/verification/rsa-bootstrap-roster.json';
+export const BLOCK_NODE_RSA_BOOTSTRAP_VERIFICATION_MOUNT_PATH: string = '/opt/hiero/block-node/verification';
+
 export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
 
 // Filename suffix used for log/config archive files

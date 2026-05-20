@@ -1237,6 +1237,19 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly blockNodeRsaBootstrapFile: CommandFlag = {
+    constName: 'blockNodeRsaBootstrapFile',
+    name: 'block-node-rsa-bootstrap-file',
+    definition: {
+      describe:
+        'Path to an RSA bootstrap roster JSON file to use for the block node. ' +
+        'When omitted, Solo attempts to generate one from consensus node gossip signing keys.',
+      type: 'string',
+      defaultValue: '',
+    },
+    prompt: undefined,
+  };
+
   public static readonly wrapsEnabled: CommandFlag = {
     constName: 'wrapsEnabled',
     name: 'wraps',

@@ -53,6 +53,10 @@ import {
   type ComponentUpgradeMigrationStep,
 } from './migrations/component-upgrade-rules.js';
 import {optionFromFlag} from './command-helpers.js';
+import {PathEx} from '../business/utils/path-ex.js';
+import fs from 'node:fs';
+import yaml from 'yaml';
+import {BlockNodeRsaBootstrapRoster} from '../core/block-node-rsa-bootstrap-roster.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -75,6 +79,9 @@ interface BlockNodeDeployConfigClass {
   releaseName: string;
   livenessCheckPort: number;
   priorityMapping: Record<NodeAlias, number>;
+
+  blockNodeRsaBootstrapFile: Optional<string>;
+  rsaBootstrapValuesFile?: string;
 }
 
 interface BlockNodeDeployContext {
@@ -136,6 +143,9 @@ interface BlockNodeAddExternalConfigClass {
   newExternalBlockNodeComponent: ExternalBlockNodeStateSchema;
   namespace: NamespaceName;
   priorityMapping: Record<NodeAlias, number>;
+
+  blockNodeRsaBootstrapFile: Optional<string>;
+  rsaBootstrapValuesFile?: string;
 }
 
 interface BlockNodeAddExternalContext {
@@ -196,6 +206,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.releaseTag,
       flags.imageTag,
       flags.priorityMapping,
+      flags.blockNodeRsaBootstrapFile,
     ],
   };
 
@@ -244,6 +255,10 @@ export class BlockNodeCommand extends BaseCommand {
 
     if (config.valuesFile) {
       valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
+    }
+
+    if ('rsaBootstrapValuesFile' in config && config.rsaBootstrapValuesFile) {
+      valuesArgument += helpers.prepareValuesFiles(config.rsaBootstrapValuesFile);
     }
 
     valuesArgument += helpers.populateHelmArguments({nameOverride: config.releaseName});
@@ -518,6 +533,13 @@ export class BlockNodeCommand extends BaseCommand {
             );
 
             config.newBlockNodeComponent.metadata.phase = DeploymentPhase.REQUESTED;
+          },
+        },
+        {
+          title: 'Prepare RSA bootstrap roster',
+          task: async ({config}): Promise<void> => {
+            config.rsaBootstrapValuesFile = await this.prepareRsaBootstrapValuesFile(config);
+            console.log('RSA bootstrap values file:', config.rsaBootstrapValuesFile);
           },
         },
         this.addBlockNodeComponent(),
@@ -1409,6 +1431,131 @@ export class BlockNodeCommand extends BaseCommand {
 
         displayHealthcheckCallback(attempt, maxAttempts, 'green', 'success');
       },
+    };
+  }
+
+  private async prepareRsaBootstrapRosterJson(config: BlockNodeDeployConfigClass): Promise<string | undefined> {
+    if (config.blockNodeRsaBootstrapFile) {
+      if (!fs.existsSync(config.blockNodeRsaBootstrapFile)) {
+        throw new SoloError(`Block node RSA bootstrap file does not exist: ${config.blockNodeRsaBootstrapFile}`);
+      }
+
+      return BlockNodeRsaBootstrapRoster.readBlockNodeRsaBootstrapRosterJsonFromFile(config.blockNodeRsaBootstrapFile);
+    }
+
+    return BlockNodeRsaBootstrapRoster.buildBlockNodeRsaBootstrapRosterJsonFromSecrets(
+      this.remoteConfig.getConsensusNodes(),
+      config.namespace,
+      config.context,
+      this.k8Factory,
+      this.logger,
+    );
+  }
+
+  private async prepareRsaBootstrapValuesFile(config: BlockNodeDeployConfigClass): Promise<string | undefined> {
+    const rosterJson: string | undefined = await this.prepareRsaBootstrapRosterJson(config);
+
+    if (!rosterJson) {
+      this.logger.showUser(
+        'Skipping block node RSA bootstrap roster because consensus node gossip signing keys are not available yet. ' +
+          `Deploy block node after consensus node setup, or pass ${optionFromFlag(flags.blockNodeRsaBootstrapFile)}.`,
+      );
+      return undefined;
+    }
+
+    const rosterBase64: string = Buffer.from(rosterJson, 'utf8').toString('base64');
+
+    fs.mkdirSync(constants.SOLO_VALUES_DIR, {recursive: true});
+    const valuesFile: string = PathEx.join(
+      constants.SOLO_VALUES_DIR,
+      `${config.releaseName}-rsa-bootstrap-values.yaml`,
+    );
+
+    // The block-node chart does not expose a dedicated RSA bootstrap file mount.
+    // Use the existing blockNode.initContainers hook to write the generated roster into
+    // verification-storage before the main JVM starts, then point app.state.rsaBootstrapFilePath
+    // to that file through APP_STATE_RSA_BOOTSTRAP_FILE_PATH.
+    fs.writeFileSync(
+      valuesFile,
+      yaml.stringify({
+        blockNode: {
+          config: {
+            APP_STATE_RSA_BOOTSTRAP_FILE_PATH: constants.BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH,
+          },
+          initContainers: [
+            this.buildDefaultBlockNodeInitStorageDirsContainer(),
+            this.buildRsaBootstrapRosterInitContainer(rosterBase64),
+          ],
+        },
+      }),
+    );
+
+    return valuesFile;
+  }
+
+  private buildDefaultBlockNodeInitStorageDirsContainer(): object {
+    // The block-node chart exposes blockNode.initContainers as a replacement list.
+    // Keep the chart's default init-storage-dirs container when adding the RSA bootstrap writer.
+    return {
+      name: 'init-storage-dirs',
+      image: 'busybox',
+      command: [
+        'sh',
+        '-c',
+        [
+          'mkdir -p /live-pvc/live-data && \\',
+          'chown 2000:2000 /live-pvc/live-data && \\',
+          'chmod 700 /live-pvc/live-data && \\',
+          'mkdir -p /archive-pvc/archive-data && \\',
+          'chown 2000:2000 /archive-pvc/archive-data && \\',
+          'chmod 700 /archive-pvc/archive-data && \\',
+          'chown 2000:2000 /verification-pvc && \\',
+          'chmod 700 /verification-pvc',
+        ].join('\n'),
+      ],
+      volumeMounts: [
+        {
+          name: 'live-storage',
+          mountPath: '/live-pvc',
+        },
+        {
+          name: 'archive-storage',
+          mountPath: '/archive-pvc',
+        },
+        {
+          name: 'verification-storage',
+          mountPath: '/verification-pvc',
+        },
+      ],
+    };
+  }
+
+  private buildRsaBootstrapRosterInitContainer(rosterBase64: string): object {
+    return {
+      name: 'write-rsa-bootstrap-roster',
+      image: 'busybox',
+      command: [
+        'sh',
+        '-c',
+        [
+          `mkdir -p ${constants.BLOCK_NODE_RSA_BOOTSTRAP_VERIFICATION_MOUNT_PATH} && \\`,
+          `printf "%s" "$RSA_BOOTSTRAP_ROSTER_BASE64" | base64 -d > ${constants.BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH} && \\`,
+          `chown 2000:2000 ${constants.BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH} && \\`,
+          `chmod 0444 ${constants.BLOCK_NODE_RSA_BOOTSTRAP_FILE_PATH}`,
+        ].join('\n'),
+      ],
+      env: [
+        {
+          name: 'RSA_BOOTSTRAP_ROSTER_BASE64',
+          value: rosterBase64,
+        },
+      ],
+      volumeMounts: [
+        {
+          name: 'verification-storage',
+          mountPath: constants.BLOCK_NODE_RSA_BOOTSTRAP_VERIFICATION_MOUNT_PATH,
+        },
+      ],
     };
   }
 
