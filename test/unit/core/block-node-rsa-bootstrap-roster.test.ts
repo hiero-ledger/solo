@@ -10,7 +10,6 @@ import {BlockNodeRsaBootstrapRoster} from '../../../src/core/block-node-rsa-boot
 describe('BlockNodeRsaBootstrapRoster', (): void => {
   describe('buildBlockNodeRsaBootstrapRosterJson()', (): void => {
     it('builds roster JSON sorted by node id', (): void => {
-      // @ts-expect-error - to access private method
       const rosterJson: string = BlockNodeRsaBootstrapRoster.buildBlockNodeRsaBootstrapRosterJson([
         {nodeId: 5, RSAPubKey: 'bb'},
         {nodeId: 4, RSAPubKey: 'aa'},
@@ -50,7 +49,6 @@ describe('BlockNodeRsaBootstrapRoster', (): void => {
       const expectedPublicKeyHex: string = Buffer.from(expectedPublicKeyDer).toString('hex');
 
       expect(
-        // @ts-expect-error - to access private method
         BlockNodeRsaBootstrapRoster.extractRsaPublicKeyHexFromPemCertificate(certificate.toString('pem')),
       ).to.equal(expectedPublicKeyHex);
     });
