@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type Node} from './node.js';
-import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 import {LexerLeafNode} from './lexer-leaf-node.js';
 import {ReflectAssist} from '../../../business/utils/reflect-assist.js';
 import {ConfigKeyError} from '../config-key-error.js';
@@ -35,7 +35,7 @@ export class LexerInternalNode extends LexerNode {
 
   public add(child: Node): void {
     if (!child) {
-      throw new IllegalArgumentError('child must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('child must not be null or undefined');
     }
 
     if (!this._children.has(child.name)) {
@@ -45,7 +45,7 @@ export class LexerInternalNode extends LexerNode {
 
   public remove(child: Node): void {
     if (!child) {
-      throw new IllegalArgumentError('child must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('child must not be null or undefined');
     }
 
     if (!this._children.has(child.name)) {
@@ -61,7 +61,7 @@ export class LexerInternalNode extends LexerNode {
 
   public replaceValue(child: Node, value: string): void {
     if (!child) {
-      throw new IllegalArgumentError('child must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('child must not be null or undefined');
     }
 
     if (!this._children.has(child.name)) {

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../errors/solo-errors.js';
 import fs from 'node:fs';
 import * as helpers from '../helpers.js';
 import {type PackageDownloader} from '../package-downloader.js';
 import {Templates} from '../templates.js';
 import {ShellRunner} from '../shell-runner.js';
-import {MissingArgumentError} from '../errors/missing-argument-error.js';
 import {SoloError} from '../errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
@@ -36,11 +36,11 @@ export abstract class BaseDependencyManager extends ShellRunner {
     super();
 
     if (!installationDirectory) {
-      throw new MissingArgumentError('installation directory is required');
+      throw new SoloErrors.validation.missingArgument('installation directory is required');
     }
 
     if (!downloader) {
-      throw new MissingArgumentError('package downloader is required');
+      throw new SoloErrors.validation.missingArgument('package downloader is required');
     }
 
     // Normalize architecture naming - many tools use 'amd64' instead of 'x64'

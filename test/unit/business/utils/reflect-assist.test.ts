@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {ReflectAssist} from '../../../../src/business/utils/reflect-assist.js';
-import {UnsupportedOperationError} from '../../../../src/business/errors/unsupported-operation-error.js';
+import {UnsupportedOperationError} from '../../../../src/core/errors/classes/internal/unsupported-operation-error.js';
 
 describe('ReflectAssist', () => {
   describe('constructor', () => {

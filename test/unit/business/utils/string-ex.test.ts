@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {StringEx} from '../../../../src/business/utils/string-ex.js';
-import {UnsupportedOperationError} from '../../../../src/business/errors/unsupported-operation-error.js';
+import {UnsupportedOperationError} from '../../../../src/core/errors/classes/internal/unsupported-operation-error.js';
 
 describe('StringEx', (): void => {
   describe('constructor', (): void => {
