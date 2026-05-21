@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../solo-error.js';
-import {ErrorOwnership} from '../error-ownership.js';
-import {ErrorCodeRegistry} from '../error-code-registry.js';
+import {SoloError} from '../../solo-error.js';
+import {ErrorOwnership} from '../../error-ownership.js';
+import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
 export class LocalConfigNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -13,7 +13,8 @@ export class LocalConfigNotFoundSoloError extends SoloError {
       {
         message: 'Local configuration file not found',
         code: ErrorCodeRegistry.LOCAL_CONFIG_NOT_FOUND,
-        troubleshootingSteps: 'Create a local config: solo deployment config create',
+        troubleshootingSteps:
+          'Create a local config: solo deployment config create --deployment <deployment-name> --namespace <namespace>',
       },
       cause,
     );

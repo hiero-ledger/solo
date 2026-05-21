@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {type Clusters} from '../../../resources/cluster/clusters.js';
 import {type Cluster, type KubeConfig} from '@kubernetes/client-node';
-import {IllegalArgumentError} from '../../../../../core/errors/illegal-argument-error.js';
 
 export class K8ClientClusters implements Clusters {
   public constructor(private readonly kubeConfig: KubeConfig) {
     if (!kubeConfig) {
-      throw new IllegalArgumentError('kubeConfig must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('kubeConfig must not be null or undefined');
     }
   }
 

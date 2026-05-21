@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type ConfigSource} from '../spi/config-source.js';
 import {type ObjectMapper} from '../../mapper/api/object-mapper.js';
-import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 import {type StorageBackend} from '../../backend/api/storage-backend.js';
 import {type Forest} from '../../key/lexer/forest.js';
 import {ConfigurationError} from '../api/configuration-error.js';
@@ -26,7 +26,7 @@ export abstract class LayeredConfigSource implements ConfigSource {
     public readonly prefix?: string,
   ) {
     if (!mapper) {
-      throw new IllegalArgumentError('ObjectMapper is required');
+      throw new SoloErrors.validation.illegalArgument('ObjectMapper is required');
     }
   }
 
