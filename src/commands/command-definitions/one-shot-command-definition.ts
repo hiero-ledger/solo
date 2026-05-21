@@ -4,7 +4,14 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {BaseCommandDefinition} from './base-command-definition.js';
-import {CommandBuilder, CommandGroup, Subcommand} from '../../core/command-path-builders/command-builder.js';
+import {
+  CommandBuilder,
+  CommandGroup,
+  ONE_SHOT_COMMAND,
+  SINGLE_DEPLOY,
+  SINGLE_SUBCOMMAND,
+  Subcommand,
+} from '../../core/command-path-builders/command-builder.js';
 import {DefaultOneShotCommand} from '../one-shot/default-one-shot.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -21,12 +28,12 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME: string = 'one-shot';
+  public static override readonly COMMAND_NAME: string = ONE_SHOT_COMMAND;
   protected static override readonly DESCRIPTION: string =
     'One Shot commands for new and returning users who need a preset environment type. ' +
     'These commands use reasonable defaults to provide a single command out of box experience.';
 
-  public static readonly SINGLE_SUBCOMMAND_NAME: string = 'single';
+  public static readonly SINGLE_SUBCOMMAND_NAME: string = SINGLE_SUBCOMMAND;
   private static readonly SINGLE_SUBCOMMAND_DESCRIPTION: string =
     'Creates a uniquely named deployment with a single consensus node, ' +
     'mirror node, block node, relay node, and explorer node.';
@@ -40,7 +47,7 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
   private static readonly FALCON_SUBCOMMAND_DESCRIPTION: string =
     'Creates a uniquely named deployment with optional chart values override using --values-file.';
 
-  public static readonly SINGLE_DEPLOY: string = 'deploy';
+  public static readonly SINGLE_DEPLOY: string = SINGLE_DEPLOY;
   public static readonly SINGLE_DESTROY: string = 'destroy';
   public static readonly INFO_COMMAND_NAME: string = 'show';
   public static readonly MULTIPLE_DEPLOY: string = 'deploy';
