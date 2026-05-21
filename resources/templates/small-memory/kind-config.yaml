@@ -5,13 +5,17 @@ nodes:
     kubeadmConfigPatches:
       - |
         kind: ClusterConfiguration
-        networking:
-          dnsDomain: "cluster.local"
-networking:
-#  apiServerAddress: "172.19.0.2"
-#  apiServerPort: 6443
-  podSubnet: "10.10.0.0/16"
-  serviceSubnet: "10.20.0.0/16"
+        apiServer:
+          extraArgs:
+            watch-cache: "false"
+    extraMounts:
+      - hostPath: ./resources/templates/small-memory/patches
+        containerPath: /patches
+kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    patches:
+      directory: /patches
 containerdConfigPatches:
   - |-
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]

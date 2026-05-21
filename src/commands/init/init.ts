@@ -150,7 +150,7 @@ export class InitCommand extends BaseCommand {
     }
 
     if (options.createCluster) {
-      tasks.push(...this.clusterTaskManager.setupLocalClusterTasks());
+      tasks.push(...this.clusterTaskManager.setupLocalClusterTasks(options.useSmallMemoryCluster));
     }
 
     return tasks;

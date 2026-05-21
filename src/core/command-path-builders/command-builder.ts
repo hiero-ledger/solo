@@ -13,6 +13,7 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {type TaskList} from '../task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
 import * as constants from '../constants.js';
+import {OneShotCommandDefinition} from '../../commands/command-definitions/one-shot-command-definition.js';
 
 @injectable()
 export class Subcommand {
@@ -33,12 +34,13 @@ export class Subcommand {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
-  public async installDependencies(): Promise<void> {
+  public async installDependencies(useSmallMemoryCluster: boolean = false): Promise<void> {
     const tasks: any = this.taskList.newTaskList(
       [
         ...this.initCommand.installDependenciesTasks({
           deps: this.dependencies,
           createCluster: this.createCluster,
+          useSmallMemoryCluster,
         }),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -115,7 +117,15 @@ export class CommandBuilder {
                       subcommand.commandHandlerClass,
                     );
 
-                    await subcommand.installDependencies();
+                    let useSmallMemoryCluster: boolean = false;
+                    if (
+                      commandPath ===
+                      `${OneShotCommandDefinition.COMMAND_NAME} ${OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME} ${OneShotCommandDefinition.SINGLE_DEPLOY}`
+                    ) {
+                      useSmallMemoryCluster = true;
+                    }
+
+                    await subcommand.installDependencies(useSmallMemoryCluster);
                     const response: boolean = await handlerCallback(argv);
 
                     logger.info(`==== Finished running '${commandPath}'====`);

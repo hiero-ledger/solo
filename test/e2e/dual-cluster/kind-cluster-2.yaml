@@ -7,17 +7,6 @@ nodes:
         kind: ClusterConfiguration
         networking:
           dnsDomain: "cluster.local"
-        apiServer:
-          extraArgs:
-            watch-cache: "false"
-    extraMounts:
-      - hostPath: ./test/e2e/dual-cluster/patches
-        containerPath: /patches
-kubeadmConfigPatches:
-  - |
-    kind: InitConfiguration
-    patches:
-      directory: /patches
 networking:
 #  apiServerAddress: "172.19.0.3"
 #  apiServerPort: 6443

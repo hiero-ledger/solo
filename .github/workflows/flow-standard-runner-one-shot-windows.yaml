@@ -223,11 +223,11 @@ jobs:
 
           $linuxPatchesPath = "$linuxWorkspacePath/resources/patches"
 
-          $sourceConfig = Join-Path $env:GITHUB_WORKSPACE "resources/kind-config.yaml"
+          $sourceConfig = Join-Path $env:GITHUB_WORKSPACE "resources/templates/small-memory/kind-config.yaml"
           $renderedConfig = Join-Path $env:RUNNER_TEMP "kind-config-windows-wsl.yaml"
 
           $configContent = Get-Content -Path $sourceConfig -Raw
-          $configContent = $configContent -replace "hostPath:\s*\./resources/patches", "hostPath: $linuxPatchesPath"
+          $configContent = $configContent -replace "hostPath:\s*\./resources/templates/small-memory/patches", "hostPath: $linuxPatchesPath"
           Set-Content -Path $renderedConfig -Value $configContent
 
           Write-Host "Rendered Kind config: $renderedConfig"
