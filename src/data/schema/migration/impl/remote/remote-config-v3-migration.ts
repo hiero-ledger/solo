@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {type SchemaMigration} from '../../api/schema-migration.js';
 import {VersionRange} from '../../../../../business/utils/version-range.js';
 import {SemanticVersion} from '../../../../../business/utils/semantic-version.js';
 
-import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
 import {ComponentIdsSchema} from '../../../model/remote/state/component-ids-schema.js';
 import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
@@ -25,7 +25,7 @@ export class RemoteConfigV3Migration implements SchemaMigration {
   public async migrate(source: object): Promise<object> {
     if (!source) {
       // We should never pass null or undefined to this method, if this happens we should throw an error
-      throw new IllegalArgumentError('source must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('source must not be null or undefined');
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

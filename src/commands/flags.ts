@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import * as constants from '../core/constants.js';
 import * as version from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import fs from 'node:fs';
-import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {
@@ -143,6 +143,17 @@ export class Flags {
     definition: {
       describe: 'Enable developer mode',
       defaultValue: constants.SOLO_DEV_OUTPUT,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly check: CommandFlag = {
+    constName: 'check',
+    name: 'check',
+    definition: {
+      describe: 'Fail if any configured remote port-forward is not reachable locally',
+      defaultValue: false,
       type: 'boolean',
     },
     prompt: undefined,
@@ -665,7 +676,7 @@ export class Flags {
           });
 
           if (!fs.existsSync(input)) {
-            throw new IllegalArgumentError('Invalid chart directory', input);
+            throw new SoloErrors.validation.illegalArgument('Invalid chart directory', input);
           }
         }
 
@@ -2949,6 +2960,8 @@ export class Flags {
     prompt: undefined,
   };
 
+  // Every static CommandFlag defined in this class must be listed here.
+  // Helpers derive behavior from allFlags/allFlagsMap, so new flags are incomplete until registered in this array.
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -2964,6 +2977,7 @@ export class Flags {
     Flags.bootstrapProperties,
     Flags.cacheDir,
     Flags.chainId,
+    Flags.check,
 
     //* Chart directories
     Flags.chartDirectory,
@@ -2995,6 +3009,7 @@ export class Flags {
     Flags.enableTimeout,
     Flags.endpointType,
     Flags.envoyIps,
+    Flags.force,
     Flags.forcePortForward,
     Flags.externalAddress,
     Flags.generateEcdsaKey,

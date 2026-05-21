@@ -3,6 +3,10 @@
 export const ErrorCodeRegistry: Record<string, string> = {
   // 1xxx - Configuration: Deployment config, schema, existence checks
   LOCAL_CONFIG_NOT_FOUND: 'SOLO-1001',
+  WRITE_LOCAL_CONFIG: 'SOLO-1002',
+  READ_REMOTE_CONFIG_BEFORE_LOAD: 'SOLO-1003',
+  WRITE_REMOTE_CONFIG_BEFORE_LOAD: 'SOLO-1004',
+  REFRESH_LOCAL_CONFIG_SOURCE: 'SOLO-1005',
   REMOTE_CONFIGS_MISMATCH: 'SOLO-1012',
 
   // 2xxx - Deployment / Infrastructure: Cluster, namespace, pod lifecycle
@@ -25,9 +29,20 @@ export const ErrorCodeRegistry: Record<string, string> = {
   // 3xxx - Component: Relay, Mirror Node, Explorer, CN runtime
 
   // 4xxx - Validation: User input, flags, IDs, formatting
+  MISSING_ARGUMENT: 'SOLO-4001',
+  ILLEGAL_ARGUMENT: 'SOLO-4002',
+  DATA_VALIDATION: 'SOLO-4003',
+  INVALID_OUTPUT_FORMAT: 'SOLO-4004',
+  CONSENSUS_NODE_COUNT_REQUIRED: 'SOLO-4005',
+  INVALID_PORT_NUMBER: 'SOLO-4006',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
+  RESOURCE_NOT_FOUND: 'SOLO-5001',
+  CLUSTER_CONNECTION_FAILED: 'SOLO-5002',
+  PORT_FORWARD_REFRESH_FAILED: 'SOLO-5003',
+  PORT_FORWARD_STATUS_FAILED: 'SOLO-5004',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
+  UNSUPPORTED_OPERATION: 'SOLO-9002',
 } as const;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {MissingArgumentError} from './errors/missing-argument-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import {SoloError} from './errors/solo-error.js';
 import {Flags as flags} from '../commands/flags.js';
 import fs from 'node:fs';
@@ -204,7 +204,7 @@ export class CertificateManager {
   private getNamespace() {
     const ns = this.configManager.getFlag<NamespaceName>(flags.namespace);
     if (!ns) {
-      throw new MissingArgumentError('namespace is not set');
+      throw new SoloErrors.validation.missingArgument('namespace is not set');
     }
     return ns;
   }

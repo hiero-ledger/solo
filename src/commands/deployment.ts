@@ -43,7 +43,6 @@ import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state
 import * as version from '../../version.js';
 import find from 'find-process';
 import type ProcessInfo from 'find-process';
-import {SoloError} from '../core/errors/solo-error.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
 import yaml from 'yaml';
@@ -566,7 +565,7 @@ export class DeploymentCommand extends BaseCommand {
                 break;
               }
               default: {
-                throw new SoloError(`Invalid output format: ${rawOutput}. Allowed values: json, yaml, wide`);
+                throw new SoloErrors.validation.invalidOutputFormat(rawOutput);
               }
             }
 
@@ -778,8 +777,9 @@ export class DeploymentCommand extends BaseCommand {
 
           // if the user can't be prompted for '--num-consensus-nodes' fail
           if (!numberOfConsensusNodes && quiet) {
-            throw new SoloError(
-              `--${flags.numberOfConsensusNodes.name} must be specified ${DeploymentStates.PRE_GENESIS}`,
+            throw new SoloErrors.validation.consensusNodeCountRequired(
+              flags.numberOfConsensusNodes.name,
+              DeploymentStates.PRE_GENESIS,
             );
           }
 
@@ -812,7 +812,10 @@ export class DeploymentCommand extends BaseCommand {
 
         // If ledgerPhase is pre-genesis and user can't be prompted for the '--num-consensus-nodes' fail
         if (ledgerPhase === LedgerPhase.UNINITIALIZED && !numberOfConsensusNodes && quiet) {
-          throw new SoloError(`--${flags.numberOfConsensusNodes.name} must be specified ${LedgerPhase.UNINITIALIZED}`);
+          throw new SoloErrors.validation.consensusNodeCountRequired(
+            flags.numberOfConsensusNodes.name,
+            LedgerPhase.UNINITIALIZED,
+          );
         }
 
         // If ledgerPhase is pre-genesis prompt the user for the '--num-consensus-nodes'
@@ -827,7 +830,7 @@ export class DeploymentCommand extends BaseCommand {
 
         // if the ledgerPhase is post-genesis and '--num-consensus-nodes' is specified throw
         else if (ledgerPhase === LedgerPhase.INITIALIZED && numberOfConsensusNodes) {
-          throw new SoloError(
+          throw new SoloErrors.validation.illegalArgument(
             `--${flags.numberOfConsensusNodes.name}=${numberOfConsensusNodes} shouldn't be specified ${ledgerPhase}`,
           );
         }
@@ -854,7 +857,7 @@ export class DeploymentCommand extends BaseCommand {
           .catch((): boolean => false);
 
         if (!isConnected) {
-          throw new SoloError(`Connection failed for cluster ${clusterRef} with context: ${context}`);
+          throw new SoloErrors.system.clusterConnectionFailed(clusterRef, context);
         }
       },
     };
@@ -1181,8 +1184,8 @@ export class DeploymentCommand extends BaseCommand {
 
     try {
       await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloError('Error refreshing port-forwards', error);
+    } catch (error) {
+      throw new SoloErrors.system.portForwardRefreshFailed(error);
     }
 
     return true;
@@ -1194,7 +1197,7 @@ export class DeploymentCommand extends BaseCommand {
   private async isPortForwardRunning(port: number): Promise<boolean> {
     // Validate port before process matching.
     if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
-      throw new SoloError(`Invalid port number: ${port}`);
+      throw new SoloErrors.validation.invalidPortNumber(port);
     }
 
     try {
@@ -1437,8 +1440,8 @@ export class DeploymentCommand extends BaseCommand {
 
     try {
       await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloError('Error displaying port-forward status', error);
+    } catch (error) {
+      throw new SoloErrors.system.portForwardStatusFailed(error);
     }
 
     return true;
