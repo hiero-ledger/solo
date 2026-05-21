@@ -463,11 +463,32 @@ export class DeployArgvBuilders {
     useEdge: boolean,
   ): string {
     const argvValue: string | undefined = argv[flagName] as string | undefined;
-    const isExplicit: boolean = !!argvValue;
+    const isExplicit: boolean = this.isVersionFlagExplicitlySet(argvValue, flagName, stdVersion);
     return this.returnFirstTruthyString(
       isExplicit ? argvValue : undefined,
       configFileVersion,
       useEdge ? edgeVersion : stdVersion,
     );
+  }
+
+  private static isVersionFlagExplicitlySet(
+    argvValue: string | undefined,
+    flagName: string,
+    stdVersion: string,
+  ): boolean {
+    if (!argvValue) {
+      return false;
+    }
+
+    const flagToken: string = `--${flagName}`;
+    const hasCliFlagToken: boolean = process.argv
+      .slice(2)
+      .some((argument: string): boolean => argument === flagToken || argument.startsWith(`${flagToken}=`));
+    if (hasCliFlagToken) {
+      return true;
+    }
+
+    // Fallback for tests/programmatic invocations where process.argv may not reflect parsed argv.
+    return argvValue !== stdVersion;
   }
 }
