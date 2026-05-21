@@ -13,7 +13,9 @@ export class StatesDirectoryNotFoundSoloError extends SoloError {
       message: `No states directory found for node ${nodeAlias} at ${statesDirectory}`,
       code: ErrorCodeRegistry.STATES_DIRECTORY_NOT_FOUND,
       troubleshootingSteps:
-        'Verify the states directory exists: ls -la <statesDirectory>\nCheck that the state download succeeded: solo node states\nUse the correct --inputDir path structure: <inputDir>/states/<cluster>/<namespace>/',
+        'Verify the states directory exists: ls -la <statesDirectory>\n' +
+        'Check that the state download succeeded: solo node states\n' +
+        'Use the correct --inputDir path structure: <inputDir>/states/<cluster>/<namespace>/',
     });
   }
 }

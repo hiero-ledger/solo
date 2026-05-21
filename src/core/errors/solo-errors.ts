@@ -18,8 +18,6 @@ import {WriteLocalConfigFileError} from './classes/config/write-local-config-fil
 import {WriteRemoteConfigBeforeLoadError} from './classes/config/write-remote-config-before-load-error.js';
 import {CreateDeploymentSoloError} from './classes/create-deployment-solo-error.js';
 import {DeploymentAlreadyExistsSoloError} from './classes/deployment-already-exists-solo-error.js';
-import {LocalConfigNotFoundSoloError} from './classes/local-config-not-found-solo-error.js';
-import {RemoteConfigsMismatchSoloError} from './classes/remote-configs-mismatch-solo-error.js';
 import {BlockNodeConfigFailedSoloError} from './classes/component/block-node-config-failed-solo-error.js';
 import {ChartInstallFailedSoloError} from './classes/component/chart-install-failed-solo-error.js';
 import {NetworkDestroyFailedSoloError} from './classes/component/network-destroy-failed-solo-error.js';
@@ -34,7 +32,7 @@ import {NodeTransactionFailedSoloError} from './classes/component/node-transacti
 import {ConfigFileNotFoundSoloError} from './classes/validation/config-file-not-found-solo-error.js';
 import {GrpcEndpointsRequiredSoloError} from './classes/validation/grpc-endpoints-required-solo-error.js';
 import {InputDirectoryNotSpecifiedSoloError} from './classes/validation/input-directory-not-specified-solo-error.js';
-import {LocalBuildMissingSubdirsSoloError} from './classes/validation/local-build-missing-subdirs-solo-error.js';
+import {LocalBuildMissingSubdirectoriesSoloError} from './classes/validation/local-build-missing-subdirectories-solo-error.js';
 import {LocalBuildNoJarFilesSoloError} from './classes/validation/local-build-no-jar-files-solo-error.js';
 import {LocalBuildPathNotFoundSoloError} from './classes/validation/local-build-path-not-found-solo-error.js';
 import {NodeJarFilesNotInContainerSoloError} from './classes/validation/node-jar-files-not-in-container-solo-error.js';
@@ -135,7 +133,7 @@ export class SoloErrors {
     readonly invalidPortNumber: typeof InvalidPortNumberError;
     readonly missingArgument: typeof MissingArgumentError;
     readonly localBuildPathNotFound: typeof LocalBuildPathNotFoundSoloError;
-    readonly localBuildMissingSubdirs: typeof LocalBuildMissingSubdirsSoloError;
+    readonly localBuildMissingSubdirectories: typeof LocalBuildMissingSubdirectoriesSoloError;
     readonly localBuildNoJarFiles: typeof LocalBuildNoJarFilesSoloError;
     readonly nodeJarFilesNotInContainer: typeof NodeJarFilesNotInContainerSoloError;
     readonly grpcEndpointsRequired: typeof GrpcEndpointsRequiredSoloError;
@@ -157,7 +155,7 @@ export class SoloErrors {
     invalidPortNumber: InvalidPortNumberError,
     missingArgument: MissingArgumentError,
     localBuildPathNotFound: LocalBuildPathNotFoundSoloError,
-    localBuildMissingSubdirs: LocalBuildMissingSubdirsSoloError,
+    localBuildMissingSubdirectories: LocalBuildMissingSubdirectoriesSoloError,
     localBuildNoJarFiles: LocalBuildNoJarFilesSoloError,
     nodeJarFilesNotInContainer: NodeJarFilesNotInContainerSoloError,
     grpcEndpointsRequired: GrpcEndpointsRequiredSoloError,

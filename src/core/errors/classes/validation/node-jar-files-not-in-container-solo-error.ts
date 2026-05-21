@@ -13,7 +13,9 @@ export class NodeJarFilesNotInContainerSoloError extends SoloError {
       message: `Node '${nodeAlias}': no JAR files found in ${directoryPath}. Ensure platform software was copied to the node before starting.`,
       code: ErrorCodeRegistry.NODE_JAR_FILES_NOT_IN_CONTAINER,
       troubleshootingSteps:
-        'Run setup before starting: solo node setup\nVerify the directory inside the pod: kubectl exec <pod> -n <namespace> -- ls <directoryPath>\nRe-copy platform software: solo node setup --local-build-path <path>',
+        'Run setup before starting: solo node setup\n' +
+        'Verify the directory inside the pod: kubectl exec <pod> -n <namespace> -- ls <directoryPath>\n' +
+        'Re-copy platform software: solo node setup --local-build-path <path>',
     });
   }
 }

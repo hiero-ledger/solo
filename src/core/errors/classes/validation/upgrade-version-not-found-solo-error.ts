@@ -13,7 +13,8 @@ export class UpgradeVersionNotFoundSoloError extends SoloError {
       message: `Upgrade version ${upgradeVersion} does not exist`,
       code: ErrorCodeRegistry.UPGRADE_VERSION_NOT_FOUND,
       troubleshootingSteps:
-        'Check valid release versions: https://github.com/hashgraph/hedera-services/releases\nUse a published release tag: solo node upgrade --upgrade-version v0.x.y',
+        'Check valid release versions: https://github.com/hashgraph/hedera-services/releases\n' +
+        'Use a published release tag: solo node upgrade --upgrade-version v0.x.y',
     });
   }
 }

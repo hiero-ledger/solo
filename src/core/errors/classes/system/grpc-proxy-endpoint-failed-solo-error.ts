@@ -13,7 +13,9 @@ export class GrpcProxyEndpointFailedSoloError extends SoloError {
       message: 'Failed to set gRPC web proxy endpoint',
       code: ErrorCodeRegistry.GRPC_PROXY_ENDPOINT_FAILED,
       troubleshootingSteps:
-        'Check node update transaction logs: tail -f ~/.solo/logs/solo.log | jq\nVerify gRPC endpoints are reachable: kubectl get svc -n <namespace>\nRetry the node update: solo node update',
+        'Check node update transaction logs: tail -n 100 ~/.solo/logs/solo.log\n' +
+        'Verify gRPC endpoints are reachable: kubectl get svc -n <namespace>\n' +
+        'Retry the node update: solo node update',
     });
   }
 }

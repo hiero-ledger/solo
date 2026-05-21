@@ -14,7 +14,10 @@ export class ChartInstallFailedSoloError extends SoloError {
         message: `Error installing chart ${chartName}: ${cause.message}`,
         code: ErrorCodeRegistry.CHART_INSTALL_FAILED,
         troubleshootingSteps:
-          'Check Helm release status: helm list -n <namespace>\nReview Helm errors: helm status <chart> -n <namespace>\nVerify cluster connectivity: kubectl get nodes\nRetry after inspecting logs: tail -f ~/.solo/logs/solo.log | jq',
+          'Check Helm release status: helm list -n <namespace>\n' +
+          'Review Helm errors: helm status <chartName> -n <namespace>\n' +
+          'Verify the cluster is reachable: kubectl cluster-info --context <context>\n' +
+          'Retry after inspecting solo logs: tail -n 100 ~/.solo/logs/solo.log',
       },
       cause,
     );

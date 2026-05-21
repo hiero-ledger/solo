@@ -13,7 +13,8 @@ export class OutputDirectoryNotSpecifiedSoloError extends SoloError {
       message: `Path to export context data not specified. Please set a value for --${flagName}`,
       code: ErrorCodeRegistry.OUTPUT_DIR_NOT_SPECIFIED,
       troubleshootingSteps:
-        'Provide the output directory: solo node <command> --outputDir <path>\nRun with --help to see required flags: solo node <command> --help',
+        'Provide the output directory: solo node <command> --outputDir <path>\n' +
+        'Run with --help to see required flags: solo node <command> --help',
     });
   }
 }

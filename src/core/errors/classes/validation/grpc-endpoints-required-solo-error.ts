@@ -13,7 +13,9 @@ export class GrpcEndpointsRequiredSoloError extends SoloError {
       message: `--grpc-endpoints must be set if --endpoint-type is: ${endpointType}`,
       code: ErrorCodeRegistry.GRPC_ENDPOINTS_REQUIRED,
       troubleshootingSteps:
-        'Provide gRPC endpoints: solo node add --grpc-endpoints <ip:port,...>\nOr switch endpoint type: solo node add --endpoint-type FQDN\nReview flag usage: solo node add --help',
+        'Provide gRPC endpoints: solo node add --grpc-endpoints <ip:port,...>\n' +
+        'Or switch endpoint type: solo node add --endpoint-type FQDN\n' +
+        'Review flag usage: solo node add --help',
     });
   }
 }

@@ -13,7 +13,9 @@ export class LocalBuildNoJarFilesSoloError extends SoloError {
       message: `No jar files found in '${subdirectory}'; please check your local build path`,
       code: ErrorCodeRegistry.LOCAL_BUILD_NO_JAR_FILES,
       troubleshootingSteps:
-        'List files in the directory: ls -la <subdirectory>\nEnsure a complete platform build was performed before using --local-build-path\nExpected: <path>/apps/HederaNode.jar and <path>/lib/*.jar',
+        'List files in the directory: ls -la <subdirectory>\n' +
+        'Ensure a complete platform build was performed before using --local-build-path\n' +
+        'Expected: <path>/apps/HederaNode.jar and <path>/lib/*.jar',
     });
   }
 }

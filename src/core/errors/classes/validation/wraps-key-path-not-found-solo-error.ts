@@ -13,7 +13,9 @@ export class WrapsKeyPathNotFoundSoloError extends SoloError {
       message: `WRAPs key path does not exist: ${wrapsKeyPath}`,
       code: ErrorCodeRegistry.WRAPS_KEY_PATH_NOT_FOUND,
       troubleshootingSteps:
-        'Verify the path: ls -la <wrapsKeyPath>\nSet the correct path: solo node add --wraps-key-path <path>\nOr omit the flag to download WRAPs keys automatically',
+        'Verify the path: ls -la <wrapsKeyPath>\n' +
+        'Set the correct path: solo node add --wraps-key-path <path>\n' +
+        'Or omit the flag to download WRAPs keys automatically',
     });
   }
 }

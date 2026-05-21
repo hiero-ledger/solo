@@ -13,7 +13,9 @@ export class PortForwardMissingSoloError extends SoloError {
       message: `Configured port-forward is missing: ${componentDisplayName} ${componentId} localhost:${localPort} -> pod:${podPort}`,
       code: ErrorCodeRegistry.PORT_FORWARD_MISSING,
       troubleshootingSteps:
-        'Check port-forward status: solo node connections\nRe-establish port forwards: solo node start\nVerify the pod is running: kubectl get pods -n <namespace>',
+        'Check port-forward status: solo deployment diagnostics connections --deployment <name>\n' +
+        'Re-establish port forwards: solo node start\n' +
+        'Verify the pod is running: kubectl get pods -n <namespace>',
     });
   }
 }

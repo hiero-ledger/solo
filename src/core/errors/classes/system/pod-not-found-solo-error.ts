@@ -14,7 +14,9 @@ export class PodNotFoundSoloError extends SoloError {
         message: `No pod found for nodeAlias: ${nodeAlias}`,
         code: ErrorCodeRegistry.POD_NOT_FOUND,
         troubleshootingSteps:
-          'Check pod status: kubectl get pods -n <namespace> -l solo.hedera.com/node-name=<nodeAlias>\nDescribe the pod for events: kubectl describe pod -n <namespace> -l solo.hedera.com/node-name=<nodeAlias>\nReview logs: tail -f ~/.solo/logs/solo.log | jq',
+          'Check pod status: kubectl get pods -n <namespace> -l solo.hedera.com/node-name=<nodeAlias>\n' +
+          'Describe the pod for events: kubectl describe pod -n <namespace> -l solo.hedera.com/node-name=<nodeAlias>\n' +
+          'Review solo logs: tail -n 100 ~/.solo/logs/solo.log',
       },
       cause,
     );

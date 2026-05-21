@@ -14,7 +14,9 @@ export class NodeTransactionErrorSoloError extends SoloError {
         message: `Error in ${operation}: ${cause.message}`,
         code: ErrorCodeRegistry.NODE_TRANSACTION_ERROR,
         troubleshootingSteps:
-          'Check node connectivity: kubectl get pods -n <namespace>\nReview solo logs: tail -f ~/.solo/logs/solo.log | jq\nRetry the operation after verifying cluster health: kubectl get nodes',
+          'Review solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
+          'Check the node pod status: kubectl get pods -n <namespace> -l solo.hedera.com/type=network-node\n' +
+          'Verify the cluster is reachable: kubectl cluster-info --context <context>',
       },
       cause,
     );

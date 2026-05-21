@@ -13,7 +13,9 @@ export class NodeNotReadySoloError extends SoloError {
       message: `Node '${nodeAlias}' is not ${expectedStatus} [attempt = ${attempt}/${maxAttempts}]`,
       code: ErrorCodeRegistry.NODE_NOT_READY,
       troubleshootingSteps:
-        'Check node pod status: kubectl get pods -n <namespace> -l solo.hedera.com/node-name=<nodeAlias>\nView node logs: kubectl logs -n <namespace> <pod>\nReview solo logs: tail -f ~/.solo/logs/solo.log | jq',
+        'Check node pod status: kubectl get pods -n <namespace> -l solo.hedera.com/node-name=<nodeAlias>\n' +
+        'View node logs: kubectl logs -n <namespace> -l solo.hedera.com/node-name=<nodeAlias>\n' +
+        'Review solo logs: tail -n 100 ~/.solo/logs/solo.log',
     });
   }
 }

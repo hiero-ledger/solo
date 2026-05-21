@@ -13,7 +13,8 @@ export class WrapsVersionConstraintSoloError extends SoloError {
       message: `"--wraps" requires consensus node >= ${minimumVersion}`,
       code: ErrorCodeRegistry.WRAPS_VERSION_CONSTRAINT,
       troubleshootingSteps:
-        'Upgrade consensus node first: solo node upgrade --upgrade-version <minimumVersion>\nOr disable WRAPs: solo network deploy --wraps false',
+        'Upgrade consensus node first: solo node upgrade --upgrade-version <minimumVersion>\n' +
+        'Or disable WRAPs: solo network deploy --wraps false',
     });
   }
 }

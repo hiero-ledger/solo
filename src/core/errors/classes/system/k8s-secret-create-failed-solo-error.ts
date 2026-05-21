@@ -14,7 +14,10 @@ export class K8sSecretCreateFailedSoloError extends SoloError {
         message: description,
         code: ErrorCodeRegistry.K8S_SECRET_CREATE_FAILED,
         troubleshootingSteps:
-          'Check RBAC permissions: kubectl auth can-i create secrets -n <namespace>\nInspect existing secrets: kubectl get secrets -n <namespace>\nReview logs: tail -f ~/.solo/logs/solo.log | jq\nVerify cluster connectivity: kubectl get nodes',
+          'Check RBAC permissions: kubectl auth can-i create secrets -n <namespace>\n' +
+          'Inspect existing secrets: kubectl get secrets -n <namespace>\n' +
+          'Review solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
+          'Verify the cluster is reachable: kubectl cluster-info --context <context>',
       },
       cause,
     );

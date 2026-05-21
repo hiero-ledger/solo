@@ -13,7 +13,9 @@ export class LocalBuildPathNotFoundSoloError extends SoloError {
       message: `Local build path does not exist: ${localBuildPath}`,
       code: ErrorCodeRegistry.LOCAL_BUILD_PATH_NOT_FOUND,
       troubleshootingSteps:
-        'Verify the path exists: ls -la <localBuildPath>\nSet the correct path: solo node setup --local-build-path <path>\nBuild the platform locally and point to the data/ directory output',
+        'Verify the path exists: ls -la <localBuildPath>\n' +
+        'Set the correct path: solo node setup --local-build-path <path>\n' +
+        'Build the platform locally and point to the data/ directory output',
     });
   }
 }

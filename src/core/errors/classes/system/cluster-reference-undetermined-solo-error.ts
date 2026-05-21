@@ -13,7 +13,10 @@ export class ClusterReferenceUndeterminedSoloError extends SoloError {
       message: 'Error during initialization, cluster reference could not be determined',
       code: ErrorCodeRegistry.CLUSTER_REF_UNDETERMINED,
       troubleshootingSteps:
-        'Check the remote config: kubectl get configmap -n solo -o yaml\nVerify cluster references: solo deployment config view\nRe-initialize the deployment: solo deployment init\nReview logs: tail -f ~/.solo/logs/solo.log | jq',
+        'Check the remote config: kubectl get configmap -n <namespace> -o yaml\n' +
+        'Verify cluster references: solo deployment config info --deployment <name>\n' +
+        'Re-initialize solo if needed: solo init\n' +
+        'Review solo logs: tail -n 100 ~/.solo/logs/solo.log',
     });
   }
 }

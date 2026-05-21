@@ -14,7 +14,10 @@ export class NetworkDestroyFailedSoloError extends SoloError {
         message: `Error destroying network: ${cause.message}`,
         code: ErrorCodeRegistry.NETWORK_DESTROY_FAILED,
         troubleshootingSteps:
-          'Check remaining Helm releases: helm list -A\nCheck for stuck namespaces: kubectl get namespaces\nManually clean up: helm uninstall <chart> -n <namespace>\nReview logs: tail -f ~/.solo/logs/solo.log | jq',
+          'Check remaining Helm releases: helm list -A\n' +
+          'Check for stuck namespaces: kubectl get namespaces\n' +
+          'Manually clean up: helm uninstall <chart> -n <namespace>\n' +
+          'Review solo logs: tail -n 100 ~/.solo/logs/solo.log',
       },
       cause,
     );

@@ -14,7 +14,9 @@ export class UpgradeVersionFetchFailedSoloError extends SoloError {
         message: `Failed to fetch upgrade version ${upgradeVersion}: ${cause.message}`,
         code: ErrorCodeRegistry.UPGRADE_VERSION_FETCH_FAILED,
         troubleshootingSteps:
-          'Check internet connectivity\nVerify the version exists: https://github.com/hashgraph/hedera-services/releases\nRetry the upgrade: solo node upgrade --upgrade-version <version>',
+          'Check internet connectivity\n' +
+          'Verify the version exists: https://github.com/hashgraph/hedera-services/releases\n' +
+          'Retry the upgrade: solo node upgrade --upgrade-version <version>',
       },
       cause,
     );

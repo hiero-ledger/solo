@@ -13,7 +13,9 @@ export class PvcFlagNotEnabledSoloError extends SoloError {
       message: 'PVCs flag is not enabled. Please enable PVCs before adding a node',
       code: ErrorCodeRegistry.PVC_FLAG_NOT_ENABLED,
       troubleshootingSteps:
-        'Redeploy with PVCs enabled: solo network deploy --pvcs true\nVerify PVC flag: solo deployment config view\nPVCs are required for node add operations to persist state across pod restarts',
+        'Redeploy with PVCs enabled: solo network deploy --pvcs true\n' +
+        'Check the current deployment configuration: solo deployment config info --deployment <name>\n' +
+        'PVCs are required for node add operations to persist state across pod restarts',
     });
   }
 }

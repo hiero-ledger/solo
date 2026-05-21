@@ -14,7 +14,9 @@ export class NodeBuildUploadFailedSoloError extends SoloError {
         message: `Failed to upload build.zip file: ${cause.message}`,
         code: ErrorCodeRegistry.NODE_BUILD_UPLOAD_FAILED,
         troubleshootingSteps:
-          'Check node connectivity: kubectl get pods -n <namespace>\nReview file upload logs: tail -f ~/.solo/logs/solo.log | jq\nVerify the node is healthy before retrying: kubectl describe pod <pod> -n <namespace>',
+          'Review solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
+          'Check node pod status: kubectl get pods -n <namespace> -l solo.hedera.com/type=network-node\n' +
+          'Inspect the pod for more detail: kubectl describe pod <pod> -n <namespace>',
       },
       cause,
     );

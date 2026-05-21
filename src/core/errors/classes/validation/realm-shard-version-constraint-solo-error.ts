@@ -13,7 +13,8 @@ export class RealmShardVersionConstraintSoloError extends SoloError {
       message: `The realm and shard values must be 0 when using a network node version older than ${minimumVersion}`,
       code: ErrorCodeRegistry.REALM_SHARD_VERSION_CONSTRAINT,
       troubleshootingSteps:
-        'Use realm=0 and shard=0: solo network deploy --realm 0 --shard 0\nOr upgrade to network node >= <minimumVersion>: solo node upgrade --upgrade-version <version>',
+        'Use realm=0 and shard=0: solo network deploy --realm 0 --shard 0\n' +
+        'Or upgrade to network node >= <minimumVersion>: solo node upgrade --upgrade-version <version>',
     });
   }
 }

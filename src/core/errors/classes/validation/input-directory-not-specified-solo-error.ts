@@ -13,7 +13,8 @@ export class InputDirectoryNotSpecifiedSoloError extends SoloError {
       message: `Path to context data not specified. Please set a value for --${flagName}`,
       code: ErrorCodeRegistry.INPUT_DIR_NOT_SPECIFIED,
       troubleshootingSteps:
-        'Provide the input directory: solo node <command> --inputDir <path>\nRun with --help to see required flags: solo node <command> --help',
+        'Provide the input directory: solo node <command> --inputDir <path>\n' +
+        'Run with --help to see required flags: solo node <command> --help',
     });
   }
 }

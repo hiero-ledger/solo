@@ -13,7 +13,9 @@ export class HaproxyPodsNotFoundSoloError extends SoloError {
       message: 'No HAProxy pods found',
       code: ErrorCodeRegistry.HAPROXY_PODS_NOT_FOUND,
       troubleshootingSteps:
-        'Check HAProxy pod status: kubectl get pods -n <namespace> -l solo.hedera.com/type=haproxy\nVerify the network is deployed: solo network status\nRedeploy if necessary: solo network deploy',
+        'Check HAProxy pod status: kubectl get pods -n <namespace> -l solo.hedera.com/type=haproxy\n' +
+        'Check the active deployment: solo deployment config info --deployment <name>\n' +
+        'Redeploy the network if HAProxy is missing: solo network deploy',
     });
   }
 }

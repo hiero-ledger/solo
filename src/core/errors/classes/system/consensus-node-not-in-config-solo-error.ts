@@ -13,7 +13,9 @@ export class ConsensusNodeNotInConfigSoloError extends SoloError {
       message: `Consensus node not found for alias: ${nodeAlias}`,
       code: ErrorCodeRegistry.CONSENSUS_NODE_NOT_IN_CONFIG,
       troubleshootingSteps:
-        'List registered nodes: solo deployment config view\nVerify the node alias: kubectl get configmap -n solo -o yaml | grep nodeAlias\nRe-run with a valid alias: solo node <command> --node-aliases <alias>',
+        'List registered nodes: solo deployment config info --deployment <name>\n' +
+        'Verify the node alias: kubectl get configmap -n <namespace> -o yaml | grep nodeAlias\n' +
+        'Re-run with a valid alias: solo node <command> --node-aliases <alias>',
     });
   }
 }

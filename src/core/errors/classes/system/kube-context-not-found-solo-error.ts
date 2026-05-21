@@ -13,7 +13,9 @@ export class KubeContextNotFoundSoloError extends SoloError {
       message: `Unable to determine Kubernetes context for node ${nodeAlias}`,
       code: ErrorCodeRegistry.KUBE_CONTEXT_NOT_FOUND,
       troubleshootingSteps:
-        'Check cluster references: solo deployment config view\nVerify that the node alias is registered in remote config: kubectl get configmap -n solo\nReview logs: tail -f ~/.solo/logs/solo.log | jq',
+        'Check active deployments: solo deployment config info\n' +
+        'Verify that the node alias is registered: kubectl get configmap -n <namespace> -o yaml\n' +
+        'Review solo logs: tail -n 100 ~/.solo/logs/solo.log',
     });
   }
 }

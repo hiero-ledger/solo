@@ -13,7 +13,9 @@ export class NonInteractivePromptSoloError extends SoloError {
       message: 'Cannot prompt for input in non-interactive mode',
       code: ErrorCodeRegistry.NON_INTERACTIVE_PROMPT,
       troubleshootingSteps:
-        'Provide required flags explicitly instead of relying on interactive prompts\nUse --deployment <name> to specify the deployment name\nRun with --help to see all available flags: solo node --help',
+        'Provide required flags explicitly instead of relying on interactive prompts\n' +
+        'Use --deployment <name> to specify the deployment name\n' +
+        'Run with --help to see all available flags: solo node --help',
     });
   }
 }

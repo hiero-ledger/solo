@@ -14,7 +14,9 @@ export class NodeBuildCopyFailedSoloError extends SoloError {
         message: `Error in copying local build to node: ${cause.message}`,
         code: ErrorCodeRegistry.NODE_BUILD_COPY_FAILED,
         troubleshootingSteps:
-          'Check pod status: kubectl get pods -n <namespace>\nVerify local build path is valid and readable\nReview logs: tail -f ~/.solo/logs/solo.log | jq',
+          'Check pod status: kubectl get pods -n <namespace> -l solo.hedera.com/type=network-node\n' +
+          'Verify the local build path is valid and readable\n' +
+          'Review solo logs: tail -n 100 ~/.solo/logs/solo.log',
       },
       cause,
     );

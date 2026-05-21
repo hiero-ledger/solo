@@ -14,7 +14,9 @@ export class NodeTransactionFailedSoloError extends SoloError {
         message: `${operation} transaction failed with status: ${status}`,
         code: ErrorCodeRegistry.NODE_TRANSACTION_FAILED,
         troubleshootingSteps:
-          'Check the node logs: tail -f ~/.solo/logs/solo.log | jq\nVerify network health: kubectl get pods -n <namespace>\nInspect the transaction receipt status in the Hedera documentation',
+          'Check the solo logs for details: tail -n 100 ~/.solo/logs/solo.log\n' +
+          'Verify the node pod is running: kubectl get pods -n <namespace> -l solo.hedera.com/type=network-node\n' +
+          'Consult the Hedera documentation for the meaning of the status code',
       },
       cause,
     );

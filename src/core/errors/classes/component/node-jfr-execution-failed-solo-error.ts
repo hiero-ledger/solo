@@ -14,7 +14,9 @@ export class NodeJfrExecutionFailedSoloError extends SoloError {
         message: `${operation} on node pod ${podName}`,
         code: ErrorCodeRegistry.NODE_JFR_EXECUTION_FAILED,
         troubleshootingSteps:
-          'Check if the node pod is running: kubectl get pod <podName> -n <namespace>\nVerify the pod has jcmd available: kubectl exec <podName> -- which jcmd\nReview logs: tail -f ~/.solo/logs/solo.log | jq',
+          'Check if the node pod is running: kubectl get pod <podName> -n <namespace>\n' +
+          'Verify the pod has jcmd available: kubectl exec <podName> -n <namespace> -- which jcmd\n' +
+          'Review solo logs: tail -n 100 ~/.solo/logs/solo.log',
       },
       cause,
     );

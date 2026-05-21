@@ -13,7 +13,9 @@ export class LoadBalancerNotFoundSoloError extends SoloError {
       message: 'Load balancer not found',
       code: ErrorCodeRegistry.LOAD_BALANCER_NOT_FOUND,
       troubleshootingSteps:
-        'Check load balancer service status: kubectl get svc -n <namespace> -l solo.hedera.com/type=network-node\nEnsure your cloud provider supports LoadBalancer services\nReview cloud provisioning logs for LB assignment delays',
+        'Check load balancer service status: kubectl get svc -n <namespace> -l solo.hedera.com/type=network-node\n' +
+        'Ensure your cloud provider supports LoadBalancer services\n' +
+        'Review cloud provisioning logs for LB assignment delays',
     });
   }
 }

@@ -13,7 +13,9 @@ export class DeploymentNotFoundSoloError extends SoloError {
       message: `No deployments found in local or remote config. Please provide --${flagName} or create a deployment first`,
       code: ErrorCodeRegistry.DEPLOYMENT_NOT_FOUND,
       troubleshootingSteps:
-        'Create a deployment: solo deployment create\nList existing deployments: solo deployment list\nProvide the deployment explicitly: solo node <command> --deployment <name>',
+        'List existing deployments: solo deployment config list\n' +
+        'Create a new deployment: solo deployment config create\n' +
+        'Provide the deployment explicitly: solo node <command> --deployment <name>',
     });
   }
 }

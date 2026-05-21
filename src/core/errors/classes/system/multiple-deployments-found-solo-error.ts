@@ -13,7 +13,8 @@ export class MultipleDeploymentsFoundSoloError extends SoloError {
       message: `Multiple deployments found in ${source} config (${deploymentNames}). Please provide --${flagName}`,
       code: ErrorCodeRegistry.MULTIPLE_DEPLOYMENTS_FOUND,
       troubleshootingSteps:
-        'List existing deployments: solo deployment list\nSpecify the deployment: solo node <command> --deployment <name>',
+        'List existing deployments: solo deployment config list\n' +
+        'Specify the deployment explicitly: solo node <command> --deployment <name>',
     });
   }
 }

@@ -13,7 +13,9 @@ export class ConfigFileNotFoundSoloError extends SoloError {
       message: `Configuration file does not exist for: ${flagName}, absolute path: ${absolutePath}, path: ${relativePath}`,
       code: ErrorCodeRegistry.CONFIG_FILE_NOT_FOUND,
       troubleshootingSteps:
-        'Verify the file exists: ls -la <absolutePath>\nSet the correct file path for the --<flagName> flag\nRun with --help for configuration file flags: solo node setup --help',
+        'Verify the file exists: ls -la <absolutePath>\n' +
+        'Set the correct file path for the --<flagName> flag\n' +
+        'Run with --help for configuration file flags: solo node setup --help',
     });
   }
 }

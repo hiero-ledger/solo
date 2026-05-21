@@ -12,8 +12,7 @@ export class NoPvcFoundSoloError extends SoloError {
     super({
       message: `No PVCs found in namespace ${namespace}. Please ensure PVCs are enabled during network deployment`,
       code: ErrorCodeRegistry.NO_PVC_FOUND,
-      troubleshootingSteps:
-        'Check existing PVCs: kubectl get pvc -n <namespace> -l solo.hedera.com/type=node-pvc\nRedeploy with PVCs enabled: solo network deploy --pvcs true',
+      troubleshootingSteps: 'Redeploy with PVCs enabled: solo network deploy --pvcs true',
     });
   }
 }

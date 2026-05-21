@@ -414,7 +414,7 @@ export class NodeCommandTasks {
       const applicationsSubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'apps');
       const librarySubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'lib');
       if (!fs.existsSync(applicationsSubDirectory) || !fs.existsSync(librarySubDirectory)) {
-        throw new SoloErrors.validation.localBuildMissingSubdirs(localDataLibraryBuildPath);
+        throw new SoloErrors.validation.localBuildMissingSubdirectories(localDataLibraryBuildPath);
       }
       const applicationsJarFiles: string[] = fs
         .readdirSync(applicationsSubDirectory)
