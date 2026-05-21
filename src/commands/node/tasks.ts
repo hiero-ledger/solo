@@ -1311,7 +1311,7 @@ export class NodeCommandTasks {
         const config: NodeAddConfigClass & {stateFile?: string} = context_.config;
 
         // Get the source node ID from the first consensus node (the state file's original node)
-        const sourceNodeId: any = config.consensusNodes[0].nodeId;
+        const sourceNodeId: NodeId = config.consensusNodes[0].nodeId;
 
         for (const nodeAlias of context_.config.nodeAliases) {
           const kubeContext: Optional<string> = helpers.extractContextFromConsensusNodes(
@@ -1322,22 +1322,29 @@ export class NodeCommandTasks {
             throw new SoloError(`Unable to determine Kubernetes context for node ${nodeAlias}`);
           }
           const k8: K8 = this.k8Factory.getK8(kubeContext);
-          const podReference: any = context_.config.podRefs[nodeAlias];
+          const podReference: PodReference = context_.config.podRefs[nodeAlias];
           const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-          const consensusNode: any = config.consensusNodes.find((node): boolean => node.name === nodeAlias);
+          const consensusNode: ConsensusNode = config.consensusNodes.find((node): boolean => node.name === nodeAlias);
           if (!consensusNode) {
             throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
           }
-          const clusterReference: any = consensusNode.cluster ?? kubeContext;
-          const targetNodeId: any = consensusNode.nodeId;
-          const container: Container = await k8.containers().readByRef(containerReference);
+          const clusterReference: ClusterReferenceName = consensusNode.cluster ?? kubeContext;
+          const targetNodeId: NodeId = consensusNode.nodeId;
+          const container: Container = k8.containers().readByRef(containerReference);
 
           // Determine the state file to use
           let zipFile: string;
-          const stateInputPath: string = stateFileDirectory || config.stateFile;
-          if (stateInputPath && fs.existsSync(stateInputPath) && fs.statSync(stateInputPath).isDirectory()) {
+          let stateInputPath: string = stateFileDirectory || config.stateFile;
+
+          if (!stateInputPath || !fs.existsSync(stateInputPath)) {
+            throw new SoloError(`State file path does not exist: ${stateInputPath}`);
+          }
+
+          stateInputPath = PathEx.resolve(stateInputPath);
+
+          if (fs.statSync(stateInputPath).isDirectory()) {
             // It's a directory - find the state file for this specific pod
-            const podName: any = podReference.name.name;
+            const podName: string = podReference.name.name;
             const statesDirectory: string = PathEx.join(
               stateInputPath,
               'states',
@@ -1366,6 +1373,23 @@ export class NodeCommandTasks {
             zipFile = stateInputPath;
           }
 
+          if (!zipFile.endsWith('.zip')) {
+            throw new SoloError(`State file must be a .zip file: ${zipFile}`);
+          }
+
+          if (!fs.existsSync(zipFile) || !fs.statSync(zipFile).isFile()) {
+            throw new SoloError(`State file does not exist or is not a file: ${zipFile}`);
+          }
+
+          const zipFileName: string = PathEx.basename(zipFile);
+
+          // The zip filename is later passed to `unzip` inside the container.
+          // Keep the accepted filename format intentionally small so user input cannot
+          // be interpreted as command options, path traversal, shell syntax, or nested paths.
+          if (zipFileName.startsWith('-') || !/^[a-zA-Z0-9._-]+$/.test(zipFileName)) {
+            throw new SoloError(`Invalid state zip file name: ${zipFileName}`);
+          }
+
           this.logger.debug(`Uploading state files to pod ${podReference.name}`);
           await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
 
@@ -1376,7 +1400,7 @@ export class NodeCommandTasks {
           await container.execContainer([
             'unzip',
             '-o',
-            `${constants.HEDERA_HAPI_PATH}/data/${PathEx.basename(zipFile)}`,
+            `${constants.HEDERA_HAPI_PATH}/data/${zipFileName}`,
             '-d',
             `${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
