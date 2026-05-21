@@ -4,10 +4,10 @@ import {expect} from 'chai';
 import {describe, it} from 'mocha';
 
 import {SoloError} from '../../../src/core/errors/solo-error.js';
-import {ResourceNotFoundError} from '../../../src/core/errors/resource-not-found-error.js';
-import {MissingArgumentError} from '../../../src/core/errors/missing-argument-error.js';
-import {IllegalArgumentError} from '../../../src/core/errors/illegal-argument-error.js';
-import {DataValidationError} from '../../../src/core/errors/data-validation-error.js';
+import {ResourceNotFoundError} from '../../../src/core/errors/classes/system/resource-not-found-error.js';
+import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
+import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
+import {DataValidationError} from '../../../src/core/errors/classes/validation/data-validation-error.js';
 
 describe('Errors', () => {
   const message = 'errorMessage';
@@ -24,10 +24,10 @@ describe('Errors', () => {
 
   it('should construct correct ResourceNotFoundError', () => {
     const resource = 'resource';
-    const error = new ResourceNotFoundError(message, resource);
+    const error = new ResourceNotFoundError(resource);
     expect(error).to.be.instanceof(SoloError);
     expect(error.name).to.equal('ResourceNotFoundError');
-    expect(error.message).to.equal(message);
+    expect(error.message).to.equal(`Resource not found: ${resource}`);
     expect(error.cause).to.deep.equal({});
     expect(error.meta).to.deep.equal({resource});
   });
@@ -52,12 +52,15 @@ describe('Errors', () => {
   });
 
   it('should construct correct DataValidationError', () => {
+    const context = 'errorMessage';
     const expected = 'expected';
     const found = 'found';
-    const error = new DataValidationError(message, expected, found);
+    const error = new DataValidationError(context, expected, found);
     expect(error).to.be.instanceof(SoloError);
     expect(error.name).to.equal('DataValidationError');
-    expect(error.message).to.equal(message);
+    expect(error.message).to.equal(
+      `Data validation failed: ${context} (expected: ${JSON.stringify(expected)}, found: ${JSON.stringify(found)})`,
+    );
     expect(error.cause).to.deep.equal({});
     expect(error.meta).to.deep.equal({expected, found});
   });

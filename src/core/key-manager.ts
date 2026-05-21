@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
 import fs from 'node:fs';
 import path from 'node:path';
 import {SoloError} from './errors/solo-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {Templates} from './templates.js';
@@ -80,7 +79,7 @@ export class KeyManager {
    */
   async convertPemToPrivateKey(pemString: string, algo: any, keyUsages: KeyUsage[] = ['sign']): Promise<CryptoKey> {
     if (!algo) {
-      throw new MissingArgumentError('algo is required');
+      throw new SoloErrors.validation.missingArgument('algo is required');
     }
 
     const items: any = x509.PemConverter.decode(pemString);
@@ -102,10 +101,10 @@ export class KeyManager {
    */
   prepareNodeKeyFilePaths(nodeAlias: NodeAlias, keysDirectory: string): PrivateKeyAndCertificateObject {
     if (!nodeAlias) {
-      throw new MissingArgumentError('nodeAlias is required');
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
     }
     if (!keysDirectory) {
-      throw new MissingArgumentError('keysDirectory is required');
+      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
     }
 
     const keyFile: string = PathEx.join(keysDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
@@ -124,10 +123,10 @@ export class KeyManager {
    */
   prepareTlsKeyFilePaths(nodeAlias: NodeAlias, keysDirectory: string): PrivateKeyAndCertificateObject {
     if (!nodeAlias) {
-      throw new MissingArgumentError('nodeAlias is required');
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
     }
     if (!keysDirectory) {
-      throw new MissingArgumentError('keysDirectory is required');
+      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
     }
 
     const keyFile: string = PathEx.join(keysDirectory, `hedera-${nodeAlias}.key`);
@@ -156,27 +155,27 @@ export class KeyManager {
     keyName: string = '',
   ): Promise<PrivateKeyAndCertificateObject> {
     if (!nodeAlias) {
-      throw new MissingArgumentError('nodeAlias is required');
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
     }
 
     if (!nodeKey || !nodeKey.privateKey) {
-      throw new MissingArgumentError('nodeKey.ed25519PrivateKey is required');
+      throw new SoloErrors.validation.missingArgument('nodeKey.ed25519PrivateKey is required');
     }
 
     if (!nodeKey || !nodeKey.certificateChain) {
-      throw new MissingArgumentError('nodeKey.certificateChain is required');
+      throw new SoloErrors.validation.missingArgument('nodeKey.certificateChain is required');
     }
 
     if (!keysDirectory) {
-      throw new MissingArgumentError('keysDirectory is required');
+      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
     }
 
     if (!nodeKeyFiles || !nodeKeyFiles.privateKeyFile) {
-      throw new MissingArgumentError('nodeKeyFiles.privateKeyFile is required');
+      throw new SoloErrors.validation.missingArgument('nodeKeyFiles.privateKeyFile is required');
     }
 
     if (!nodeKeyFiles || !nodeKeyFiles.certificateFile) {
-      throw new MissingArgumentError('nodeKeyFiles.certificateFile is required');
+      throw new SoloErrors.validation.missingArgument('nodeKeyFiles.certificateFile is required');
     }
 
     const keyPem: any = await this.convertPrivateKeyToPem(nodeKey.privateKey);
@@ -228,23 +227,23 @@ export class KeyManager {
     keyName: string = '',
   ): Promise<NodeKeyObject> {
     if (!nodeAlias) {
-      throw new MissingArgumentError('nodeAlias is required');
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
     }
 
     if (!keysDirectory) {
-      throw new MissingArgumentError('keysDirectory is required');
+      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
     }
 
     if (!algo) {
-      throw new MissingArgumentError('algo is required');
+      throw new SoloErrors.validation.missingArgument('algo is required');
     }
 
     if (!nodeKeyFiles || !nodeKeyFiles.privateKeyFile) {
-      throw new MissingArgumentError('nodeKeyFiles.privateKeyFile is required');
+      throw new SoloErrors.validation.missingArgument('nodeKeyFiles.privateKeyFile is required');
     }
 
     if (!nodeKeyFiles || !nodeKeyFiles.certificateFile) {
-      throw new MissingArgumentError('nodeKeyFiles.certificateFile is required');
+      throw new SoloErrors.validation.missingArgument('nodeKeyFiles.certificateFile is required');
     }
 
     this.logger.debug(`Loading ${keyName}-keys for node: ${nodeAlias}`, {nodeKeyFiles});
@@ -364,10 +363,10 @@ export class KeyManager {
     distinguishedName: x509.Name = new x509.Name(`CN=${nodeAlias}`),
   ): Promise<NodeKeyObject> {
     if (!nodeAlias) {
-      throw new MissingArgumentError('nodeAlias is required');
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
     }
     if (!distinguishedName) {
-      throw new MissingArgumentError('distinguishedName is required');
+      throw new SoloErrors.validation.missingArgument('distinguishedName is required');
     }
 
     try {
@@ -475,7 +474,7 @@ export class KeyManager {
     _allNodeAliases: NodeAliases | null = null,
   ) {
     if (!Array.isArray(nodeAliases) || !nodeAliases.every(nodeAlias => typeof nodeAlias === 'string')) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         'nodeAliases must be an array of strings, nodeAliases = ' + JSON.stringify(nodeAliases),
       );
     }
