@@ -68,7 +68,7 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99 # v2.19.2
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -123,15 +123,6 @@ jobs:
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
-
-      - name: Setup E2E Tests
-        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
-        with:
-          max_attempts: 3
-          timeout_minutes: 10
-          # Skip metallb for single-cluster perf tests
-          command: |
-            SOLO_CLUSTER_DUALITY=1 SOLO_SKIP_METALLB=1  ./test/e2e/dual-cluster/setup-dual-e2e.sh
 
       - name: Run E2E Tests
         id: run-e2e-tests
@@ -386,13 +377,6 @@ jobs:
           fi
           # Include the summary JSON in the metrics artifact
           cp ~/.solo/logs/*.json ~/.solo/metrics/ 2>/dev/null || true
-
-      - name: Collect Deployment Diagnostics Logs
-        if: ${{ !cancelled() && always() }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          npm run solo-test -- deployment diagnostics logs -q --dev || true
 
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}

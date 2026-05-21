@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {LayeredModelConfigSource} from './layered-model-config-source.js';
 import {type Persistable} from '../spi/persistable.js';
 import {type ConfigMutator} from '../spi/config-mutator.js';
 import {ReflectAssist} from '../../../business/utils/reflect-assist.js';
 import {ConfigurationError} from '../api/configuration-error.js';
 import {instanceToPlain} from 'class-transformer';
-import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 import {type SchemaDefinition} from '../../schema/migration/api/schema-definition.js';
 import {type ObjectStorageBackend} from '../../backend/api/object-storage-backend.js';
 import {type ObjectMapper} from '../../mapper/api/object-mapper.js';
@@ -36,7 +36,7 @@ export abstract class MutableModelConfigSource<T extends object>
 
   public putObject<T>(key: string, value: T): void {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     this.mapper.applyPropertyValue(this.modelData, key, value as object);
@@ -45,7 +45,7 @@ export abstract class MutableModelConfigSource<T extends object>
 
   public putObjectArray<T>(key: string, value: T[]): void {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     this.mapper.applyPropertyValue(this.modelData, key, value);
@@ -54,7 +54,7 @@ export abstract class MutableModelConfigSource<T extends object>
 
   public putScalar(key: string, value: Primitive): void {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     if (!this.forest.has(key)) {
@@ -68,7 +68,7 @@ export abstract class MutableModelConfigSource<T extends object>
 
   public putScalarArray(key: string, value: Primitive[]): void {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     this.forest.addOrReplaceArray(key, value);

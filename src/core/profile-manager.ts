@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {SoloError} from './errors/solo-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
 import {readFile, writeFile} from 'node:fs/promises';
@@ -797,7 +796,7 @@ export class ProfileManager {
   ): Promise<string> {
     let releaseTag: string = releaseTagOverride;
     if (!nodeAccountMap || nodeAccountMap.size === 0) {
-      throw new MissingArgumentError('nodeAccountMap the map of node IDs to account IDs is required');
+      throw new SoloErrors.validation.missingArgument('nodeAccountMap the map of node IDs to account IDs is required');
     }
 
     if (!releaseTag) {
@@ -805,7 +804,10 @@ export class ProfileManager {
     }
 
     if (!fs.existsSync(destinationPath)) {
-      throw new IllegalArgumentError(`config destPath does not exist: ${destinationPath}`, destinationPath);
+      throw new SoloErrors.validation.illegalArgument(
+        `config destPath does not exist: ${destinationPath}`,
+        destinationPath,
+      );
     }
 
     const configFilePath: string = PathEx.join(destinationPath, 'config.txt');
