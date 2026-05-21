@@ -314,7 +314,7 @@ Troubleshooting:
       isSystemFile?: boolean;
     }
 
-    const tasks = new Listr<Context>(
+    const tasks: SoloListr<Context> = new Listr(
       [
         {
           title: 'Initialize configuration',
