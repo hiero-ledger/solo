@@ -4,7 +4,7 @@ import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import chalk from 'chalk';
-import {SoloError} from '../core/errors/solo-error.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -302,7 +302,9 @@ export class NetworkCommand extends BaseCommand {
         .createOrReplace(namespace, constants.MINIO_SECRET_NAME, SecretType.OPAQUE, minioData);
 
       if (!isMinioSecretCreated) {
-        throw new SoloError(`failed to create new minio secret using context: ${context}`);
+        throw new SoloErrors.system.k8sSecretCreateFailed(
+          `failed to create new minio secret using context: ${context}`,
+        );
       }
 
       this.logger.debug(`created minio secret using context: ${context}`);
@@ -344,7 +346,7 @@ export class NetworkCommand extends BaseCommand {
         .createOrReplace(namespace, constants.UPLOADER_SECRET_NAME, SecretType.OPAQUE, cloudData);
 
       if (!isCloudSecretCreated) {
-        throw new SoloError(
+        throw new SoloErrors.system.k8sSecretCreateFailed(
           `failed to create secret for storage credentials of type '${config.storageType}' using context: ${context}`,
         );
       }
@@ -376,7 +378,9 @@ export class NetworkCommand extends BaseCommand {
         .createOrReplace(namespace, constants.BACKUP_SECRET_NAME, SecretType.OPAQUE, backupData);
 
       if (!isBackupSecretCreated) {
-        throw new SoloError(`failed to create secret for backup uploader using context: ${context}`);
+        throw new SoloErrors.system.k8sSecretCreateFailed(
+          `failed to create secret for backup uploader using context: ${context}`,
+        );
       }
 
       this.logger.debug(`created secret for backup uploader using context: ${context}`);
@@ -396,7 +400,7 @@ export class NetworkCommand extends BaseCommand {
         await this.prepareBackupUploaderSecrets(config);
       }
     } catch (error) {
-      throw new SoloError('Failed to create Kubernetes storage secret', error);
+      throw new SoloErrors.system.k8sSecretCreateFailed('Failed to create Kubernetes storage secret', error);
     }
   }
 
@@ -854,9 +858,7 @@ export class NetworkCommand extends BaseCommand {
       (realm !== 0 || shard !== 0) &&
       new SemanticVersion<string>(networkNodeVersion).lessThan(minimumVersionForNonZeroRealms)
     ) {
-      throw new SoloError(
-        `The realm and shard values must be 0 when using the ${minimumVersionForNonZeroRealms} version of the network node`,
-      );
+      throw new SoloErrors.validation.realmShardVersionConstraint(minimumVersionForNonZeroRealms.toString());
     }
 
     if (config.haproxyIps) {
@@ -1299,9 +1301,7 @@ export class NetworkCommand extends BaseCommand {
               this.logger.showUser(
                 `Consensus node version ${currentVersion} does not support TSS or Wraps. Please upgrade to version ${minimumVersion} or later to enable these features.`,
               );
-              throw new SoloError(
-                `"--wraps" requires consensus node >= ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS}`,
-              );
+              throw new SoloErrors.validation.wrapsVersionConstraint(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
             }
 
             this.remoteConfig.configuration.state.tssEnabled = tssEnabled;
@@ -1474,7 +1474,7 @@ export class NetworkCommand extends BaseCommand {
                     attempts++;
                     await sleep(Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS));
                   }
-                  throw new SoloError('Load balancer not found');
+                  throw new SoloErrors.system.loadBalancerNotFound();
                 },
               });
             }
@@ -1636,7 +1636,7 @@ export class NetworkCommand extends BaseCommand {
             if (config.wrapsKeyPath) {
               // Use user-provided local directory containing WRAPs proving key files
               if (!fs.existsSync(config.wrapsKeyPath)) {
-                throw new SoloError(`WRAPs key path does not exist: ${config.wrapsKeyPath}`);
+                throw new SoloErrors.validation.wrapsKeyPathNotFound(config.wrapsKeyPath);
               }
               this.logger.info(`Using WRAPs proving key files from: ${config.wrapsKeyPath}`);
 
@@ -1704,7 +1704,7 @@ export class NetworkCommand extends BaseCommand {
                 await createAndCopyBlockNodeJsonFileForConsensusNode(consensusNode, this.logger, this.k8Factory);
               }
             } catch (error) {
-              throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
+              throw new SoloErrors.component.blockNodeConfigFailed(error);
             }
           },
         },
@@ -1729,7 +1729,7 @@ export class NetworkCommand extends BaseCommand {
                       `${constants.HEDERA_HAPI_PATH}/data/config`,
                     );
                   } catch (error) {
-                    throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);
+                    throw new SoloErrors.component.blockNodeConfigFailed(error);
                   }
                 },
               });
@@ -1753,7 +1753,7 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error installing chart ${constants.SOLO_DEPLOYMENT_CHART}`, error);
+        throw new SoloErrors.component.chartInstallFailed(constants.SOLO_DEPLOYMENT_CHART, error);
       } finally {
         if (lease && !this.oneShotState.isActive()) {
           await lease.release();
@@ -1862,7 +1862,7 @@ export class NetworkCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError('Error destroying network', error);
+        throw new SoloErrors.component.networkDestroyFailed(error);
       } finally {
         // If the namespace is deleted, the lease can't be released
         if (!this.oneShotState.isActive()) {

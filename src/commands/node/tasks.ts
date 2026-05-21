@@ -48,6 +48,7 @@ import {
   TransactionResponse,
 } from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -319,7 +320,7 @@ export class NodeCommandTasks {
 
       return zipHash;
     } catch (error) {
-      throw new SoloError(`failed to upload build.zip file: ${error.message}`, error);
+      throw new SoloErrors.component.nodeBuildUploadFailed(error);
     }
   }
 
@@ -406,7 +407,7 @@ export class NodeCommandTasks {
         : defaultDataLibraryBuildPath;
 
       if (!fs.existsSync(localDataLibraryBuildPath)) {
-        throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
+        throw new SoloErrors.validation.localBuildPathNotFound(localDataLibraryBuildPath);
       }
 
       // The local build path points to the `data` directory itself (containing apps/ and lib/).
@@ -414,21 +415,19 @@ export class NodeCommandTasks {
       const applicationsSubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'apps');
       const librarySubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'lib');
       if (!fs.existsSync(applicationsSubDirectory) || !fs.existsSync(librarySubDirectory)) {
-        throw new SoloError(
-          `local build path '${localDataLibraryBuildPath}' must contain 'apps' and 'lib' subdirectories`,
-        );
+        throw new SoloErrors.validation.localBuildMissingSubdirs(localDataLibraryBuildPath);
       }
       const applicationsJarFiles: string[] = fs
         .readdirSync(applicationsSubDirectory)
         .filter((file: string): boolean => file.endsWith('.jar'));
       if (applicationsJarFiles.length === 0) {
-        throw new SoloError(`No jar files found in '${applicationsSubDirectory}'; please check your local build path`);
+        throw new SoloErrors.validation.localBuildNoJarFiles(applicationsSubDirectory);
       }
       const libraryJarFiles: string[] = fs
         .readdirSync(librarySubDirectory)
         .filter((file: string): boolean => file.endsWith('.jar'));
       if (libraryJarFiles.length === 0) {
-        throw new SoloError(`No jar files found in '${librarySubDirectory}'; please check your local build path`);
+        throw new SoloErrors.validation.localBuildNoJarFiles(librarySubDirectory);
       }
 
       const k8: K8 = this.k8Factory.getK8(context);
@@ -470,7 +469,7 @@ export class NodeCommandTasks {
             }
           }
           if (storedError) {
-            throw new SoloError(`Error in copying local build to node: ${storedError.message}`, storedError);
+            throw new SoloErrors.component.nodeBuildCopyFailed(storedError);
           }
         },
       });
@@ -659,10 +658,7 @@ export class NodeCommandTasks {
     }
 
     if (!success) {
-      throw new SoloError(
-        `node '${nodeAlias}' is not ${NodeStatusEnums[status]}` +
-          `[ attempt = ${chalk.blueBright(`${attempt}/${maxAttempts}`)} ]`,
-      );
+      throw new SoloErrors.component.nodeNotReady(nodeAlias, NodeStatusEnums[status], attempt, maxAttempts);
     }
 
     if (constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS > 0) {
@@ -822,7 +818,7 @@ export class NodeCommandTasks {
 
       this.logger.debug(`The transaction consensus status is ${receipt.status}`);
     } catch (error) {
-      throw new SoloError(`Error in adding stake: ${error.message}`, error);
+      throw new SoloErrors.component.nodeTransactionError('adding stake', error);
     }
   }
 
@@ -964,10 +960,13 @@ export class NodeCommandTasks {
           );
 
           if (prepareUpgradeReceipt.status !== Status.Success) {
-            throw new SoloError(`Prepare upgrade transaction failed: ${prepareUpgradeReceipt.status}`);
+            throw new SoloErrors.component.nodeTransactionFailed(
+              'Prepare upgrade',
+              prepareUpgradeReceipt.status.toString(),
+            );
           }
         } catch (error) {
-          throw new SoloError(`Error in prepare upgrade: ${error.message}`, error);
+          throw new SoloErrors.component.nodeTransactionError('prepare upgrade', error);
         }
       },
     };
@@ -1012,7 +1011,7 @@ export class NodeCommandTasks {
             freezeUpgradeReceipt.status.toString(),
           );
         } catch (error) {
-          throw new SoloError(`Error in freeze upgrade: ${error.message}`, error);
+          throw new SoloErrors.component.nodeTransactionError('freeze upgrade', error);
         }
       },
     };
@@ -1050,7 +1049,7 @@ export class NodeCommandTasks {
             freezeOnlyReceipt.status.toString(),
           );
         } catch (error) {
-          throw new SoloError(`Error in sending freeze transaction: ${error.message}`, error);
+          throw new SoloErrors.component.nodeTransactionError('sending freeze transaction', error);
         }
       },
     };
@@ -1236,7 +1235,7 @@ export class NodeCommandTasks {
 
       return podReference;
     } catch (error) {
-      throw new SoloError(`no pod found for nodeAlias: ${nodeAlias}`, error);
+      throw new SoloErrors.system.podNotFound(nodeAlias, error);
     }
   }
 
@@ -1319,14 +1318,14 @@ export class NodeCommandTasks {
             config.consensusNodes,
           );
           if (!kubeContext) {
-            throw new SoloError(`Unable to determine Kubernetes context for node ${nodeAlias}`);
+            throw new SoloErrors.system.kubeContextNotFound(nodeAlias);
           }
           const k8: K8 = this.k8Factory.getK8(kubeContext);
           const podReference: any = context_.config.podRefs[nodeAlias];
           const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
           const consensusNode: any = config.consensusNodes.find((node): boolean => node.name === nodeAlias);
           if (!consensusNode) {
-            throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
+            throw new SoloErrors.system.consensusNodeNotInConfig(nodeAlias);
           }
           const clusterReference: any = consensusNode.cluster ?? kubeContext;
           const targetNodeId: any = consensusNode.nodeId;
@@ -1346,7 +1345,7 @@ export class NodeCommandTasks {
             );
             if (!fs.existsSync(statesDirectory)) {
               this.logger.showUserError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
-              throw new SoloError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
+              throw new SoloErrors.system.statesDirectoryNotFound(nodeAlias, statesDirectory);
             }
 
             const stateFiles: string[] = fs
@@ -1767,7 +1766,7 @@ export class NodeCommandTasks {
           const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
 
           if (updateTransactionReceipt.status !== Status.Success) {
-            throw new SoloError('Failed to set gRPC web proxy endpoint');
+            throw new SoloErrors.system.grpcProxyEndpointFailed();
           }
         }
       },
@@ -1926,10 +1925,7 @@ export class NodeCommandTasks {
                   `ls "${directoryPath}"/*.jar 2>/dev/null | wc -l`,
                 ]);
                 if (Number.parseInt(output.trim(), 10) === 0) {
-                  throw new SoloError(
-                    `Node '${nodeAlias}': no JAR files found in ${directoryPath}. ` +
-                      'Ensure platform software was copied to the node before starting.',
-                  );
+                  throw new SoloErrors.validation.nodeJarFilesNotInContainer(nodeAlias, directoryPath);
                 }
               }
               await container.execContainer(['bash', '-c', startCommand]);
@@ -1996,7 +1992,7 @@ export class NodeCommandTasks {
             .list(config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
 
           if (pods.length === 0) {
-            throw new SoloError('No HAProxy pods found');
+            throw new SoloErrors.system.haproxyPodsNotFound();
           }
 
           for (const pod of pods) {
@@ -2371,9 +2367,7 @@ export class NodeCommandTasks {
           const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
           const sourceAbsoluteFilePath: string = PathEx.resolve(currentWorkingDirectory, sourceFilePath);
           if (!fs.existsSync(sourceAbsoluteFilePath)) {
-            throw new SoloError(
-              `Configuration file does not exist for: ${flag.name}, absolute path: ${sourceAbsoluteFilePath}, path: ${sourceFilePath}`,
-            );
+            throw new SoloErrors.validation.configFileNotFound(flag.name, sourceAbsoluteFilePath, sourceFilePath);
           }
 
           const destinationFileName: string = PathEx.basename(flag.definition.defaultValue as string);
@@ -2748,10 +2742,7 @@ export class NodeCommandTasks {
               task.title += '\n\t' + gray('Pod port') + ' ' + yellow(`[${podPort}]`);
 
               if (check && !isReachable) {
-                throw new SoloError(
-                  `Configured port-forward is missing: ${componentDisplayName} ${componentId} ` +
-                    `localhost:${localPort} -> pod:${podPort}`,
-                );
+                throw new SoloErrors.system.portForwardMissing(componentDisplayName, componentId, localPort, podPort);
               }
             },
           });
@@ -2957,7 +2948,7 @@ export class NodeCommandTasks {
       title: 'Check that PVCs are enabled',
       task: async (context_): Promise<void> => {
         if (!this.configManager.getFlag(flags.persistentVolumeClaims)) {
-          throw new SoloError('PVCs flag are not enabled. Please enable PVCs before adding a node');
+          throw new SoloErrors.validation.pvcFlagNotEnabled();
         }
 
         // Create an array of promises
@@ -2970,9 +2961,7 @@ export class NodeCommandTasks {
 
           this.logger.info(`Found ${pvcs.length} PVCs in namespace ${context_.config.namespace}: ${pvcs.join(', ')}`);
           if (pvcs.length === 0) {
-            throw new SoloError(
-              'No PVCs found in the namespace. Please ensure PVCs are enabled during network deployment.',
-            );
+            throw new SoloErrors.system.noPvcFound(String(context_.config.namespace));
           }
           return pvcs;
         });
@@ -3185,7 +3174,7 @@ export class NodeCommandTasks {
           endpoints = splitFlagInput(config.grpcEndpoints);
         } else {
           if (config.endpointType !== constants.ENDPOINT_TYPE_FQDN) {
-            throw new SoloError(`--grpc-endpoints must be set if --endpoint-type is: ${constants.ENDPOINT_TYPE_IP}`);
+            throw new SoloErrors.validation.grpcEndpointsRequired(constants.ENDPOINT_TYPE_IP);
           }
 
           endpoints = [
@@ -3297,13 +3286,15 @@ export class NodeCommandTasks {
               );
 
             if (!isAdminKeySecretCreated) {
-              throw new SoloError(`failed to create admin key secret for node '${config.nodeAlias}'`);
+              throw new SoloErrors.system.k8sSecretCreateFailed(
+                `failed to create admin key secret for node '${config.nodeAlias}'`,
+              );
             }
 
             this.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
           }
         } catch (error) {
-          throw new SoloError(`Error updating node to network: ${error.message}`, error);
+          throw new SoloErrors.component.nodeTransactionError('updating node to network', error);
         }
       },
     };
@@ -3339,7 +3330,7 @@ export class NodeCommandTasks {
         if (wrapsKeyPath) {
           // Use user-provided local directory containing WRAPs proving key files
           if (!fs.existsSync(wrapsKeyPath)) {
-            throw new SoloError(`WRAPs key path does not exist: ${wrapsKeyPath}`);
+            throw new SoloErrors.validation.wrapsKeyPathNotFound(wrapsKeyPath);
           }
 
           if (!fs.existsSync(extractedDirectory)) {
@@ -3791,9 +3782,7 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const outputDirectory: string = argv[flags.outputDir.name];
         if (!outputDirectory) {
-          throw new SoloError(
-            `Path to export context data not specified. Please set a value for --${flags.outputDir.name}`,
-          );
+          throw new SoloErrors.validation.outputDirectoryNotSpecified(flags.outputDir.name);
         }
 
         if (!fs.existsSync(outputDirectory)) {
@@ -3815,7 +3804,7 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const inputDirectory: string = argv[flags.inputDir.name];
         if (!inputDirectory) {
-          throw new SoloError(`Path to context data not specified. Please set a value for --${flags.inputDir.name}`);
+          throw new SoloErrors.validation.inputDirectoryNotSpecified(flags.inputDir.name);
         }
 
         // @ts-expect-error - TS2345
@@ -4068,7 +4057,7 @@ export class NodeCommandTasks {
           this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
 
           if (nodeDeleteReceipt.status !== Status.Success) {
-            throw new SoloError(`Node delete transaction failed with status: ${nodeDeleteReceipt.status}.`);
+            throw new SoloErrors.component.nodeTransactionFailed('Node delete', nodeDeleteReceipt.status.toString());
           }
 
           // Delete admin key secret from k8s after successful node deletion
@@ -4084,7 +4073,7 @@ export class NodeCommandTasks {
             this.logger.debug(`Could not delete admin key secret for ${config.nodeAlias}: ${deleteError.message}`);
           }
         } catch (error) {
-          throw new SoloError(`Error deleting node from network: ${error.message}`, error);
+          throw new SoloErrors.component.nodeTransactionError('deleting node from network', error);
         }
       },
     };
@@ -4113,7 +4102,7 @@ export class NodeCommandTasks {
           this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
 
           if (nodeCreateReceipt.status !== Status.Success) {
-            throw new SoloError(`Node Create Transaction failed: ${nodeCreateReceipt.status}`);
+            throw new SoloErrors.component.nodeTransactionFailed('Node Create', nodeCreateReceipt.status.toString());
           }
 
           // Save admin key to k8s secret after successful node creation
@@ -4134,7 +4123,7 @@ export class NodeCommandTasks {
 
           this.logger.debug(`Saved admin key for node ${nodeAlias} to k8s secret`);
         } catch (error) {
-          throw new SoloError(`Error adding node to network: ${error.message}`, error);
+          throw new SoloErrors.component.nodeTransactionError('adding node to network', error);
         }
       },
     };
@@ -4531,11 +4520,15 @@ export class NodeCommandTasks {
           );
           pid = servicesMainProcess.trim().split(' ')[0];
         } catch (error) {
-          throw new SoloError(`Failed to get process list from node pod ${nodeFullyQualifiedPodName}`, error);
+          throw new SoloErrors.component.nodeJfrExecutionFailed(
+            'Failed to get process list',
+            nodeFullyQualifiedPodName.toString(),
+            error,
+          );
         }
 
         if (!pid) {
-          throw new SoloError(`Could not find process ID for ServicesMain in node pod ${nodeFullyQualifiedPodName}`);
+          throw new SoloErrors.component.nodeJfrPidNotFound(nodeFullyQualifiedPodName.toString());
         }
 
         const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
@@ -4545,7 +4538,11 @@ export class NodeCommandTasks {
           );
           this.logger.info(`JFR dump command output: ${result}`);
         } catch (error) {
-          throw new SoloError(`Failed to create JFR recording on node pod ${nodeFullyQualifiedPodName}`, error);
+          throw new SoloErrors.component.nodeJfrExecutionFailed(
+            'Failed to create JFR recording',
+            nodeFullyQualifiedPodName.toString(),
+            error,
+          );
         }
 
         try {
@@ -4556,8 +4553,9 @@ export class NodeCommandTasks {
           fs.renameSync(PathEx.joinWithRealPath(localJfrLogsDirectory, 'recording.jfr'), targetPath);
           this.logger.showUser(`Downloaded Java Flight Recorder logs to ${targetPath}`);
         } catch (error) {
-          throw new SoloError(
-            `Failed to copy JFR recording from node pod ${nodeFullyQualifiedPodName} to local machine`,
+          throw new SoloErrors.component.nodeJfrExecutionFailed(
+            'Failed to copy JFR recording',
+            nodeFullyQualifiedPodName.toString(),
             error,
           );
         }

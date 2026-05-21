@@ -3,7 +3,7 @@
 import {Templates} from '../../core/templates.js';
 import * as constants from '../../core/constants.js';
 import {AccountId, PrivateKey} from '@hiero-ledger/sdk';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import * as helpers from '../../core/helpers.js';
 import {checkNamespace} from '../../core/helpers.js';
 import fs from 'node:fs';
@@ -91,7 +91,7 @@ export class NodeCommandConfigs {
     config.stagingKeysDir = PathEx.join(config.stagingDir, 'keys');
 
     if (!(await k8Factory.default().namespaces().has(config.namespace))) {
-      throw new SoloError(`namespace ${config.namespace} does not exist`);
+      throw new SoloErrors.system.namespaceNotFound(String(config.namespace));
     }
 
     // prepare staging keys directory
@@ -180,10 +180,10 @@ export class NodeCommandConfigs {
           },
         });
         if (!response.ok) {
-          throw new SoloError(`Upgrade version ${context_.config.upgradeVersion} does not exist.`);
+          throw new SoloErrors.validation.upgradeVersionNotFound(context_.config.upgradeVersion);
         }
       } catch (error) {
-        throw new SoloError(`Failed to fetch upgrade version ${context_.config.upgradeVersion}: ${error.message}`);
+        throw new SoloErrors.system.upgradeVersionFetchFailed(context_.config.upgradeVersion, error);
       }
 
       // Compare target version against the version stored in remote config
@@ -405,7 +405,7 @@ export class NodeCommandConfigs {
     if (!context_.config.clusterRef) {
       context_.config.clusterRef = this.remoteConfig.getClusterRefs()?.entries()?.next()?.value[0];
       if (!context_.config.clusterRef) {
-        throw new SoloError('Error during initialization, cluster ref could not be determined');
+        throw new SoloErrors.system.clusterReferenceUndetermined();
       }
     }
 
@@ -591,7 +591,7 @@ export class NodeCommandConfigs {
     for (const consensusNode of context_.config.consensusNodes) {
       const k8 = this.k8Factory.getK8(consensusNode.context);
       if (!(await k8.namespaces().has(context_.config.namespace))) {
-        throw new SoloError(`namespace ${context_.config.namespace} does not exist`);
+        throw new SoloErrors.system.namespaceNotFound(String(context_.config.namespace));
       }
     }
 
@@ -657,9 +657,7 @@ export class NodeCommandConfigs {
       !savedVersion.equals(context_.config.releaseTag) && // allow different versions only for local builds
       !context_.config.localBuildPath
     ) {
-      throw new SoloError(
-        `Consensus node version saved in remote config ${savedVersion} is different from ${context_.config.releaseTag}`,
-      );
+      throw new SoloErrors.validation.nodeVersionMismatch(savedVersion.toString(), context_.config.releaseTag);
     }
 
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);

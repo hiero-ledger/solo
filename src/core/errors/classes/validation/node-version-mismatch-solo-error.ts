@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import {SoloError} from '../../solo-error.js';
+import {ErrorOwnership} from '../../error-ownership.js';
+import {ErrorCodeRegistry} from '../../error-code-registry.js';
+
+export class NodeVersionMismatchSoloError extends SoloError {
+  protected override readonly retryable: boolean = false;
+  protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
+
+  public constructor(savedVersion: string, requestedVersion: string) {
+    super({
+      message: `Consensus node version saved in remote config ${savedVersion} is different from ${requestedVersion}`,
+      code: ErrorCodeRegistry.NODE_VERSION_MISMATCH,
+      troubleshootingSteps:
+        'Check the saved version: solo deployment config view\nUse the same version: solo node setup --release-tag <savedVersion>\nOr upgrade the network first: solo node upgrade --upgrade-version <version>',
+    });
+  }
+}

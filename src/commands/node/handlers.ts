@@ -5,7 +5,7 @@ import * as NodeFlags from './flags.js';
 import {type NodeCommandConfigs} from './configs.js';
 import * as constants from '../../core/constants.js';
 import {type LockManager} from '../../core/lock/lock-manager.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type Lock} from '../../core/lock/lock.js';
 import {LeaseWrapper, type NodeCommandTasks} from './tasks.js';
 import {NodeSubcommandType} from '../../core/enumerations.js';
@@ -102,7 +102,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   private ensureInteractiveSelectionPrompt(): void {
     if (!process.stdout.isTTY || !process.stdin.isTTY) {
-      throw new SoloError('Cannot prompt for input in non-interactive mode');
+      throw new SoloErrors.validation.nonInteractivePrompt();
     }
   }
 
@@ -738,9 +738,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.logger,
       );
       if (remoteDeployments.size === 0) {
-        throw new SoloError(
-          `No deployments found in local or remote config. Please provide --${flags.deployment.name} or create a deployment first.`,
-        );
+        throw new SoloErrors.system.deploymentNotFound(flags.deployment.name);
       }
 
       const remoteDeploymentNames: string[] = [...remoteDeployments.keys()];
@@ -753,9 +751,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
       if (this.resolveQuietFlag(argv)) {
         const names: string = remoteDeploymentNames.join(', ');
-        throw new SoloError(
-          `Multiple deployments found in remote config (${names}). Please provide --${flags.deployment.name}.`,
-        );
+        throw new SoloErrors.system.multipleDeploymentsFound('remote', names, flags.deployment.name);
       }
 
       this.ensureInteractiveSelectionPrompt();
@@ -775,9 +771,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
     if (this.resolveQuietFlag(argv)) {
       const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
-      throw new SoloError(
-        `Multiple deployments found in local config (${deploymentNames}). Please provide --${flags.deployment.name}.`,
-      );
+      throw new SoloErrors.system.multipleDeploymentsFound('local', deploymentNames, flags.deployment.name);
     }
 
     this.ensureInteractiveSelectionPrompt();
@@ -844,7 +838,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.logger.showUser(chalk.green('✓ Debug information collected successfully!'));
       this.logger.showUser(chalk.cyan(`  Archive: ${zipFilePath}`));
     } catch (error: Error | unknown) {
-      throw new SoloError(`Failed to create debug archive: ${(error as Error).message}`, error as Error);
+      throw new SoloErrors.component.nodeDebugArchiveFailed(error as Error);
     }
 
     return true;
@@ -1256,7 +1250,7 @@ export class NodeCommandHandlers extends CommandHandler {
         Templates.renderComponentIdFromNodeAlias(nodeAlias),
       );
     } catch {
-      throw new SoloError(`${nodeAlias} not found in remote config`);
+      throw new SoloErrors.system.consensusNodeNotInConfig(nodeAlias);
     }
     // TODO: Enable once states have been mapped
     // if (acceptedPhases && !acceptedPhases.includes(nodeComponent.state)) {
