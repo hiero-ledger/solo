@@ -3027,7 +3027,7 @@ export class Flags {
     name: 'consensus-node-version',
     definition: {
       describe: 'Consensus node version to deploy (e.g. v0.73.0 or 0.73.0).',
-      defaultValue: version.HEDERA_PLATFORM_VERSION,
+      defaultValue: '',
       alias: ['t', Flags.releaseTag.name],
       type: 'string',
     },
@@ -3039,7 +3039,7 @@ export class Flags {
     name: 'relay-version',
     definition: {
       describe: 'JSON-RPC relay version to deploy (e.g. v0.76.2 or 0.76.2). ',
-      defaultValue: version.HEDERA_JSON_RPC_RELAY_VERSION,
+      defaultValue: '',
       alias: [Flags.relayReleaseTag.name],
       type: 'string',
     },
@@ -3051,7 +3051,7 @@ export class Flags {
     name: 'block-node-version',
     definition: {
       describe: 'Block node version to deploy for (e.g. v0.31.0 or 0.31.0). ',
-      defaultValue: version.BLOCK_NODE_VERSION,
+      defaultValue: '',
       alias: [Flags.blockNodeChartVersion.name],
       type: 'string',
     },
@@ -3170,7 +3170,9 @@ export class Flags {
     Flags.output,
     Flags.imageTag,
     Flags.componentImage,
+    Flags.relayReleaseTag,
     Flags.relayVersion,
+    Flags.releaseTag,
     Flags.consensusNodeVersion,
     Flags.upgradeVersion,
     Flags.replicaCount,
@@ -3221,6 +3223,7 @@ export class Flags {
     Flags.dnsConsensusNodePattern,
     Flags.domainName,
     Flags.domainNames,
+    Flags.blockNodeChartVersion,
     Flags.blockNodeVersion,
     Flags.blockNodeTssOverlay,
     Flags.priorityMapping,
@@ -3285,7 +3288,7 @@ export class Flags {
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],
-    optional: [Flags.namespace, Flags.cacheDir, Flags.consensusNodeVersion, Flags.devMode, Flags.quiet],
+    optional: [Flags.namespace, Flags.cacheDir, Flags.releaseTag, Flags.devMode, Flags.quiet],
   };
 
   /**

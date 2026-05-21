@@ -463,7 +463,7 @@ export class DeployArgvBuilders {
     useEdge: boolean,
   ): string {
     const argvValue: string | undefined = argv[flagName] as string | undefined;
-    const isExplicit: boolean = !!argvValue && argvValue !== stdVersion && argvValue !== edgeVersion;
+    const isExplicit: boolean = !!argvValue;
     return this.returnFirstTruthyString(
       isExplicit ? argvValue : undefined,
       configFileVersion,
