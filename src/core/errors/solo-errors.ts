@@ -32,6 +32,7 @@ import {WriteRemoteConfigBeforeLoadError} from './classes/config/write-remote-co
 import {UnsupportedOperationError} from './classes/internal/unsupported-operation-error.js';
 import {CreateDeploymentSoloError} from './classes/deployment/create-deployment-solo-error.js';
 import {DeploymentAlreadyExistsSoloError} from './classes/deployment/deployment-already-exists-solo-error.js';
+import {RapidFireExecutionSoloError} from './classes/rapid-fire-execution-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -96,7 +97,11 @@ export class SoloErrors {
   });
 
   // 3xxx — Component: Relay, Mirror Node, Explorer, CN runtime
-  public static readonly component: Record<string, never> = Object.freeze({});
+  public static readonly component: {
+    readonly rapidFireExecutionFailed: typeof RapidFireExecutionSoloError;
+  } = Object.freeze({
+    rapidFireExecutionFailed: RapidFireExecutionSoloError,
+  });
 
   // 4xxx — Validation: User input, flags, IDs, formatting
   public static readonly validation: {
