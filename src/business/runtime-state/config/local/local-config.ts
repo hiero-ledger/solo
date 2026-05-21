@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../core/errors/solo-errors.js';
 import {type Facade} from '../../facade/facade.js';
 import {type LocalConfigSchema} from '../../../../data/schema/model/local/local-config-schema.js';
 import {MutableFacadeArray} from '../../collection/mutable-facade-array.js';
@@ -11,7 +12,6 @@ import {MutableFacadeMap} from '../../collection/mutable-facade-map.js';
 import {StringFacade} from '../../facade/string-facade.js';
 import {type FacadeMap} from '../../collection/facade-map.js';
 import {type DeploymentName, type Realm, type Shard} from '../../../../types/index.js';
-import {DeploymentNotFoundError} from '../../../errors/deployment-not-found-error.js';
 import {ApplicationVersions} from '../common/application-versions.js';
 import {ApplicationVersionsSchema} from '../../../../data/schema/model/common/application-versions-schema.js';
 
@@ -58,7 +58,7 @@ export class LocalConfig implements Facade<LocalConfigSchema> {
   public deploymentByName(deploymentName: DeploymentName): Deployment {
     const deployment: Deployment = this.deployments.find((d: Deployment): boolean => d.name === deploymentName);
     if (!deployment) {
-      throw new DeploymentNotFoundError(`Deployment ${deploymentName} not found in local config`);
+      throw new SoloErrors.deployment.notFound(`Deployment ${deploymentName} not found in local config`);
     }
     return deployment;
   }
