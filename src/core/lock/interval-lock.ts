@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {MissingArgumentError} from '../errors/missing-argument-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {SoloError} from '../errors/solo-error.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {LockHolder} from './lock-holder.js';
@@ -58,16 +58,16 @@ export class IntervalLock implements Lock {
     durationSeconds: number | null = null,
   ) {
     if (!k8Factory) {
-      throw new MissingArgumentError('k8Factory is required');
+      throw new SoloErrors.validation.missingArgument('k8Factory is required');
     }
     if (!renewalService) {
-      throw new MissingArgumentError('renewalService is required');
+      throw new SoloErrors.validation.missingArgument('renewalService is required');
     }
     if (!lockHolder) {
-      throw new MissingArgumentError('_lockHolder is required');
+      throw new SoloErrors.validation.missingArgument('_lockHolder is required');
     }
     if (!namespace) {
-      throw new MissingArgumentError('_namespace is required');
+      throw new SoloErrors.validation.missingArgument('_namespace is required');
     }
 
     this._lockHolder = lockHolder;

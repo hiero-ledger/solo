@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {
   type CoreV1Event,
   type CoreV1Api,
@@ -25,7 +26,6 @@ import {K8ClientPod} from './k8-client-pod.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {K8ClientBase} from '../../k8-client-base.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
-import {MissingArgumentError} from '../../../../../core/errors/missing-argument-error.js';
 import * as constants from '../../../../../core/constants.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {container} from 'tsyringe-neo';
@@ -260,7 +260,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
     if (!conditionsMap || conditionsMap.size === 0) {
-      throw new MissingArgumentError('pod conditions are required');
+      throw new SoloErrors.validation.missingArgument('pod conditions are required');
     }
 
     return await this.waitForRunningPhase(
