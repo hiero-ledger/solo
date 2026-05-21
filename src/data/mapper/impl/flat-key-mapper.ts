@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type KeyFormatter} from '../../key/key-formatter.js';
 import {ConfigKeyFormatter} from '../../key/config-key-formatter.js';
-import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 import {ObjectMappingError} from '../api/object-mapping-error.js';
 
 export class FlatKeyMapper {
   public constructor(private readonly formatter: KeyFormatter = ConfigKeyFormatter.instance()) {
     if (!formatter) {
-      throw new IllegalArgumentError('formatter must be provided');
+      throw new SoloErrors.validation.illegalArgument('formatter must be provided');
     }
   }
 

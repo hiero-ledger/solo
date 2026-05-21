@@ -40,8 +40,9 @@ export const CRANE: string = 'crane';
 export const BASE_DEPENDENCIES: string[] = [HELM, KIND, KUBECTL];
 export const DEFAULT_CLUSTER: string = 'solo-cluster';
 export const RESOURCES_DIR: string = PathEx.joinWithRealPath(ROOT_DIR, 'resources');
+export const DEFAULT_KIND_CLUSTER_CONFIG_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'kind-config.yaml');
 export const KIND_CLUSTER_CONFIG_FILE: string =
-  getEnvironmentVariable('SOLO_KIND_CLUSTER_CONFIG_FILE') || PathEx.joinWithRealPath(RESOURCES_DIR, 'kind-config.yaml');
+  getEnvironmentVariable('SOLO_KIND_CLUSTER_CONFIG_FILE') || DEFAULT_KIND_CLUSTER_CONFIG_FILE;
 export const KIND_NODE_IMAGE: string =
   getEnvironmentVariable('SOLO_KIND_NODE_IMAGE') ||
   getEnvironmentVariable('KIND_IMAGE') ||
@@ -509,3 +510,9 @@ export const CERT_MANAGER_CRDS: string[] = [
 
 export const TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS: number =
   +getEnvironmentVariable('TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS') || 60;
+
+export const BUG_REPORT_URL: string = 'https://github.com/hiero-ledger/solo/issues';
+
+export const DISABLE_IMPORTER_SPRING_PROFILES: boolean =
+  getEnvironmentVariable('DISABLE_IMPORTER_SPRING_PROFILES') === 'true' || false;
+export const SPRING_PROFILES_ACTIVE: string = getEnvironmentVariable('SPRING_PROFILES_ACTIVE') || 'blocknode';

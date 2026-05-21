@@ -9,9 +9,9 @@ import got, {type OptionsInit} from 'got';
 import {PackageDownloader} from '../../../src/core/package-downloader.js';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
-import {IllegalArgumentError} from '../../../src/core/errors/illegal-argument-error.js';
-import {MissingArgumentError} from '../../../src/core/errors/missing-argument-error.js';
-import {ResourceNotFoundError} from '../../../src/core/errors/resource-not-found-error.js';
+import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
+import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
+import {ResourceNotFoundError} from '../../../src/core/errors/classes/system/resource-not-found-error.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
@@ -62,7 +62,7 @@ describe('PackageDownloader', (): void => {
     it('should fail with an invalid URL', async (): Promise<void> => {
       await expect(downloader.fetchFile('https://localhost/INVALID_FILE', os.tmpdir())).to.be.rejectedWith(
         ResourceNotFoundError,
-        "package URL 'https://localhost/INVALID_FILE' does not exist",
+        'Resource not found: https://localhost/INVALID_FILE',
       );
     });
 

@@ -122,7 +122,8 @@ User can configure the following environment variables to customize the behavior
 | `CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS`               | The maximum number of attempts to check for the existance of the wraps directory.                                               | `10`                                                                                               |
 | `CHECK_WRAPS_DIRECTORY_BACKOFF_MS`                 | The backoff period for retrying to check for the existance of the wraps directory.                                              | `2000`                                                                                             |
 | `ENABLE_IMAGE_CACHE`                               | Used to enable the image cache feature during one-shot deployments.                                                             | `2000`                                                                                             |
-
+| `DISABLE_IMPORTER_SPRING_PROFILES`                 | Disable automatic configuration of Mirror Node importer Spring profiles for block-node integration.                             | `false`                                                                                            |
+| `SPRING_PROFILES_ACTIVE`                           | Spring profiles to use for the Mirror Node importer when automatic importer profile configuration is enabled.                   | `blocknode`                                                                                        |
 
 ## Config-System Override Variables
 

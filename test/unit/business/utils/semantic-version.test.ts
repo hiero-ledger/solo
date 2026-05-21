@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {SemanticVersion} from '../../../../src/business/utils/semantic-version.js';
-import {IllegalArgumentError} from '../../../../src/core/errors/illegal-argument-error.js';
+import {IllegalArgumentError} from '../../../../src/core/errors/classes/validation/illegal-argument-error.js';
 
 describe('SemanticVersion', (): void => {
   describe('constructor', (): void => {

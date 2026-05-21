@@ -4,6 +4,8 @@ set -eo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/helper.sh"
 
+TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
+
 collect_failure_diagnostics() {
   local rc="${1}"
 
@@ -26,6 +28,10 @@ on_exit() {
 
   if [[ -n "${RENDERED_KIND_CLUSTER_CONFIG_FILE:-}" && -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}" ]]; then
     rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+  fi
+
+  if [[ -n "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" ]]; then
+    rm -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
   fi
 
   if [[ ${rc} -ne 0 ]]; then
@@ -110,7 +116,7 @@ then
 fi
 
 echo "::group::Prerequisites"
-npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
+SOLO_NO_CACHE=true npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
 solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e
@@ -324,8 +330,26 @@ echo "::endgroup::"
 echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
+
+TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
+cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+
+if grep -q '^fees.simpleFeesEnabled=' "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"; then
+  sed -i.bak 's/^fees.simpleFeesEnabled=.*/fees.simpleFeesEnabled=false/' "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+else
+  echo 'fees.simpleFeesEnabled=false' >> "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+fi
+rm -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}.bak"
+chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+
+echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
-npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
+if [[ "$(printf '%s\n' "v0.73.0" "${TO_CONSENSUS_NODE_VERSION}" | sort -V | head -n 1)" == "v0.73.0" ]]; then
+  npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" -q --dev
+else
+  npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
+fi
+
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 # block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
