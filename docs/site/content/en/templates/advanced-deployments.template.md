@@ -51,7 +51,7 @@ to accept them.
 To generate a values file with all defaults (no prompts):
 
 ```bash
-solo one-shot falcon prepare --default
+solo one-shot falcon prepare --quiet-mode
 ```
 
 To specify a custom output path:

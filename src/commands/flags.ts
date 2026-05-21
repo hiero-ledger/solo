@@ -347,18 +347,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly acceptDefaults: CommandFlag = {
-    constName: 'acceptDefaults',
-    name: 'default',
-    definition: {
-      describe: 'Accept all default values without prompting (non-interactive mode).',
-      defaultValue: false,
-      type: 'boolean',
-      disablePrompt: true,
-    },
-    prompt: undefined,
-  };
-
   public static readonly networkDeploymentValuesFile: CommandFlag = {
     constName: 'valuesFile',
     name: 'values-file',
@@ -3049,7 +3037,6 @@ export class Flags {
   // Helpers derive behavior from allFlags/allFlagsMap, so new flags are incomplete until registered in this array.
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
-    Flags.acceptDefaults,
     Flags.fileId,
     Flags.filePath,
     Flags.adminKey,

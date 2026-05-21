@@ -31,7 +31,7 @@ function buildBasePrepareArgv(): string[] {
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME,
     OneShotCommandDefinition.FALCON_PREPARE,
-    optionFromFlag(Flags.acceptDefaults),
+    optionFromFlag(Flags.quiet),
   ];
 }
 

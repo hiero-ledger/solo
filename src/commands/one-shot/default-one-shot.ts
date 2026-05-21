@@ -120,7 +120,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     required: [],
     optional: [
       flags.outputValuesFile,
-      flags.acceptDefaults,
+      flags.quiet,
       flags.numberOfConsensusNodes,
       flags.releaseTag,
       flags.relayReleaseTag,
@@ -577,7 +577,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       ? configuredOutputPath
       : PathEx.resolve(process.env.INIT_CWD || process.cwd(), configuredOutputPath);
 
-    const acceptDefaults: boolean = this.configManager.getFlag(flags.acceptDefaults);
+    const quiet: boolean = this.configManager.getFlag(flags.quiet);
 
     let config: FalconPrepareConfig;
 
@@ -586,10 +586,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         {
           title: 'Configure deployment options',
           task: async (_context: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>): Promise<void> => {
-            if (acceptDefaults) {
-              flags.disablePrompts(DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST.optional);
-            }
-
             const allFlags: CommandFlag[] = [
               ...DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST.required,
               ...DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST.optional,
@@ -606,7 +602,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             config.enableMirrorIngress = true;
             config.outputPath = resolvedOutputPath;
 
-            if (acceptDefaults) {
+            if (quiet) {
               config.enableDevChartMode = false;
               return;
             }
@@ -667,7 +663,6 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     flags.namespace.name,
     flags.valuesFile.name,
     flags.force.name,
-    flags.acceptDefaults.name,
     flags.quiet.name,
   ]);
 
