@@ -2246,7 +2246,7 @@ export class NodeCommandTasks {
 
   public stopNodes(
     nodeAliasesProperty: string,
-  ): SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDestroyContext> {
+  ): SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDestroyContext | NodeUpgradeContext> {
     return {
       title: 'Stopping nodes',
       task: async (context_, task): Promise<any> => {
