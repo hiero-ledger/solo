@@ -31,7 +31,6 @@ import {ImageCacheHandler} from '../integration/cache/impl/image-cache-handler.j
 import {KindNodeImageTargetProvider} from '../integration/cache/target-providers/kind-image-target-provider.js';
 import {ImageCacheHandlerBuilder} from '../integration/cache/impl/image-cache-handler-builder.js';
 import {type ContainerEngineClient} from '../integration/container-engine/container-engine-client.js';
-import {use} from 'chai';
 
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
