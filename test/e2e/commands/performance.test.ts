@@ -306,7 +306,12 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
-  argv.push(optionFromFlag(Flags.deployment), deployment, optionFromFlag(Flags.edgeEnabled));
+  argv.push(
+    optionFromFlag(Flags.deployment),
+    deployment,
+    optionFromFlag(Flags.edgeEnabled),
+    optionFromFlag(Flags.deployMetricsServer),
+  );
   return argv;
 }
 

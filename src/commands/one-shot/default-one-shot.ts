@@ -50,6 +50,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.parallelDeploy,
       flags.externalAddress,
       flags.edgeEnabled,
+      flags.deployMetricsServer,
     ],
   };
 
