@@ -209,7 +209,7 @@ jobs:
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
       - name: Resolve consensus node version and Java version
-        id: resolve_consensus_java
+        id: resolve-consensus-java
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         shell: bash
@@ -220,7 +220,7 @@ jobs:
           normalized_version="$(echo "${consensus_node_version}" | sed -E 's/^v//; s/-.*$//')"
 
           java_version="21"
-          if [ "$(printf '%s\n' '0.73.0' "${normalized_version}" | sort -V | head -n1)" = "0.73.0" ]; then
+          if printf '%s\n' '0.73.0' "${normalized_version}" | sort -C -V; then
             java_version="25"
           fi
 
@@ -233,7 +233,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
-          java-version: ${{ steps.resolve_consensus_java.outputs.java-version }}
+          java-version: ${{ steps.resolve-consensus-java.outputs.java-version }}
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}

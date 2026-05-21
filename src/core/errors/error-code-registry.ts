@@ -10,6 +10,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   DEPLOYMENT_NAME_ALREADY_EXISTS: 'SOLO-2002',
 
   // 3xxx - Component: Relay, Mirror Node, Explorer, CN runtime
+  RAPID_FIRE_EXECUTION_FAILED: 'SOLO-3001',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
 

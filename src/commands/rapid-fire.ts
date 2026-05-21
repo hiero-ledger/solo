@@ -2,6 +2,7 @@
 
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -307,8 +308,9 @@ export class RapidFireCommand extends BaseCommand {
               result,
               execError,
             );
-            throw new SoloError(
+            throw new SoloErrors.component.rapidFireExecutionFailed(
               RapidFireCommand.buildFailureMessage(result, execError, stdoutText, stderrText, diagnosticsFilePath),
+              execError,
             );
           }
 

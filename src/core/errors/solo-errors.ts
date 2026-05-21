@@ -3,6 +3,7 @@
 import {CreateDeploymentSoloError} from './classes/create-deployment-solo-error.js';
 import {DeploymentAlreadyExistsSoloError} from './classes/deployment-already-exists-solo-error.js';
 import {LocalConfigNotFoundSoloError} from './classes/local-config-not-found-solo-error.js';
+import {RapidFireExecutionSoloError} from './classes/rapid-fire-execution-solo-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/remote-configs-mismatch-solo-error.js';
 
 /**
@@ -34,7 +35,11 @@ export class SoloErrors {
   });
 
   // 3xxx — Component: Relay, Mirror Node, Explorer, CN runtime
-  public static readonly component: Record<string, never> = Object.freeze({});
+  public static readonly component: {
+    readonly rapidFireExecutionFailed: typeof RapidFireExecutionSoloError;
+  } = Object.freeze({
+    rapidFireExecutionFailed: RapidFireExecutionSoloError,
+  });
 
   // 4xxx — Validation: User input, flags, IDs, formatting
   public static readonly validation: Record<string, never> = Object.freeze({});
