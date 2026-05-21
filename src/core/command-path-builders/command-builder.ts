@@ -13,7 +13,10 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {type TaskList} from '../task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
 import * as constants from '../constants.js';
-import {OneShotCommandDefinition} from '../../commands/command-definitions/one-shot-command-definition.js';
+
+export const ONE_SHOT_COMMAND: string = 'one-shot';
+export const SINGLE_SUBCOMMAND: string = 'single';
+export const SINGLE_DEPLOY: string = 'deploy';
 
 @injectable()
 export class Subcommand {
@@ -118,10 +121,7 @@ export class CommandBuilder {
                     );
 
                     let useSmallMemoryCluster: boolean = false;
-                    if (
-                      commandPath ===
-                      `${OneShotCommandDefinition.COMMAND_NAME} ${OneShotCommandDefinition.SINGLE_SUBCOMMAND_NAME} ${OneShotCommandDefinition.SINGLE_DEPLOY}`
-                    ) {
+                    if (commandPath === `${ONE_SHOT_COMMAND} ${SINGLE_SUBCOMMAND} ${SINGLE_DEPLOY}`) {
                       useSmallMemoryCluster = true;
                     }
 
