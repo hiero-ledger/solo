@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {SoloError} from './errors/solo-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {Flags, Flags as flags} from '../commands/flags.js';
 import type * as yargs from 'yargs';
@@ -204,7 +204,7 @@ export class ConfigManager {
   public setFlag<T>(flag: CommandFlag, value: T): void {
     const activeConfig: AnyObject = this.getActiveConfig();
     if (!flag || !flag.name) {
-      throw new MissingArgumentError('flag must have a name');
+      throw new SoloErrors.validation.missingArgument('flag must have a name');
     }
     // if it is a namespace then convert it to NamespaceName
     if (flag.name === flags.namespace.name || flag.name === flags.clusterSetupNamespace.name) {

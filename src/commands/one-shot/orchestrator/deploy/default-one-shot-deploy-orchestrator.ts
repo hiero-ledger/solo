@@ -206,6 +206,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.numberOfConsensusNodes ||= 1;
             config.force = argv.force as boolean;
 
+            // Guard against accidental one-shot deployments to non-Kind Kubernetes contexts.
+            // Quiet mode bypasses the confirmation prompt.
+            await this.confirmNonKindContext(config, task);
+
             // Ensure release tag is set in network configuration so subcommands use the correct version
             const releaseTagKey: string = flags.getFormattedFlagKey(flags.releaseTag);
             const soloChartVersionKey: string = flags.getFormattedFlagKey(flags.soloChartVersion);
@@ -898,5 +902,36 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
   private cacheDeploymentName(context: OneShotSingleDeployContext, outputFile: string): void {
     fs.writeFileSync(outputFile, context.config.deployment);
     this.logger.showUser(chalk.green(`Deployment name (${context.config.deployment}) saved to file: ${outputFile}`));
+  }
+
+  private async confirmNonKindContext(
+    config: OneShotSingleDeployConfigClass,
+    task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
+  ): Promise<void> {
+    if (config.quiet === true || this.isKindContext(config.context)) {
+      return;
+    }
+
+    const proceed: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+      default: false,
+      message: this.buildNonKindContextWarningMessage(config.context),
+    });
+
+    if (!proceed) {
+      throw new SoloError('Aborted by user');
+    }
+  }
+
+  private isKindContext(context: string): boolean {
+    return context.startsWith('kind-');
+  }
+
+  private buildNonKindContextWarningMessage(context: string): string {
+    return (
+      `Warning: Active Kubernetes context '${context}' is not a local Kind cluster.\n\n` +
+      'one-shot deploy is intended for local development. Deploying into a shared or remote cluster ' +
+      'may install Solo charts, CRDs, namespaces, and other resources into that cluster.\n\n' +
+      'Continue?'
+    );
   }
 }

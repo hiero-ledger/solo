@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {IllegalArgumentError} from '../../core/errors/illegal-argument-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 
 export interface ParsedImageReference {
   registry: string;
@@ -13,7 +13,7 @@ export class ImageReference {
 
   public static validateImageTag(tag: string, originalValue: string): string {
     if (!tag || !ImageReference.IMAGE_TAG_REGEX.test(tag)) {
-      throw new IllegalArgumentError(`Invalid image tag: ${originalValue}`, originalValue);
+      throw new SoloErrors.validation.illegalArgument(`Invalid image tag: ${originalValue}`, originalValue);
     }
     return tag;
   }
@@ -21,7 +21,10 @@ export class ImageReference {
   public static parseImageReference(imageReference: string): ParsedImageReference {
     const trimmedImageReference: string = imageReference.trim();
     if (!trimmedImageReference) {
-      throw new IllegalArgumentError(`Invalid image reference format: ${imageReference}`, imageReference);
+      throw new SoloErrors.validation.illegalArgument(
+        `Invalid image reference format: ${imageReference}`,
+        imageReference,
+      );
     }
 
     if (
@@ -29,11 +32,14 @@ export class ImageReference {
       !trimmedImageReference.includes(':') &&
       !trimmedImageReference.includes('@')
     ) {
-      throw new IllegalArgumentError(`Invalid image reference format: ${imageReference}`, imageReference);
+      throw new SoloErrors.validation.illegalArgument(
+        `Invalid image reference format: ${imageReference}`,
+        imageReference,
+      );
     }
 
     if (trimmedImageReference.includes('@')) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         `Digest-based image references are not supported: ${imageReference}`,
         imageReference,
       );
@@ -64,7 +70,10 @@ export class ImageReference {
     }
 
     if (!repository) {
-      throw new IllegalArgumentError(`Image repository cannot be empty: ${imageReference}`, imageReference);
+      throw new SoloErrors.validation.illegalArgument(
+        `Image repository cannot be empty: ${imageReference}`,
+        imageReference,
+      );
     }
 
     return {registry, repository, tag};

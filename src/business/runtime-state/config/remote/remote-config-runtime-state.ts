@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../core/errors/solo-errors.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type ObjectMapper} from '../../../../data/mapper/api/object-mapper.js';
-import {ReadRemoteConfigBeforeLoadError} from '../../../errors/read-remote-config-before-load-error.js';
-import {WriteRemoteConfigBeforeLoadError} from '../../../errors/write-remote-config-before-load-error.js';
 import {RemoteConfigSource} from '../../../../data/configuration/impl/remote-config-source.js';
 import {YamlConfigMapStorageBackend} from '../../../../data/backend/impl/yaml-config-map-storage-backend.js';
 import {type ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
@@ -159,13 +158,13 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   private failIfNotLoaded(): void {
     if (!this.isLoaded()) {
-      throw new ReadRemoteConfigBeforeLoadError('Attempting to read from remote config before loading it');
+      throw new SoloErrors.config.readRemoteConfigBeforeLoad();
     }
   }
 
   public async persist(): Promise<void> {
     if (!this.isLoaded()) {
-      throw new WriteRemoteConfigBeforeLoadError('Attempting to persist remote config before loading it');
+      throw new SoloErrors.config.writeRemoteConfigBeforeLoad();
     }
 
     await this.source.persist();
