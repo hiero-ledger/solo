@@ -193,7 +193,9 @@ import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-
 
 const {gray, cyan, red, green, yellow} = chalk;
 
-export type LeaseWrapper = {lease: Lock};
+export interface LeaseWrapper {
+  lease: Lock;
+}
 
 @injectable()
 export class NodeCommandTasks {
@@ -1855,7 +1857,7 @@ export class NodeCommandTasks {
 
               const stagingDirectory: string = Templates.renderStagingDir(
                 this.configManager.getFlag(flags.cacheDir),
-                this.configManager.getFlag(flags.releaseTag),
+                this.configManager.getFlag(flags.consensusNodeVersion),
               );
 
               if (!fs.existsSync(stagingDirectory)) {
@@ -2359,7 +2361,7 @@ export class NodeCommandTasks {
 
         const stagingDirectory: string = Templates.renderStagingDir(
           this.configManager.getFlag(flags.cacheDir),
-          this.configManager.getFlag(flags.releaseTag),
+          this.configManager.getFlag(flags.consensusNodeVersion),
         );
 
         for (const flag of flags.nodeConfigFileFlags.values()) {

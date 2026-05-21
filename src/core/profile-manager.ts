@@ -425,7 +425,7 @@ export class ProfileManager {
       // This must run AFTER the JFR block above, which overwrites defaults.root from solo-values.yaml.
       const stagingDirectory: string = Templates.renderStagingDir(
         this.configManager.getFlag(flags.cacheDir),
-        this.configManager.getFlag(flags.releaseTag),
+        this.configManager.getFlag(flags.consensusNodeVersion),
       );
       const applicationEnvironmentPath: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
       this.applyApplicationEnvToExtraEnv(applicationEnvironmentPath, yamlRoot);
@@ -442,7 +442,7 @@ export class ProfileManager {
     // Newer call sites should pass command-scoped values to avoid cross-command interference.
     return {
       cacheDir: options?.cacheDir ?? this.configManager.getFlag(flags.cacheDir),
-      releaseTag: options?.releaseTag ?? this.configManager.getFlag(flags.releaseTag),
+      releaseTag: options?.releaseTag ?? this.configManager.getFlag(flags.consensusNodeVersion),
       appName: options?.appName ?? this.configManager.getFlag(flags.app),
       chainId: options?.chainId ?? this.configManager.getFlag(flags.chainId),
     };

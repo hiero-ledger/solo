@@ -183,7 +183,7 @@ export class BlockNodeCommand extends BaseCommand {
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
-      flags.blockNodeChartVersion,
+      flags.blockNodeVersion,
       flags.blockNodeChartDirectory,
       flags.blockNodeTssOverlay,
       flags.chartDirectory,
@@ -193,7 +193,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.enableIngress,
       flags.quiet,
       flags.valuesFile,
-      flags.releaseTag,
+      flags.consensusNodeVersion,
       flags.imageTag,
       flags.priorityMapping,
     ],

@@ -18,9 +18,14 @@ import {getSoloVersion} from '../../version.js';
 import {isValidEnum} from './util/validation-helpers.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 
-type ConfigMapEntry = {
+interface ConfigMapEntry {
   getUnusedConfigs: () => string[];
-};
+}
+
+interface LegacyVersionAliasMapping {
+  canonical: CommandFlag;
+  legacy: CommandFlag;
+}
 
 /**
  * ConfigManager cache command flag values so that user doesn't need to enter the same values repeatedly.
@@ -41,6 +46,36 @@ export class ConfigManager {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
 
     this.reset();
+  }
+
+  private applyLegacyVersionArgAliases(argv: ArgvStruct): void {
+    const aliasMappings: LegacyVersionAliasMapping[] = [
+      {canonical: flags.consensusNodeVersion, legacy: flags.releaseTag},
+      {canonical: flags.relayVersion, legacy: flags.relayReleaseTag},
+      {canonical: flags.blockNodeVersion, legacy: flags.blockNodeChartVersion},
+    ];
+
+    for (const {canonical, legacy} of aliasMappings) {
+      if (argv[canonical.name] === undefined && argv[legacy.name] !== undefined) {
+        argv[canonical.name] = argv[legacy.name];
+      }
+    }
+  }
+
+  private applyLegacyVersionConfigAliases(activeConfig: AnyObject): void {
+    const aliasMappings: LegacyVersionAliasMapping[] = [
+      {canonical: flags.consensusNodeVersion, legacy: flags.releaseTag},
+      {canonical: flags.relayVersion, legacy: flags.relayReleaseTag},
+      {canonical: flags.blockNodeVersion, legacy: flags.blockNodeChartVersion},
+    ];
+
+    for (const {canonical, legacy} of aliasMappings) {
+      const canonicalValue: unknown = activeConfig.flags[canonical.name];
+      const legacyValue: unknown = activeConfig.flags[legacy.name];
+      if ((canonicalValue === undefined || canonicalValue === '') && legacyValue !== undefined && legacyValue !== '') {
+        activeConfig.flags[canonical.name] = legacyValue;
+      }
+    }
   }
 
   /** Reset config */
@@ -86,6 +121,8 @@ export class ConfigManager {
    */
   public applyPrecedence(argv: yargs.Argv<AnyYargs>, aliases: AnyObject): yargs.Argv<AnyYargs> {
     const activeConfig: AnyObject = this.getActiveConfig();
+    this.applyLegacyVersionArgAliases(argv as unknown as ArgvStruct);
+    this.applyLegacyVersionConfigAliases(activeConfig);
     for (const key of Object.keys(aliases)) {
       const flag: CommandFlag = flags.allFlagsMap.get(key);
       if (flag) {
@@ -109,6 +146,8 @@ export class ConfigManager {
     if (!argv || Object.keys(argv).length === 0) {
       return;
     }
+
+    this.applyLegacyVersionArgAliases(argv);
 
     for (const flag of flags.allFlags) {
       if (argv[flag.name] === undefined) {
@@ -163,6 +202,8 @@ export class ConfigManager {
         }
       }
     }
+
+    this.applyLegacyVersionConfigAliases(activeConfig);
 
     // store last command that was run
     if (argv._) {

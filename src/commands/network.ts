@@ -207,7 +207,7 @@ export class NetworkCommand extends BaseCommand {
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
       flags.quiet,
-      flags.releaseTag,
+      flags.consensusNodeVersion,
       flags.settingTxt,
       flags.networkDeploymentValuesFile,
       flags.nodeAliasesUnparsed,
@@ -1269,9 +1269,9 @@ export class NetworkCommand extends BaseCommand {
             // configManager is a process-wide singleton shared across concurrent subcommands invoked
             // from one-shot. Other subcommands (e.g. block-node add) run their own configManager.update(argv)
             // with their yargs-defaulted release-tag, which can race-overwrite the value set above.
-            const argvReleaseTag: string | undefined = argv[flags.releaseTag.name] as string | undefined;
+            const argvReleaseTag: string | undefined = argv[flags.consensusNodeVersion.name] as string | undefined;
             const releaseTag: SemanticVersion<string> = new SemanticVersion<string>(
-              argvReleaseTag || this.configManager.getFlag(flags.releaseTag),
+              argvReleaseTag || this.configManager.getFlag(flags.consensusNodeVersion),
             );
 
             if (

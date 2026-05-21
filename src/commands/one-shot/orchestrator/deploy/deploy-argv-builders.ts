@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  type OneShotSingleDeployConfigClass,
-  type OneShotVersionsObject,
-  type SoloConfigFileVersions,
-} from '../../one-shot-single-deploy-config-class.js';
+import {type OneShotSingleDeployConfigClass} from '../../one-shot-single-deploy-config-class.js';
+import {type OneShotVersionsObject} from '../../one-shot-versions-object.js';
+import {type SoloConfigFileVersions} from '../../solo-config-file-versions.js';
 import {BlockCommandDefinition} from '../../../command-definitions/block-command-definition.js';
 import {MirrorCommandDefinition} from '../../../command-definitions/mirror-command-definition.js';
 import {ExplorerCommandDefinition} from '../../../command-definitions/explorer-command-definition.js';
@@ -55,7 +53,7 @@ export class DeployArgvBuilders {
     const blockExistingValuesFile: string =
       config.blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     const blockLocalConfig: AnyObject = {
-      [optionFromFlag(Flags.blockNodeChartVersion)]: config.versions.blockNode,
+      [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
       ...config.blockNodeConfiguration,
       [Flags.getFormattedFlagKey(Flags.valuesFile)]: blockExistingValuesFile
         ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
@@ -126,7 +124,7 @@ export class DeployArgvBuilders {
       'node1',
     );
     appendConfigToArgv(argv, {
-      [optionFromFlag(Flags.relayReleaseTag)]: config.versions.relay,
+      [optionFromFlag(Flags.relayVersion)]: config.versions.relay,
       [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
       [optionFromFlag(Flags.mirrorNodeId)]: MIRROR_NODE_ID,
       [optionFromFlag(Flags.mirrorNamespace)]: config.namespace.name,

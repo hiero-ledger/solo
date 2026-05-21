@@ -7,10 +7,8 @@ import {ConsensusCommandDefinition} from '../../../../../../src/commands/command
 import * as constants from '../../../../../../src/core/constants.js';
 import * as version from '../../../../../../version.js';
 import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
-import {
-  type OneShotSingleDeployConfigClass,
-  type OneShotVersionsObject,
-} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import {type OneShotVersionsObject} from '../../../../../../src/commands/one-shot/one-shot-versions-object.js';
 import {ClusterReferenceCommandDefinition} from '../../../../../../src/commands/command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../../../../src/commands/command-definitions/keys-command-definition.js';

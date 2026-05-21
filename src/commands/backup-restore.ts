@@ -812,7 +812,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
                 if (context_.versions?.consensusNode) {
                   argv.push(
-                    CommandHelpers.optionFromFlag(flags.releaseTag),
+                    CommandHelpers.optionFromFlag(flags.consensusNodeVersion),
                     context_.versions.consensusNode.toString(),
                   );
                 }
@@ -847,7 +847,10 @@ export class BackupRestoreCommand extends BaseCommand {
                 context_.deployment,
               );
               if (context_.versions?.consensusNode) {
-                argv.push(CommandHelpers.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
+                argv.push(
+                  CommandHelpers.optionFromFlag(flags.consensusNodeVersion),
+                  context_.versions.consensusNode.toString(),
+                );
               }
               return CommandHelpers.argvPushGlobalFlags(argv);
             },
@@ -931,10 +934,7 @@ export class BackupRestoreCommand extends BaseCommand {
                         clusterReference,
                       );
                       if (context_.versions?.blockNodeChart) {
-                        argv.push(
-                          optionFromFlag(flags.blockNodeChartVersion),
-                          context_.versions.blockNodeChart.toString(),
-                        );
+                        argv.push(optionFromFlag(flags.blockNodeVersion), context_.versions.blockNodeChart.toString());
                       }
                     }
                     return CommandHelpers.argvPushGlobalFlags(argv);
@@ -1073,10 +1073,7 @@ export class BackupRestoreCommand extends BaseCommand {
                         argv.push(optionFromFlag(flags.clusterRef), clusterReference);
                       }
                       if (context_.versions?.jsonRpcRelayChart) {
-                        argv.push(
-                          optionFromFlag(flags.relayReleaseTag),
-                          context_.versions.jsonRpcRelayChart.toString(),
-                        );
+                        argv.push(optionFromFlag(flags.relayVersion), context_.versions.jsonRpcRelayChart.toString());
                       }
                     }
                     return CommandHelpers.argvPushGlobalFlags(argv);

@@ -9,10 +9,8 @@ import path from 'node:path';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import * as version from '../../../version.js';
 import {type ArgvStruct} from '../../../src/types/aliases.js';
-import {
-  type OneShotVersionsObject,
-  type SoloConfigFileVersions,
-} from '../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import {type OneShotVersionsObject} from '../../../src/commands/one-shot/one-shot-versions-object.js';
+import {type SoloConfigFileVersions} from '../../../src/commands/one-shot/solo-config-file-versions.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {DeployArgvBuilders} from '../../../src/commands/one-shot/orchestrator/deploy/deploy-argv-builders.js';
 

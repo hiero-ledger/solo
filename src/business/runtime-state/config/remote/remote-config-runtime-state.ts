@@ -441,14 +441,14 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
           case ComponentTypes.BlockNode: {
             this.updateComponentVersion(
               componentType,
-              new SemanticVersion<string>(flags.blockNodeChartVersion.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.blockNodeVersion.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.RelayNodes: {
             this.updateComponentVersion(
               componentType,
-              new SemanticVersion<string>(flags.relayReleaseTag.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.relayVersion.definition.defaultValue as string),
             );
             break;
           }
@@ -469,7 +469,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
           case ComponentTypes.ConsensusNode: {
             this.updateComponentVersion(
               componentType,
-              new SemanticVersion<string>(flags.releaseTag.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.consensusNodeVersion.definition.defaultValue as string),
             );
             break;
           }
