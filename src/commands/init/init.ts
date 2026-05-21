@@ -56,7 +56,7 @@ export class InitCommand extends BaseCommand {
     return [
       {
         title: 'Setup home directory and cache',
-        task: async (context_, task) => {
+        task: async (context_: InitContext, task): Promise<void> => {
           this.configManager.update(argv);
           context_.dirs = this.setupHomeDirectory();
           let username: string = this.configManager.getFlag<string>(flags.username);
@@ -68,23 +68,26 @@ export class InitCommand extends BaseCommand {
       },
       {
         title: 'Create local configuration',
-        skip: () => this.localConfig.configFileExists(),
+        skip: (): boolean => this.localConfig.configFileExists(),
         task: async (): Promise<void> => {
           await this.localConfig.load();
         },
       },
       {
         title: `Copy templates in '${cacheDirectory}'`,
-        task: context_ => {
+        task: (context_: InitContext): void => {
           let directoryCreated: boolean = false;
-          const resources = ['templates'];
+          const resources: string[] = ['templates'];
           for (const directoryName of resources) {
-            const sourceDirectory = PathEx.safeJoinWithBaseDirConfinement(constants.RESOURCES_DIR, directoryName);
+            const sourceDirectory: string = PathEx.safeJoinWithBaseDirConfinement(
+              constants.RESOURCES_DIR,
+              directoryName,
+            );
             if (!fs.existsSync(sourceDirectory)) {
               continue;
             }
 
-            const destinationDirectory = PathEx.join(cacheDirectory, directoryName);
+            const destinationDirectory: string = PathEx.join(cacheDirectory, directoryName);
             if (!fs.existsSync(destinationDirectory)) {
               directoryCreated = true;
               fs.mkdirSync(destinationDirectory, {recursive: true});
@@ -127,7 +130,9 @@ export class InitCommand extends BaseCommand {
       {
         title: 'Check dependencies',
         task: (_, task) => {
-          const subTasks = this.depManager.taskCheckDependencies<InitContext>(options.deps);
+          const subTasks: SoloListrTask<InitContext>[] = this.depManager.taskCheckDependencies<InitContext>(
+            options.deps,
+          );
 
           // set up the sub-tasks
           return task.newListr(subTasks, {
@@ -143,7 +148,7 @@ export class InitCommand extends BaseCommand {
     if (options.deps.includes(constants.HELM)) {
       tasks.push({
         title: 'Setup chart manager',
-        task: async context_ => {
+        task: async (context_: InitContext): Promise<void> => {
           context_.repoURLs = await this.chartManager.setup();
         },
       });
@@ -202,13 +207,13 @@ export class InitCommand extends BaseCommand {
     return {
       command: InitCommand.COMMAND_NAME,
       desc: 'Initialize local environment',
-      builder: (y: any) => {
+      builder: (y: any): void => {
         // set the quiet flag even though it isn't used for consistency across all commands
         flags.setOptionalCommandFlags(y, flags.cacheDir, flags.quiet, flags.username);
       },
-      handler: async (argv: any) => {
+      handler: async (argv: any): Promise<void> => {
         await this.init(argv)
-          .then(r => {
+          .then((r: boolean): void => {
             if (!r) {
               throw new SoloError('Error running init, expected return value to be true');
             }
@@ -220,7 +225,7 @@ export class InitCommand extends BaseCommand {
     };
   }
 
-  close(): Promise<void> {
+  public close(): Promise<void> {
     // no-op
     return Promise.resolve();
   }
