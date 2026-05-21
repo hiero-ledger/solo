@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {container} from 'tsyringe-neo';
 import {type Container} from '../../../resources/container/container.js';
 import {type TDirectoryData} from '../../../t-directory-data.js';
 import {type ContainerReference} from '../../../resources/container/container-reference.js';
-import {IllegalArgumentError} from '../../../../../core/errors/illegal-argument-error.js';
-import {MissingArgumentError} from '../../../../../core/errors/missing-argument-error.js';
 import {SoloError} from '../../../../../core/errors/solo-error.js';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -60,7 +59,7 @@ export class K8ClientContainer implements Container {
     try {
       await this.pods.waitForPodByReference(this.containerReference.parentReference, maxAttempts, delayMs);
     } catch {
-      throw new IllegalArgumentError(`Invalid pod ${podName}`);
+      throw new SoloErrors.validation.illegalArgument(`Invalid pod ${podName}`);
     }
   }
 
@@ -323,7 +322,7 @@ export class K8ClientContainer implements Container {
     await this.waitForPod();
 
     if (!cmd) {
-      throw new MissingArgumentError('command cannot be empty');
+      throw new SoloErrors.validation.missingArgument('command cannot be empty');
     }
 
     const command: string[] = Array.isArray(cmd) ? cmd : cmd.split(' ');

@@ -13,7 +13,7 @@ export class HelmMetalLoadBalancer {
   public static readonly CHART_NAME: string = 'metallb';
   public static readonly REPOSITORY_NAME: string = 'metallb';
   public static readonly REPOSITORY_URL: string = 'https://metallb.github.io/metallb/';
-  public static readonly VERSION: string = ''; // latest version
+  public static readonly VERSION: string = '0.15.3';
 
   public static async installMetalLoadBalancer(testName: string): Promise<void> {
     try {

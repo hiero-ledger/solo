@@ -26,6 +26,7 @@ import {ClusterTaskManager} from '../../core/cluster-task-manager.js';
 export class InitCommand extends BaseCommand {
   public static readonly COMMAND_NAME: string = 'init';
   public static readonly INIT_COMMAND_NAME: string = InitCommand.COMMAND_NAME;
+  private static hasShownDevSystemFileLists: boolean = false;
 
   public constructor(
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
@@ -92,9 +93,10 @@ export class InitCommand extends BaseCommand {
             fs.cpSync(sourceDirectory, destinationDirectory, {recursive: true});
           }
 
-          if (argv.dev) {
+          if (argv.dev && !InitCommand.hasShownDevSystemFileLists) {
             this.logger.showList('Home Directories', context_.dirs);
             this.logger.showList('Chart Repository', context_.repoURLs);
+            InitCommand.hasShownDevSystemFileLists = true;
           }
 
           if (directoryCreated) {

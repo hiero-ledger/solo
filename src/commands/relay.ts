@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
-import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
 import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
@@ -315,7 +315,7 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (!nodeAliases) {
-      throw new MissingArgumentError('Node IDs must be specified');
+      throw new SoloErrors.validation.missingArgument('Node IDs must be specified');
     }
 
     const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace, deployment);
@@ -347,7 +347,7 @@ export class RelayCommand extends BaseCommand {
     deployment: DeploymentName,
   ): Promise<string> {
     if (!nodeAliases) {
-      throw new MissingArgumentError('Node IDs must be specified');
+      throw new SoloErrors.validation.missingArgument('Node IDs must be specified');
     }
 
     const networkIds: Record<string, string> = {};

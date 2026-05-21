@@ -4,7 +4,7 @@ import {type ConfigSource} from '../../../../../src/data/configuration/spi/confi
 import {SimpleConfigSourceFixture} from '../../../fixtures/simple-config-source.fixture.js';
 import {LayeredConfig} from '../../../../../src/data/configuration/impl/layered-config.js';
 import {expect} from 'chai';
-import {IllegalArgumentError} from '../../../../../src/business/errors/illegal-argument-error.js';
+import {IllegalArgumentError} from '../../../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import {DuplicateConfigSourceError} from '../../../../../src/data/configuration/api/duplicate-config-source-error.js';
 
 class SimpleObject {
