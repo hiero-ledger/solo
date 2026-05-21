@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {DeploymentNotFoundError} from '../../../../src/business/errors/deployment-not-found-error.js';
+import {DeploymentNotFoundError} from '../../../../src/core/errors/classes/deployment/deployment-not-found-error.js';
 import {getTemporaryDirectory} from '../../../test-utility.js';
 import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
