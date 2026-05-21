@@ -207,7 +207,20 @@ jobs:
           # Convert the mounted patches path to a Linux path so Docker can bind it correctly.
           # This is not needed when running with Docker Desktop for Windows, which automatically translates bind mount 
           # paths, but is required for raw WSL2. 
-          $linuxWorkspacePath = (wsl wslpath -a "$env:GITHUB_WORKSPACE").Trim()
+          if ($env:GITHUB_WORKSPACE -match '^([A-Za-z]):\\(.*)$') {
+            $drive = $Matches[1].ToLowerInvariant()
+            $rest = $Matches[2] -replace '\\', '/'
+            $linuxWorkspacePath = "/mnt/$drive/$rest"
+          } else {
+            # Fallback for non-standard layouts.
+            $wslPathInput = $env:GITHUB_WORKSPACE -replace '\\', '/'
+            $linuxWorkspacePath = (wsl wslpath -a "$wslPathInput").Trim()
+          }
+
+          if ([string]::IsNullOrWhiteSpace($linuxWorkspacePath)) {
+            throw "Failed to convert workspace path '$env:GITHUB_WORKSPACE' to WSL path"
+          }
+
           $linuxPatchesPath = "$linuxWorkspacePath/resources/patches"
 
           $sourceConfig = Join-Path $env:GITHUB_WORKSPACE "resources/kind-config.yaml"
