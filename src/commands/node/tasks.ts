@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {type OneShotState} from '../../core/one-shot-state.js';
@@ -48,8 +49,6 @@ import {
   TransactionResponse,
 } from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
-import {SoloErrors} from '../../core/errors/solo-errors.js';
-import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {execSync} from 'node:child_process';
@@ -4170,7 +4169,7 @@ export class NodeCommandTasks {
 
         for (const flag of required) {
           if (config[flag.constName] === undefined) {
-            throw new MissingArgumentError(`No value set for required flag: ${flag.name}`, flag.name);
+            throw new SoloErrors.validation.missingArgument(`No value set for required flag: ${flag.name}`);
           }
         }
 

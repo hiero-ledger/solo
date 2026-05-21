@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {MissingArgumentError} from '../errors/missing-argument-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import os from 'node:os';
 import process from 'node:process';
 
@@ -28,13 +28,13 @@ export class LockHolder {
    */
   private constructor(username: string, hostname: string, processId: number) {
     if (!username) {
-      throw new MissingArgumentError('username is required');
+      throw new SoloErrors.validation.missingArgument('username is required');
     }
     if (!hostname) {
-      throw new MissingArgumentError('hostname is required');
+      throw new SoloErrors.validation.missingArgument('hostname is required');
     }
     if (!processId) {
-      throw new MissingArgumentError('pid is required');
+      throw new SoloErrors.validation.missingArgument('pid is required');
     }
 
     this._username = username;

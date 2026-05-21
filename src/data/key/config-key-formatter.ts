@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type KeyFormatter} from './key-formatter.js';
-import {IllegalArgumentError} from '../../business/errors/illegal-argument-error.js';
 import {StringEx} from '../../business/utils/string-ex.js';
 
 export class ConfigKeyFormatter implements KeyFormatter {
@@ -33,7 +33,7 @@ export class ConfigKeyFormatter implements KeyFormatter {
 
   public split(key: string): string[] {
     if (!key || key.trim().length === 0) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     return key.split(this.separator);
