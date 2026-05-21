@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type Config} from '../api/config.js';
 import {type ClassConstructor} from '../../../business/utils/class-constructor.type.js';
 import {type ConfigSource} from '../spi/config-source.js';
@@ -7,7 +8,6 @@ import {ReflectAssist} from '../../../business/utils/reflect-assist.js';
 import {Comparators} from '../../../business/utils/comparators.js';
 
 import {DuplicateConfigSourceError} from '../api/duplicate-config-source-error.js';
-import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 
 type ScalarMethod<T> = (key: string) => T;
 type ObjectMethod<T> = (cls: ClassConstructor<T>, key?: string) => T;
@@ -33,7 +33,7 @@ export class LayeredConfig implements Config {
 
   public addSource(source: ConfigSource): void {
     if (!source) {
-      throw new IllegalArgumentError('source cannot be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('source cannot be null or undefined');
     }
 
     if (this._sources.includes(source)) {
@@ -121,7 +121,7 @@ export class LayeredConfig implements Config {
         break;
       }
       default: {
-        throw new IllegalArgumentError(`Unsupported scalar type: ${scalarType}`);
+        throw new SoloErrors.validation.illegalArgument(`Unsupported scalar type: ${scalarType}`);
       }
     }
 

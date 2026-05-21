@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type KeyFormatter} from '../key-formatter.js';
 import {ConfigKeyFormatter} from '../config-key-formatter.js';
 import {type Node} from './node.js';
@@ -7,7 +8,6 @@ import {LexerInternalNode} from './lexer-internal-node.js';
 import {LexerLeafNode} from './lexer-leaf-node.js';
 import {KeyName} from '../key-name.js';
 import {ConfigKeyError} from '../config-key-error.js';
-import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 import {FlatKeyMapper} from '../../mapper/impl/flat-key-mapper.js';
 
 export class Lexer {
@@ -56,13 +56,13 @@ export class Lexer {
 
   public nodeFor(key: string): Node {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     const segments: string[] = this.formatter.split(key);
 
     if (segments.length === 0 || segments[0].trim().length === 0) {
-      throw new IllegalArgumentError('key must not be empty');
+      throw new SoloErrors.validation.illegalArgument('key must not be empty');
     }
 
     let currentNode: Node = this.tree.get(segments[0]);
@@ -93,7 +93,7 @@ export class Lexer {
 
   public addValue(key: string, value: string | null): void {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     const segments: string[] = this.formatter.split(this.formatter.normalize(key));
@@ -106,7 +106,7 @@ export class Lexer {
 
   public addOrReplaceObject(key: string, value: object | null): void {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     const normalizedKey: string = this.formatter.normalize(key);
@@ -124,7 +124,7 @@ export class Lexer {
 
   public addOrReplaceArray<T>(key: string, values: T[] | null): void {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     const normalizedKey: string = this.formatter.normalize(key);
@@ -169,7 +169,7 @@ export class Lexer {
 
   public addOrReplaceValue(key: string, value: string | null): void {
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     const node: Node = this.nodeFor(key);
