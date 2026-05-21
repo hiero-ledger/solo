@@ -11,6 +11,7 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import * as constants from '../../core/constants.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import {type SoloListr} from '../../types/index.js';
 
 /** Options for building a GitHub issue body from diagnostic information. */
 export type DiagnosticsIssueBodyOptions = {
@@ -70,7 +71,7 @@ export class DiagnosticsReporter {
     // Phase 1: verify CLI + build payload (no interactive prompts — Listr2 owns the terminal here)
     const context: DiagnosticsReportContext = {};
 
-    const prepareTasks: Listr<DiagnosticsReportContext, 'default', 'default'> = new Listr(
+    const prepareTasks: SoloListr<DiagnosticsReportContext> = new Listr(
       [
         {
           title: 'Verify GitHub CLI availability',
@@ -137,7 +138,7 @@ export class DiagnosticsReporter {
     }
 
     // Phase 3: create the issue (Listr2 again for progress display)
-    const createTasks: Listr<DiagnosticsReportContext, 'default', 'default'> = new Listr(
+    const createTasks: SoloListr<DiagnosticsReportContext> = new Listr(
       [
         {
           title: 'Create GitHub issue',
@@ -295,6 +296,7 @@ export class DiagnosticsReporter {
    * @param logger       Logger for user-facing output.
    * @param title        Issue title.
    * @param body         Issue body in Markdown.
+   * @param analysisDirectory
    * @param zipFilePath  Optional path to the debug zip archive to mention.
    * @returns The URL of the newly created issue, or an empty string if not found.
    */
