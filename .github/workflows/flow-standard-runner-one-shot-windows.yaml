@@ -199,6 +199,28 @@ jobs:
           Start-Sleep -Seconds 5
           docker info
 
+      - name: Render Kind Config for WSL Docker Daemon
+        shell: pwsh
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          # Kind runs from Windows, but Docker daemon runs in WSL2 Linux.
+          # Convert the mounted patches path to a Linux path so Docker can bind it correctly.
+          # This is not needed when running with Docker Desktop for Windows, which automatically translates bind mount 
+          # paths, but is required for raw WSL2. 
+          $linuxWorkspacePath = (wsl wslpath -a "$env:GITHUB_WORKSPACE").Trim()
+          $linuxPatchesPath = "$linuxWorkspacePath/resources/patches"
+
+          $sourceConfig = Join-Path $env:GITHUB_WORKSPACE "resources/kind-config.yaml"
+          $renderedConfig = Join-Path $env:RUNNER_TEMP "kind-config-windows-wsl.yaml"
+
+          $configContent = Get-Content -Path $sourceConfig -Raw
+          $configContent = $configContent -replace "hostPath:\s*\./resources/patches", "hostPath: $linuxPatchesPath"
+          Set-Content -Path $renderedConfig -Value $configContent
+
+          Write-Host "Rendered Kind config: $renderedConfig"
+          Write-Host "Linux patches hostPath: $linuxPatchesPath"
+          "SOLO_KIND_CLUSTER_CONFIG_FILE=$renderedConfig" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       - name: Solo Init
         shell: pwsh
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
