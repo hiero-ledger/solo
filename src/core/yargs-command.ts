@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import {Flags as commandFlags} from '../commands/flags.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
 import {SoloError} from './errors/solo-error.js';
 import {type BaseCommand} from '../commands/base.js';
 import {type CommandFlag} from '../types/flag-types.js';
@@ -15,22 +15,34 @@ export class YargsCommand {
     const {required, optional} = flags;
 
     if (!command) {
-      throw new IllegalArgumentError("A string is required as the 'command' property", command);
+      throw new SoloErrors.validation.illegalArgument("A string is required as the 'command' property", command);
     }
     if (!description) {
-      throw new IllegalArgumentError("A string is required as the 'description' property", description);
+      throw new SoloErrors.validation.illegalArgument(
+        "A string is required as the 'description' property",
+        description,
+      );
     }
     if (!required) {
-      throw new IllegalArgumentError("An array of CommandFlag is required as the 'required' property", required);
+      throw new SoloErrors.validation.illegalArgument(
+        "An array of CommandFlag is required as the 'required' property",
+        required,
+      );
     }
     if (!optional) {
-      throw new IllegalArgumentError("An array of CommandFlag is required as the 'optional' property", optional);
+      throw new SoloErrors.validation.illegalArgument(
+        "An array of CommandFlag is required as the 'optional' property",
+        optional,
+      );
     }
     if (!commandDef) {
-      throw new IllegalArgumentError("An instance of BaseCommand is required as the 'commandDef' property", commandDef);
+      throw new SoloErrors.validation.illegalArgument(
+        "An instance of BaseCommand is required as the 'commandDef' property",
+        commandDef,
+      );
     }
     if (!handler) {
-      throw new IllegalArgumentError("A string is required as the 'handler' property", handler);
+      throw new SoloErrors.validation.illegalArgument("A string is required as the 'handler' property", handler);
     }
 
     let commandNamespace = '';
