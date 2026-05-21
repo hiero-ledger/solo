@@ -1,0 +1,206 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import {describe, it} from 'mocha';
+import {expect} from 'chai';
+import sinon from 'sinon';
+import {DefaultOneShotDeployOrchestrator} from '../../../../../../src/commands/one-shot/orchestrator/deploy/default-one-shot-deploy-orchestrator.js';
+import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
+import {SoloError} from '../../../../../../src/core/errors/solo-error.js';
+import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+
+type MockType = any;
+type MockListr = MockType;
+
+function makeOrchestrator(): DefaultOneShotDeployOrchestrator {
+  return new DefaultOneShotDeployOrchestrator(
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+  );
+}
+
+function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
+  return {
+    relayNodeConfiguration: {},
+    explorerNodeConfiguration: {},
+    blockNodeConfiguration: {},
+    mirrorNodeConfiguration: {},
+    consensusNodeConfiguration: {},
+    networkConfiguration: {},
+    setupConfiguration: {},
+    valuesFile: '',
+    clusterRef: 'one-shot',
+    context: 'kind-solo',
+    deployment: 'one-shot',
+    namespace: NamespaceName.of('one-shot'),
+    numberOfConsensusNodes: 1,
+    cacheDir: '/tmp/cache',
+    predefinedAccounts: true,
+    minimalSetup: false,
+    deployMirrorNode: true,
+    deployExplorer: true,
+    deployRelay: true,
+    deployMetricsServer: false,
+    force: false,
+    quiet: false,
+    rollback: true,
+    parallelDeploy: false,
+    externalAddress: '',
+    edgeEnabled: false,
+    versions: {
+      soloChart: '',
+      consensus: '',
+      mirror: '',
+      explorer: '',
+      relay: '',
+      blockNode: '',
+    },
+    argv: {_: []},
+    ...overrides,
+  };
+}
+
+function makeTaskWrapper(promptResult: boolean): MockListr {
+  const runStub: sinon.SinonStub = sinon.stub().resolves(promptResult);
+  const promptAdapterStub: sinon.SinonStub = sinon.stub().returns({run: runStub});
+
+  return {
+    prompt: promptAdapterStub,
+  };
+}
+
+describe('DefaultOneShotDeployOrchestrator non-Kind context guard', (): void => {
+  describe('isKindContext', (): void => {
+    it('returns true when the context is a Kind context', (): void => {
+      const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+
+      // @ts-expect-error - to access private method
+      expect(orchestrator.isKindContext('kind-solo')).to.be.true;
+      // @ts-expect-error - to access private method
+      expect(orchestrator.isKindContext('kind-one-shot')).to.be.true;
+      // @ts-expect-error - to access private method
+      expect(orchestrator.isKindContext('kind-local-cluster')).to.be.true;
+    });
+
+    it('returns false when the context is not a Kind context', (): void => {
+      const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+
+      // @ts-expect-error - to access private method
+      expect(orchestrator.isKindContext('gke_mirrornode-non-prod-314918_us-central1_mainnet-staging-na')).to.be.false;
+      // @ts-expect-error - to access private method
+      expect(orchestrator.isKindContext('docker-desktop')).to.be.false;
+      // @ts-expect-error - to access private method
+      expect(orchestrator.isKindContext('minikube')).to.be.false;
+      // @ts-expect-error - to access private method
+      expect(orchestrator.isKindContext('arn:aws:eks:us-east-1:123456789012:cluster/prod')).to.be.false;
+    });
+  });
+
+  describe('buildNonKindContextWarningMessage', (): void => {
+    it('includes the active context and warning details', (): void => {
+      const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+
+      // @ts-expect-error - to access private method
+      const message: string = orchestrator.buildNonKindContextWarningMessage('gke-prod');
+
+      expect(message).to.include("Active Kubernetes context 'gke-prod'");
+      expect(message).to.include('not a local Kind cluster');
+      expect(message).to.include('one-shot deploy is intended for local development');
+      expect(message).to.include('Solo charts, CRDs, namespaces, and other resources');
+      expect(message).to.include('Continue?');
+    });
+  });
+
+  describe('confirmNonKindContext', (): void => {
+    it('does not prompt when quiet mode is enabled', async (): Promise<void> => {
+      const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+      const task: MockListr = makeTaskWrapper(false);
+
+      // @ts-expect-error - to access private method
+      await orchestrator.confirmNonKindContext(
+        makeConfig({
+          context: 'gke-prod',
+          quiet: true,
+        }),
+        task,
+      );
+
+      expect(task.prompt).to.not.have.been.called;
+    });
+
+    it('does not prompt when the context is a Kind context', async (): Promise<void> => {
+      const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+      const task: MockListr = makeTaskWrapper(false);
+
+      // @ts-expect-error - to access private method
+      await orchestrator.confirmNonKindContext(
+        makeConfig({
+          context: 'kind-solo',
+          quiet: false,
+        }),
+        task,
+      );
+
+      expect(task.prompt).to.not.have.been.called;
+    });
+
+    it('prompts when the context is not a Kind context', async (): Promise<void> => {
+      const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+      const task: MockListr = makeTaskWrapper(true);
+
+      // @ts-expect-error - to access private method
+      await orchestrator.confirmNonKindContext(
+        makeConfig({
+          context: 'gke-prod',
+          quiet: false,
+        }),
+        task,
+      );
+
+      expect(task.prompt).to.have.been.calledOnce;
+    });
+
+    it('continues when the user confirms deployment to a non-Kind context', async (): Promise<void> => {
+      const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+      const task: MockListr = makeTaskWrapper(true);
+
+      // @ts-expect-error - to access private method
+      await orchestrator.confirmNonKindContext(
+        makeConfig({
+          context: 'gke-prod',
+          quiet: false,
+        }),
+        task,
+      );
+    });
+
+    it('throws when the user rejects deployment to a non-Kind context', async (): Promise<void> => {
+      const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+      const task: MockListr = makeTaskWrapper(false);
+
+      try {
+        // @ts-expect-error - to access private method
+        await orchestrator.confirmNonKindContext(
+          makeConfig({
+            context: 'gke-prod',
+            quiet: false,
+          }),
+          task,
+        );
+
+        expect.fail('Expected confirmNonKindContext to throw');
+      } catch (error) {
+        expect(error).to.be.instanceOf(SoloError);
+        expect((error as Error).message).to.equal('Aborted by user');
+      }
+    });
+  });
+});
