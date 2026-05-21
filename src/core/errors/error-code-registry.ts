@@ -27,6 +27,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   DEPLOYMENT_LIST_PORTS_FAILED: 'SOLO-2015',
 
   // 3xxx - Component: Relay, Mirror Node, Explorer, CN runtime
+  RAPID_FIRE_EXECUTION_FAILED: 'SOLO-3001',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
