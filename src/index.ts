@@ -26,9 +26,14 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
     const developerMode: boolean = argv.includes('--dev');
     const soloLogLevel: string = developerMode || constants.SOLO_DEV_OUTPUT ? 'debug' : constants.SOLO_LOG_LEVEL;
     Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, soloLogLevel);
-  } catch (error) {
-    console.error(`Error initializing container: ${error?.message}`, error);
-    throw new SoloError('Error initializing container');
+  } catch (incomingError) {
+    const error: SoloError = new SoloError('Error initializing container', incomingError);
+    if (context.logger) {
+      context.logger.showUserError(error);
+    } else {
+      console.error(`Error initializing container: ${error?.message}`, error);
+    }
+    throw error;
   }
 
   const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
