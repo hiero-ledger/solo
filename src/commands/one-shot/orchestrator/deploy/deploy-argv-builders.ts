@@ -279,6 +279,7 @@ export class DeployArgvBuilders {
       consensus: this.resolveComponentVersion(
         argv,
         Flags.consensusNodeVersion.name,
+        Flags.consensusNodeVersion.definition.defaultValue as string,
         version.HEDERA_PLATFORM_VERSION,
         edgeDefaults.consensus,
         configFile.consensusNodeVersion,
@@ -287,6 +288,7 @@ export class DeployArgvBuilders {
       mirror: this.resolveComponentVersion(
         argv,
         Flags.mirrorNodeVersion.name,
+        Flags.mirrorNodeVersion.definition.defaultValue as string,
         version.MIRROR_NODE_VERSION,
         edgeDefaults.mirror,
         configFile.mirrorNodeVersion,
@@ -295,6 +297,7 @@ export class DeployArgvBuilders {
       explorer: this.resolveComponentVersion(
         argv,
         Flags.explorerVersion.name,
+        Flags.explorerVersion.definition.defaultValue as string,
         version.EXPLORER_VERSION,
         edgeDefaults.explorer,
         configFile.explorerVersion,
@@ -303,6 +306,7 @@ export class DeployArgvBuilders {
       relay: this.resolveComponentVersion(
         argv,
         Flags.relayVersion.name,
+        Flags.relayVersion.definition.defaultValue as string,
         version.HEDERA_JSON_RPC_RELAY_VERSION,
         edgeDefaults.relay,
         configFile.relayVersion,
@@ -311,6 +315,7 @@ export class DeployArgvBuilders {
       blockNode: this.resolveComponentVersion(
         argv,
         Flags.blockNodeVersion.name,
+        Flags.blockNodeVersion.definition.defaultValue as string,
         version.BLOCK_NODE_VERSION,
         edgeDefaults.blockNode,
         configFile.blockNodeVersion,
@@ -457,13 +462,14 @@ export class DeployArgvBuilders {
   private static resolveComponentVersion(
     argv: ArgvStruct,
     flagName: string,
+    flagDefaultValue: string,
     stdVersion: string,
     edgeVersion: string,
     configFileVersion: string | undefined,
     useEdge: boolean,
   ): string {
     const argvValue: string | undefined = argv[flagName] as string | undefined;
-    const isExplicit: boolean = this.isVersionFlagExplicitlySet(argvValue, flagName, stdVersion);
+    const isExplicit: boolean = this.isVersionFlagExplicitlySet(argvValue, flagName, flagDefaultValue);
     return this.returnFirstTruthyString(
       isExplicit ? argvValue : undefined,
       configFileVersion,
@@ -474,7 +480,7 @@ export class DeployArgvBuilders {
   private static isVersionFlagExplicitlySet(
     argvValue: string | undefined,
     flagName: string,
-    stdVersion: string,
+    flagDefaultValue: string,
   ): boolean {
     if (!argvValue) {
       return false;
@@ -489,6 +495,6 @@ export class DeployArgvBuilders {
     }
 
     // Fallback for tests/programmatic invocations where process.argv may not reflect parsed argv.
-    return argvValue !== stdVersion;
+    return argvValue !== flagDefaultValue;
   }
 }
