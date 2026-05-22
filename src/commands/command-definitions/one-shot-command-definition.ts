@@ -16,6 +16,8 @@ import {DefaultOneShotCommand} from '../one-shot/default-one-shot.js';
 import {type CommandDefinition} from '../../types/index.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import * as constants from '../../core/constants.js';
+import {FALCON_DEPLOY_COMMAND, FALCON_PREPARE_COMMAND} from '../one-shot/one-shot-command-paths.js';
+import {Flags as flags} from '../flags.js';
 
 @injectable()
 export class OneShotCommandDefinition extends BaseCommandDefinition {
@@ -52,6 +54,11 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
   public static readonly INFO_COMMAND_NAME: string = 'show';
   public static readonly MULTIPLE_DEPLOY: string = 'deploy';
   public static readonly MULTIPLE_DESTROY: string = 'destroy';
+  public static readonly FALCON_PREPARE: string = 'prepare';
+
+  public static readonly FALCON_PREPARE_COMMAND: string = FALCON_PREPARE_COMMAND;
+
+  public static readonly FALCON_DEPLOY_COMMAND: string = FALCON_DEPLOY_COMMAND;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(OneShotCommandDefinition.COMMAND_NAME, OneShotCommandDefinition.DESCRIPTION, this.logger)
@@ -133,6 +140,16 @@ export class OneShotCommandDefinition extends BaseCommandDefinition {
               this.oneShotCommand.destroyFalcon,
               DefaultOneShotCommand.FALCON_DESTROY_FLAGS_LIST,
               [...constants.BASE_DEPENDENCIES],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              OneShotCommandDefinition.FALCON_PREPARE,
+              `Generates a falcon values file for use with ${OneShotCommandDefinition.FALCON_DEPLOY_COMMAND}. Writes to ${flags.outputValuesFile.definition.defaultValue} by default.`,
+              this.oneShotCommand,
+              this.oneShotCommand.prepareFalcon,
+              DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST,
+              [],
             ),
           ),
       )
