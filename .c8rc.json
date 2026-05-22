@@ -1,8 +1,7 @@
 {
   "reporter": [
-    "text",
-    "html",
+    "text-summary",
     "clover",
-    "lcov"
+    "lcovonly"
   ]
 }
