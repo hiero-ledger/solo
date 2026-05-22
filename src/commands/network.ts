@@ -844,6 +844,10 @@ export class NetworkCommand extends BaseCommand {
         'singleUseServiceMonitor',
       ],
     ) as NetworkDeployConfigClass;
+    const normalizedReleaseTag: string | undefined = normalizeVersionValue(config.releaseTag);
+    if (normalizedReleaseTag) {
+      config.releaseTag = normalizedReleaseTag;
+    }
 
     const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);

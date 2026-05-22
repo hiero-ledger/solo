@@ -262,9 +262,9 @@ describe('NetworkCommand unit tests', (): void => {
     });
 
     it('normalizes duplicate comma-joined consensus-node-version values before semantic parsing', async (): Promise<void> => {
-      const originalReleaseTag: string = argv.getArg<string>(flags.releaseTag);
+      const originalConsensusNodeVersion: string = argv.getArg<string>(flags.consensusNodeVersion);
       try {
-        argv.setArg(flags.releaseTag, 'v0.73.0,v0.73.0');
+        argv.setArg(flags.consensusNodeVersion, 'v0.73.0,v0.73.0');
         const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
         options.remoteConfig.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
         options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
@@ -290,7 +290,7 @@ describe('NetworkCommand unit tests', (): void => {
         expect(options.remoteConfig.persist.called).to.equal(true);
         expect(options.remoteConfig.configuration.versions.consensusNode.toString()).to.equal('0.73.0');
       } finally {
-        argv.setArg(flags.releaseTag, originalReleaseTag);
+        argv.setArg(flags.consensusNodeVersion, originalConsensusNodeVersion);
         sinon.restore();
       }
     });
