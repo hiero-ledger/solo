@@ -183,6 +183,8 @@ export class BlockNodeCommand extends BaseCommand {
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
+      // Keep legacy flag visible as a separate deprecated option.
+      flags.blockNodeChartVersion,
       flags.blockNodeVersion,
       flags.blockNodeChartDirectory,
       flags.blockNodeTssOverlay,

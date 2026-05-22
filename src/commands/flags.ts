@@ -3028,7 +3028,6 @@ export class Flags {
     definition: {
       describe: 'Consensus node version to deploy (e.g. v0.73.0 or 0.73.0).',
       defaultValue: '',
-      alias: ['t', Flags.releaseTag.name],
       type: 'string',
     },
     prompt: undefined,
@@ -3040,7 +3039,6 @@ export class Flags {
     definition: {
       describe: 'JSON-RPC relay version to deploy (e.g. v0.76.2 or 0.76.2). ',
       defaultValue: '',
-      alias: [Flags.relayReleaseTag.name],
       type: 'string',
     },
     prompt: undefined,
@@ -3052,7 +3050,6 @@ export class Flags {
     definition: {
       describe: 'Block node version to deploy for (e.g. v0.31.0 or 0.31.0). ',
       defaultValue: '',
-      alias: [Flags.blockNodeChartVersion.name],
       type: 'string',
     },
     prompt: undefined,
