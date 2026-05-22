@@ -234,12 +234,20 @@ export class ProfileManager {
         flagValue !== (flags.applicationProperties.definition.defaultValue as string);
 
       if (isUserSuppliedApplicationProperties) {
-        // Base: Solo's updated default (realm/shard/block-node settings already applied).
-        // Apply user's properties as key-level overrides: existing keys are updated,
-        // new keys are appended.  This avoids duplicates while preserving all Solo defaults
-        // that the user did not explicitly override.
-        fs.cpSync(applicationPropertiesPath, destinationPath, {force: true});
-        await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
+        if (await this.isApplicationPropertiesOverwriteEnabled(sourceAbsoluteFilePath)) {
+          this.logger.debug(
+            `Detected '${constants.APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER}' in '${sourceAbsoluteFilePath}', ` +
+              'using user application.properties as full overwrite',
+          );
+          fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
+        } else {
+          // Base: Solo's updated default (realm/shard/block-node settings already applied).
+          // Apply user's properties as key-level overrides: existing keys are updated,
+          // new keys are appended.  This avoids duplicates while preserving all Solo defaults
+          // that the user did not explicitly override.
+          fs.cpSync(applicationPropertiesPath, destinationPath, {force: true});
+          await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
+        }
       } else {
         fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
       }
@@ -518,6 +526,14 @@ export class ProfileManager {
     }
 
     await writeFile(stagingPath, resultLines.join('\n'));
+  }
+
+  private async isApplicationPropertiesOverwriteEnabled(userFilePath: string): Promise<boolean> {
+    const userContent: string = await readFile(userFilePath, 'utf8');
+    return userContent.split('\n').some((line: string): boolean => {
+      const trimmed: string = line.trim();
+      return trimmed.startsWith('#') && trimmed.includes(constants.APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER);
+    });
   }
 
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
