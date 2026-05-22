@@ -47,14 +47,33 @@ export class DeployArgvBuilders {
     const argv: string[] = newArgv();
     argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), optionFromFlag(Flags.deployment), config.deployment);
 
+    const consensusNodeVersionFlag: string = optionFromFlag(Flags.consensusNodeVersion);
+    const legacyReleaseTagFlag: string = optionFromFlag(Flags.releaseTag);
+    const blockNodeConfiguration: AnyObject = {...config.blockNodeConfiguration};
+    const consensusVersionOverride: unknown =
+      blockNodeConfiguration[consensusNodeVersionFlag] ??
+      blockNodeConfiguration[legacyReleaseTagFlag] ??
+      blockNodeConfiguration.releaseTag ??
+      blockNodeConfiguration.consensusNodeVersion ??
+      blockNodeConfiguration['consensus-node-version'] ??
+      blockNodeConfiguration['--releaseTag'];
+    if (blockNodeConfiguration[consensusNodeVersionFlag] === undefined && consensusVersionOverride !== undefined) {
+      blockNodeConfiguration[consensusNodeVersionFlag] = consensusVersionOverride;
+    }
+
+    delete blockNodeConfiguration[legacyReleaseTagFlag];
+    delete blockNodeConfiguration['--releaseTag'];
+    delete blockNodeConfiguration.releaseTag;
+    delete blockNodeConfiguration.consensusNodeVersion;
+    delete blockNodeConfiguration['consensus-node-version'];
+
     // Build a local copy with the dev image values file appended, without mutating
     // config.blockNodeConfiguration — it may be an alias for another section's object
     // (e.g. via YAML anchors), causing the values file to leak into other commands.
-    const blockExistingValuesFile: string =
-      config.blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
+    const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
-      ...config.blockNodeConfiguration,
+      ...blockNodeConfiguration,
       [Flags.getFormattedFlagKey(Flags.valuesFile)]: blockExistingValuesFile
         ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
         : constants.BLOCK_NODE_SOLO_DEV_FILE,
