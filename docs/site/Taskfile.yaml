@@ -81,6 +81,7 @@ tasks:
       - task: "github:list:solo:releases"
       - task: "github:augment:releases"
       - task: "github:download:solo:assets"
+      - task: "github:extract:latest"
       - task: "github:extract:versioned"
       - task: "github:update:hugo:config"
       - task: "build:hugo"

@@ -76,6 +76,38 @@ tasks:
           done
         done
 
+  github:extract:latest:
+    desc: Extract docs-latest.tar.gz from latest version to public/latest
+    silent: true
+    cmds:
+      - |
+        if [[ -n "$HUGO_SOLO_VERSION" && "$HUGO_SOLO_VERSION" != "main" ]]; then
+          echo "skipping since we are building this release not downloading it"
+          exit 0
+        fi
+        LATEST_TAG=$(jq -r '.[] | select(.npmjsLatest == true) | .tag' build/releases.json)
+        if [ -z "$LATEST_TAG" ]; then
+          echo "No latest version found in releases.json"
+          exit 0
+        fi
+        
+        SAFE_TAG=$(echo "$LATEST_TAG" | sed 's#[/:]#_#g')
+        ARCHIVE="build/$SAFE_TAG/docs-latest.tar.gz"
+        
+        if [ ! -f "$ARCHIVE" ]; then
+          echo "Error: $ARCHIVE does not exist." >&2
+          exit 1
+        fi
+        
+        echo "Extracting $ARCHIVE to public/latest..."
+        rm -rf public/latest
+        mkdir -p public/latest
+        if [ "$(uname -s)" == "Linux" ]; then
+          tar --warning=no-unknown-keyword -xzf "$ARCHIVE" -C public/
+        else
+          tar -xzf "$ARCHIVE" -C public/
+        fi
+
   github:extract:versioned:
     desc: Extract docs-${tag}.tar.gz into public/${tag}
     silent: true
