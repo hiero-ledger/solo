@@ -167,5 +167,20 @@ describe('ConfigManager', (): void => {
       expect(cm.getFlag(flags.blockNodeVersion)).to.equal('0.34.0');
       expect(cm.getFlag(flags.blockNodeChartVersion)).to.equal('0.34.0');
     });
+
+    it('should not redefine config properties when legacy and canonical flags share the same constName', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv: Argv = Argv.initializeEmpty();
+      argv.setArg(flags.relayVersion, '0.77.0');
+      cm.update(argv.build());
+
+      const config: {relayReleaseTag: string} = cm.getConfig('duplicate-constName-relay', [
+        flags.relayReleaseTag,
+        flags.relayVersion,
+      ]) as {
+        relayReleaseTag: string;
+      };
+      expect(config.relayReleaseTag).to.equal('0.77.0');
+    });
   });
 });

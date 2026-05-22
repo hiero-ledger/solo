@@ -315,7 +315,18 @@ export class ConfigManager {
         // add the flags as properties to this class
         if (flags) {
           for (const flag of flags) {
-            this[`_${flag.constName}`] = getFlag(flag);
+            const constNameValue: unknown = getFlag(flag);
+            if (this[`_${flag.constName}`] === undefined && constNameValue !== undefined) {
+              this[`_${flag.constName}`] = constNameValue;
+            }
+
+            // Multiple CLI flags can intentionally share one config constName (legacy + canonical).
+            // Define the accessor only once to avoid property redefinition errors.
+            if (Object.hasOwn(this, flag.constName)) {
+              continue;
+            }
+
+            this[`_${flag.constName}`] = constNameValue;
             Object.defineProperty(this, flag.constName, {
               get(): unknown {
                 this.usedConfigs.set(flag.constName, this.usedConfigs.get(flag.constName) + 1 || 1);
@@ -331,6 +342,9 @@ export class ConfigManager {
         // add the extra properties as properties to this class
         if (extraProperties) {
           for (const name of extraProperties) {
+            if (Object.hasOwn(this, name)) {
+              continue;
+            }
             this[`_${name}`] = '';
             Object.defineProperty(this, name, {
               get(): unknown {
