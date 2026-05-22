@@ -10,7 +10,7 @@ import {ClusterReferenceCommandDefinition} from '../../../../../../src/commands/
 import {DeploymentCommandDefinition} from '../../../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../../../../src/commands/command-definitions/keys-command-definition.js';
 import {DeployArgvBuilders} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-argv-builders.js';
-import {optionFromFlag} from '../../../../../../src/commands/command-helpers.js';
+import {negatedOptionFromFlag, optionFromFlag} from '../../../../../../src/commands/command-helpers.js';
 import {Flags} from '../../../../../../src/commands/flags.js';
 import {type AnyObject} from '../../../../../../src/types/aliases.js';
 
@@ -258,6 +258,40 @@ describe('buildClusterSetupArgv', (): void => {
     }
     expect(argv).to.include(optionFromFlag(Flags.clusterRef));
     expect(argv).to.include('test-cluster');
+  });
+
+  it('adds --no-minio when consensus node version is >= 0.74.0', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
+      makeConfig({
+        versions: {
+          explorer: '2.5.0',
+          soloChart: '0.0.0',
+          consensus: 'v0.74.0',
+          mirror: '0.0.0',
+          relay: '0.0.0',
+          blockNode: '0.0.0',
+        },
+      }),
+    );
+
+    expect(argv).to.include(negatedOptionFromFlag(Flags.deployMinio));
+  });
+
+  it('does not add --no-minio when consensus node version is < 0.74.0', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
+      makeConfig({
+        versions: {
+          explorer: '2.5.0',
+          soloChart: '0.0.0',
+          consensus: 'v0.73.9',
+          mirror: '0.0.0',
+          relay: '0.0.0',
+          blockNode: '0.0.0',
+        },
+      }),
+    );
+
+    expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
   });
 });
 

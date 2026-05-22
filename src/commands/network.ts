@@ -140,6 +140,7 @@ export interface NetworkDeployConfigClass {
   wrapsEnabled: boolean;
   wrapsKeyPath: string;
   tssEnabled: boolean;
+  minioEnabled: boolean;
 }
 
 interface NetworkDeployContext {
@@ -386,9 +387,14 @@ export class NetworkCommand extends BaseCommand {
   private async prepareStorageSecrets(config: NetworkDeployConfigClass): Promise<void> {
     try {
       if (config.storageType !== constants.StorageType.MINIO_ONLY) {
-        const minioAccessKey: string = uuidv4();
-        const minioSecretKey: string = uuidv4();
-        await this.prepareMinioSecrets(config, minioAccessKey, minioSecretKey);
+        if (config.minioEnabled) {
+          const minioAccessKey: string = uuidv4();
+          const minioSecretKey: string = uuidv4();
+          await this.prepareMinioSecrets(config, minioAccessKey, minioSecretKey);
+        } else {
+          this.logger.debug(`Skipping MinIO secret preparation for consensus node ${config.releaseTag}`);
+        }
+
         await this.prepareStreamUploaderSecrets(config);
       }
 
@@ -603,6 +609,13 @@ export class NetworkCommand extends BaseCommand {
 
     if (config.storageType !== constants.StorageType.MINIO_ONLY) {
       for (const clusterReference of clusterReferences) {
+        valuesArguments[clusterReference] += ' --set cloud.generateNewSecrets=false';
+      }
+    }
+
+    if (!config.minioEnabled) {
+      for (const clusterReference of clusterReferences) {
+        valuesArguments[clusterReference] += ' --set cloud.minio.enabled=false';
         valuesArguments[clusterReference] += ' --set cloud.generateNewSecrets=false';
       }
     }
@@ -895,6 +908,7 @@ export class NetworkCommand extends BaseCommand {
 
     config.singleUseServiceMonitor = config.serviceMonitor;
     config.singleUsePodLog = config.podLog;
+    config.minioEnabled = !networkNodeVersion.greaterThanOrEqual(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
 
     config.valuesArgMap = await this.prepareValuesArgMap(config);
 
@@ -1607,7 +1621,8 @@ export class NetworkCommand extends BaseCommand {
                   }
                 },
                 // skip if only cloud storage is/are used
-                skip: ({config: {storageType}}): boolean =>
+                skip: ({config: {storageType, minioEnabled}}): boolean =>
+                  !minioEnabled ||
                   storageType === constants.StorageType.GCS_ONLY ||
                   storageType === constants.StorageType.AWS_ONLY ||
                   storageType === constants.StorageType.AWS_AND_GCS,
@@ -1701,7 +1716,12 @@ export class NetworkCommand extends BaseCommand {
           task: async ({config: {consensusNodes}}): Promise<void> => {
             try {
               for (const consensusNode of consensusNodes) {
-                await createAndCopyBlockNodeJsonFileForConsensusNode(consensusNode, this.logger, this.k8Factory);
+                await createAndCopyBlockNodeJsonFileForConsensusNode(
+                  consensusNode,
+                  this.logger,
+                  this.k8Factory,
+                  this.remoteConfig.configuration.versions.consensusNode,
+                );
               }
             } catch (error) {
               throw new SoloError(`Failed while creating block-nodes configuration: ${error.message}`, error);

@@ -13,11 +13,18 @@ import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cl
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
 import {Flags} from '../../../flags.js';
-import {appendConfigToArgv, argvPushGlobalFlags, newArgv, optionFromFlag} from '../../../command-helpers.js';
+import {
+  appendConfigToArgv,
+  argvPushGlobalFlags,
+  negatedOptionFromFlag,
+  newArgv,
+  optionFromFlag,
+} from '../../../command-helpers.js';
 import * as constants from '../../../../core/constants.js';
 import * as version from '../../../../../version.js';
 import {type AnyObject} from '../../../../types/aliases.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
+import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 const MIRROR_NODE_ID: number = 1;
 
@@ -200,6 +207,14 @@ export class DeployArgvBuilders {
     if (config.deployMetricsServer) {
       argv.push(optionFromFlag(Flags.deployMetricsServer));
     }
+
+    const consensusVersion: SemanticVersion<string> = new SemanticVersion<string>(
+      config.versions.consensus || version.HEDERA_PLATFORM_VERSION,
+    );
+    if (consensusVersion.greaterThanOrEqual(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+      argv.push(negatedOptionFromFlag(Flags.deployMinio));
+    }
+
     return argvPushGlobalFlags(argv);
   }
 

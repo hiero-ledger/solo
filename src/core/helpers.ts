@@ -36,6 +36,7 @@ import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import * as versions from '../../version.js';
 
 export function getInternalAddress(
   releaseVersion: SemanticVersion<string> | string,
@@ -45,6 +46,18 @@ export function getInternalAddress(
   return new SemanticVersion(releaseVersion).greaterThanOrEqual('0.58.5')
     ? '127.0.0.1'
     : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
+}
+
+export function getBlockStreamModeForConsensusVersion(consensusNodeVersion?: SemanticVersion<string> | string): string {
+  const version: SemanticVersion<string> = new SemanticVersion<string>(
+    consensusNodeVersion?.toString() || versions.HEDERA_PLATFORM_VERSION,
+  );
+
+  if (version.greaterThanOrEqual(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+    return 'BLOCKS';
+  }
+
+  return constants.BLOCK_STREAM_STREAM_MODE;
 }
 
 export function sleep(duration: Duration): Promise<void> {
@@ -809,6 +822,7 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
   consensusNode: ConsensusNode,
   logger: SoloLogger,
   k8Factory: K8Factory,
+  consensusNodeVersion?: SemanticVersion<string> | string,
 ): Promise<void> {
   const {
     nodeId,
@@ -859,17 +873,18 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 
   const lines: string[] = applicationPropertiesData.split('\n');
 
-  // Remove line to enable overriding below.
+  const blockStreamMode: string = getBlockStreamModeForConsensusVersion(consensusNodeVersion);
+  let streamModeUpdated: boolean = false;
   for (const line of lines) {
-    if (line === 'blockStream.streamMode=RECORDS') {
-      lines.splice(lines.indexOf(line), 1);
+    if (line.startsWith('blockStream.streamMode=')) {
+      lines[lines.indexOf(line)] = `blockStream.streamMode=${blockStreamMode}`;
+      streamModeUpdated = true;
+      break;
     }
   }
 
-  // Switch to block streaming.
-
-  if (!lines.some((line): boolean => line.startsWith('blockStream.streamMode='))) {
-    lines.push(`blockStream.streamMode=${constants.BLOCK_STREAM_STREAM_MODE}`);
+  if (!streamModeUpdated) {
+    lines.push(`blockStream.streamMode=${blockStreamMode}`);
   }
 
   if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
