@@ -72,6 +72,7 @@ import {UpgradeVersionFetchFailedSoloError} from './classes/system/upgrade-versi
 import {UnsupportedOperationError} from './classes/internal/unsupported-operation-error.js';
 import {CreateDeploymentSoloError} from './classes/deployment/create-deployment-solo-error.js';
 import {DeploymentAlreadyExistsSoloError} from './classes/deployment/deployment-already-exists-solo-error.js';
+import {RapidFireExecutionSoloError} from './classes/rapid-fire-execution-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -144,6 +145,7 @@ export class SoloErrors {
     readonly blockNodeConfigFailed: typeof BlockNodeConfigFailedSoloError;
     readonly chartInstallFailed: typeof ChartInstallFailedSoloError;
     readonly networkDestroyFailed: typeof NetworkDestroyFailedSoloError;
+    readonly rapidFireExecutionFailed: typeof RapidFireExecutionSoloError;
   } = Object.freeze({
     nodeTransactionFailed: NodeTransactionFailedSoloError,
     nodeTransactionError: NodeTransactionErrorSoloError,
@@ -156,6 +158,7 @@ export class SoloErrors {
     blockNodeConfigFailed: BlockNodeConfigFailedSoloError,
     chartInstallFailed: ChartInstallFailedSoloError,
     networkDestroyFailed: NetworkDestroyFailedSoloError,
+    rapidFireExecutionFailed: RapidFireExecutionSoloError,
   });
 
   // 4xxx — Validation: User input, flags, IDs, formatting

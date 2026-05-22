@@ -314,7 +314,7 @@ Troubleshooting:
       isSystemFile?: boolean;
     }
 
-    const tasks = new Listr<Context>(
+    const tasks: SoloListr<Context> = new Listr(
       [
         {
           title: 'Initialize configuration',
@@ -503,7 +503,7 @@ Troubleshooting:
       } else {
         this.logger.showUser(chalk.green('\n✅ File updated successfully!'));
       }
-    } catch (error: any) {
+    } catch (error) {
       const operation: string = isCreate ? 'creation' : 'update';
       throw new SoloError(`File ${operation} failed: ${error.message}`, error);
     }

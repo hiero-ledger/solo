@@ -190,6 +190,7 @@ import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
+import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -463,6 +464,7 @@ export class NodeCommandTasks {
             try {
               // filter the data/config and data/keys to avoid failures due to config and secret mounts
               await this.copyLocalBuildPathToNode(k8, podReference, this.configManager, localDataLibraryBuildPath);
+              break;
             } catch (error) {
               storedError = error;
             }
@@ -3887,6 +3889,30 @@ export class NodeCommandTasks {
         );
 
         for (const service of config.serviceMap.values()) {
+          // Disable the network-node autostart BEFORE killing the pod so the restarted
+          // pod does not auto-launch the JVM while fetchPlatformSoftware is still
+          // rm-ing and re-copying jars under data/lib (HederaNode.jar has an explicit
+          // Class-Path manifest; a JVM that lazy-loads a jar mid-rm crashes with
+          // NoSuchFileException). startNodes() re-enables autostart after the upload.
+          try {
+            const podReference: PodReference = PodReference.of(config.namespace, service.nodePodName);
+            const containerReference: ContainerReference = ContainerReference.of(
+              podReference,
+              constants.ROOT_CONTAINER,
+            );
+            await this.k8Factory
+              .getK8(service.context)
+              .containers()
+              .readByRef(containerReference)
+              .execContainer([
+                'bash',
+                '-c',
+                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
+              ]);
+          } catch {
+            // Best-effort: container may already be restarting; the kill below will follow
+          }
+
           await this.k8Factory
             .getK8(service.context)
             .pods()
@@ -4310,6 +4336,7 @@ export class NodeCommandTasks {
           {name: 'explorer', labels: [constants.SOLO_EXPLORER_LABEL]},
           {name: 'block node', labels: [constants.SOLO_BLOCK_NODE_NAME_LABEL]},
           {name: 'ingress controller', labels: [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
+          {name: 'network load generator', labels: constants.NETWORK_LOAD_GENERATOR_POD_LABELS},
         ];
 
         // Create output directory structure - use custom dir if provided, otherwise use default
@@ -4427,6 +4454,9 @@ export class NodeCommandTasks {
       if (!processInfo?.cmd?.includes('port-forward')) {
         continue;
       }
+      if (processInfo.cmd.includes('persist-port-forward')) {
+        continue;
+      }
       uniqueByPid.set(processInfo.pid, processInfo);
     }
 
@@ -4483,7 +4513,10 @@ export class NodeCommandTasks {
 
     try {
       const k8: K8 = this.k8Factory.getK8(context);
-      const containerReference: ContainerReference = ContainerReference.of(pod.podReference, constants.ROOT_CONTAINER);
+      const containerReference: ContainerReference = ContainerReference.of(
+        pod.podReference,
+        ContainerName.of(constants.BLOCK_NODE_IMAGE_NAME),
+      );
       const container: Container = k8.containers().readByRef(containerReference);
 
       // Create directory for block node log files
@@ -4492,7 +4525,25 @@ export class NodeCommandTasks {
         fs.mkdirSync(blockNodeLogDirectory, {recursive: true});
       }
 
-      await container.copyFrom('/opt/hiero/block-node/logs/*.log', blockNodeLogDirectory);
+      const blockNodeLogsDirectory: string = '/opt/hiero/block-node/logs';
+      if (!(await container.hasDir(blockNodeLogsDirectory))) {
+        this.logger.info(`Block node logs directory not found for ${podName}: ${blockNodeLogsDirectory}`);
+        return;
+      }
+
+      const directoryEntries: TDirectoryData[] = await container.listDir(blockNodeLogsDirectory);
+      const logFiles: TDirectoryData[] = directoryEntries.filter(
+        (entry: TDirectoryData): boolean => !entry.directory && entry.name.endsWith('.log'),
+      );
+
+      if (logFiles.length === 0) {
+        this.logger.info(`No block node .log files found for ${podName} in ${blockNodeLogsDirectory}`);
+        return;
+      }
+
+      for (const logFile of logFiles) {
+        await container.copyFrom(`${blockNodeLogsDirectory}/${logFile.name}`, blockNodeLogDirectory);
+      }
     } catch (error) {
       this.logger.error(`Failed to download block node log files from ${podName}: ${error}`);
     }
@@ -4501,7 +4552,10 @@ export class NodeCommandTasks {
   public downloadJavaFlightRecorderLogs(): SoloListrTask<NodeCollectJfrLogsContext> {
     return {
       title: 'Download Java Flight Recorder logs from node pod',
-      task: async (context_: NodeCollectJfrLogsContext): Promise<void> => {
+      task: async (
+        context_: NodeCollectJfrLogsContext,
+        task: SoloListrTaskWrapper<NodeCollectJfrLogsContext>,
+      ): Promise<void> => {
         this.logger.info(`Downloading Java Flight Recorder logs from node ${context_.config.nodeAlias}...`);
         const config: NodeCollectJfrLogsConfigClass = context_.config;
         const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
@@ -4531,17 +4585,28 @@ export class NodeCommandTasks {
         }
 
         const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
+        let dumpResult: string;
         try {
-          const result: string = await k8Container.execContainer(
-            `jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`,
-          );
-          this.logger.info(`JFR dump command output: ${result}`);
+          dumpResult = await k8Container.execContainer(`jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`);
+          this.logger.info(`JFR dump command output: ${dumpResult}`);
         } catch (error) {
           throw new SoloErrors.component.nodeJfrExecutionFailed(
             'Failed to create JFR recording',
             nodeFullyQualifiedPodName.toString(),
             error,
           );
+        }
+
+        // jcmd exits 0 even when no JFR recording is active and just prints an
+        // informational message. Detect that case and skip the task gracefully
+        // rather than failing the subsequent copy — performance-test runs
+        // without JFR enabled should not fail at teardown.
+        const jfrNotEnabledPattern: RegExp = /Could not find any recording|No recording (?:with|named)|No recordings/i;
+        if (jfrNotEnabledPattern.test(dumpResult)) {
+          const reason: string = `Java Flight Recorder is not enabled on node pod ${nodeFullyQualifiedPodName}`;
+          this.logger.warn(reason);
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey(reason)}`);
+          return;
         }
 
         try {

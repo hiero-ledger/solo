@@ -36,6 +36,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CHART_INSTALL_FAILED: 'SOLO-3009',
   NETWORK_DESTROY_FAILED: 'SOLO-3010',
   NODE_NOT_READY: 'SOLO-3011',
+  RAPID_FIRE_EXECUTION_FAILED: 'SOLO-3012',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
