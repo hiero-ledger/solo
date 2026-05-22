@@ -81,7 +81,6 @@ tasks:
       - task: "github:list:solo:releases"
       - task: "github:augment:releases"
       - task: "github:download:solo:assets"
-      - task: "github:extract:latest"
       - task: "github:extract:versioned"
       - task: "github:update:hugo:config"
       - task: "build:hugo"
@@ -137,12 +136,14 @@ tasks:
       - (cd docs/site/ && npm install)
       - task: "build:solo"
       - |
-        if [[ "${SOLO_CI}" == "true" ]]; then
-          echo "Running wrapperForUpdateDocs.mjs in CI mode"
-          node docs/site/scripts/wrapperForUpdateDocs.mjs
-        else
-          echo "Running executeUpdateDocs.mjs.mjs in local mode"
-          node docs/site/scripts/executeUpdateDocs.mjs
+        if [[ "${SKIP_COMMAND_OUTPUT}" != "true" ]]; then
+          if [[ "${SOLO_CI}" == "true" ]]; then
+            echo "Running wrapperForUpdateDocs.mjs in CI mode"
+            node docs/site/scripts/wrapperForUpdateDocs.mjs
+          else
+            echo "Running executeUpdateDocs.mjs.mjs in local mode"
+            node docs/site/scripts/executeUpdateDocs.mjs
+          fi
         fi
       - printf "\r::endgroup::--------------\n"
 
