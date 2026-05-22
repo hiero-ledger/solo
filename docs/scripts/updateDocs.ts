@@ -6,7 +6,7 @@ import path from 'node:path';
 import {run, runAndSave, envsubst} from './utilities.js';
 import chalk from 'chalk';
 
-export async function update() {
+export async function update(): Promise<void> {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const projectRoot = path.resolve(__dirname, '../../../');
   process.chdir(projectRoot);

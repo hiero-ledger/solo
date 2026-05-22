@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-'use strict';
 
 import path from 'path';
 import {fileURLToPath} from 'url';
@@ -7,7 +6,7 @@ import {run} from './utilities.js';
 import chalk from 'chalk';
 import {update} from './updateDocs.js';
 
-void (async function main() {
+void (async function main(): Promise<void> {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const projectRoot = path.resolve(__dirname, '../../../');
   process.chdir(projectRoot);

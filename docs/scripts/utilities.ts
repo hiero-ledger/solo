@@ -7,9 +7,9 @@ import chalk from 'chalk';
 /**
  * Run a shell command, preserving colors for interactive Solo CLI commands,
  * otherwise using normal spawn for safety.
- * @returns {Promise<string>} - The output of the command.
+ * @returns - The output of the command.
  */
-export async function run(cmd, opts = {}) {
+export async function run(cmd: string, opts = {}): Promise<string> {
   console.log(chalk.green(cmd));
 
   // Normal spawn for non-interactive commands
@@ -47,7 +47,7 @@ export async function run(cmd, opts = {}) {
 /**
  * Run a command, capture output, save to log file, and export env var.
  */
-export async function runAndSave(cmd, key, logFile) {
+export async function runAndSave(cmd: string, key: string, logFile: string): Promise<string> {
   console.log(`beginning runAndSave for '${cmd}'`);
   const output = await run(cmd);
   writeFileSync(logFile, output + '\n');
@@ -58,11 +58,11 @@ export async function runAndSave(cmd, key, logFile) {
 
 /**
  * Run a command and capture its stdout as a string.
- * @param {string} cmd - Command to execute (can include arguments)
- * @param {Object} [opts={}] - Optional spawn options
- * @returns {Promise<string>} - Resolves to the stdout output
+ * @param cmd - Command to execute (can include arguments)
+ * @param opts - Optional spawn options
+ * @returns - Resolves to the stdout output
  */
-export async function runCapture(cmd, opts = {}) {
+export async function runCapture(cmd: string, opts = {}): Promise<string> {
   const [command, ...args] = cmd.split(' ');
 
   return new Promise((resolve, reject) => {
@@ -96,11 +96,11 @@ export async function runCapture(cmd, opts = {}) {
 /**
  * Perform variable substitution in a template string, replacing `$VAR` with its value.
  *
- * @param {string} template - The template string containing placeholders like `$VAR`.
- * @param {Record<string, string>} vars - A mapping of variable names to their replacement values.
- * @returns {string} - The template with variables substituted.
+ * @param template - The template string containing placeholders like `$VAR`.
+ * @param vars - A mapping of variable names to their replacement values.
+ * @returns - The template with variables substituted.
  */
-export function envsubst(template, vars) {
+export function envsubst(template: string, vars: Record<string, string>): string {
   let result = template;
   for (const [key, val] of Object.entries(vars)) {
     const regex = new RegExp(`\\$${key}`, 'g');
