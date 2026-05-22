@@ -20,7 +20,7 @@ import {CacheCommandDefinition} from '../../../command-definitions/cache-command
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
-import {normalizeVersionValue, SemanticVersion} from '../../../../business/utils/semantic-version.js';
+import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 const MIRROR_NODE_ID: number = 1;
 const GITHUB_RELEASES_PER_PAGE: number = 100;
@@ -468,8 +468,8 @@ export class DeployArgvBuilders {
     configFileVersion: string | undefined,
     useEdge: boolean,
   ): string {
-    const argvValue: string | undefined = normalizeVersionValue(argv[flagName]);
-    const normalizedConfigFileVersion: string | undefined = normalizeVersionValue(configFileVersion);
+    const argvValue: string | undefined = SemanticVersion.normalizeToken(argv[flagName]);
+    const normalizedConfigFileVersion: string | undefined = SemanticVersion.normalizeToken(configFileVersion);
     const isExplicit: boolean = this.isVersionFlagExplicitlySet(argvValue, flagName, flagDefaultValue);
     return this.returnFirstTruthyString(
       isExplicit ? argvValue : undefined,

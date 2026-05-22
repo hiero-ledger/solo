@@ -56,8 +56,15 @@ export class ConfigManager {
     ];
 
     for (const {canonical, legacy} of aliasMappings) {
-      if (argv[canonical.name] === undefined && argv[legacy.name] !== undefined) {
-        argv[canonical.name] = argv[legacy.name];
+      const canonicalValue: unknown = argv[canonical.name];
+      const legacyValue: unknown = argv[legacy.name];
+
+      if (canonicalValue === undefined && legacyValue !== undefined) {
+        argv[canonical.name] = legacyValue;
+      }
+
+      if (legacyValue === undefined && canonicalValue !== undefined) {
+        argv[legacy.name] = canonicalValue;
       }
     }
   }
@@ -72,8 +79,14 @@ export class ConfigManager {
     for (const {canonical, legacy} of aliasMappings) {
       const canonicalValue: unknown = activeConfig.flags[canonical.name];
       const legacyValue: unknown = activeConfig.flags[legacy.name];
-      if ((canonicalValue === undefined || canonicalValue === '') && legacyValue !== undefined && legacyValue !== '') {
-        activeConfig.flags[canonical.name] = legacyValue;
+      let resolvedValue: unknown = canonicalValue;
+      if (resolvedValue === undefined || resolvedValue === '') {
+        resolvedValue = legacyValue;
+      }
+
+      if (resolvedValue !== undefined && resolvedValue !== '') {
+        activeConfig.flags[canonical.name] = resolvedValue;
+        activeConfig.flags[legacy.name] = resolvedValue;
       }
     }
   }

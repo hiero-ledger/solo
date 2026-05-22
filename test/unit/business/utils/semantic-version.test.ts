@@ -5,6 +5,63 @@ import {SemanticVersion} from '../../../../src/business/utils/semantic-version.j
 import {IllegalArgumentError} from '../../../../src/core/errors/classes/validation/illegal-argument-error.js';
 
 describe('SemanticVersion', (): void => {
+  describe('normalize', (): void => {
+    it('returns 0.0.0 for undefined input', (): void => {
+      expect(SemanticVersion.normalize().toString()).to.equal('0.0.0');
+    });
+
+    it('returns 0.0.0 for null input', (): void => {
+      const nullValue: null = JSON.parse('null') as null;
+      expect(SemanticVersion.normalize(nullValue).toString()).to.equal('0.0.0');
+    });
+
+    it('uses the last token for comma-joined duplicated values', (): void => {
+      expect(SemanticVersion.normalize('v0.73.0,v0.73.0').toString()).to.equal('0.73.0');
+    });
+
+    it('uses the last non-empty value when yargs provides an array', (): void => {
+      expect(SemanticVersion.normalize(['', 'v0.72.0', 'v0.73.0']).toString()).to.equal('0.73.0');
+    });
+
+    it('supports nested array misuse and still finds the last non-empty token', (): void => {
+      expect(SemanticVersion.normalize(['v0.72.0', ['  ', 'v0.73.0']]).toString()).to.equal('0.73.0');
+    });
+
+    it('throws for invalid normalized token', (): void => {
+      expect((): SemanticVersion<string | number> => SemanticVersion.normalize('v0.73.0,invalid')).to.throw(
+        IllegalArgumentError,
+        'Invalid semantic version: invalid',
+      );
+    });
+  });
+
+  describe('normalizeOptional', (): void => {
+    it('returns undefined for undefined/null/empty payloads', (): void => {
+      const nullValue: null = JSON.parse('null') as null;
+      expect(SemanticVersion.normalizeOptional()).to.equal(undefined);
+      expect(SemanticVersion.normalizeOptional(nullValue)).to.equal(undefined);
+      expect(SemanticVersion.normalizeOptional(' , , ')).to.equal(undefined);
+      expect(SemanticVersion.normalizeOptional(['', '  '])).to.equal(undefined);
+    });
+
+    it('returns normalized semantic version when present', (): void => {
+      expect(SemanticVersion.normalizeOptional(['v0.72.0', 'v0.73.0'])?.toString()).to.equal('0.73.0');
+    });
+  });
+
+  describe('normalizeToken', (): void => {
+    it('preserves the selected token formatting (including v-prefix)', (): void => {
+      expect(SemanticVersion.normalizeToken('v0.73.0,v0.73.0')).to.equal('v0.73.0');
+      expect(SemanticVersion.normalizeToken(['v0.72.0', '0.73.0'])).to.equal('0.73.0');
+    });
+
+    it('returns undefined for empty payloads', (): void => {
+      expect(SemanticVersion.normalizeToken()).to.equal(undefined);
+      expect(SemanticVersion.normalizeToken(['', '  '])).to.equal(undefined);
+      expect(SemanticVersion.normalizeToken(' , ')).to.equal(undefined);
+    });
+  });
+
   describe('constructor', (): void => {
     it('should create a SemanticVersion instance with a valid SemanticVersion<string>', (): void => {
       const semVersion: string = '1.0.0';

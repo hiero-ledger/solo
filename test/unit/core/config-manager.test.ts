@@ -12,16 +12,16 @@ import {Argv} from '../../helpers/argv-wrapper.js';
 import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
 
 describe('ConfigManager', () => {
-  describe('update values using argv', () => {
-    beforeEach(() => {
-      container.clearInstances();
-      container.register(InjectTokens.LogLevel, {useValue: 'debug'});
-      container.register(InjectTokens.DevelopmentMode, {useValue: true});
-      container.register(InjectTokens.SoloLogger, {useValue: new SoloPinoLogger()});
-      container.registerInstance(InjectTokens.SoloLogger, getTestLogger());
-      container.register(InjectTokens.ConfigManager, {useClass: ConfigManager});
-    });
+  beforeEach(() => {
+    container.clearInstances();
+    container.register(InjectTokens.LogLevel, {useValue: 'debug'});
+    container.register(InjectTokens.DevelopmentMode, {useValue: true});
+    container.register(InjectTokens.SoloLogger, {useValue: new SoloPinoLogger()});
+    container.registerInstance(InjectTokens.SoloLogger, getTestLogger());
+    container.register(InjectTokens.ConfigManager, {useClass: ConfigManager});
+  });
 
+  describe('update values using argv', () => {
     it('should update string flag value', () => {
       const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
       const argv = Argv.initializeEmpty();
@@ -107,6 +107,57 @@ describe('ConfigManager', () => {
       const argv2 = cm.applyPrecedence(argv.build() as any, aliases);
       expect(cm.hasFlag(flags.devMode)).to.not.be.ok; // shouldn't have set
       expect(argv2[flags.devMode.name]).to.not.be.ok; // should have set from the default
+    });
+  });
+
+  describe('legacy and canonical version flag synchronization', () => {
+    it('should expose canonical config property when only legacy argv flag is provided', () => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv = Argv.initializeEmpty();
+      argv.setArg(flags.releaseTag, 'v0.73.0');
+      cm.update(argv.build());
+
+      const config = cm.getConfig('legacy-to-canonical', [flags.consensusNodeVersion]) as {releaseTag: string};
+      expect(config.releaseTag).to.equal('v0.73.0');
+      expect(cm.getFlag(flags.consensusNodeVersion)).to.equal('v0.73.0');
+      expect(cm.getFlag(flags.releaseTag)).to.equal('v0.73.0');
+    });
+
+    it('should expose legacy config property when only canonical argv flag is provided', () => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv = Argv.initializeEmpty();
+      argv.setArg(flags.consensusNodeVersion, 'v0.73.0');
+      cm.update(argv.build());
+
+      const config = cm.getConfig('canonical-to-legacy', [flags.releaseTag]) as {releaseTag: string};
+      expect(config.releaseTag).to.equal('v0.73.0');
+      expect(cm.getFlag(flags.consensusNodeVersion)).to.equal('v0.73.0');
+      expect(cm.getFlag(flags.releaseTag)).to.equal('v0.73.0');
+    });
+
+    it('should synchronize relay and block-node version flags in both directions', () => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+
+      const argvLegacy = Argv.initializeEmpty();
+      argvLegacy.setArg(flags.relayReleaseTag, '0.77.0');
+      argvLegacy.setArg(flags.blockNodeChartVersion, '0.33.0');
+      cm.update(argvLegacy.build());
+
+      expect(cm.getFlag(flags.relayVersion)).to.equal('0.77.0');
+      expect(cm.getFlag(flags.relayReleaseTag)).to.equal('0.77.0');
+      expect(cm.getFlag(flags.blockNodeVersion)).to.equal('0.33.0');
+      expect(cm.getFlag(flags.blockNodeChartVersion)).to.equal('0.33.0');
+
+      cm.reset();
+      const argvCanonical = Argv.initializeEmpty();
+      argvCanonical.setArg(flags.relayVersion, '0.78.0');
+      argvCanonical.setArg(flags.blockNodeVersion, '0.34.0');
+      cm.update(argvCanonical.build());
+
+      expect(cm.getFlag(flags.relayVersion)).to.equal('0.78.0');
+      expect(cm.getFlag(flags.relayReleaseTag)).to.equal('0.78.0');
+      expect(cm.getFlag(flags.blockNodeVersion)).to.equal('0.34.0');
+      expect(cm.getFlag(flags.blockNodeChartVersion)).to.equal('0.34.0');
     });
   });
 });

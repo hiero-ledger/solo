@@ -5,39 +5,6 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import {Numbers} from './numbers.js';
 
 /**
- * Normalize version-like argv/config values into a single semantic-version token.
- *
- * Supports:
- * - duplicate alias arrays from yargs
- * - comma-joined duplicate scalar strings
- *
- * Last non-empty token wins to preserve yargs/CLI override order.
- */
-export function normalizeVersionValue(input: unknown): string | undefined {
-  if (input === undefined || input === null) {
-    return undefined;
-  }
-
-  if (Array.isArray(input)) {
-    for (let index: number = input.length - 1; index >= 0; index -= 1) {
-      const normalized: string | undefined = normalizeVersionValue(input[index]);
-      if (normalized) {
-        return normalized;
-      }
-    }
-    return undefined;
-  }
-
-  const rawValue: string = typeof input === 'string' ? input : `${input}`;
-  const segments: string[] = rawValue
-    .split(',')
-    .map((segment: string): string => segment.trim())
-    .filter((segment: string): boolean => segment.length > 0);
-
-  return segments.at(-1);
-}
-
-/**
  * A class representing a semantic version, which can be initialized with either a string or a number.
  * The class provides methods for comparing semantic versions, as well as validating and formatting them.
  * It supports both standard semantic versioning (e.g., "1.0.0", "2.1.3-alpha+001") and a simplified numeric versioning (e.g., 1, 2).
@@ -50,6 +17,44 @@ export class SemanticVersion<T extends string | number> {
    * Constant value representing a zero version number.
    */
   public static readonly ZERO: SemanticVersion<string> = new SemanticVersion<string>('0');
+
+  /**
+   * Normalizes version-like argv/config values to a valid semantic version.
+   *
+   * Behavior:
+   * - accepts scalar strings and array-shaped yargs values
+   * - splits comma-joined values and uses the last non-empty token
+   * - returns `0.0.0` when input is empty/undefined/null
+   *
+   * This is intentionally strict once a token is selected: invalid semantic-version
+   * tokens still throw via the SemanticVersion constructor.
+   */
+  public static normalize(input?: null | string | Array<unknown>): SemanticVersion<string | number> {
+    return SemanticVersion.normalizeOptional(input) ?? new SemanticVersion<string | number>('0');
+  }
+
+  /**
+   * Same normalization logic as `normalize`, but returns `undefined` when no token is found.
+   * Useful for precedence-based resolution where "unset" must remain distinct from "0.0.0".
+   */
+  public static normalizeOptional(input?: unknown): SemanticVersion<string | number> | undefined {
+    const normalizedToken: string | undefined = this.normalizeToken(input);
+    if (!normalizedToken) {
+      return undefined;
+    }
+    return new SemanticVersion<string | number>(normalizedToken);
+  }
+
+  /**
+   * Normalizes raw argv/config values into a single version token while preserving token formatting.
+   *
+   * Examples:
+   * - "v0.73.0,v0.73.0" -> "v0.73.0"
+   * - ["", "v0.72.0", "v0.73.0"] -> "v0.73.0"
+   */
+  public static normalizeToken(input?: unknown): string | undefined {
+    return this.extractNormalizedVersionToken(input);
+  }
 
   /**
    * The major version number, which is incremented for incompatible API changes.
@@ -464,5 +469,29 @@ export class SemanticVersion<T extends string | number> {
         new SemanticVersion<number>(this.major + 1)
       : // @ts-expect-error - This is safe because the constructor will throw if the type is not correct
         new SemanticVersion<string>(`${this.major + 1}.0.0`);
+  }
+
+  private static extractNormalizedVersionToken(input: unknown): string | undefined {
+    if (input === undefined || input === null) {
+      return undefined;
+    }
+
+    if (Array.isArray(input)) {
+      for (let index: number = input.length - 1; index >= 0; index -= 1) {
+        const normalized: string | undefined = this.extractNormalizedVersionToken(input[index]);
+        if (normalized) {
+          return normalized;
+        }
+      }
+      return undefined;
+    }
+
+    const rawValue: string = typeof input === 'string' ? input : `${input}`;
+    const segments: string[] = rawValue
+      .split(',')
+      .map((segment: string): string => segment.trim())
+      .filter((segment: string): boolean => segment.length > 0);
+
+    return segments.at(-1);
   }
 }

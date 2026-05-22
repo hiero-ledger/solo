@@ -66,7 +66,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
-import {normalizeVersionValue, SemanticVersion} from '../business/utils/semantic-version.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
@@ -847,7 +847,7 @@ export class NetworkCommand extends BaseCommand {
         'singleUseServiceMonitor',
       ],
     ) as NetworkDeployConfigClass;
-    const normalizedReleaseTag: string | undefined = normalizeVersionValue(config.releaseTag);
+    const normalizedReleaseTag: string | undefined = SemanticVersion.normalizeToken(config.releaseTag);
     if (normalizedReleaseTag) {
       config.releaseTag = normalizedReleaseTag;
     }
@@ -1276,8 +1276,10 @@ export class NetworkCommand extends BaseCommand {
             // configManager is a process-wide singleton shared across concurrent subcommands invoked
             // from one-shot. Other subcommands (e.g. block-node add) run their own configManager.update(argv)
             // with their yargs-defaulted release-tag, which can race-overwrite the value set above.
-            const argvReleaseTag: string | undefined = normalizeVersionValue(argv[flags.consensusNodeVersion.name]);
-            const configReleaseTag: string | undefined = normalizeVersionValue(
+            const argvReleaseTag: string | undefined = SemanticVersion.normalizeToken(
+              argv[flags.consensusNodeVersion.name],
+            );
+            const configReleaseTag: string | undefined = SemanticVersion.normalizeToken(
               this.configManager.getFlag(flags.consensusNodeVersion),
             );
             const releaseTag: SemanticVersion<string> = new SemanticVersion<string>(argvReleaseTag || configReleaseTag);
