@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloErrors} from '../core/errors/solo-errors.js';
+import {IllegalArgumentError} from '../core/errors/classes/validation/illegal-argument-error.js';
 import * as constants from '../core/constants.js';
 import * as version from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
@@ -676,7 +676,7 @@ export class Flags {
           });
 
           if (!fs.existsSync(input)) {
-            throw new SoloErrors.validation.illegalArgument('Invalid chart directory', input);
+            throw new IllegalArgumentError('Invalid chart directory', input);
           }
         }
 

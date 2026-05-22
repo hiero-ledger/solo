@@ -3,6 +3,7 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {ConsensusCommandDefinition} from '../../../../commands/command-definitions/consensus-command-definition.js';
 
 export class StatesDirectoryNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -14,7 +15,7 @@ export class StatesDirectoryNotFoundSoloError extends SoloError {
       code: ErrorCodeRegistry.STATES_DIRECTORY_NOT_FOUND,
       troubleshootingSteps:
         'Verify the states directory exists: ls -la <statesDirectory>\n' +
-        'Check that the state download succeeded: solo node states\n' +
+        `Check that the state download succeeded: solo ${ConsensusCommandDefinition.STATES_COMMAND}\n` +
         'Use the correct --inputDir path structure: <inputDir>/states/<cluster>/<namespace>/',
     });
   }

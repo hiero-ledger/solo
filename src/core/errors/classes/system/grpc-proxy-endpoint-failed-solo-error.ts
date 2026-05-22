@@ -3,6 +3,7 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {ConsensusCommandDefinition} from '../../../../commands/command-definitions/consensus-command-definition.js';
 
 export class GrpcProxyEndpointFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
@@ -15,7 +16,7 @@ export class GrpcProxyEndpointFailedSoloError extends SoloError {
       troubleshootingSteps:
         'Check node update transaction logs: tail -n 100 ~/.solo/logs/solo.log\n' +
         'Verify gRPC endpoints are reachable: kubectl get svc -n <namespace>\n' +
-        'Retry the node update: solo node update',
+        `Retry the node update: solo ${ConsensusCommandDefinition.UPDATE_COMMAND}`,
     });
   }
 }

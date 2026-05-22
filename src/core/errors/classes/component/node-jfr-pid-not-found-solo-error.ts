@@ -3,6 +3,7 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {ConsensusCommandDefinition} from '../../../../commands/command-definitions/consensus-command-definition.js';
 
 export class NodeJfrPidNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -13,7 +14,9 @@ export class NodeJfrPidNotFoundSoloError extends SoloError {
       message: `Could not find process ID for ServicesMain in node pod ${podName}`,
       code: ErrorCodeRegistry.NODE_JFR_PID_NOT_FOUND,
       troubleshootingSteps:
-        'Verify the consensus node is running inside the pod: kubectl exec <podName> -- ps axww -o pid,command\nCheck node startup logs: kubectl logs <podName> -n <namespace>\nRestart the node if ServicesMain is absent: solo node restart',
+        'Verify the consensus node is running inside the pod: kubectl exec <podName> -- ps axww -o pid,command\n' +
+        'Check node startup logs: kubectl logs <podName> -n <namespace>\n' +
+        `Restart the node if ServicesMain is absent: solo ${ConsensusCommandDefinition.RESTART_COMMAND}`,
     });
   }
 }

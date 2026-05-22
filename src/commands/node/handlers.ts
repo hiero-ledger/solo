@@ -738,7 +738,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.logger,
       );
       if (remoteDeployments.size === 0) {
-        throw new SoloErrors.system.deploymentNotFound(flags.deployment.name);
+        throw new SoloErrors.deployment.noDeploymentsFound();
       }
 
       const remoteDeploymentNames: string[] = [...remoteDeployments.keys()];

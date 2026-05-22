@@ -15,6 +15,7 @@ export class BlockNodeConfigFailedSoloError extends SoloError {
         code: ErrorCodeRegistry.BLOCK_NODE_CONFIG_FAILED,
         troubleshootingSteps:
           'Check block node pod status: kubectl get pods -n <namespace> -l block-node.hiero.com/type=block-node\n' +
+          'Check network node pod status: kubectl get pods -n <namespace> -l solo.hedera.com/type=network-node\n' +
           'Review solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
           'Verify the cluster is reachable: kubectl cluster-info --context <context>',
       },

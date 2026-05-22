@@ -4,6 +4,7 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {type DeploymentName} from '../../../../types/index.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {DeploymentCommandDefinition} from '../../../../commands/command-definitions/deployment-command-definition.js';
 
 export class DeploymentAlreadyExistsSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -15,7 +16,8 @@ export class DeploymentAlreadyExistsSoloError extends SoloError {
         message: `A deployment named '${deploymentName}' already exists. Please select a different name`,
         code: ErrorCodeRegistry.DEPLOYMENT_NAME_ALREADY_EXISTS,
         troubleshootingSteps:
-          'Check existing deployments: solo deployment config list\n' + 'Choose a different name for your deployment',
+          `Check existing deployments: solo ${DeploymentCommandDefinition.LIST_COMMAND}\n` +
+          'Choose a different name for your deployment',
       },
       cause,
     );

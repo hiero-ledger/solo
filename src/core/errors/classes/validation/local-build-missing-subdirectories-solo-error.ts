@@ -3,6 +3,7 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {Flags} from '../../../../commands/flags.js';
 
 export class LocalBuildMissingSubdirectoriesSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -15,7 +16,7 @@ export class LocalBuildMissingSubdirectoriesSoloError extends SoloError {
       troubleshootingSteps:
         'Verify the directory structure: ls -la <localBuildPath>\n' +
         'Ensure the path points to the data/ directory of the Hedera platform build\n' +
-        'Expected layout: <path>/apps/*.jar and <path>/lib/*.jar',
+        `Expected layout: <path>/apps/*.jar and <path>/lib/*.jar (set via ${Flags.getFormattedFlagKey(Flags.localBuildPath)})`,
     });
   }
 }

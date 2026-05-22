@@ -13,7 +13,7 @@ import {DeploymentNotFoundError} from './classes/deployment/deployment-not-found
 import {NamespaceNotSetError} from './classes/deployment/namespace-not-set-error.js';
 import {NoClustersForDeploymentError} from './classes/deployment/no-clusters-for-deployment-error.js';
 import {NoDeploymentsFoundError} from './classes/deployment/no-deployments-found-error.js';
-import {DataValidationError} from './classes/validation/data-validation-error.js';
+import {DataValidationError} from './classes/internal/data-validation-error.js';
 import {IllegalArgumentError} from './classes/validation/illegal-argument-error.js';
 import {MissingArgumentError} from './classes/validation/missing-argument-error.js';
 import {ConsensusNodeCountRequiredError} from './classes/validation/consensus-node-count-required-error.js';
@@ -24,11 +24,11 @@ import {PortForwardRefreshFailedError} from './classes/system/port-forward-refre
 import {PortForwardStatusFailedError} from './classes/system/port-forward-status-failed-error.js';
 import {ResourceNotFoundError} from './classes/system/resource-not-found-error.js';
 import {LocalConfigNotFoundSoloError} from './classes/config/local-config-not-found-solo-error.js';
-import {ReadRemoteConfigBeforeLoadError} from './classes/config/read-remote-config-before-load-error.js';
+import {ReadRemoteConfigBeforeLoadError} from './classes/internal/read-remote-config-before-load-error.js';
 import {RefreshLocalConfigSourceError} from './classes/config/refresh-local-config-source-error.js';
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
-import {WriteRemoteConfigBeforeLoadError} from './classes/config/write-remote-config-before-load-error.js';
+import {WriteRemoteConfigBeforeLoadError} from './classes/internal/write-remote-config-before-load-error.js';
 import {BlockNodeConfigFailedSoloError} from './classes/component/block-node-config-failed-solo-error.js';
 import {ChartInstallFailedSoloError} from './classes/component/chart-install-failed-solo-error.js';
 import {NetworkDestroyFailedSoloError} from './classes/component/network-destroy-failed-solo-error.js';
@@ -57,7 +57,6 @@ import {WrapsKeyPathNotFoundSoloError} from './classes/validation/wraps-key-path
 import {WrapsVersionConstraintSoloError} from './classes/validation/wraps-version-constraint-solo-error.js';
 import {ClusterReferenceUndeterminedSoloError} from './classes/system/cluster-reference-undetermined-solo-error.js';
 import {ConsensusNodeNotInConfigSoloError} from './classes/system/consensus-node-not-in-config-solo-error.js';
-import {DeploymentNotFoundSoloError} from './classes/system/deployment-not-found-solo-error.js';
 import {GrpcProxyEndpointFailedSoloError} from './classes/system/grpc-proxy-endpoint-failed-solo-error.js';
 import {HaproxyPodsNotFoundSoloError} from './classes/system/haproxy-pods-not-found-solo-error.js';
 import {K8sSecretCreateFailedSoloError} from './classes/system/k8s-secret-create-failed-solo-error.js';
@@ -87,18 +86,14 @@ export class SoloErrors {
   // 1xxx - Configuration: Local/remote config lifecycle
   public static readonly config: {
     readonly localNotFound: typeof LocalConfigNotFoundSoloError;
-    readonly readRemoteConfigBeforeLoad: typeof ReadRemoteConfigBeforeLoadError;
     readonly refreshLocalConfigSource: typeof RefreshLocalConfigSourceError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
-    readonly writeRemoteConfigBeforeLoad: typeof WriteRemoteConfigBeforeLoadError;
   } = Object.freeze({
     localNotFound: LocalConfigNotFoundSoloError,
-    readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
     refreshLocalConfigSource: RefreshLocalConfigSourceError,
     remoteMismatch: RemoteConfigsMismatchSoloError,
     writeLocalConfig: WriteLocalConfigFileError,
-    writeRemoteConfigBeforeLoad: WriteRemoteConfigBeforeLoadError,
   });
 
   // 2xxx - Deployment / Infrastructure: Cluster, namespace, pod lifecycle
@@ -166,7 +161,6 @@ export class SoloErrors {
   // 4xxx — Validation: User input, flags, IDs, formatting
   public static readonly validation: {
     readonly consensusNodeCountRequired: typeof ConsensusNodeCountRequiredError;
-    readonly dataValidation: typeof DataValidationError;
     readonly illegalArgument: typeof IllegalArgumentError;
     readonly invalidOutputFormat: typeof InvalidOutputFormatError;
     readonly invalidPortNumber: typeof InvalidPortNumberError;
@@ -188,7 +182,6 @@ export class SoloErrors {
     readonly wrapsVersionConstraint: typeof WrapsVersionConstraintSoloError;
   } = Object.freeze({
     consensusNodeCountRequired: ConsensusNodeCountRequiredError,
-    dataValidation: DataValidationError,
     illegalArgument: IllegalArgumentError,
     invalidOutputFormat: InvalidOutputFormatError,
     invalidPortNumber: InvalidPortNumberError,
@@ -228,7 +221,6 @@ export class SoloErrors {
     readonly noPvcFound: typeof NoPvcFoundSoloError;
     readonly clusterReferenceUndetermined: typeof ClusterReferenceUndeterminedSoloError;
     readonly upgradeVersionFetchFailed: typeof UpgradeVersionFetchFailedSoloError;
-    readonly deploymentNotFound: typeof DeploymentNotFoundSoloError;
     readonly multipleDeploymentsFound: typeof MultipleDeploymentsFoundSoloError;
     readonly grpcProxyEndpointFailed: typeof GrpcProxyEndpointFailedSoloError;
   } = Object.freeze({
@@ -248,7 +240,6 @@ export class SoloErrors {
     noPvcFound: NoPvcFoundSoloError,
     clusterReferenceUndetermined: ClusterReferenceUndeterminedSoloError,
     upgradeVersionFetchFailed: UpgradeVersionFetchFailedSoloError,
-    deploymentNotFound: DeploymentNotFoundSoloError,
     multipleDeploymentsFound: MultipleDeploymentsFoundSoloError,
     grpcProxyEndpointFailed: GrpcProxyEndpointFailedSoloError,
   });
@@ -256,7 +247,13 @@ export class SoloErrors {
   // 9xxx — Internal: Unexpected bugs, unimplemented paths
   public static readonly internal: {
     readonly unsupportedOperation: typeof UnsupportedOperationError;
+    readonly readRemoteConfigBeforeLoad: typeof ReadRemoteConfigBeforeLoadError;
+    readonly writeRemoteConfigBeforeLoad: typeof WriteRemoteConfigBeforeLoadError;
+    readonly dataValidation: typeof DataValidationError;
   } = Object.freeze({
     unsupportedOperation: UnsupportedOperationError,
+    readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
+    writeRemoteConfigBeforeLoad: WriteRemoteConfigBeforeLoadError,
+    dataValidation: DataValidationError,
   });
 }

@@ -3,6 +3,8 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {Flags} from '../../../../commands/flags.js';
+import {ClusterReferenceCommandDefinition} from '../../../../commands/command-definitions/cluster-reference-command-definition.js';
 
 export class ClusterReferenceAlreadyExistsError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -13,8 +15,8 @@ export class ClusterReferenceAlreadyExistsError extends SoloError {
       message: `Cluster ref ${clusterReference} is already added for deployment`,
       code: ErrorCodeRegistry.CLUSTER_REF_ALREADY_EXISTS,
       troubleshootingSteps:
-        'List current cluster references: solo cluster-ref config list\n' +
-        'Disconnect it first if you want to re-add it: solo cluster-ref config disconnect --cluster-ref <cluster-reference>',
+        `List current cluster references: solo ${ClusterReferenceCommandDefinition.LIST_COMMAND}\n` +
+        `Disconnect it first if you want to re-add it: solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND} ${Flags.getFormattedFlagKey(Flags.clusterRef)} <cluster-reference>`,
     });
   }
 }
