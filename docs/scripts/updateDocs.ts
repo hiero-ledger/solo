@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 'use strict';
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import { run, runAndSave, envsubst } from './utilities.mjs';
+import {run, runAndSave, envsubst} from './utilities.ts';
 import kleur from 'kleur';
 
-export async function update () {
+export async function update() {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const projectRoot = path.resolve(__dirname, "../../../");
+  const projectRoot = path.resolve(__dirname, '../../../');
   process.chdir(projectRoot);
 
   const TARGET_DIR = 'docs/site/content/en';
@@ -23,7 +23,7 @@ export async function update () {
   const BUILD_DIR = 'docs/site/build';
   const EXAMPLES_DIR = 'examples';
 
-  mkdirSync(BUILD_DIR, { recursive: true });
+  mkdirSync(BUILD_DIR, {recursive: true});
 
   // TBD, need to use at least version v0.62.6 for block node commands to work
   const CONSENSUS_NODE_VERSION = process.argv[2] || 'v0.66.0';
@@ -170,7 +170,7 @@ export async function update () {
   process.env.EXAMPLES_CONTENT = readFileSync(`${EXAMPLES_DIR}/README.md`, 'utf8');
 
   // Create examples directory if it doesn't exist
-  mkdirSync(`${TARGET_DIR}/examples`, { recursive: true });
+  mkdirSync(`${TARGET_DIR}/examples`, {recursive: true});
 
   // Generate examples index page from template
   const examplesTemplate = readFileSync(TEMPLATE_EXAMPLES_FILE, 'utf8');
@@ -181,16 +181,12 @@ export async function update () {
   console.log(kleur.cyan('Remove color codes and symbols from target files'));
 
   let cleaned = readFileSync(TARGET_FILE, 'utf8');
-  cleaned = cleaned
-    .replace(/\[32m|\[33m|\[39m/g, '')
-    .replace(/[↓❯•]/g, '');
+  cleaned = cleaned.replace(/\[32m|\[33m|\[39m/g, '').replace(/[↓❯•]/g, '');
 
   writeFileSync(TARGET_FILE, cleaned);
 
   let advancedCleaned = readFileSync(TARGET_ADVANCED_FILE, 'utf8');
-  advancedCleaned = advancedCleaned
-    .replace(/\[32m|\[33m|\[39m/g, '')
-    .replace(/[↓❯•]/g, '');
+  advancedCleaned = advancedCleaned.replace(/\[32m|\[33m|\[39m/g, '').replace(/[↓❯•]/g, '');
 
   writeFileSync(TARGET_ADVANCED_FILE, advancedCleaned);
 

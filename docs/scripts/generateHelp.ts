@@ -2,8 +2,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { runCapture } from './utilities.mjs';
+import {fileURLToPath} from 'node:url';
+import {runCapture} from './utilities.js';
 import chalk from 'chalk';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -35,7 +35,7 @@ async function getTopLevelCommands() {
           }
           return acc;
         },
-        { inCommands: false, commands: [] },
+        {inCommands: false, commands: []},
       ).commands,
     };
   } catch {
@@ -55,8 +55,8 @@ async function getSubcommands(cmd) {
       output: output,
       subCommands: output
         .split('\n')
-        .filter((l) => l.trim().startsWith(cmd + ' '))
-        .map((l) => l.trim().split(/\s+/)[1]),
+        .filter(l => l.trim().startsWith(cmd + ' '))
+        .map(l => l.trim().split(/\s+/)[1]),
     };
   } catch {
     console.log(chalk.red(`Failed to get subcommands for ${cmd}`));
@@ -76,8 +76,8 @@ async function getThirdLevelCommands(cmd, subcmd) {
       output: output,
       subCommands: output
         .split('\n')
-        .filter((l) => l.trim().startsWith(`${cmd} ${subcmd} `))
-        .map((l) => l.trim().split(/\s+/)[2]),
+        .filter(l => l.trim().startsWith(`${cmd} ${subcmd} `))
+        .map(l => l.trim().split(/\s+/)[2]),
     };
   } catch {
     console.log(chalk.red(`Failed to get third-level commands for ${cmd} ${subcmd}`));
@@ -98,13 +98,13 @@ void (async function main() {
 
   // Build Table of Contents sequentially
   await Promise.all(
-    topLevelOutput.commands.map(async (cmd) => {
+    topLevelOutput.commands.map(async cmd => {
       console.log(`#1 Processing command: ${chalk.green(cmd)}`);
       let entry = `\n* [${cmd}](#${cmd})`;
 
       const subcommands = await getSubcommands(cmd);
       Promise.all(
-        subcommands.map(async (subcmd) => {
+        subcommands.map(async subcmd => {
           console.log(`#1 Processing subcommand: ${chalk.green(cmd)} ${chalk.cyan(subcmd)}`);
           let sub = `\n  * [${cmd} ${subcmd}](#${cmd}-${subcmd})`;
 

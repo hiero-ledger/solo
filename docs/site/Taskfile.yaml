@@ -129,8 +129,8 @@ tasks:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/site/scripts/wrapperForUpdateDocs.mjs
-      - docs/site/scripts/executeUpdateDocs.mjs
+      - docs/site/scripts/wrapperForUpdateDocs.ts
+      - docs/site/scripts/executeUpdateDocs.ts
     cmds:
       - printf "\r::group::Building Solo User Guide\n"
       - rm -f docs/site/content/en/solo-user-guide.md
