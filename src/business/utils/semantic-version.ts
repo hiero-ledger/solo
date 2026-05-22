@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {SoloError} from '../../core/errors/solo-error.js';
+import {IllegalArgumentError} from '../../core/errors/classes/validation/illegal-argument-error.js';
 import {Numbers} from './numbers.js';
 
 /**
@@ -78,10 +78,7 @@ export class SemanticVersion<T extends string | number> {
    */
   public constructor(private readonly originalValue: T | SemanticVersion<T>) {
     if (!SemanticVersion.isSemanticVersion(this.originalValue)) {
-      throw new SoloErrors.validation.illegalArgument(
-        `Invalid semantic version: ${this.originalValue}`,
-        this.originalValue,
-      );
+      throw new IllegalArgumentError(`Invalid semantic version: ${this.originalValue}`, this.originalValue);
     }
 
     if (this.originalValue instanceof SemanticVersion) {
@@ -162,7 +159,7 @@ export class SemanticVersion<T extends string | number> {
   public compare(other: SemanticVersion<T> | T): number {
     // throw an error if the other value is not a valid semantic version
     if (!SemanticVersion.isSemanticVersion(other)) {
-      throw new SoloErrors.validation.illegalArgument(`Cannot compare with non-semantic version: ${other}`, other);
+      throw new IllegalArgumentError(`Cannot compare with non-semantic version: ${other}`, other);
     }
 
     if (this.equals(other)) {
@@ -387,10 +384,7 @@ export class SemanticVersion<T extends string | number> {
 
     // Validate the version string
     if (!SemanticVersion.isSemanticVersion<string>(versionString)) {
-      throw new SoloErrors.validation.illegalArgument(
-        `Invalid ${label.toLowerCase()}: ${versionString}`,
-        versionString,
-      );
+      throw new IllegalArgumentError(`Invalid ${label.toLowerCase()}: ${versionString}`, versionString);
     }
 
     const value: SemanticVersion<string> = new SemanticVersion<string>(versionString);

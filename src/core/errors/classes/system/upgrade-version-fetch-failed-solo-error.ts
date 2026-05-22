@@ -4,7 +4,6 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 import {Flags} from '../../../../commands/flags.js';
-import {ConsensusCommandDefinition} from '../../../../commands/command-definitions/consensus-command-definition.js';
 
 export class UpgradeVersionFetchFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
@@ -18,7 +17,7 @@ export class UpgradeVersionFetchFailedSoloError extends SoloError {
         troubleshootingSteps:
           'Check internet connectivity\n' +
           'Verify the version exists: https://github.com/hashgraph/hedera-services/releases\n' +
-          `Retry the upgrade: solo ${ConsensusCommandDefinition.UPGRADE_COMMAND} ${Flags.getFormattedFlagKey(Flags.upgradeVersion)} <version>`,
+          `Retry the upgrade: solo consensus network upgrade ${Flags.getFormattedFlagKey(Flags.upgradeVersion)} <version>`,
       },
       cause,
     );

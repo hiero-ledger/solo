@@ -4,7 +4,6 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 import {Flags} from '../../../../commands/flags.js';
-import {ConsensusCommandDefinition} from '../../../../commands/command-definitions/consensus-command-definition.js';
 
 export class NodeJarFilesNotInContainerSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -15,9 +14,9 @@ export class NodeJarFilesNotInContainerSoloError extends SoloError {
       message: `Node '${nodeAlias}': no JAR files found in ${directoryPath}. Ensure platform software was copied to the node before starting.`,
       code: ErrorCodeRegistry.NODE_JAR_FILES_NOT_IN_CONTAINER,
       troubleshootingSteps:
-        `Run setup before starting: solo ${ConsensusCommandDefinition.SETUP_COMMAND}\n` +
+        'Run setup before starting: solo consensus node setup\n' +
         'Verify the directory inside the pod: kubectl exec <pod> -n <namespace> -- ls <directoryPath>\n' +
-        `Re-copy platform software: solo ${ConsensusCommandDefinition.SETUP_COMMAND} ${Flags.getFormattedFlagKey(Flags.localBuildPath)} <path>`,
+        `Re-copy platform software: solo consensus node setup ${Flags.getFormattedFlagKey(Flags.localBuildPath)} <path>`,
     });
   }
 }

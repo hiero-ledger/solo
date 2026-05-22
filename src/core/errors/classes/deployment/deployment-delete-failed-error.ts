@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {ClusterReferenceCommandDefinition} from '../../../../commands/command-definitions/cluster-reference-command-definition.js';
 
 export class DeploymentDeleteFailedError extends SoloError {
   protected override readonly retryable: boolean = true;
@@ -16,7 +15,7 @@ export class DeploymentDeleteFailedError extends SoloError {
         code: ErrorCodeRegistry.DEPLOYMENT_DELETE_FAILED,
         troubleshootingSteps:
           'Check logs for details: tail -n 100 ~/.solo/logs/solo.log\n' +
-          `Verify cluster references and their contexts are valid: solo ${ClusterReferenceCommandDefinition.LIST_COMMAND}`,
+          'Verify cluster references and their contexts are valid: solo cluster-ref config list',
       },
       cause,
     );

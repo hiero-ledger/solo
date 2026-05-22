@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {DeploymentCommandDefinition} from '../../../../commands/command-definitions/deployment-command-definition.js';
 
 export class RefreshLocalConfigSourceError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -15,8 +14,7 @@ export class RefreshLocalConfigSourceError extends SoloError {
         message: 'Failed to refresh local configuration source',
         code: ErrorCodeRegistry.REFRESH_LOCAL_CONFIG_SOURCE,
         troubleshootingSteps:
-          'Check file system permissions for ~/.solo\n' +
-          `Verify the config file exists: solo ${DeploymentCommandDefinition.INFO_COMMAND}`,
+          'Check file system permissions for ~/.solo\n' + 'Verify the config file exists: solo deployment config info',
       },
       cause,
     );

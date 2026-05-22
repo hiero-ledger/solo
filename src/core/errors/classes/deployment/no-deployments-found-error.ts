@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {DeploymentCommandDefinition} from '../../../../commands/command-definitions/deployment-command-definition.js';
 
 export class NoDeploymentsFoundError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -13,7 +12,7 @@ export class NoDeploymentsFoundError extends SoloError {
     super({
       message: 'No deployments found in local config',
       code: ErrorCodeRegistry.NO_DEPLOYMENTS_FOUND,
-      troubleshootingSteps: `Create a deployment: solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
+      troubleshootingSteps: 'Create a deployment: solo deployment config create',
     });
   }
 }

@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {ConsensusCommandDefinition} from '../../../../commands/command-definitions/consensus-command-definition.js';
 
 export class NodeJfrPidNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -16,7 +15,7 @@ export class NodeJfrPidNotFoundSoloError extends SoloError {
       troubleshootingSteps:
         'Verify the consensus node is running inside the pod: kubectl exec <podName> -- ps axww -o pid,command\n' +
         'Check node startup logs: kubectl logs <podName> -n <namespace>\n' +
-        `Restart the node if ServicesMain is absent: solo ${ConsensusCommandDefinition.RESTART_COMMAND}`,
+        'Restart the node if ServicesMain is absent: solo consensus node restart',
     });
   }
 }
