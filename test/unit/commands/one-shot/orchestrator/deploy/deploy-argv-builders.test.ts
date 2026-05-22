@@ -339,4 +339,18 @@ describe('resolveOneShotComponentVersions', (): void => {
     expect(versions.blockNode).to.equal('v0.39.0');
     expect(versions.soloChart).to.equal(version.SOLO_CHART_EDGE_VERSION);
   });
+
+  it('normalizes duplicate argv values emitted as arrays for version flags', async (): Promise<void> => {
+    const argv: ArgvStruct = {
+      _: [],
+      [Flags.consensusNodeVersion.name]: ['v0.73.0', 'v0.73.0'] as unknown as string,
+      [Flags.mirrorNodeVersion.name]: version.MIRROR_NODE_VERSION,
+      [Flags.relayVersion.name]: '',
+      [Flags.explorerVersion.name]: version.EXPLORER_VERSION,
+      [Flags.blockNodeVersion.name]: '',
+    };
+
+    const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, false);
+    expect(versions.consensus).to.equal('v0.73.0');
+  });
 });
