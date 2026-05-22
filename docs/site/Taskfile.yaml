@@ -110,7 +110,7 @@ tasks:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/site/scripts/generateHelp.mjs
+      - docs/site/scripts/generateHelp.ts
     generates: # TODO change location and ensure gitignore
       - docs/site/content/en/docs/solo-commands.md
     cmds:
@@ -118,7 +118,7 @@ tasks:
       - rm -f docs/site/content/en/docs/solo-commands.md
       - (cd docs/site/ && npm install)
       - task: "build:solo"
-      - (cd docs/site/ && node scripts/generateHelp.mjs)
+      - npx tsx docs/site/scripts/generateHelp.ts
       - printf "\r::endgroup::--------------\n"
 
   build:solo:command:output:

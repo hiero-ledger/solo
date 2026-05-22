@@ -29,6 +29,7 @@ export default [
       '.claude/**/*', // Claude AI files
       'coverage/**/*', // Coverage files
       'docs/**/*', // Documentation files
+      '!docs/**/*.ts', // ...except TypeScript files
       'examples/**/*', // Example files
       'dist/**/*', // Distribution files
       'scripts/metrics-plotter/**/*', // External tool files
