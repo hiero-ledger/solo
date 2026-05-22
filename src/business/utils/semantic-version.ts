@@ -5,6 +5,39 @@ import {SoloError} from '../../core/errors/solo-error.js';
 import {Numbers} from './numbers.js';
 
 /**
+ * Normalize version-like argv/config values into a single semantic-version token.
+ *
+ * Supports:
+ * - duplicate alias arrays from yargs
+ * - comma-joined duplicate scalar strings
+ *
+ * Last non-empty token wins to preserve yargs/CLI override order.
+ */
+export function normalizeVersionValue(input: unknown): string | undefined {
+  if (input === undefined || input === null) {
+    return undefined;
+  }
+
+  if (Array.isArray(input)) {
+    for (let index: number = input.length - 1; index >= 0; index -= 1) {
+      const normalized: string | undefined = normalizeVersionValue(input[index]);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return undefined;
+  }
+
+  const rawValue: string = typeof input === 'string' ? input : `${input}`;
+  const segments: string[] = rawValue
+    .split(',')
+    .map((segment: string): string => segment.trim())
+    .filter((segment: string): boolean => segment.length > 0);
+
+  return segments.at(-1);
+}
+
+/**
  * A class representing a semantic version, which can be initialized with either a string or a number.
  * The class provides methods for comparing semantic versions, as well as validating and formatting them.
  * It supports both standard semantic versioning (e.g., "1.0.0", "2.1.3-alpha+001") and a simplified numeric versioning (e.g., 1, 2).

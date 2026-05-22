@@ -66,7 +66,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ConsensusNode} from '../core/model/consensus-node.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
-import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {normalizeVersionValue, SemanticVersion} from '../business/utils/semantic-version.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import * as versions from '../../version.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
@@ -1269,10 +1269,11 @@ export class NetworkCommand extends BaseCommand {
             // configManager is a process-wide singleton shared across concurrent subcommands invoked
             // from one-shot. Other subcommands (e.g. block-node add) run their own configManager.update(argv)
             // with their yargs-defaulted release-tag, which can race-overwrite the value set above.
-            const argvReleaseTag: string | undefined = argv[flags.consensusNodeVersion.name] as string | undefined;
-            const releaseTag: SemanticVersion<string> = new SemanticVersion<string>(
-              argvReleaseTag || this.configManager.getFlag(flags.consensusNodeVersion),
+            const argvReleaseTag: string | undefined = normalizeVersionValue(argv[flags.consensusNodeVersion.name]);
+            const configReleaseTag: string | undefined = normalizeVersionValue(
+              this.configManager.getFlag(flags.consensusNodeVersion),
             );
+            const releaseTag: SemanticVersion<string> = new SemanticVersion<string>(argvReleaseTag || configReleaseTag);
 
             if (
               this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
