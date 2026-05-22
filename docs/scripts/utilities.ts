@@ -63,15 +63,17 @@ export async function runAndSave(cmd: string, key: string, logFile: string): Pro
  * @returns - Resolves to the stdout output
  */
 export async function runCapture(cmd: string, opts = {}): Promise<string> {
-  const [command, ...args] = cmd.split(' ');
+  // const [command, ...args] = cmd.split(' ');
 
   return new Promise((resolve, reject) => {
     const env = {...process.env};
     if (!env.PATH) env.PATH = '/usr/local/bin:/usr/bin:/bin';
 
-    const child = spawn(command, args, {
+    // const child = spawn(command, args, {
+    const child = spawn(cmd, [], {
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,
+      cwd: process.cwd(),
       env,
       ...opts,
     });

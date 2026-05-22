@@ -7,25 +7,45 @@ import {runCapture} from './utilities.js';
 import chalk from 'chalk';
 
 const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot: string = path.resolve(__dirname, '../../../');
+const projectRoot: string = path.resolve(__dirname, '../../');
 process.chdir(projectRoot);
 
 const OUTPUT_FILE: string = path.join(projectRoot, 'docs/site/content/en/docs/solo-commands.md');
 const SOLO_COMMAND: string = 'npm run solo --silent --';
-type TopLevelCommand = {
+
+type SoloCommand = {
   output: string;
-  commands: string[];
+  topLevelCommands: TopLevelCommand[];
 };
 
-/**
- * @returns {Promise<{ output:string, commands:[] }>}
- */
-async function getTopLevelCommands(): Promise<TopLevelCommand> {
+type TopLevelCommand = {
+  parent: SoloCommand;
+  topCommand: string;
+  output: string;
+  secondLevelCommands: SecondLevelCommand[];
+};
+
+type SecondLevelCommand = {
+  parent: TopLevelCommand;
+  secondCommand: string;
+  output: string;
+  thirdLevelCommands: ThirdLevelCommand[];
+};
+
+type ThirdLevelCommand = {
+  parent: SecondLevelCommand;
+  thirdCommand: string;
+  output: string;
+};
+
+async function getTopLevelCommands(): Promise<SoloCommand> {
   try {
-    const output: string = await runCapture(`${SOLO_COMMAND} --help`);
-    return {
-      output: output,
-      commands: output.split('\n').reduce(
+    const soloCommand: SoloCommand = {output: undefined, topLevelCommands: []};
+    soloCommand.output = await runCapture(`${SOLO_COMMAND} --help`);
+    console.log(`${chalk.cyan('✔ Finished retrieving top level commands')}`);
+    soloCommand.output
+      .split('\n')
+      .reduce(
         (acc, line) => {
           if (line.trim().startsWith('Commands:')) {
             acc.inCommands = true;
@@ -41,22 +61,28 @@ async function getTopLevelCommands(): Promise<TopLevelCommand> {
           return acc;
         },
         {inCommands: false, commands: []},
-      ).commands,
-    };
-  } catch {
-    console.log(chalk.red('Failed to get top-level commands'));
+      )
+      .commands.forEach((command: string) => {
+        soloCommand.topLevelCommands.push({
+          parent: soloCommand,
+          topCommand: command,
+          output: undefined,
+          secondLevelCommands: undefined,
+        });
+      });
+    return soloCommand;
+  } catch (error) {
+    console.log(chalk.red('❌ Failed to get top-level commands'));
     process.exit(1);
   }
 }
 
-/**
- * @param {string} cmd
- * @returns {Promise<{ output:string, subCommands:[] }>}
- */
-async function getSubcommands(cmd) {
+async function getSecondLevelCommands(topLevelCommand: TopLevelCommand): Promise<SecondLevelCommand> {
   try {
-    const output = await runCapture(`${SOLO_COMMAND} ${cmd} --help`);
+    const output: string = await runCapture(`${SOLO_COMMAND} ${topLevelCommand.topCommand} --help`);
+    console.log(`${chalk.cyan('✔ Finished top level command: ')}${chalk.gray(topLevelCommand.topCommand)}`);
     return {
+      command: cmd,
       output: output,
       subCommands: output
         .split('\n')
@@ -64,20 +90,18 @@ async function getSubcommands(cmd) {
         .map(l => l.trim().split(/\s+/)[1]),
     };
   } catch {
-    console.log(chalk.red(`Failed to get subcommands for ${cmd}`));
+    console.log(chalk.red(`❌ Failed to get subcommands for ${cmd}`));
     process.exit(1);
   }
 }
 
-/**
- * @param {string} cmd
- * @param {string} subcmd
- * @returns {Promise<{ output:string, subCommands:[] }>}
- */
-async function getThirdLevelCommands(cmd, subcmd) {
+async function getThirdLevelCommands(cmd: string, subcmd: string): Promise<SecondLevelCommand> {
   try {
-    const output = await runCapture(`${SOLO_COMMAND} ${cmd} ${subcmd} --help`);
+    const output: string = await runCapture(`${SOLO_COMMAND} ${cmd} ${subcmd} --help`);
+    console.log(`${chalk.cyan('✔ Finished second level command: ')}${chalk.gray(`${cmd} ${subcmd}`)}`);
     return {
+      command: cmd,
+      subCommand: subcmd,
       output: output,
       subCommands: output
         .split('\n')
@@ -85,12 +109,12 @@ async function getThirdLevelCommands(cmd, subcmd) {
         .map(l => l.trim().split(/\s+/)[2]),
     };
   } catch {
-    console.log(chalk.red(`Failed to get third-level commands for ${cmd} ${subcmd}`));
+    console.log(chalk.red(`❌ Failed to get third-level commands for ${cmd} ${subcmd}`));
     process.exit(1);
   }
 }
 
-void (async function main() {
+void (async function main(): Promise<never> {
   let doc = '';
 
   // Header
@@ -104,66 +128,19 @@ void (async function main() {
   // Build Table of Contents sequentially
   await Promise.all(
     topLevelOutput.commands.map(async cmd => {
-      console.log(`#1 Processing command: ${chalk.green(cmd)}`);
-      let entry = `\n* [${cmd}](#${cmd})`;
-
-      const subcommands = await getSubcommands(cmd);
-      Promise.all(
-        subcommands.map(async subcmd => {
-          console.log(`#1 Processing subcommand: ${chalk.green(cmd)} ${chalk.cyan(subcmd)}`);
-          let sub = `\n  * [${cmd} ${subcmd}](#${cmd}-${subcmd})`;
-
-          const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
-          for (const t of thirdLevel) {
-            sub += `\n    * [${cmd} ${subcmd} ${t}](#${cmd}-${subcmd}-${t})`;
-          }
-
-          entry += sub;
+      const secondLevelCommands: TopLevelCommand = await getSecondLevelCommands(cmd);
+      await Promise.all(
+        secondLevelCommands.subCommands.map(async subcmd => {
+          const thirdLevelCommands: SecondLevelCommand = await getThirdLevelCommands(cmd, subcmd);
+          await Promise.all(
+            thirdLevelCommands.subCommands.map(async subcmd => {
+              // run and save the third level output
+            }),
+          );
         }),
       );
-
-      doc += entry;
     }),
   );
-
-  // Root help output
-  doc += `\n\n## Root Help Output\n\n`;
-  doc += '```\n';
-  doc += await runCapture(`${SOLO_COMMAND} --help`);
-  doc += '\n```\n';
-
-  // Detailed sections sequentially
-  for (const cmd of commands) {
-    console.log(`#2 Processing command: ${chalk.green(cmd)}`);
-
-    let section = `\n## ${cmd}\n\n\`\`\`\n`;
-    section += await runCapture(`${SOLO_COMMAND} ${cmd} --help`);
-    section += `\n\`\`\`\n`;
-
-    const subcommands = await getSubcommands(cmd);
-    for (const subcmd of subcommands) {
-      console.log(`#2 Processing subcommand: ${chalk.green(cmd)} ${chalk.cyan(subcmd)}`);
-
-      let subSection = `\n### ${cmd} ${subcmd}\n\n\`\`\`\n`;
-      subSection += await runCapture(`${SOLO_COMMAND} ${cmd} ${subcmd} --help`);
-      subSection += `\n\`\`\`\n`;
-
-      const thirdLevel = await getThirdLevelCommands(cmd, subcmd);
-      for (const t of thirdLevel) {
-        console.log(`#3 Processing third-level command: ${chalk.green(cmd)} ${chalk.cyan(subcmd)} ${chalk.yellow(t)}`);
-
-        let third = `\n#### ${cmd} ${subcmd} ${t}\n\n\`\`\`\n`;
-        third += await runCapture(`${SOLO_COMMAND} ${cmd} ${subcmd} ${t} --help`);
-        third += `\n\`\`\`\n`;
-
-        subSection += third;
-      }
-
-      section += subSection;
-    }
-
-    doc += section;
-  }
 
   // Write all at once
   fs.writeFileSync(OUTPUT_FILE, doc, 'utf-8');
