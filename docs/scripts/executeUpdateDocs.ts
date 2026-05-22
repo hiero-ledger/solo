@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 'use strict';
 
-import {update} from './updateDocs.ts';
+import {update} from './updateDocs.js';
 
 void update();

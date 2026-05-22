@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-'use strict';
 
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {run, runAndSave, envsubst} from './utilities.ts';
-import kleur from 'kleur';
+import {run, runAndSave, envsubst} from './utilities.js';
+import chalk from 'chalk';
 
 export async function update() {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -152,20 +151,20 @@ export async function update() {
   // File generation
   // -----------------------------------------------------------------------------
 
-  console.log(kleur.cyan(`Generating ${TARGET_FILE} from ${TEMPLATE_FILE}`));
+  console.log(chalk.cyan(`Generating ${TARGET_FILE} from ${TEMPLATE_FILE}`));
 
   const templateContent = readFileSync(TEMPLATE_FILE, 'utf8');
   const substituted = envsubst(templateContent, process.env);
   writeFileSync(TARGET_FILE, substituted);
 
-  console.log(kleur.cyan(`Generating ${TARGET_ADVANCED_FILE} from ${TEMPLATE_ADVANCED_FILE}`));
+  console.log(chalk.cyan(`Generating ${TARGET_ADVANCED_FILE} from ${TEMPLATE_ADVANCED_FILE}`));
 
   const advancedTemplateContent = readFileSync(TEMPLATE_ADVANCED_FILE, 'utf8');
   const advancedSubstituted = envsubst(advancedTemplateContent, process.env);
   writeFileSync(TARGET_ADVANCED_FILE, advancedSubstituted);
 
   // Extract the entire content from examples/README.md (excluding first line)
-  console.log(kleur.cyan('Extracting content from examples README'));
+  console.log(chalk.cyan('Extracting content from examples README'));
 
   process.env.EXAMPLES_CONTENT = readFileSync(`${EXAMPLES_DIR}/README.md`, 'utf8');
 
@@ -178,7 +177,7 @@ export async function update() {
   writeFileSync(`${TARGET_DIR}/examples/_index.md`, examplesPage);
 
   // Cleanup: strip color codes
-  console.log(kleur.cyan('Remove color codes and symbols from target files'));
+  console.log(chalk.cyan('Remove color codes and symbols from target files'));
 
   let cleaned = readFileSync(TARGET_FILE, 'utf8');
   cleaned = cleaned.replace(/\[32m|\[33m|\[39m/g, '').replace(/[↓❯•]/g, '');
@@ -190,5 +189,5 @@ export async function update() {
 
   writeFileSync(TARGET_ADVANCED_FILE, advancedCleaned);
 
-  console.log(kleur.cyan('✅ Script finished'));
+  console.log(chalk.cyan('✅ Script finished'));
 }

@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-'use strict';
 
-import { spawn } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
-import kleur from 'kleur';
+import {spawn} from 'node:child_process';
+import {writeFileSync} from 'node:fs';
+import chalk from 'chalk';
 
 /**
  * Run a shell command, preserving colors for interactive Solo CLI commands,
@@ -11,12 +10,12 @@ import kleur from 'kleur';
  * @returns {Promise<string>} - The output of the command.
  */
 export async function run(cmd, opts = {}) {
-  console.log(kleur.green(cmd));
+  console.log(chalk.green(cmd));
 
   // Normal spawn for non-interactive commands
   const [command, ...args] = cmd.split(' ');
   return new Promise((resolve, reject) => {
-    const env = { ...process.env };
+    const env = {...process.env};
     if (!env.PATH) env.PATH = '/usr/local/bin:/usr/bin:/bin';
 
     const child = spawn(command, args, {
@@ -27,18 +26,18 @@ export async function run(cmd, opts = {}) {
     });
 
     let output = '';
-    child.stdout.on('data', (data) => {
+    child.stdout.on('data', data => {
       const text = data.toString();
       process.stdout.write(text);
       output += text.replace(/\r/g, '');
     });
-    child.stderr.on('data', (data) => {
+    child.stderr.on('data', data => {
       const text = data.toString();
       process.stderr.write(text);
       output += text.replace(/\r/g, '');
     });
 
-    child.on('close', (code) => {
+    child.on('close', code => {
       if (code === 0) resolve(output.trim());
       else reject(new Error(`Command failed: ${cmd} (exit code ${code})`));
     });
@@ -67,7 +66,7 @@ export async function runCapture(cmd, opts = {}) {
   const [command, ...args] = cmd.split(' ');
 
   return new Promise((resolve, reject) => {
-    const env = { ...process.env };
+    const env = {...process.env};
     if (!env.PATH) env.PATH = '/usr/local/bin:/usr/bin:/bin';
 
     const child = spawn(command, args, {
@@ -79,15 +78,15 @@ export async function runCapture(cmd, opts = {}) {
 
     let output = '';
 
-    child.stdout.on('data', (data) => {
+    child.stdout.on('data', data => {
       output += data.toString().replace(/\r/g, '');
     });
 
-    child.stderr.on('data', (data) => {
+    child.stderr.on('data', data => {
       output += data.toString().replace(/\r/g, '');
     });
 
-    child.on('close', (code) => {
+    child.on('close', code => {
       if (code === 0) resolve(output.trim());
       else reject(new Error(`Command failed: ${cmd} (exit code ${code})`));
     });
