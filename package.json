@@ -59,7 +59,7 @@
     "uuid": "14.0.0",
     "validator": "13.15.35",
     "ws": "8.20.1",
-    "yaml": "2.8.4",
+    "yaml": "2.9.0",
     "yargs": "18.0.0"
   },
   "devDependencies": {
@@ -76,14 +76,14 @@
     "@types/ip": "1.1.3",
     "@types/mocha": "10.0.10",
     "@types/mocha-each": "2.0.4",
-    "@types/node": "25.6.2",
+    "@types/node": "25.9.1",
     "@types/semver": "7.7.1",
     "@types/sinon": "21.0.1",
     "@types/sinon-chai": "4.0.0",
     "@types/stream-buffers": "3.0.8",
     "@types/ws": "8.18.1",
     "@types/yargs": "17.0.35",
-    "@typescript-eslint/utils": "8.59.2",
+    "@typescript-eslint/utils": "8.59.4",
     "c8": "11.0.0",
     "chai": "6.2.2",
     "chai-as-promised": "8.0.2",
@@ -93,7 +93,7 @@
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-headers": "1.3.4",
     "eslint-plugin-import": "2.32.0",
-    "eslint-plugin-mocha": "11.2.0",
+    "eslint-plugin-mocha": "11.3.0",
     "eslint-plugin-n": "18.0.1",
     "eslint-plugin-prettier": "5.5.5",
     "eslint-plugin-promise": "7.3.0",
@@ -116,10 +116,10 @@
     "remark-preset-lint-recommended": "7.0.1",
     "sinon": "22.0.0",
     "sinon-chai": "4.0.1",
-    "tsx": "4.21.0",
+    "tsx": "4.22.3",
     "typedoc": "0.28.19",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.59.2"
+    "typescript-eslint": "8.59.4"
   },
   "repository": "https://github.com/hiero-ledger/solo",
   "os": [
