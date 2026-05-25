@@ -58,14 +58,19 @@ type ExplorerHarness = {
   promptRunStub: SinonStub;
 };
 
-const createNamespace = (namespaceName: string): NamespaceName => NamespaceName.of(namespaceName);
+const createNamespace: (namespaceName: string) => NamespaceName = (namespaceName: string): NamespaceName =>
+  NamespaceName.of(namespaceName);
 
-const createReleaseName = (id: number): string => `${constants.EXPLORER_RELEASE_NAME}-${id}`;
+const createReleaseName: (id: number) => string = (id: number): string => `${constants.EXPLORER_RELEASE_NAME}-${id}`;
 
-const createIngressReleaseName = (namespaceName: string, id: number): string =>
-  `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}-${namespaceName}`;
+const createIngressReleaseName: (namespaceName: string, id: number) => string = (
+  namespaceName: string,
+  id: number,
+): string => `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}-${namespaceName}`;
 
-const createDeployConfig = (namespaceName: string): Record<string, unknown> => ({
+const createDeployConfig: (namespaceName: string) => Record<string, unknown> = (
+  namespaceName: string,
+): Record<string, unknown> => ({
   cacheDir: 'cache-dir',
   chartDirectory: '',
   explorerChartDirectory: '',
@@ -98,7 +103,9 @@ const createDeployConfig = (namespaceName: string): Record<string, unknown> => (
   isMirrorNodeLegacyChartInstalled: false,
 });
 
-const createUpgradeConfig = (namespaceName: string): Record<string, unknown> => ({
+const createUpgradeConfig: (namespaceName: string) => Record<string, unknown> = (
+  namespaceName: string,
+): Record<string, unknown> => ({
   cacheDir: 'cache-dir',
   chartDirectory: '',
   explorerChartDirectory: '',
@@ -130,7 +137,9 @@ const createUpgradeConfig = (namespaceName: string): Record<string, unknown> => 
   isMirrorNodeLegacyChartInstalled: false,
 });
 
-const createDestroyConfig = (namespaceName: string): Record<string, unknown> => ({
+const createDestroyConfig: (namespaceName: string) => Record<string, unknown> = (
+  namespaceName: string,
+): Record<string, unknown> => ({
   clusterContext: 'cluster-context-1',
   clusterReference: 'cluster-ref-1',
   namespace: createNamespace(namespaceName),
@@ -141,37 +150,55 @@ const createDestroyConfig = (namespaceName: string): Record<string, unknown> => 
   isLegacyChartInstalled: false,
 });
 
-const createHarness = async (sandbox: SinonSandbox): Promise<ExplorerHarness> => {
+const createHarness: (sandbox: SinonSandbox) => Promise<ExplorerHarness> = async (
+  sandbox: SinonSandbox,
+): Promise<ExplorerHarness> => {
   resetForTest();
   const command: ExplorerCommand = container.resolve(ExplorerCommand);
-  const localConfig: LocalConfigRuntimeState =
-    (command as unknown as {localConfig: LocalConfigRuntimeState}).localConfig;
+  const localConfig: LocalConfigRuntimeState = (command as unknown as {localConfig: LocalConfigRuntimeState})
+    .localConfig;
   await localConfig.load();
-  const taskList: Record<string, unknown> = (command as unknown as {taskList: unknown}).taskList as Record<string, unknown>;
-  const chartManager: Record<string, unknown> =
-    (command as unknown as {chartManager: unknown}).chartManager as Record<string, unknown>;
-  const configManager: Record<string, unknown> =
-    (command as unknown as {configManager: unknown}).configManager as Record<string, unknown>;
-  const remoteConfig: Record<string, unknown> =
-    (command as unknown as {remoteConfig: unknown}).remoteConfig as Record<string, unknown>;
-  const clusterChecks: Record<string, unknown> =
-    (command as unknown as {clusterChecks: unknown}).clusterChecks as Record<string, unknown>;
-  const componentFactory: Record<string, unknown> =
-    (command as unknown as {componentFactory: unknown}).componentFactory as Record<string, unknown>;
-  const leaseManager: Record<string, unknown> =
-    (command as unknown as {leaseManager: unknown}).leaseManager as Record<string, unknown>;
-  const oneShotState: Record<string, unknown> =
-    (command as unknown as {oneShotState: unknown}).oneShotState as Record<string, unknown>;
-  const k8Factory: Record<string, unknown> =
-    (command as unknown as {k8Factory: unknown}).k8Factory as Record<string, unknown>;
+  const taskList: Record<string, unknown> = (command as unknown as {taskList: unknown}).taskList as Record<
+    string,
+    unknown
+  >;
+  const chartManager: Record<string, unknown> = (command as unknown as {chartManager: unknown}).chartManager as Record<
+    string,
+    unknown
+  >;
+  const configManager: Record<string, unknown> = (command as unknown as {configManager: unknown})
+    .configManager as Record<string, unknown>;
+  const remoteConfig: Record<string, unknown> = (command as unknown as {remoteConfig: unknown}).remoteConfig as Record<
+    string,
+    unknown
+  >;
+  const clusterChecks: Record<string, unknown> = (command as unknown as {clusterChecks: unknown})
+    .clusterChecks as Record<string, unknown>;
+  const componentFactory: Record<string, unknown> = (command as unknown as {componentFactory: unknown})
+    .componentFactory as Record<string, unknown>;
+  const leaseManager: Record<string, unknown> = (command as unknown as {leaseManager: unknown}).leaseManager as Record<
+    string,
+    unknown
+  >;
+  const oneShotState: Record<string, unknown> = (command as unknown as {oneShotState: unknown}).oneShotState as Record<
+    string,
+    unknown
+  >;
+  const k8Factory: Record<string, unknown> = (command as unknown as {k8Factory: unknown}).k8Factory as Record<
+    string,
+    unknown
+  >;
 
   const tasks: TaskLike[] = [];
   const promptRunStub: SinonStub = sandbox.stub().resolves(true);
   let currentContext: TaskContext = {}; // Shared context reference
 
-  const runTasksRecursive = async (taskArray: TaskLike[], context: TaskContext, taskWrapper: TaskWrapper): Promise<void> => {
-    for (let taskIndex: number = 0; taskIndex < taskArray.length; taskIndex += 1) {
-      const task: TaskLike = taskArray[taskIndex];
+  const runTasksRecursive: (
+    taskArray: TaskLike[],
+    context: TaskContext,
+    taskWrapper: TaskWrapper,
+  ) => Promise<void> = async (taskArray: TaskLike[], context: TaskContext, taskWrapper: TaskWrapper): Promise<void> => {
+    for (const task of taskArray) {
       if (task.skip && (await task.skip(context))) {
         continue;
       }
@@ -194,6 +221,7 @@ const createHarness = async (sandbox: SinonSandbox): Promise<ExplorerHarness> =>
   // Create fakeTask object that will be used and returned from harness
   const fakeTask: TaskWrapper = {
     prompt: sandbox.stub().returns({run: promptRunStub}),
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     newListr: (nestedTasks: TaskLike[], _options: Record<string, unknown>): FakeListr => ({
       isRoot: (): boolean => false,
       run: async (): Promise<void> => {
@@ -204,7 +232,7 @@ const createHarness = async (sandbox: SinonSandbox): Promise<ExplorerHarness> =>
   };
 
   sandbox.stub(taskList, 'newTaskList').callsFake((taskListInput: unknown): FakeListr => {
-    tasks.splice(0, tasks.length);
+    tasks.splice(0);
     if (Array.isArray(taskListInput)) {
       tasks.push(...(taskListInput as TaskLike[]));
     } else {
@@ -221,7 +249,7 @@ const createHarness = async (sandbox: SinonSandbox): Promise<ExplorerHarness> =>
   });
 
   sandbox.stub(localConfig, 'load').resolves();
-  
+
   // Mock ListrLock to prevent actual lock acquisition during tests
   sandbox.stub(ListrLock, 'newAcquireLockTask').returns({
     isRoot: (): boolean => false,
@@ -235,16 +263,16 @@ const createHarness = async (sandbox: SinonSandbox): Promise<ExplorerHarness> =>
       // Mock skipped lock task - resolves immediately
     },
   } as never);
-  
+
   sandbox.stub(remoteConfig, 'loadAndValidate').resolves();
   sandbox.stub(remoteConfig, 'load').resolves();
   sandbox.stub(remoteConfig, 'isLoaded').returns(true);
   sandbox.stub(remoteConfig, 'persist').resolves();
-  sandbox
-    .stub(remoteConfig, 'getComponentVersion')
-    .returns(new SemanticVersion<string>('1.2.3'));
+  sandbox.stub(remoteConfig, 'getComponentVersion').returns(new SemanticVersion<string>('1.2.3'));
+  // eslint-disable-next-line unicorn/no-useless-undefined
   sandbox.stub(remoteConfig, 'updateComponentVersion').returns(undefined);
 
+  // eslint-disable-next-line unicorn/no-useless-undefined
   sandbox.stub(configManager, 'update').returns(undefined);
   sandbox.stub(configManager, 'executePrompt').resolves();
   sandbox.stub(configManager, 'getConfig').returns({});
@@ -291,16 +319,16 @@ const createHarness = async (sandbox: SinonSandbox): Promise<ExplorerHarness> =>
   };
 
   sandbox.stub(k8Factory, 'getK8').returns(kubernetesClient);
-  sandbox
-    .stub(k8Factory, 'default')
-    .returns({
-      clusters: (): Record<string, unknown> => ({readCurrent: (): string => 'cluster-ref-1'}),
-      contexts: (): Record<string, unknown> => ({readCurrent: (): string => 'cluster-context-1'}),
-    });
+  sandbox.stub(k8Factory, 'default').returns({
+    clusters: (): Record<string, unknown> => ({readCurrent: (): string => 'cluster-ref-1'}),
+    contexts: (): Record<string, unknown> => ({readCurrent: (): string => 'cluster-context-1'}),
+  });
 
-  sandbox.stub(componentFactory, 'createNewExplorerComponent').callsFake((): Record<string, unknown> => ({
-    metadata: {id: 1, phase: DeploymentPhase.REQUESTED},
-  }));
+  sandbox.stub(componentFactory, 'createNewExplorerComponent').callsFake(
+    (): Record<string, unknown> => ({
+      metadata: {id: 1, phase: DeploymentPhase.REQUESTED},
+    }),
+  );
 
   // @ts-expect-error: Sinon stub typing requires unsafe cast for mocking private methods
   sandbox.stub(command, 'getClusterReference').returns('cluster-ref-1');
@@ -351,7 +379,8 @@ const createHarness = async (sandbox: SinonSandbox): Promise<ExplorerHarness> =>
   };
 };
 
-const getTaskTitles = (tasks: TaskLike[]): string[] => tasks.map((task: TaskLike): string => task.title ?? '');
+const getTaskTitles: (tasks: TaskLike[]) => string[] = (tasks: TaskLike[]): string[] =>
+  tasks.map((task: TaskLike): string => task.title ?? '');
 
 describe('ExplorerCommand unit tests', (): void => {
   let sandbox: SinonSandbox;
@@ -378,7 +407,12 @@ describe('ExplorerCommand unit tests', (): void => {
 
     const taskListStub: SinonStub = harness.taskList.newTaskList as SinonStub;
     expect(taskListStub).to.have.been.calledOnce;
-    expect(taskListStub).to.have.been.calledWithMatch(sinon.match.array, sinon.match.object, undefined, 'explorer node add');
+    expect(taskListStub).to.have.been.calledWithMatch(
+      sinon.match.array,
+      sinon.match.object,
+      undefined,
+      'explorer node add',
+    );
     expect(getTaskTitles(harness.tasks)).to.deep.equal([
       'Initialize',
       'Load remote config',
@@ -400,8 +434,8 @@ describe('ExplorerCommand unit tests', (): void => {
     expect(updateConfigStub).to.have.been.calledOnce;
     sinon.assert.calledOnceWithMatch(executePromptStub, harness.fakeTask, sinon.match.array);
 
-    const components: Record<string, unknown> =
-      (harness.remoteConfig.configuration as Record<string, unknown>).components as Record<string, unknown>;
+    const components: Record<string, unknown> = (harness.remoteConfig.configuration as Record<string, unknown>)
+      .components as Record<string, unknown>;
     const addComponentStub: SinonStub = components.addNewComponent as SinonStub;
     const changePhaseStub: SinonStub = components.changeComponentPhase as SinonStub;
     const updateVersionStub: SinonStub = harness.remoteConfig.updateComponentVersion as SinonStub;
@@ -422,28 +456,29 @@ describe('ExplorerCommand unit tests', (): void => {
     expect(chartUpgradeStub.getCall(3).args[1]).to.equal(ingressReleaseName);
 
     // @ts-expect-error: Type '{}' has no call signatures (Kubernetes client methods are stubbed)
-    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
+    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<
+      string,
+      unknown
+    >;
     const podClient: Record<string, unknown> = (kubernetesClient as any).pods() as Record<string, unknown>;
     const ingressClient: Record<string, unknown> = (kubernetesClient as any).ingresses() as Record<string, unknown>;
-    const ingressClassClient: Record<string, unknown> = (kubernetesClient as any).ingressClasses() as Record<string, unknown>;
+    const ingressClassClient: Record<string, unknown> = (kubernetesClient as any).ingressClasses() as Record<
+      string,
+      unknown
+    >;
     // @ts-check
     const waitForReadyStatusStub: SinonStub = podClient.waitForReadyStatus as SinonStub;
     const ingressUpdateStub: SinonStub = ingressClient.update as SinonStub;
     const ingressCreateStub: SinonStub = ingressClassClient.create as SinonStub;
 
     expect(waitForReadyStatusStub).to.have.been.calledThrice;
-    sinon.assert.calledOnceWithMatch(
-      ingressUpdateStub,
-      sinon.match.has('name', 'explorer-add'),
-      releaseName,
-      {
+    sinon.assert.calledOnceWithMatch(ingressUpdateStub, sinon.match.has('name', 'explorer-add'), releaseName, {
       metadata: {
         annotations: {
           'haproxy-ingress.github.io/backend-protocol': 'h1',
         },
       },
-      },
-    );
+    });
     expect(ingressCreateStub).to.have.been.calledOnceWithExactly(
       ingressReleaseName,
       `${constants.INGRESS_CONTROLLER_PREFIX}${ingressReleaseName}`,
@@ -497,8 +532,8 @@ describe('ExplorerCommand unit tests', (): void => {
     sinon.assert.calledOnceWithMatch(executePromptStub, harness.fakeTask, sinon.match.array);
     sinon.assert.calledOnceWithExactly(getComponentVersionStub, ComponentTypes.Explorer);
 
-    const components: Record<string, unknown> =
-      (harness.remoteConfig.configuration as Record<string, unknown>).components as Record<string, unknown>;
+    const components: Record<string, unknown> = (harness.remoteConfig.configuration as Record<string, unknown>)
+      .components as Record<string, unknown>;
     const addComponentStub: SinonStub = components.addNewComponent as SinonStub;
     const changePhaseStub: SinonStub = components.changeComponentPhase as SinonStub;
     const updateVersionStub: SinonStub = harness.remoteConfig.updateComponentVersion as SinonStub;
@@ -517,10 +552,16 @@ describe('ExplorerCommand unit tests', (): void => {
     expect(chartUpgradeStub.getCall(1).args[1]).to.equal(ingressReleaseName);
 
     // @ts-expect-error: Type '{}' has no call signatures (Kubernetes client methods are stubbed)
-    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
+    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<
+      string,
+      unknown
+    >;
     const podClient: Record<string, unknown> = (kubernetesClient as any).pods() as Record<string, unknown>;
     const ingressClient: Record<string, unknown> = (kubernetesClient as any).ingresses() as Record<string, unknown>;
-    const ingressClassClient: Record<string, unknown> = (kubernetesClient as any).ingressClasses() as Record<string, unknown>;
+    const ingressClassClient: Record<string, unknown> = (kubernetesClient as any).ingressClasses() as Record<
+      string,
+      unknown
+    >;
     // @ts-check
     const waitForReadyStatusStub: SinonStub = podClient.waitForReadyStatus as SinonStub;
     const ingressUpdateStub: SinonStub = ingressClient.update as SinonStub;
@@ -541,14 +582,19 @@ describe('ExplorerCommand unit tests', (): void => {
     const uninstallStub: SinonStub = sandbox.stub(harness.chartManager, 'uninstall').resolves();
     harness.remoteConfig.isLoaded = sandbox.stub().returns(true);
 
-    const ingressClassesListStub: SinonStub = sandbox.stub().resolves([
-      {name: ingressReleaseName},
-      {name: 'other-ingress'},
-    ]);
+    const ingressClassesListStub: SinonStub = sandbox
+      .stub()
+      .resolves([{name: ingressReleaseName}, {name: 'other-ingress'}]);
     const ingressClassesDeleteStub: SinonStub = sandbox.stub().resolves();
     // @ts-expect-error: Type '{}' has no call signatures (Kubernetes client methods are stubbed)
-    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
-    const ingressClassesClient: Record<string, unknown> = (kubernetesClient as any).ingressClasses() as Record<string, unknown>;
+    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<
+      string,
+      unknown
+    >;
+    const ingressClassesClient: Record<string, unknown> = (kubernetesClient as any).ingressClasses() as Record<
+      string,
+      unknown
+    >;
     // @ts-check
     (ingressClassesClient as any).list = ingressClassesListStub;
     (ingressClassesClient as any).delete = ingressClassesDeleteStub;
@@ -587,8 +633,8 @@ describe('ExplorerCommand unit tests', (): void => {
     expect(uninstallStub.getCall(1).args[1]).to.equal(ingressReleaseName);
     sinon.assert.calledOnceWithMatch(ingressClassesDeleteStub, ingressReleaseName);
 
-    const components: Record<string, unknown> =
-      (harness.remoteConfig.configuration as Record<string, unknown>).components as Record<string, unknown>;
+    const components: Record<string, unknown> = (harness.remoteConfig.configuration as Record<string, unknown>)
+      .components as Record<string, unknown>;
     const removeComponentStub: SinonStub = components.removeComponent as SinonStub;
     const persistStub: SinonStub = harness.remoteConfig.persist as SinonStub;
 
@@ -610,8 +656,8 @@ describe('ExplorerCommand unit tests', (): void => {
       'Error destroy explorer: Aborted application by user prompt',
     );
 
-    const components: Record<string, unknown> =
-      (harness.remoteConfig.configuration as Record<string, unknown>).components as Record<string, unknown>;
+    const components: Record<string, unknown> = (harness.remoteConfig.configuration as Record<string, unknown>)
+      .components as Record<string, unknown>;
     const removeComponentStub: SinonStub = components.removeComponent as SinonStub;
     const persistStub: SinonStub = harness.remoteConfig.persist as SinonStub;
     const loadRemoteConfigWarnStub: SinonStub = (harness.command as unknown as {loadRemoteConfigOrWarn: SinonStub})
@@ -638,8 +684,8 @@ describe('ExplorerCommand unit tests', (): void => {
       'Error deploying explorer: helm dependency failed',
     );
 
-    const components: Record<string, unknown> =
-      (harness.remoteConfig.configuration as Record<string, unknown>).components as Record<string, unknown>;
+    const components: Record<string, unknown> = (harness.remoteConfig.configuration as Record<string, unknown>)
+      .components as Record<string, unknown>;
     const addComponentStub: SinonStub = components.addNewComponent as SinonStub;
     const persistStub: SinonStub = harness.remoteConfig.persist as SinonStub;
 
@@ -648,7 +694,10 @@ describe('ExplorerCommand unit tests', (): void => {
     expect(chartUpgradeStub).to.have.been.calledOnce;
 
     // @ts-expect-error: Type '{}' has no call signatures (Kubernetes client methods are stubbed)
-    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<string, unknown>;
+    const kubernetesClient: Record<string, unknown> = harness.k8Factory.getK8('cluster-context-1') as Record<
+      string,
+      unknown
+    >;
     const podClient: Record<string, unknown> = (kubernetesClient as any).pods() as Record<string, unknown>;
     // @ts-check
     const waitForReadyStatusStub: SinonStub = podClient.waitForReadyStatus as SinonStub;
