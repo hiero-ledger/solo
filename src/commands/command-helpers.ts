@@ -23,6 +23,25 @@ export function optionFromFlag(flag: CommandFlag): string {
 }
 
 /**
+ * Helper function to convert a flag object to a negated CLI option string
+ * @param flag - The command flag
+ * @returns Negated CLI option string (e.g., '--no-deploy-mirror-node')
+ */
+export function negatedOptionFromFlag(flag: CommandFlag): string {
+  return `--no-${flag.name}`;
+}
+
+/**
+ * Helper function to format a command path as a full CLI invocation string
+ * @param commandPath - The command path (e.g., 'one-shot falcon deploy')
+ * @param args - Optional additional arguments (flags, values, placeholders)
+ * @returns Full CLI string (e.g., 'solo one-shot falcon deploy --values-file ./file.yaml')
+ */
+export function soloCommand(commandPath: string, ...arguments_: string[]): string {
+  return ['solo', commandPath, ...arguments_].join(' ');
+}
+
+/**
  * Helper function to create base argv array for command execution
  * @returns Base argv array
  */

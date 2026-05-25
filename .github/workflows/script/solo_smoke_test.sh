@@ -77,12 +77,16 @@ function start_sdk_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
-  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:38081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
-  if [[ $result -ne 0 ]]; then
-    echo "grpcurl command failed with exit code $result"
-    log_and_exit $result
+  if command -v grpcurl >/dev/null 2>&1; then
+    grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:38081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
+    if [[ $result -ne 0 ]]; then
+      echo "grpcurl command failed with exit code $result"
+      log_and_exit $result
+    fi
+    result=0
+  else
+    echo "grpcurl not found, skipping gRPC connectivity test (install grpcurl to enable)"
   fi
-  result=0
   node scripts/create-topic.js || result=$?
   cd -
   if [[ $result -ne 0 ]]; then

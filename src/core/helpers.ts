@@ -653,8 +653,10 @@ export function checkDockerImageExists(imageName: string, imageTag: string): boo
     const command: string = `docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "^${fullImageName}$"`;
     const output: string = execSync(command, {encoding: 'utf8', stdio: 'pipe'});
     return output.trim() === fullImageName;
-  } catch (error: unknown) {
-    console.error(`Error checking Docker image ${fullImageName}:`, (error as Error).message);
+  } catch (error) {
+    if (!constants.SOLO_SILENT_MODE) {
+      console.error(`Error checking Docker image ${fullImageName}:`, error.message);
+    }
     return false;
   }
 }

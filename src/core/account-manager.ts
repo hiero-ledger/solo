@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import fs from 'node:fs';
 import * as Base64 from 'js-base64';
 import * as constants from './constants.js';
@@ -24,8 +25,6 @@ import {
   Status,
   TransferTransaction,
 } from '@hiero-ledger/sdk';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
-import {ResourceNotFoundError} from './errors/resource-not-found-error.js';
 import {SoloError} from './errors/solo-error.js';
 import {Templates} from './templates.js';
 import {type NetworkNodeServices} from './network-node-services.js';
@@ -124,7 +123,7 @@ export class AccountManager {
           };
         }
       } catch (error) {
-        if (!(error instanceof ResourceNotFoundError)) {
+        if (!(error instanceof SoloErrors.system.resourceNotFound)) {
           throw error;
         }
       }
@@ -787,7 +786,7 @@ export class AccountManager {
     try {
       keys = await this.getAccountKeys(accountId);
     } catch (error) {
-      if (error instanceof MissingArgumentError) {
+      if (error instanceof SoloErrors.validation.missingArgument) {
         throw error;
       }
       this.logger.error(
@@ -904,7 +903,7 @@ export class AccountManager {
    */
   public async accountInfoQuery(accountId: AccountId | string): Promise<AccountInfo> {
     if (!this._nodeClient) {
-      throw new MissingArgumentError('node client is not initialized');
+      throw new SoloErrors.validation.missingArgument('node client is not initialized');
     }
 
     return await new AccountInfoQuery()

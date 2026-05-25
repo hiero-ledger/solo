@@ -4,11 +4,34 @@ set -eo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/helper.sh"
 
+TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
+
+collect_failure_diagnostics() {
+  local rc="${1}"
+
+  echo "::group::Failure diagnostics"
+  echo "launch_network.sh failed with exit code ${rc}"
+
+  if command -v npm &> /dev/null; then
+    echo "Collecting Solo deployment diagnostics for ${SOLO_DEPLOYMENT}..."
+    npm run solo -- deployment diagnostics all --deployment "${SOLO_DEPLOYMENT}" -q --dev || true
+    echo "Solo diagnostics collection finished. Check ~/.solo/logs for downloaded artifacts."
+  else
+    echo "npm is not available; skipping Solo diagnostics collection"
+  fi
+
+  echo "::endgroup::"
+}
+
 on_exit() {
   local rc=$?
 
   if [[ -n "${RENDERED_KIND_CLUSTER_CONFIG_FILE:-}" && -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}" ]]; then
     rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+  fi
+
+  if [[ -n "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" ]]; then
+    rm -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
   fi
 
   if [[ ${rc} -ne 0 ]]; then
@@ -429,6 +452,7 @@ else
   npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
 fi
 
+SOLO_NO_CACHE=true npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
 solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e
@@ -437,8 +461,8 @@ export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=one-shot
 export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.152.0
 export SOLO_LOG_LEVEL=debug
-export PREV_BLOCK_VERSION=v0.28.0
-export PREV_EXPLORER_VERSION=25.0.0
+export PREV_BLOCK_VERSION=v0.32.0
+export PREV_EXPLORER_VERSION=26.0.0
 export PREV_RELAY_VERSION=0.76.0
 
 KIND_CLUSTER_CONFIG_FILE="${KIND_CLUSTER_CONFIG_FILE:-.github/workflows/script/kind-config.yaml}"
@@ -532,8 +556,29 @@ npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirror
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
+ps -ef |grep port-forward
+
+TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
+cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+
+if grep -q '^fees.simpleFeesEnabled=' "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"; then
+  sed -i.bak 's/^fees.simpleFeesEnabled=.*/fees.simpleFeesEnabled=false/' "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+else
+  echo 'fees.simpleFeesEnabled=false' >> "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+fi
+rm -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}.bak"
+chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+
+echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
-npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
+if [[ "$(printf '%s\n' "v0.73.0" "${TO_CONSENSUS_NODE_VERSION}" | sort -V | head -n 1)" == "v0.73.0" ]]; then
+  npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" -q --dev
+else
+  npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
+fi
+
+npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 

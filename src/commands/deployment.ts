@@ -3,7 +3,6 @@
 import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {select as selectPrompt} from '@inquirer/prompts';
-import {SoloError} from '../core/errors/solo-error.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
@@ -244,7 +243,7 @@ export class DeploymentCommand extends BaseCommand {
             task.title = `Adding deployment: ${deployment} with namespace: ${namespace.name} to local config`;
 
             if (this.localConfig.configuration.deployments.some((d: Deployment): boolean => d.name === deployment)) {
-              throw new SoloError(`Deployment ${deployment} is already added to local config`);
+              throw new SoloErrors.deployment.alreadyExists(deployment);
             }
 
             const actualDeployment: Deployment = this.localConfig.configuration.deployments.addNew();
@@ -348,7 +347,7 @@ export class DeploymentCommand extends BaseCommand {
               }
 
               if (remoteConfigExists || existingConfigMaps.length > 0) {
-                throw new SoloError(`Deployment ${deployment} has remote resources in cluster: ${clusterReference}`);
+                throw new SoloErrors.deployment.hasRemoteResources(deployment, clusterReference);
               }
             }
           },
@@ -378,8 +377,8 @@ export class DeploymentCommand extends BaseCommand {
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-      } catch (error: Error | unknown) {
-        throw new SoloError('Error deleting deployment', error);
+      } catch (error) {
+        throw new SoloErrors.deployment.deleteFailed(error);
       }
     }
 
@@ -409,8 +408,8 @@ export class DeploymentCommand extends BaseCommand {
     if (tasks.isRoot()) {
       try {
         await tasks.run();
-      } catch (error: Error | unknown) {
-        throw new SoloError('Error adding cluster to deployment', error);
+      } catch (error) {
+        throw new SoloErrors.deployment.clusterAddFailed(error);
       }
     }
 
@@ -515,8 +514,8 @@ export class DeploymentCommand extends BaseCommand {
 
     try {
       await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloError('Error listing deployments', error);
+    } catch (error) {
+      throw new SoloErrors.deployment.listFailed(error);
     }
 
     return true;
@@ -571,7 +570,7 @@ export class DeploymentCommand extends BaseCommand {
             const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
             const deploymentConfig: Deployment = this.localConfig.configuration.deploymentByName(deployment);
             if (!deploymentConfig) {
-              throw new SoloError(`Deployment ${deployment} not found in local config`);
+              throw new SoloErrors.deployment.notFound(`Deployment ${deployment} not found in local config`);
             }
 
             let output: 'json' | 'yaml' | 'wide' = 'wide';
@@ -589,7 +588,7 @@ export class DeploymentCommand extends BaseCommand {
                 break;
               }
               default: {
-                throw new SoloError(`Invalid output format: ${rawOutput}. Allowed values: json, yaml, wide`);
+                throw new SoloErrors.validation.invalidOutputFormat(rawOutput);
               }
             }
 
@@ -685,7 +684,7 @@ export class DeploymentCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError('Error listing deployment ports', error);
+      throw new SoloErrors.deployment.listPortsFailed(error);
     }
 
     return true;
@@ -736,19 +735,19 @@ export class DeploymentCommand extends BaseCommand {
         const {clusterRef, deployment} = context_.config;
 
         if (!this.localConfig.configuration.clusterRefs.get(clusterRef)) {
-          throw new SoloError(`Cluster ref ${clusterRef} not found in local config`);
+          throw new SoloErrors.deployment.clusterRefNotFound(clusterRef);
         }
 
         context_.config.context = this.localConfig.configuration.clusterRefs.get(clusterRef)?.toString();
 
         if (!this.localConfig.configuration.deploymentByName(deployment)) {
-          throw new SoloError(`Deployment ${deployment} not found in local config`);
+          throw new SoloErrors.deployment.notFound(`Deployment ${deployment} not found in local config`);
         }
 
         if (
           this.localConfig.configuration.deploymentByName(deployment).clusters.includes(new StringFacade(clusterRef))
         ) {
-          throw new SoloError(`Cluster ref ${clusterRef} is already added for deployment`);
+          throw new SoloErrors.deployment.clusterRefAlreadyExists(clusterRef);
         }
       },
     };
@@ -781,7 +780,10 @@ export class DeploymentCommand extends BaseCommand {
 
           // if the user can't be prompted for '--num-consensus-nodes' fail
           if (!numberOfConsensusNodes && quiet) {
-            throw new SoloError(`--${flags.numberOfConsensusNodes} must be specified ${DeploymentStates.PRE_GENESIS}`);
+            throw new SoloErrors.validation.consensusNodeCountRequired(
+              flags.numberOfConsensusNodes.name,
+              DeploymentStates.PRE_GENESIS,
+            );
           }
 
           // prompt the user for the '--num-consensus-nodes'
@@ -813,7 +815,10 @@ export class DeploymentCommand extends BaseCommand {
 
         // If ledgerPhase is pre-genesis and user can't be prompted for the '--num-consensus-nodes' fail
         if (ledgerPhase === LedgerPhase.UNINITIALIZED && !numberOfConsensusNodes && quiet) {
-          throw new SoloError(`--${flags.numberOfConsensusNodes} must be specified ${LedgerPhase.UNINITIALIZED}`);
+          throw new SoloErrors.validation.consensusNodeCountRequired(
+            flags.numberOfConsensusNodes.name,
+            LedgerPhase.UNINITIALIZED,
+          );
         }
 
         // If ledgerPhase is pre-genesis prompt the user for the '--num-consensus-nodes'
@@ -828,7 +833,7 @@ export class DeploymentCommand extends BaseCommand {
 
         // if the ledgerPhase is post-genesis and '--num-consensus-nodes' is specified throw
         else if (ledgerPhase === LedgerPhase.INITIALIZED && numberOfConsensusNodes) {
-          throw new SoloError(
+          throw new SoloErrors.validation.illegalArgument(
             `--${flags.numberOfConsensusNodes.name}=${numberOfConsensusNodes} shouldn't be specified ${ledgerPhase}`,
           );
         }
@@ -855,7 +860,7 @@ export class DeploymentCommand extends BaseCommand {
           .catch((): boolean => false);
 
         if (!isConnected) {
-          throw new SoloError(`Connection failed for cluster ${clusterRef} with context: ${context}`);
+          throw new SoloErrors.system.clusterConnectionFailed(clusterRef, context);
         }
       },
     };
@@ -1017,7 +1022,9 @@ export class DeploymentCommand extends BaseCommand {
             // Get namespace from deployment
             const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
             if (!deployment) {
-              throw new SoloError(`Deployment ${context_.config.deployment} not found in local config`);
+              throw new SoloErrors.deployment.notFound(
+                `Deployment ${context_.config.deployment} not found in local config`,
+              );
             }
 
             context_.namespace = NamespaceName.of(deployment.namespace);
@@ -1027,7 +1034,7 @@ export class DeploymentCommand extends BaseCommand {
           title: 'Load remote configuration',
           task: async (context_, task): Promise<void> => {
             if (!context_.namespace) {
-              throw new SoloError('Namespace not set');
+              throw new SoloErrors.deployment.namespaceNotSet();
             }
 
             // Load remote config from a selected cluster in the deployment
@@ -1035,7 +1042,7 @@ export class DeploymentCommand extends BaseCommand {
             const clusters: FacadeArray<StringFacade, string> = deployment.clusters;
 
             if (clusters.length === 0) {
-              throw new SoloError(`No clusters found for deployment ${context_.config.deployment}`);
+              throw new SoloErrors.deployment.noClustersForDeployment(context_.config.deployment);
             }
 
             const clusterReferences: string[] = [];
@@ -1047,7 +1054,7 @@ export class DeploymentCommand extends BaseCommand {
             }
 
             if (clusterReferences.length === 0) {
-              throw new SoloError(`Failed to get cluster reference for deployment ${context_.config.deployment}`);
+              throw new SoloErrors.deployment.clusterReferenceResolutionFailed(context_.config.deployment);
             }
 
             let clusterReference: string = clusterReferences[0];
@@ -1063,7 +1070,7 @@ export class DeploymentCommand extends BaseCommand {
 
             const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
             if (!contextValue) {
-              throw new SoloError(`Context not found for cluster reference ${clusterReference}`);
+              throw new SoloErrors.deployment.contextNotFoundForCluster(clusterReference);
             }
 
             const context: string = contextValue.toString();
@@ -1183,8 +1190,8 @@ export class DeploymentCommand extends BaseCommand {
 
     try {
       await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloError('Error refreshing port-forwards', error);
+    } catch (error) {
+      throw new SoloErrors.system.portForwardRefreshFailed(error);
     }
 
     return true;
@@ -1196,7 +1203,7 @@ export class DeploymentCommand extends BaseCommand {
   private async isPortForwardRunning(port: number, targetPodName?: string): Promise<boolean> {
     // Validate port before process matching.
     if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
-      throw new SoloError(`Invalid port number: ${port}`);
+      throw new SoloErrors.validation.invalidPortNumber(port);
     }
 
     try {
@@ -1252,7 +1259,9 @@ export class DeploymentCommand extends BaseCommand {
                 context_.config.deployment,
               );
               if (!deployment) {
-                throw new SoloError(`Deployment ${context_.config.deployment} not found in local config`);
+                throw new SoloErrors.deployment.notFound(
+                  `Deployment ${context_.config.deployment} not found in local config`,
+                );
               }
               context_.deployments = [deployment];
             } else {
@@ -1263,7 +1272,7 @@ export class DeploymentCommand extends BaseCommand {
                 }
               }
               if (allDeployments.length === 0) {
-                throw new SoloError('No deployments found in local config');
+                throw new SoloErrors.deployment.noDeploymentsFound();
               }
               context_.deployments = allDeployments;
             }
@@ -1445,8 +1454,8 @@ export class DeploymentCommand extends BaseCommand {
 
     try {
       await tasks.run();
-    } catch (error: Error | unknown) {
-      throw new SoloError('Error displaying port-forward status', error);
+    } catch (error) {
+      throw new SoloErrors.system.portForwardStatusFailed(error);
     }
 
     return true;

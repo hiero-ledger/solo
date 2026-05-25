@@ -6,8 +6,8 @@ import {expect} from 'chai';
 import {describe, it} from 'mocha';
 
 import {SoloError} from '../../../src/core/errors/solo-error.js';
-import {MissingArgumentError} from '../../../src/core/errors/missing-argument-error.js';
-import {IllegalArgumentError} from '../../../src/core/errors/illegal-argument-error.js';
+import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
+import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import os from 'node:os';
 import fs from 'node:fs';
 import {Zippy} from '../../../src/core/zippy.js';
