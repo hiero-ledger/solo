@@ -383,4 +383,18 @@ describe('resolveOneShotComponentVersions', (): void => {
     const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, false);
     expect(versions.consensus).to.equal('v0.73.0');
   });
+
+  it('normalizes prerelease argv values emitted as arrays and preserves selected token format', async (): Promise<void> => {
+    const argv: ArgvStruct = {
+      _: [],
+      [Flags.consensusNodeVersion.name]: ['0.45.3-alpha.1', 'v0.74.0-rc.5'] as unknown as string,
+      [Flags.mirrorNodeVersion.name]: version.MIRROR_NODE_VERSION,
+      [Flags.relayVersion.name]: '',
+      [Flags.explorerVersion.name]: version.EXPLORER_VERSION,
+      [Flags.blockNodeVersion.name]: '',
+    };
+
+    const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, false);
+    expect(versions.consensus).to.equal('v0.74.0-rc.5');
+  });
 });

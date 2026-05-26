@@ -11,8 +11,8 @@ describe('SemanticVersion', (): void => {
     });
 
     it('returns 0.0.0 for null input', (): void => {
-      const nullValue: null = JSON.parse('null') as null;
-      expect(SemanticVersion.normalize(nullValue).toString()).to.equal('0.0.0');
+      const nullValue: unknown = JSON.parse('null');
+      expect(SemanticVersion.normalize(nullValue as null).toString()).to.equal('0.0.0');
     });
 
     it('uses the last token for comma-joined duplicated values', (): void => {
@@ -27,6 +27,11 @@ describe('SemanticVersion', (): void => {
       expect(SemanticVersion.normalize(['v0.72.0', ['  ', 'v0.73.0']]).toString()).to.equal('0.73.0');
     });
 
+    it('supports prerelease versions with or without a v prefix', (): void => {
+      expect(SemanticVersion.normalize('0.45.3-alpha.1').toString()).to.equal('0.45.3-alpha.1');
+      expect(SemanticVersion.normalize('v0.74.0-rc.5').toString()).to.equal('0.74.0-rc.5');
+    });
+
     it('throws for invalid normalized token', (): void => {
       expect((): SemanticVersion<string | number> => SemanticVersion.normalize('v0.73.0,invalid')).to.throw(
         IllegalArgumentError,
@@ -37,9 +42,9 @@ describe('SemanticVersion', (): void => {
 
   describe('normalizeOptional', (): void => {
     it('returns undefined for undefined/null/empty payloads', (): void => {
-      const nullValue: null = JSON.parse('null') as null;
+      const nullValue: unknown = JSON.parse('null');
       expect(SemanticVersion.normalizeOptional()).to.equal(undefined);
-      expect(SemanticVersion.normalizeOptional(nullValue)).to.equal(undefined);
+      expect(SemanticVersion.normalizeOptional(nullValue as null)).to.equal(undefined);
       expect(SemanticVersion.normalizeOptional(' , , ')).to.equal(undefined);
       expect(SemanticVersion.normalizeOptional(['', '  '])).to.equal(undefined);
     });
@@ -53,6 +58,11 @@ describe('SemanticVersion', (): void => {
     it('preserves the selected token formatting (including v-prefix)', (): void => {
       expect(SemanticVersion.normalizeToken('v0.73.0,v0.73.0')).to.equal('v0.73.0');
       expect(SemanticVersion.normalizeToken(['v0.72.0', '0.73.0'])).to.equal('0.73.0');
+    });
+
+    it('preserves prerelease token formatting for selected values', (): void => {
+      expect(SemanticVersion.normalizeToken(['0.45.3-alpha.1', 'v0.74.0-rc.5'])).to.equal('v0.74.0-rc.5');
+      expect(SemanticVersion.normalizeToken('0.45.3-alpha.1')).to.equal('0.45.3-alpha.1');
     });
 
     it('returns undefined for empty payloads', (): void => {
@@ -75,11 +85,12 @@ describe('SemanticVersion', (): void => {
     });
 
     it('should throw a RangeError for an invalid SemanticVersion<string>', (): void => {
-      expect((): SemanticVersion<string | number> => new SemanticVersion(null as any)).to.throw(
+      const nullInput: string | number = JSON.parse('null') as unknown as string | number;
+      expect((): SemanticVersion<string | number> => new SemanticVersion(nullInput)).to.throw(
         IllegalArgumentError,
         'Invalid semantic version: null',
       );
-      expect((): SemanticVersion<string | number> => new SemanticVersion('invalid' as any)).to.throw(
+      expect((): SemanticVersion<string | number> => new SemanticVersion('invalid')).to.throw(
         IllegalArgumentError,
         'Invalid semantic version: invalid',
       );

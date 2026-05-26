@@ -281,6 +281,18 @@ describe('DeployArgvBuilders: version resolution', (): void => {
       expect(result.relay).to.equal('v0.77.0');
     });
 
+    it('accepts prerelease versions with or without a leading "v" prefix', async (): Promise<void> => {
+      const result: OneShotVersionsObject = await command.resolveOneShotComponentVersions(
+        makeArgv({
+          [flags.consensusNodeVersion.name]: 'v0.74.0-rc.5',
+          [flags.relayVersion.name]: '0.45.3-alpha.1',
+        }),
+        false,
+      );
+      expect(result.consensus).to.equal('v0.74.0-rc.5');
+      expect(result.relay).to.equal('0.45.3-alpha.1');
+    });
+
     it('resolves the exact versions from the PR review comment (with and without v prefix)', async (): Promise<void> => {
       // Exact flags from the review comment:
       // --consensus-node-version v0.73.0 --mirror-node-version v0.153.0
