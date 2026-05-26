@@ -110,15 +110,14 @@ tasks:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/site/scripts/generateHelp.ts
+      - docs/scripts/**.ts
     generates: # TODO change location and ensure gitignore
-      - docs/site/content/en/docs/solo-commands.md
+      - docs/site/build/solo-cli.md
     cmds:
       - printf "\r::group::Generating CLI help documentation\n"
-      - rm -f docs/site/content/en/docs/solo-commands.md
-      - (cd docs/site/ && npm install)
-      - task: "build:solo"
-      - npx tsx docs/site/scripts/generateHelp.ts
+      - rm -f docs/site/build/solo-cli.md
+      - task build:compile
+      - npx tsx docs/scripts/generateHelp.ts
       - printf "\r::endgroup::--------------\n"
 
   build:solo:command:output:

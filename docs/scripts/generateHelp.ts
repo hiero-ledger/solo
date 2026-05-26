@@ -10,7 +10,7 @@ const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot: string = path.resolve(__dirname, '../../');
 process.chdir(projectRoot);
 
-const OUTPUT_FILE: string = path.join(projectRoot, 'docs/site/content/en/docs/solo-commands.md');
+const OUTPUT_FILE: string = path.join(projectRoot, 'docs/site/build/solo-cli.md');
 const SOLO_COMMAND: string = 'npm run solo --silent --';
 
 type SoloCommand = {
@@ -151,8 +151,7 @@ async function getOutputForThirdLevelCommand(thirdLevelCommand: ThirdLevelComman
 }
 
 function generateMarkdown(soloCommand: SoloCommand): string {
-  let markdown: string = `
-## Overview
+  let markdown: string = `## Overview
 
 This page is the canonical command reference for the Solo CLI.
 
