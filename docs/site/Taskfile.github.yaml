@@ -35,13 +35,13 @@ tasks:
     silent: true
     cmds:
       - |
-        if [ ! -f build/github-releases.json ]; then
-          echo "Error: build/github-releases.json does not exist. Run github:list:solo:releases first." >&2
+        if [ ! -f build/releases.json ]; then
+          echo "Error: build/releases.json does not exist. Run github:list:solo:releases first, then github:augment:releases." >&2
           exit 1
         fi
         
         echo "Creating directories and downloading assets..."
-        jq -c '.[]' build/github-releases.json | while read -r release; do
+        jq -c '.[]' build/releases.json | while read -r release; do
           tag=$(echo "$release" | jq -r '.tag' | sed 's#[/:]#_#g')
           # for tag, eg: v0.57.0, set vars major and minor, eg: major=0, minor=57
           major=$(echo "$tag" | cut -d. -f1 | tr -d 'v')
@@ -65,7 +65,7 @@ tasks:
             # skip if dest doesn't exist or if the artifact name starts with example- or if the filename is 
             #  docs-latest.tar.gz and npmjsLatest is false
             if [[ -f "$dest" || "$name" == example-* || ( "$name" == "docs-latest.tar.gz" && "$npmjsLatest" == "false" ) ]]; then
-              echo "✔ Skipping condition met for $name"
+              echo "✔ Skipping condition met for $name, not writing $dest, npmjsLatest: $npmjsLatest"
             else
               echo "⬇ Downloading $name, $dest doesn't exist yet"
               curl -sSL --retry 3 --fail -o "$dest" "$url" || {

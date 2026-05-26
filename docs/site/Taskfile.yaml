@@ -114,11 +114,14 @@ tasks:
     generates: # TODO change location and ensure gitignore
       - docs/site/build/solo-cli.md
     cmds:
-      - printf "\r::group::Generating CLI help documentation\n"
-      - rm -f docs/site/build/solo-cli.md
-      - task build:compile
-      - npx tsx docs/scripts/generateHelp.ts
-      - printf "\r::endgroup::--------------\n"
+      - |
+        if [[ "${SKIP_CLI_OUTPUT}" != "true" ]]; then
+          printf "\r::group::Generating CLI help documentation\n"
+          rm -f docs/site/build/solo-cli.md
+          task build:compile
+          npx tsx docs/scripts/generateHelp.ts
+          printf "\r::endgroup::--------------\n"
+        fi
 
   build:solo:command:output:
     desc: "Build Solo Command Output"
@@ -132,11 +135,11 @@ tasks:
       - docs/site/scripts/executeUpdateDocs.ts
     cmds:
       - printf "\r::group::Building Solo User Guide\n"
-      - rm -f docs/site/content/en/solo-user-guide.md
       - (cd docs/site/ && npm install)
       - task: "build:solo"
       - |
         if [[ "${SKIP_COMMAND_OUTPUT}" != "true" ]]; then
+          rm -f docs/site/content/en/solo-user-guide.md
           if [[ "${SOLO_CI}" == "true" ]]; then
             echo "Running wrapperForUpdateDocs.mjs in CI mode"
             node docs/site/scripts/wrapperForUpdateDocs.mjs
