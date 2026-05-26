@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {describe, it} from 'mocha';
+import {describe, it, afterEach} from 'mocha';
 import {expect} from 'chai';
+import sinon from 'sinon';
 import {ConsensusCommandDefinition} from '../../../../../../src/commands/command-definitions/consensus-command-definition.js';
 import * as constants from '../../../../../../src/core/constants.js';
+import * as version from '../../../../../../version.js';
 import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
 import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import {type OneShotVersionsObject} from '../../../../../../src/commands/one-shot/one-shot-versions-object.js';
 import {ClusterReferenceCommandDefinition} from '../../../../../../src/commands/command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../../../../src/commands/command-definitions/keys-command-definition.js';
 import {DeployArgvBuilders} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-argv-builders.js';
 import {optionFromFlag} from '../../../../../../src/commands/command-helpers.js';
 import {Flags} from '../../../../../../src/commands/flags.js';
-import {type AnyObject} from '../../../../../../src/types/aliases.js';
+import {type AnyObject, type ArgvStruct} from '../../../../../../src/types/aliases.js';
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {
@@ -69,6 +72,22 @@ describe('buildBlockNodeArgv', (): void => {
     const blockNodeConfiguration: Record<string, string> = {[valuesFileFlagName]: originalFile};
     DeployArgvBuilders.buildBlockNodeArgv(makeConfig({blockNodeConfiguration}));
     expect(blockNodeConfiguration[valuesFileFlagName]).to.equal(originalFile);
+  });
+
+  it('maps legacy release-tag keys to consensus-node-version and drops unsupported keys', (): void => {
+    const blockNodeConfiguration: AnyObject = {
+      [optionFromFlag(Flags.releaseTag)]: 'v0.73.0',
+      releaseTag: 'v0.73.0',
+      '--releaseTag': 'v0.73.0',
+    };
+    const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(makeConfig({blockNodeConfiguration}));
+
+    const consensusNodeVersionIndex: number = argv.indexOf(optionFromFlag(Flags.consensusNodeVersion));
+    expect(consensusNodeVersionIndex).to.be.greaterThan(-1);
+    expect(argv[consensusNodeVersionIndex + 1]).to.equal('v0.73.0');
+    expect(argv).to.not.include(optionFromFlag(Flags.releaseTag));
+    expect(argv).to.not.include('releaseTag');
+    expect(argv).to.not.include('--releaseTag');
   });
 });
 
@@ -271,5 +290,111 @@ describe('buildKeysGenerateArgv', (): void => {
     expect(argv).to.include('test-deployment');
     expect(argv).to.include(optionFromFlag(Flags.generateGossipKeys));
     expect(argv).to.include(optionFromFlag(Flags.generateTlsKeys));
+  });
+});
+
+describe('resolveOneShotComponentVersions', (): void => {
+  afterEach((): void => {
+    sinon.restore();
+  });
+
+  it('returns non-edge defaults when edge is disabled', async (): Promise<void> => {
+    const argv: ArgvStruct = {
+      _: [],
+      [Flags.consensusNodeVersion.name]: '',
+      [Flags.mirrorNodeVersion.name]: version.MIRROR_NODE_VERSION,
+      [Flags.relayVersion.name]: '',
+      [Flags.explorerVersion.name]: version.EXPLORER_VERSION,
+      [Flags.blockNodeVersion.name]: '',
+    };
+    const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, false);
+    expect(versions.consensus).to.equal(version.HEDERA_PLATFORM_VERSION);
+    expect(versions.mirror).to.equal(version.MIRROR_NODE_VERSION);
+    expect(versions.relay).to.equal(version.HEDERA_JSON_RPC_RELAY_VERSION);
+    expect(versions.explorer).to.equal(version.EXPLORER_VERSION);
+    expect(versions.blockNode).to.equal(version.BLOCK_NODE_VERSION);
+  });
+
+  it('uses latest non-prerelease tags from GitHub responses when edge is enabled', async (): Promise<void> => {
+    const fetchStub: sinon.SinonStub = sinon.stub(globalThis, 'fetch');
+    // consensus
+    fetchStub.onCall(0).resolves(
+      Response.json([
+        {tag_name: 'v0.80.0-rc1', prerelease: true, draft: false},
+        {tag_name: 'v0.79.0', prerelease: false, draft: false},
+        {tag_name: 'v0.78.9', prerelease: false, draft: false},
+      ]),
+    );
+    // mirror
+    fetchStub.onCall(1).resolves(Response.json([{tag_name: 'v0.200.1', prerelease: false, draft: false}]));
+    // explorer
+    fetchStub.onCall(2).resolves(Response.json([{tag_name: 'v31.0.0', prerelease: false, draft: false}]));
+    // relay
+    fetchStub.onCall(3).resolves(Response.json([{tag_name: 'v0.90.0', prerelease: false, draft: false}]));
+    // block node
+    fetchStub.onCall(4).resolves(
+      Response.json([
+        {tag_name: 'v0.40.0-rc2', prerelease: true, draft: false},
+        {tag_name: 'v0.39.0', prerelease: false, draft: false},
+      ]),
+    );
+
+    const argv: ArgvStruct = {
+      _: [],
+      [Flags.consensusNodeVersion.name]: '',
+      [Flags.mirrorNodeVersion.name]: version.MIRROR_NODE_VERSION,
+      [Flags.relayVersion.name]: '',
+      [Flags.explorerVersion.name]: version.EXPLORER_VERSION,
+      [Flags.blockNodeVersion.name]: '',
+    };
+    const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, true);
+    expect(versions.consensus).to.equal('v0.79.0');
+    expect(versions.mirror).to.equal('v0.200.1');
+    expect(versions.explorer).to.equal('v31.0.0');
+    expect(versions.relay).to.equal('v0.90.0');
+    expect(versions.blockNode).to.equal('v0.39.0');
+    expect(versions.soloChart).to.equal(version.SOLO_CHART_EDGE_VERSION);
+  });
+
+  it('normalizes duplicate argv values emitted as arrays for version flags', async (): Promise<void> => {
+    const argv: ArgvStruct = {
+      _: [],
+      [Flags.consensusNodeVersion.name]: ['v0.73.0', 'v0.73.0'] as unknown as string,
+      [Flags.mirrorNodeVersion.name]: version.MIRROR_NODE_VERSION,
+      [Flags.relayVersion.name]: '',
+      [Flags.explorerVersion.name]: version.EXPLORER_VERSION,
+      [Flags.blockNodeVersion.name]: '',
+    };
+
+    const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, false);
+    expect(versions.consensus).to.equal('v0.73.0');
+  });
+
+  it('normalizes duplicate comma-joined argv values for version flags', async (): Promise<void> => {
+    const argv: ArgvStruct = {
+      _: [],
+      [Flags.consensusNodeVersion.name]: 'v0.73.0,v0.73.0',
+      [Flags.mirrorNodeVersion.name]: version.MIRROR_NODE_VERSION,
+      [Flags.relayVersion.name]: '',
+      [Flags.explorerVersion.name]: version.EXPLORER_VERSION,
+      [Flags.blockNodeVersion.name]: '',
+    };
+
+    const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, false);
+    expect(versions.consensus).to.equal('v0.73.0');
+  });
+
+  it('normalizes prerelease argv values emitted as arrays and preserves selected token format', async (): Promise<void> => {
+    const argv: ArgvStruct = {
+      _: [],
+      [Flags.consensusNodeVersion.name]: ['0.45.3-alpha.1', 'v0.74.0-rc.5'] as unknown as string,
+      [Flags.mirrorNodeVersion.name]: version.MIRROR_NODE_VERSION,
+      [Flags.relayVersion.name]: '',
+      [Flags.explorerVersion.name]: version.EXPLORER_VERSION,
+      [Flags.blockNodeVersion.name]: '',
+    };
+
+    const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(argv, false);
+    expect(versions.consensus).to.equal('v0.74.0-rc.5');
   });
 });

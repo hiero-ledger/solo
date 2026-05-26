@@ -177,7 +177,9 @@ export class RelayCommand extends BaseCommand {
       flags.operatorId,
       flags.operatorKey,
       flags.quiet,
+      // Keep legacy flag visible as a separate deprecated option.
       flags.relayReleaseTag,
+      flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
       flags.valuesFile,
@@ -204,7 +206,9 @@ export class RelayCommand extends BaseCommand {
       flags.operatorId,
       flags.operatorKey,
       flags.quiet,
+      // Keep legacy flag visible as a separate deprecated option.
       flags.relayReleaseTag,
+      flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
       flags.valuesFile,
@@ -748,7 +752,7 @@ export class RelayCommand extends BaseCommand {
               'Relay',
               config.relayReleaseTag,
               this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
-              optionFromFlag(flags.relayReleaseTag),
+              optionFromFlag(flags.relayVersion),
             );
 
             if (!this.oneShotState.isActive()) {

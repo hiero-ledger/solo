@@ -30,10 +30,8 @@ import {type K8Factory} from '../../../../integration/kube/k8-factory.js';
 import {type LockManager} from '../../../../core/lock/lock-manager.js';
 import {type ComponentFactoryApi} from '../../../../core/config/remote/api/component-factory-api.js';
 import {type Lock} from '../../../../core/lock/lock.js';
-import {
-  type OneShotVersionsObject,
-  type OneShotSingleDeployConfigClass,
-} from '../../one-shot-single-deploy-config-class.js';
+import {type OneShotSingleDeployConfigClass} from '../../one-shot-single-deploy-config-class.js';
+import {type OneShotVersionsObject} from '../../one-shot-versions-object.js';
 import {type OneShotSingleDeployContext} from '../../one-shot-single-deploy-context.js';
 import {
   type CreatedPredefinedAccount,
@@ -138,12 +136,15 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.oneShotState.activate();
 
             const edgeEnabled: boolean = this.configManager.getFlag(flags.edgeEnabled);
-            const versions: OneShotVersionsObject = DeployArgvBuilders.resolveOneShotComponentVersions(edgeEnabled);
+            const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(
+              argv,
+              edgeEnabled,
+            );
 
-            this.configManager.setFlag(flags.releaseTag, versions.consensus);
-            this.configManager.setFlag(flags.blockNodeChartVersion, versions.blockNode);
+            this.configManager.setFlag(flags.consensusNodeVersion, versions.consensus);
+            this.configManager.setFlag(flags.blockNodeVersion, versions.blockNode);
             this.configManager.setFlag(flags.mirrorNodeVersion, versions.mirror);
-            this.configManager.setFlag(flags.relayReleaseTag, versions.relay);
+            this.configManager.setFlag(flags.relayVersion, versions.relay);
             this.configManager.setFlag(flags.explorerVersion, versions.explorer);
             this.configManager.setFlag(flags.soloChartVersion, versions.soloChart);
 
@@ -211,7 +212,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             await this.confirmNonKindContext(config, task);
 
             // Ensure release tag is set in network configuration so subcommands use the correct version
-            const releaseTagKey: string = flags.getFormattedFlagKey(flags.releaseTag);
+            const releaseTagKey: string = flags.getFormattedFlagKey(flags.consensusNodeVersion);
             const soloChartVersionKey: string = flags.getFormattedFlagKey(flags.soloChartVersion);
             if (!config.networkConfiguration[releaseTagKey]) {
               config.networkConfiguration[releaseTagKey] = versions.consensus;
