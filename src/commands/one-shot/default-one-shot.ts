@@ -72,6 +72,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.parallelDeploy,
       flags.externalAddress,
       flags.edgeEnabled,
+      flags.consensusNodeVersion,
+      flags.mirrorNodeVersion,
+      flags.relayReleaseTag,
+      flags.relayVersion,
+      flags.explorerVersion,
+      flags.blockNodeChartVersion,
+      flags.blockNodeVersion,
       flags.deployMetricsServer,
     ],
   };
@@ -103,6 +110,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.rollback,
       flags.parallelDeploy,
       flags.externalAddress,
+      flags.consensusNodeVersion,
+      flags.mirrorNodeVersion,
+      flags.relayReleaseTag,
+      flags.relayVersion,
+      flags.explorerVersion,
+      flags.blockNodeChartVersion,
+      flags.blockNodeVersion,
       flags.edgeEnabled,
     ],
   };
@@ -753,6 +767,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         explorerNodeOverrides,
       ),
     };
+
+    // Keep legacy version keys in generated falcon values for backward compatibility
+    // with existing templates, tests, and user-edited values files.
+    valuesObject.network[optionFromFlag(flags.releaseTag)] = config.releaseTag;
+    valuesObject.setup[optionFromFlag(flags.releaseTag)] = config.releaseTag;
+    valuesObject.relayNode[optionFromFlag(flags.relayReleaseTag)] = config.relayReleaseTag;
+    valuesObject.blockNode[optionFromFlag(flags.blockNodeChartVersion)] = config.chartVersion;
 
     const header: string =
       '# One-Shot Falcon Deployment Configuration\n' +

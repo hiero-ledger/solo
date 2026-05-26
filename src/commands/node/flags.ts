@@ -45,7 +45,9 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.gossipEndpoints,
   flags.grpcEndpoints,
   flags.domainNames,
+  // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
+  flags.consensusNodeVersion,
   flags.wrapsKeyPath,
 ];
 
@@ -134,7 +136,9 @@ const COMMON_DESTROY_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.quiet,
   flags.chartDirectory,
   flags.domainNames,
+  // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
+  flags.consensusNodeVersion,
 ];
 
 const COMMON_ADD_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
@@ -162,7 +166,9 @@ const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.endpointType,
   flags.generateGossipKeys,
   flags.generateTlsKeys,
+  // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
+  flags.consensusNodeVersion,
   flags.blockNodeMapping,
   flags.externalBlockNodeMapping,
   flags.grpcWebEndpoint,
@@ -237,7 +243,9 @@ export const REFRESH_FLAGS: CommandFlags = {
     flags.devMode,
     flags.quiet,
     flags.nodeAliasesUnparsed,
+    // Keep deprecated legacy flag accepted for backward compatibility.
     flags.releaseTag,
+    flags.consensusNodeVersion,
     flags.cacheDir,
     flags.domainNames,
   ],
@@ -292,7 +300,9 @@ export const SETUP_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [
     flags.cacheDir,
+    // Keep deprecated legacy flag accepted for backward compatibility.
     flags.releaseTag,
+    flags.consensusNodeVersion,
     flags.app,
     flags.appConfig,
     flags.nodeAliasesUnparsed,
