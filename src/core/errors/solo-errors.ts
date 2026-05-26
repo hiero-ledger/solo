@@ -20,6 +20,10 @@ import {ConsensusNodeCountRequiredError} from './classes/validation/consensus-no
 import {InvalidOutputFormatError} from './classes/validation/invalid-output-format-error.js';
 import {InvalidPortNumberError} from './classes/validation/invalid-port-number-error.js';
 import {ClusterConnectionFailedError} from './classes/system/cluster-connection-failed-error.js';
+import {GitHubApiHttpResponseError} from './classes/system/github-api-http-response-error.js';
+import {GitHubApiRequestFailedError} from './classes/system/github-api-request-failed-error.js';
+import {GitHubApiResponseMissingTagNameError} from './classes/system/github-api-response-missing-tag-name-error.js';
+import {GitHubApiResponseParseFailedError} from './classes/system/github-api-response-parse-failed-error.js';
 import {PortForwardRefreshFailedError} from './classes/system/port-forward-refresh-failed-error.js';
 import {PortForwardStatusFailedError} from './classes/system/port-forward-status-failed-error.js';
 import {ResourceNotFoundError} from './classes/system/resource-not-found-error.js';
@@ -123,11 +127,19 @@ export class SoloErrors {
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
   public static readonly system: {
     readonly clusterConnectionFailed: typeof ClusterConnectionFailedError;
+    readonly githubApiHttpResponseError: typeof GitHubApiHttpResponseError;
+    readonly githubApiRequestFailed: typeof GitHubApiRequestFailedError;
+    readonly githubApiResponseMissingTagName: typeof GitHubApiResponseMissingTagNameError;
+    readonly githubApiResponseParseFailed: typeof GitHubApiResponseParseFailedError;
     readonly portForwardRefreshFailed: typeof PortForwardRefreshFailedError;
     readonly portForwardStatusFailed: typeof PortForwardStatusFailedError;
     readonly resourceNotFound: typeof ResourceNotFoundError;
   } = Object.freeze({
     clusterConnectionFailed: ClusterConnectionFailedError,
+    githubApiHttpResponseError: GitHubApiHttpResponseError,
+    githubApiRequestFailed: GitHubApiRequestFailedError,
+    githubApiResponseMissingTagName: GitHubApiResponseMissingTagNameError,
+    githubApiResponseParseFailed: GitHubApiResponseParseFailedError,
     portForwardRefreshFailed: PortForwardRefreshFailedError,
     portForwardStatusFailed: PortForwardStatusFailedError,
     resourceNotFound: ResourceNotFoundError,

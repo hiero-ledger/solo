@@ -2,7 +2,7 @@
 
 import * as constants from './constants.js';
 import {type GitHubRelease} from '../types/index.js';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import {type EdgeVersionsObject} from './edge-versions-object.js';
 
 const GITHUB_RELEASES_LATEST_URL: string = 'https://api.github.com/repos/{owner}/{repo}/releases/latest';
@@ -23,7 +23,7 @@ interface ComponentVersionConfig {
 }
 
 /** Repository configuration for each deployable component. */
-const COMPONENT_VERSION_CONFIGS: Readonly<Record<string, ComponentVersionConfig>> = {
+const COMPONENT_VERSION_CONFIGS: Readonly<Record<keyof EdgeVersionsObject, ComponentVersionConfig>> = {
   consensus: {owner: 'hiero-ledger', repository: 'hiero-consensus-node', stripVPrefix: false},
   mirror: {owner: 'hiero-ledger', repository: 'hiero-mirror-node', stripVPrefix: false},
   blockNode: {owner: 'hiero-ledger', repository: 'hiero-block-node', stripVPrefix: true},
@@ -54,22 +54,22 @@ export async function fetchLatestStableGitHubRelease(owner: string, repository: 
       },
     });
   } catch (error) {
-    throw new SoloError(`GitHub API request to ${url} failed`, error);
+    throw new SoloErrors.system.githubApiRequestFailed(url, error);
   }
 
   if (!response.ok) {
-    throw new SoloError(`GitHub API request to ${url} returned HTTP ${response.status}`);
+    throw new SoloErrors.system.githubApiHttpResponseError(url, response.status);
   }
 
   let release: GitHubRelease;
   try {
     release = (await response.json()) as GitHubRelease;
   } catch (error) {
-    throw new SoloError(`Failed to parse GitHub API response from ${url}`, error);
+    throw new SoloErrors.system.githubApiResponseParseFailed(url, error);
   }
 
   if (!release?.tag_name) {
-    throw new SoloError(`GitHub API response from ${url} is missing tag_name`);
+    throw new SoloErrors.system.githubApiResponseMissingTagName(url);
   }
 
   return release.tag_name;
@@ -88,7 +88,7 @@ export async function fetchLatestStableGitHubRelease(owner: string, repository: 
  * @returns Resolved version strings for all components.
  */
 export async function resolveEdgeVersions(fallbackVersions: EdgeVersionsObject): Promise<EdgeVersionsObject> {
-  const environmentVariableOverrides: Readonly<Record<string, string | undefined>> = {
+  const environmentVariableOverrides: Readonly<Record<keyof EdgeVersionsObject, string | undefined>> = {
     consensus: constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION'),
     mirror: constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION'),
     blockNode: constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION'),
@@ -108,13 +108,13 @@ export async function resolveEdgeVersions(fallbackVersions: EdgeVersionsObject):
 
   await Promise.all(
     componentKeys.map(async (component: keyof EdgeVersionsObject): Promise<void> => {
-      const environmentOverride: string | undefined = environmentVariableOverrides[component as string];
+      const environmentOverride: string | undefined = environmentVariableOverrides[component];
       if (environmentOverride) {
         resolvedVersions[component] = environmentOverride;
         return;
       }
 
-      const config: ComponentVersionConfig = COMPONENT_VERSION_CONFIGS[component as string];
+      const config: ComponentVersionConfig = COMPONENT_VERSION_CONFIGS[component];
       try {
         const tagName: string = await fetchLatestStableGitHubRelease(config.owner, config.repository);
         resolvedVersions[component] = config.stripVPrefix ? tagName.replace(/^v/, '') : tagName;
