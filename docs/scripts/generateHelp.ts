@@ -191,7 +191,6 @@ The sections below are generated from Solo CLI help output using the implementat
 ## Version Output
 
 ${getPreparedOutput(filterOutputNoise(soloCommand.versionOutput))}
-\`\`\`
 
 ## Root Help Output
 
@@ -222,9 +221,13 @@ function getPreparedOutput(output: string): string {
 }
 
 function filterOutputNoise(output: string): string {
+  // remove only the first line if it is empty or just whitespace, preserve other empty lines
+  const lines: string[] = output.split('\n');
+  if (lines.length > 0 && lines[0].trim() === '') {
+    lines.shift();
+  }
   // remove lines that start with '>> environment variable' or 'Warning:'
-  return output
-    .split('\n')
+  return lines
     .filter(line => {
       const trimmed = line.trim();
       return !trimmed.startsWith('>> environment variable') && !trimmed.startsWith('Warning:');
