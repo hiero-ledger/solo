@@ -18,9 +18,14 @@ import {getSoloVersion} from '../../version.js';
 import {isValidEnum} from './util/validation-helpers.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 
-type ConfigMapEntry = {
+interface ConfigMapEntry {
   getUnusedConfigs: () => string[];
-};
+}
+
+interface LegacyVersionAliasMapping {
+  canonical: CommandFlag;
+  legacy: CommandFlag;
+}
 
 /**
  * ConfigManager cache command flag values so that user doesn't need to enter the same values repeatedly.
@@ -41,6 +46,49 @@ export class ConfigManager {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
 
     this.reset();
+  }
+
+  private applyLegacyVersionArgAliases(argv: ArgvStruct): void {
+    const aliasMappings: LegacyVersionAliasMapping[] = [
+      {canonical: flags.consensusNodeVersion, legacy: flags.releaseTag},
+      {canonical: flags.relayVersion, legacy: flags.relayReleaseTag},
+      {canonical: flags.blockNodeVersion, legacy: flags.blockNodeChartVersion},
+    ];
+
+    for (const {canonical, legacy} of aliasMappings) {
+      const canonicalValue: unknown = argv[canonical.name];
+      const legacyValue: unknown = argv[legacy.name];
+
+      if (canonicalValue === undefined && legacyValue !== undefined) {
+        argv[canonical.name] = legacyValue;
+      }
+
+      if (legacyValue === undefined && canonicalValue !== undefined) {
+        argv[legacy.name] = canonicalValue;
+      }
+    }
+  }
+
+  private applyLegacyVersionConfigAliases(activeConfig: AnyObject): void {
+    const aliasMappings: LegacyVersionAliasMapping[] = [
+      {canonical: flags.consensusNodeVersion, legacy: flags.releaseTag},
+      {canonical: flags.relayVersion, legacy: flags.relayReleaseTag},
+      {canonical: flags.blockNodeVersion, legacy: flags.blockNodeChartVersion},
+    ];
+
+    for (const {canonical, legacy} of aliasMappings) {
+      const canonicalValue: unknown = activeConfig.flags[canonical.name];
+      const legacyValue: unknown = activeConfig.flags[legacy.name];
+      let resolvedValue: unknown = canonicalValue;
+      if (resolvedValue === undefined || resolvedValue === '') {
+        resolvedValue = legacyValue;
+      }
+
+      if (resolvedValue !== undefined && resolvedValue !== '') {
+        activeConfig.flags[canonical.name] = resolvedValue;
+        activeConfig.flags[legacy.name] = resolvedValue;
+      }
+    }
   }
 
   /** Reset config */
@@ -86,6 +134,8 @@ export class ConfigManager {
    */
   public applyPrecedence(argv: yargs.Argv<AnyYargs>, aliases: AnyObject): yargs.Argv<AnyYargs> {
     const activeConfig: AnyObject = this.getActiveConfig();
+    this.applyLegacyVersionArgAliases(argv as unknown as ArgvStruct);
+    this.applyLegacyVersionConfigAliases(activeConfig);
     for (const key of Object.keys(aliases)) {
       const flag: CommandFlag = flags.allFlagsMap.get(key);
       if (flag) {
@@ -109,6 +159,8 @@ export class ConfigManager {
     if (!argv || Object.keys(argv).length === 0) {
       return;
     }
+
+    this.applyLegacyVersionArgAliases(argv);
 
     for (const flag of flags.allFlags) {
       if (argv[flag.name] === undefined) {
@@ -163,6 +215,8 @@ export class ConfigManager {
         }
       }
     }
+
+    this.applyLegacyVersionConfigAliases(activeConfig);
 
     // store last command that was run
     if (argv._) {
@@ -261,7 +315,18 @@ export class ConfigManager {
         // add the flags as properties to this class
         if (flags) {
           for (const flag of flags) {
-            this[`_${flag.constName}`] = getFlag(flag);
+            const constNameValue: unknown = getFlag(flag);
+            if (this[`_${flag.constName}`] === undefined && constNameValue !== undefined) {
+              this[`_${flag.constName}`] = constNameValue;
+            }
+
+            // Multiple CLI flags can intentionally share one config constName (legacy + canonical).
+            // Define the accessor only once to avoid property redefinition errors.
+            if (Object.hasOwn(this, flag.constName)) {
+              continue;
+            }
+
+            this[`_${flag.constName}`] = constNameValue;
             Object.defineProperty(this, flag.constName, {
               get(): unknown {
                 this.usedConfigs.set(flag.constName, this.usedConfigs.get(flag.constName) + 1 || 1);
@@ -277,6 +342,9 @@ export class ConfigManager {
         // add the extra properties as properties to this class
         if (extraProperties) {
           for (const name of extraProperties) {
+            if (Object.hasOwn(this, name)) {
+              continue;
+            }
             this[`_${name}`] = '';
             Object.defineProperty(this, name, {
               get(): unknown {
