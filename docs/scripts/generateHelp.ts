@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import fs, {writeFileSync} from 'node:fs';
+import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {runCapture} from './utilities.js';
@@ -188,10 +188,30 @@ The sections below are generated from Solo CLI help output using the implementat
 
 ## Root Help Output
 
-\`\`\`
 `;
-  markdown += filterOutputNoise(soloCommand.output) + '\n';
+
+  markdown += getPreparedOutput(soloCommand.output);
+
+  soloCommand.topLevelCommands.forEach(topLevelCommand => {
+    markdown += `## ${topLevelCommand.topCommand}\n\n`;
+    markdown += getPreparedOutput(topLevelCommand.output);
+
+    topLevelCommand.secondLevelCommands.forEach(secondLevelCommand => {
+      markdown += `### ${secondLevelCommand.parent.topCommand} ${secondLevelCommand.secondCommand}\n\n`;
+      markdown += getPreparedOutput(secondLevelCommand.output);
+
+      secondLevelCommand.thirdLevelCommands.forEach(thirdLevelCommand => {
+        markdown += `#### ${thirdLevelCommand.parent.parent.topCommand} ${thirdLevelCommand.parent.secondCommand} ${thirdLevelCommand.thirdCommand}\n\n`;
+        markdown += getPreparedOutput(thirdLevelCommand.output);
+      });
+    });
+  });
+
   return markdown;
+}
+
+function getPreparedOutput(output: string): string {
+  return `\`\`\`\n${filterOutputNoise(output)}\n\`\`\`\n\n`;
 }
 
 function filterOutputNoise(output: string): string {
