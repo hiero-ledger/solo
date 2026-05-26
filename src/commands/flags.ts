@@ -511,7 +511,7 @@ export class Flags {
     constName: 'releaseTag',
     name: 'release-tag',
     definition: {
-      describe: `Release tag to be used (e.g. ${version.HEDERA_PLATFORM_VERSION})`,
+      describe: `DEPRECATED: use --consensus-node-version (e.g. ${version.HEDERA_PLATFORM_VERSION})`,
       alias: 't',
       defaultValue: version.HEDERA_PLATFORM_VERSION,
       type: 'string',
@@ -569,7 +569,7 @@ export class Flags {
     constName: 'relayReleaseTag',
     name: 'relay-release',
     definition: {
-      describe: 'Relay release tag to be used (e.g. v0.48.0)',
+      describe: 'DEPRECATED: use --relay-version (e.g. v0.48.0)',
       defaultValue: version.HEDERA_JSON_RPC_RELAY_VERSION,
       type: 'string',
     },
@@ -1228,7 +1228,7 @@ export class Flags {
     constName: 'chartVersion',
     name: 'chart-version',
     definition: {
-      describe: 'Block nodes chart version',
+      describe: 'DEPRECATED: use --block-node-version',
       defaultValue: version.BLOCK_NODE_VERSION,
       type: 'string',
     },
@@ -3020,13 +3020,51 @@ export class Flags {
     prompt: undefined,
   };
 
+  // --------------- One Shot Version Pins --------------- //
+
+  public static readonly consensusNodeVersion: CommandFlag = {
+    constName: 'releaseTag',
+    name: 'consensus-node-version',
+    definition: {
+      describe: 'Consensus node version to deploy (e.g. v0.73.0 or 0.73.0).',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly relayVersion: CommandFlag = {
+    constName: 'relayReleaseTag',
+    name: 'relay-version',
+    definition: {
+      describe: 'JSON-RPC relay version to deploy (e.g. v0.76.2 or 0.76.2). ',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeVersion: CommandFlag = {
+    constName: 'chartVersion',
+    name: 'block-node-version',
+    definition: {
+      describe: 'Block node version to deploy for (e.g. v0.31.0 or 0.31.0). ',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   // ------------------ Edge ---------------- //
 
   public static readonly edgeEnabled: CommandFlag = {
     constName: 'edgeEnabled',
     name: 'edge',
     definition: {
-      describe: 'Use edge component versions (newer than the defaults)',
+      describe:
+        'Use edge component versions (newer than defaults). Also supports version overrides from solo.config.yaml ' +
+        'and solo.config.json, for example: `consensus-node-version: v0.73.0` (YAML) or ' +
+        '`{"consensusNodeVersion":"v0.73.0"}` (JSON).',
       defaultValue: false,
       type: 'boolean',
     },
@@ -3130,7 +3168,9 @@ export class Flags {
     Flags.imageTag,
     Flags.componentImage,
     Flags.relayReleaseTag,
+    Flags.relayVersion,
     Flags.releaseTag,
+    Flags.consensusNodeVersion,
     Flags.upgradeVersion,
     Flags.replicaCount,
     Flags.setAlias,
@@ -3181,6 +3221,7 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
+    Flags.blockNodeVersion,
     Flags.blockNodeTssOverlay,
     Flags.priorityMapping,
     Flags.externalBlockNodeAddress,
