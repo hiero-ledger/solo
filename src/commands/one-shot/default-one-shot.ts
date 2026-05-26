@@ -11,19 +11,12 @@ import {CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {OneShotCommand} from './one-shot.js';
-import {OneShotSingleDeployConfigClass, OneShotVersionsObject} from './one-shot-single-deploy-config-class.js';
-import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
+import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
+import {type OneShotVersionsObject} from './one-shot-versions-object.js';
 import * as version from '../../../version.js';
 import {resolveEdgeVersions} from '../../core/edge-version-fetcher.js';
 import {type EdgeVersionsObject} from '../../core/edge-versions-object.js';
-import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
-import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
-import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
-import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
-import {KeysCommandDefinition} from '../command-definitions/keys-command-definition.js';
-import {MirrorCommandDefinition} from '../command-definitions/mirror-command-definition.js';
-import {ExplorerCommandDefinition} from '../command-definitions/explorer-command-definition.js';
-import {RelayCommandDefinition} from '../command-definitions/relay-command-definition.js';
+import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type FalconPrepareConfig} from './falcon-prepare-config.js';
 import {FALCON_DEPLOY_COMMAND, FALCON_PREPARE_COMMAND} from './one-shot-command-paths.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
@@ -595,7 +588,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return true;
   }
 
-    private async resolveOneShotComponentVersions(useEdge: boolean): Promise<OneShotVersionsObject> {
+  private async resolveOneShotComponentVersions(useEdge: boolean): Promise<OneShotVersionsObject> {
     if (!useEdge) {
       return {
         soloChart: version.SOLO_CHART_VERSION,
