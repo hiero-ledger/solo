@@ -1310,7 +1310,9 @@ export class Flags {
     constName: 'applicationProperties',
     name: 'application-properties',
     definition: {
-      describe: 'application.properties file for node',
+      describe:
+        'application.properties file for node (default merges with Solo defaults; add comment ' +
+        "'SOLO_ENABLE_OVERWRITE=true' in the file to use overwrite mode)",
       defaultValue: PathEx.join('templates', constants.APPLICATION_PROPERTIES),
       type: 'string',
     },
