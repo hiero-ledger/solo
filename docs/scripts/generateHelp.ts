@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import fs from 'node:fs';
+import fs, {writeFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {runCapture} from './utilities.js';
@@ -67,7 +67,7 @@ async function getTopLevelCommands(): Promise<SoloCommand> {
           parent: soloCommand,
           topCommand: command,
           output: undefined,
-          secondLevelCommands: undefined,
+          secondLevelCommands: [],
         });
       });
     return soloCommand;
@@ -77,64 +77,143 @@ async function getTopLevelCommands(): Promise<SoloCommand> {
   }
 }
 
-async function getSecondLevelCommands(topLevelCommand: TopLevelCommand): Promise<SecondLevelCommand> {
+async function getSecondLevelCommands(topLevelCommand: TopLevelCommand): Promise<void> {
   try {
-    const output: string = await runCapture(`${SOLO_COMMAND} ${topLevelCommand.topCommand} --help`);
+    topLevelCommand.output = await runCapture(`${SOLO_COMMAND} ${topLevelCommand.topCommand} --help`);
     console.log(`${chalk.cyan('✔ Finished top level command: ')}${chalk.gray(topLevelCommand.topCommand)}`);
-    return {
-      command: cmd,
-      output: output,
-      subCommands: output
-        .split('\n')
-        .filter(l => l.trim().startsWith(cmd + ' '))
-        .map(l => l.trim().split(/\s+/)[1]),
-    };
+    const commands: string[] = topLevelCommand.output
+      .split('\n')
+      .filter(l => l.trim().startsWith(topLevelCommand.topCommand + ' '))
+      .map(l => l.trim().split(/\s+/)[1]);
+
+    commands.forEach((secondLevelCommand: string) => {
+      topLevelCommand.secondLevelCommands.push({
+        parent: topLevelCommand,
+        secondCommand: secondLevelCommand,
+        output: undefined,
+        thirdLevelCommands: [],
+      });
+    });
   } catch {
-    console.log(chalk.red(`❌ Failed to get subcommands for ${cmd}`));
+    console.log(chalk.red(`❌ Failed to get subcommands for ${topLevelCommand.topCommand}`));
     process.exit(1);
   }
 }
 
-async function getThirdLevelCommands(cmd: string, subcmd: string): Promise<SecondLevelCommand> {
+async function getThirdLevelCommands(secondLevelCommand: SecondLevelCommand): Promise<void> {
+  const {
+    parent: {topCommand},
+    secondCommand,
+  } = secondLevelCommand;
   try {
-    const output: string = await runCapture(`${SOLO_COMMAND} ${cmd} ${subcmd} --help`);
-    console.log(`${chalk.cyan('✔ Finished second level command: ')}${chalk.gray(`${cmd} ${subcmd}`)}`);
-    return {
-      command: cmd,
-      subCommand: subcmd,
-      output: output,
-      subCommands: output
-        .split('\n')
-        .filter(l => l.trim().startsWith(`${cmd} ${subcmd} `))
-        .map(l => l.trim().split(/\s+/)[2]),
-    };
+    secondLevelCommand.output = await runCapture(`${SOLO_COMMAND} ${topCommand} ${secondCommand} --help`);
+    console.log(`${chalk.cyan('✔ Finished second level command: ')}${chalk.gray(`${topCommand} ${secondCommand}`)}`);
+
+    const commands: string[] = secondLevelCommand.output
+      .split('\n')
+      .filter(l => l.trim().startsWith(`${topCommand} ${secondCommand} `))
+      .map(l => l.trim().split(/\s+/)[2]);
+
+    commands.forEach((thirdLevelCommand: string) => {
+      secondLevelCommand.thirdLevelCommands.push({
+        parent: secondLevelCommand,
+        thirdCommand: thirdLevelCommand,
+        output: undefined,
+      });
+    });
   } catch {
-    console.log(chalk.red(`❌ Failed to get third-level commands for ${cmd} ${subcmd}`));
+    console.log(chalk.red(`❌ Failed to get third-level commands for ${topCommand} ${secondCommand}`));
     process.exit(1);
   }
+}
+
+async function getOutputForThirdLevelCommand(thirdLevelCommand: ThirdLevelCommand): Promise<void> {
+  const {
+    parent: {
+      parent: {topCommand},
+      secondCommand,
+    },
+    thirdCommand,
+  } = thirdLevelCommand;
+  try {
+    thirdLevelCommand.output = await runCapture(
+      `${SOLO_COMMAND} ${topCommand} ${secondCommand} ${thirdCommand} --help`,
+    );
+    console.log(
+      `${chalk.cyan('✔ Finished third level command: ')}${chalk.gray(`${topCommand} ${secondCommand} ${thirdCommand}`)}`,
+    );
+  } catch {
+    console.log(chalk.red(`❌ Failed to get output for ${topCommand} ${secondCommand} ${thirdCommand}`));
+    process.exit(1);
+  }
+}
+
+function generateMarkdown(soloCommand: SoloCommand): string {
+  let markdown: string = `
+## Overview
+
+This page is the canonical command reference for the Solo CLI.
+
+- Use it to look up command paths, subcommands, and flags.
+- Use \`solo <command> --help\` and \`solo <command> <subcommand> --help\` for runtime help on your installed version.
+- For legacy command mappings, see [CLI Migration Reference](/docs/advanced-solo-setup/cli/cli-migrations).
+
+## Output Formats (\`--output\`, \`-o\`)
+
+Solo supports machine-readable output for version output and for command execution flows that honor the output format flag.
+
+\`\`\`text
+solo --version -o json
+solo --version -o yaml
+solo --version -o wide
+\`\`\`
+
+Expected formats:
+
+- \`json\`: JSON object output.
+- \`yaml\`: YAML output.
+- \`wide\`: plain text value-oriented output.
+
+## Global Flags
+
+Global flags shown in root help:
+
+- \`--dev\`: enable developer mode.
+- \`--force-port-forward\`: force port forwarding for network services.
+- \`-v\`, \`--version\`: print Solo version.
+
+## Command and Flag Reference
+
+The sections below are generated from Solo CLI help output using the implementation on \`hiero-ledger/solo\` (main), commit \`f800d3c\`.
+
+## Root Help Output
+
+\`\`\`
+`;
+  markdown += filterOutputNoise(soloCommand.output) + '\n';
+  return markdown;
+}
+
+function filterOutputNoise(output: string): string {
+  // remove lines that start with '>> environment variable'
+  return output
+    .split('\n')
+    .filter(line => !line.trim().startsWith('>> environment variable'))
+    .join('\n');
 }
 
 void (async function main(): Promise<never> {
-  let doc = '';
+  const soloCommand: SoloCommand = await getTopLevelCommands();
 
-  // Header
-  doc += `# Solo Command Reference\n\n`;
-  doc += `## Table of Contents\n`;
-  doc += `\n* [Root Help Output](#root-help-output)\n`;
-
-  // Top-level commands
-  const topLevelOutput = await getTopLevelCommands();
-
-  // Build Table of Contents sequentially
   await Promise.all(
-    topLevelOutput.commands.map(async cmd => {
-      const secondLevelCommands: TopLevelCommand = await getSecondLevelCommands(cmd);
+    soloCommand.topLevelCommands.map(async topLevelCommand => {
+      await getSecondLevelCommands(topLevelCommand);
       await Promise.all(
-        secondLevelCommands.subCommands.map(async subcmd => {
-          const thirdLevelCommands: SecondLevelCommand = await getThirdLevelCommands(cmd, subcmd);
+        topLevelCommand.secondLevelCommands.map(async secondLevelCommand => {
+          await getThirdLevelCommands(secondLevelCommand);
           await Promise.all(
-            thirdLevelCommands.subCommands.map(async subcmd => {
-              // run and save the third level output
+            secondLevelCommand.thirdLevelCommands.map(async thirdLevelCommand => {
+              await getOutputForThirdLevelCommand(thirdLevelCommand);
             }),
           );
         }),
@@ -142,8 +221,10 @@ void (async function main(): Promise<never> {
     }),
   );
 
+  const fileContents: string = generateMarkdown(soloCommand);
+
   // Write all at once
-  fs.writeFileSync(OUTPUT_FILE, doc, 'utf-8');
+  fs.writeFileSync(OUTPUT_FILE, fileContents, 'utf-8');
 
   console.log(`Documentation saved to ${OUTPUT_FILE}`);
   process.exit(0);
