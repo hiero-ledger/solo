@@ -54,11 +54,13 @@ jobs:
     name: Build
     runs-on: hiero-solo-linux-large
     timeout-minutes: 40
+    env:
+      STEP_TIMEOUT_MINUTES: '5'
     outputs:
       build_succeeded: ${{ steps.set-build-succeeded.outputs.build_succeeded }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -157,6 +159,22 @@ jobs:
           else
             SOLO_CI=true GH_TOKEN=${{ secrets.github-token }} HUGO_SOLO_VERSION=${DOCS_BUILD_LABEL} task build
           fi
+
+      - name: Collect Deployment Diagnostics Logs
+        if: ${{ !cancelled() && always() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          npm run solo-test -- deployment diagnostics logs -q --dev || true
+
+      - name: Upload Logs to GitHub
+        if: ${{ !cancelled() && always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: solo-logs
+          path: ~/.solo/logs/*
+          if-no-files-found: warn
 
       # Upload the built site to artifacts
       - name: Upload Artifact

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
@@ -66,6 +66,7 @@ import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-de
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 import {optionFromFlag} from './command-helpers.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
+import {K8} from '../integration/kube/k8.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -393,9 +394,11 @@ export class MirrorNodeCommand extends BaseCommand {
       });
     }
 
-    const data: {SPRING_PROFILES_ACTIVE: string} & Record<string, string | number> = {
-      SPRING_PROFILES_ACTIVE: 'blocknode',
-    };
+    const data: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number> = {};
+
+    if (!constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+      data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
+    }
 
     for (const [index, node] of blockNodeFqdnList.entries()) {
       data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_HOST`] = node.host;
@@ -406,7 +409,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const mirrorNodeBlockNodeValues: {
       importer: {
-        env: {SPRING_PROFILES_ACTIVE: string} & Record<string, string | number>;
+        env: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number>;
       };
     } = {
       importer: {
@@ -487,7 +490,7 @@ export class MirrorNodeCommand extends BaseCommand {
       } else if (config.storageType === constants.StorageType.AWS_ONLY) {
         storageType = 's3';
       } else {
-        throw new IllegalArgumentError(`Invalid cloud storage type: ${config.storageType}`);
+        throw new SoloErrors.validation.illegalArgument(`Invalid cloud storage type: ${config.storageType}`);
       }
 
       const mapping: Record<string, string | boolean | number> = {
@@ -623,6 +626,12 @@ export class MirrorNodeCommand extends BaseCommand {
         DeploymentPhase.DEPLOYED,
       );
 
+      // update mirror node version in remote config after successful deployment
+      this.remoteConfig.updateComponentVersion(
+        ComponentTypes.MirrorNode,
+        new SemanticVersion<string>(config.mirrorNodeVersion),
+      );
+
       await this.remoteConfig.persist();
     } else if (commandType === MirrorNodeCommandType.UPGRADE) {
       // update mirror node version in remote config after successful upgrade
@@ -639,14 +648,18 @@ export class MirrorNodeCommand extends BaseCommand {
         .getK8(config.clusterContext)
         .ingressClasses()
         .list();
+
+      let mirrorIngressClassExists: boolean = false;
       for (const ingressClass of existingIngressClasses) {
         this.logger.debug(`Found existing IngressClass [${ingressClass.name}]`);
         if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
-          this.logger.showUser(`${constants.MIRROR_INGRESS_CLASS_NAME} already found, skipping`);
-          return;
+          mirrorIngressClassExists = true;
+          break;
         }
       }
 
+      // TLS secret is namespace-scoped: always create it so the ingress can reference it,
+      // even when the cluster-scoped IngressClass already exists.
       await KeyManager.createTlsSecret(
         this.k8Factory,
         config.namespace,
@@ -654,13 +667,10 @@ export class MirrorNodeCommand extends BaseCommand {
         config.cacheDir,
         constants.MIRROR_INGRESS_TLS_SECRET_NAME,
       );
+
       // patch ingressClassName of mirror ingress, so it can be recognized by haproxy ingress controller
-      const updated: object = {
-        metadata: {
-          annotations: {
-            'haproxy-ingress.github.io/path-type': 'regex',
-          },
-        },
+      const k8: K8 = this.k8Factory.getK8(config.clusterContext);
+      const tlsSpec: object = {
         spec: {
           ingressClassName: `${constants.MIRROR_INGRESS_CLASS_NAME}`,
           tls: [
@@ -671,18 +681,30 @@ export class MirrorNodeCommand extends BaseCommand {
           ],
         },
       };
-      await this.k8Factory
-        .getK8(config.clusterContext)
-        .ingresses()
-        .update(config.namespace, constants.MIRROR_NODE_RELEASE_NAME, updated);
 
-      await this.k8Factory
-        .getK8(config.clusterContext)
-        .ingressClasses()
-        .create(
-          constants.MIRROR_INGRESS_CLASS_NAME,
-          constants.INGRESS_CONTROLLER_PREFIX + constants.MIRROR_INGRESS_CONTROLLER,
-        );
+      // First pass: set ingressClassName, TLS, and path-type 'prefix' on all mirror ingresses.
+      // 'prefix' puts the Node.js REST catch-all path /api/v1 into HAProxy's prefix map.
+      await k8.ingresses().update(config.namespace, constants.MIRROR_NODE_RELEASE_NAME, {
+        ...tlsSpec,
+        metadata: {annotations: {'haproxy-ingress.github.io/path-type': 'prefix'}},
+      });
+
+      // Second pass: override path-type back to 'regex' for ingresses that have complex
+      for (const suffix of ['-restjava', '-web3']) {
+        await k8.ingresses().update(config.namespace, suffix, {
+          metadata: {annotations: {'haproxy-ingress.github.io/path-type': 'regex'}},
+        });
+      }
+
+      if (!mirrorIngressClassExists) {
+        await this.k8Factory
+          .getK8(config.clusterContext)
+          .ingressClasses()
+          .create(
+            constants.MIRROR_INGRESS_CLASS_NAME,
+            constants.INGRESS_CONTROLLER_PREFIX + constants.MIRROR_INGRESS_CONTROLLER,
+          );
+      }
     }
   }
 
@@ -1299,11 +1321,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
             this.addMirrorNodeMemoryOverrides(hasMirrorNodeMemoryImprovements, config);
 
-            const lockTask: SoloListr<AnyListrContext> = this.oneShotState.isActive()
+            return this.oneShotState.isActive()
               ? ListrLock.newSkippedLockTask(task)
               : ListrLock.newAcquireLockTask(lease, task);
-
-            return lockTask;
           },
         },
         this.addMirrorNodeComponents(),
@@ -1478,6 +1498,16 @@ export class MirrorNodeCommand extends BaseCommand {
                 config.valuesArg += ` --set monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps=5`;
               }
 
+              // This is the mirror node version that switches the rest url configuration for the pinger from the rest to the restjava
+              // service. The configuration needs to be updated when an upgrade crosses this version threshold.
+              const updatePingerEnvironmentVariables: boolean = new SemanticVersion<string>(
+                config.mirrorNodeVersion,
+              ).greaterThanOrEqual(versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_PINGER_ENV_VARS_UPDATE);
+              if (updatePingerEnvironmentVariables) {
+                config.valuesArg += ` --set pinger.env.HIERO_MIRROR_PINGER_REST=http://${this.renderReleaseName(context_.config.id)}-restjava:80`;
+                config.valuesArg += ' --set pinger.env.HIERO_MIRROR_PINGER_NETWORK=other';
+              }
+
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
               const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
@@ -1548,11 +1578,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
             this.addMirrorNodeMemoryOverrides(hasMirrorNodeMemoryImprovements, config);
 
-            const lockTask: SoloListr<AnyListrContext> = this.oneShotState.isActive()
+            return this.oneShotState.isActive()
               ? ListrLock.newSkippedLockTask(task)
               : ListrLock.newAcquireLockTask(lease, task);
-
-            return lockTask;
           },
         },
         this.enableSharedResourcesTask(),

@@ -56,12 +56,12 @@ jobs:
       need-hl-release: ${{ steps.check-hl-release-needed.outputs.need-hl-release || 'false' }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
       - name: Prepare Release
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # 1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # 1.1.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -71,7 +71,7 @@ jobs:
           node-registry: 'https://registry.npmjs.org/'
 
       - name: Setup JQ
-        uses: step-security/install-jq-action@fd50feb4e8cd2b0e1e72df42db468e62c71d58f4 # v3.2.0
+        uses: step-security/install-jq-action@6eecb102befc9cde313a218816ce91a941c1684c # v3.2.1
         with:
           version: 1.7
 
@@ -162,12 +162,12 @@ jobs:
       hl-package-name: ${{ steps.set-hl-package-name.outputs.hl-package-name }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # 1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # 1.1.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -175,7 +175,7 @@ jobs:
           checkout-fetch-depth: '1'
 
       - name: Setup JQ
-        uses: step-security/install-jq-action@fd50feb4e8cd2b0e1e72df42db468e62c71d58f4 # v3.2.0
+        uses: step-security/install-jq-action@6eecb102befc9cde313a218816ce91a941c1684c # v3.2.1
         with:
           version: 1.7
 
@@ -216,12 +216,12 @@ jobs:
       need-hl-publish: ${{ steps.update-for-dual-publish.outputs.need-hl-publish || 'false' }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # 1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # 1.1.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -263,7 +263,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup JQ
-        uses: step-security/install-jq-action@fd50feb4e8cd2b0e1e72df42db468e62c71d58f4 # v3.2.0
+        uses: step-security/install-jq-action@6eecb102befc9cde313a218816ce91a941c1684c # v3.2.1
         with:
           version: 1.7
 
@@ -532,12 +532,12 @@ jobs:
     if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' || needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # 1.0.8
+        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # 1.1.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -622,7 +622,7 @@ jobs:
       - prepare-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 

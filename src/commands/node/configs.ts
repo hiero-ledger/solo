@@ -50,6 +50,7 @@ import {type NodePrepareUpgradeContext} from './config-interfaces/node-prepare-u
 import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
+import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
 import {assertUpgradeVersionNotOlder} from '../../core/upgrade-version-guard.js';
 import {SOLO_USER_AGENT_HEADER} from '../../core/constants.js';
 import {type NodeConnectionsConfigClass} from './config-interfaces/node-connections-config-class.js';
@@ -57,6 +58,8 @@ import {type NodeConnectionsContext} from './config-interfaces/node-connections-
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
 import {optionFromFlag} from '../command-helpers.js';
+import {type AccountIdWithKeyPairObject, type ComponentData, type Context} from '../../types/index.js';
+import {type K8} from '../../integration/kube/k8.js';
 
 const PREPARE_UPGRADE_CONFIGS_NAME: string = 'prepareUpgradeConfig';
 const ADD_CONFIGS_NAME: string = 'addConfigs';
@@ -129,7 +132,7 @@ export class NodeCommandConfigs {
     );
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
@@ -173,7 +176,7 @@ export class NodeCommandConfigs {
       const BUILD_ZIP_URL: string = `${HEDERA_BUILDS_URL}/node/software/v${semVersion.major}.${semVersion.minor}/build-${context_.config.upgradeVersion}.zip`;
       try {
         // do not fetch or download, just check if URL exists or not
-        const response = await fetch(BUILD_ZIP_URL, {
+        const response: Response = await fetch(BUILD_ZIP_URL, {
           method: 'HEAD',
           headers: {
             'User-Agent': SOLO_USER_AGENT_HEADER,
@@ -206,7 +209,7 @@ export class NodeCommandConfigs {
     }
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
@@ -258,17 +261,17 @@ export class NodeCommandConfigs {
     );
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
 
-    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(
+    const treasuryAccount: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
       context_.config.namespace,
       context_.config.deployment,
     );
-    const treasuryAccountPrivateKey = treasuryAccount.privateKey;
+    const treasuryAccountPrivateKey: string = treasuryAccount.privateKey;
     context_.config.treasuryKey = PrivateKey.fromStringED25519(treasuryAccountPrivateKey);
 
     if (context_.config.domainNames) {
@@ -316,17 +319,17 @@ export class NodeCommandConfigs {
     }
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
 
-    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(
+    const treasuryAccount: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
       context_.config.namespace,
       context_.config.deployment,
     );
-    const treasuryAccountPrivateKey = treasuryAccount.privateKey;
+    const treasuryAccountPrivateKey: string = treasuryAccount.privateKey;
     context_.config.treasuryKey = PrivateKey.fromStringED25519(treasuryAccountPrivateKey);
 
     if (context_.config.domainNames) {
@@ -380,17 +383,17 @@ export class NodeCommandConfigs {
     }
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
     context_.config.freezeAdminPrivateKey = accountKeys.privateKey;
 
-    const treasuryAccount = await this.accountManager.getTreasuryAccountKeys(
+    const treasuryAccount: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
       context_.config.namespace,
       context_.config.deployment,
     );
-    const treasuryAccountPrivateKey = treasuryAccount.privateKey;
+    const treasuryAccountPrivateKey: string = treasuryAccount.privateKey;
     context_.config.treasuryKey = PrivateKey.fromStringED25519(treasuryAccountPrivateKey);
 
     context_.config.serviceMap = await this.accountManager.getNodeServiceMap(
@@ -442,11 +445,15 @@ export class NodeCommandConfigs {
     context_: NodeConnectionsContext,
     task: SoloListrTaskWrapper<NodeConnectionsContext>,
   ): Promise<NodeConnectionsConfigClass> {
+    const context: Context = this.remoteConfig.getContexts()[0];
     context_.config = {
       deployment: this.configManager.getFlag(flags.deployment),
+      check: this.configManager.getFlag<boolean>(flags.check),
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
-      contexts: this.remoteConfig.getContexts()[0],
-    } as any as NodeConnectionsConfigClass;
+      context,
+      componentsData: [] as ComponentData[],
+      newAccount: undefined,
+    } as NodeConnectionsConfigClass;
 
     return context_.config;
   }
@@ -564,7 +571,7 @@ export class NodeCommandConfigs {
     await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
-    const accountKeys = await this.accountManager.getAccountKeysFromSecret(
+    const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
       freezeAdminAccountId.toString(),
       context_.config.namespace,
     );
@@ -588,7 +595,7 @@ export class NodeCommandConfigs {
     context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
 
     for (const consensusNode of context_.config.consensusNodes) {
-      const k8 = this.k8Factory.getK8(consensusNode.context);
+      const k8: K8 = this.k8Factory.getK8(consensusNode.context);
       if (!(await k8.namespaces().has(context_.config.namespace))) {
         throw new SoloError(`namespace ${context_.config.namespace} does not exist`);
       }
@@ -651,8 +658,16 @@ export class NodeCommandConfigs {
       'contexts',
     ]) as NodeSetupConfigClass;
 
+    // Only enforce the saved-version match when there is at least one consensus node that has actually
+    // progressed past REQUESTED. On a fresh deployment the remote-config version may have been
+    // backfilled from a flag default before the user-supplied release-tag was recorded, so comparing
+    // against it would falsely reject a valid first-time setup.
     const savedVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
+    const hasDeployedConsensusNode: boolean = (this.remoteConfig.configuration.state.consensusNodes ?? []).some(
+      (node): boolean => node.metadata?.phase && node.metadata.phase !== DeploymentPhase.REQUESTED,
+    );
     if (
+      hasDeployedConsensusNode &&
       !savedVersion.equals(context_.config.releaseTag) && // allow different versions only for local builds
       !context_.config.localBuildPath
     ) {

@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {RemoteConfigV1Migration} from '../../../../../../../src/data/schema/migration/impl/remote/remote-config-v1-migration.js';
-import {IllegalArgumentError} from '../../../../../../../src/business/errors/illegal-argument-error.js';
+import {IllegalArgumentError} from '../../../../../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import {InvalidSchemaVersionError} from '../../../../../../../src/data/schema/migration/api/invalid-schema-version-error.js';
 import sinon from 'sinon';
 import * as fs from 'node:fs';

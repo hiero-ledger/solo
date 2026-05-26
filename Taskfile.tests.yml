@@ -81,20 +81,7 @@ tasks:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Standard Tests\"
         {{ .reporter_prefix }}='coverage/e2e-standard' 
-        {{ .mocha_bin }} 'test/e2e/**/*.ts' 
-          --ignore 'test/e2e/integration/**/*.ts' 
-          --ignore 'test/e2e/commands/node*.ts' 
-          --ignore 'test/e2e/commands/separate-node*.ts' 
-          --ignore 'test/e2e/commands/block-node.test.ts' 
-          --ignore 'test/e2e/commands/dual-*.ts'
-          --ignore 'test/e2e/commands/external-*.ts'
-          --ignore 'test/e2e/commands/cache-command.test.ts'
-          --ignore 'test/e2e/commands/one-shot-single.test.ts'
-          --ignore 'test/e2e/commands/separate-node-update.test.ts' 
-          --ignore 'test/e2e/commands/separate-node-add.test.ts' 
-          --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
-          --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
-          --ignore 'test/e2e/commands/performance.test.ts' 
+        {{ .mocha_bin }} 'test/e2e/standard/**/*.ts' 
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
 
   test-e2e-node-add-local:
@@ -161,7 +148,7 @@ tasks:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E One Shot Single Test - Minimal Setup\"
         {{ .reporter_prefix }}='coverage/e2e-one-shot-single-minimal'
-        {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts' 
+        {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts'
         {{ .reporter_options_prefix }}-e2e-one-shot-single-minimal.xml"
 
   test-e2e-performance:

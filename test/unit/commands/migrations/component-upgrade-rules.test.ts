@@ -100,17 +100,43 @@ describe('ComponentUpgradeMigrationRules.planUpgradeMigrationPath', (): void => 
       expect(steps[0].toVersion).to.equal('0.28.1');
     });
 
-    it('returns a single recreate step going directly to target when crossing 0.28.1', (): void => {
+    it('returns recreate then in-place steps when crossing 0.28.1 and 0.32.0 boundaries', (): void => {
       const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
         'block-node',
         '0.28.0',
         '0.35.0',
       );
 
-      expect(steps).to.have.length(1);
+      expect(steps).to.have.length(2);
       expect(steps[0].strategy).to.equal('recreate');
       expect(steps[0].fromVersion).to.equal('0.28.0');
-      expect(steps[0].toVersion).to.equal('0.35.0');
+      expect(steps[0].toVersion).to.equal('0.28.1');
+      expect(steps[1].strategy).to.equal('in-place');
+      expect(steps[1].fromVersion).to.equal('0.28.1');
+      expect(steps[1].toVersion).to.equal('0.35.0');
+    });
+  });
+
+  describe('upgrade crossing the 0.32.0 boundary', (): void => {
+    it('injects migration args to bridge legacy metrics values path', (): void => {
+      const steps: ComponentUpgradeMigrationStep[] = ComponentUpgradeMigrationRules.planUpgradeMigrationPath(
+        'block-node',
+        '0.31.0',
+        '0.33.0',
+      );
+
+      expect(steps).to.have.length(1);
+      expect(steps[0].strategy).to.equal('in-place');
+      expect(steps[0].fromVersion).to.equal('0.31.0');
+      expect(steps[0].toVersion).to.equal('0.33.0');
+      expect(steps[0].extraCommandArgs).to.deep.equal([
+        '--set',
+        'blockNode.metrics.hostname=0.0.0.0',
+        '--set',
+        'blockNode.metrics.port=16007',
+        '--set',
+        'blockNode.metrics.path=/metrics',
+      ]);
     });
   });
 
