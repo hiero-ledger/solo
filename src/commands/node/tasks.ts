@@ -457,20 +457,17 @@ export class NodeCommandTasks {
           }
 
           // retry copying the build to the node to handle edge cases during performance testing
-          let storedError: Error | null = null;
-          let index: number = 0;
-          for (; index < constants.LOCAL_BUILD_COPY_RETRY; index++) {
-            storedError = null;
+          for (let retryIndex: number = 0; retryIndex < constants.LOCAL_BUILD_COPY_RETRY; retryIndex++) {
             try {
               // filter the data/config and data/keys to avoid failures due to config and secret mounts
               await this.copyLocalBuildPathToNode(k8, podReference, this.configManager, localDataLibraryBuildPath);
               break;
             } catch (error) {
-              storedError = error;
+              // max attempts reached
+              if (retryIndex === constants.LOCAL_BUILD_COPY_RETRY - 1) {
+                throw new SoloErrors.component.nodeBuildCopyFailed(error);
+              }
             }
-          }
-          if (storedError) {
-            throw new SoloErrors.component.nodeBuildCopyFailed(storedError);
           }
         },
       });
@@ -772,55 +769,64 @@ export class NodeCommandTasks {
     nodeAlias: NodeAlias,
     stakeAmount: number = HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
   ): Promise<void> {
+    const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+    await this.accountManager.loadNodeClient(
+      namespace,
+      this.remoteConfig.getClusterRefs(),
+      deploymentName,
+      this.configManager.getFlag<boolean>(flags.forcePortForward),
+    );
+    const client: Client = this.accountManager._nodeClient;
+    const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
+      namespace,
+      deploymentName,
+    );
+
+    const treasuryPrivateKey: PrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
+    const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
+    client.setOperator(treasuryAccountId, treasuryPrivateKey);
+
+    // check balance
+    let treasuryBalance: AccountBalance;
     try {
-      const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
-      await this.accountManager.loadNodeClient(
-        namespace,
-        this.remoteConfig.getClusterRefs(),
-        deploymentName,
-        this.configManager.getFlag<boolean>(flags.forcePortForward),
-      );
-      const client: Client = this.accountManager._nodeClient;
-      const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
-        namespace,
-        deploymentName,
-      );
-
-      const treasuryPrivateKey: PrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
-      const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
-      client.setOperator(treasuryAccountId, treasuryPrivateKey);
-
-      // check balance
-      const treasuryBalance: AccountBalance = await new AccountBalanceQuery()
-        .setAccountId(treasuryAccountId)
-        .execute(client);
-
-      this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
-
-      // get some initial balance
-      await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
-
-      // check balance
-      const balance: AccountBalance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
-      this.logger.debug(`Account ${accountId} balance: ${balance.hbars}`);
-
-      // Create the transaction
-      const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
-        .setAccountId(accountId)
-        .setStakedNodeId(Templates.nodeIdFromNodeAlias(nodeAlias))
-        .freezeWith(client);
-
-      // Sign the transaction with the account's private key
-      const signTransaction: AccountUpdateTransaction = await transaction.sign(treasuryPrivateKey);
-
-      const transactionResponse: TransactionResponse = await signTransaction.execute(client);
-
-      const receipt: TransactionReceipt = await transactionResponse.getReceipt(client);
-
-      this.logger.debug(`The transaction consensus status is ${receipt.status}`);
+      treasuryBalance = await new AccountBalanceQuery().setAccountId(treasuryAccountId).execute(client);
     } catch (error) {
-      throw new SoloErrors.component.nodeTransactionError('adding stake', error);
+      throw new SoloErrors.component.accountBalanceQueryFailed(treasuryAccountId, error);
     }
+
+    this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
+
+    // get some initial balance
+    await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
+
+    // check balance
+    let balance: AccountBalance;
+    try {
+      balance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
+    } catch (error) {
+      throw new SoloErrors.component.accountBalanceQueryFailed(accountId, error);
+    }
+    this.logger.debug(`Account ${accountId} balance: ${balance.hbars}`);
+
+    // Create the transaction
+    const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
+      .setAccountId(accountId)
+      .setStakedNodeId(Templates.nodeIdFromNodeAlias(nodeAlias))
+      .freezeWith(client);
+
+    // Sign the transaction with the account's private key
+    const signTransaction: AccountUpdateTransaction = await transaction.sign(treasuryPrivateKey);
+
+    let transactionResponse: TransactionResponse;
+    let receipt: TransactionReceipt;
+    try {
+      transactionResponse = await signTransaction.execute(client);
+      receipt = await transactionResponse.getReceipt(client);
+    } catch (error) {
+      throw new SoloErrors.component.nodeStakeTransactionError(error);
+    }
+
+    this.logger.debug(`The transaction consensus status is ${receipt.status}`);
   }
 
   public prepareUpgradeZip(): SoloListrTask<AnyListrContext> {
@@ -929,45 +935,49 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {nodeClient, freezeAdminPrivateKey, deployment} = context_.config;
+        const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+        const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
+
+        // query the balance
+        let balance: AccountBalance;
         try {
-          const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-          const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
+          balance = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
+        } catch (error) {
+          throw new SoloErrors.component.accountBalanceQueryFailed(freezeAccountId, error);
+        }
 
-          // query the balance
-          const balance: AccountBalance = await new AccountBalanceQuery()
-            .setAccountId(freezeAccountId)
-            .execute(nodeClient);
+        this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
-          this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
+        // transfer some tiny amount to the freeze admin account
+        await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
 
-          // transfer some tiny amount to the freeze admin account
-          await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
+        // set operator of freeze transaction as freeze admin account
+        nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
 
-          // set operator of freeze transaction as freeze admin account
-          nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
-
-          const prepareUpgradeTransaction: TransactionResponse = await new FreezeTransaction()
+        let prepareUpgradeTransaction: TransactionResponse;
+        let prepareUpgradeReceipt: TransactionReceipt;
+        try {
+          prepareUpgradeTransaction = await new FreezeTransaction()
             .setFreezeType(FreezeType.PrepareUpgrade)
             .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
+          prepareUpgradeReceipt = await prepareUpgradeTransaction.getReceipt(nodeClient);
+        } catch (error) {
+          throw new SoloErrors.component.nodePrepareUpgradeTransactionError(error);
+        }
 
-          const prepareUpgradeReceipt: TransactionReceipt = await prepareUpgradeTransaction.getReceipt(nodeClient);
+        this.logger.debug(
+          `sent prepare upgrade transaction [id: ${prepareUpgradeTransaction.transactionId.toString()}]`,
+          prepareUpgradeReceipt.status.toString(),
+        );
 
-          this.logger.debug(
-            `sent prepare upgrade transaction [id: ${prepareUpgradeTransaction.transactionId.toString()}]`,
+        if (prepareUpgradeReceipt.status !== Status.Success) {
+          throw new SoloErrors.component.nodeTransactionFailed(
+            'Prepare upgrade',
             prepareUpgradeReceipt.status.toString(),
           );
-
-          if (prepareUpgradeReceipt.status !== Status.Success) {
-            throw new SoloErrors.component.nodeTransactionFailed(
-              'Prepare upgrade',
-              prepareUpgradeReceipt.status.toString(),
-            );
-          }
-        } catch (error) {
-          throw new SoloErrors.component.nodeTransactionError('prepare upgrade', error);
         }
       },
     };
@@ -981,39 +991,44 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {freezeAdminPrivateKey, nodeClient, deployment} = context_.config;
+        const futureDate: Date = new Date();
+        this.logger.debug(`Current time: ${futureDate}`);
+
+        futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
+        this.logger.debug(`Freeze time: ${futureDate}`);
+
+        const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+
+        // query the balance
+        let balance: AccountBalance;
         try {
-          const futureDate: Date = new Date();
-          this.logger.debug(`Current time: ${futureDate}`);
+          balance = await new AccountBalanceQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
+        } catch (error) {
+          throw new SoloErrors.component.accountBalanceQueryFailed(freezeAdminAccountId, error);
+        }
 
-          futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
-          this.logger.debug(`Freeze time: ${futureDate}`);
+        this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
-          const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-
-          // query the balance
-          const balance: AccountBalance = await new AccountBalanceQuery()
-            .setAccountId(freezeAdminAccountId)
-            .execute(nodeClient);
-
-          this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
-
-          nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeUpgradeTx: TransactionResponse = await new FreezeTransaction()
+        nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
+        let freezeUpgradeReceipt: TransactionReceipt;
+        let freezeUpgradeTx: TransactionResponse;
+        try {
+          freezeUpgradeTx = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeUpgrade)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
-
-          const freezeUpgradeReceipt: TransactionReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
-          this.logger.debug(
-            `Upgrade frozen with transaction id: ${freezeUpgradeTx.transactionId.toString()}`,
-            freezeUpgradeReceipt.status.toString(),
-          );
+          freezeUpgradeReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
         } catch (error) {
-          throw new SoloErrors.component.nodeTransactionError('freeze upgrade', error);
+          throw new SoloErrors.component.nodeFreezeUpgradeTransactionError(error);
         }
+
+        this.logger.debug(
+          `Upgrade frozen with transaction id: ${freezeUpgradeTx.transactionId.toString()}`,
+          freezeUpgradeReceipt.status.toString(),
+        );
       },
     };
   }
@@ -1023,35 +1038,36 @@ export class NodeCommandTasks {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
         const {freezeAdminPrivateKey, deployment, namespace}: any = context_.config;
+        const nodeClient: Client = await this.accountManager.loadNodeClient(
+          namespace,
+          this.remoteConfig.getClusterRefs(),
+          deployment,
+        );
+        const futureDate: Date = new Date();
+        this.logger.debug(`Current time: ${futureDate}`);
+
+        futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
+        this.logger.debug(`Freeze time: ${futureDate}`);
+
+        const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+        nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
+        let freezeOnlyTransaction: TransactionResponse;
+        let freezeOnlyReceipt: TransactionReceipt;
         try {
-          const nodeClient: Client = await this.accountManager.loadNodeClient(
-            namespace,
-            this.remoteConfig.getClusterRefs(),
-            deployment,
-          );
-          const futureDate: Date = new Date();
-          this.logger.debug(`Current time: ${futureDate}`);
-
-          futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
-          this.logger.debug(`Freeze time: ${futureDate}`);
-
-          const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-          nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeOnlyTransaction: TransactionResponse = await new FreezeTransaction()
+          freezeOnlyTransaction = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeOnly)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .freezeWith(nodeClient)
             .execute(nodeClient);
-
-          const freezeOnlyReceipt: TransactionReceipt = await freezeOnlyTransaction.getReceipt(nodeClient);
-
-          this.logger.debug(
-            `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
-            freezeOnlyReceipt.status.toString(),
-          );
+          freezeOnlyReceipt = await freezeOnlyTransaction.getReceipt(nodeClient);
         } catch (error) {
-          throw new SoloErrors.component.nodeTransactionError('sending freeze transaction', error);
+          throw new SoloErrors.component.nodeFreezeTransactionError(error);
         }
+
+        this.logger.debug(
+          `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
+          freezeOnlyReceipt.status.toString(),
+        );
       },
     };
   }
@@ -1651,7 +1667,7 @@ export class NodeCommandTasks {
               }
 
               if (!success) {
-                throw new Error(`Node ${node.name} did not become ready after ${maxAttempts} attempts`);
+                throw new SoloErrors.component.nodeNotReady(node.name, 'TSS Ready', maxAttempts, maxAttempts);
               }
             },
           });
@@ -1763,8 +1779,14 @@ export class NodeCommandTasks {
             updateTransaction = await updateTransaction.sign(adminKey);
           }
 
-          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
-          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+          let transactionResponse: TransactionResponse;
+          let updateTransactionReceipt: TransactionReceipt;
+          try {
+            transactionResponse = await updateTransaction.execute(nodeClient);
+            updateTransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+          } catch (error) {
+            throw new SoloErrors.component.nodeUpdateTransactionError(error);
+          }
 
           if (updateTransactionReceipt.status !== Status.Success) {
             throw new SoloErrors.system.grpcProxyEndpointFailed();
@@ -3210,92 +3232,97 @@ export class NodeCommandTasks {
           );
         }
 
+        let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
+
+        if (config.tlsPublicKey && config.tlsPrivateKey) {
+          this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
+          const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
+          const tlsCertHash: Buffer = crypto.createHash('sha384').update(tlsCertDer).digest();
+          nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
+
+          const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
+          const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
+          renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir);
+          renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir);
+        }
+
+        if (config.gossipPublicKey && config.gossipPrivateKey) {
+          this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
+          const signingCertDer: Uint8Array = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
+          nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
+
+          const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
+          const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
+          renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir);
+          renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir);
+        }
+
+        if (config.newAccountNumber) {
+          nodeUpdateTx = nodeUpdateTx.setAccountId(config.newAccountNumber);
+        }
+
+        let parsedNewKey: PrivateKey;
+        if (config.newAdminKey) {
+          parsedNewKey = PrivateKey.fromStringED25519(config.newAdminKey.toString());
+          nodeUpdateTx = nodeUpdateTx.setAdminKey(parsedNewKey.publicKey);
+        }
+        nodeUpdateTx = nodeUpdateTx.freezeWith(config.nodeClient);
+
+        // config.adminKey contains the original key, needed to sign the transaction
+        if (config.newAdminKey) {
+          nodeUpdateTx = await nodeUpdateTx.sign(parsedNewKey);
+        }
+
+        // also sign with new account's key if account is being updated
+        if (config.newAccountNumber) {
+          const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
+            config.newAccountNumber,
+            config.namespace,
+          );
+          nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
+        }
+
+        const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(config.adminKey);
+
+        let txResp: TransactionResponse;
+        let nodeUpdateReceipt: TransactionReceipt;
         try {
-          let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
-
-          if (config.tlsPublicKey && config.tlsPrivateKey) {
-            this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
-            const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
-            const tlsCertHash: Buffer = crypto.createHash('sha384').update(tlsCertDer).digest();
-            nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
-
-            const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir);
-            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir);
-          }
-
-          if (config.gossipPublicKey && config.gossipPrivateKey) {
-            this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-            const signingCertDer: Uint8Array = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
-            nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
-
-            const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir);
-            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir);
-          }
-
-          if (config.newAccountNumber) {
-            nodeUpdateTx = nodeUpdateTx.setAccountId(config.newAccountNumber);
-          }
-
-          let parsedNewKey: PrivateKey;
-          if (config.newAdminKey) {
-            parsedNewKey = PrivateKey.fromStringED25519(config.newAdminKey.toString());
-            nodeUpdateTx = nodeUpdateTx.setAdminKey(parsedNewKey.publicKey);
-          }
-          nodeUpdateTx = nodeUpdateTx.freezeWith(config.nodeClient);
-
-          // config.adminKey contains the original key, needed to sign the transaction
-          if (config.newAdminKey) {
-            nodeUpdateTx = await nodeUpdateTx.sign(parsedNewKey);
-          }
-
-          // also sign with new account's key if account is being updated
-          if (config.newAccountNumber) {
-            const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
-              config.newAccountNumber,
-              config.namespace,
-            );
-            nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
-          }
-          const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(config.adminKey);
-          const txResp: TransactionResponse = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
-          this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
-
-          // If admin key was updated, save the new key to k8s secret
-          if (config.newAdminKey) {
-            const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
-            const data: {privateKey: string; publicKey: string} = {
-              privateKey: Base64.encode(parsedNewKey.toString()),
-              publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
-            };
-
-            const isAdminKeySecretCreated: boolean = await this.k8Factory
-              .getK8(context)
-              .secrets()
-              .createOrReplace(
-                config.namespace,
-                Templates.renderNodeAdminKeyName(config.nodeAlias),
-                SecretType.OPAQUE,
-                data,
-                {
-                  'solo.hedera.com/node-admin-key': 'true',
-                },
-              );
-
-            if (!isAdminKeySecretCreated) {
-              throw new SoloErrors.system.k8sSecretCreateFailed(
-                `failed to create admin key secret for node '${config.nodeAlias}'`,
-              );
-            }
-
-            this.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
-          }
+          txResp = await signedTx.execute(config.nodeClient);
+          nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
         } catch (error) {
-          throw new SoloErrors.component.nodeTransactionError('updating node to network', error);
+          throw new SoloErrors.component.nodeUpdateTransactionError(error);
+        }
+
+        this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+
+        // If admin key was updated, save the new key to k8s secret
+        if (config.newAdminKey) {
+          const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+          const data: {privateKey: string; publicKey: string} = {
+            privateKey: Base64.encode(parsedNewKey.toString()),
+            publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
+          };
+
+          const isAdminKeySecretCreated: boolean = await this.k8Factory
+            .getK8(context)
+            .secrets()
+            .createOrReplace(
+              config.namespace,
+              Templates.renderNodeAdminKeyName(config.nodeAlias),
+              SecretType.OPAQUE,
+              data,
+              {
+                'solo.hedera.com/node-admin-key': 'true',
+              },
+            );
+
+          if (!isAdminKeySecretCreated) {
+            throw new SoloErrors.system.k8sSecretCreateFailed(
+              `failed to create admin key secret for node '${config.nodeAlias}'`,
+            );
+          }
+
+          this.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
         }
       },
     };
@@ -4060,45 +4087,48 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeDestroyConfigClass = context_.config;
 
+        const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
+        const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
+          config.existingNodeAliases,
+          deploymentName,
+        );
+        const deleteAccountId: string = accountMap.get(config.nodeAlias);
+        this.logger.debug(`Deleting node: ${config.nodeAlias} with account: ${deleteAccountId}`);
+
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+
+        const nodeDeleteTransaction: NodeDeleteTransaction = new NodeDeleteTransaction()
+          .setNodeId(new Long(nodeId))
+          .freezeWith(config.nodeClient);
+
+        let signedTransaction: NodeDeleteTransaction;
+        let transactionResponse: TransactionResponse;
+        let nodeDeleteReceipt: TransactionReceipt;
         try {
-          const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
-          const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
-            config.existingNodeAliases,
-            deploymentName,
-          );
-          const deleteAccountId: string = accountMap.get(config.nodeAlias);
-          this.logger.debug(`Deleting node: ${config.nodeAlias} with account: ${deleteAccountId}`);
-
-          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-
-          const nodeDeleteTransaction: NodeDeleteTransaction = new NodeDeleteTransaction()
-            .setNodeId(new Long(nodeId))
-            .freezeWith(config.nodeClient);
-
-          const signedTransaction: NodeDeleteTransaction = await nodeDeleteTransaction.sign(config.adminKey);
-          const transactionResponse: TransactionResponse = await signedTransaction.execute(config.nodeClient);
-          const nodeDeleteReceipt: TransactionReceipt = await transactionResponse.getReceipt(config.nodeClient);
-
-          this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
-
-          if (nodeDeleteReceipt.status !== Status.Success) {
-            throw new SoloErrors.component.nodeTransactionFailed('Node delete', nodeDeleteReceipt.status.toString());
-          }
-
-          // Delete admin key secret from k8s after successful node deletion
-          try {
-            const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
-            await this.k8Factory
-              .getK8(context)
-              .secrets()
-              .delete(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias));
-            this.logger.debug(`Deleted admin key secret for node ${config.nodeAlias} from k8s`);
-          } catch (deleteError) {
-            // Log but don't fail the delete operation if secret doesn't exist or can't be deleted
-            this.logger.debug(`Could not delete admin key secret for ${config.nodeAlias}: ${deleteError.message}`);
-          }
+          signedTransaction = await nodeDeleteTransaction.sign(config.adminKey);
+          transactionResponse = await signedTransaction.execute(config.nodeClient);
+          nodeDeleteReceipt = await transactionResponse.getReceipt(config.nodeClient);
         } catch (error) {
-          throw new SoloErrors.component.nodeTransactionError('deleting node from network', error);
+          throw new SoloErrors.component.nodeDeleteTransactionError(error);
+        }
+
+        this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
+
+        if (nodeDeleteReceipt.status !== Status.Success) {
+          throw new SoloErrors.component.nodeTransactionFailed('Node delete', nodeDeleteReceipt.status.toString());
+        }
+
+        // Delete admin key secret from k8s after successful node deletion
+        try {
+          const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+          await this.k8Factory
+            .getK8(context)
+            .secrets()
+            .delete(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias));
+          this.logger.debug(`Deleted admin key secret for node ${config.nodeAlias} from k8s`);
+        } catch (deleteError) {
+          // Log but don't fail the delete operation if secret doesn't exist or can't be deleted
+          this.logger.debug(`Could not delete admin key secret for ${config.nodeAlias}: ${deleteError.message}`);
         }
       },
     };
@@ -4110,46 +4140,49 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass = context_.config;
 
+        const nodeCreateTransaction: NodeCreateTransaction = new NodeCreateTransaction()
+          .setAccountId(context_.newNode.accountId)
+          .setGossipEndpoints(context_.gossipEndpoints)
+          .setServiceEndpoints(context_.grpcServiceEndpoints)
+          .setGossipCaCertificate(context_.signingCertDer)
+          .setCertificateHash(context_.tlsCertHash)
+          .setAdminKey(context_.adminKey.publicKey)
+          .freezeWith(config.nodeClient);
+
+        let signedTransaction: NodeCreateTransaction;
+        let txResp: TransactionResponse;
+        let nodeCreateReceipt: TransactionReceipt;
         try {
-          const nodeCreateTransaction: NodeCreateTransaction = new NodeCreateTransaction()
-            .setAccountId(context_.newNode.accountId)
-            .setGossipEndpoints(context_.gossipEndpoints)
-            .setServiceEndpoints(context_.grpcServiceEndpoints)
-            .setGossipCaCertificate(context_.signingCertDer)
-            .setCertificateHash(context_.tlsCertHash)
-            .setAdminKey(context_.adminKey.publicKey)
-            .freezeWith(config.nodeClient);
-
-          const signedTransaction: NodeCreateTransaction = await nodeCreateTransaction.sign(context_.adminKey);
-          const txResp: TransactionResponse = await signedTransaction.execute(config.nodeClient);
-          const nodeCreateReceipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
-
-          this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
-
-          if (nodeCreateReceipt.status !== Status.Success) {
-            throw new SoloErrors.component.nodeTransactionFailed('Node Create', nodeCreateReceipt.status.toString());
-          }
-
-          // Save admin key to k8s secret after successful node creation
-          // nodeAlias was set in determineNewNodeAccountNumber step
-          const nodeAlias: NodeAlias = config.nodeAlias;
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const data: {privateKey: string; publicKey: string} = {
-            privateKey: Base64.encode(context_.adminKey.toString()),
-            publicKey: Base64.encode(context_.adminKey.publicKey.toString()),
-          };
-
-          await this.k8Factory
-            .getK8(context)
-            .secrets()
-            .createOrReplace(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
-              'solo.hedera.com/node-admin-key': 'true',
-            });
-
-          this.logger.debug(`Saved admin key for node ${nodeAlias} to k8s secret`);
+          signedTransaction = await nodeCreateTransaction.sign(context_.adminKey);
+          txResp = await signedTransaction.execute(config.nodeClient);
+          nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
         } catch (error) {
-          throw new SoloErrors.component.nodeTransactionError('adding node to network', error);
+          throw new SoloErrors.component.nodeCreateTransactionError(error);
         }
+
+        this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
+
+        if (nodeCreateReceipt.status !== Status.Success) {
+          throw new SoloErrors.component.nodeTransactionFailed('Node Create', nodeCreateReceipt.status.toString());
+        }
+
+        // Save admin key to k8s secret after successful node creation
+        // nodeAlias was set in determineNewNodeAccountNumber step
+        const nodeAlias: NodeAlias = config.nodeAlias;
+        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+        const data: {privateKey: string; publicKey: string} = {
+          privateKey: Base64.encode(context_.adminKey.toString()),
+          publicKey: Base64.encode(context_.adminKey.publicKey.toString()),
+        };
+
+        await this.k8Factory
+          .getK8(context)
+          .secrets()
+          .createOrReplace(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
+            'solo.hedera.com/node-admin-key': 'true',
+          });
+
+        this.logger.debug(`Saved admin key for node ${nodeAlias} to k8s secret`);
       },
     };
   }

@@ -38,8 +38,15 @@ import {NodeDebugArchiveFailedSoloError} from './classes/component/node-debug-ar
 import {NodeJfrExecutionFailedSoloError} from './classes/component/node-jfr-execution-failed-solo-error.js';
 import {NodeJfrPidNotFoundSoloError} from './classes/component/node-jfr-pid-not-found-solo-error.js';
 import {NodeNotReadySoloError} from './classes/component/node-not-ready-solo-error.js';
-import {NodeTransactionErrorSoloError} from './classes/component/node-transaction-error-solo-error.js';
 import {NodeTransactionFailedSoloError} from './classes/component/node-transaction-failed-solo-error.js';
+import {NodeStakeTransactionErrorSoloError} from './classes/component/node-stake-transaction-error-solo-error.js';
+import {NodePrepareUpgradeTransactionErrorSoloError} from './classes/component/node-prepare-upgrade-transaction-error-solo-error.js';
+import {NodeFreezeUpgradeTransactionErrorSoloError} from './classes/component/node-freeze-upgrade-transaction-error-solo-error.js';
+import {NodeFreezeTransactionErrorSoloError} from './classes/component/node-freeze-transaction-error-solo-error.js';
+import {NodeUpdateTransactionErrorSoloError} from './classes/component/node-update-transaction-error-solo-error.js';
+import {NodeDeleteTransactionErrorSoloError} from './classes/component/node-delete-transaction-error-solo-error.js';
+import {NodeCreateTransactionErrorSoloError} from './classes/component/node-create-transaction-error-solo-error.js';
+import {AccountBalanceQueryFailedSoloError} from './classes/component/account-balance-query-failed-solo-error.js';
 import {ConfigFileNotFoundSoloError} from './classes/validation/config-file-not-found-solo-error.js';
 import {GrpcEndpointsRequiredSoloError} from './classes/validation/grpc-endpoints-required-solo-error.js';
 import {InputDirectoryNotSpecifiedSoloError} from './classes/validation/input-directory-not-specified-solo-error.js';
@@ -135,7 +142,6 @@ export class SoloErrors {
   // 3xxx — Component: Relay, Mirror Node, Explorer, CN runtime
   public static readonly component: {
     readonly nodeTransactionFailed: typeof NodeTransactionFailedSoloError;
-    readonly nodeTransactionError: typeof NodeTransactionErrorSoloError;
     readonly nodeBuildUploadFailed: typeof NodeBuildUploadFailedSoloError;
     readonly nodeBuildCopyFailed: typeof NodeBuildCopyFailedSoloError;
     readonly nodeNotReady: typeof NodeNotReadySoloError;
@@ -146,9 +152,16 @@ export class SoloErrors {
     readonly chartInstallFailed: typeof ChartInstallFailedSoloError;
     readonly networkDestroyFailed: typeof NetworkDestroyFailedSoloError;
     readonly rapidFireExecutionFailed: typeof RapidFireExecutionSoloError;
+    readonly nodeStakeTransactionError: typeof NodeStakeTransactionErrorSoloError;
+    readonly nodePrepareUpgradeTransactionError: typeof NodePrepareUpgradeTransactionErrorSoloError;
+    readonly nodeFreezeUpgradeTransactionError: typeof NodeFreezeUpgradeTransactionErrorSoloError;
+    readonly nodeFreezeTransactionError: typeof NodeFreezeTransactionErrorSoloError;
+    readonly nodeUpdateTransactionError: typeof NodeUpdateTransactionErrorSoloError;
+    readonly nodeDeleteTransactionError: typeof NodeDeleteTransactionErrorSoloError;
+    readonly nodeCreateTransactionError: typeof NodeCreateTransactionErrorSoloError;
+    readonly accountBalanceQueryFailed: typeof AccountBalanceQueryFailedSoloError;
   } = Object.freeze({
     nodeTransactionFailed: NodeTransactionFailedSoloError,
-    nodeTransactionError: NodeTransactionErrorSoloError,
     nodeBuildUploadFailed: NodeBuildUploadFailedSoloError,
     nodeBuildCopyFailed: NodeBuildCopyFailedSoloError,
     nodeNotReady: NodeNotReadySoloError,
@@ -159,6 +172,14 @@ export class SoloErrors {
     chartInstallFailed: ChartInstallFailedSoloError,
     networkDestroyFailed: NetworkDestroyFailedSoloError,
     rapidFireExecutionFailed: RapidFireExecutionSoloError,
+    nodeStakeTransactionError: NodeStakeTransactionErrorSoloError,
+    nodePrepareUpgradeTransactionError: NodePrepareUpgradeTransactionErrorSoloError,
+    nodeFreezeUpgradeTransactionError: NodeFreezeUpgradeTransactionErrorSoloError,
+    nodeFreezeTransactionError: NodeFreezeTransactionErrorSoloError,
+    nodeUpdateTransactionError: NodeUpdateTransactionErrorSoloError,
+    nodeDeleteTransactionError: NodeDeleteTransactionErrorSoloError,
+    nodeCreateTransactionError: NodeCreateTransactionErrorSoloError,
+    accountBalanceQueryFailed: AccountBalanceQueryFailedSoloError,
   });
 
   // 4xxx — Validation: User input, flags, IDs, formatting

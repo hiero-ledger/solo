@@ -838,8 +838,8 @@ export class NodeCommandHandlers extends CommandHandler {
       await this.zippy.zip(outputDirectory, zipFilePath);
       this.logger.showUser(chalk.green('✓ Debug information collected successfully!'));
       this.logger.showUser(chalk.cyan(`  Archive: ${zipFilePath}`));
-    } catch (error: Error | unknown) {
-      throw new SoloErrors.component.nodeDebugArchiveFailed(error as Error);
+    } catch (error) {
+      throw new SoloErrors.component.nodeDebugArchiveFailed(error);
     }
 
     return true;

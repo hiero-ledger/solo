@@ -14,8 +14,8 @@ export class NodeDebugArchiveFailedSoloError extends SoloError {
         message: `Failed to create debug archive: ${cause.message}`,
         code: ErrorCodeRegistry.NODE_DEBUG_ARCHIVE_FAILED,
         troubleshootingSteps:
-          'Check available disk space: df -h\n' +
           'Verify the output directory is writable\n' +
+          'Check available disk space: df -h\n' +
           'Review solo logs: tail -n 100 ~/.solo/logs/solo.log',
       },
       cause,
