@@ -15,6 +15,7 @@ const SOLO_COMMAND: string = 'npm run solo --silent --';
 
 type SoloCommand = {
   output: string;
+  versionOutput: string;
   topLevelCommands: TopLevelCommand[];
 };
 
@@ -40,8 +41,9 @@ type ThirdLevelCommand = {
 
 async function getTopLevelCommands(): Promise<SoloCommand> {
   try {
-    const soloCommand: SoloCommand = {output: undefined, topLevelCommands: []};
+    const soloCommand: SoloCommand = {output: undefined, versionOutput: undefined, topLevelCommands: []};
     soloCommand.output = await runCapture(`${SOLO_COMMAND} --help`);
+    soloCommand.versionOutput = await runCapture(`${SOLO_COMMAND} --version`);
     console.log(`${chalk.cyan('✔ Finished retrieving top level commands')}`);
     soloCommand.output
       .split('\n')
@@ -184,7 +186,12 @@ Global flags shown in root help:
 
 ## Command and Flag Reference
 
-The sections below are generated from Solo CLI help output using the implementation on \`hiero-ledger/solo\` (main), commit \`f800d3c\`.
+The sections below are generated from Solo CLI help output using the implementation on \`hiero-ledger/solo\`.
+
+## Version Output
+
+${getPreparedOutput(filterOutputNoise(soloCommand.versionOutput))}
+\`\`\`
 
 ## Root Help Output
 
@@ -193,15 +200,15 @@ The sections below are generated from Solo CLI help output using the implementat
   markdown += getPreparedOutput(soloCommand.output);
 
   soloCommand.topLevelCommands.forEach(topLevelCommand => {
-    markdown += `## ${topLevelCommand.topCommand}\n\n`;
+    markdown += `\n\n## ${topLevelCommand.topCommand}\n\n`;
     markdown += getPreparedOutput(topLevelCommand.output);
 
     topLevelCommand.secondLevelCommands.forEach(secondLevelCommand => {
-      markdown += `### ${secondLevelCommand.parent.topCommand} ${secondLevelCommand.secondCommand}\n\n`;
+      markdown += `\n\n### ${secondLevelCommand.parent.topCommand} ${secondLevelCommand.secondCommand}\n\n`;
       markdown += getPreparedOutput(secondLevelCommand.output);
 
       secondLevelCommand.thirdLevelCommands.forEach(thirdLevelCommand => {
-        markdown += `#### ${thirdLevelCommand.parent.parent.topCommand} ${thirdLevelCommand.parent.secondCommand} ${thirdLevelCommand.thirdCommand}\n\n`;
+        markdown += `\n\n#### ${thirdLevelCommand.parent.parent.topCommand} ${thirdLevelCommand.parent.secondCommand} ${thirdLevelCommand.thirdCommand}\n\n`;
         markdown += getPreparedOutput(thirdLevelCommand.output);
       });
     });
@@ -211,14 +218,17 @@ The sections below are generated from Solo CLI help output using the implementat
 }
 
 function getPreparedOutput(output: string): string {
-  return `\`\`\`\n${filterOutputNoise(output)}\n\`\`\`\n\n`;
+  return `\`\`\`\n${filterOutputNoise(output)}\n\`\`\``;
 }
 
 function filterOutputNoise(output: string): string {
-  // remove lines that start with '>> environment variable'
+  // remove lines that start with '>> environment variable' or 'Warning:'
   return output
     .split('\n')
-    .filter(line => !line.trim().startsWith('>> environment variable'))
+    .filter(line => {
+      const trimmed = line.trim();
+      return !trimmed.startsWith('>> environment variable') && !trimmed.startsWith('Warning:');
+    })
     .join('\n');
 }
 
