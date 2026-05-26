@@ -10,21 +10,23 @@ import {getTestLogger} from '../../test-utility.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {SoloPinoLogger} from '../../../src/core/logging/solo-pino-logger.js';
+import {type AnyYargs} from '../../../src/types/aliases.js';
+import type * as yargs from 'yargs';
 
-describe('ConfigManager', () => {
-  describe('update values using argv', () => {
-    beforeEach(() => {
-      container.clearInstances();
-      container.register(InjectTokens.LogLevel, {useValue: 'debug'});
-      container.register(InjectTokens.DevelopmentMode, {useValue: true});
-      container.register(InjectTokens.SoloLogger, {useValue: new SoloPinoLogger()});
-      container.registerInstance(InjectTokens.SoloLogger, getTestLogger());
-      container.register(InjectTokens.ConfigManager, {useClass: ConfigManager});
-    });
+describe('ConfigManager', (): void => {
+  beforeEach((): void => {
+    container.clearInstances();
+    container.register(InjectTokens.LogLevel, {useValue: 'debug'});
+    container.register(InjectTokens.DevelopmentMode, {useValue: true});
+    container.register(InjectTokens.SoloLogger, {useValue: new SoloPinoLogger()});
+    container.registerInstance(InjectTokens.SoloLogger, getTestLogger());
+    container.register(InjectTokens.ConfigManager, {useClass: ConfigManager});
+  });
 
-    it('should update string flag value', () => {
+  describe('update values using argv', (): void => {
+    it('should update string flag value', (): void => {
       const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
-      const argv = Argv.initializeEmpty();
+      const argv: Argv = Argv.initializeEmpty();
       argv.setArg(flags.releaseTag, 'v0.42.5');
 
       cm.update(argv.build());
@@ -38,9 +40,9 @@ describe('ConfigManager', () => {
       expect(cm.getFlag(flags.releaseTag)).to.equal(`${argv.getArg<string>(flags.releaseTag)}`);
     });
 
-    it('should update number flag value', () => {
+    it('should update number flag value', (): void => {
       const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
-      const argv = Argv.initializeEmpty();
+      const argv: Argv = Argv.initializeEmpty();
       argv.setArg(flags.replicaCount, 1);
 
       cm.update(argv.build());
@@ -54,11 +56,11 @@ describe('ConfigManager', () => {
       expect(cm.getFlag(flags.replicaCount)).to.deep.equal(Number.parseInt(argv.getArg<string>(flags.replicaCount)));
     });
 
-    it('should update boolean flag value', () => {
+    it('should update boolean flag value', (): void => {
       const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
 
       // boolean values should work
-      const argv = Argv.initializeEmpty();
+      const argv: Argv = Argv.initializeEmpty();
       argv.setArg(flags.devMode, true);
       cm.update(argv.build());
       expect(cm.getFlag(flags.devMode)).to.equal(argv.getArg<boolean>(flags.devMode));
@@ -79,34 +81,106 @@ describe('ConfigManager', () => {
     });
   });
 
-  describe('should apply precedence', () => {
-    const aliases = {[flags.devMode.name]: [flags.devMode.name, flags.devMode.definition.alias]}; // mock
+  describe('should apply precedence', (): void => {
+    const aliases: Record<string, string[]> = {
+      [flags.devMode.name]: [flags.devMode.name, flags.devMode.definition.alias as string],
+    }; // mock
 
-    it('should take user input as the first preference', () => {
+    it('should take user input as the first preference', (): void => {
       // Given: config has value, argv has a different value
       // Expected:  argv should retain the value
       const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
       cm.setFlag(flags.devMode, false);
       expect(cm.getFlag(flags.devMode)).not.to.be.ok;
 
-      const argv = Argv.initializeEmpty();
+      const argv: Argv = Argv.initializeEmpty();
       argv.setArg(flags.devMode, true); // devMode flag is set in argv but cached config has it
 
-      const argv2 = cm.applyPrecedence(argv.build() as any, aliases);
+      const argv2: yargs.Argv<AnyYargs> = cm.applyPrecedence(argv.build() as unknown as yargs.Argv<AnyYargs>, aliases);
       expect(cm.getFlag(flags.devMode)).to.not.be.ok; // shouldn't have changed the config yet
       expect(argv2[flags.devMode.name]).to.be.ok; // retain the value
     });
 
-    it('should take default as the last preference', () => {
+    it('should take default as the last preference', (): void => {
       // Given: neither config nor argv has the flag value set
       // Expected:  argv should inherit the default flag value
       const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
       expect(cm.hasFlag(flags.devMode)).not.to.be.ok; // shouldn't have set
 
-      const argv = Argv.initializeEmpty(); // devMode flag is not set in argv and cached config doesn't have it either
-      const argv2 = cm.applyPrecedence(argv.build() as any, aliases);
+      const argv: Argv = Argv.initializeEmpty(); // devMode flag is not set in argv and cached config doesn't have it either
+      const argv2: yargs.Argv<AnyYargs> = cm.applyPrecedence(argv.build() as unknown as yargs.Argv<AnyYargs>, aliases);
       expect(cm.hasFlag(flags.devMode)).to.not.be.ok; // shouldn't have set
       expect(argv2[flags.devMode.name]).to.not.be.ok; // should have set from the default
+    });
+  });
+
+  describe('legacy and canonical version flag synchronization', (): void => {
+    it('should expose canonical config property when only legacy argv flag is provided', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv: Argv = Argv.initializeEmpty();
+      argv.setArg(flags.releaseTag, 'v0.73.0');
+      cm.update(argv.build());
+
+      const config: {releaseTag: string} = cm.getConfig('legacy-to-canonical', [flags.consensusNodeVersion]) as {
+        releaseTag: string;
+      };
+      expect(config.releaseTag).to.equal('v0.73.0');
+      expect(cm.getFlag(flags.consensusNodeVersion)).to.equal('v0.73.0');
+      expect(cm.getFlag(flags.releaseTag)).to.equal('v0.73.0');
+    });
+
+    it('should expose legacy config property when only canonical argv flag is provided', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv: Argv = Argv.initializeEmpty();
+      argv.setArg(flags.consensusNodeVersion, 'v0.73.0');
+      cm.update(argv.build());
+
+      const config: {releaseTag: string} = cm.getConfig('canonical-to-legacy', [flags.releaseTag]) as {
+        releaseTag: string;
+      };
+      expect(config.releaseTag).to.equal('v0.73.0');
+      expect(cm.getFlag(flags.consensusNodeVersion)).to.equal('v0.73.0');
+      expect(cm.getFlag(flags.releaseTag)).to.equal('v0.73.0');
+    });
+
+    it('should synchronize relay and block-node version flags in both directions', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+
+      const argvLegacy: Argv = Argv.initializeEmpty();
+      argvLegacy.setArg(flags.relayReleaseTag, '0.77.0');
+      argvLegacy.setArg(flags.blockNodeChartVersion, '0.33.0');
+      cm.update(argvLegacy.build());
+
+      expect(cm.getFlag(flags.relayVersion)).to.equal('0.77.0');
+      expect(cm.getFlag(flags.relayReleaseTag)).to.equal('0.77.0');
+      expect(cm.getFlag(flags.blockNodeVersion)).to.equal('0.33.0');
+      expect(cm.getFlag(flags.blockNodeChartVersion)).to.equal('0.33.0');
+
+      cm.reset();
+      const argvCanonical: Argv = Argv.initializeEmpty();
+      argvCanonical.setArg(flags.relayVersion, '0.78.0');
+      argvCanonical.setArg(flags.blockNodeVersion, '0.34.0');
+      cm.update(argvCanonical.build());
+
+      expect(cm.getFlag(flags.relayVersion)).to.equal('0.78.0');
+      expect(cm.getFlag(flags.relayReleaseTag)).to.equal('0.78.0');
+      expect(cm.getFlag(flags.blockNodeVersion)).to.equal('0.34.0');
+      expect(cm.getFlag(flags.blockNodeChartVersion)).to.equal('0.34.0');
+    });
+
+    it('should not redefine config properties when legacy and canonical flags share the same constName', (): void => {
+      const cm: ConfigManager = container.resolve(InjectTokens.ConfigManager);
+      const argv: Argv = Argv.initializeEmpty();
+      argv.setArg(flags.relayVersion, '0.77.0');
+      cm.update(argv.build());
+
+      const config: {relayReleaseTag: string} = cm.getConfig('duplicate-constName-relay', [
+        flags.relayReleaseTag,
+        flags.relayVersion,
+      ]) as {
+        relayReleaseTag: string;
+      };
+      expect(config.relayReleaseTag).to.equal('0.77.0');
     });
   });
 });
