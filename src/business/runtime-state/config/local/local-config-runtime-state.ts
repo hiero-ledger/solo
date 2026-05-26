@@ -99,7 +99,7 @@ export class LocalConfigRuntimeState {
       throw new Error('migrateCacheDirectories: Local configuration is not loaded yet. Please call load() first.');
     }
     const cacheDirectory: string = PathEx.join(this.basePath, 'cache').toString();
-    const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
+    const releaseTag: string = this.configManager.getFlag(flags.consensusNodeVersion);
     const currentStagingDirectory: string = Templates.renderStagingDir(cacheDirectory, releaseTag);
 
     if (fs.existsSync(currentStagingDirectory)) {

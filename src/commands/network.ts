@@ -207,7 +207,10 @@ export class NetworkCommand extends BaseCommand {
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
       flags.quiet,
+      // Keep the legacy flag visible in help as deprecated while canonical parsing
+      // uses --consensus-node-version.
       flags.releaseTag,
+      flags.consensusNodeVersion,
       flags.settingTxt,
       flags.networkDeploymentValuesFile,
       flags.nodeAliasesUnparsed,
@@ -844,6 +847,10 @@ export class NetworkCommand extends BaseCommand {
         'singleUseServiceMonitor',
       ],
     ) as NetworkDeployConfigClass;
+    const normalizedReleaseTag: string | undefined = SemanticVersion.normalizeToken(config.releaseTag);
+    if (normalizedReleaseTag) {
+      config.releaseTag = normalizedReleaseTag;
+    }
 
     const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
@@ -1265,9 +1272,17 @@ export class NetworkCommand extends BaseCommand {
               lease = await this.leaseManager.create();
             }
 
-            const releaseTag: SemanticVersion<string> = new SemanticVersion<string>(
-              this.configManager.getFlag(flags.releaseTag),
+            // Read release-tag from argv (closure-captured, immutable) rather than configManager.
+            // configManager is a process-wide singleton shared across concurrent subcommands invoked
+            // from one-shot. Other subcommands (e.g. block-node add) run their own configManager.update(argv)
+            // with their yargs-defaulted release-tag, which can race-overwrite the value set above.
+            const argvReleaseTag: string | undefined = SemanticVersion.normalizeToken(
+              argv[flags.consensusNodeVersion.name],
             );
+            const configReleaseTag: string | undefined = SemanticVersion.normalizeToken(
+              this.configManager.getFlag(flags.consensusNodeVersion),
+            );
+            const releaseTag: SemanticVersion<string> = new SemanticVersion<string>(argvReleaseTag || configReleaseTag);
 
             if (
               this.remoteConfig.configuration.versions.consensusNode.toString() === '0.0.0' ||
