@@ -16,11 +16,11 @@ includes:
 env:
   HUGO_ENVIRONMENT: production
   HUGO_ENV: production
-  HUGO_ORIGIN: https://hiero-ledger.github.io/solo/
-  HUGO_LOCAL_ORIGIN: http://localhost:1313/solo/
+  HUGO_ORIGIN: https://hiero-ledger.github.io/
+  HUGO_LOCAL_ORIGIN: http://localhost:1313/
   HUGO_HOST: hiero-ledger.github.io
   HUGO_SOLO_VERSION: main
-  HUGO_BASEPATH: /
+  HUGO_BASEPATH: /solo
   PATH:
     sh: echo "$(go env GOPATH)/bin:$PATH"
 vars:
@@ -188,7 +188,7 @@ tasks:
          echo "    - {version: $SOLO_VERSION, url: /$SOLO_VERSION}">> docs/site/hugo.yaml
         fi
 
-  build:doc:artifacts: # TODO no longer need this artifact
+  build:doc:artifacts:
     desc: "Builds a ./build/latest.tar.gz file and a ./build/${SOLO_VERSION}.tar.gz file from the directories in the public directory"
     silent: true
     preconditions:
@@ -307,7 +307,7 @@ tasks:
           nginx -s stop
         fi
       - |
-        echo "Starting Nginx... on http://localhost:7777"
+        echo "Starting Nginx... on http://localhost:7777/"
         nginx -c {{.TASKFILE_DIR}}/nginx/nginx.conf
 
   deploy:nginx:stop:

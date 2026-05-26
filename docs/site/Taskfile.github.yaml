@@ -65,7 +65,7 @@ tasks:
             # skip if dest doesn't exist or if the artifact name starts with example- or if the filename is 
             #  docs-latest.tar.gz and npmjsLatest is false
             if [[ -f "$dest" || "$name" == example-* || ( "$name" == "docs-latest.tar.gz" && "$npmjsLatest" == "false" ) ]]; then
-              echo "✔ Skipping condition met for $name, not writing $dest, npmjsLatest: $npmjsLatest"
+              # echo "✔ Skipping condition met for $name, not writing $dest, npmjsLatest: $npmjsLatest"
             else
               echo "⬇ Downloading $name, $dest doesn't exist yet"
               curl -sSL --retry 3 --fail -o "$dest" "$url" || {
