@@ -201,7 +201,7 @@ export class PackageDownloader {
   private async verifyChecksum(sourceFile: string, checksum: string, algo: string = 'sha256'): Promise<void> {
     const computed: string = await this.computeFileHash(sourceFile, algo);
     if (checksum !== computed) {
-      throw new SoloErrors.validation.dataValidation('checksum', checksum, computed);
+      throw new SoloErrors.internal.dataValidation('checksum', checksum, computed);
     }
   }
 

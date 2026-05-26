@@ -9,7 +9,7 @@ export class DataValidationError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;
 
-  public constructor(context: string, expected: any, found: any, cause: Error | any = {}) {
+  public constructor(context: string, expected: any, found: any, cause?: Error) {
     super(
       {
         message: `Data validation failed: ${context} (expected: ${JSON.stringify(expected)}, found: ${JSON.stringify(found)})`,
