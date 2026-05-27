@@ -125,7 +125,7 @@ tasks:
           if [[ "${SOLO_CI}" == "true" ]]; then
             npm ci
             echo "Running wrapperForUpdateDocs.ts in CI mode"
-            npx tsx docs/scripts/wrapperForUpdateDocs.ts
+            SOLO_DEBUG=true npx tsx docs/scripts/wrapperForUpdateDocs.ts
           else
             task build:compile
             echo "Running executeUpdateDocs.ts in local mode"

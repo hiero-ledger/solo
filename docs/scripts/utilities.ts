@@ -58,7 +58,7 @@ export async function runCapture(cmd: string, opts = {}, returnBase64: boolean =
     if (!env.PATH) env.PATH = '/usr/local/bin:/usr/bin:/bin';
 
     if (SOLO_DEBUG) {
-      console.log(chalk.yellow(`begin ... runCapture(): ${cmd}`));
+      console.log(chalk.yellow(`begin ... runCapture(): ${cmd}, process.cwd(): ${process.cwd()}`));
     }
     const child = spawn(cmd, [], {
       stdio: ['ignore', 'pipe', 'pipe'],
