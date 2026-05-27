@@ -18,7 +18,10 @@ export function main() {
 
   const c8SourcePath = path.join(cwd, 'node_modules', 'c8');
   if (!fs.existsSync(c8SourcePath)) {
-    throw new Error('c8 is not installed, unable to bridge to nyc');
+    console.warn(
+      'c8 is not installed, unable to bridge to nyc, it is a dev dependency, maybe this is a production install?',
+    );
+    return;
   }
 
   // Create a symlink from node_modules/nyc to node_modules/c8
