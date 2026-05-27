@@ -111,7 +111,7 @@ tasks:
       - version.ts
       - solo.ts
       - docs/scripts/**.ts
-    generates: # TODO change location and ensure gitignore
+    generates:
       - docs/site/build/solo-cli.md
     cmds:
       - |
