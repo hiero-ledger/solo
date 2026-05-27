@@ -52,11 +52,14 @@ export async function run(cmd: string, opts = {}): Promise<string> {
  * @returns - Resolves to the stdout output
  */
 export async function runCapture(cmd: string, opts = {}, returnBase64: boolean = false): Promise<string> {
+  const SOLO_DEBUG: boolean = process.env.SOLO_DEBUG?.trim().toLowerCase() === 'true';
   return new Promise((resolve, reject) => {
     const env = {...process.env};
     if (!env.PATH) env.PATH = '/usr/local/bin:/usr/bin:/bin';
 
-    // const child = spawn(command, args, {
+    if (SOLO_DEBUG) {
+      console.log(chalk.yellow(`begin ... runCapture(): ${cmd}`));
+    }
     const child = spawn(cmd, [], {
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,

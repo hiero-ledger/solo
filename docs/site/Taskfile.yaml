@@ -85,21 +85,6 @@ tasks:
       - task: "build:hugo"
       - task: "build:doc:artifacts"
 
-  build:solo:
-    desc: "Build the Solo CLI"
-    dir: ../..
-    silent: true
-    sources:
-      - src/**/*.ts
-      - version.ts
-      - solo.ts
-    generates:
-      - dist/**/*.js
-    cmds:
-      - rm -Rf dist
-      - npx tsc
-      - node {{.TASKFILE_DIR}}/../../resources/post-build-script.js
-
   build:cli:help:
     desc: "Generate the CLI help documentation"
     silent: true
@@ -117,7 +102,7 @@ tasks:
           printf "\r::group::Generating CLI help documentation\n"
           rm -f docs/site/build/solo-cli.md
           task build:compile
-          npx tsx docs/scripts/generateHelp.ts
+          SOLO_DEBUG=true npx tsx docs/scripts/generateHelp.ts
           printf "\r::endgroup::--------------\n"
         fi
 
@@ -133,7 +118,7 @@ tasks:
     cmds:
       - printf "\r::group::Building Solo Command Output\n"
       - (cd docs/site/ && npm install)
-      - task: "build:solo"
+      - task build:compile
       - |
         if [[ "${SKIP_COMMAND_OUTPUT}" != "true" ]]; then
           rm -f docs/site/build/solo-command-output.json
