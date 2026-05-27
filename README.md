@@ -1,4 +1,3 @@
-
 # Solo
 
 [![NPM Version](https://img.shields.io/npm/v/@hiero-ledger/solo?logo=npm)](https://www.npmjs.com/package/@hiero-ledger/solo)
