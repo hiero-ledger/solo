@@ -234,6 +234,8 @@ tasks:
         # Define asset paths using the RELEASE_TAG variable
         ASSET_LATEST="./build/${RELEASE_TAG}/docs-latest.tar.gz"
         ASSET_VERSIONED="./build/${RELEASE_TAG}/docs-${RELEASE_TAG}.tar.gz"
+        ASSET_COMMAND_OUTPUT="./build/solo-command-output.json"
+        ASSET_CLI_HELP="./build/solo-cli.md"
 
         # Check if asset files exist before attempting upload
         if [ ! -f "$ASSET_LATEST" ]; then
@@ -253,6 +255,11 @@ tasks:
         # gh release upload command. Errors will cause script to exit due to 'set -e'.
         # The --repo flag specifies the target repository.
         # Multiple asset files can be listed at the end of the command.
-        gh release upload "${RELEASE_TAG}" "$ASSET_LATEST" "$ASSET_VERSIONED" --repo hiero-ledger/solo --clobber
+        gh release upload "${RELEASE_TAG}" \
+          "$ASSET_LATEST" \
+          "$ASSET_VERSIONED" \
+          "$ASSET_COMMAND_OUTPUT" \
+          "$ASSET_CLI_HELP" \
+          --repo hiero-ledger/solo --clobber
 
         echo "Successfully uploaded assets for release ${RELEASE_TAG}."
