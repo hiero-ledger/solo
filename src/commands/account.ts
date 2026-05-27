@@ -89,6 +89,28 @@ interface UpdateAccountContext {
   };
 }
 
+interface BlockNumberRange {
+  first: number | null;
+  last: number | null;
+}
+
+interface BlockNumberSample extends BlockNumberRange {
+  componentId: string;
+  context: Context;
+  namespace: string;
+  podName: string;
+  source: string;
+}
+
+interface LedgerResetCheckpointSnapshot {
+  phase: 'pre-reset' | 'post-reset';
+  capturedAt: string;
+  consensusSamples: BlockNumberSample[];
+  blockNodeSamples: BlockNumberSample[];
+  mirrorImporterSamples: BlockNumberSample[];
+  notes: string[];
+}
+
 @injectable()
 export class AccountCommand extends BaseCommand {
   private static ACCOUNT_KEY_USER_MESSAGE: string =
@@ -518,6 +540,8 @@ export class AccountCommand extends BaseCommand {
 
     interface ResetContext {
       config: Config;
+      debugSnapshots: LedgerResetCheckpointSnapshot[];
+      debugOutputFile: string;
     }
 
     const shouldSkipConsensusPodRestart: boolean = process.env.SOLO_LEDGER_RESET_SKIP_POD_RESTART !== 'false';
@@ -555,7 +579,20 @@ export class AccountCommand extends BaseCommand {
               namespace,
               nodeAliases: resolvedNodeAliases,
             };
+            context_.debugSnapshots = [];
+            context_.debugOutputFile = `${constants.SOLO_LOGS_DIR}/ledger-reset/ledger-reset-block-checkpoints-${Date.now()}.json`;
             this.logger.debug(`context_.config  = ${JSON.stringify(context_.config)}`);
+          },
+        },
+        {
+          title: 'Capture pre-reset block checkpoints',
+          task: async (context_): Promise<void> => {
+            const snapshot: LedgerResetCheckpointSnapshot = await this.captureLedgerResetCheckpoint(
+              context_.config,
+              'pre-reset',
+            );
+            context_.debugSnapshots.push(snapshot);
+            this.logLedgerResetCheckpointSummary(snapshot);
           },
         },
         {
@@ -611,7 +648,14 @@ export class AccountCommand extends BaseCommand {
 
               const namespace: string = blockNode.metadata.namespace.toString();
               const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
-              await this.k8Factory.getK8(context).manifests().scaleStatefulSet(namespace, statefulSetName, 0);
+              const k8: K8 = this.k8Factory.getK8(context);
+              await k8.manifests().scaleStatefulSet(namespace, statefulSetName, 0);
+              await this.waitForPodsToTerminate(
+                k8,
+                NamespaceName.of(namespace),
+                [`app.kubernetes.io/instance=${statefulSetName}`, 'block-node.hiero.com/type=block-node'],
+                `block node ${statefulSetName}`,
+              );
             }
           },
         },
@@ -628,10 +672,18 @@ export class AccountCommand extends BaseCommand {
               const namespaceName: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
               const {mirrorNodeReleaseName} = await this.inferMirrorNodeData(namespaceName, context);
               const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
-              await this.k8Factory
-                .getK8(context)
-                .manifests()
-                .scaleDeployment(namespaceName.toString(), importerDeploymentName, 0);
+              const k8: K8 = this.k8Factory.getK8(context);
+              await k8.manifests().scaleDeployment(namespaceName.toString(), importerDeploymentName, 0);
+              await this.waitForPodsToTerminate(
+                k8,
+                namespaceName,
+                [
+                  'app.kubernetes.io/name=importer',
+                  'app.kubernetes.io/component=importer',
+                  `app.kubernetes.io/instance=${mirrorNodeReleaseName}`,
+                ],
+                `mirror importer ${importerDeploymentName}`,
+              );
             }
           },
         },
@@ -929,7 +981,18 @@ export class AccountCommand extends BaseCommand {
 
                       const namespace: string = blockNode.metadata.namespace.toString();
                       const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
-                      await this.k8Factory.getK8(context).manifests().scaleStatefulSet(namespace, statefulSetName, 1);
+                      const k8: K8 = this.k8Factory.getK8(context);
+                      await k8.manifests().scaleStatefulSet(namespace, statefulSetName, 1);
+                      await k8
+                        .pods()
+                        .waitForReadyStatus(
+                          NamespaceName.of(namespace),
+                          [`app.kubernetes.io/instance=${statefulSetName}`, 'block-node.hiero.com/type=block-node'],
+                          constants.PODS_READY_MAX_ATTEMPTS,
+                          constants.PODS_READY_DELAY,
+                          undefined,
+                          true,
+                        );
                     }
                   },
                 },
@@ -949,7 +1012,6 @@ export class AccountCommand extends BaseCommand {
                       const {mirrorNodeReleaseName} = await this.inferMirrorNodeData(namespaceName, context);
                       const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
                       const k8: K8 = this.k8Factory.getK8(context);
-
                       await k8.manifests().scaleDeployment(namespaceName.toString(), importerDeploymentName, 1);
 
                       await k8
@@ -963,6 +1025,8 @@ export class AccountCommand extends BaseCommand {
                           ],
                           constants.PODS_READY_MAX_ATTEMPTS,
                           constants.PODS_READY_DELAY,
+                          undefined,
+                          true,
                         );
                     }
                   },
@@ -1003,8 +1067,34 @@ export class AccountCommand extends BaseCommand {
                   },
                 },
               ],
-              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+              constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
             ),
+        },
+        {
+          title: 'Capture post-reset block checkpoints',
+          task: async (context_): Promise<void> => {
+            const maxAttempts: number = 30;
+            const delayBetweenAttemptsMs: number = 2000;
+            let snapshot: LedgerResetCheckpointSnapshot = await this.captureLedgerResetCheckpoint(
+              context_.config,
+              'post-reset',
+            );
+
+            for (let attempt: number = 1; attempt < maxAttempts; attempt++) {
+              if (this.hasRequiredPostResetSignals(snapshot)) {
+                break;
+              }
+              await helpers.sleep(Duration.ofMillis(delayBetweenAttemptsMs));
+              snapshot = await this.captureLedgerResetCheckpoint(context_.config, 'post-reset');
+            }
+
+            context_.debugSnapshots.push(snapshot);
+            this.logLedgerResetCheckpointSummary(snapshot);
+
+            fs.mkdirSync(`${constants.SOLO_LOGS_DIR}/ledger-reset`, {recursive: true});
+            fs.writeFileSync(context_.debugOutputFile, JSON.stringify(context_.debugSnapshots, undefined, 2), 'utf8');
+            this.logger.showUser(`Ledger reset block checkpoints saved to ${context_.debugOutputFile}`);
+          },
         },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -1012,6 +1102,351 @@ export class AccountCommand extends BaseCommand {
 
     await tasks.run();
     return true;
+  }
+
+  private hasRequiredPostResetSignals(snapshot: LedgerResetCheckpointSnapshot): boolean {
+    const consensusRange: BlockNumberRange = this.aggregateBlockNumberSamples(snapshot.consensusSamples);
+    const blockNodeRange: BlockNumberRange = this.aggregateBlockNumberSamples(snapshot.blockNodeSamples);
+    const mirrorImporterRange: BlockNumberRange = this.aggregateBlockNumberSamples(snapshot.mirrorImporterSamples);
+
+    return consensusRange.first !== null && blockNodeRange.first !== null && mirrorImporterRange.first !== null;
+  }
+
+  private async waitForPodsToTerminate(
+    k8: K8,
+    namespace: NamespaceName,
+    labels: string[],
+    componentDescription: string,
+    maxAttempts: number = 180,
+    delayMs: number = 1000,
+  ): Promise<void> {
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      const pods: Pod[] = await k8.pods().list(namespace, labels);
+      if (pods.length === 0) {
+        return;
+      }
+
+      const podNames: string = pods.map((pod: Pod): string => pod.podReference.name.toString()).join(', ');
+      this.logger.debug(
+        `Waiting for ${componentDescription} pods to terminate [attempt ${attempt}/${maxAttempts}] [pods=${podNames}]`,
+      );
+      await helpers.sleep(Duration.ofMillis(delayMs));
+    }
+
+    throw new SoloError(
+      `Timed out waiting for ${componentDescription} pods to terminate in namespace ${namespace.toString()} for labels [${labels.join(', ')}]`,
+    );
+  }
+
+  private async captureLedgerResetCheckpoint(
+    config: {deployment: DeploymentName; namespace: NamespaceName; nodeAliases: NodeAliases},
+    phase: 'pre-reset' | 'post-reset',
+  ): Promise<LedgerResetCheckpointSnapshot> {
+    const notes: string[] = [];
+    const consensusSamples: BlockNumberSample[] = await this.collectConsensusSamples(config, notes);
+    const blockNodeSamples: BlockNumberSample[] = await this.collectBlockNodeSamples(notes);
+    const mirrorImporterSamples: BlockNumberSample[] = await this.collectMirrorImporterSamples(notes);
+
+    return {
+      phase,
+      capturedAt: new Date().toISOString(),
+      consensusSamples,
+      blockNodeSamples,
+      mirrorImporterSamples,
+      notes,
+    };
+  }
+
+  private async collectConsensusSamples(
+    config: {namespace: NamespaceName; nodeAliases: NodeAliases},
+    notes: string[],
+  ): Promise<BlockNumberSample[]> {
+    const samples: BlockNumberSample[] = [];
+    const namespace: NamespaceName = config.namespace;
+
+    for (const nodeAlias of config.nodeAliases) {
+      const context: Context =
+        this.remoteConfig.extractContextFromConsensusNodes(nodeAlias) ??
+        this.k8Factory.default().contexts().readCurrent();
+      const k8: K8 = this.k8Factory.getK8(context);
+      const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
+      const pods: Pod[] = await k8.pods().list(namespace, labels);
+
+      if (pods.length === 0) {
+        notes.push(`No consensus pod found for ${nodeAlias} in ${namespace} (${context})`);
+        continue;
+      }
+
+      for (const pod of pods) {
+        try {
+          const containerReference: ContainerReference = ContainerReference.of(
+            pod.podReference,
+            constants.ROOT_CONTAINER,
+          );
+          const listBlocksScript: string = String.raw`numbers=$(find /opt/hgcapp/blockStreams -type f \( -name "*.blk" -o -name "*.blk.gz" \) 2>/dev/null | sed -En 's#^.*/0*([0-9]+)\.blk(\.gz)?$#\1#p' | sort -n); if [ -z "$numbers" ]; then echo ""; else first=$(echo "$numbers" | head -n 1); last=$(echo "$numbers" | tail -n 1); echo "$first|$last"; fi`;
+          const output: string = await k8
+            .containers()
+            .readByRef(containerReference)
+            .execContainer(['bash', '-c', listBlocksScript]);
+          const range: BlockNumberRange = this.parseRangeOutput(output);
+          samples.push({
+            componentId: nodeAlias,
+            context,
+            namespace: namespace.toString(),
+            podName: pod.podReference.name.toString(),
+            first: range.first,
+            last: range.last,
+            source: '/opt/hgcapp/blockStreams/*.blk',
+          });
+        } catch (error) {
+          notes.push(
+            `Failed reading consensus block stream files for ${nodeAlias}/${pod.podReference.name}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+    }
+
+    return samples;
+  }
+
+  private async collectBlockNodeSamples(notes: string[]): Promise<BlockNumberSample[]> {
+    const samples: BlockNumberSample[] = [];
+
+    for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
+      const context: Context | undefined = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
+      if (!context) {
+        notes.push(`No cluster context found for block node ${blockNode.metadata.id}`);
+        continue;
+      }
+
+      const namespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
+      const releaseName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
+      const k8: K8 = this.k8Factory.getK8(context);
+      const pods: Pod[] = await k8.pods().list(namespace, [`app.kubernetes.io/instance=${releaseName}`]);
+
+      if (pods.length === 0) {
+        notes.push(`No block node pod found for ${releaseName} in ${namespace} (${context})`);
+        continue;
+      }
+
+      for (const pod of pods) {
+        try {
+          const logs: string = await k8.pods().readLogs(pod.podReference, true);
+          const numbers: number[] = this.extractBlockNumbersFromText(logs);
+          const range: BlockNumberRange = this.toRange(numbers);
+          samples.push({
+            componentId: releaseName,
+            context,
+            namespace: namespace.toString(),
+            podName: pod.podReference.name.toString(),
+            first: range.first,
+            last: range.last,
+            source: 'kubernetes pod logs',
+          });
+        } catch (error) {
+          notes.push(
+            `Failed reading block node logs for ${releaseName}/${pod.podReference.name}: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+    }
+
+    return samples;
+  }
+
+  private async collectMirrorImporterSamples(notes: string[]): Promise<BlockNumberSample[]> {
+    const samples: BlockNumberSample[] = [];
+
+    for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
+      const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
+      if (!context) {
+        notes.push(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+        continue;
+      }
+
+      const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
+      const k8: K8 = this.k8Factory.getK8(context);
+      const postgresPods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_MIRROR_POSTGRES_NAME_LABEL]);
+      if (postgresPods.length === 0) {
+        notes.push(`No mirror postgres pod found in ${namespace} (${context})`);
+        continue;
+      }
+
+      const postgresPod: Pod = postgresPods[0];
+      try {
+        const credentials: {owner: string; ownerPassword: string; databaseName: string} =
+          await this.getMirrorImporterDbCredentials(k8, namespace);
+        const postgresContainerReference: ContainerReference = ContainerReference.of(
+          postgresPod.podReference,
+          ContainerName.of('postgresql'),
+        );
+
+        const queryOutput: string = await k8
+          .containers()
+          .readByRef(postgresContainerReference)
+          .execContainer([
+            'psql',
+            `postgresql://${credentials.owner}:${credentials.ownerPassword}@localhost:5432/${credentials.databaseName}`,
+            '-tA',
+            '-F',
+            '|',
+            '-v',
+            'ON_ERROR_STOP=1',
+            '-c',
+            'SELECT COALESCE(MIN(index), -1), COALESCE(MAX(index), -1) FROM record_file;',
+          ]);
+        const range: BlockNumberRange = this.parseRangeOutput(queryOutput);
+
+        samples.push({
+          componentId: `mirror-${mirrorNode.metadata.id}`,
+          context,
+          namespace: namespace.toString(),
+          podName: postgresPod.podReference.name.toString(),
+          first: range.first,
+          last: range.last,
+          source: 'mirror postgres record_file.index',
+        });
+      } catch (error) {
+        notes.push(
+          `Failed reading mirror importer range for mirror-${mirrorNode.metadata.id}/${postgresPod.podReference.name}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
+    return samples;
+  }
+
+  private async getMirrorImporterDbCredentials(
+    k8: K8,
+    namespace: NamespaceName,
+  ): Promise<{owner: string; ownerPassword: string; databaseName: string}> {
+    const mirrorPasswordsSecret: Secret = await k8.secrets().read(namespace, 'mirror-passwords');
+    const ownerKey: string | undefined = Object.keys(mirrorPasswordsSecret.data).find((key: string): boolean =>
+      key.endsWith('_MIRROR_IMPORTER_DB_OWNER'),
+    );
+    if (!ownerKey) {
+      throw new SoloError('Could not find MIRROR_IMPORTER_DB_OWNER in mirror-passwords secret.');
+    }
+
+    const environmentVariablePrefix: string = ownerKey.replace('_MIRROR_IMPORTER_DB_OWNER', '');
+    return {
+      owner: Base64.decode(mirrorPasswordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNER`]),
+      ownerPassword: Base64.decode(
+        mirrorPasswordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`],
+      ),
+      databaseName: Base64.decode(mirrorPasswordsSecret.data[`${environmentVariablePrefix}_MIRROR_IMPORTER_DB_NAME`]),
+    };
+  }
+
+  private parseRangeOutput(output: string): BlockNumberRange {
+    const lines: string[] = output.trim().split('\n');
+    let line: string = output.trim();
+    for (let index: number = lines.length - 1; index >= 0; index--) {
+      const currentLine: string = lines[index];
+      if (currentLine.includes('|')) {
+        line = currentLine;
+        break;
+      }
+    }
+
+    const [firstRaw, lastRaw]: string[] = line.split('|', 2);
+    return {
+      first: this.parseNullableBlockNumber(firstRaw),
+      last: this.parseNullableBlockNumber(lastRaw),
+    };
+  }
+
+  private parseNullableBlockNumber(value: string): number | null {
+    if (!value) {
+      return null;
+    }
+
+    const normalized: string = value.trim();
+    if (!normalized || normalized === '-1') {
+      return null;
+    }
+
+    const parsed: number = Number.parseInt(normalized, 10);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+
+  private extractBlockNumbersFromText(text: string): number[] {
+    const values: number[] = [];
+    const filePattern: RegExp = /\b(\d{1,19})\.blk(?:\.gz)?\b/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = filePattern.exec(text)) !== null) {
+      const parsed: number = Number.parseInt(match[1], 10);
+      if (Number.isSafeInteger(parsed)) {
+        values.push(parsed);
+      }
+    }
+
+    return [...new Set(values)];
+  }
+
+  private toRange(values: number[]): BlockNumberRange {
+    if (values.length === 0) {
+      return {first: null, last: null};
+    }
+
+    // eslint-disable-next-line unicorn/no-array-sort
+    const sorted: number[] = [...values].sort((left: number, right: number): number => left - right);
+    return {first: sorted[0], last: sorted.at(-1) ?? null};
+  }
+
+  private aggregateBlockNumberSamples(samples: BlockNumberSample[]): BlockNumberRange {
+    const firstValues: number[] = samples
+      .map((sample: BlockNumberSample): number | null => sample.first)
+      .filter((value: number | null): value is number => value !== null);
+    const lastValues: number[] = samples
+      .map((sample: BlockNumberSample): number | null => sample.last)
+      .filter((value: number | null): value is number => value !== null);
+
+    return {
+      first: firstValues.length > 0 ? Math.min(...firstValues) : null,
+      last: lastValues.length > 0 ? Math.max(...lastValues) : null,
+    };
+  }
+
+  private logLedgerResetCheckpointSummary(snapshot: LedgerResetCheckpointSnapshot): void {
+    const consensusRange: BlockNumberRange = this.aggregateBlockNumberSamples(snapshot.consensusSamples);
+    const blockNodeRange: BlockNumberRange = this.aggregateBlockNumberSamples(snapshot.blockNodeSamples);
+    const mirrorImporterRange: BlockNumberRange = this.aggregateBlockNumberSamples(snapshot.mirrorImporterSamples);
+
+    if (snapshot.phase === 'pre-reset') {
+      this.logger.showUser(
+        `[ledger-reset-debug][pre-reset] consensus last block generated=${this.formatBlockNumber(consensusRange.last)}, block node last block handled=${this.formatBlockNumber(blockNodeRange.last)}, mirror importer last block imported=${this.formatBlockNumber(mirrorImporterRange.last)}`,
+      );
+    } else {
+      this.logger.showUser(
+        `[ledger-reset-debug][post-reset] consensus first block generated=${this.formatBlockNumber(consensusRange.first)}, block node first block handled=${this.formatBlockNumber(blockNodeRange.first)}, mirror importer first block imported=${this.formatBlockNumber(mirrorImporterRange.first)}`,
+      );
+    }
+
+    for (const sample of [
+      ...snapshot.consensusSamples,
+      ...snapshot.blockNodeSamples,
+      ...snapshot.mirrorImporterSamples,
+    ]) {
+      this.logger.showUser(
+        `[ledger-reset-debug][${snapshot.phase}] ${sample.componentId} pod=${sample.podName} source=${sample.source} first=${this.formatBlockNumber(sample.first)} last=${this.formatBlockNumber(sample.last)}`,
+      );
+    }
+
+    for (const note of snapshot.notes) {
+      this.logger.warn(`[ledger-reset-debug][${snapshot.phase}] ${note}`);
+    }
+  }
+
+  private formatBlockNumber(value: number | null): string {
+    return value === null ? 'N/A' : value.toString();
   }
 
   public async create(argv: ArgvStruct): Promise<boolean> {
