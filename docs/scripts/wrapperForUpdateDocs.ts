@@ -8,7 +8,7 @@ import {update} from './updateDocs.js';
 
 void (async function main(): Promise<void> {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const projectRoot = path.resolve(__dirname, '../../../');
+  const projectRoot = path.resolve(__dirname, '../../');
   process.chdir(projectRoot);
 
   const version = process.argv[2];

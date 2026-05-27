@@ -121,7 +121,7 @@ jobs:
 
   cli-help:
     name: CLI Help
-    runs-on: hiero-solo-linux-medium
+    runs-on: hiero-solo-linux-large
     timeout-minutes: 30
     env:
       STEP_TIMEOUT_MINUTES: '5'
