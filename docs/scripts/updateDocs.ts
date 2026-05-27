@@ -35,7 +35,7 @@ export async function update(): Promise<void> {
 
   await run(`kind delete cluster -n ${process.env.SOLO_CLUSTER_NAME} || true`);
   await run(`rm -Rf ~/.solo/cache || true`);
-  await run(`rm ~/.solo/local-config.yaml || true`);
+  await run(`rm -f ~/.solo/local-config.yaml || true`);
 
   const soloCommandOutput = {};
 

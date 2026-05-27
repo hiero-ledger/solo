@@ -39,7 +39,7 @@ export async function run(cmd: string, opts = {}): Promise<string> {
 
     child.on('close', code => {
       if (code === 0) resolve(output.trim());
-      else reject(new Error(`Command failed: ${cmd} (exit code ${code})`));
+      else reject(new Error(`run: Command failed: ${cmd} (exit code ${code})`));
     });
   });
 }
@@ -80,7 +80,7 @@ export async function runCapture(cmd: string, opts = {}, returnBase64: boolean =
 
     child.on('close', code => {
       if (code === 0) resolve(returnBase64 ? Base64.encode(output.trim()) : output.trim());
-      else reject(new Error(`Command failed: ${cmd} (exit code ${code})`));
+      else reject(new Error(`runCapture: Command failed: ${cmd} (exit code ${code})`));
     });
   });
 }
