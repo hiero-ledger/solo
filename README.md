@@ -1,9 +1,9 @@
 
 # Solo
 
-[![NPM Version](https://img.shields.io/npm/v/%40hashgraph%2Fsolo?logo=npm)](https://www.npmjs.com/package/@hashgraph/solo)
+[![NPM Version](https://img.shields.io/npm/v/@hiero-ledger/solo?logo=npm)](https://www.npmjs.com/package/@hiero-ledger/solo)
 [![GitHub License](https://img.shields.io/github/license/hiero-ledger/solo?logo=apache\&logoColor=red)](LICENSE)
-![node-lts](https://img.shields.io/node/v-lts/%40hashgraph%2Fsolo)
+![node-lts](https://img.shields.io/node/v-lts/@hiero-ledger/solo)
 [![Build Application](https://github.com/hiero-ledger/solo/actions/workflows/flow-build-application.yaml/badge.svg)](https://github.com/hiero-ledger/solo/actions/workflows/flow-build-application.yaml)
 [![Codacy Grade](https://app.codacy.com/project/badge/Grade/78539e1c1b4b4d4d97277e7eeeab9d09)](https://app.codacy.com/gh/hiero-ledger/solo/dashboard?utm_source=gh\&utm_medium=referral\&utm_content=\&utm_campaign=Badge_grade)
 [![Codacy Coverage](https://app.codacy.com/project/badge/Coverage/78539e1c1b4b4d4d97277e7eeeab9d09)](https://app.codacy.com/gh/hiero-ledger/solo/dashboard?utm_source=gh\&utm_medium=referral\&utm_content=\&utm_campaign=Badge_coverage)
@@ -19,49 +19,23 @@ Solo releases are supported for one month after their release date. Upgrade to t
 
 ### Current Releases
 
-| Solo Version | Node.js             | Kind       | Solo Chart | Hedera       | Kubernetes | Kubectl    | Helm    | Docker Resources               | Release Date | End of Support |
-|--------------|---------------------|------------|------------|--------------|------------|------------|---------|--------------------------------|--------------|----------------|
-| 0.74.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.3    | v0.73.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-26   | 2026-08-26     |
-| 0.73.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.3    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-12   | 2026-06-12     |
-| 0.72.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.3    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-05   | 2026-08-05     |
-| 0.71.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.3    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-01   | 2026-06-01     |
-| 0.70.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.3    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-28   | 2026-07-28     |
-| 0.69.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.3    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-14   | 2026-05-14     |
-| 0.68.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.2    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-07   | 2026-07-07     |
-| 0.67.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.2    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-02   | 2026-05-02     |
-| 0.66.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.2    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-02   | 2026-07-02     |
-| 0.65.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.2    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-03-31   | 2026-04-30     |
-| 0.64.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.63.2    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-03-27   | 2026-06-27     |
-| 0.62.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.62.0    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-03-17   | 2026-06-17     |
-| 0.60.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.62.0    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-03-10   | 2026-06-10     |
-| 0.58.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.62.0    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-02-25   | 2026-05-25     |
-| 0.56.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.60.2    | v0.68.7-rc.1 | >= v1.32.2 | >= v1.32.2 | v3.14.2 | Memory >= 12GB, CPU cores >= 6 | 2026-02-12   | 2026-05-12     |
+| Solo Version | Node.js             | Consensus Node | Kubernetes | Docker Resources               | Release Date | End of Support |
+|--------------|---------------------|----------------|------------|--------------------------------|--------------|----------------|
+| 0.74.0 (LTS) | >= 22.0.0 (lts/jod) | v0.73.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-26   | 2026-08-26     |
+| 0.73.0       | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-12   | 2026-06-12     |
+| 0.72.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-05   | 2026-08-05     |
+| 0.71.0       | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-01   | 2026-06-01     |
+| 0.70.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-28   | 2026-07-28     |
+| 0.68.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-07   | 2026-07-07     |
+| 0.66.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-02   | 2026-07-02     |
+| 0.64.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-03-27   | 2026-06-27     |
+| 0.62.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-03-17   | 2026-06-17     |
+| 0.60.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-03-10   | 2026-06-10     |
 
-To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
-
-### Hardware Requirements
-
-Docker Desktop (or Docker Engine / Podman on Linux) with at least **12GB of memory** and **6 CPU cores**.
-
-![Docker Desktop Settings](images/docker-desktop.png)
-
-## Installation
-
-Install Solo via Homebrew (macOS, Linux, WSL2):
-
-```bash
-brew install hiero-ledger/tools/solo
-```
-
-Or via npm (requires Node.js >= 22.0.0):
-
-```bash
-npm install -g @hashgraph/solo@latest
-```
-
-For detailed platform-specific instructions, see the [Solo User Guide](https://solo.hiero.org/docs/simple-solo-setup/).
+To see a list of legacy releases, please check the [legacy versions documentation page](legacy-versions.md).
 
 ## Documentation
+
 If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
 [solo docs](https://solo.hiero.org/docs/simple-solo-setup/quickstart/#deploy-a-local-network-one-shot)
 
