@@ -13,7 +13,7 @@ export class ClusterConnectionFailedError extends SoloError {
       message: `Connection failed for cluster ${clusterReference} with context: ${context}`,
       code: ErrorCodeRegistry.CLUSTER_CONNECTION_FAILED,
       troubleshootingSteps:
-        'Verify the kubeconfig context is correct and the cluster is reachable:\n  kubectl cluster-info --context <context>',
+        'Verify the kubeconfig context is correct and the cluster is reachable: kubectl cluster-info --context <context>',
     });
   }
 }

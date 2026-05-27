@@ -13,7 +13,8 @@ export class IllegalArgumentError extends SoloError {
       {
         message: reason,
         code: ErrorCodeRegistry.ILLEGAL_ARGUMENT,
-        troubleshootingSteps: 'An argument has an valid value or format.\nVerify the argument value before retrying',
+        troubleshootingSteps:
+          'An argument has an valid value or format.\n' + 'Verify the argument value before retrying',
       },
       cause,
       value === undefined ? undefined : {value},
