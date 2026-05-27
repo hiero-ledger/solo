@@ -101,6 +101,7 @@ tasks:
         if [[ "${SKIP_CLI_OUTPUT}" != "true" ]]; then
           printf "\r::group::Generating CLI help documentation\n"
           rm -f docs/site/build/solo-cli.md
+          mkdir -p docs/site/build
           task build:compile
           SOLO_DEBUG=true npx tsx docs/scripts/generateHelp.ts
           printf "\r::endgroup::--------------\n"
@@ -122,6 +123,7 @@ tasks:
       - |
         if [[ "${SKIP_COMMAND_OUTPUT}" != "true" ]]; then
           rm -f docs/site/build/solo-command-output.json
+          mkdir -p docs/site/build
           if [[ "${SOLO_CI}" == "true" ]]; then
             echo "Running wrapperForUpdateDocs.ts in CI mode"
             npx tsx docs/scripts/wrapperForUpdateDocs.ts

@@ -24,8 +24,8 @@ void (async function main(): Promise<void> {
   console.log(chalk.cyan('ℹ Running task build'));
   await run('task build');
 
-  console.log(chalk.cyan('ℹ Installing and linking @hashgraph/solo'));
-  await run('SOLO_NO_CACHE=true npm install -g @hashgraph/solo');
+  console.log(chalk.cyan('ℹ Installing and linking @hiero-ledger/solo'));
+  await run('SOLO_NO_CACHE=true npm install -g @hiero-ledger/solo');
   await run('npm link');
 
   await run('which solo');
@@ -36,7 +36,7 @@ void (async function main(): Promise<void> {
   await update();
 
   // print the generated file
-  console.log('::group::Updated solo-user-guide.md');
-  await run(`cat ${path.join(projectRoot, 'docs/site/content/en/docs/solo-user-guide.md')}`);
+  console.log('::group::Created solo-command-output.json');
+  await run(`cat ${path.join(projectRoot, 'docs/site/build/solo-command-output.json')}`);
   console.log('::endgroup::');
 })();
