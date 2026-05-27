@@ -14,7 +14,7 @@ export class RefreshLocalConfigSourceError extends SoloError {
         message: 'Failed to refresh local configuration source',
         code: ErrorCodeRegistry.REFRESH_LOCAL_CONFIG_SOURCE,
         troubleshootingSteps:
-          'Check file system permissions for ~/.solo\nVerify the config file exists: solo deployment config info',
+          'Check file system permissions for ~/.solo\n' + 'Verify the config file exists: solo deployment config info',
       },
       cause,
     );
