@@ -103,7 +103,7 @@ tasks:
           rm -f docs/site/build/solo-cli.md
           mkdir -p docs/site/build
           task build:compile
-          SOLO_DEBUG=true npx tsx docs/scripts/generateHelp.ts
+          npx tsx docs/scripts/generateHelp.ts
           printf "\r::endgroup::--------------\n"
         fi
 
@@ -118,8 +118,6 @@ tasks:
       - docs/scripts/*.ts
     cmds:
       - printf "\r::group::Building Solo Command Output\n"
-      - (cd docs/site/ && npm install)
-      - task build:compile
       - |
         if [[ "${SKIP_COMMAND_OUTPUT}" != "true" ]]; then
           rm -f docs/site/build/solo-command-output.json
@@ -128,6 +126,7 @@ tasks:
             echo "Running wrapperForUpdateDocs.ts in CI mode"
             npx tsx docs/scripts/wrapperForUpdateDocs.ts
           else
+            task build:compile
             echo "Running executeUpdateDocs.ts in local mode"
             npx tsx docs/scripts/executeUpdateDocs.ts
           fi

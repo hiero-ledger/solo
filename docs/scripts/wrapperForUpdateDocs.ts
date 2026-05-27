@@ -18,11 +18,8 @@ void (async function main(): Promise<void> {
     await run(`npm version ${version} -f --no-git-tag-version --allow-same-version`);
   }
 
-  console.log(chalk.cyan('ℹ Running npm install'));
-  await run('npm install');
-
-  console.log(chalk.cyan('ℹ Running task build'));
-  await run('task build');
+  console.log(chalk.cyan('ℹ Running task build:compile'));
+  await run('task build:compile');
 
   console.log(chalk.cyan('ℹ Installing and linking @hiero-ledger/solo'));
   await run('SOLO_NO_CACHE=true npm install -g @hiero-ledger/solo');
