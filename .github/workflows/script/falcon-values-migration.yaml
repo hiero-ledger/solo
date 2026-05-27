@@ -1,8 +1,0 @@
-# One-shot falcon overrides for migration workflow tests.
-# Keep this file scoped to migration CI behavior.
-network:
-  --pvcs: true
-  --release-tag: "v0.70.0"
-
-setup:
-  --release-tag: "v0.70.0"

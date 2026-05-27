@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/helper.sh"
 
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
+TEMP_ONE_SHOT_VALUES_FILE=""
 
 collect_failure_diagnostics() {
   local rc="${1}"
@@ -32,6 +33,10 @@ on_exit() {
 
   if [[ -n "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" ]]; then
     rm -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+  fi
+
+  if [[ -n "${TEMP_ONE_SHOT_VALUES_FILE:-}" && -f "${TEMP_ONE_SHOT_VALUES_FILE}" ]]; then
+    rm -f "${TEMP_ONE_SHOT_VALUES_FILE}"
   fi
 
   if [[ ${rc} -ne 0 ]]; then
@@ -510,10 +515,22 @@ fi
 echo "Consensus Node Version (from): ${FROM_CONSENSUS_NODE_VERSION}"
 echo "Consensus Node Version (to): ${TO_CONSENSUS_NODE_VERSION}"
 
+TEMP_ONE_SHOT_VALUES_FILE="$(mktemp -t falcon-values-migration-XXXX.yaml)"
+cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
+# Generated for migration workflow launch.
+network:
+  --pvcs: true
+  --release-tag: "${FROM_CONSENSUS_NODE_VERSION}"
+
+setup:
+  --release-tag: "${FROM_CONSENSUS_NODE_VERSION}"
+EOF
+
 export ONE_SHOT_WITH_BLOCK_NODE=true
 solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
-  --values-file .github/workflows/script/falcon-values-migration.yaml
+  --no-parallel-deploy \
+  --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"
 
 echo "::endgroup::"
 
