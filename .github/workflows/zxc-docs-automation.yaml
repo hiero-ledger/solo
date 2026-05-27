@@ -37,8 +37,6 @@ jobs:
     timeout-minutes: 40
     env:
       STEP_TIMEOUT_MINUTES: '5'
-    outputs:
-      build_succeeded: ${{ steps.set-build-succeeded.outputs.build_succeeded }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
@@ -127,8 +125,6 @@ jobs:
     timeout-minutes: 30
     env:
       STEP_TIMEOUT_MINUTES: '5'
-    outputs:
-      build_succeeded: ${{ steps.set-build-succeeded.outputs.build_succeeded }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
