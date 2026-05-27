@@ -1,6 +1,6 @@
 version: 3
 tasks:
-  github:list:solo:releases: # TODO only pull back v0.57+ (depending on hashsphere or supported LTS)
+  github:list:solo:releases:
     desc: List GitHub releases for hiero-ledger/solo using gh CLI and output as JSON (excluding empty assets)
     silent: true
     deps: [install:gh]
