@@ -17,7 +17,7 @@ async function addCommandOutput(
 
 export async function update(): Promise<void> {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const projectRoot = path.resolve(__dirname, '../../../');
+  const projectRoot = path.resolve(__dirname, '../../');
   process.chdir(projectRoot);
 
   const TARGET_DIR = 'docs/site/build';
