@@ -123,6 +123,7 @@ tasks:
           rm -f docs/site/build/solo-command-output.json
           mkdir -p docs/site/build
           if [[ "${SOLO_CI}" == "true" ]]; then
+            npm ci
             echo "Running wrapperForUpdateDocs.ts in CI mode"
             npx tsx docs/scripts/wrapperForUpdateDocs.ts
           else
