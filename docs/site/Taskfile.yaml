@@ -129,21 +129,20 @@ tasks:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/site/scripts/wrapperForUpdateDocs.ts
-      - docs/site/scripts/executeUpdateDocs.ts
+      - docs/scripts/*.ts
     cmds:
-      - printf "\r::group::Building Solo User Guide\n"
+      - printf "\r::group::Building Solo Command Output\n"
       - (cd docs/site/ && npm install)
       - task: "build:solo"
       - |
         if [[ "${SKIP_COMMAND_OUTPUT}" != "true" ]]; then
-          rm -f docs/site/content/en/solo-user-guide.md
+          rm -f docs/site/build/solo-command-output.json
           if [[ "${SOLO_CI}" == "true" ]]; then
-            echo "Running wrapperForUpdateDocs.mjs in CI mode"
-            node docs/site/scripts/wrapperForUpdateDocs.mjs
+            echo "Running wrapperForUpdateDocs.ts in CI mode"
+            npx tsx docs/scripts/wrapperForUpdateDocs.ts
           else
-            echo "Running executeUpdateDocs.mjs.mjs in local mode"
-            node docs/site/scripts/executeUpdateDocs.mjs
+            echo "Running executeUpdateDocs.ts in local mode"
+            npx tsx docs/scripts/executeUpdateDocs.ts
           fi
         fi
       - printf "\r::endgroup::--------------\n"
