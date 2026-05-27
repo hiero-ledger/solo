@@ -35,8 +35,7 @@ To see a list of legacy releases, please check the [legacy versions documentatio
 
 ## Documentation
 
-If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
-[solo docs](https://solo.hiero.org/docs/simple-solo-setup/quickstart/#deploy-a-local-network-one-shot)
+Our documentation is available here: [solo.hiero.org](https://solo.hiero.org/)
 
 ## Contributing
 
