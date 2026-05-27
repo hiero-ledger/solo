@@ -344,8 +344,8 @@ tasks:
   verify:
     desc: Verify restored network functionality
     cmds:
-      - cmd: echo "🔎 Verifying restored state (checking account 3.2.3)..."
-      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3 || echo "⚠️  Account verification may have failed"
+      - cmd: echo "🔎 Verifying restored state (checking account {{ .REALM }}.{{ .SHARD }}.3)..."
+      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .REALM }}.{{ .SHARD }}.3 || echo "⚠️  Account verification may have failed"
 
       - cmd: echo "💰 Testing with new transactions..."
       - cmd: |
