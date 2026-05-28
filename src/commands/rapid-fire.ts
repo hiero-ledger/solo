@@ -20,14 +20,12 @@ import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {injectable} from 'tsyringe-neo';
-import {NETWORK_LOAD_GENERATOR_CHART_VERSION} from '../../version.js';
 import {
   MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR,
   NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72,
   NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72,
 } from '../../version.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
-import * as helpers from '../core/helpers.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {type Pods} from '../integration/kube/resources/pod/pods.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';

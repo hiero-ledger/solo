@@ -25,7 +25,6 @@ import {Flags} from '../../../src/commands/flags.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
-import {NETWORK_LOAD_GENERATOR_CHART_VERSION} from '../../../version.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {
   HEDERA_PLATFORM_VERSION,
@@ -34,7 +33,6 @@ import {
   NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72,
 } from '../../../version.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
-import * as helpers from '../../../src/core/helpers.js';
 import {type Pod} from '../../../src/integration/kube/resources/pod/pod.js';
 import {ContainerReference} from '../../../src/integration/kube/resources/container/container-reference.js';
 import {type Containers} from '../../../src/integration/kube/resources/container/containers.js';
