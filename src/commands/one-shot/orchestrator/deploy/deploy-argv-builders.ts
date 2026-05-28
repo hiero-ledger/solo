@@ -43,14 +43,10 @@ export class DeployArgvBuilders {
   private static readonly BLOCK_NODE_RELEASES_URL: string =
     'https://api.github.com/repos/hiero-ledger/hiero-block-node/releases';
 
-  private static isEnvTrue(value: string | undefined): boolean {
-    return value?.toLowerCase() === 'true';
-  }
-
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
     const argv: string[] = newArgv();
     argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), optionFromFlag(Flags.deployment), config.deployment);
-    if (DeployArgvBuilders.isEnvTrue(process.env.ONE_SHOT_WITH_BLOCK_NODE)) {
+    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
       argv.push(optionFromFlag(Flags.blockNodeTssOverlay));
     }
 
@@ -102,7 +98,7 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.parallelDeploy),
       config.parallelDeploy.toString(),
     );
-    if (DeployArgvBuilders.isEnvTrue(process.env.ONE_SHOT_WITH_BLOCK_NODE)) {
+    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
       argv.push(optionFromFlag(Flags.forceBlockNodeIntegration));
     }
     // Append HikariCP limits file without mutating the shared config object.
@@ -174,7 +170,7 @@ export class DeployArgvBuilders {
     if (config.networkConfiguration) {
       appendConfigToArgv(argv, config.networkConfiguration);
     }
-    if (DeployArgvBuilders.isEnvTrue(process.env.ONE_SHOT_WITH_BLOCK_NODE)) {
+    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
       argv.push(optionFromFlag(Flags.tssEnabled), 'true');
     }
     return argvPushGlobalFlags(argv, config.cacheDir);
