@@ -9,7 +9,7 @@ export class ResourceNotFoundError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
-  public constructor(resource: string, cause: Error | any = {}) {
+  public constructor(resource: string, cause?: Error) {
     super(
       {
         message: `Resource not found: ${resource}`,
