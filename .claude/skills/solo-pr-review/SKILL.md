@@ -46,18 +46,18 @@ Open these before writing any feedback. They are the rulebook — the review mus
    DRY violations, exported functions, generic-flag wording, error-handling drift, missing Windows support, etc.) before
    getting into line-by-line nits.
 4. **Line pass.** Read the actual diff. For each finding, decide:
-    - **Critical** — bug, security issue, data loss, broken backwards compatibility, build/CI break.
-    - **Major** — design/architecture issue, DRY/SOLID violation, missing default behavior, cross-platform regression,
-      drift from existing patterns.
-    - **Minor** — naming, comment hygiene, suggestion-block one-liners.
-    - **Question** — something that looks off but might have a reason. Ask before claiming.
+   - **Critical** — bug, security issue, data loss, broken backwards compatibility, build/CI break.
+   - **Major** — design/architecture issue, DRY/SOLID violation, missing default behavior, cross-platform regression,
+     drift from existing patterns.
+   - **Minor** — naming, comment hygiene, suggestion-block one-liners.
+   - **Question** — something that looks off but might have a reason. Ask before claiming.
 5. **Test pass.** Are there tests? Are they unit (cheap, fast) or did the author reach for E2E/nightly when a unit test
    would do? Flag missing unit coverage explicitly.
 6. **Write the report.** Use the template in §Output. Lead with the critical/major findings; line-level suggestion
    blocks come after.
 
 > **Checkpoint:** before delivering the report, re-read it and ask: *"If I were the author, would I be able to act on
-every comment without another round-trip?"* If not, tighten the wording or add a code example.
+> every comment without another round-trip?"* If not, tighten the wording or add a code example.
 
 ## Reference guide
 
@@ -89,10 +89,14 @@ For URL-only inputs, parse the PR number out of the URL and use `gh pr view` / `
 
 **Token-efficiency tips:**
 
-- `gh pr view --json files` returns the file list with line counts — use it to decide which files to fetch full diffs for, instead of pulling the whole PR diff up front.
-- For exact line numbers in *inline-comment-anchor positions*, prefer `gh pr diff <num> -- <path>` over fetching the entire file via `gh api .../contents/...`. The diff already shows line numbers on the RIGHT side.
-- Only fetch a full file via `gh api 'repos/<owner>/<repo>/contents/<path>?ref=<sha>' --jq '.content' | base64 -d` when you genuinely need surrounding context the diff doesn't show.
-- When iterating over multiple lookups, batch them into a single Bash call (one shell, multiple `gh api` invocations) rather than separate tool calls.
+- `gh pr view --json files` returns the file list with line counts — use it to decide which files to fetch full diffs
+  for, instead of pulling the whole PR diff up front.
+- For exact line numbers in *inline-comment-anchor positions*, prefer `gh pr diff <num> -- <path>` over fetching the
+  entire file via `gh api .../contents/...`. The diff already shows line numbers on the RIGHT side.
+- Only fetch a full file via `gh api 'repos/<owner>/<repo>/contents/<path>?ref=<sha>' --jq '.content' | base64 -d` when
+  you genuinely need surrounding context the diff doesn't show.
+- When iterating over multiple lookups, batch them into a single Bash call (one shell, multiple `gh api` invocations)
+  rather than separate tool calls.
 
 ## How to post the review
 
@@ -150,11 +154,12 @@ when a pending review already exists.
    The response includes `"state": "PENDING"` and an `html_url` pointing to the review on GitHub.
 
 4. **Tell the user what to do next.** End the turn with a short message that:
-   - Links to the pending review (`html_url` from the response).
-   - States that the review is queued in PENDING state with N inline comments + summary.
-   - Asks them to open it in GitHub, vet/edit the comments, and choose **Comment**,
-     **Approve**, or **Request changes** themselves.
-   - Does **not** call any API to submit, dismiss, or otherwise change the review state.
+
+- Links to the pending review (`html_url` from the response).
+- States that the review is queued in PENDING state with N inline comments + summary.
+- Asks them to open it in GitHub, vet/edit the comments, and choose **Comment**,
+  **Approve**, or **Request changes** themselves.
+- Does **not** call any API to submit, dismiss, or otherwise change the review state.
 
 ### What never to do
 
