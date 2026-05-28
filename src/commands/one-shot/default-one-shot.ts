@@ -14,7 +14,7 @@ import {OneShotCommand} from './one-shot.js';
 import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
 import {type OneShotVersionsObject} from './one-shot-versions-object.js';
 import * as version from '../../../version.js';
-import {resolveEdgeVersions} from '../../core/edge-version-fetcher.js';
+import {EdgeVersionFetcher} from '../../core/edge-version-fetcher.js';
 import {type EdgeVersionsObject} from '../../core/edge-versions-object.js';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type FalconPrepareConfig} from './falcon-prepare-config.js';
@@ -609,7 +609,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       blockNode: version.BLOCK_NODE_EDGE_VERSION,
     };
 
-    const resolvedComponentVersions: EdgeVersionsObject = await resolveEdgeVersions({
+    const resolvedComponentVersions: EdgeVersionsObject = await EdgeVersionFetcher.resolveEdgeVersions({
       consensus: edgeVersions.consensus,
       mirror: edgeVersions.mirror,
       blockNode: edgeVersions.blockNode,

@@ -31,99 +31,106 @@ const COMPONENT_VERSION_CONFIGS: Readonly<Record<keyof EdgeVersionsObject, Compo
   relay: {owner: 'hiero-ledger', repository: 'hiero-json-rpc-relay', stripVPrefix: true},
 };
 
-/**
- * Fetches the tag name of the latest stable (non-prerelease, non-draft) release for a
- * given GitHub repository using the GitHub REST API
- * (`GET /repos/{owner}/{repo}/releases/latest`).
- *
- * @param owner - GitHub repository owner.
- * @param repository - GitHub repository name.
- * @returns The tag name of the latest stable release (e.g. `v0.71.0`).
- * @throws SoloError when the GitHub API request fails or returns an unexpected response.
- */
-export async function fetchLatestStableGitHubRelease(owner: string, repository: string): Promise<string> {
-  const url: string = GITHUB_RELEASES_LATEST_URL.replace('{owner}', owner).replace('{repo}', repository);
+export class EdgeVersionFetcher {
+  private constructor() {}
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': constants.SOLO_USER_AGENT_HEADER,
-        Accept: 'application/vnd.github.v3+json',
-      },
-    });
-  } catch (error) {
-    throw new SoloErrors.system.githubApiRequestFailed(url, error);
+  /**
+   * Fetches the tag name of the latest stable (non-prerelease, non-draft) release for a
+   * given GitHub repository using the GitHub REST API
+   * (`GET /repos/{owner}/{repo}/releases/latest`).
+   *
+   * @param owner - GitHub repository owner.
+   * @param repository - GitHub repository name.
+   * @returns The tag name of the latest stable release (e.g. `v0.71.0`).
+   * @throws SoloError when the GitHub API request fails or returns an unexpected response.
+   */
+  public static async fetchLatestStableGitHubRelease(owner: string, repository: string): Promise<string> {
+    const url: string = GITHUB_RELEASES_LATEST_URL.replace('{owner}', owner).replace('{repo}', repository);
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': constants.SOLO_USER_AGENT_HEADER,
+          Accept: 'application/vnd.github.v3+json',
+        },
+      });
+    } catch (error) {
+      throw new SoloErrors.system.githubApiRequestFailed(url, error);
+    }
+
+    if (!response.ok) {
+      throw new SoloErrors.system.githubApiHttpResponseError(url, response.status);
+    }
+
+    let release: GitHubRelease;
+    try {
+      release = (await response.json()) as GitHubRelease;
+    } catch (error) {
+      throw new SoloErrors.system.githubApiResponseParseFailed(url, error);
+    }
+
+    if (!release?.tag_name) {
+      throw new SoloErrors.system.githubApiResponseMissingTagName(url);
+    }
+
+    return release.tag_name;
   }
 
-  if (!response.ok) {
-    throw new SoloErrors.system.githubApiHttpResponseError(url, response.status);
+  /**
+   * Resolves the latest stable released version for every deployable component by querying
+   * the GitHub Releases API.  When an environment-variable override is set for a component
+   * (using the same variable names that the edge-version constants in `version.ts` honour),
+   * the env-var value is used directly and no API call is made for that component.
+   *
+   * If the API call for a component fails, the supplied `fallbackVersions` value is used
+   * instead so that the deployment can still proceed.
+   *
+   * @param fallbackVersions - Static version strings to fall back to when an API call fails.
+   * @returns Resolved version strings for all components.
+   */
+  public static async resolveEdgeVersions(fallbackVersions: EdgeVersionsObject): Promise<EdgeVersionsObject> {
+    const environmentVariableOverrides: Readonly<Record<keyof EdgeVersionsObject, string | undefined>> = {
+      consensus: constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION'),
+      mirror: constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION'),
+      blockNode: constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION'),
+      explorer: constants.getEnvironmentVariable('EXPLORER_EDGE_VERSION'),
+      relay: constants.getEnvironmentVariable('RELAY_EDGE_VERSION'),
+    };
+
+    const componentKeys: ReadonlyArray<keyof EdgeVersionsObject> = [
+      'consensus',
+      'mirror',
+      'blockNode',
+      'explorer',
+      'relay',
+    ];
+
+    const resolvedVersions: EdgeVersionsObject = {...fallbackVersions};
+
+    await Promise.all(
+      componentKeys.map(async (component: keyof EdgeVersionsObject): Promise<void> => {
+        const environmentOverride: string | undefined = environmentVariableOverrides[component];
+        if (environmentOverride) {
+          resolvedVersions[component] = environmentOverride;
+          return;
+        }
+
+        const config: ComponentVersionConfig = COMPONENT_VERSION_CONFIGS[component];
+        try {
+          const tagName: string = await EdgeVersionFetcher.fetchLatestStableGitHubRelease(
+            config.owner,
+            config.repository,
+          );
+          resolvedVersions[component] = config.stripVPrefix ? tagName.replace(/^v/, '') : tagName;
+        } catch {
+          // Fallback to static default when the GitHub API call fails
+          resolvedVersions[component] = fallbackVersions[component];
+        }
+      }),
+    );
+
+    return resolvedVersions;
   }
-
-  let release: GitHubRelease;
-  try {
-    release = (await response.json()) as GitHubRelease;
-  } catch (error) {
-    throw new SoloErrors.system.githubApiResponseParseFailed(url, error);
-  }
-
-  if (!release?.tag_name) {
-    throw new SoloErrors.system.githubApiResponseMissingTagName(url);
-  }
-
-  return release.tag_name;
-}
-
-/**
- * Resolves the latest stable released version for every deployable component by querying
- * the GitHub Releases API.  When an environment-variable override is set for a component
- * (using the same variable names that the edge-version constants in `version.ts` honour),
- * the env-var value is used directly and no API call is made for that component.
- *
- * If the API call for a component fails, the supplied `fallbackVersions` value is used
- * instead so that the deployment can still proceed.
- *
- * @param fallbackVersions - Static version strings to fall back to when an API call fails.
- * @returns Resolved version strings for all components.
- */
-export async function resolveEdgeVersions(fallbackVersions: EdgeVersionsObject): Promise<EdgeVersionsObject> {
-  const environmentVariableOverrides: Readonly<Record<keyof EdgeVersionsObject, string | undefined>> = {
-    consensus: constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION'),
-    mirror: constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION'),
-    blockNode: constants.getEnvironmentVariable('BLOCK_NODE_EDGE_VERSION'),
-    explorer: constants.getEnvironmentVariable('EXPLORER_EDGE_VERSION'),
-    relay: constants.getEnvironmentVariable('RELAY_EDGE_VERSION'),
-  };
-
-  const componentKeys: ReadonlyArray<keyof EdgeVersionsObject> = [
-    'consensus',
-    'mirror',
-    'blockNode',
-    'explorer',
-    'relay',
-  ];
-
-  const resolvedVersions: EdgeVersionsObject = {...fallbackVersions};
-
-  await Promise.all(
-    componentKeys.map(async (component: keyof EdgeVersionsObject): Promise<void> => {
-      const environmentOverride: string | undefined = environmentVariableOverrides[component];
-      if (environmentOverride) {
-        resolvedVersions[component] = environmentOverride;
-        return;
-      }
-
-      const config: ComponentVersionConfig = COMPONENT_VERSION_CONFIGS[component];
-      try {
-        const tagName: string = await fetchLatestStableGitHubRelease(config.owner, config.repository);
-        resolvedVersions[component] = config.stripVPrefix ? tagName.replace(/^v/, '') : tagName;
-      } catch {
-        // Fallback to static default when the GitHub API call fails
-        resolvedVersions[component] = fallbackVersions[component];
-      }
-    }),
-  );
-
-  return resolvedVersions;
 }
