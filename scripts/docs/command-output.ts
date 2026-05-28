@@ -3,7 +3,7 @@
 import * as fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {filterOutputNoise, run, runCapture} from './utilities.js';
+import {run, runCapture} from './utilities.js';
 import chalk from 'chalk';
 import {Base64} from 'js-base64';
 
@@ -12,7 +12,7 @@ async function addCommandOutput(
   key: string,
   command: string,
 ): Promise<void> {
-  soloCommandOutput[key] = filterOutputNoise(await runCapture(command, {}, true));
+  soloCommandOutput[key] = await runCapture(command, {}, true);
   console.log(chalk.green(`✅ Captured output for command: ${command}`));
 }
 

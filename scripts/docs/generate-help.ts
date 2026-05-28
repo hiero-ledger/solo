@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {filterOutputNoise, runCapture} from './utilities.js';
+import {runCapture} from './utilities.js';
 import chalk from 'chalk';
 
 const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
@@ -196,7 +196,7 @@ The sections below are generated from Solo CLI help output using the implementat
 
 ## Version Output
 
-${getPreparedOutput(filterOutputNoise(soloCommand.versionOutput))}
+${getPreparedOutput(soloCommand.versionOutput)}
 
 ## Root Help Output
 
@@ -223,7 +223,7 @@ ${getPreparedOutput(filterOutputNoise(soloCommand.versionOutput))}
 }
 
 function getPreparedOutput(output: string): string {
-  return `\`\`\`\n${filterOutputNoise(output)}\n\`\`\``;
+  return `\`\`\`\n${output}\n\`\`\``;
 }
 
 async function generateHelp(): Promise<void> {

@@ -88,7 +88,8 @@ export async function runCapture(cmd: string, options: object = {}, returnBase64
 
     child.on('close', (code): void => {
       if (code === 0) {
-        resolve(returnBase64 ? Base64.encode(output.trim()) : output.trim());
+        const filteredOutput: string = filterOutputNoise(output);
+        resolve(returnBase64 ? Base64.encode(filteredOutput) : filteredOutput);
       } else {
         reject(new Error(`runCapture: Command failed: ${cmd} (exit code ${code})`));
       }
@@ -96,7 +97,7 @@ export async function runCapture(cmd: string, options: object = {}, returnBase64
   });
 }
 
-export function filterOutputNoise(output: string): string {
+function filterOutputNoise(output: string): string {
   const lines: string[] = output.split('\n').filter((line): boolean => {
     const trimmed: string = line.trim();
     return (
