@@ -3,15 +3,16 @@
 import * as fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {run, runCapture} from './utilities.js';
+import {filterOutputNoise, run, runCapture} from './utilities.js';
 import chalk from 'chalk';
+import {Base64} from 'js-base64';
 
 async function addCommandOutput(
   soloCommandOutput: Record<string, string>,
   key: string,
   command: string,
 ): Promise<void> {
-  soloCommandOutput[key] = await runCapture(command, {}, true);
+  soloCommandOutput[key] = filterOutputNoise(await runCapture(command, {}, true));
   console.log(chalk.green(`✅ Captured output for command: ${command}`));
 }
 
@@ -150,6 +151,10 @@ export async function update(): Promise<void> {
 
   const output: string = JSON.stringify(soloCommandOutput, undefined, 2);
   fs.writeFileSync(TARGET_FILE, output);
+  for (const [key, value] of Object.entries(soloCommandOutput)) {
+    console.log(chalk.blue(`\n📌 Command: ${key}\n`));
+    console.log(chalk.white(Base64.decode(value)));
+  }
 
   console.log(chalk.cyan('✅ Script finished'));
 }

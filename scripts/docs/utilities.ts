@@ -97,16 +97,23 @@ export async function runCapture(cmd: string, options: object = {}, returnBase64
 }
 
 export function filterOutputNoise(output: string): string {
-  // remove only the first line if it is empty or just whitespace, preserve other empty lines
-  const lines: string[] = output.split('\n');
-  if (lines.length > 0 && lines[0].trim() === '') {
+  const lines: string[] = output.split('\n').filter((line): boolean => {
+    const trimmed: string = line.trim();
+    return (
+      !trimmed.startsWith('>> environment variable') &&
+      !trimmed.startsWith('Warning:') &&
+      !trimmed.includes('DeprecationWarning:') &&
+      !trimmed.includes('--trace-deprecation')
+    );
+  });
+
+  // remove any empty lines until the first non-empty line, and any empty lines after the last non-empty line
+  while (lines.length > 0 && lines[0].trim() === '') {
     lines.shift();
   }
-  // remove lines that start with '>> environment variable' or 'Warning:'
-  return lines
-    .filter((line): boolean => {
-      const trimmed: string = line.trim();
-      return !trimmed.startsWith('>> environment variable') && !trimmed.startsWith('Warning:');
-    })
-    .join('\n');
+  while (lines.length > 0 && lines.at(-1).trim() === '') {
+    lines.pop();
+  }
+
+  return lines.join('\n');
 }
