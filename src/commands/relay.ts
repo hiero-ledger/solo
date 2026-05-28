@@ -2,15 +2,6 @@
 
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
-import {RelayDeployFailedSoloError} from '../core/errors/classes/component/relay-deploy-failed-solo-error.js';
-import {RelayDestroyFailedSoloError} from '../core/errors/classes/component/relay-destroy-failed-solo-error.js';
-import {RelayNotReadySoloError} from '../core/errors/classes/component/relay-not-ready-solo-error.js';
-import {RelayNotRunningSoloError} from '../core/errors/classes/component/relay-not-running-solo-error.js';
-import {RelayOperatorKeyRetrievalFailedSoloError} from '../core/errors/classes/component/relay-operator-key-retrieval-failed-solo-error.js';
-import {RelayUpgradeFailedSoloError} from '../core/errors/classes/component/relay-upgrade-failed-solo-error.js';
-import {RelayInvalidComponentIdSoloError} from '../core/errors/classes/validation/relay-invalid-component-id-solo-error.js';
-import {RelayNotInRemoteConfigSoloError} from '../core/errors/classes/system/relay-not-in-remote-config-solo-error.js';
-import {RelayPodNotFoundSoloError} from '../core/errors/classes/system/relay-pod-not-found-solo-error.js';
 import * as helpers from '../core/helpers.js';
 import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
@@ -317,7 +308,7 @@ export class RelayCommand extends BaseCommand {
           valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
         }
       } catch (error) {
-        throw new RelayOperatorKeyRetrievalFailedSoloError(error);
+        throw new SoloErrors.component.relayOperatorKeyRetrievalFailed(error);
       }
     }
 
@@ -387,7 +378,7 @@ export class RelayCommand extends BaseCommand {
 
   private renderReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      throw new RelayInvalidComponentIdSoloError(id);
+      throw new SoloErrors.validation.relayInvalidComponentId(id);
     }
     return `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
   }
@@ -486,7 +477,7 @@ export class RelayCommand extends BaseCommand {
               constants.RELAY_PODS_RUNNING_DELAY,
             );
         } catch (error) {
-          throw new RelayNotRunningSoloError(config.releaseName, error);
+          throw new SoloErrors.component.relayNotRunning(config.releaseName, error);
         }
         // reset nodeAlias
         this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
@@ -509,7 +500,7 @@ export class RelayCommand extends BaseCommand {
               constants.RELAY_PODS_READY_DELAY,
             );
         } catch (error) {
-          throw new RelayNotReadySoloError(config.releaseName, error);
+          throw new SoloErrors.component.relayNotReady(config.releaseName, error);
         }
       },
     };
@@ -530,7 +521,7 @@ export class RelayCommand extends BaseCommand {
           );
 
         if (pods.length === 0) {
-          throw new RelayPodNotFoundSoloError();
+          throw new SoloErrors.system.relayPodNotFound();
         }
 
         const podReference: PodReference = pods[0].podReference;
@@ -672,7 +663,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new RelayDeployFailedSoloError(error);
+        throw new SoloErrors.component.relayDeployFailed(error);
       } finally {
         if (lease && !this.oneShotState.isActive()) {
           await lease.release();
@@ -784,7 +775,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new RelayUpgradeFailedSoloError(error);
+        throw new SoloErrors.component.relayUpgradeFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -883,7 +874,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new RelayDestroyFailedSoloError(error);
+        throw new SoloErrors.component.relayDestroyFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -953,7 +944,7 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.relayNodes.length === 0) {
-      throw new RelayNotInRemoteConfigSoloError();
+      throw new SoloErrors.system.relayNotInRemoteConfig();
     }
 
     return this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;

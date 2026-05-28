@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr, ListrRendererValue} from 'listr2';
-import {FalconValuesPreparationFailedSoloError} from '../../core/errors/classes/component/falcon-values-preparation-failed-solo-error.js';
-import {OneShotCachedDeploymentNotFoundSoloError} from '../../core/errors/classes/validation/one-shot-cached-deployment-not-found-solo-error.js';
-import {OneShotDeployFailedSoloError} from '../../core/errors/classes/component/one-shot-deploy-failed-solo-error.js';
-import {OneShotDeploymentInfoRetrievalFailedSoloError} from '../../core/errors/classes/component/one-shot-deployment-info-retrieval-failed-solo-error.js';
-import {OneShotDestroyFailedSoloError} from '../../core/errors/classes/component/one-shot-destroy-failed-solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
 import {Flags as flags} from '../flags.js';
@@ -188,7 +184,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     config: OneShotSingleDeployConfigClass | undefined,
   ): Promise<never> {
     if (!config) {
-      throw new OneShotDeployFailedSoloError(
+      throw new SoloErrors.component.oneShotDeployFailed(
         `Deploy failed: ${deployError.message}. Rollback skipped: no resources created.`,
         deployError,
       );
@@ -198,7 +194,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       this.logger.warn('Automatic rollback skipped (--no-rollback flag provided)');
       this.logger.warn('To clean up: solo one-shot single destroy');
       this.logger.warn(`Or: kubectl delete ns ${config.namespace.name}`);
-      throw new OneShotDeployFailedSoloError(
+      throw new SoloErrors.component.oneShotDeployFailed(
         `Deploy failed: ${deployError.message}. Rollback skipped (--no-rollback).`,
         deployError,
       );
@@ -222,7 +218,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       await this.destroyInternal(destroyArgv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
     } catch (rollbackError) {
       this.logger.error(`Rollback failed for deployment '${config.deployment}': ${rollbackError.message}`);
-      throw new OneShotDeployFailedSoloError(
+      throw new SoloErrors.component.oneShotDeployFailed(
         `Deploy failed: ${deployError.message}. Rollback also failed: ${rollbackError.message}`,
         deployError,
       );
@@ -245,7 +241,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     }
 
     this.logger.info(`Rollback complete. Cache preserved at: ${config.cacheDir}`);
-    throw new OneShotDeployFailedSoloError(
+    throw new SoloErrors.component.oneShotDeployFailed(
       `Deploy failed: ${deployError.message}. Rollback completed successfully.`,
       deployError,
     );
@@ -298,7 +294,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     try {
       await this.destroyOrchestrator.buildDestroyPipeline(argv, flagsList, leaseReference).run();
     } catch (error) {
-      throw new OneShotDestroyFailedSoloError(error);
+      throw new SoloErrors.component.oneShotDestroyFailed(error);
     } finally {
       this.oneShotState.deactivate();
       const cleanupPromises: Promise<void>[] = [];
@@ -357,14 +353,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             if (deployments.length > 1) {
               const deploymentNames: string = deployments.map((d): string => d.name).join(', ');
-              throw new OneShotCachedDeploymentNotFoundSoloError(
+              throw new SoloErrors.validation.oneShotCachedDeploymentNotFound(
                 'No cached deployment found and multiple local deployments exist.\n' +
                   `Please specify ${optionFromFlag(flags.deployment)}.\n` +
                   `Available deployments: ${deploymentNames}`,
               );
             }
 
-            throw new OneShotCachedDeploymentNotFoundSoloError(
+            throw new SoloErrors.validation.oneShotCachedDeploymentNotFound(
               'No cached deployment found. Please run a one-shot deployment first or pass ' +
                 `${optionFromFlag(flags.deployment)}.\n` +
                 `Expected cache file: ${cacheFile}`,
@@ -588,7 +584,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     try {
       await tasks.run();
     } catch (error) {
-      throw new OneShotDeploymentInfoRetrievalFailedSoloError(error);
+      throw new SoloErrors.component.oneShotDeploymentInfoRetrievalFailed(error);
     }
 
     return true;
@@ -662,7 +658,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     try {
       await tasks.run();
     } catch (error) {
-      throw new FalconValuesPreparationFailedSoloError(error);
+      throw new SoloErrors.component.falconValuesPreparationFailed(error);
     }
 
     return true;
