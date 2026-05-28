@@ -405,6 +405,30 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     });
   }
 
+  public async waitForPodsToTerminate(
+    namespace: NamespaceName,
+    labels: string[],
+    maxAttempts: number = constants.PODS_RUNNING_MAX_ATTEMPTS,
+    delay: number = constants.PODS_RUNNING_DELAY,
+  ): Promise<void> {
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      const pods: Pod[] = await this.list(namespace, labels);
+      if (pods.length === 0) {
+        return;
+      }
+
+      const podNames: string = pods.map((pod: Pod): string => pod.podReference.name.toString()).join(', ');
+      this.logger.debug(
+        `waitForPodsToTerminate [attempt ${attempt}/${maxAttempts}] [namespace=${namespace}] [labels=${labels.join(', ')}] [pods=${podNames}]`,
+      );
+      await sleep(Duration.ofMillis(delay));
+    }
+
+    throw new SoloError(
+      `Timed out waiting for pods to terminate in namespace ${namespace.toString()} for labels [${labels.join(', ')}]`,
+    );
+  }
+
   public async listForAllNamespaces(labels: string[]): Promise<Pod[]> {
     const labelSelector: string = labels ? labels.join(',') : undefined;
     const pods: Pod[] = [];

@@ -613,12 +613,12 @@ export class AccountCommand extends BaseCommand {
               const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
               const k8: K8 = this.k8Factory.getK8(context);
               await k8.manifests().scaleStatefulSet(namespace, statefulSetName, 0);
-              await this.waitForPodsToTerminate(
-                k8,
-                NamespaceName.of(namespace),
-                [`app.kubernetes.io/instance=${statefulSetName}`, 'block-node.hiero.com/type=block-node'],
-                `block node ${statefulSetName}`,
-              );
+              await k8
+                .pods()
+                .waitForPodsToTerminate(NamespaceName.of(namespace), [
+                  `app.kubernetes.io/instance=${statefulSetName}`,
+                  'block-node.hiero.com/type=block-node',
+                ]);
             }
           },
         },
@@ -637,16 +637,13 @@ export class AccountCommand extends BaseCommand {
               const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
               const k8: K8 = this.k8Factory.getK8(context);
               await k8.manifests().scaleDeployment(namespaceName.toString(), importerDeploymentName, 0);
-              await this.waitForPodsToTerminate(
-                k8,
-                namespaceName,
-                [
+              await k8
+                .pods()
+                .waitForPodsToTerminate(namespaceName, [
                   'app.kubernetes.io/name=importer',
                   'app.kubernetes.io/component=importer',
                   `app.kubernetes.io/instance=${mirrorNodeReleaseName}`,
-                ],
-                `mirror importer ${importerDeploymentName}`,
-              );
+                ]);
             }
           },
         },
@@ -1039,32 +1036,6 @@ export class AccountCommand extends BaseCommand {
 
     await tasks.run();
     return true;
-  }
-
-  private async waitForPodsToTerminate(
-    k8: K8,
-    namespace: NamespaceName,
-    labels: string[],
-    componentDescription: string,
-    maxAttempts: number = 180,
-    delayMs: number = 1000,
-  ): Promise<void> {
-    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-      const pods: Pod[] = await k8.pods().list(namespace, labels);
-      if (pods.length === 0) {
-        return;
-      }
-
-      const podNames: string = pods.map((pod: Pod): string => pod.podReference.name.toString()).join(', ');
-      this.logger.debug(
-        `Waiting for ${componentDescription} pods to terminate [attempt ${attempt}/${maxAttempts}] [pods=${podNames}]`,
-      );
-      await helpers.sleep(Duration.ofMillis(delayMs));
-    }
-
-    throw new SoloError(
-      `Timed out waiting for ${componentDescription} pods to terminate in namespace ${namespace.toString()} for labels [${labels.join(', ')}]`,
-    );
   }
 
   public async create(argv: ArgvStruct): Promise<boolean> {

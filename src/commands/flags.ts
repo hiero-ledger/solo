@@ -1299,7 +1299,7 @@ export class Flags {
     constName: 'tssEnabled',
     name: 'tss',
     definition: {
-      describe: 'Enable hinTS/TSS (CN >= v0.72).',
+      describe: 'Enable hinTS/TSS (CN >= v0.74).',
       type: 'boolean',
       defaultValue: true,
     },
@@ -1312,7 +1312,7 @@ export class Flags {
     definition: {
       describe:
         'application.properties file for node (default merges with Solo defaults; add comment ' +
-        "'SOLO_ENABLE_OVERWRITE=true' in the file to use overwrite mode)",
+        `'${constants.APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER}' in the file to use overwrite mode)`,
       defaultValue: PathEx.join('templates', constants.APPLICATION_PROPERTIES),
       type: 'string',
     },
