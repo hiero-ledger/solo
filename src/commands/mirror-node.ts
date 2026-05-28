@@ -1544,7 +1544,7 @@ export class MirrorNodeCommand extends BaseCommand {
               if (updatePingerEnvironmentVariables) {
                 config.chartValues.set(
                   'pinger.env.HIERO_MIRROR_PINGER_REST',
-                  'http://${this.renderReleaseName(context_.config.id)}-restjava:80',
+                  `http://${this.renderReleaseName(context_.config.id)}-restjava:80`,
                 );
                 config.chartValues.set('pinger.env.HIERO_MIRROR_PINGER_NETWORK', 'other');
               }
