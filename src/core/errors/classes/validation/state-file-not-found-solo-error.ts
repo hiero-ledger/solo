@@ -15,6 +15,7 @@ export class StateFileNotFoundSoloError extends SoloError {
       troubleshootingSteps:
         `Verify the file exists and is a regular file: ls -la ${path}\n` +
         'Make sure the path points to a .zip file, not a directory or missing symlink target.\n' +
+        'Download a valid state file first: solo consensus state download\n' +
         'When using a directory, pass the parent directory; Solo looks under <path>/states/<cluster>/<namespace>.',
     });
   }

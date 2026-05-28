@@ -15,9 +15,9 @@ export class StateFilePathNotFoundSoloError extends SoloError {
       code: ErrorCodeRegistry.STATE_FILE_PATH_NOT_FOUND,
       troubleshootingSteps:
         `Verify the path exists: ls -la ${path ?? '<stateFilePath>'}\n` +
-        `Provide either a .zip state file or a directory path using ${Flags.getFormattedFlagKey(Flags.stateFile)} <path>\n` +
-        'When a directory is provided, Solo looks for state files under: <path>/states/<cluster>/<namespace>\n' +
-        'Expected state zip file name pattern: <pod-name>-state.zip',
+        'Download a valid state file first: solo consensus state download\n' +
+        `Then provide either the downloaded .zip file or the download parent directory using ${Flags.getFormattedFlagKey(Flags.stateFile)} <path>\n` +
+        'When a directory is provided, Solo looks for state files under: <path>/states/<cluster>/<namespace>',
     });
   }
 }

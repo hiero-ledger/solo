@@ -15,8 +15,8 @@ export class InvalidStateFileFormatSoloError extends SoloError {
       code: ErrorCodeRegistry.INVALID_STATE_FILE_FORMAT,
       troubleshootingSteps:
         `Use a state file ending in .zip with ${Flags.getFormattedFlagKey(Flags.stateFile)} <stateFile.zip>\n` +
-        'If passing a directory instead, Solo will select node-specific state files from <path>/states/<cluster>/<namespace>.\n' +
-        'Expected state zip file name pattern: <pod-name>-state.zip',
+        'Download a valid state file first: solo consensus state download\n' +
+        'If passing a directory instead, Solo will select node-specific state files from <path>/states/<cluster>/<namespace>.',
     });
   }
 }

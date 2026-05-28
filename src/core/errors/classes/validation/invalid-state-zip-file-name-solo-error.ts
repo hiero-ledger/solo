@@ -13,7 +13,8 @@ export class InvalidStateZipFileNameSoloError extends SoloError {
       message: `Invalid state zip file name: ${fileName}`,
       code: ErrorCodeRegistry.INVALID_STATE_ZIP_FILE_NAME,
       troubleshootingSteps:
-        'Rename the state zip file to use only letters, numbers, dots, underscores, and hyphens.\n' +
+        'Download a valid state file first: solo consensus state download\n' +
+        'Or rename the state zip file to use only letters, numbers, dots, underscores, and hyphens.\n' +
         'The file name must not start with a hyphen and must not contain slashes, spaces, shell syntax, or path traversal.\n' +
         'Example valid name: node1-state.zip',
     });
