@@ -1,6 +1,8 @@
 # Solo PR Review Checklist
 
-Project-grounded checks distilled from recurring review feedback. Walk this list during the **structural pass** (workflow step 3 in `SKILL.md`). Each section names what to look for, what to say when you find it, and the PR(s) where the pattern was previously flagged so the citation is traceable.
+Project-grounded checks distilled from recurring review feedback. Walk this list during the **structural pass** (
+workflow step 3 in `SKILL.md`). Each section names what to look for, what to say when you find it, and the PR(s) where
+the pattern was previously flagged so the citation is traceable.
 
 ---
 
@@ -19,10 +21,14 @@ Project-grounded checks distilled from recurring review feedback. Walk this list
 - "this seems like a duplicate of `<existing method>`, perhaps you should just enhance that method if needed."
 - "duplicate code fragment — could make more DRY. Consider extracting `<name>` and calling it from both sites."
 - "I see this a couple of times, make it DRY and create a type."
-- For workflows: "I'd prefer for it to be more DRY. We have the E2E matrix set. We have the Examples matrix. Perhaps another matrix could consolidate these. Less redundancy to maintain and manage."
-- Prefer **fixing the existing method** (e.g., add a parameter to filter pods with a `deletionTimestamp`) over adding a sibling method. Multiple near-identical methods cause confusion about which to call.
+- For workflows: "I'd prefer for it to be more DRY. We have the E2E matrix set. We have the Examples matrix. Perhaps
+  another matrix could consolidate these. Less redundancy to maintain and manage."
+- Prefer **fixing the existing method** (e.g., add a parameter to filter pods with a `deletionTimestamp`) over adding a
+  sibling method. Multiple near-identical methods cause confusion about which to call.
 
-**Prior precedent:** PR #4230 (`installManifest` vs `applyManifest`), PR #4363 (returning-truthy helper duplicated), PR #3939 (`helm-values-helper.ts` 27-line duplicate, scheduled-job sprawl), PR #3546 (`getNewestReadyPod` vs fixing `waitForReadyStatus`).
+**Prior precedent:** PR #4230 (`installManifest` vs `applyManifest`), PR #4363 (returning-truthy helper duplicated), PR
+#3939 (`helm-values-helper.ts` 27-line duplicate, scheduled-job sprawl), PR #3546 (`getNewestReadyPod` vs fixing
+`waitForReadyStatus`).
 
 ---
 
@@ -46,9 +52,13 @@ Project-grounded checks distilled from recurring review feedback. Walk this list
   }
   ```
 
-**Counter-balance:** §3.4.5 of the TS style guide says *don't* create container classes with static methods purely for namespacing — `export constants and functions instead`. Reconcile: the Solo convention in practice is class-with-static-methods for **behavior** (resolution, computation, orchestration). Pure data — constants, types, simple factories — can stay as exports. When in doubt, follow the directory's existing pattern.
+**Counter-balance:** §3.4.5 of the TS style guide says *don't* create container classes with static methods purely for
+namespacing — `export constants and functions instead`. Reconcile: the Solo convention in practice is
+class-with-static-methods for **behavior** (resolution, computation, orchestration). Pure data — constants, types,
+simple factories — can stay as exports. When in doubt, follow the directory's existing pattern.
 
-**Prior precedent:** PR #4230 (`resolveStorageClass` exported), PR #3870 (`GetSoloRemoteConfigMapTask` had unnecessary constructor).
+**Prior precedent:** PR #4230 (`resolveStorageClass` exported), PR #3870 (`GetSoloRemoteConfigMapTask` had unnecessary
+constructor).
 
 ---
 
@@ -62,7 +72,8 @@ Project-grounded checks distilled from recurring review feedback. Walk this list
 
 **How to respond**
 
-- "Consider moving `<name>` to a private class method for consistency with the other extracted helpers and to keep `<caller>` a bit easier to scan."
+- "Consider moving `<name>` to a private class method for consistency with the other extracted helpers and to keep
+  `<caller>` a bit easier to scan."
 - "consider making this a private method to be cleaner."
 - "make private method and move into class."
 
@@ -74,7 +85,8 @@ Project-grounded checks distilled from recurring review feedback. Walk this list
 
 **What to look for**
 
-- A flag description that references a single command, sub-command, or component (e.g., "the consensus node version to deploy for **one-shot**").
+- A flag description that references a single command, sub-command, or component (e.g., "the consensus node version to
+  deploy for **one-shot**").
 - A flag description that contains environment-specific guidance ("for CI", "when running locally").
 
 **How to respond — suggestion-block form**
@@ -133,7 +145,8 @@ keep generic, flags should be designed for the entire CLI
 
 **How to respond**
 
-- "We want to maintain backwards compatibility as much as possible. If the user does not supply `<flag>`, match the existing behavior of `<old behavior>`."
+- "We want to maintain backwards compatibility as much as possible. If the user does not supply `<flag>`, match the
+  existing behavior of `<old behavior>`."
 - Ask: "what happens for users who upgrade and run this without setting the new flag?"
 
 **Prior precedent:** PR #4230 (storage class default behavior).
@@ -162,14 +175,17 @@ keep generic, flags should be designed for the entire CLI
 
 **What to look for**
 
-- Names where one word repeats a property already encoded in the type (e.g., `getNewestPod` returning a single `Pod` — "Pod" is in the return type; `getNewest(...)` is clearer).
-- Adjectives that aren't terms of art in the surrounding domain (e.g., `valid` for a K8s status — K8s uses `phase`, `status.conditions[].type`, etc.).
+- Names where one word repeats a property already encoded in the type (e.g., `getNewestPod` returning a single `Pod` — "
+  Pod" is in the return type; `getNewest(...)` is clearer).
+- Adjectives that aren't terms of art in the surrounding domain (e.g., `valid` for a K8s status — K8s uses `phase`,
+  `status.conditions[].type`, etc.).
 - Helpers prefixed with `do-` or `handle-` that don't describe the action.
 - File names using banned abbreviations (`env-var`, `opts`, `cfg`) — see TS style guide §5.1.2.
 
 **How to respond**
 
-- "`newest` and `pod` implies singular, so no need to be redundant. `ready` implies stable. Suggest renaming to `getNewestReadyPod`."
+- "`newest` and `pod` implies singular, so no need to be redundant. `ready` implies stable. Suggest renaming to
+  `getNewestReadyPod`."
 - "I don't see that `valid` is adding any value here. It isn't a Kubernetes term (status/phase/etc.)."
 
 **Prior precedent:** PR #3546 (`getNewestPodsForLabel` / `valid` parameter).
@@ -208,7 +224,8 @@ Would be a bit odd if this comment survives for several years and it says 'now'.
 
 **How to respond**
 
-- "this will not work on Windows. <pointer to alternative — e.g. `examples/consensus-node-jvm-parameters` solved this without this logic>."
+- "this will not work on Windows. <pointer to alternative — e.g. `examples/consensus-node-jvm-parameters` solved this
+  without this logic>."
 - "Use `PathEx` instead of `node:path`. Style guide §3.3.5."
 
 **Prior precedent:** PR #3390 (5 different Taskfile.yml files).
@@ -225,7 +242,8 @@ Would be a bit odd if this comment survives for several years and it says 'now'.
 
 **How to respond**
 
-- "The default should be to be able to run from any directory. We should enhance our CI to do a local build and set env variables as needed. User experience must come first over our Solo developer experience."
+- "The default should be to be able to run from any directory. We should enhance our CI to do a local build and set env
+  variables as needed. User experience must come first over our Solo developer experience."
 
 **Prior precedent:** PR #3390 (17 example READMEs — leave one consolidated comment, don't repeat it).
 
@@ -236,15 +254,19 @@ Would be a bit odd if this comment survives for several years and it says 'now'.
 **What to look for**
 
 - New polling loops (`while sleep 1; do …`) against state the container should expose.
-- `kubectl exec` chains that touch supervisor files (`/run/service/.../down`), package internals, or override init scripts.
+- `kubectl exec` chains that touch supervisor files (`/run/service/.../down`), package internals, or override init
+  scripts.
 - Application code that compensates for a misconfigured upstream image, chart, or service.
 - Passwords or secrets passed on the command line.
 
 **How to respond**
 
-- "it seems like this is a workaround. Do we not have our `<upstream>` configured correctly? Should we be updating our `<upstream>` containers? This would be hard for our SREs and end-users to intuitively grasp if we don't have our `<upstream>` logic coded correctly."
+- "it seems like this is a workaround. Do we not have our `<upstream>` configured correctly? Should we be updating our
+  `<upstream>` containers? This would be hard for our SREs and end-users to intuitively grasp if we don't have our
+  `<upstream>` logic coded correctly."
 - "are there other options that can avoid passing the password through the command line?"
-- When suggesting an upstream fix, link to the upstream repo and propose a concrete change (image command, chart value, helm flag) — see PR #3546 s6-overlay example for the depth and shape.
+- When suggesting an upstream fix, link to the upstream repo and propose a concrete change (image command, chart value,
+  helm flag) — see PR #3546 s6-overlay example for the depth and shape.
 
 **Prior precedent:** PR #3546 (s6-overlay lifecycle hacks), PR #3390 (haproxy ingress uninstall).
 
@@ -278,7 +300,8 @@ Would be a bit odd if this comment survives for several years and it says 'now'.
 
 **How to respond**
 
-- "We should also be looking for opportunities for catching as much as possible inside of unit testing which can run far faster, more frequently, and with less costs."
+- "We should also be looking for opportunities for catching as much as possible inside of unit testing which can run far
+  faster, more frequently, and with less costs."
 - "I'm concerned about this pattern of creating all of these scheduled nightly jobs."
 
 **Prior precedent:** PR #3939 (nightly extended tests).
@@ -290,37 +313,22 @@ Would be a bit odd if this comment survives for several years and it says 'now'.
 **What to look for**
 
 - New `.py`, `.sh` (beyond `.github/workflows/script/`), or other-language files in the source tree.
-- `.github/` TypeScript files missing the SPDX header (the `.github` directory is excluded from ESLint, so the rules must be applied manually).
+- `.github/` TypeScript files missing the SPDX header (the `.github` directory is excluded from ESLint, so the rules
+  must be applied manually).
 
 **How to respond**
 
 - "we should not be adding python to solo repository."
-- "We've excluded the `.github` directory from eslint. This file does not follow our coding conventions at all. The first line should be our license."
-- For LLM-authored `.github` scripts: "Ask Copilot/Claude why it is not following `CLAUDE.md` and its reference to `docs/contributing/typescript-code-style.md`. Then update accordingly and include those changes in this PR."
+- "We've excluded the `.github` directory from eslint. This file does not follow our coding conventions at all. The
+  first line should be our license."
+- For LLM-authored `.github` scripts: "Ask Copilot/Claude why it is not following `CLAUDE.md` and its reference to
+  `docs/contributing/typescript-code-style.md`. Then update accordingly and include those changes in this PR."
 
 **Prior precedent:** PR #3939 (jdwp_tester.py, jdwp-tester.ts missing license).
 
 ---
 
-## 17. Companion repos — solo-docs and solo-containers
-
-**What to look for**
-
-- `docs/site/content/en/docs/*.md` changes (these live in `solo-docs` long-term).
-- Behavior tied to image/init-script changes that should be authored upstream in `solo-containers`.
-- `version.ts` bumps to alpha/RC builds whose source isn't on `solo-containers/main`.
-
-**How to respond**
-
-- "this file is about to be deleted. It should be maintained in the `solo-docs` repo."
-- "do we have a PR created in `solo-docs` that is linked to this PR?"
-- "we should not have our `main` branch be binding to alpha releases, especially against code that is not on the `solo-containers/main` branch. We need to approve your PR in `solo-containers`, merge, and cut a release."
-
-**Prior precedent:** PR #4363 (env.md), PR #3939 (jvm-debugger.md), PR #3546 (version.ts alpha pin).
-
----
-
-## 18. Use existing constants and registries
+## 17. Use existing constants and registries
 
 **What to look for**
 
@@ -340,9 +348,10 @@ Would be a bit odd if this comment survives for several years and it says 'now'.
 
 ---
 
-## 19. New CLI flag registration is complete
+## 18. New CLI flag registration is complete
 
-When the diff adds a new `CommandFlag` in `src/commands/flags.ts`, verify all five steps in CLAUDE.md "Adding CLI Flags":
+When the diff adds a new `CommandFlag` in `src/commands/flags.ts`, verify all five steps in CLAUDE.md "Adding CLI
+Flags":
 
 1. Static field defined.
 2. Added to `Flags.allFlags`.
@@ -354,25 +363,31 @@ Missing any of these = Critical (the flag is half-registered).
 
 ---
 
-## 20. Env var docs are in sync
+## 19. Env var docs are in sync
 
-When the diff adds/removes/renames anything read via `getEnvironmentVariable()` in `src/**/*.ts` or `version.ts`, OR adds/removes/renames an `@Expose()` field on `SoloConfigSchema` (or nested), verify `docs/site/content/en/docs/env.md` was updated. See CLAUDE.md "Environment Variable Documentation" for the SOLO_* naming convention.
+When the diff adds/removes/renames anything read via `getEnvironmentVariable()` in `src/**/*.ts` or `version.ts`, OR
+adds/removes/renames an `@Expose()` field on `SoloConfigSchema` (or nested), verify `docs/site/content/en/docs/env.md`
+was updated. See CLAUDE.md "Environment Variable Documentation" for the SOLO_* naming convention.
 
-> Caveat: PR #4363 noted env.md is moving to `solo-docs` — but until that move lands, the in-repo file is still the source of truth.
+> Caveat: PR #4363 noted env.md is moving to `solo-docs` — but until that move lands, the in-repo file is still the
+> source of truth.
 
 ---
 
 ## Quick decision aids
 
 **"Should this be a class with statics or a module of functions?"**
+
 - Has multiple methods that share state or call each other → class.
 - Single static method, no shared state → still class per Solo convention; flag if exported as function.
 - Pure data (constants, types, factories returning literals) → exports are fine.
 
 **"Is this DRY enough?"**
+
 - One occurrence: fine.
 - Two occurrences: leave a note for the author to consider extracting.
 - Three or more: insist on extraction.
 
 **"Is this a workaround?"**
-Ask: "If I describe the fix to an SRE who has never seen Solo, will they say 'why does Solo know about that?'" If yes — push the fix upstream.
+Ask: "If I describe the fix to an SRE who has never seen Solo, will they say 'why does Solo know about that?'" If yes —
+push the fix upstream.
