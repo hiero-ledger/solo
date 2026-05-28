@@ -128,8 +128,8 @@ tasks:
             npx tsx scripts/docs/wrapper-for-command-output.ts
           else
             task build:compile
-            echo "Running execute-command-output.ts.ts in local mode"
-            npx tsx scripts/docs/execute-command-output.ts.ts
+            echo "Running execute-command-output.ts in local mode"
+            npx tsx scripts/docs/execute-command-output.ts
           fi
         fi
       - printf "\r::endgroup::--------------\n"
