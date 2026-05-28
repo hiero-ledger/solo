@@ -265,6 +265,40 @@ describe('NetworkCommand unit tests', (): void => {
       }
     });
 
+    it('normalizes duplicate comma-joined consensus-node-version values before semantic parsing', async (): Promise<void> => {
+      const originalConsensusNodeVersion: string = argv.getArg<string>(flags.consensusNodeVersion);
+      try {
+        argv.setArg(flags.consensusNodeVersion, 'v0.73.0,v0.73.0');
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        options.remoteConfig.getConsensusNodes = sinon.stub().returns([{name: 'node1'}]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
+        const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.updateComponentVersion = sinon.stub();
+        options.remoteConfig.configuration.state = {};
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePodLogsCrd = sinon.stub().returns(true);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
+
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.componentFactory = {
+          createNewEnvoyProxyComponent: sinon.stub(),
+          createNewHaProxyComponent: sinon.stub(),
+        };
+
+        await networkCommand.deploy(argv.build());
+
+        expect(options.remoteConfig.persist.called).to.equal(true);
+        expect(options.remoteConfig.configuration.versions.consensusNode.toString()).to.equal('0.73.0');
+      } finally {
+        argv.setArg(flags.consensusNodeVersion, originalConsensusNodeVersion);
+        sinon.restore();
+      }
+    });
+
     it('Should use local chart directory', async (): Promise<void> => {
       try {
         argv.setArg(flags.chartDirectory, 'test-directory');

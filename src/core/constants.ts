@@ -55,7 +55,6 @@ export const KIND_NODE_IMAGE: string =
 
 export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
-export const ENABLE_S6_IMAGE: boolean = getEnvironmentVariable('ENABLE_S6_IMAGE') === 'true' || true;
 
 export const CONFIG: {ENABLE_IMAGE_CACHE: boolean} = {
   ENABLE_IMAGE_CACHE: getEnvironmentVariable('ENABLE_IMAGE_CACHE') === 'true' || false,
@@ -93,7 +92,7 @@ export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT: number =
 // S6-based consensus node image configuration (overridable via environment)
 export const S6_NODE_IMAGE_REGISTRY: string = getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REGISTRY') || 'ghcr.io';
 export const S6_NODE_IMAGE_REPOSITORY: string =
-  getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/ubi8-s6-java25';
+  getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/debian-s6-java25';
 
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
