@@ -41,6 +41,7 @@ import {type ClusterReferences} from '../../../src/types/index.js';
 import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
+import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 
 const testName: string = 'network-cmd-unit';
 const namespace: NamespaceName = NamespaceName.of(testName);
@@ -195,9 +196,10 @@ describe('NetworkCommand unit tests', (): void => {
       container.registerInstance(InjectTokens.PlatformInstaller, options.platformInstaller);
 
       options.profileManager = container.resolve<ProfileManager>(InjectTokens.ProfileManager);
-      options.profileManager.prepareValuesForSoloChart = sinon.stub().resolves({});
+      options.profileManager.prepareValuesForSoloChart = sinon.stub().resolves(new HelmChartValues());
 
       options.certificateManager = certificateManagerStub;
+      options.certificateManager.prepareValuesForSoloChart = sinon.stub().resolves(new HelmChartValues());
       container.registerInstance(InjectTokens.CertificateManager, options.certificateManager);
 
       options.chartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);

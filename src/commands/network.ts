@@ -554,7 +554,7 @@ export class NetworkCommand extends BaseCommand {
         chartValues.file(perClusterExtraEnvironmentValuesFiles[clusterReference]);
       }
 
-      chartValues.add(clusterChartValues[clusterReference]);
+      chartValues.add(clusterChartValues[clusterReference] ?? new HelmChartValues());
 
       chartValuesMap[clusterReference] = chartValues;
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
