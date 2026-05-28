@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import path from 'path';
-import {fileURLToPath} from 'url';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {run} from './utilities.js';
 import chalk from 'chalk';
-import {update} from './updateDocs.js';
+import {update} from './command-output.js';
 
-void (async function main(): Promise<void> {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const projectRoot = path.resolve(__dirname, '../../');
+async function runCommandOutput(): Promise<void> {
+  const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
+  const projectRoot: string = path.resolve(__dirname, '../../');
   process.chdir(projectRoot);
 
-  const version = process.argv[2];
+  const version: string = process.argv[2];
   console.log(`VERSION=${version ?? ''}`);
 
   if (version) {
@@ -36,4 +36,16 @@ void (async function main(): Promise<void> {
   console.log('::group::Created solo-command-output.json');
   await run(`cat ${path.join(projectRoot, 'docs/site/build/solo-command-output.json')}`);
   console.log('::endgroup::');
-})();
+}
+function main(): void {
+  runCommandOutput()
+    .then((): void => {
+      console.log(chalk.green('✅ Done'));
+    })
+    .catch((error): void => {
+      console.error(chalk.red('❌ Error:'), error);
+      // eslint-disable-next-line unicorn/no-process-exit,n/no-process-exit
+      process.exit(1);
+    });
+}
+main();

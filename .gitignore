@@ -479,7 +479,6 @@ deleteme.yaml
 /docs/site/static/
 /docs/site/nginx/nginx.conf
 /docs/site/hugo.yaml
-/docs/scripts/*.js
 /test/data/proto/block/
 /test/data/proto/mirror/
 /test/data/proto/platform/
@@ -491,3 +490,4 @@ deleteme.yaml
 /.codacy/codacy.yaml
 .task/checksum/
 xunit.xml
+/scripts/docs/*.js

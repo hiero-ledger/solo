@@ -16,17 +16,17 @@ async function addCommandOutput(
 }
 
 export async function update(): Promise<void> {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const projectRoot = path.resolve(__dirname, '../../');
+  const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
+  const projectRoot: string = path.resolve(__dirname, '../../');
   process.chdir(projectRoot);
 
-  const TARGET_DIR = 'docs/site/build';
-  const TARGET_FILE = `${TARGET_DIR}/solo-command-output.json`;
+  const TARGET_DIR: string = 'docs/site/build';
+  const TARGET_FILE: string = `${TARGET_DIR}/solo-command-output.json`;
 
   fs.mkdirSync(TARGET_DIR, {recursive: true});
 
-  const CONSENSUS_NODE_VERSION = process.argv[2];
-  const CONSENSUS_NODE_FLAG = CONSENSUS_NODE_VERSION ? `--release-tag ${CONSENSUS_NODE_VERSION}` : '';
+  const CONSENSUS_NODE_VERSION: string = process.argv[2];
+  const CONSENSUS_NODE_FLAG: string = CONSENSUS_NODE_VERSION ? `--release-tag ${CONSENSUS_NODE_VERSION}` : '';
 
   process.env.SOLO_CLUSTER_NAME = 'solo';
   process.env.SOLO_NAMESPACE = 'solo';
@@ -34,9 +34,9 @@ export async function update(): Promise<void> {
   process.env.SOLO_DEPLOYMENT = 'solo-deployment';
 
   await run(`kind delete cluster -n ${process.env.SOLO_CLUSTER_NAME} || true`);
-  await run(`rm -Rf ~/.solo || true`);
+  await run('rm -Rf ~/.solo || true');
 
-  const soloCommandOutput = {};
+  const soloCommandOutput: Record<string, string> = {};
 
   await addCommandOutput(
     soloCommandOutput,
@@ -44,7 +44,7 @@ export async function update(): Promise<void> {
     `kind create cluster -n ${process.env.SOLO_CLUSTER_NAME} --config resources/kind-config.yaml`,
   );
 
-  await addCommandOutput(soloCommandOutput, 'solo-init', `solo init`);
+  await addCommandOutput(soloCommandOutput, 'solo-init', 'solo init');
 
   await addCommandOutput(
     soloCommandOutput,
@@ -148,7 +148,7 @@ export async function update(): Promise<void> {
     `solo consensus network destroy --deployment ${process.env.SOLO_DEPLOYMENT} --force -q`,
   );
 
-  const output: string = JSON.stringify(soloCommandOutput, null, 2);
+  const output: string = JSON.stringify(soloCommandOutput, undefined, 2);
   fs.writeFileSync(TARGET_FILE, output);
 
   console.log(chalk.cyan('✅ Script finished'));

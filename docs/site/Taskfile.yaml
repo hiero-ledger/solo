@@ -93,7 +93,7 @@ tasks:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/scripts/**.ts
+      - scripts/docs/**.ts
     generates:
       - docs/site/build/solo-cli.md
     cmds:
@@ -103,7 +103,7 @@ tasks:
           rm -f docs/site/build/solo-cli.md
           mkdir -p docs/site/build
           task build:compile
-          npx tsx docs/scripts/generateHelp.ts
+          npx tsx scripts/docs/generate-help.ts
           printf "\r::endgroup::--------------\n"
         fi
 
@@ -115,7 +115,7 @@ tasks:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/scripts/*.ts
+      - scripts/docs/*.ts
     cmds:
       - printf "\r::group::Building Solo Command Output\n"
       - |
@@ -124,12 +124,12 @@ tasks:
           mkdir -p docs/site/build
           if [[ "${SOLO_CI}" == "true" ]]; then
             npm ci
-            echo "Running wrapperForUpdateDocs.ts in CI mode"
-            SOLO_DEBUG=true npx tsx docs/scripts/wrapperForUpdateDocs.ts
+            echo "Running wrapper-for-command-output.ts in CI mode"
+            npx tsx scripts/docs/wrapper-for-command-output.ts
           else
             task build:compile
-            echo "Running executeUpdateDocs.ts in local mode"
-            npx tsx docs/scripts/executeUpdateDocs.ts
+            echo "Running execute-command-output.ts.ts in local mode"
+            npx tsx scripts/docs/execute-command-output.ts.ts
           fi
         fi
       - printf "\r::endgroup::--------------\n"
