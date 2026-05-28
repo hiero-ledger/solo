@@ -3,7 +3,12 @@
 import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {SoloError} from '../core/errors/solo-error.js';
+import {ExplorerDeployFailedSoloError} from '../core/errors/classes/component/explorer-deploy-failed-solo-error.js';
+import {ExplorerDestroyFailedSoloError} from '../core/errors/classes/component/explorer-destroy-failed-solo-error.js';
+import {ExplorerUpgradeFailedSoloError} from '../core/errors/classes/component/explorer-upgrade-failed-solo-error.js';
+import {ExplorerInvalidComponentIdSoloError} from '../core/errors/classes/validation/explorer-invalid-component-id-solo-error.js';
+import {ExplorerNotInRemoteConfigSoloError} from '../core/errors/classes/system/explorer-not-in-remote-config-solo-error.js';
+import {ExplorerPodNotFoundSoloError} from '../core/errors/classes/system/explorer-pod-not-found-solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
@@ -542,7 +547,7 @@ export class ExplorerCommand extends BaseCommand {
           );
 
         if (pods.length === 0) {
-          throw new SoloError('No Hiero Explorer pod found');
+          throw new ExplorerPodNotFoundSoloError();
         }
 
         const podReference: PodReference = pods[0].podReference;
@@ -593,14 +598,14 @@ export class ExplorerCommand extends BaseCommand {
 
   private renderReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
+      throw new ExplorerInvalidComponentIdSoloError(id);
     }
     return `${constants.EXPLORER_RELEASE_NAME}-${id}`;
   }
 
   private renderIngressReleaseName(id: ComponentId, namespaceName: NamespaceName): string {
     if (typeof id !== 'number') {
-      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
+      throw new ExplorerInvalidComponentIdSoloError(id);
     }
     const maxHelmReleaseNameLength: number = 53;
     const baseReleaseName: string = `${constants.EXPLORER_INGRESS_CONTROLLER_RELEASE_NAME}-${id}-${namespaceName.name}`;
@@ -726,7 +731,7 @@ export class ExplorerCommand extends BaseCommand {
         await tasks.run();
         this.logger.debug('explorer deployment has completed');
       } catch (error) {
-        throw new SoloError(`Error deploying explorer: ${error.message}`, error);
+        throw new ExplorerDeployFailedSoloError(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -832,7 +837,7 @@ export class ExplorerCommand extends BaseCommand {
         await tasks.run();
         this.logger.debug('explorer upgrading has completed');
       } catch (error) {
-        throw new SoloError(`Error upgrading explorer: ${error.message}`, error);
+        throw new ExplorerUpgradeFailedSoloError(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -944,7 +949,7 @@ export class ExplorerCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error destroy explorer: ${error.message}`, error);
+        throw new ExplorerDestroyFailedSoloError(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1029,7 +1034,7 @@ export class ExplorerCommand extends BaseCommand {
     }
 
     if (!this.remoteConfig.configuration.components.state.explorers[0]) {
-      throw new SoloError('No explorer component found in remote config');
+      throw new ExplorerNotInRemoteConfigSoloError();
     }
 
     return this.remoteConfig.configuration.components.state.explorers[0].metadata.id;

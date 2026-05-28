@@ -34,7 +34,7 @@ import {invokeSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
 import * as constants from '../../../../core/constants.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
-import {SoloError} from '../../../../core/errors/solo-error.js';
+import {MissingArgumentError} from '../../../../core/errors/classes/validation/missing-argument-error.js';
 import {resolveNamespaceFromDeployment} from '../../../../core/resolvers.js';
 import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
 import {NoKubeConfigContextError} from '../../../../business/runtime-state/errors/no-kube-config-context-error.js';
@@ -233,14 +233,14 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
                 })) as string;
 
                 if (!selectedDeployment) {
-                  throw new SoloError('Deployment selection cannot be empty');
+                  throw new MissingArgumentError('Deployment selection cannot be empty');
                 }
 
                 config.deployment = selectedDeployment;
               } else {
                 const deployment: Deployment = deployments.get(0);
                 if (!deployment?.name) {
-                  throw new SoloError('Invalid deployment configuration: deployment name is missing');
+                  throw new MissingArgumentError('Invalid deployment configuration: deployment name is missing');
                 }
                 config.deployment = deployment.name;
               }

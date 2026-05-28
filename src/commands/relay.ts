@@ -2,7 +2,15 @@
 
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
-import {SoloError} from '../core/errors/solo-error.js';
+import {RelayDeployFailedSoloError} from '../core/errors/classes/component/relay-deploy-failed-solo-error.js';
+import {RelayDestroyFailedSoloError} from '../core/errors/classes/component/relay-destroy-failed-solo-error.js';
+import {RelayNotReadySoloError} from '../core/errors/classes/component/relay-not-ready-solo-error.js';
+import {RelayNotRunningSoloError} from '../core/errors/classes/component/relay-not-running-solo-error.js';
+import {RelayOperatorKeyRetrievalFailedSoloError} from '../core/errors/classes/component/relay-operator-key-retrieval-failed-solo-error.js';
+import {RelayUpgradeFailedSoloError} from '../core/errors/classes/component/relay-upgrade-failed-solo-error.js';
+import {RelayInvalidComponentIdSoloError} from '../core/errors/classes/validation/relay-invalid-component-id-solo-error.js';
+import {RelayNotInRemoteConfigSoloError} from '../core/errors/classes/system/relay-not-in-remote-config-solo-error.js';
+import {RelayPodNotFoundSoloError} from '../core/errors/classes/system/relay-pod-not-found-solo-error.js';
 import * as helpers from '../core/helpers.js';
 import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
@@ -309,7 +317,7 @@ export class RelayCommand extends BaseCommand {
           valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
         }
       } catch (error) {
-        throw new SoloError(`Error getting operator key: ${error.message}`, error);
+        throw new RelayOperatorKeyRetrievalFailedSoloError(error);
       }
     }
 
@@ -379,7 +387,7 @@ export class RelayCommand extends BaseCommand {
 
   private renderReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
+      throw new RelayInvalidComponentIdSoloError(id);
     }
     return `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
   }
@@ -478,7 +486,7 @@ export class RelayCommand extends BaseCommand {
               constants.RELAY_PODS_RUNNING_DELAY,
             );
         } catch (error) {
-          throw new SoloError(`Relay ${config.releaseName} is not running: ${error.message}`, error);
+          throw new RelayNotRunningSoloError(config.releaseName, error);
         }
         // reset nodeAlias
         this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
@@ -501,7 +509,7 @@ export class RelayCommand extends BaseCommand {
               constants.RELAY_PODS_READY_DELAY,
             );
         } catch (error) {
-          throw new SoloError(`Relay ${config.releaseName} is not ready: ${error.message}`, error);
+          throw new RelayNotReadySoloError(config.releaseName, error);
         }
       },
     };
@@ -522,7 +530,7 @@ export class RelayCommand extends BaseCommand {
           );
 
         if (pods.length === 0) {
-          throw new SoloError('No Relay pod found');
+          throw new RelayPodNotFoundSoloError();
         }
 
         const podReference: PodReference = pods[0].podReference;
@@ -664,7 +672,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error deploying relay: ${error.message}`, error);
+        throw new RelayDeployFailedSoloError(error);
       } finally {
         if (lease && !this.oneShotState.isActive()) {
           await lease.release();
@@ -776,7 +784,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error upgrading relay: ${error.message}`, error);
+        throw new RelayUpgradeFailedSoloError(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -875,7 +883,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError('Error uninstalling relays', error);
+        throw new RelayDestroyFailedSoloError(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -945,7 +953,7 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.relayNodes.length === 0) {
-      throw new SoloError('Relay node not found in remote config');
+      throw new RelayNotInRemoteConfigSoloError();
     }
 
     return this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;

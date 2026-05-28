@@ -80,6 +80,35 @@ import {UnsupportedOperationError} from './classes/internal/unsupported-operatio
 import {CreateDeploymentSoloError} from './classes/deployment/create-deployment-solo-error.js';
 import {DeploymentAlreadyExistsSoloError} from './classes/deployment/deployment-already-exists-solo-error.js';
 import {RapidFireExecutionSoloError} from './classes/rapid-fire-execution-solo-error.js';
+import {ExplorerDeployFailedSoloError} from './classes/component/explorer-deploy-failed-solo-error.js';
+import {ExplorerUpgradeFailedSoloError} from './classes/component/explorer-upgrade-failed-solo-error.js';
+import {ExplorerDestroyFailedSoloError} from './classes/component/explorer-destroy-failed-solo-error.js';
+import {RelayDeployFailedSoloError} from './classes/component/relay-deploy-failed-solo-error.js';
+import {RelayUpgradeFailedSoloError} from './classes/component/relay-upgrade-failed-solo-error.js';
+import {RelayDestroyFailedSoloError} from './classes/component/relay-destroy-failed-solo-error.js';
+import {RelayNotRunningSoloError} from './classes/component/relay-not-running-solo-error.js';
+import {RelayNotReadySoloError} from './classes/component/relay-not-ready-solo-error.js';
+import {RelayOperatorKeyRetrievalFailedSoloError} from './classes/component/relay-operator-key-retrieval-failed-solo-error.js';
+import {MirrorNodeDeployFailedSoloError} from './classes/component/mirror-node-deploy-failed-solo-error.js';
+import {MirrorNodeUpgradeFailedSoloError} from './classes/component/mirror-node-upgrade-failed-solo-error.js';
+import {MirrorNodeDestroyFailedSoloError} from './classes/component/mirror-node-destroy-failed-solo-error.js';
+import {MirrorNodeOperatorKeyRetrievalFailedSoloError} from './classes/component/mirror-node-operator-key-retrieval-failed-solo-error.js';
+import {OneShotDeployFailedSoloError} from './classes/component/one-shot-deploy-failed-solo-error.js';
+import {OneShotDestroyFailedSoloError} from './classes/component/one-shot-destroy-failed-solo-error.js';
+import {OneShotDeploymentInfoRetrievalFailedSoloError} from './classes/component/one-shot-deployment-info-retrieval-failed-solo-error.js';
+import {FalconValuesPreparationFailedSoloError} from './classes/component/falcon-values-preparation-failed-solo-error.js';
+import {ExplorerPodNotFoundSoloError} from './classes/system/explorer-pod-not-found-solo-error.js';
+import {ExplorerNotInRemoteConfigSoloError} from './classes/system/explorer-not-in-remote-config-solo-error.js';
+import {RelayPodNotFoundSoloError} from './classes/system/relay-pod-not-found-solo-error.js';
+import {RelayNotInRemoteConfigSoloError} from './classes/system/relay-not-in-remote-config-solo-error.js';
+import {MirrorNodePodsNotFoundSoloError} from './classes/system/mirror-node-pods-not-found-solo-error.js';
+import {MirrorIngressControllerPodNotFoundSoloError} from './classes/system/mirror-ingress-controller-pod-not-found-solo-error.js';
+import {MirrorNodeNotInRemoteConfigSoloError} from './classes/system/mirror-node-not-in-remote-config-solo-error.js';
+import {ClusterNotFoundInRemoteConfigSoloError} from './classes/system/cluster-not-found-in-remote-config-solo-error.js';
+import {ExplorerInvalidComponentIdSoloError} from './classes/validation/explorer-invalid-component-id-solo-error.js';
+import {RelayInvalidComponentIdSoloError} from './classes/validation/relay-invalid-component-id-solo-error.js';
+import {OneShotCachedDeploymentNotFoundSoloError} from './classes/validation/one-shot-cached-deployment-not-found-solo-error.js';
+import {MirrorNodeInvalidComponentIdSoloError} from './classes/validation/mirror-node-invalid-component-id-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -160,6 +189,23 @@ export class SoloErrors {
     readonly nodeDeleteTransactionError: typeof NodeDeleteTransactionErrorSoloError;
     readonly nodeCreateTransactionError: typeof NodeCreateTransactionErrorSoloError;
     readonly accountBalanceQueryFailed: typeof AccountBalanceQueryFailedSoloError;
+    readonly explorerDeployFailed: typeof ExplorerDeployFailedSoloError;
+    readonly explorerUpgradeFailed: typeof ExplorerUpgradeFailedSoloError;
+    readonly explorerDestroyFailed: typeof ExplorerDestroyFailedSoloError;
+    readonly relayDeployFailed: typeof RelayDeployFailedSoloError;
+    readonly relayUpgradeFailed: typeof RelayUpgradeFailedSoloError;
+    readonly relayDestroyFailed: typeof RelayDestroyFailedSoloError;
+    readonly relayNotRunning: typeof RelayNotRunningSoloError;
+    readonly relayNotReady: typeof RelayNotReadySoloError;
+    readonly relayOperatorKeyRetrievalFailed: typeof RelayOperatorKeyRetrievalFailedSoloError;
+    readonly mirrorNodeDeployFailed: typeof MirrorNodeDeployFailedSoloError;
+    readonly mirrorNodeUpgradeFailed: typeof MirrorNodeUpgradeFailedSoloError;
+    readonly mirrorNodeDestroyFailed: typeof MirrorNodeDestroyFailedSoloError;
+    readonly mirrorNodeOperatorKeyRetrievalFailed: typeof MirrorNodeOperatorKeyRetrievalFailedSoloError;
+    readonly oneShotDeployFailed: typeof OneShotDeployFailedSoloError;
+    readonly oneShotDestroyFailed: typeof OneShotDestroyFailedSoloError;
+    readonly oneShotDeploymentInfoRetrievalFailed: typeof OneShotDeploymentInfoRetrievalFailedSoloError;
+    readonly falconValuesPreparationFailed: typeof FalconValuesPreparationFailedSoloError;
   } = Object.freeze({
     nodeTransactionFailed: NodeTransactionFailedSoloError,
     nodeBuildUploadFailed: NodeBuildUploadFailedSoloError,
@@ -180,6 +226,23 @@ export class SoloErrors {
     nodeDeleteTransactionError: NodeDeleteTransactionErrorSoloError,
     nodeCreateTransactionError: NodeCreateTransactionErrorSoloError,
     accountBalanceQueryFailed: AccountBalanceQueryFailedSoloError,
+    explorerDeployFailed: ExplorerDeployFailedSoloError,
+    explorerUpgradeFailed: ExplorerUpgradeFailedSoloError,
+    explorerDestroyFailed: ExplorerDestroyFailedSoloError,
+    relayDeployFailed: RelayDeployFailedSoloError,
+    relayUpgradeFailed: RelayUpgradeFailedSoloError,
+    relayDestroyFailed: RelayDestroyFailedSoloError,
+    relayNotRunning: RelayNotRunningSoloError,
+    relayNotReady: RelayNotReadySoloError,
+    relayOperatorKeyRetrievalFailed: RelayOperatorKeyRetrievalFailedSoloError,
+    mirrorNodeDeployFailed: MirrorNodeDeployFailedSoloError,
+    mirrorNodeUpgradeFailed: MirrorNodeUpgradeFailedSoloError,
+    mirrorNodeDestroyFailed: MirrorNodeDestroyFailedSoloError,
+    mirrorNodeOperatorKeyRetrievalFailed: MirrorNodeOperatorKeyRetrievalFailedSoloError,
+    oneShotDeployFailed: OneShotDeployFailedSoloError,
+    oneShotDestroyFailed: OneShotDestroyFailedSoloError,
+    oneShotDeploymentInfoRetrievalFailed: OneShotDeploymentInfoRetrievalFailedSoloError,
+    falconValuesPreparationFailed: FalconValuesPreparationFailedSoloError,
   });
 
   // 4xxx — Validation: User input, flags, IDs, formatting
@@ -204,6 +267,10 @@ export class SoloErrors {
     readonly nonInteractivePrompt: typeof NonInteractivePromptSoloError;
     readonly realmShardVersionConstraint: typeof RealmShardVersionConstraintSoloError;
     readonly wrapsVersionConstraint: typeof WrapsVersionConstraintSoloError;
+    readonly explorerInvalidComponentId: typeof ExplorerInvalidComponentIdSoloError;
+    readonly relayInvalidComponentId: typeof RelayInvalidComponentIdSoloError;
+    readonly mirrorNodeInvalidComponentId: typeof MirrorNodeInvalidComponentIdSoloError;
+    readonly oneShotCachedDeploymentNotFound: typeof OneShotCachedDeploymentNotFoundSoloError;
   } = Object.freeze({
     consensusNodeCountRequired: ConsensusNodeCountRequiredError,
     illegalArgument: IllegalArgumentError,
@@ -225,6 +292,10 @@ export class SoloErrors {
     nonInteractivePrompt: NonInteractivePromptSoloError,
     realmShardVersionConstraint: RealmShardVersionConstraintSoloError,
     wrapsVersionConstraint: WrapsVersionConstraintSoloError,
+    explorerInvalidComponentId: ExplorerInvalidComponentIdSoloError,
+    relayInvalidComponentId: RelayInvalidComponentIdSoloError,
+    mirrorNodeInvalidComponentId: MirrorNodeInvalidComponentIdSoloError,
+    oneShotCachedDeploymentNotFound: OneShotCachedDeploymentNotFoundSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
@@ -247,6 +318,14 @@ export class SoloErrors {
     readonly upgradeVersionFetchFailed: typeof UpgradeVersionFetchFailedSoloError;
     readonly multipleDeploymentsFound: typeof MultipleDeploymentsFoundSoloError;
     readonly grpcProxyEndpointFailed: typeof GrpcProxyEndpointFailedSoloError;
+    readonly explorerPodNotFound: typeof ExplorerPodNotFoundSoloError;
+    readonly explorerNotInRemoteConfig: typeof ExplorerNotInRemoteConfigSoloError;
+    readonly relayPodNotFound: typeof RelayPodNotFoundSoloError;
+    readonly relayNotInRemoteConfig: typeof RelayNotInRemoteConfigSoloError;
+    readonly mirrorNodePodsNotFound: typeof MirrorNodePodsNotFoundSoloError;
+    readonly mirrorIngressControllerPodNotFound: typeof MirrorIngressControllerPodNotFoundSoloError;
+    readonly mirrorNodeNotInRemoteConfig: typeof MirrorNodeNotInRemoteConfigSoloError;
+    readonly clusterNotFoundInRemoteConfig: typeof ClusterNotFoundInRemoteConfigSoloError;
   } = Object.freeze({
     clusterConnectionFailed: ClusterConnectionFailedError,
     portForwardRefreshFailed: PortForwardRefreshFailedError,
@@ -266,6 +345,14 @@ export class SoloErrors {
     upgradeVersionFetchFailed: UpgradeVersionFetchFailedSoloError,
     multipleDeploymentsFound: MultipleDeploymentsFoundSoloError,
     grpcProxyEndpointFailed: GrpcProxyEndpointFailedSoloError,
+    explorerPodNotFound: ExplorerPodNotFoundSoloError,
+    explorerNotInRemoteConfig: ExplorerNotInRemoteConfigSoloError,
+    relayPodNotFound: RelayPodNotFoundSoloError,
+    relayNotInRemoteConfig: RelayNotInRemoteConfigSoloError,
+    mirrorNodePodsNotFound: MirrorNodePodsNotFoundSoloError,
+    mirrorIngressControllerPodNotFound: MirrorIngressControllerPodNotFoundSoloError,
+    mirrorNodeNotInRemoteConfig: MirrorNodeNotInRemoteConfigSoloError,
+    clusterNotFoundInRemoteConfig: ClusterNotFoundInRemoteConfigSoloError,
   });
 
   // 9xxx — Internal: Unexpected bugs, unimplemented paths
