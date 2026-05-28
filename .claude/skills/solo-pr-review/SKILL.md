@@ -84,6 +84,45 @@ git diff origin/main -- <path>
 
 For URL-only inputs, parse the PR number out of the URL and use `gh pr view`/`gh pr diff`.
 
+## How to post the review
+
+**Always post feedback as a single PR review — never as standalone PR or issue comments.** Every
+finding (summary verdict and inline line comments) must be attached to a review so the author can
+resolve them in one round-trip.
+
+1. **Check for an existing pending review on this PR.** If one already exists for the current
+   reviewer, reuse it — do not start a second.
+
+   ```bash
+   # Returns the pending review ID for the authenticated user, or empty if none.
+   gh api "repos/<owner>/<repo>/pulls/<number>/reviews" \
+     --jq '.[] | select(.user.login == "'"$(gh api user --jq .login)"'" and .state == "PENDING") | .id'
+   ```
+
+2. **Start a pending review (only if none exists).** Capture the returned `id` for later steps.
+
+   ```bash
+   gh api -X POST "repos/<owner>/<repo>/pulls/<number>/reviews" -F event=PENDING
+   ```
+
+3. **Add every inline finding to the pending review.** Line comments posted via the PR review
+   comments endpoint are automatically attached to the author's open pending review.
+
+   ```bash
+   gh api -X POST "repos/<owner>/<repo>/pulls/<number>/comments" \
+     -f commit_id="<head SHA>" \
+     -f path="<file path>" \
+     -F line=<line> \
+     -f side=RIGHT \
+     -f body="<comment, suggestion block OK>"
+   ```
+
+4. When complete stop and return back to the user. Request that the user review the comments and submit the review once
+   ready.
+
+**Never** use `gh pr comment`, `gh pr review --body` without a pending review, or POST to
+`/issues/<n>/comments` — those create orphan comments that bypass the review thread.
+
 ## Output template
 
 ```markdown
@@ -128,6 +167,8 @@ one-click apply.
 
 ### MUST
 
+- Post the review as a single PR review (pending review → inline comments → stop (DO NOT submit review)). Reuse an
+  existing pending review for the same reviewer if one is already open on the PR.
 - Cite the rule being applied (style-guide section, eslint rule, or prior PR convention) for every Critical and Major
   finding.
 - Prefer fixing existing methods over adding new ones when they overlap (DRY).
@@ -144,3 +185,5 @@ one-click apply.
 - Demand renames or refactors in files the PR didn't otherwise touch.
 - Treat exported functions as automatically wrong if the codebase already uses them in that module — flag as Major and
   link the style-guide section, but acknowledge if there's a local pattern.
+- Post findings as standalone PR comments (`gh pr comment`), issue comments, or one-off review
+  comments outside a pending review — every comment must ride along with a review.
