@@ -51,6 +51,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {Chart} from '../integration/helm/model/chart.js';
 import {Repository} from '../integration/helm/model/repository.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
+import {METALLB_CHART_VERSION} from '../../version.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Container} from '../integration/kube/resources/container/container.js';
@@ -1496,6 +1497,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 .atomic(true)
                 .waitFor(true)
                 .set(['speaker.frr.enabled=true'])
+                .version(METALLB_CHART_VERSION)
                 .kubeContext(clusterResponse.context)
                 .build(),
             );
