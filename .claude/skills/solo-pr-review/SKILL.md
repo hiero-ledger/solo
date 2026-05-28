@@ -71,57 +71,101 @@ Load these on demand — don't paste them into the report.
 ## How to fetch the diff
 
 ```bash
-# By PR number
-gh pr view <number> --json title,body,headRefName,baseRefName,files,additions,deletions
+# Metadata only — small, cheap, do this first
+gh pr view <number> --json title,body,headRefName,baseRefName,headRefOid,files,additions,deletions,author,state,url
+
+# Full diff (large for big PRs — paginate via Read once it's persisted)
 gh pr diff <number>
+
+# Per-file diff (preferred when you already know which files matter)
+gh pr diff <number> -- <path>
 
 # By branch (when working locally on the author's branch)
 git diff origin/main...HEAD
-
-# By file (for partial review)
 git diff origin/main -- <path>
 ```
 
-For URL-only inputs, parse the PR number out of the URL and use `gh pr view`/`gh pr diff`.
+For URL-only inputs, parse the PR number out of the URL and use `gh pr view` / `gh pr diff`.
+
+**Token-efficiency tips:**
+
+- `gh pr view --json files` returns the file list with line counts — use it to decide which files to fetch full diffs for, instead of pulling the whole PR diff up front.
+- For exact line numbers in *inline-comment-anchor positions*, prefer `gh pr diff <num> -- <path>` over fetching the entire file via `gh api .../contents/...`. The diff already shows line numbers on the RIGHT side.
+- Only fetch a full file via `gh api 'repos/<owner>/<repo>/contents/<path>?ref=<sha>' --jq '.content' | base64 -d` when you genuinely need surrounding context the diff doesn't show.
+- When iterating over multiple lookups, batch them into a single Bash call (one shell, multiple `gh api` invocations) rather than separate tool calls.
 
 ## How to post the review
 
 **Always post feedback as a single PR review — never as standalone PR or issue comments.** Every
-finding (summary verdict and inline line comments) must be attached to a review so the author can
+finding (summary verdict and inline line comments) must be attached to one review so the author can
 resolve them in one round-trip.
 
-1. **Check for an existing pending review on this PR.** If one already exists for the current
-   reviewer, reuse it — do not start a second.
+**Critical behavior: leave the review in PENDING state. Never submit it.** The human reviewer
+will read the queued comments in the GitHub UI, edit if needed, and submit themselves. Submitting
+automatically would post a review attributed to the human without giving them a chance to vet it.
+
+### The single-POST flow (preferred)
+
+POST one review with all inline comments embedded and **no `event` field** — that creates the review
+in `PENDING` state with every comment attached. This is one HTTP call and avoids the
+"user_id can only have one pending review per pull request" failure that hits the multi-step flow
+when a pending review already exists.
+
+1. **Check for an existing pending review.** If one exists for the current reviewer, delete it
+   before starting fresh (the single-POST flow can't merge into an existing pending review):
 
    ```bash
-   # Returns the pending review ID for the authenticated user, or empty if none.
-   gh api "repos/<owner>/<repo>/pulls/<number>/reviews" \
-     --jq '.[] | select(.user.login == "'"$(gh api user --jq .login)"'" and .state == "PENDING") | .id'
+   existingId=$(gh api "repos/<owner>/<repo>/pulls/<number>/reviews" \
+     --jq '.[] | select(.user.login == "'"$(gh api user --jq .login)"'" and .state == "PENDING") | .id')
+   if [[ -n "${existingId}" ]]; then
+     gh api -X DELETE "repos/<owner>/<repo>/pulls/<number>/reviews/${existingId}"
+   fi
    ```
 
-2. **Start a pending review (only if none exists).** Capture the returned `id` for later steps.
+2. **Write the review payload to a file.** JSON shape:
+
+   ```json
+   {
+     "commit_id": "<head SHA from gh pr view headRefOid>",
+     "body": "<§Output-template summary as a single markdown string>",
+     "comments": [
+       {
+         "path": "<file path>",
+         "line": <line number on RIGHT side of the diff>,
+         "side": "RIGHT",
+         "body": "<comment, suggestion blocks OK>"
+       }
+     ]
+   }
+   ```
+
+   **Do not include an `event` field.** Its absence keeps the review in `PENDING` state.
+
+3. **POST the review:**
 
    ```bash
-   gh api -X POST "repos/<owner>/<repo>/pulls/<number>/reviews" -F event=PENDING
+   gh api -X POST "repos/<owner>/<repo>/pulls/<number>/reviews" --input review-payload.json
    ```
 
-3. **Add every inline finding to the pending review.** Line comments posted via the PR review
-   comments endpoint are automatically attached to the author's open pending review.
+   The response includes `"state": "PENDING"` and an `html_url` pointing to the review on GitHub.
 
-   ```bash
-   gh api -X POST "repos/<owner>/<repo>/pulls/<number>/comments" \
-     -f commit_id="<head SHA>" \
-     -f path="<file path>" \
-     -F line=<line> \
-     -f side=RIGHT \
-     -f body="<comment, suggestion block OK>"
-   ```
+4. **Tell the user what to do next.** End the turn with a short message that:
+   - Links to the pending review (`html_url` from the response).
+   - States that the review is queued in PENDING state with N inline comments + summary.
+   - Asks them to open it in GitHub, vet/edit the comments, and choose **Comment**,
+     **Approve**, or **Request changes** themselves.
+   - Does **not** call any API to submit, dismiss, or otherwise change the review state.
 
-4. When complete stop and return back to the user. Request that the user review the comments and submit the review once
-   ready.
+### What never to do
 
-**Never** use `gh pr comment`, `gh pr review --body` without a pending review, or POST to
-`/issues/<n>/comments` — those create orphan comments that bypass the review thread.
+- **Never** POST `/reviews/<id>/events` with `event=COMMENT`/`APPROVE`/`REQUEST_CHANGES` —
+  that submits the review. The user submits, not the skill.
+- **Never** include an `event` field on the initial review POST for any value other than
+  omitting it. (`event=PENDING` is rejected as an invalid enum value.)
+- **Never** use `gh pr comment`, `gh pr review --body`, or POST to `/issues/<n>/comments` —
+  those create orphan comments outside the review thread.
+- **Never** start a second pending review when one already exists. Delete the old one first
+  (step 1) or the POST fails with HTTP 422.
 
 ## Output template
 
@@ -167,8 +211,9 @@ one-click apply.
 
 ### MUST
 
-- Post the review as a single PR review (pending review → inline comments → stop (DO NOT submit review)). Reuse an
-  existing pending review for the same reviewer if one is already open on the PR.
+- Post the review as a single PR review in **PENDING** state, with every inline finding attached
+  as a review comment and the summary verdict as the review body.
+- End the turn by linking the pending review and asking the user to vet and submit it themselves.
 - Cite the rule being applied (style-guide section, eslint rule, or prior PR convention) for every Critical and Major
   finding.
 - Prefer fixing existing methods over adding new ones when they overlap (DRY).
@@ -180,10 +225,13 @@ one-click apply.
 
 ### MUST NOT
 
+- **Submit the review.** Never POST `/reviews/<id>/events` and never set `event` on the review-create
+  call. The user submits. Phrasing like "Approve", "Request changes", or "Comment" belongs in the
+  summary body for the user to choose from — the skill never makes the submit call itself.
 - Block on personal style preferences when a linter or formatter already enforces (or doesn't enforce) the choice.
 - Repeat the same comment on every occurrence — leave one comment with "applies in N other places" and list them.
 - Demand renames or refactors in files the PR didn't otherwise touch.
 - Treat exported functions as automatically wrong if the codebase already uses them in that module — flag as Major and
   link the style-guide section, but acknowledge if there's a local pattern.
 - Post findings as standalone PR comments (`gh pr comment`), issue comments, or one-off review
-  comments outside a pending review — every comment must ride along with a review.
+  comments outside the pending review — every comment must ride along with the single review.
