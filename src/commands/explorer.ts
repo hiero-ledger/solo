@@ -414,12 +414,6 @@ export class ExplorerCommand extends BaseCommand {
             DeploymentPhase.DEPLOYED,
           );
 
-          // update explorer version in remote config after successful deployment
-          this.remoteConfig.updateComponentVersion(
-            ComponentTypes.Explorer,
-            new SemanticVersion<string>(config.explorerVersion),
-          );
-
           await this.remoteConfig.persist();
         } else if (commandType === ExplorerCommandType.UPGRADE) {
           // update explorer version in remote config after successful upgrade
