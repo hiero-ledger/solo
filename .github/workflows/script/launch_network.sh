@@ -42,6 +42,7 @@ on_exit() {
   if [[ ${rc} -ne 0 ]]; then
     echo "Test failed, current port forward process: "
     ps -ef | grep port-forward
+    collect_failure_diagnostics "${rc}"
   fi
 
   exit "${rc}"
@@ -105,14 +106,10 @@ show_service_ips() {
   kubectl get svc -n "${namespace}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
 }
 
-# Restart relay after upgrade, wait for rollout, and ensure localhost JSON-RPC
-# forwarding is stable before smoke tests.
+# Restart relay after upgrade and refresh port-forwards.
 refresh_relay_network_config() {
   local namespace="${1}"
   local deployment="${2}"
-  local max_attempts=18
-  local sleep_seconds=5
-  local attempt
 
   echo "[RELAY_RECOVERY] Relay already upgraded; restarting relay deployment to reset SDK node health state"
   kubectl rollout restart deployment/relay-1 deployment/relay-1-ws -n "${namespace}" 2>/dev/null || true
@@ -123,28 +120,6 @@ refresh_relay_network_config() {
 
   echo "[RELAY_STABILITY] Refreshing port-forwards for deployment ${deployment}"
   npm run solo -- deployment refresh port-forwards --deployment "${deployment}"
-
-  for attempt in $(seq 1 "${max_attempts}"); do
-    local processCount
-    local rpcResponse
-
-    processCount=$(ps -ef | grep -E "kubectl port-forward.*37546:7546" | grep -v grep | wc -l | tr -d ' ' || echo '0')
-    rpcResponse=$(curl -sS -m 3 -H 'Content-Type: application/json' \
-      -d '{"jsonrpc":"2.0","method":"web3_clientVersion","params":[],"id":1}' \
-      http://127.0.0.1:37546 || true)
-
-    if [[ "${processCount}" == "1" ]] && echo "${rpcResponse}" | grep -q '"result"'; then
-      echo "[RELAY_STABILITY] Relay port-forward and JSON-RPC are stable (${attempt}/${max_attempts})"
-      return 0
-    fi
-
-    echo "[RELAY_STABILITY] Pending relay stability (${attempt}/${max_attempts}), refreshing and retrying"
-    npm run solo -- deployment refresh port-forwards --deployment "${deployment}" >/dev/null 2>&1 || true
-    sleep "${sleep_seconds}"
-  done
-
-  echo "[RELAY_STABILITY] Relay port-forward did not stabilize after ${max_attempts} attempts"
-  return 1
 }
 
 # Resolve the active importer pod deterministically.
@@ -298,6 +273,8 @@ inspect_importer_boundary_mismatch() {
 
 # Function to realign mirror importer hash chain in postgres to the first mismatched
 # record-file previous hash reported by importer logs.
+# Temporary workaround tracked in https://github.com/hiero-ledger/solo/issues/4492
+# for https://github.com/hiero-ledger/hiero-consensus-node/issues/25486.
 #
 # We must not set hash='' because newer importer parser paths still validate and will fail
 # with "Expected = , Actual = ...". Instead we set the last DB hash to the mismatch line's
@@ -354,15 +331,26 @@ reset_importer_hash_chain_for_upgrade() {
     echo "[IMPORTER_RESET] No mismatch line with parsable Actual hash found; skipping DB hash rewrite"
     return 0
   fi
+  if ! [[ "${mismatchActualHash}" =~ ^[0-9a-fA-F]{96}$ ]]; then
+    echo "[IMPORTER_RESET] Parsed mismatch hash is invalid (expected 96 hex chars); skipping DB hash rewrite"
+    return 0
+  fi
 
   echo "[IMPORTER_RESET] Using mismatch Actual hash as bridge value: ${mismatchActualHash}"
 
   local sqlResult
-  sqlResult=$(kubectl exec -n "${namespace}" "${postgresPod}" -c postgresql -- \
-    sh -c "PGPASSWORD='${pgPassword}' psql -U postgres -d mirror_node -t -A -c \
-      \"UPDATE record_file SET hash = '${mismatchActualHash}' \
-        WHERE consensus_end = (SELECT MAX(consensus_end) FROM record_file);\"" \
-    2>&1 || echo "SQL_FAILED")
+  sqlResult=$(kubectl exec -i -n "${namespace}" "${postgresPod}" -c postgresql -- sh <<EOF
+set -euo pipefail
+cat > /tmp/.solo-pgpass <<'PGPASS'
+localhost:5432:mirror_node:postgres:${pgPassword}
+PGPASS
+chmod 600 /tmp/.solo-pgpass
+PGPASSFILE=/tmp/.solo-pgpass psql -U postgres -d mirror_node -t -A \
+  -v mismatch_hash="${mismatchActualHash}" \
+  -c "UPDATE record_file SET hash = :'mismatch_hash' WHERE consensus_end = (SELECT MAX(consensus_end) FROM record_file);"
+rm -f /tmp/.solo-pgpass
+EOF
+  ) || sqlResult="SQL_FAILED"
 
   if [[ "${sqlResult}" == *"SQL_FAILED"* ]] || echo "${sqlResult}" | grep -qi "error"; then
     echo "[IMPORTER_RESET] WARNING: Hash chain reset SQL failed: ${sqlResult}"
@@ -454,10 +442,9 @@ fi
 if [[ -n "${installedSoloVersion}" && "${installedSoloVersion}" == "${expectedSoloVersion}" ]]; then
   echo "Solo version ${installedSoloVersion} already installed, skipping npm install"
 else
-  npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
+  SOLO_NO_CACHE=true npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
 fi
 
-SOLO_NO_CACHE=true npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
 solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e

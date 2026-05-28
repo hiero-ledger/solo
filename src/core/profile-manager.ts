@@ -26,7 +26,6 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
-import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
@@ -891,59 +890,12 @@ export class ProfileManager {
     applicationPropertiesPath: string,
   ): Promise<boolean> {
     const firstNode: ConsensusNode | undefined = consensusNodes[0];
-    if (firstNode) {
-      try {
-        const k8: K8 = this.k8Factory.getK8(firstNode.context);
-        const configMap: ConfigMap = await k8
-          .configMaps()
-          .read(NamespaceName.of(firstNode.namespace), constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
-        const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
-        if (configMapProperties) {
-          const parsedFromConfigMap: boolean | undefined = helpers.parseGossipFqdnRestricted(configMapProperties);
-          if (parsedFromConfigMap !== undefined) {
-            return parsedFromConfigMap;
-          }
-        }
-      } catch {
-        // Fall through to local application.properties
-      }
-    }
-
-    if (fs.existsSync(applicationPropertiesPath)) {
-      const applicationPropertiesContent: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-      const parsedFromApplicationProperties: boolean | undefined =
-        helpers.parseGossipFqdnRestricted(applicationPropertiesContent);
-      if (parsedFromApplicationProperties !== undefined) {
-        return parsedFromApplicationProperties;
-      }
-    }
-
-    const cacheApplicationPropertiesPath: string = PathEx.join(
-      constants.SOLO_CACHE_DIR,
-      'templates',
-      constants.APPLICATION_PROPERTIES,
-    );
-    if (fs.existsSync(cacheApplicationPropertiesPath)) {
-      const cacheProperties: string = fs.readFileSync(cacheApplicationPropertiesPath, 'utf8');
-      const parsedFromCache: boolean | undefined = helpers.parseGossipFqdnRestricted(cacheProperties);
-      if (parsedFromCache !== undefined) {
-        return parsedFromCache;
-      }
-    }
-
-    const repoApplicationPropertiesPath: string = PathEx.join(
-      constants.RESOURCES_DIR,
-      'templates',
-      constants.APPLICATION_PROPERTIES,
-    );
-    if (fs.existsSync(repoApplicationPropertiesPath)) {
-      const repoProperties: string = fs.readFileSync(repoApplicationPropertiesPath, 'utf8');
-      const parsedFromRepo: boolean | undefined = helpers.parseGossipFqdnRestricted(repoProperties);
-      if (parsedFromRepo !== undefined) {
-        return parsedFromRepo;
-      }
-    }
-
-    return true;
+    return await helpers.resolveGossipFqdnRestricted({
+      k8: firstNode ? this.k8Factory.getK8(firstNode.context) : undefined,
+      namespace: firstNode ? NamespaceName.of(firstNode.namespace) : undefined,
+      applicationPropertiesPath,
+      cacheDir: constants.SOLO_CACHE_DIR,
+      resourcesDir: constants.RESOURCES_DIR,
+    });
   }
 }

@@ -1,70 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-export async function resolveGossipFqdnRestricted(options: {
-  k8?: {
-    configMaps: () => {
-      read: (namespace: unknown, configMapName: string) => Promise<{data?: Record<string, string>}>;
-    };
-  };
-  namespace?: unknown;
-  stagingDir?: string;
-  cacheDir?: string;
-  resourcesDir?: string;
-}): Promise<boolean> {
-  const {k8, namespace, stagingDir, cacheDir, resourcesDir} = options;
-  // 1. K8s configMap
-  if (k8 && namespace) {
-    try {
-      const configMap: {data?: Record<string, string>} = await k8
-        .configMaps()
-        .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
-      const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
-      if (configMapProperties) {
-        const parsed: boolean | undefined = parseGossipFqdnRestricted(configMapProperties);
-        if (parsed !== undefined) {
-          return parsed;
-        }
-      }
-    } catch {
-      // Ignore errors and continue to next source
-    }
-  }
-  // 2. Staged application.properties
-  if (stagingDir) {
-    const stagedPath: string = PathEx.join(stagingDir, 'templates', constants.APPLICATION_PROPERTIES);
-    if (fs.existsSync(stagedPath)) {
-      const appProperties: string = fs.readFileSync(stagedPath, 'utf8');
-      const parsed: boolean | undefined = parseGossipFqdnRestricted(appProperties);
-      if (parsed !== undefined) {
-        return parsed;
-      }
-    }
-  }
-  // 3. Cache template
-  if (cacheDir) {
-    const cachePath: string = PathEx.join(cacheDir, 'templates', constants.APPLICATION_PROPERTIES);
-    if (fs.existsSync(cachePath)) {
-      const cacheProperties: string = fs.readFileSync(cachePath, 'utf8');
-      const parsed: boolean | undefined = parseGossipFqdnRestricted(cacheProperties);
-      if (parsed !== undefined) {
-        return parsed;
-      }
-    }
-  }
-  // 4. Repo template
-  if (resourcesDir) {
-    const repoPath: string = PathEx.join(resourcesDir, 'templates', constants.APPLICATION_PROPERTIES);
-    if (fs.existsSync(repoPath)) {
-      const repoProperties: string = fs.readFileSync(repoPath, 'utf8');
-      const parsed: boolean | undefined = parseGossipFqdnRestricted(repoProperties);
-      if (parsed !== undefined) {
-        return parsed;
-      }
-    }
-  }
-  return true;
-}
-// SPDX-License-Identifier: Apache-2.0
 import fs, {type Stats} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -166,6 +101,75 @@ export function readGossipFqdnRestrictedFromFile(filePath: string): boolean | un
   }
   const applicationPropertiesContent: string = fs.readFileSync(filePath, 'utf8');
   return parseGossipFqdnRestricted(applicationPropertiesContent);
+}
+
+export interface ResolveGossipFqdnRestrictedOptions {
+  k8?: K8;
+  namespace?: NamespaceName;
+  stagingDir?: string;
+  cacheDir?: string;
+  resourcesDir?: string;
+  applicationPropertiesPath?: string;
+}
+
+export async function resolveGossipFqdnRestricted(options: ResolveGossipFqdnRestrictedOptions): Promise<boolean> {
+  const {k8, namespace, stagingDir, cacheDir, resourcesDir, applicationPropertiesPath} = options;
+
+  // 1. K8s configMap
+  if (k8 && namespace) {
+    try {
+      const configMap: {data?: Record<string, string>} = await k8
+        .configMaps()
+        .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+      const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
+      if (configMapProperties) {
+        const parsed: boolean | undefined = parseGossipFqdnRestricted(configMapProperties);
+        if (parsed !== undefined) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore errors and continue to next source.
+    }
+  }
+
+  // 2. Explicit application.properties path.
+  if (applicationPropertiesPath) {
+    const parsedFromApplicationPropertiesPath: boolean | undefined =
+      readGossipFqdnRestrictedFromFile(applicationPropertiesPath);
+    if (parsedFromApplicationPropertiesPath !== undefined) {
+      return parsedFromApplicationPropertiesPath;
+    }
+  }
+
+  // 3. Staged application.properties
+  if (stagingDir) {
+    const stagedPath: string = PathEx.join(stagingDir, 'templates', constants.APPLICATION_PROPERTIES);
+    const parsedFromStaging: boolean | undefined = readGossipFqdnRestrictedFromFile(stagedPath);
+    if (parsedFromStaging !== undefined) {
+      return parsedFromStaging;
+    }
+  }
+
+  // 4. Cache template
+  if (cacheDir) {
+    const cachePath: string = PathEx.join(cacheDir, 'templates', constants.APPLICATION_PROPERTIES);
+    const parsedFromCache: boolean | undefined = readGossipFqdnRestrictedFromFile(cachePath);
+    if (parsedFromCache !== undefined) {
+      return parsedFromCache;
+    }
+  }
+
+  // 5. Repo template
+  if (resourcesDir) {
+    const repoPath: string = PathEx.join(resourcesDir, 'templates', constants.APPLICATION_PROPERTIES);
+    const parsedFromRepo: boolean | undefined = readGossipFqdnRestrictedFromFile(repoPath);
+    if (parsedFromRepo !== undefined) {
+      return parsedFromRepo;
+    }
+  }
+
+  return true;
 }
 
 /**

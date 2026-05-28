@@ -10,6 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type ConfigMap} from '../../../src/integration/kube/resources/config-map/config-map.js';
+import {type K8} from '../../../src/integration/kube/k8.js';
 import yaml from 'yaml';
 
 import * as helpers from '../../../src/core/helpers.js';
@@ -284,14 +285,14 @@ another.property=123
       expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
     });
 
-    it('is case-insensitive for true value', (): void => {
+    it('is case-sensitive for true value', (): void => {
       // The regex only matches lowercase "true" or "false"
       expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=TRUE')).to.be.undefined;
       expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=True')).to.be.undefined;
       expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=true')).to.equal(true);
     });
 
-    it('is case-insensitive for false value', (): void => {
+    it('is case-sensitive for false value', (): void => {
       // The regex only matches lowercase "true" or "false"
       expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=FALSE')).to.be.undefined;
       expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=False')).to.be.undefined;
@@ -399,8 +400,8 @@ nodes.gossipFqdnRestricted=false`;
         }),
       };
       const result: boolean = await helpers.resolveGossipFqdnRestricted({
-        k8: mockK8,
-        namespace: 'solo',
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
         cacheDir: '/cache',
         resourcesDir: '/resources',
@@ -424,8 +425,8 @@ nodes.gossipFqdnRestricted=false`;
       sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true');
 
       const result: boolean = await helpers.resolveGossipFqdnRestricted({
-        k8: mockK8,
-        namespace: 'solo',
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
         cacheDir: '/cache',
         resourcesDir: '/resources',
@@ -450,8 +451,8 @@ nodes.gossipFqdnRestricted=false`;
       sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=false');
 
       const result: boolean = await helpers.resolveGossipFqdnRestricted({
-        k8: mockK8,
-        namespace: 'solo',
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
         cacheDir: '/cache',
         resourcesDir: '/resources',
@@ -473,8 +474,8 @@ nodes.gossipFqdnRestricted=false`;
       sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true');
 
       const result: boolean = await helpers.resolveGossipFqdnRestricted({
-        k8: mockK8,
-        namespace: 'solo',
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
         cacheDir: '/cache',
         resourcesDir: '/resources',
@@ -492,8 +493,8 @@ nodes.gossipFqdnRestricted=false`;
       sinon.stub(fs, 'existsSync').returns(false);
 
       const result: boolean = await helpers.resolveGossipFqdnRestricted({
-        k8: mockK8,
-        namespace: 'solo',
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
         cacheDir: '/cache',
         resourcesDir: '/resources',
@@ -524,7 +525,7 @@ nodes.gossipFqdnRestricted=false`;
       sinon.stub(fs, 'existsSync').returns(false);
 
       const result: boolean = await helpers.resolveGossipFqdnRestricted({
-        k8: mockK8,
+        k8: mockK8 as unknown as K8,
         // No namespace provided
         stagingDir: '/staging',
         cacheDir: '/cache',
@@ -548,8 +549,8 @@ nodes.gossipFqdnRestricted=false`;
       sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true'); // Staging/cache/repo have true
 
       const result: boolean = await helpers.resolveGossipFqdnRestricted({
-        k8: mockK8,
-        namespace: 'solo',
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
         cacheDir: '/cache',
         resourcesDir: '/resources',
@@ -575,8 +576,8 @@ nodes.gossipFqdnRestricted=false`;
       });
 
       const result: boolean = await helpers.resolveGossipFqdnRestricted({
-        k8: mockK8,
-        namespace: 'solo',
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
         cacheDir: '/cache',
         resourcesDir: '/resources',
