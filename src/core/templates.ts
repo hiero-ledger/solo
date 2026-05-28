@@ -89,7 +89,7 @@ export class Templates {
   public static extractNodeAliasFromPodName(podName: PodName): NodeAlias {
     const parts: string[] = podName.name.split('-');
     if (parts.length !== 3) {
-      throw new SoloErrors.validation.dataValidation(`pod name is malformed : ${podName.name}`, 3, parts.length);
+      throw new SoloErrors.internal.dataValidation(`pod name is malformed : ${podName.name}`, 3, parts.length);
     }
     return parts[1].trim() as NodeAlias;
   }
