@@ -419,7 +419,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
       const podNames: string = pods.map((pod: Pod): string => pod.podReference.name.toString()).join(', ');
       this.logger.debug(
-        `waitForPodsToTerminate [attempt ${attempt}/${maxAttempts}] [namespace=${namespace}] [labels=${labels.join(', ')}] [pods=${podNames}]`,
+        `waitForPodsToTerminate [attempt ${attempt}/${maxAttempts}] [namespace=${namespace.name}] [labels=${labels.join(', ')}] [pods=${podNames}]`,
       );
       await sleep(Duration.ofMillis(delay));
     }
