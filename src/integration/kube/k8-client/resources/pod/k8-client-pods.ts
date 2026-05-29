@@ -425,7 +425,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     }
 
     throw new SoloError(
-      `Timed out waiting for pods to terminate in namespace ${namespace.toString()} for labels [${labels.join(', ')}]`,
+      `Timed out waiting for pods to terminate in namespace ${namespace.name} for labels [${labels.join(', ')}]`,
     );
   }
 
