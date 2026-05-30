@@ -35,14 +35,25 @@ tasks:
     silent: true
     cmds:
       - |
-        if [ ! -f build/github-releases.json ]; then
-          echo "Error: build/github-releases.json does not exist. Run github:list:solo:releases first." >&2
+        if [ ! -f build/releases.json ]; then
+          echo "Error: build/releases.json does not exist. Run github:list:solo:releases first, then github:augment:releases." >&2
           exit 1
         fi
         
         echo "Creating directories and downloading assets..."
-        jq -c '.[]' build/github-releases.json | while read -r release; do
+        jq -c '.[]' build/releases.json | while read -r release; do
           tag=$(echo "$release" | jq -r '.tag' | sed 's#[/:]#_#g')
+          # for tag, eg: v0.57.0, set vars major and minor, eg: major=0, minor=57
+          major=$(echo "$tag" | cut -d. -f1 | tr -d 'v')
+          minor=$(echo "$tag" | cut -d. -f2)
+          # get the npmjsLatest field from the release variable, if it's null, set it to false
+          npmjsLatest=$(echo "$release" | jq -r '.npmjsLatest // false')
+        
+          # if major is 0 and minor is less than 57, print a message and skip this release
+          if [[ "$major" -eq 0 && "$minor" -lt 57 ]]; then
+            echo "⚠️ Skipping release $tag (version too old)"
+            continue
+          fi
           mkdir -p "build/$tag"
         
           echo "Processing release: $tag"
@@ -50,9 +61,11 @@ tasks:
             name=$(echo "$asset" | jq -r '.name')
             url=$(echo "$asset" | jq -r '.url')
             dest="build/$tag/$name"
-        
-            if [[ -f "$dest" ]]; then
-              echo "✔ Skipping $name ($dest already exists)"
+
+            # skip if dest doesn't exist or if the artifact name starts with example- or if the filename is 
+            #  docs-latest.tar.gz and npmjsLatest is false
+            if [[ -f "$dest" || "$name" == example-* || ( "$name" == "docs-latest.tar.gz" && "$npmjsLatest" == "false" ) ]]; then
+              # echo "✔ Skipping condition met for $name, not writing $dest, npmjsLatest: $npmjsLatest"
             else
               echo "⬇ Downloading $name, $dest doesn't exist yet"
               curl -sSL --retry 3 --fail -o "$dest" "$url" || {
@@ -221,6 +234,8 @@ tasks:
         # Define asset paths using the RELEASE_TAG variable
         ASSET_LATEST="./build/${RELEASE_TAG}/docs-latest.tar.gz"
         ASSET_VERSIONED="./build/${RELEASE_TAG}/docs-${RELEASE_TAG}.tar.gz"
+        ASSET_COMMAND_OUTPUT="./build/solo-command-output.json"
+        ASSET_CLI_HELP="./build/solo-cli.md"
 
         # Check if asset files exist before attempting upload
         if [ ! -f "$ASSET_LATEST" ]; then
@@ -240,6 +255,11 @@ tasks:
         # gh release upload command. Errors will cause script to exit due to 'set -e'.
         # The --repo flag specifies the target repository.
         # Multiple asset files can be listed at the end of the command.
-        gh release upload "${RELEASE_TAG}" "$ASSET_LATEST" "$ASSET_VERSIONED" --repo hiero-ledger/solo --clobber
+        gh release upload "${RELEASE_TAG}" \
+          "$ASSET_LATEST" \
+          "$ASSET_VERSIONED" \
+          "$ASSET_COMMAND_OUTPUT" \
+          "$ASSET_CLI_HELP" \
+          --repo hiero-ledger/solo --clobber
 
         echo "Successfully uploaded assets for release ${RELEASE_TAG}."

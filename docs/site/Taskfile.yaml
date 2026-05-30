@@ -10,20 +10,17 @@ includes:
   install:
     taskfile: ./Taskfile.install.yaml
     flatten: true
-  mutate:
-    taskfile: ./Taskfile.mutate.yaml
-    flatten: true
   npmjs:
     taskfile: ./Taskfile.npmjs.yaml
     flatten: true
 env:
   HUGO_ENVIRONMENT: production
   HUGO_ENV: production
-  HUGO_ORIGIN: https://solo.hiero.org/
+  HUGO_ORIGIN: https://hiero-ledger.github.io/
   HUGO_LOCAL_ORIGIN: http://localhost:1313/
-  HUGO_HOST: solo.hiero.org
+  HUGO_HOST: hiero-ledger.github.io
   HUGO_SOLO_VERSION: main
-  HUGO_BASEPATH: /
+  HUGO_BASEPATH: /solo
   PATH:
     sh: echo "$(go env GOPATH)/bin:$PATH"
 vars:
@@ -47,24 +44,6 @@ tasks:
     cmds:
       - task: "check-doc-dir"
       - task: "install"
-      - task: "mutate:readme"
-      - task: "mutate:dev"
-      - task: "mutate:address-book-example"
-      - task: "mutate:external-database-test-example"
-      - task: "mutate:hardhat-with-solo-example"
-      - task: "mutate:local-build-with-custom-config-example"
-      - task: "mutate:network-with-domain-names-example"
-      - task: "mutate:node-create-example"
-      - task: "mutate:node-delete-example"
-      - task: "mutate:node-update-example"
-      - task: "mutate:one-shot-falcon-example"
-      - task: "mutate:rapid-fire-example"
-      - task: "mutate:state-save-and-restore-example"
-      - task: "mutate:multicluster-backup-restore-example"
-      - task: "mutate:version-upgrade-test-example"
-      - task: "mutate:ledger-reset-smoke-example"
-      - task: "mutate:consensus-node-jvm-parameters-example"
-      - task: "mutate:one-shot-local-build-example"
       - task: "build:all"
 
   check-doc-dir:
@@ -91,11 +70,9 @@ tasks:
       - rm -f .hugo_build.lock
 
   build:all:
-    desc: "Perform the build operations: typedoc, cli help, and hugo"
+    desc: "Perform the build operations: typedoc and hugo"
     cmds:
       - task: "build:typedoc"
-      - task: "build:cli:help"
-      - task: "build:guide"
       - task: "solo:version"
       - task: "npmjs:latest:solo:version"
       - task: "npmjs:list:solo:versions"
@@ -108,21 +85,6 @@ tasks:
       - task: "build:hugo"
       - task: "build:doc:artifacts"
 
-  build:solo:
-    desc: "Build the Solo CLI"
-    dir: ../..
-    silent: true
-    sources:
-      - src/**/*.ts
-      - version.ts
-      - solo.ts
-    generates:
-      - dist/**/*.js
-    cmds:
-      - rm -Rf dist
-      - npx tsc
-      - node {{.TASKFILE_DIR}}/../../resources/post-build-script.js
-
   build:cli:help:
     desc: "Generate the CLI help documentation"
     silent: true
@@ -131,45 +93,44 @@ tasks:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/site/scripts/generateHelp.mjs
+      - scripts/docs/**.ts
     generates:
-      - docs/site/content/en/docs/solo-commands.md
+      - docs/site/build/solo-cli.md
     cmds:
-      - printf "\r::group::Generating CLI help documentation\n"
-      - rm -f docs/site/content/en/docs/solo-commands.md
-      - (cd docs/site/ && npm install)
-      - task: "build:solo"
-      - (cd docs/site/ && node scripts/generateHelp.mjs)
-      - printf "\r::endgroup::--------------\n"
+      - |
+        if [[ "${SKIP_CLI_OUTPUT}" != "true" ]]; then
+          printf "\r::group::Generating CLI help documentation\n"
+          rm -f docs/site/build/solo-cli.md
+          mkdir -p docs/site/build
+          task build:compile
+          npx tsx scripts/docs/generate-help.ts
+          printf "\r::endgroup::--------------\n"
+        fi
 
-  build:guide:
-    desc: "Build Solo User Guide"
+  build:solo:command:output:
+    desc: "Build Solo Command Output"
     silent: true
     dir: ../..
     sources:
       - src/**/*.ts
       - version.ts
       - solo.ts
-      - docs/site/content/en/templates/solo-user-guide.template.md
-      - docs/site/content/en/templates/advanced-deployments.template.md
-      - docs/site/content/en/templates/example-index.template.md
-      - docs/site/scripts/wrapperForUpdateDocs.mjs
-      - docs/site/scripts/executeUpdateDocs.mjs
-    generates:
-      - docs/site/content/en/docs/solo-user-guide.md
-      - docs/site/content/en/docs/advanced-deployments.md
+      - scripts/docs/*.ts
     cmds:
-      - printf "\r::group::Building Solo User Guide\n"
-      - rm -f docs/site/content/en/solo-user-guide.md
-      - (cd docs/site/ && npm install)
-      - task: "build:solo"
+      - printf "\r::group::Building Solo Command Output\n"
       - |
-        if [[ "${SOLO_CI}" == "true" ]]; then
-          echo "Running wrapperForUpdateDocs.mjs in CI mode"
-          node docs/site/scripts/wrapperForUpdateDocs.mjs
-        else
-          echo "Running executeUpdateDocs.mjs.mjs in local mode"
-          node docs/site/scripts/executeUpdateDocs.mjs
+        if [[ "${SKIP_COMMAND_OUTPUT}" != "true" ]]; then
+          rm -f docs/site/build/solo-command-output.json
+          mkdir -p docs/site/build
+          if [[ "${SOLO_CI}" == "true" ]]; then
+            npm ci
+            echo "Running wrapper-for-command-output.ts in CI mode"
+            npx tsx scripts/docs/wrapper-for-command-output.ts
+          else
+            task build:compile
+            echo "Running execute-command-output.ts in local mode"
+            npx tsx scripts/docs/execute-command-output.ts
+          fi
         fi
       - printf "\r::endgroup::--------------\n"
 
@@ -330,7 +291,7 @@ tasks:
           nginx -s stop
         fi
       - |
-        echo "Starting Nginx... on http://localhost:7777"
+        echo "Starting Nginx... on http://localhost:7777/"
         nginx -c {{.TASKFILE_DIR}}/nginx/nginx.conf
 
   deploy:nginx:stop:
