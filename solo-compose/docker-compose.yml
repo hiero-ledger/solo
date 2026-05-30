@@ -39,7 +39,7 @@ services:
 
   dind:
     image: "docker:20.10-dind"
-    command: [ "dockerd", "--host=unix:///var/run/solo-compose.sock", "--group=123", "--registry-mirror=https://hub.mirror.solo-compose.lat.ope.eng.hashgraph.io" ]
+    command: [ "dockerd", "--host=unix:///var/run/solo-compose.sock", "--group=123"]
     environment:
       - DOCKER_GROUP_GID=123
     privileged: true

@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {Regex} from '../../../../src/business/utils/regex.js';
-import {UnsupportedOperationError} from '../../../../src/business/errors/unsupported-operation-error.js';
+import {UnsupportedOperationError} from '../../../../src/core/errors/classes/internal/unsupported-operation-error.js';
 
 describe('Regex', () => {
   describe('constructor', () => {

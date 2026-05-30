@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {IllegalArgumentError} from '../../../core/errors/illegal-argument-error.js';
-import {MissingArgumentError} from '../../../core/errors/missing-argument-error.js';
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {SoloError} from '../../../core/errors/solo-error.js';
 import {type V1ObjectMeta} from '@kubernetes/client-node';
 import {type ObjectMeta} from '../resources/object-meta.js';
@@ -21,7 +20,7 @@ export abstract class K8ClientBase {
    */
   private applyMetadataFilter(items: (object | any)[], filters: Record<string, string> = {}): any[] {
     if (!filters) {
-      throw new MissingArgumentError('filters are required');
+      throw new SoloErrors.validation.missingArgument('filters are required');
     }
 
     const matched: any[] = [];
@@ -69,7 +68,7 @@ export abstract class K8ClientBase {
    */
   protected wrapObjectMeta(v1meta: V1ObjectMeta): ObjectMeta {
     if (!v1meta) {
-      throw new IllegalArgumentError('metadata is required');
+      throw new SoloErrors.validation.illegalArgument('metadata is required');
     }
 
     return new K8ClientObjectMeta(

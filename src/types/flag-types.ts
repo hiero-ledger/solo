@@ -15,7 +15,7 @@ export interface CommandFlag {
 export interface Definition {
   describe: string;
   defaultValue?: boolean | string | number;
-  alias?: string;
+  alias?: string | string[];
   type?: string;
   disablePrompt?: boolean;
   dataMask?: string;

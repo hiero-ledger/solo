@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
-import {DataValidationError} from './errors/data-validation-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
 import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
 import {type AccountId} from '@hiero-ledger/sdk';
@@ -91,14 +89,14 @@ export class Templates {
   public static extractNodeAliasFromPodName(podName: PodName): NodeAlias {
     const parts: string[] = podName.name.split('-');
     if (parts.length !== 3) {
-      throw new DataValidationError(`pod name is malformed : ${podName.name}`, 3, parts.length);
+      throw new SoloErrors.internal.dataValidation(`pod name is malformed : ${podName.name}`, 3, parts.length);
     }
     return parts[1].trim() as NodeAlias;
   }
 
   public static prepareReleasePrefix(tag: string): string {
     if (!tag) {
-      throw new MissingArgumentError('tag cannot be empty');
+      throw new SoloErrors.validation.missingArgument('tag cannot be empty');
     }
 
     const parsed: string[] = tag.split('.');
@@ -152,7 +150,7 @@ export class Templates {
   public static renderStagingDir(cacheDirectory: string, releaseTagOverride: string): string {
     let releaseTag: string = releaseTagOverride;
     if (!cacheDirectory) {
-      throw new IllegalArgumentError('cacheDirectory cannot be empty');
+      throw new SoloErrors.validation.illegalArgument('cacheDirectory cannot be empty');
     }
 
     if (!releaseTag) {
@@ -161,7 +159,7 @@ export class Templates {
 
     const releasePrefix: string = this.prepareReleasePrefix(releaseTag);
     if (!releasePrefix) {
-      throw new IllegalArgumentError('releasePrefix cannot be empty');
+      throw new SoloErrors.validation.illegalArgument('releasePrefix cannot be empty');
     }
 
     return PathEx.resolve(PathEx.join(cacheDirectory, releasePrefix, 'staging', releaseTag));

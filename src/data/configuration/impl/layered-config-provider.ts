@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type ConfigProvider} from '../api/config-provider.js';
 import {type ConfigBuilder} from '../api/config-builder.js';
 import {type Config} from '../api/config.js';
@@ -8,7 +9,6 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {type ObjectMapper} from '../../mapper/api/object-mapper.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
-import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 import {ConfigurationError} from '../api/configuration-error.js';
 
 @injectable()
@@ -36,7 +36,7 @@ export class LayeredConfigProvider implements ConfigProvider {
 
   public register(config: Config): void {
     if (!config) {
-      throw new IllegalArgumentError('config must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('config must not be null or undefined');
     }
 
     if (this._config) {

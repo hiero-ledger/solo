@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
 import {SoloError} from '../core/errors/solo-error.js';
-import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
 import * as helpers from '../core/helpers.js';
 import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
@@ -177,7 +177,9 @@ export class RelayCommand extends BaseCommand {
       flags.operatorId,
       flags.operatorKey,
       flags.quiet,
+      // Keep legacy flag visible as a separate deprecated option.
       flags.relayReleaseTag,
+      flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
       flags.valuesFile,
@@ -204,7 +206,9 @@ export class RelayCommand extends BaseCommand {
       flags.operatorId,
       flags.operatorKey,
       flags.quiet,
+      // Keep legacy flag visible as a separate deprecated option.
       flags.relayReleaseTag,
+      flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
       flags.valuesFile,
@@ -310,7 +314,7 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (!nodeAliases) {
-      throw new MissingArgumentError('Node IDs must be specified');
+      throw new SoloErrors.validation.missingArgument('Node IDs must be specified');
     }
 
     const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace, deployment);
@@ -346,7 +350,7 @@ export class RelayCommand extends BaseCommand {
     deployment: DeploymentName,
   ): Promise<string> {
     if (!nodeAliases) {
-      throw new MissingArgumentError('Node IDs must be specified');
+      throw new SoloErrors.validation.missingArgument('Node IDs must be specified');
     }
 
     const networkIds: Record<string, string> = {};
@@ -748,7 +752,7 @@ export class RelayCommand extends BaseCommand {
               'Relay',
               config.relayReleaseTag,
               this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
-              optionFromFlag(flags.relayReleaseTag),
+              optionFromFlag(flags.relayVersion),
             );
 
             if (!this.oneShotState.isActive()) {
