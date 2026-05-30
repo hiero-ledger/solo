@@ -248,7 +248,7 @@ jobs:
 
             echo "-- Cold start --"
             COLD_SAMPLE_START=$SECONDS
-            $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE" --no-parallel-deploy
+            $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
             COLD_ELAPSED=$(( SECONDS - COLD_SAMPLE_START ))
             COLD_SAMPLES+=("$COLD_ELAPSED")
             echo "Cold ${i}: $(( COLD_ELAPSED / 60 ))m $(( COLD_ELAPSED % 60 ))s (${COLD_ELAPSED}s)"
