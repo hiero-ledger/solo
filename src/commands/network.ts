@@ -403,6 +403,10 @@ export class NetworkCommand extends BaseCommand {
         }
 
         await this.prepareStreamUploaderSecrets(config);
+      } else if (!config.minioEnabled) {
+        // Mirror importer references this secret even in block-node mode.
+        // Create it explicitly when MinIO is disabled for CN >= 0.74.x.
+        await this.prepareStreamUploaderSecrets(config);
       }
 
       if (config.backupBucket) {
@@ -624,6 +628,9 @@ export class NetworkCommand extends BaseCommand {
       for (const clusterReference of clusterReferences) {
         valuesArguments[clusterReference] += ' --set cloud.minio.enabled=false';
         valuesArguments[clusterReference] += ' --set cloud.generateNewSecrets=false';
+        valuesArguments[clusterReference] += ' --set defaults.sidecars.recordStreamUploader.enabled=false';
+        valuesArguments[clusterReference] += ' --set defaults.sidecars.eventStreamUploader.enabled=false';
+        valuesArguments[clusterReference] += ' --set defaults.sidecars.blockstreamUploader.enabled=false';
       }
     }
 

@@ -247,6 +247,16 @@ export class ProfileManager {
           // that the user did not explicitly override.
           fs.cpSync(applicationPropertiesPath, destinationPath, {force: true});
           await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
+
+          // Re-apply Solo-required settings so merged user values cannot override
+          // critical deployment behavior (realm/shard/chainId/block-node settings).
+          await this.updateApplicationPropertiesWithRealmAndShard(
+            destinationPath,
+            this.localConfig.configuration.realmForDeployment(deploymentName),
+            this.localConfig.configuration.shardForDeployment(deploymentName),
+          );
+          await this.updateApplicationPropertiesForBlockNode(destinationPath);
+          await this.updateApplicationPropertiesWithChainId(destinationPath, resolvedStagingOptions.chainId);
         }
       } else {
         fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});

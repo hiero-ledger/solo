@@ -18,6 +18,10 @@
 # These values are applied after the chart's built-in defaults, so they can be
 # overridden by a user-supplied --values file.
 
+cloud:
+  minio:
+    enabled: false
+
 defaults:
   root:
     extraEnv:
