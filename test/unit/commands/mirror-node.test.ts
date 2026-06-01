@@ -8,10 +8,11 @@ import {MirrorNodeCommand} from '../../../src/commands/mirror-node.js';
 import * as constants from '../../../src/core/constants.js';
 import * as versions from '../../../version.js';
 import {resetForTest} from '../../test-container.js';
+import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 
 interface MirrorNodeMemoryOverrideConfig {
   mirrorNodeVersion: string;
-  valuesArg: string;
+  chartValues: HelmChartValues;
 }
 
 interface MirrorNodeCommandInternal {
@@ -38,16 +39,17 @@ describe('MirrorNodeCommand unit tests', (): void => {
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
     const config: MirrorNodeMemoryOverrideConfig = {
       mirrorNodeVersion: '0.100.0',
-      valuesArg: '',
+      chartValues: new HelmChartValues(),
     };
 
     sinon.stub(process, 'arch').value('arm64');
 
     mirrorNodeCommandInternal.addMirrorNodeMemoryOverrides(true, config);
+    const valuesArguments: string[] = config.chartValues.toArguments();
 
-    expect(config.valuesArg).to.include(`--set web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`);
-    expect(config.valuesArg).to.include(`--set web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`);
-    expect(config.valuesArg).to.include(`--set web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`);
+    expect(valuesArguments).to.include(`web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`);
+    expect(valuesArguments).to.include(`web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`);
+    expect(valuesArguments).to.include(`web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`);
   });
 
   it('should not override the web3 image on arm64 for mirror node 0.155.0 and above', (): void => {
