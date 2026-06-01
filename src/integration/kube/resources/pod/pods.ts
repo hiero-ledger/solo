@@ -80,6 +80,20 @@ export interface Pods {
   ): Promise<Pod[]>;
 
   /**
+   * Wait until no pods remain for the given label selector in the namespace.
+   * @param namespace - namespace
+   * @param labels - pod labels
+   * @param maxAttempts - maximum attempts to check (default 180)
+   * @param delay - delay between checks in milliseconds (default 1000)
+   */
+  waitForPodsToTerminate(
+    namespace: NamespaceName,
+    labels: string[],
+    maxAttempts?: number,
+    delay?: number,
+  ): Promise<void>;
+
+  /**
    * List all the pods across all namespaces with the given labels
    * @param labels - list of labels
    * @returns list of pods

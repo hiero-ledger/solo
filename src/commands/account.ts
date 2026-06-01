@@ -611,7 +611,14 @@ export class AccountCommand extends BaseCommand {
 
               const namespace: string = blockNode.metadata.namespace.toString();
               const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
-              await this.k8Factory.getK8(context).manifests().scaleStatefulSet(namespace, statefulSetName, 0);
+              const k8: K8 = this.k8Factory.getK8(context);
+              await k8.manifests().scaleStatefulSet(namespace, statefulSetName, 0);
+              await k8
+                .pods()
+                .waitForPodsToTerminate(NamespaceName.of(namespace), [
+                  `app.kubernetes.io/instance=${statefulSetName}`,
+                  'block-node.hiero.com/type=block-node',
+                ]);
             }
           },
         },
@@ -628,10 +635,15 @@ export class AccountCommand extends BaseCommand {
               const namespaceName: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
               const {mirrorNodeReleaseName} = await this.inferMirrorNodeData(namespaceName, context);
               const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
-              await this.k8Factory
-                .getK8(context)
-                .manifests()
-                .scaleDeployment(namespaceName.toString(), importerDeploymentName, 0);
+              const k8: K8 = this.k8Factory.getK8(context);
+              await k8.manifests().scaleDeployment(namespaceName.toString(), importerDeploymentName, 0);
+              await k8
+                .pods()
+                .waitForPodsToTerminate(namespaceName, [
+                  'app.kubernetes.io/name=importer',
+                  'app.kubernetes.io/component=importer',
+                  `app.kubernetes.io/instance=${mirrorNodeReleaseName}`,
+                ]);
             }
           },
         },
@@ -929,7 +941,18 @@ export class AccountCommand extends BaseCommand {
 
                       const namespace: string = blockNode.metadata.namespace.toString();
                       const statefulSetName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
-                      await this.k8Factory.getK8(context).manifests().scaleStatefulSet(namespace, statefulSetName, 1);
+                      const k8: K8 = this.k8Factory.getK8(context);
+                      await k8.manifests().scaleStatefulSet(namespace, statefulSetName, 1);
+                      await k8
+                        .pods()
+                        .waitForReadyStatus(
+                          NamespaceName.of(namespace),
+                          [`app.kubernetes.io/instance=${statefulSetName}`, 'block-node.hiero.com/type=block-node'],
+                          constants.PODS_READY_MAX_ATTEMPTS,
+                          constants.PODS_READY_DELAY,
+                          undefined,
+                          true,
+                        );
                     }
                   },
                 },
@@ -949,7 +972,6 @@ export class AccountCommand extends BaseCommand {
                       const {mirrorNodeReleaseName} = await this.inferMirrorNodeData(namespaceName, context);
                       const importerDeploymentName: string = `${mirrorNodeReleaseName}-importer`;
                       const k8: K8 = this.k8Factory.getK8(context);
-
                       await k8.manifests().scaleDeployment(namespaceName.toString(), importerDeploymentName, 1);
 
                       await k8
@@ -963,6 +985,8 @@ export class AccountCommand extends BaseCommand {
                           ],
                           constants.PODS_READY_MAX_ATTEMPTS,
                           constants.PODS_READY_DELAY,
+                          undefined,
+                          true,
                         );
                     }
                   },
@@ -1003,7 +1027,7 @@ export class AccountCommand extends BaseCommand {
                   },
                 },
               ],
-              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+              constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
             ),
         },
       ],
