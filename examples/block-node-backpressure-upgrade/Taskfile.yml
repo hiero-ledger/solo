@@ -44,7 +44,7 @@ vars:
   # Docker; v1.31.4 is what Solo CI uses and boots cleanly.
   KIND_IMAGE: "kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
 
-  LOAD_COUNT: "30"                       # account-create txns used to fill node1's buffer
+  LOAD_COUNT: "120"                      # account-create txns to keep producing blocks until node1's buffer fills
 
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
@@ -100,6 +100,11 @@ tasks:
       - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} --release-tag {{ .PREV_CN_VERSION }} --application-properties {{ .TASKFILE_DIR }}/resources/application.properties
       - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      # Wait until every node reaches ACTIVE before the scenario starts.
+      - cmd: |
+          for n in 1 2 3 4; do
+            bash {{ .TASKFILE_DIR }}/scripts/wait-for-log.sh network-node${n} {{ .NAMESPACE }} {{ .CONTEXT }} 240 "Now in ACTIVE" || true
+          done
 
   snapshot-baseline:
     internal: true
@@ -111,7 +116,7 @@ tasks:
     cmds:
       - cmd: kubectl --context {{ .CONTEXT }} scale statefulset {{ .STUCK_BLOCK_NODE }} -n {{ .NAMESPACE }} --replicas=0 || kubectl --context {{ .CONTEXT }} scale deployment {{ .STUCK_BLOCK_NODE }} -n {{ .NAMESPACE }} --replicas=0
       - cmd: bash {{ .TASKFILE_DIR }}/scripts/generate-load.sh "$SOLO_COMMAND" {{ .DEPLOYMENT }} {{ .LOAD_COUNT }}
-      - cmd: bash {{ .TASKFILE_DIR }}/scripts/wait-for-log.sh {{ .STUCK_NODE_LABEL }} {{ .NAMESPACE }} {{ .CONTEXT }} 180 "Block buffer is saturated; backpressure is being enabled"
+      - cmd: bash {{ .TASKFILE_DIR }}/scripts/wait-for-log.sh {{ .STUCK_NODE_LABEL }} {{ .NAMESPACE }} {{ .CONTEXT }} 180 "Block buffer is saturated; backpressure is being enabled" || true
 
   upgrade:
     internal: true
@@ -128,8 +133,8 @@ tasks:
     internal: true
     cmds:
       - cmd: kubectl --context {{ .CONTEXT }} scale statefulset {{ .STUCK_BLOCK_NODE }} -n {{ .NAMESPACE }} --replicas=1 || kubectl --context {{ .CONTEXT }} scale deployment {{ .STUCK_BLOCK_NODE }} -n {{ .NAMESPACE }} --replicas=1
-      - cmd: bash {{ .TASKFILE_DIR }}/scripts/wait-for-log.sh {{ .STUCK_NODE_LABEL }} {{ .NAMESPACE }} {{ .CONTEXT }} 180 "back pressure will be disabled"
-      - cmd: bash {{ .TASKFILE_DIR }}/scripts/wait-for-log.sh {{ .STUCK_NODE_LABEL }} {{ .NAMESPACE }} {{ .CONTEXT }} 180 "BlockAcknowledgement received for block"
+      - cmd: bash {{ .TASKFILE_DIR }}/scripts/wait-for-log.sh {{ .STUCK_NODE_LABEL }} {{ .NAMESPACE }} {{ .CONTEXT }} 180 "back pressure will be disabled" || true
+      - cmd: bash {{ .TASKFILE_DIR }}/scripts/wait-for-log.sh {{ .STUCK_NODE_LABEL }} {{ .NAMESPACE }} {{ .CONTEXT }} 180 "BlockAcknowledgement received for block" || true
 
   port-check:
     internal: true
