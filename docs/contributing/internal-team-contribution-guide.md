@@ -41,9 +41,9 @@ Use this file when your change is not only a version bump, but also requires cha
 
 The public environment-variable reference is here:
 
-- `docs/site/content/en/docs/env.md`
+- <https://github.com/hiero-ledger/solo-docs/blob/main/content/en/docs/advanced-solo-setup/using-environment-variables.md>
 
-If you change a default version or a default chart URL, update this file too so documentation stays aligned with the code.
+If you change a default version or a default chart URL, update this file too and create a solo-docs Pull Request so documentation stays aligned with the code.
 
 ### Helm Chart Values Change
 
@@ -218,7 +218,9 @@ Update only the constant for your component.
 
 If the default is documented in the environment reference, update:
 
-- `docs/site/content/en/docs/env.md`
+- <https://github.com/hiero-ledger/solo-docs/blob/main/content/en/docs/advanced-solo-setup/using-environment-variables.md>
+
+And, create a solo-docs Pull Request so documentation stays aligned with the code.
 
 ### Step 3: Check whether chart constants changed
 
@@ -348,7 +350,7 @@ If your upgrade is not safe across a version boundary, update:
 
 Keep docs aligned with the change:
 
-- `docs/site/content/en/docs/env.md`
+- <https://github.com/hiero-ledger/solo-docs/blob/main/content/en/docs/advanced-solo-setup/using-environment-variables.md>. And, create a solo-docs Pull Request so documentation stays aligned with the code.
 - `DEV.md`
 
 ### Step 7: Validate end-to-end

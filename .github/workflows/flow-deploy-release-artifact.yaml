@@ -613,6 +613,10 @@ jobs:
             fi
           echo "::endgroup::"
 
+  docs-automation:
+    name: Docs Automation
+    uses: ./.github/workflows/zxc-docs-automation.yaml
+
   setup:
     name: Hugo Docs Setup
     runs-on: hiero-solo-linux-medium
