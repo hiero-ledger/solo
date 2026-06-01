@@ -330,13 +330,22 @@ export class AccountManager {
         for (const result of results) {
           switch (result.status) {
             case REJECTED: {
-              throw new SoloError(`failed to configure node access: ${(result as PromiseRejectedResult).reason}`);
+              // skipping unreachable node when configuring node access: tolerate a
+              // wedged/back-pressured node so the client is still built from the
+              // reachable nodes (lets upgrade/freeze run while one node is down).
+              this.logger.warn(
+                `skipping unreachable node when configuring node access: ${(result as PromiseRejectedResult).reason}`,
+              );
+              break;
             }
             case FULFILLED: {
               nodes = {...nodes, ...(result as PromiseFulfilledResult<Record<NodeAlias, AccountId>>).value};
               break;
             }
           }
+        }
+        if (Object.keys(nodes).length === 0) {
+          throw new SoloError('failed to configure node access: no reachable nodes');
         }
       });
       this.logger.debug(`configured node access for ${Object.keys(nodes).length} nodes`);

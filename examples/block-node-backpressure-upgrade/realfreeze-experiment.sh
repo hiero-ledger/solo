@@ -27,6 +27,7 @@ LOG_DIR="/opt/hgcapp/services-hedera/HapiApp2.0/output"
 KCTL="kubectl --context ${CONTEXT}"   # solo switches the current context mid-run, so be explicit
 
 ROOT="$(cd "$(dirname "$0")" && git rev-parse --show-toplevel)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CN_VERSION="$(sed -n "s/.*TEST_UPGRADE_FROM_VERSION.*'\([^']*\)'.*/\1/p" "${ROOT}/version-test.ts")"
 BN_VERSION="$(sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "${ROOT}/version-test.ts")"
 UPGRADE_VERSION="$(sed -n "s/.*HEDERA_PLATFORM_VERSION.*||[[:space:]]*'\([^']*\)'.*/\1/p" "${ROOT}/version.ts")"
@@ -208,8 +209,26 @@ add_block_node() {  # <n>
   return 1
 }
 
+# Make Solo's node client tolerate an unreachable node so upgrade/freeze can run
+# while one node is wedged (builds the client from the reachable nodes instead of
+# throwing on the first unreachable one). Idempotent; tsx reads the patched source.
+patch_solo() {
+  local patch="${SCRIPT_DIR}/solo-tolerant-nodeclient.patch"
+  [ -f "${patch}" ] || { warn "patch file not found: ${patch}"; return 0; }
+  if git -C "${ROOT}" apply --reverse --check "${patch}" 2>/dev/null; then
+    sub "solo node-client tolerance patch already applied"
+  elif git -C "${ROOT}" apply --check "${patch}" 2>/dev/null; then
+    git -C "${ROOT}" apply "${patch}" && ok "applied solo node-client tolerance patch" || warn "solo patch failed to apply"
+  else
+    warn "solo node-client patch does not apply cleanly (source changed?); skipping"
+  fi
+  # tsx caches transpiled source; clear it so the patched file is recompiled.
+  rm -rf "$(node -e 'process.stdout.write(require("os").tmpdir())' 2>/dev/null)"/tsx-* 2>/dev/null || true
+}
+
 phase_cluster() {
   log "PHASE 1/6  kind cluster + Solo init"
+  patch_solo
   solo init --dev >/dev/null 2>&1 || true
   # Recreate from scratch: reusing a cluster inherits stale Solo local-config and
   # then fails pre-flight with "Context ... is not valid for cluster ...".
@@ -417,12 +436,56 @@ phase_recover() {
   fi
 }
 
+phase_realfreeze() {
+  log "REAL-FREEZE  freeze-upgrade skipping wedged node1, then restart node2/3/4 at v1"
+  # node1 is wedged (from back-pressure). Submit the upgrade FREEZE via the healthy
+  # nodes, skipping node1's ping. Solo's upgrade zip just bumps hedera.config.version,
+  # so the staged upgrade == config.version+1, matching the restart value below.
+  sub "submitting: dev-freeze freeze-upgrade --skip-node-alias node1 (tolerant client skips wedged node1) ..."
+  local outf pid end; outf="$(mktemp -t bn-bp-rf-XXXXXX)"
+  ( cd "${ROOT}"; solo consensus dev-freeze freeze-upgrade --skip-node-alias node1 --deployment "${DEPLOYMENT}" ) >"${outf}" 2>&1 &
+  pid=$!; disown 2>/dev/null || true; end=$(( $(date +%s) + 360 ))
+  while kill -0 "${pid}" 2>/dev/null; do [ "$(date +%s)" -ge "${end}" ] && break; sleep 3; done
+  pkill -f "freeze-upgrade" 2>/dev/null || true; kill "${pid}" 2>/dev/null || true; pkill -P "${pid}" 2>/dev/null || true
+  grep -qi "skipping unreachable" "${outf}" 2>/dev/null && sub "tolerant client skipped the wedged node (patch active)"
+
+  # Judge the freeze by the real signal: did the healthy nodes reach FREEZE_COMPLETE?
+  sub "freeze-upgrade finished; waiting for node2/3/4 to reach FREEZE_COMPLETE ..."
+  for n in 2 3 4; do wait_status "$n" FREEZE_COMPLETE 150 >/dev/null 2>&1 || true; done
+  local froze=0; for n in 2 3 4; do [ "$(node_status "$n")" = "FREEZE_COMPLETE" ] && froze=$(( froze + 1 )); done
+  if [ "${froze}" -gt 0 ]; then
+    ok "${froze}/3 healthy nodes reached FREEZE_COMPLETE -- real freeze submitted via the tolerant client"
+  else
+    warn "node2/3/4 did not reach FREEZE_COMPLETE; freeze-upgrade tail:"; tail -8 "${outf}" 2>/dev/null | sed 's/^/     /'
+  fi
+  rm -f "${outf}"
+  print_statuses
+
+  # Restart node2/3/4 at config.version=1 from the freeze state (clean boundary, no
+  # replay across it). node1 missed the freeze and stays at 0.
+  sub "restarting node2/3/4 at hedera.config.version=1 from the freeze state ..."
+  for n in 2 3 4; do set_cfg_version "$n" set 1; sub "node${n} -> config.version=1 (restart)"; done
+  for n in 2 3 4; do wait_ready "$n"; done
+  sub "waiting for node2/3/4 to settle (ACTIVE = clean upgrade; CATASTROPHIC = ISS) ..."
+  for n in 2 3 4; do wait_any_status "$n" 150 ACTIVE CATASTROPHIC_FAILURE >/dev/null 2>&1 || true; done
+  sleep 10
+  print_statuses
+  local act=0 cat=0 s
+  for n in 2 3 4; do s="$(node_status "$n")"; [ "$s" = "ACTIVE" ] && act=$(( act + 1 )); [ "$s" = "CATASTROPHIC_FAILURE" ] && cat=$(( cat + 1 )); done
+  if [ "${act}" -eq 3 ]; then
+    ok "node2/3/4 came up CLEAN ACTIVE at config.version=1 -- the freeze boundary worked (no replay-ISS)"
+    sub "now node1(v0, missed the freeze) vs node2/3/4(v1): node1=$(node_status 1)"
+  elif [ "${cat}" -gt 0 ]; then
+    warn "node2/3/4 hit ISS/CATASTROPHIC even with the freeze boundary (${cat}/3) -- restart-from-freeze is NOT clean"
+  else
+    warn "inconclusive node2/3/4 states -- inspect above"
+  fi
+}
+
 verdict() {
   log "FINAL STATE"
   print_statuses
   sub ""
-  sub "version-split nodes stay in CATASTROPHIC_FAILURE -- the network does not self-heal."
-  sub "recover:  ./reproduce.sh recover"
   sub "teardown: ./reproduce.sh teardown"
 }
 
@@ -459,8 +522,6 @@ phase_cluster
 phase_deploy
 monitor_start
 phase_backpressure
-phase_upgrade_blocked
-phase_restore
-phase_version_split
+phase_realfreeze
 monitor_stop
 verdict
