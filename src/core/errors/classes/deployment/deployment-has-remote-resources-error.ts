@@ -3,6 +3,7 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {Flags} from '../../../../commands/flags.js';
 
 export class DeploymentHasRemoteResourcesError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -14,11 +15,11 @@ export class DeploymentHasRemoteResourcesError extends SoloError {
       code: ErrorCodeRegistry.DEPLOYMENT_HAS_REMOTE_RESOURCES,
       troubleshootingSteps:
         'Destroy all components in the deployment before deleting it:\n' +
-        'solo mirror node destroy --deployment <name>\n' +
-        'solo relay node destroy --deployment <name>\n' +
-        'solo explorer node destroy --deployment <name>\n' +
-        'solo block node destroy --deployment <name>\n' +
-        'solo consensus network destroy --deployment <name>',
+        `solo mirror node destroy ${Flags.getFormattedFlagKey(Flags.deployment)} <name>\n` +
+        `solo relay node destroy ${Flags.getFormattedFlagKey(Flags.deployment)} <name>\n` +
+        `solo explorer node destroy ${Flags.getFormattedFlagKey(Flags.deployment)} <name>\n` +
+        `solo block node destroy ${Flags.getFormattedFlagKey(Flags.deployment)} <name>\n` +
+        `solo consensus network destroy ${Flags.getFormattedFlagKey(Flags.deployment)} <name>`,
     });
   }
 }

@@ -82,6 +82,15 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly REFRESH_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.REFRESH_PORT_FORWARDS}` as const;
 
+  public static readonly INFO_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_INFO}` as const;
+
+  public static readonly LIST_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_LIST}` as const;
+
+  public static readonly PORTS_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_PORTS}` as const;
+
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
       DeploymentCommandDefinition.COMMAND_NAME,

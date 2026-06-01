@@ -3,6 +3,7 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {Flags} from '../../../../commands/flags.js';
 
 export class ClusterAddFailedError extends SoloError {
   protected override readonly retryable: boolean = true;
@@ -15,7 +16,7 @@ export class ClusterAddFailedError extends SoloError {
         code: ErrorCodeRegistry.CLUSTER_ADD_FAILED,
         troubleshootingSteps:
           'Verify the cluster context exists: kubectl config get-contexts\n' +
-          'Make sure the cluster reference is created: cluster-ref config connect --cluster-ref <cluster-reference> --context <context>\n' +
+          `Make sure the cluster reference is created: cluster-ref config connect ${Flags.getFormattedFlagKey(Flags.clusterRef)} <cluster-reference> ${Flags.getFormattedFlagKey(Flags.context)} <context>\n` +
           'Check logs for details: tail -n 100 ~/.solo/logs/solo.log',
       },
       cause,

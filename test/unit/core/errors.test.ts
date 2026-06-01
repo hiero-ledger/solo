@@ -7,7 +7,7 @@ import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {ResourceNotFoundError} from '../../../src/core/errors/classes/system/resource-not-found-error.js';
 import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
-import {DataValidationError} from '../../../src/core/errors/classes/validation/data-validation-error.js';
+import {DataValidationError} from '../../../src/core/errors/classes/internal/data-validation-error.js';
 
 describe('Errors', () => {
   const message = 'errorMessage';

@@ -151,6 +151,10 @@ tasks:
       - cmd: echo "🔑 Generating consensus keys..."
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
+      # Deploy Block Node on Cluster 2
+      - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
+
       # Deploy consensus network
       - cmd: echo "🚀 Deploying consensus network..."
       - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs
@@ -182,10 +186,6 @@ tasks:
             --external-database-read-username {{ .POSTGRES_READONLY_USERNAME }} \
             --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
             --enable-ingress --pinger -q --dev --values-file examples/multicluster-backup-restore/mirror-node-values-dual-cluster-minimal.yaml
-
-      # Deploy Block Node on Cluster 2
-      - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
 
       # Deploy Explorer on Cluster 2
       - cmd: echo "🔍 Deploying Explorer on Cluster 2..."
@@ -344,8 +344,8 @@ tasks:
   verify:
     desc: Verify restored network functionality
     cmds:
-      - cmd: echo "🔎 Verifying restored state (checking account 3.2.3)..."
-      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id 3.2.3 || echo "⚠️  Account verification may have failed"
+      - cmd: echo "🔎 Verifying restored state (checking account {{ .REALM }}.{{ .SHARD }}.3)..."
+      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .REALM }}.{{ .SHARD }}.3 || echo "⚠️  Account verification may have failed"
 
       - cmd: echo "💰 Testing with new transactions..."
       - cmd: |
