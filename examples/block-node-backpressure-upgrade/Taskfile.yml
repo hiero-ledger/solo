@@ -1,0 +1,159 @@
+version: 3
+
+# Block-node back-pressure + software-upgrade scenario for Solo.
+# Reproduces PR #25501 (hiero-consensus-node) on a real Kubernetes cluster and
+# adds explicit port-stability assertions across the upgrade, since the
+# motivation is the port-reassignment behavior observed in the HAPI test-client.
+#
+# Single entry point: run `task`. It runs every stage below in order and prints
+# the PORTS verdict + node1 recovery outcome. The stages are separate (internal)
+# tasks for readability; `task --list` shows only `default`.
+
+env:
+  # Resolve how to invoke solo:
+  #   USE_RELEASED_VERSION=true  -> npx @hashgraph/solo (downloads released)
+  #   dist/solo.js built         -> npm run solo --     (dev build in this repo)
+  #   solo on PATH               -> solo                (globally installed CLI)
+  SOLO_COMMAND:
+    sh: |
+      ROOT="$(git rev-parse --show-toplevel)"
+      if [ "${USE_RELEASED_VERSION}" = "true" ]; then
+        echo "npx @hashgraph/solo"
+      elif [ -f "${ROOT}/dist/solo.js" ]; then
+        echo "npm run solo --"
+      elif command -v solo >/dev/null 2>&1; then
+        echo "solo"
+      else
+        echo "npm run solo --"
+      fi
+
+vars:
+  # 4 consensus nodes, each pinned 1:1 to its own block node.
+  NODE_IDENTIFIERS: "node1,node2,node3,node4"
+  SOLO_NETWORK_SIZE: "4"
+  STUCK_NODE_LABEL: "network-node1"      # node1 — the one we wedge
+  STUCK_BLOCK_NODE: "block-node-1"       # its block node (a StatefulSet)
+
+  DEPLOYMENT: "deployment-bn-backpressure"
+  NAMESPACE: "namespace-bn-backpressure"
+  CLUSTER_NAME: "bn-backpressure-cluster"
+  CONTEXT: "kind-bn-backpressure-cluster"
+  CLUSTER_REFERENCE: "kind-bn-backpressure-cluster"
+
+  # kind 0.31's default image (v1.35.0) fails to boot the kubelet on current
+  # Docker; v1.31.4 is what Solo CI uses and boots cleanly.
+  KIND_IMAGE: "kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
+
+  LOAD_COUNT: "30"                       # account-create txns used to fill node1's buffer
+
+  ROOT_DIR:
+    sh: git rev-parse --show-toplevel
+  PREV_CN_VERSION:
+    sh: sed -n "s/.*TEST_UPGRADE_FROM_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+  PREV_BLOCK_VERSION:
+    sh: sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
+
+tasks:
+  default:
+    desc: Run the full block-node back-pressure + software-upgrade test suite on Solo
+    cmds:
+      - task: cluster              # 1. kind cluster + solo init/connect/deployment
+      - task: deploy               # 2. 4 CN + 4 BN pinned 1:1, tiny block buffer
+      - task: snapshot-baseline    # 3. capture addressing before disruption
+      - task: induce-backpressure  # 4. kill BN0, load node1 until it back-pressures
+      - task: upgrade              # 5. upgrade the 3 healthy nodes (node1 stays wedged)
+      - task: restore              # 6. restart BN0, drain node1's buffer
+      - task: port-check           # 7. re-capture + diff -> PORTS STABLE / CHANGED
+      - task: recover              # 8. restart node1, record ACTIVE vs CATASTROPHIC
+      - cmd: |
+          echo "Done. Review the PORTS verdict (step 7) and node1 outcome (step 8) above."
+          echo "Tear down: kind delete cluster -n {{ .CLUSTER_NAME }}"
+
+  cluster:
+    internal: true
+    cmds:
+      - cmd: $SOLO_COMMAND init --dev
+      - cmd: |
+          KIND_CFG="{{ .TASKFILE_DIR }}/../../resources/kind-config.yaml"
+          [ -f "$KIND_CFG" ] && CFG="--config $KIND_CFG" || CFG=""
+          kind create cluster -n {{ .CLUSTER_NAME }} --image "{{ .KIND_IMAGE }}" $CFG
+      - cmd: sleep 10
+      # solo commands switch the current context, so every kubectl call is context-explicit.
+      - cmd: kubectl config use-context {{ .CONTEXT }}
+      - cmd: $SOLO_COMMAND init
+      - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev
+      - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REFERENCE }} --context {{ .CONTEXT }}
+      - cmd: $SOLO_COMMAND deployment config create --deployment {{ .DEPLOYMENT }} --namespace {{ .NAMESPACE }}
+      - cmd: $SOLO_COMMAND deployment cluster attach --deployment {{ .DEPLOYMENT }} --cluster-ref {{ .CLUSTER_REFERENCE }} --num-consensus-nodes {{ .SOLO_NETWORK_SIZE }}
+
+  deploy:
+    internal: true
+    cmds:
+      - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+      # One block node per consensus node; --priority-mapping pins each 1:1 so
+      # killing BN0 only affects node1.
+      - cmd: |
+          for n in 1 2 3 4; do
+            $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }} \
+              --chart-version {{ .PREV_BLOCK_VERSION }} --priority-mapping node${n}=2
+          done
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} --release-tag {{ .PREV_CN_VERSION }} --application-properties {{ .TASKFILE_DIR }}/resources/application.properties
+      - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
+      - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
+
+  snapshot-baseline:
+    internal: true
+    cmds:
+      - cmd: bash {{ .TASKFILE_DIR }}/scripts/capture-ports.sh baseline {{ .NAMESPACE }} {{ .CONTEXT }}
+
+  induce-backpressure:
+    internal: true
+    cmds:
+      - cmd: kubectl --context {{ .CONTEXT }} scale statefulset {{ .STUCK_BLOCK_NODE }} -n {{ .NAMESPACE }} --replicas=0 || kubectl --context {{ .CONTEXT }} scale deployment {{ .STUCK_BLOCK_NODE }} -n {{ .NAMESPACE }} --replicas=0
+      - cmd: bash {{ .TASKFILE_DIR }}/scripts/generate-load.sh "$SOLO_COMMAND" {{ .DEPLOYMENT }} {{ .LOAD_COUNT }}
+      - cmd: bash {{ .TASKFILE_DIR }}/scripts/wait-for-log.sh {{ .STUCK_NODE_LABEL }} {{ .NAMESPACE }} {{ .CONTEXT }} 180 "Block buffer is saturated; backpressure is being enabled"
+
+  upgrade:
+    internal: true
+    # node1 never reaches FREEZE_COMPLETE while back-pressured, so we upgrade only
+    # the healthy nodes (exceptNodeIds(0), as the PR does) — a whole-network
+    # upgrade would stall on node1.
+    cmds:
+      - cmd: |
+          VER=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'"'"'[^'"'"']*'"'"'/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' "{{ .ROOT_DIR }}/version.ts")
+          echo "upgrading node2,node3,node4 to ${VER}"
+          SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases node2,node3,node4 --upgrade-version "${VER}" --deployment {{ .DEPLOYMENT }} || true
+
+  restore:
+    internal: true
+    cmds:
+      - cmd: kubectl --context {{ .CONTEXT }} scale statefulset {{ .STUCK_BLOCK_NODE }} -n {{ .NAMESPACE }} --replicas=1 || kubectl --context {{ .CONTEXT }} scale deployment {{ .STUCK_BLOCK_NODE }} -n {{ .NAMESPACE }} --replicas=1
+      - cmd: bash {{ .TASKFILE_DIR }}/scripts/wait-for-log.sh {{ .STUCK_NODE_LABEL }} {{ .NAMESPACE }} {{ .CONTEXT }} 180 "back pressure will be disabled"
+      - cmd: bash {{ .TASKFILE_DIR }}/scripts/wait-for-log.sh {{ .STUCK_NODE_LABEL }} {{ .NAMESPACE }} {{ .CONTEXT }} 180 "BlockAcknowledgement received for block"
+
+  port-check:
+    internal: true
+    cmds:
+      - cmd: bash {{ .TASKFILE_DIR }}/scripts/capture-ports.sh post-upgrade {{ .NAMESPACE }} {{ .CONTEXT }}
+      - cmd: bash {{ .TASKFILE_DIR }}/scripts/diff-ports.sh baseline post-upgrade || true
+
+  recover:
+    internal: true
+    # PR #25501 accepts either ACTIVE or CATASTROPHIC_FAILURE; we just record it.
+    # The status line is in swirlds.log (a file under output/, not pod stdout).
+    cmds:
+      - cmd: kubectl --context {{ .CONTEXT }} delete pod -n {{ .NAMESPACE }} -l app={{ .STUCK_NODE_LABEL }} --wait=false || true
+      - cmd: sleep 20
+      - cmd: |
+          LOG=/opt/hgcapp/services-hedera/HapiApp2.0/output/swirlds.log
+          deadline=$(( $(date +%s) + 300 )); result="inconclusive"
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            pod="$(kubectl --context {{ .CONTEXT }} get pod -n {{ .NAMESPACE }} -l app={{ .STUCK_NODE_LABEL }} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+            if [ -n "$pod" ]; then
+              logs="$(kubectl --context {{ .CONTEXT }} exec -n {{ .NAMESPACE }} "$pod" -c root-container -- sh -c "cat $LOG 2>/dev/null" 2>/dev/null || true)"
+              echo "$logs" | grep -qF "Now in CATASTROPHIC_FAILURE" && { result="CATASTROPHIC_FAILURE"; break; }
+              echo "$logs" | grep -qF "Now in ACTIVE" && { result="ACTIVE"; break; }
+            fi
+            sleep 5
+          done
+          echo "RESULT: node1 settled on ${result}"

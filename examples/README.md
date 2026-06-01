@@ -5,6 +5,7 @@
 | Example Directory                                                   | Description                                                                                                         |
 |---------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
 | [address-book](./address-book/)                                     | Example of using Yahcli to pull the ledger and mirror node address book                                             |
+| [block-node-backpressure-upgrade](./block-node-backpressure-upgrade/) | Block-node back-pressure + software-upgrade scenario (PR #25501) with port-stability assertions across the upgrade |
 | [consensus-node-jvm-parameters](./consensus-node-jvm-parameters/)   | Example of customizing JVM parameters for Solo consensus nodes                                                      |
 | [multicluster-backup-restore](./multicluster-backup-restore/)       | Multi-cluster backup/restore workflow with external PostgreSQL database and distributed consensus nodes             |
 | [external-database-test](./external-database-test/)                 | Deploy a Solo network with an external PostgreSQL database                                                          |
