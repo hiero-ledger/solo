@@ -624,6 +624,13 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
+    if (config.minioEnabled && config.storageType === constants.StorageType.MINIO_ONLY) {
+      for (const clusterReference of clusterReferences) {
+        valuesArguments[clusterReference] += ' --set cloud.minio.enabled=true';
+        valuesArguments[clusterReference] += ' --set cloud.generateNewSecrets=true';
+      }
+    }
+
     if (!config.minioEnabled) {
       for (const clusterReference of clusterReferences) {
         valuesArguments[clusterReference] += ' --set cloud.minio.enabled=false';
@@ -924,7 +931,18 @@ export class NetworkCommand extends BaseCommand {
 
     config.singleUseServiceMonitor = config.serviceMonitor;
     config.singleUsePodLog = config.podLog;
-    config.minioEnabled = !networkNodeVersion.greaterThanOrEqual(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS);
+    const tssByDefaultSupported: boolean = networkNodeVersion.greaterThanOrEqual(
+      versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+    );
+    const blockNodeConfigured: boolean =
+      config.blockNodeComponents.length > 0 ||
+      config.consensusNodes.some(
+        (consensusNode): boolean =>
+          consensusNode.blockNodeMap.length > 0 || consensusNode.externalBlockNodeMap.length > 0,
+      );
+    // Disable MinIO only for TSS-era deployments that route streams via block nodes.
+    // Non-block-node deployments still require MinIO/S3-backed record streams for mirror importer.
+    config.minioEnabled = !(tssByDefaultSupported && blockNodeConfigured);
 
     config.valuesArgMap = await this.prepareValuesArgMap(config);
 

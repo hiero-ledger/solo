@@ -49,10 +49,21 @@ export class DeployArgvBuilders {
   private static readonly BLOCK_NODE_RELEASES_URL: string =
     'https://api.github.com/repos/hiero-ledger/hiero-block-node/releases';
 
+  public static shouldDeployBlockNode(config: OneShotSingleDeployConfigClass): boolean {
+    const blockNodeEnvironmentEnabled: boolean = constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true';
+    const consensusVersion: SemanticVersion<string> = new SemanticVersion<string>(
+      config.versions.consensus || version.HEDERA_PLATFORM_VERSION,
+    );
+
+    return (
+      blockNodeEnvironmentEnabled || consensusVersion.greaterThanOrEqual(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)
+    );
+  }
+
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
     const argv: string[] = newArgv();
     argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), optionFromFlag(Flags.deployment), config.deployment);
-    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+    if (this.shouldDeployBlockNode(config)) {
       argv.push(optionFromFlag(Flags.blockNodeTssOverlay));
     }
 
@@ -104,7 +115,7 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.parallelDeploy),
       config.parallelDeploy.toString(),
     );
-    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+    if (this.shouldDeployBlockNode(config)) {
       argv.push(optionFromFlag(Flags.forceBlockNodeIntegration));
     }
     // Append HikariCP limits file without mutating the shared config object.
@@ -176,7 +187,7 @@ export class DeployArgvBuilders {
     if (config.networkConfiguration) {
       appendConfigToArgv(argv, config.networkConfiguration);
     }
-    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+    if (this.shouldDeployBlockNode(config)) {
       argv.push(optionFromFlag(Flags.tssEnabled));
     }
     return argvPushGlobalFlags(argv, config.cacheDir);
@@ -256,10 +267,7 @@ export class DeployArgvBuilders {
       argv.push(optionFromFlag(Flags.deployMetricsServer));
     }
 
-    const consensusVersion: SemanticVersion<string> = new SemanticVersion<string>(
-      config.versions.consensus || version.HEDERA_PLATFORM_VERSION,
-    );
-    if (consensusVersion.greaterThanOrEqual(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+    if (this.shouldDeployBlockNode(config)) {
       argv.push(negatedOptionFromFlag(Flags.deployMinio));
     }
 
