@@ -203,7 +203,18 @@ tasks:
           exit 1
         fi
         
-        jq -r '.[] | select(.npmjsLatest == true or .npmjsLatest == false) | .tag' "$RELEASES" | while read -r VERSION; do
+        # Only consider releases that actually published a docs-<tag>.tar.gz asset. When a release's
+        #  Hugo docs deploy failed, that asset is missing (e.g. v0.75.0 has only the example-*.zip
+        #  assets), so there is nothing to extract into public/<tag> and a dropdown entry would only
+        #  404. Detecting this from the release metadata (rather than from local extraction) keeps the
+        #  filter correct for both the aggregation build and the standalone versioned build.
+        jq -r '
+          .[]
+          | select(.npmjsLatest == true or .npmjsLatest == false)
+          | . as $release
+          | select(any($release.assets[]; .name == "docs-\($release.tag).tar.gz"))
+          | $release.tag
+        ' "$RELEASES" | while read -r VERSION; do
           # Skip anything older than v0.57.0: those releases are not downloaded or extracted
           #  (see github:download:solo:assets), so they must not appear in the versions dropdown.
           MAJOR=$(echo "$VERSION" | cut -d. -f1 | tr -d 'v')
