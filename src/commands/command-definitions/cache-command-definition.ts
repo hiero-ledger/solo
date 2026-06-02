@@ -47,7 +47,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.pull,
               CacheCommand.PULL_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES, constants.CRANE],
+              [constants.CRANE],
             ),
           )
           .addSubcommand(
@@ -57,7 +57,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.load,
               CacheCommand.LOAD_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES, constants.CRANE],
+              [constants.KIND],
             ),
           )
           .addSubcommand(
@@ -67,7 +67,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.list,
               CacheCommand.LIST_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES],
+              [],
             ),
           )
           .addSubcommand(
@@ -77,7 +77,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.clear,
               CacheCommand.CLEAR_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES],
+              [],
             ),
           )
           .addSubcommand(
@@ -87,7 +87,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.status,
               CacheCommand.STATUS_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES],
+              [],
             ),
           ),
       )
