@@ -199,6 +199,14 @@ tasks:
         fi
         
         jq -r '.[] | select(.npmjsLatest == true or .npmjsLatest == false) | .tag' "$RELEASES" | while read -r VERSION; do
+          # Skip anything older than v0.57.0: those releases are not downloaded or extracted
+          #  (see github:download:solo:assets), so they must not appear in the versions dropdown.
+          MAJOR=$(echo "$VERSION" | cut -d. -f1 | tr -d 'v')
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          if [[ "$MAJOR" -eq 0 && "$MINOR" -lt 57 ]]; then
+            echo "⚠️ Skipping dropdown entry for $VERSION (version too old)"
+            continue
+          fi
           LINE="    - {version: $VERSION, url: /solo/$VERSION}"
           if ! grep -q "version: $VERSION," "$CONFIG"; then
             echo "$LINE" >> "$CONFIG"
