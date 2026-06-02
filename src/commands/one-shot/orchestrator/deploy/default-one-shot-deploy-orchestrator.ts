@@ -270,7 +270,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               // They will be populated later when building the staging directory
               const applicationPropertiesMerged: string = fs.readFileSync(mergedApplicationPropertiesPath, 'utf8');
               const propertiesLines: string[] = applicationPropertiesMerged.split('\n');
-              const soloManagedKeys: Set<string> = new Set(['hedera.realm', 'hedera.shard', 'contracts.chainId']);
+              const soloManagedKeys: Set<string> = new Set([
+                'hedera.realm',
+                'hedera.shard',
+                'contracts.chainId',
+                'blockStream.streamMode',
+                'blockStream.writerMode',
+              ]);
               const filteredLines: string[] = propertiesLines.filter((line: string): boolean => {
                 const keyValuePair: string[] = line.split('=');
                 if (keyValuePair && keyValuePair.length === 2) {
