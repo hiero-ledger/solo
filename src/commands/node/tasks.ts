@@ -1609,7 +1609,7 @@ export class NodeCommandTasks {
             .containers()
             .readByRef(rootContainer);
 
-          await container.execContainer('chmod 777 /opt/hgcapp/services-hedera/HapiApp2.0/data');
+          await container.execContainer('chmod 750 /opt/hgcapp/services-hedera/HapiApp2.0/data');
 
           // save consensus node version in remote config
           this.remoteConfig.updateComponentVersion(
