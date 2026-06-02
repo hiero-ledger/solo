@@ -142,6 +142,17 @@ tasks:
           fi
         done
 
+  github:mutate:urls:
+    desc: Update URLs for older versions to point to the new path structure
+    silent: true
+    cmds:
+      - |
+        # for each directory in public
+        # search for references of https://solo.hiero.org replace with https://hiero-ledger.github.io/solo
+        # search for references of /main if not /solo/main then replace with /solo/main
+        # search for references of /latest if not /solo/latest then replace with /solo/latest
+        # search for references of /${tag} eg: /v0.57.0 if not /solo/v0.57.0 then replace with /solo/${tag}
+
   github:update:hugo:config:
     desc: Append versions from releases.json to hugo.yaml
     silent: true
