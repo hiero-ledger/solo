@@ -131,7 +131,7 @@ describe('KubectlDependencyManager', (): void => {
 
         expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
         // Should return global path since it meets requirements
-        expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
+        expect(await kubectlDependencyManager.getExecutable()).to.equal(fakeGlobalKubectlPath);
       } finally {
         process.env.PATH = originalPath;
       }
@@ -142,7 +142,9 @@ describe('KubectlDependencyManager', (): void => {
       sandbox.stub(fs, 'accessSync').throws(Object.assign(new Error('ENOENT'), {code: 'ENOENT'}));
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(localInstallationDirectory, constants.KUBECTL))).to.be.ok;
-      expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
+      expect(await kubectlDependencyManager.getExecutable()).to.equal(
+        PathEx.join(localInstallationDirectory, constants.KUBECTL),
+      );
     });
 
     it('should be able to use local installation on repeated calls without reinstalling given global installation does not meet requirements', async (): Promise<void> => {
