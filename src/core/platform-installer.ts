@@ -353,7 +353,7 @@ export class PlatformInstaller {
   public async setPathPermission(
     podReference: PodReference,
     destinationPath: string,
-    mode: string = '0755',
+    mode: string = '0750',
     recursive: boolean = true,
     container: ContainerName = constants.ROOT_CONTAINER,
     context?: string,

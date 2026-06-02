@@ -4,7 +4,7 @@ services:
   init-dind-externals:
     image: "ghcr.io/hashgraph/runner-images/scaleset-runner:ubuntu-22.04"
     platform: linux/amd64
-    command: [ "sudo", "sh", "-c", "chmod -R 777 /home/runner/tmpDir && cp -r /home/runner/externals/. /home/runner/tmpDir/" ]
+    command: [ "sudo", "sh", "-c", "chmod -R 750 /home/runner/tmpDir && cp -r /home/runner/externals/. /home/runner/tmpDir/" ]
     privileged: true
     volumes:
       - dind-externals:/home/runner/tmpDir
