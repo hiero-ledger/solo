@@ -147,11 +147,43 @@ tasks:
     silent: true
     cmds:
       - |
-        # for each directory in public
-        # search for references of https://solo.hiero.org replace with https://hiero-ledger.github.io/solo
-        # search for references of /main if not /solo/main then replace with /solo/main
-        # search for references of /latest if not /solo/latest then replace with /solo/latest
-        # search for references of /${tag} eg: /v0.57.0 if not /solo/v0.57.0 then replace with /solo/${tag}
+        # The site is published to GitHub Pages under https://hiero-ledger.github.io/solo/, so every
+        #  published URL must carry the /solo path prefix. Docs for older versions were extracted from
+        #  release tarballs that were built before that prefix existed: they reference the retired
+        #  https://solo.hiero.org host and use root-relative links such as /v0.57.0/... (no /solo).
+        #  This task rewrites the already-extracted docs under ./public so that:
+        #    - references to https://solo.hiero.org          -> https://hiero-ledger.github.io/solo
+        #    - root-relative /main, /latest and /<tag> links -> /solo/main, /solo/latest, /solo/<tag>
+        #  The negative lookbehind for /solo keeps this idempotent: links that are already /solo/...
+        #  are left untouched, so freshly built docs (whose baseURL already includes /solo) are never
+        #  double-prefixed.
+        if [ ! -d public ]; then
+          echo "No public directory found, nothing to mutate."
+          exit 0
+        fi
+
+        # Build the alternation of version segments to prefix: main, latest and every release tag.
+        #  Tags (e.g. v0.57.0) contain dots, which are escaped so they are matched literally by perl.
+        ALT="main|latest"
+        if [ -f build/releases.json ]; then
+          for tag in $(jq -r '.[].tag' build/releases.json); do
+            escaped=$(printf '%s' "$tag" | sed 's/\./\\./g')
+            ALT="$ALT|$escaped"
+          done
+        fi
+        export ALT
+
+        echo "Rewriting URLs under ./public to include the /solo path prefix..."
+        # -exec ... {} + batches files into a few perl invocations and is skipped entirely when no
+        #  file matches, so it stays portable across the GitHub (Linux) and local (macOS) runners.
+        find public -type f \
+          \( -name '*.html' -o -name '*.htm' -o -name '*.xml' -o -name '*.json' \
+             -o -name '*.js' -o -name '*.css' -o -name '*.txt' \) \
+          -exec perl -i -pe '
+            s{https://solo\.hiero\.org}{https://hiero-ledger.github.io/solo}g;
+            s{(?<!/solo)/($ENV{ALT})\b}{/solo/$1}g;
+          ' {} +
+        echo "✅ URL mutation complete."
 
   github:update:hugo:config:
     desc: Append versions from releases.json to hugo.yaml
@@ -167,7 +199,7 @@ tasks:
         fi
         
         jq -r '.[] | select(.npmjsLatest == true or .npmjsLatest == false) | .tag' "$RELEASES" | while read -r VERSION; do
-          LINE="    - {version: $VERSION, url: /$VERSION}"
+          LINE="    - {version: $VERSION, url: /solo/$VERSION}"
           if ! grep -q "version: $VERSION," "$CONFIG"; then
             echo "$LINE" >> "$CONFIG"
           fi

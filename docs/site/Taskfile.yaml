@@ -23,9 +23,13 @@ env:
   HUGO_BASEPATH: /solo
   PATH:
     sh: echo "$(go env GOPATH)/bin:$PATH"
+# The site is published to GitHub Pages under https://hiero-ledger.github.io/solo/, so every base
+#  URL must carry the ${HUGO_BASEPATH} (/solo) prefix ahead of the version segment. ${HUGO_ORIGIN}
+#  ends with a slash and ${HUGO_BASEPATH} starts with one, so the leading slash is stripped to avoid
+#  a doubled slash, yielding e.g. https://hiero-ledger.github.io/solo/main/.
 vars:
-  hugo_base_url: "${HUGO_ORIGIN}${HUGO_SOLO_VERSION}/"
-  hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}/"
+  hugo_base_url: "${HUGO_ORIGIN}${HUGO_BASEPATH#/}/${HUGO_SOLO_VERSION}/"
+  hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_BASEPATH#/}/${HUGO_SOLO_VERSION}/"
 
 tasks:
   default:
@@ -170,7 +174,7 @@ tasks:
         echo "HUGO_SOLO_VERSION=$SOLO_VERSION task build" 
         cp docs/site/hugo-template.yaml docs/site/hugo.yaml
         if [ "$HUGO_SOLO_VERSION" != "main" ]; then
-         echo "    - {version: $SOLO_VERSION, url: /$SOLO_VERSION}">> docs/site/hugo.yaml
+         echo "    - {version: $SOLO_VERSION, url: /solo/$SOLO_VERSION}">> docs/site/hugo.yaml
         fi
 
   build:doc:artifacts:
@@ -267,11 +271,20 @@ tasks:
                 listen       7777;
                 server_name  localhost;
 
-                root   {{.TASKFILE_DIR}}/public;
                 index  index.html index.htm;
 
-                location / {
-                    try_files $uri $uri/ /index.html;
+                # GitHub Pages serves this repo under https://hiero-ledger.github.io/solo/, so mirror
+                #  that locally by exposing ./public beneath /solo/. This lets the released-versions
+                #  dropdown and the /solo/main, /solo/latest and /solo/<tag> URLs resolve exactly as
+                #  they do in production. Visiting the root redirects into /solo/ (which in turn
+                #  redirects to /solo/latest via public/index.html).
+                location = / {
+                    return 302 /solo/;
+                }
+
+                location /solo/ {
+                    alias  {{.TASKFILE_DIR}}/public/;
+                    try_files $uri $uri/ =404;
                 }
 
                 error_page   500 502 503 504  /50x.html;
