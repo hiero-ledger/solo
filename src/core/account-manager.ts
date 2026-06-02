@@ -491,14 +491,19 @@ export class AccountManager {
         );
       }
 
-      // Resolve once at this boundary so children inherit a single explicit value.
-      const k8Context: Optional<string> = clusterReferences.values().next().value;
-      const resolvedGossipFqdnRestricted: boolean = await resolveGossipFqdnRestricted({
-        k8: k8Context ? this.k8Factory.getK8(k8Context) : undefined,
-        namespace,
-        cacheDir: constants.SOLO_CACHE_DIR,
-        resourcesDir: constants.RESOURCES_DIR,
-      });
+      // Resolve once per cluster context so multi-cluster deployments honor each cluster's config.
+      const gossipFqdnRestrictedByContext: Map<string, boolean> = new Map();
+      for (const context of new Set(clusterReferences.values())) {
+        gossipFqdnRestrictedByContext.set(
+          context,
+          await resolveGossipFqdnRestricted({
+            k8: this.k8Factory.getK8(context),
+            namespace,
+            cacheDir: constants.SOLO_CACHE_DIR,
+            resourcesDir: constants.RESOURCES_DIR,
+          }),
+        );
+      }
 
       // retrieve the list of services and build custom objects for the attributes we need
       for (const service of services) {
@@ -594,7 +599,7 @@ export class AccountManager {
           consensusNode,
           this.k8Factory.getK8(serviceBuilder.context),
           0,
-          resolvedGossipFqdnRestricted,
+          gossipFqdnRestrictedByContext.get(serviceBuilder.context) ?? true,
         );
         serviceBuilder.withExternalAddress(address.hostString());
         serviceBuilderMap.set(serviceBuilder.key(), serviceBuilder);

@@ -118,7 +118,7 @@ export async function resolveGossipFqdnRestricted(options: ResolveGossipFqdnRest
   // 1. K8s configMap
   if (k8 && namespace) {
     try {
-      const configMap: {data?: Record<string, string>} = await k8
+      const configMap: ConfigMap = await k8
         .configMaps()
         .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
       const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];

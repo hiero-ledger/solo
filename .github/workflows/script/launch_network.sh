@@ -309,10 +309,17 @@ reset_importer_hash_chain_for_upgrade() {
 
   # Show current state for diagnostics
   local currentHash
-  currentHash=$(kubectl exec -n "${namespace}" "${postgresPod}" -c postgresql -- \
-    sh -c "PGPASSWORD='${pgPassword}' psql -U postgres -d mirror_node -t -A -c \
-      \"SELECT hash FROM record_file ORDER BY consensus_end DESC LIMIT 1;\"" \
-    2>/dev/null || echo "query_failed")
+  currentHash=$(kubectl exec -i -n "${namespace}" "${postgresPod}" -c postgresql -- sh <<EOF
+set -euo pipefail
+cat > /tmp/.solo-pgpass <<'PGPASS'
+localhost:5432:mirror_node:postgres:${pgPassword}
+PGPASS
+chmod 600 /tmp/.solo-pgpass
+PGPASSFILE=/tmp/.solo-pgpass psql -U postgres -d mirror_node -t -A \
+  -c "SELECT hash FROM record_file ORDER BY consensus_end DESC LIMIT 1;"
+rm -f /tmp/.solo-pgpass
+EOF
+  ) || currentHash="query_failed"
   echo "[IMPORTER_RESET] Current last record_file hash: ${currentHash:-none}"
 
   local importerPod
