@@ -380,7 +380,7 @@ describe('CraneDependencyManager', (): void => {
 
       expect(await craneDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, constants.CRANE))).to.be.ok;
-      expect(await craneDependencyManager.getExecutable()).to.equal(constants.CRANE);
+      expect(await craneDependencyManager.getExecutable()).to.equal(PathEx.join(temporaryDirectory, constants.CRANE));
     });
   });
 
