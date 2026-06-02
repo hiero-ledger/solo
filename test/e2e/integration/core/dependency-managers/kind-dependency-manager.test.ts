@@ -113,7 +113,7 @@ describe('KindDependencyManager', (): void => {
         expect(await kindDependencyManager.install(getTestCacheDirectory())).to.be.true;
 
         // Should return global path since it meets requirements
-        expect(await kindDependencyManager.getExecutable()).to.equal(constants.KIND);
+        expect(await kindDependencyManager.getExecutable()).to.equal(fakeGlobalKindPath);
       } finally {
         process.env.PATH = originalPath;
       }
@@ -126,7 +126,7 @@ describe('KindDependencyManager', (): void => {
       sandbox.stub(fs, 'accessSync').throws(Object.assign(new Error('ENOENT'), {code: 'ENOENT'}));
       expect(await kindDependencyManager.install(temporaryDirectory)).to.be.true;
       expect(fs.existsSync(PathEx.join(temporaryDirectory, constants.KIND))).to.be.ok;
-      expect(await kindDependencyManager.getExecutable()).to.equal(constants.KIND);
+      expect(await kindDependencyManager.getExecutable()).to.equal(PathEx.join(installationDirectory, constants.KIND));
     });
   });
 
