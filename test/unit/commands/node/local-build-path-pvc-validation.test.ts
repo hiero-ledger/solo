@@ -79,7 +79,8 @@ describe('NodeCommandTasks platform software fetch routing', (): void => {
       .returns(uploadResult);
 
     try {
-      const fetchPlatformSoftwareTask = nodeCommandTasks.fetchPlatformSoftware('nodeAliases');
+      const fetchPlatformSoftwareTask: ReturnType<NodeCommandTasks['fetchPlatformSoftware']> =
+        nodeCommandTasks.fetchPlatformSoftware('nodeAliases');
       const result: unknown = await fetchPlatformSoftwareTask.task(
         {
           config: {
