@@ -936,10 +936,12 @@ export class NetworkCommand extends BaseCommand {
     );
     const blockNodeConfigured: boolean =
       config.blockNodeComponents.length > 0 ||
-      config.consensusNodes.some(
-        (consensusNode): boolean =>
-          consensusNode.blockNodeMap.length > 0 || consensusNode.externalBlockNodeMap.length > 0,
-      );
+      config.consensusNodes.some((consensusNode): boolean => {
+        const blockNodeMapLength: number = consensusNode.blockNodeMap?.length ?? 0;
+        const externalBlockNodeMapLength: number = consensusNode.externalBlockNodeMap?.length ?? 0;
+
+        return blockNodeMapLength > 0 || externalBlockNodeMapLength > 0;
+      });
     // Disable MinIO only for TSS-era deployments that route streams via block nodes.
     // Non-block-node deployments still require MinIO/S3-backed record streams for mirror importer.
     config.minioEnabled = !(tssByDefaultSupported && blockNodeConfigured);
