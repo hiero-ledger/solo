@@ -6,6 +6,7 @@ import sinon, {type SinonStub} from 'sinon';
 
 import {NodeCommandHandlers} from '../../../../src/commands/node/handlers.js';
 import {DiagnosticsCollector} from '../../../../src/commands/util/diagnostics-collector.js';
+import {DiagnosticsReporter} from '../../../../src/commands/util/diagnostics-reporter.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type LockManager} from '../../../../src/core/lock/lock-manager.js';
 import {type ConfigManager} from '../../../../src/core/config-manager.js';
@@ -35,16 +36,32 @@ function makeLoggerStub(): SoloLogger {
 }
 
 /**
- * Builds a K8 stub whose context exists but whose cluster does not answer API calls,
- * mirroring a stale kubeconfig context pointing at a torn-down cluster.
+ * Builds a K8 stub whose context exists but whose API call fails with the given error,
+ * mirroring a stale kubeconfig context pointing at a torn-down or restricted cluster.
  */
-function makeUnreachableK8(): K8 {
+function makeK8WithListError(listError: Error): K8 {
   return {
     contexts: (): {readCurrent: () => string} => ({readCurrent: (): string => 'kind-solo'}),
     namespaces: (): {list: () => Promise<never>} => ({
-      list: (): Promise<never> => Promise.reject(new Error('ECONNREFUSED')),
+      list: (): Promise<never> => Promise.reject(listError),
     }),
   } as unknown as K8;
+}
+
+/**
+ * A connection-refused error, as produced by the Kubernetes client when the API
+ * server cannot be contacted (node network error code, no HTTP status).
+ */
+function connectionRefusedError(): Error {
+  return Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:1'), {code: 'ECONNREFUSED'});
+}
+
+/**
+ * An authorization error, as produced by the Kubernetes client when the server
+ * responds with an HTTP status (here 403). The cluster is reachable.
+ */
+function forbiddenError(): Error {
+  return Object.assign(new Error('Forbidden'), {code: 403});
 }
 
 describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
@@ -55,6 +72,7 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
   let initializeStub: SinonStub;
   let resolveDeploymentForLogsStub: SinonStub;
   let commandActionStub: SinonStub;
+  let runDiagnosticsReportStub: SinonStub;
   let defaultK8Stub: SinonStub;
 
   beforeEach((): void => {
@@ -70,7 +88,10 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
       },
     ) as unknown as ConfigManager;
 
-    const localConfigStub: LocalConfigRuntimeState = sinon.stub() as unknown as LocalConfigRuntimeState;
+    const localConfigStub: LocalConfigRuntimeState = {
+      load: sinon.stub().resolves(),
+      configuration: {deployments: [{name: 'solo-deployment'}]},
+    } as unknown as LocalConfigRuntimeState;
     const remoteConfigStub: RemoteConfigRuntimeStateApi = sinon.stub() as unknown as RemoteConfigRuntimeStateApi;
 
     const dummyTask: SoloListrTask<object> = {title: 'dummy', task: async (): Promise<void> => {}};
@@ -120,6 +141,7 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
     collectLocalDiagnosticsStub = sinon.stub(DiagnosticsCollector, 'collectLocalDiagnostics').returns(dummyCollectTask);
 
     commandActionStub = sinon.stub(NodeCommandHandlers.prototype, 'commandAction').resolves();
+    runDiagnosticsReportStub = sinon.stub(DiagnosticsReporter, 'runDiagnosticsReport').resolves();
   });
 
   afterEach((): void => {
@@ -142,7 +164,7 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
 
   it('logs collects local diagnostics when the context is stale and the cluster is unreachable', async (): Promise<void> => {
     // Context exists (kubeconfig entry survives the cluster) but the API call is refused.
-    defaultK8Stub.returns(makeUnreachableK8());
+    defaultK8Stub.returns(makeK8WithListError(connectionRefusedError()));
 
     const argv: ArgvStruct = {_: ['deployment', 'diagnostics', 'logs']} as unknown as ArgvStruct;
 
@@ -168,7 +190,7 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
   });
 
   it('all collects local diagnostics when the context is stale and the cluster is unreachable', async (): Promise<void> => {
-    defaultK8Stub.returns(makeUnreachableK8());
+    defaultK8Stub.returns(makeK8WithListError(connectionRefusedError()));
 
     const argv: ArgvStruct = {_: ['deployment', 'diagnostics', 'all']} as unknown as ArgvStruct;
 
@@ -179,5 +201,35 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
     expect(analyzeStub).to.have.been.calledOnce;
     expect(resolveDeploymentForLogsStub).to.not.have.been.called;
     expect(initializeStub).to.not.have.been.called;
+  });
+
+  it('logs does NOT degrade when the cluster responds with an authorization error', async (): Promise<void> => {
+    // The server answered (HTTP 403) -> the cluster is reachable; the real error must surface
+    // through the normal collection path instead of being hidden by a local-only fallback.
+    defaultK8Stub.returns(makeK8WithListError(forbiddenError()));
+
+    const argv: ArgvStruct = {_: ['deployment', 'diagnostics', 'logs']} as unknown as ArgvStruct;
+
+    const result: boolean = await handlers.logs(argv);
+
+    expect(result).to.equal(true);
+    expect(collectLocalDiagnosticsStub).to.not.have.been.called;
+    expect(resolveDeploymentForLogsStub).to.have.been.calledOnce;
+    expect(initializeStub).to.have.been.calledOnce;
+  });
+
+  it('report resolves the deployment from local config when the cluster is unreachable', async (): Promise<void> => {
+    defaultK8Stub.returns(makeK8WithListError(connectionRefusedError()));
+
+    const argv: ArgvStruct = {_: ['deployment', 'diagnostics', 'report'], quiet: true} as unknown as ArgvStruct;
+
+    const result: boolean = await handlers.report(argv);
+
+    expect(result).to.equal(true);
+    // The unreachable branch must resolve the deployment locally (not via the cluster path)...
+    expect(resolveDeploymentForLogsStub).to.not.have.been.called;
+    // ...and still drive the report with that locally-resolved deployment name.
+    expect(runDiagnosticsReportStub).to.have.been.calledOnce;
+    expect(runDiagnosticsReportStub.firstCall.args[0].deployment).to.equal('solo-deployment');
   });
 });

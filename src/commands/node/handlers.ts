@@ -36,10 +36,9 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {Flags as flags} from '../flags.js';
 import {select as selectPrompt} from '@inquirer/prompts';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
-import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
-import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {getSoloVersion} from '../../../version.js';
+import {type ClusterReachability} from '../util/cluster-reachability.js';
 import {DiagnosticsCollector} from '../util/diagnostics-collector.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
 import {findDeploymentsFromRemoteConfig} from '../util/find-deployments-from-remote-config.js';
@@ -108,6 +107,23 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   /**
+   * Loads the local config and returns the deployments that have a non-empty name.
+   * Shared by the cluster-aware ({@link resolveDeploymentForLogs}) and cluster-free
+   * ({@link resolveDeploymentNameWithoutCluster}) deployment resolvers.
+   */
+  private async collectValidLocalDeployments(): Promise<Deployment[]> {
+    await this.localConfig.load();
+    const validDeployments: Deployment[] = [];
+    for (const deployment of this.localConfig.configuration.deployments) {
+      if (deployment?.name && deployment.name.trim().length > 0) {
+        validDeployments.push(deployment);
+      }
+    }
+
+    return validDeployments;
+  }
+
+  /**
    * Resolves a deployment name using only locally available information (the
    * deployment flag and local config) without contacting any cluster. Returns an
    * empty string when no unambiguous deployment can be determined locally.
@@ -118,14 +134,7 @@ export class NodeCommandHandlers extends CommandHandler {
       return deploymentFromFlag;
     }
 
-    await this.localConfig.load();
-    const validDeployments: Deployment[] = [];
-    for (const deployment of this.localConfig.configuration.deployments) {
-      if (deployment?.name && deployment.name.trim().length > 0) {
-        validDeployments.push(deployment);
-      }
-    }
-
+    const validDeployments: Deployment[] = await this.collectValidLocalDeployments();
     return validDeployments.length === 1 ? validDeployments[0].name : '';
   }
 
@@ -136,15 +145,15 @@ export class NodeCommandHandlers extends CommandHandler {
    * reachable — either no active context, or a stale context pointing at a
    * cluster that has been torn down.
    */
-  private async collectLocalDiagnosticsOnly(argv: ArgvStruct): Promise<boolean> {
+  private async collectLocalDiagnosticsOnly(argv: ArgvStruct, reason?: string): Promise<boolean> {
     const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
 
+    const reasonSuffix: string = reason ? ` (${reason})` : '';
     this.logger.showUser(
       chalk.yellow(
-        '\n⚠  No reachable Kubernetes cluster (no active context, or the context points\n' +
-          '   at a cluster that is down). Collecting locally available diagnostics only\n' +
-          '   (Solo logs and local configuration). Remote consensus node logs cannot be\n' +
-          '   collected without a cluster connection.',
+        `\n⚠  No reachable Kubernetes cluster${reasonSuffix}. Collecting locally available\n` +
+          '   diagnostics only (Solo logs and local configuration). Remote consensus node\n' +
+          '   logs cannot be collected without a cluster connection.',
       ),
     );
 
@@ -727,8 +736,9 @@ export class NodeCommandHandlers extends CommandHandler {
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
 
-    if (!(await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory))) {
-      return await this.collectLocalDiagnosticsOnly(argv);
+    const reachability: ClusterReachability = await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory);
+    if (!reachability.reachable) {
+      return await this.collectLocalDiagnosticsOnly(argv, reachability.reason);
     }
 
     if (!argv[flags.deployment.name]) {
@@ -785,14 +795,7 @@ export class NodeCommandHandlers extends CommandHandler {
       return deploymentFromFlag;
     }
 
-    await this.localConfig.load();
-    const deployments: MutableFacadeArray<Deployment, DeploymentSchema> = this.localConfig.configuration.deployments;
-    const validDeployments: Deployment[] = [];
-    for (const deployment of deployments) {
-      if (deployment?.name && deployment.name.trim().length > 0) {
-        validDeployments.push(deployment);
-      }
-    }
+    const validDeployments: Deployment[] = await this.collectValidLocalDeployments();
 
     if (validDeployments.length === 0) {
       const remoteDeployments: Map<string, RemoteDeploymentInfo> = await findDeploymentsFromRemoteConfig(
@@ -851,8 +854,9 @@ export class NodeCommandHandlers extends CommandHandler {
   public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
 
-    if (!(await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory))) {
-      return await this.collectLocalDiagnosticsOnly(argv);
+    const reachability: ClusterReachability = await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory);
+    if (!reachability.reachable) {
+      return await this.collectLocalDiagnosticsOnly(argv, reachability.reason);
     }
 
     if (!argv[flags.deployment.name]) {
@@ -951,10 +955,11 @@ export class NodeCommandHandlers extends CommandHandler {
     let deployment: string;
     if (argv[flags.deployment.name]) {
       deployment = String(argv[flags.deployment.name]);
-    } else if (await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory)) {
-      deployment = await this.resolveDeploymentForLogs(argv);
     } else {
-      deployment = await this.resolveDeploymentNameWithoutCluster(argv);
+      const reachability: ClusterReachability = await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory);
+      deployment = reachability.reachable
+        ? await this.resolveDeploymentForLogs(argv)
+        : await this.resolveDeploymentNameWithoutCluster(argv);
     }
     if (!argv[flags.deployment.name] && deployment) {
       argv[flags.deployment.name] = deployment;
