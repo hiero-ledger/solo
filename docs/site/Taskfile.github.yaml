@@ -62,17 +62,17 @@ tasks:
             url=$(echo "$asset" | jq -r '.url')
             dest="build/$tag/$name"
 
-            # skip if dest doesn't exist or if the artifact name starts with example- or if the filename is 
+            # skip if dest doesn't exist or if the artifact name starts with example- or if the filename is
             #  docs-latest.tar.gz and npmjsLatest is false
             if [[ -f "$dest" || "$name" == example-* || ( "$name" == "docs-latest.tar.gz" && "$npmjsLatest" == "false" ) ]]; then
               # echo "✔ Skipping condition met for $name, not writing $dest, npmjsLatest: $npmjsLatest"
-            else
-              echo "⬇ Downloading $name, $dest doesn't exist yet"
-              curl -sSL --retry 3 --fail -o "$dest" "$url" || {
-                echo "❌ Failed to download $url" >&2
-                rm -f "$dest"
-              }
+              continue
             fi
+            echo "⬇ Downloading $name, $dest doesn't exist yet"
+            curl -sSL --retry 3 --fail -o "$dest" "$url" || {
+              echo "❌ Failed to download $url" >&2
+              rm -f "$dest"
+            }
           done
         done
 
