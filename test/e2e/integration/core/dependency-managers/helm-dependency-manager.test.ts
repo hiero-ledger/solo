@@ -178,7 +178,7 @@ describe('HelmDependencyManager', (): void => {
         // Should not install locally since global installation meets requirements
         expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.not.ok;
         // Should return global path since it meets requirements
-        expect(await helmDependencyManager.getExecutable()).to.equal(constants.HELM);
+        expect(await helmDependencyManager.getExecutable()).to.equal(fakeGlobalHelmPath);
       } finally {
         process.env.PATH = originalPath;
       }
@@ -204,7 +204,7 @@ describe('HelmDependencyManager', (): void => {
 
         expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
-        expect(await helmDependencyManager.getExecutable()).to.equal(constants.HELM);
+        expect(await helmDependencyManager.getExecutable()).to.equal(PathEx.join(temporaryDirectory, constants.HELM));
       } finally {
         process.env.PATH = originalPath;
       }
