@@ -40,6 +40,7 @@ import {MutableFacadeArray} from '../../business/runtime-state/collection/mutabl
 import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {getSoloVersion} from '../../../version.js';
+import {DiagnosticsCollector} from '../util/diagnostics-collector.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
 import {findDeploymentsFromRemoteConfig} from '../util/find-deployments-from-remote-config.js';
 import {GetSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
@@ -104,6 +105,61 @@ export class NodeCommandHandlers extends CommandHandler {
     if (!process.stdout.isTTY || !process.stdin.isTTY) {
       throw new SoloErrors.validation.nonInteractivePrompt();
     }
+  }
+
+  /**
+   * Resolves a deployment name using only locally available information (the
+   * deployment flag and local config) without contacting any cluster. Returns an
+   * empty string when no unambiguous deployment can be determined locally.
+   */
+  private async resolveDeploymentNameWithoutCluster(argv: ArgvStruct): Promise<string> {
+    const deploymentFromFlag: string = this.resolveDeploymentFlag(argv);
+    if (deploymentFromFlag && deploymentFromFlag.trim()) {
+      return deploymentFromFlag;
+    }
+
+    await this.localConfig.load();
+    const validDeployments: Deployment[] = [];
+    for (const deployment of this.localConfig.configuration.deployments) {
+      if (deployment?.name && deployment.name.trim().length > 0) {
+        validDeployments.push(deployment);
+      }
+    }
+
+    return validDeployments.length === 1 ? validDeployments[0].name : '';
+  }
+
+  /**
+   * Collects the diagnostics that are available without a cluster connection
+   * (Solo logs and local configuration) and analyzes them. Used as a graceful
+   * fallback for the diagnostics commands when the Kubernetes cluster is not
+   * reachable — either no active context, or a stale context pointing at a
+   * cluster that has been torn down.
+   */
+  private async collectLocalDiagnosticsOnly(argv: ArgvStruct): Promise<boolean> {
+    const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
+
+    this.logger.showUser(
+      chalk.yellow(
+        '\n⚠  No reachable Kubernetes cluster (no active context, or the context points\n' +
+          '   at a cluster that is down). Collecting locally available diagnostics only\n' +
+          '   (Solo logs and local configuration). Remote consensus node logs cannot be\n' +
+          '   collected without a cluster connection.',
+      ),
+    );
+
+    await this.commandAction(
+      argv,
+      [
+        DiagnosticsCollector.collectLocalDiagnostics(this.logger, outputDirectory),
+        this.tasks.analyzeCollectedDiagnostics(outputDirectory),
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      'Error collecting local diagnostics',
+    );
+
+    this.logger.showUser(chalk.cyan(`\nLocal diagnostics collected to: ${outputDirectory}`));
+    return true;
   }
 
   /** ******** Task Lists **********/
@@ -670,6 +726,11 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+
+    if (!(await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory))) {
+      return await this.collectLocalDiagnosticsOnly(argv);
+    }
+
     if (!argv[flags.deployment.name]) {
       argv[flags.deployment.name] = await this.resolveDeploymentForLogs(argv);
     }
@@ -789,6 +850,11 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+
+    if (!(await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory))) {
+      return await this.collectLocalDiagnosticsOnly(argv);
+    }
+
     if (!argv[flags.deployment.name]) {
       argv[flags.deployment.name] = await this.resolveDeploymentForLogs(argv);
     }
@@ -879,11 +945,18 @@ export class NodeCommandHandlers extends CommandHandler {
    */
   public async report(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
-    // Resolve deployment before calling collectDebug() so it's available for the issue title/body
-    const deployment: string = argv[flags.deployment.name]
-      ? String(argv[flags.deployment.name])
-      : await this.resolveDeploymentForLogs(argv);
-    if (!argv[flags.deployment.name]) {
+    // Resolve deployment before calling collectDebug() so it's available for the issue title/body.
+    // Without an active kube context, resolve from local information only so the command still
+    // produces a report (collectDebug() degrades to local-only diagnostics in that case).
+    let deployment: string;
+    if (argv[flags.deployment.name]) {
+      deployment = String(argv[flags.deployment.name]);
+    } else if (await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory)) {
+      deployment = await this.resolveDeploymentForLogs(argv);
+    } else {
+      deployment = await this.resolveDeploymentNameWithoutCluster(argv);
+    }
+    if (!argv[flags.deployment.name] && deployment) {
       argv[flags.deployment.name] = deployment;
     }
 
