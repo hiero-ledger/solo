@@ -154,9 +154,14 @@ tasks:
         #  This task rewrites the already-extracted docs under ./public so that:
         #    - references to https://solo.hiero.org          -> https://hiero-ledger.github.io/solo
         #    - root-relative /main, /latest and /<tag> links -> /solo/main, /solo/latest, /solo/<tag>
-        #  The negative lookbehind for /solo keeps this idempotent: links that are already /solo/...
-        #  are left untouched, so freshly built docs (whose baseURL already includes /solo) are never
-        #  double-prefixed.
+        #  Absolute URLs gain /solo from the host rewrite above, so the segment rewrite only needs to
+        #  handle root-relative links. It anchors on a URL-start delimiter (=, ", ', (, comma or
+        #  whitespace) via the \x27-escaped lookbehind, which is why it is safe and idempotent:
+        #    - it only matches a version as the FIRST path segment of a URL, so deeper path components
+        #      such as js/main.min.js or scss/main.min.css (where "main" is a filename, not a version)
+        #      are never touched;
+        #    - links that already start with /solo/<segment> are left alone, because the segment then
+        #      follows a slash rather than a delimiter, so freshly built docs are never double-prefixed.
         if [ ! -d public ]; then
           echo "No public directory found, nothing to mutate."
           exit 0
@@ -181,7 +186,7 @@ tasks:
              -o -name '*.js' -o -name '*.css' -o -name '*.txt' \) \
           -exec perl -i -pe '
             s{https://solo\.hiero\.org}{https://hiero-ledger.github.io/solo}g;
-            s{(?<!/solo)/($ENV{ALT})\b}{/solo/$1}g;
+            s{(?<=[="\x27(,\s])/($ENV{ALT})\b}{/solo/$1}g;
           ' {} +
         echo "✅ URL mutation complete."
 

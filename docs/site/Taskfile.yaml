@@ -234,6 +234,15 @@ tasks:
     silent: true
     cmds:
       - task: "build"
+      # 'task local' builds and serves only the current version (public/${HUGO_SOLO_VERSION}), so the
+      #  docs live at {{.hugo_local_base_url}} — not at /solo/latest. To test 'latest', the versions
+      #  dropdown and every released version under /solo, run 'task deploy:nginx' instead.
+      - |
+        echo "==============================================================================="
+        echo " Serving the '${HUGO_SOLO_VERSION}' docs only."
+        echo " Open: {{.hugo_local_base_url}}"
+        echo " (For 'latest' + all versions + the dropdown, use: task deploy:nginx)"
+        echo "==============================================================================="
       - PATH="$(go env GOPATH)/bin:$PATH" hugo server --cleanDestinationDir -e dev -DFE --minify serve --baseURL "{{.hugo_local_base_url}}" -d public/${HUGO_SOLO_VERSION}
 
   deploy:nginx:
