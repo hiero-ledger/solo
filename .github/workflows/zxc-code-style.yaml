@@ -82,6 +82,16 @@ jobs:
           command: |
             npm ci
 
+      - name: Check for Duplicate Error Codes
+        run: |
+          duplicates=$(grep -oE "'SOLO-[0-9]+'" src/core/errors/error-code-registry.ts | tr -d "'" | sort | uniq -d)
+          if [ -n "$duplicates" ]; then
+            echo "✘ Duplicate error codes found in error-code-registry.ts:"
+            echo "$duplicates"
+            exit 1
+          fi
+          echo "✔ No duplicate error codes found"
+
       - name: Check Code Style
         run: |
           task check
