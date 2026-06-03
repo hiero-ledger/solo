@@ -1503,11 +1503,12 @@ export class NodeCommandTasks {
         }
 
         if ('upgradeVersion' in context_.config) {
-          if (!context_.config.upgradeVersion) {
+          if (context_.config.upgradeVersion) {
+            releaseTag = context_.config.upgradeVersion;
+          } else if (!localBuildPath) {
             this.logger.info('Skip, no need to update the platform software');
             return;
           }
-          releaseTag = context_.config.upgradeVersion;
         }
 
         context_.config.releaseTag = releaseTag;
