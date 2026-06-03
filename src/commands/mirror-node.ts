@@ -1688,6 +1688,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
     return true;
   }
+
   // Override values for mirror node memory optimizations
   private addMirrorNodeMemoryOverrides(
     hasMirrorNodeMemoryImprovements: boolean,

@@ -41,8 +41,9 @@ export class DockerClient implements ContainerEngineClient {
     await fs.mkdir(path.dirname(archivePath), {recursive: true});
 
     const platform: string = Architecture.getLinuxPlatform();
+    const craneExecutable: string = await this.dependencyManager.getExecutable(constants.CRANE);
 
-    await this.shellRunner.run('crane', ['pull', '--platform', platform, image, archivePath]);
+    await this.shellRunner.run(craneExecutable, ['pull', '--platform', platform, image, archivePath]);
   }
 
   public async loadImage(archivePath: string): Promise<void> {
