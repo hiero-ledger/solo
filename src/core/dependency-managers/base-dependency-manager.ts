@@ -97,6 +97,15 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Get the executable to run
    */
   public async getExecutable(): Promise<string> {
+    if (this.isInstalledLocally()) {
+      return this.localExecutableWithPath;
+    }
+
+    const globalExecutablePath: false | string = this.getGlobalExecutableWithPath();
+    if (globalExecutablePath) {
+      return globalExecutablePath;
+    }
+
     return this.executableName;
   }
 
