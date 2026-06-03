@@ -1633,11 +1633,14 @@ export class MirrorNodeCommand extends BaseCommand {
     config: MirrorNodeUpgradeConfigClass,
   ): void {
     const improvedMemoryModules: string[] = ['grpc', 'importer', 'rest', 'rest-java', 'web3'];
+    const hasCustomComponentImage: boolean = !!config.componentImage?.trim();
     if (!hasMirrorNodeMemoryImprovements) {
       for (const module of improvedMemoryModules) {
         const configRoot: string = module.replaceAll('-', '');
-        config.valuesArg += ` --set ${configRoot}.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
-        config.valuesArg += ` --set ${configRoot}.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}${module}`;
+        if (!hasCustomComponentImage) {
+          config.valuesArg += ` --set ${configRoot}.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
+          config.valuesArg += ` --set ${configRoot}.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}${module}`;
+        }
 
         const memoryKey: keyof typeof constants =
           `MIRROR_NODE_OLD_MEMORY_${configRoot.toUpperCase()}` as keyof typeof constants;
@@ -1650,8 +1653,10 @@ export class MirrorNodeCommand extends BaseCommand {
       )
     ) {
       // web3 arm64 native images are only published starting with mirror node 0.155.0.
-      config.valuesArg += ` --set web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
-      config.valuesArg += ` --set web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`;
+      if (!hasCustomComponentImage) {
+        config.valuesArg += ` --set web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`;
+        config.valuesArg += ` --set web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`;
+      }
       config.valuesArg += ` --set web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`;
     }
   }

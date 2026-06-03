@@ -12,6 +12,7 @@ import {resetForTest} from '../../test-container.js';
 interface MirrorNodeMemoryOverrideConfig {
   mirrorNodeVersion: string;
   valuesArg: string;
+  componentImage?: string;
 }
 
 interface MirrorNodeCommandInternal {
@@ -90,5 +91,41 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(config.valuesArg).to.not.include(
       `--set web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`,
     );
+  });
+
+  it('should not override module image registry/repository when componentImage is provided for legacy versions', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const config: MirrorNodeMemoryOverrideConfig = {
+      mirrorNodeVersion: '0.100.0',
+      valuesArg: '',
+      componentImage: 'docker.io/library/custom-mirror:dev',
+    };
+
+    mirrorNodeCommandInternal.addMirrorNodeMemoryOverrides(false, config);
+
+    expect(config.valuesArg).to.not.include(`.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`);
+    expect(config.valuesArg).to.not.include(`.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}`);
+    expect(config.valuesArg).to.include(`--set grpc.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_GRPC}`);
+  });
+
+  it('should not override arm64 web3 image registry/repository when componentImage is provided', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const config: MirrorNodeMemoryOverrideConfig = {
+      mirrorNodeVersion: '0.100.0',
+      valuesArg: '',
+      componentImage: 'docker.io/library/custom-mirror:dev',
+    };
+
+    sinon.stub(process, 'arch').value('arm64');
+
+    mirrorNodeCommandInternal.addMirrorNodeMemoryOverrides(true, config);
+
+    expect(config.valuesArg).to.not.include(`--set web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`);
+    expect(config.valuesArg).to.not.include(
+      `--set web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`,
+    );
+    expect(config.valuesArg).to.include(`--set web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`);
   });
 });
