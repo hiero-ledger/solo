@@ -83,8 +83,8 @@ export interface Pods {
    * Wait until no pods remain for the given label selector in the namespace.
    * @param namespace - namespace
    * @param labels - pod labels
-   * @param maxAttempts - maximum attempts to check (default 180)
-   * @param delay - delay between checks in milliseconds (default 1000)
+   * @param maxAttempts - maximum attempts to check
+   * @param delay - delay between checks in milliseconds
    */
   waitForPodsToTerminate(
     namespace: NamespaceName,

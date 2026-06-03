@@ -187,9 +187,6 @@ export class DeployArgvBuilders {
     if (config.networkConfiguration) {
       appendConfigToArgv(argv, config.networkConfiguration);
     }
-    if (this.shouldDeployBlockNode(config)) {
-      argv.push(optionFromFlag(Flags.tssEnabled));
-    }
     return argvPushGlobalFlags(argv, config.cacheDir);
   }
 

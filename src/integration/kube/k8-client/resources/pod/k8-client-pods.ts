@@ -421,7 +421,9 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       this.logger.debug(
         `waitForPodsToTerminate [attempt ${attempt}/${maxAttempts}] [namespace=${namespace.name}] [labels=${labels.join(', ')}] [pods=${podNames}]`,
       );
-      await sleep(Duration.ofMillis(delay));
+      if (attempt < maxAttempts) {
+        await sleep(Duration.ofMillis(delay));
+      }
     }
 
     throw new SoloError(
