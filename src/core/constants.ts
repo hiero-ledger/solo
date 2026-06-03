@@ -57,7 +57,7 @@ export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 
 export const CONFIG: {ENABLE_IMAGE_CACHE: boolean} = {
-  ENABLE_IMAGE_CACHE: getEnvironmentVariable('ENABLE_IMAGE_CACHE') === 'true' || false,
+  ENABLE_IMAGE_CACHE: getEnvironmentVariable('ENABLE_IMAGE_CACHE') === 'false',
 };
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
