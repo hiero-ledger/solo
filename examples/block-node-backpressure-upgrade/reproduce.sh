@@ -1,10 +1,26 @@
 #!/usr/bin/env bash
-# Reproduce hiero-consensus-node PR #25501 "can't self-heal" case on Solo (kind):
-# a node back-pressured during an upgrade ends up on a different hedera.config.version
-# than the rest, hits a fatal ISS, and the network can't recover on its own.
+#
+# Reproduce hiero-consensus-node issue #25468 on Solo (kind):
+#   "software upgrade while one consensus node is back-pressured".
+#
+# The scenario, step by step (issue #25468) -- the phases below map 1:1:
+#   1. one CN's block node stops acking   -> that CN falls into CHECKING (back-pressure)
+#   2. perform the software upgrade        -> freeze the network
+#   3. the other 3 CNs restart on the new config.version
+#   4. allow block acks back to the wedged CN
+#   5. observe: can the back-pressured node rejoin the upgraded network?
+#
+# Solo's "upgrade" just bumps hedera.config.version by 1 -- the same mechanism a real
+# freeze-upgrade uses. config.version is part of the hashed state, so a node left on
+# the old value can no longer agree with the upgraded majority.
+#
+# Requires the Solo node-client tolerance patch (applied in phase 1): stock Solo aborts
+# the upgrade as soon as it cannot reach the wedged node, so the freeze can't run.
+#
 # Usage: ./reproduce.sh [recover|teardown]
 set -uo pipefail
 
+# ------------------------------ configuration -------------------------------
 CLUSTER_NAME="bn-backpressure"
 CONTEXT="kind-${CLUSTER_NAME}"
 CLUSTER_REF="${CONTEXT}"
@@ -12,8 +28,10 @@ NAMESPACE="namespace-bn-bp"
 DEPLOYMENT="deployment-bn-bp"
 NODES=4
 NODE_ALIASES="node1,node2,node3,node4"
-SKEW_NODES="2 3 4"            # take the simulated upgrade; node1 is the straggler
-NEW_CONFIG_VERSION=1
+UPGRADE_NODES="2 3 4"        # these take the upgrade; node1 is the back-pressured straggler
+CONFIG_CM="network-node-data-config-cm"   # shared ConfigMap seeding data/config/application.properties (holds config.version)
+STATUS_CACHE_DIR="/tmp/bn-bp-status-$$"    # per-run cache of last seen node status (see node_status)
+mkdir -p "${STATUS_CACHE_DIR}" 2>/dev/null || true
 LOAD_BURST=20
 MONITOR="${MONITOR:-1}"      # MONITOR=0 disables the live status stream
 MON_INTERVAL=4
@@ -27,6 +45,7 @@ LOG_DIR="/opt/hgcapp/services-hedera/HapiApp2.0/output"
 KCTL="kubectl --context ${CONTEXT}"   # solo switches the current context mid-run, so be explicit
 
 ROOT="$(cd "$(dirname "$0")" && git rev-parse --show-toplevel)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CN_VERSION="$(sed -n "s/.*TEST_UPGRADE_FROM_VERSION.*'\([^']*\)'.*/\1/p" "${ROOT}/version-test.ts")"
 BN_VERSION="$(sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "${ROOT}/version-test.ts")"
 UPGRADE_VERSION="$(sed -n "s/.*HEDERA_PLATFORM_VERSION.*||[[:space:]]*'\([^']*\)'.*/\1/p" "${ROOT}/version.ts")"
@@ -38,6 +57,7 @@ elif [ -f "${ROOT}/solo.ts" ];                then SOLO_MODE="tsx"
 elif command -v solo >/dev/null 2>&1;         then SOLO_MODE="global"
 else                                               SOLO_MODE="tsx"; fi
 
+# ---------------------------- solo invocation -------------------------------
 solo() {
   case "${SOLO_MODE}" in
     dist)   ( cd "${ROOT}" && node --no-deprecation --no-warnings dist/solo.js "$@" ) ;;
@@ -47,6 +67,7 @@ solo() {
   esac
 }
 
+# ------------------------------ console output ------------------------------
 log()  { printf '\n\033[1;36m========== %s ==========\033[0m\n' "$*"; }
 sub()  { printf '   %s\n' "$*"; }
 ok()   { printf '   \033[1;32m%s\033[0m\n' "$*"; }
@@ -54,18 +75,26 @@ warn() { printf '   \033[1;33m%s\033[0m\n' "$*"; }
 die()  { printf '\n\033[1;31mABORT: %s\033[0m\n' "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null 2>&1 || die "required tool not found: $1"; }
 
-# Platform status / back-pressure / ISS lines go to files under output/, not pod
-# stdout, so everything below greps the files via exec (no node client involved).
-node_status() {
-  ${KCTL} exec -n "${NAMESPACE}" "network-node$1-0" -c root-container -- \
-    sh -c "grep -h 'Now in' ${LOG_DIR}/swirlds.log 2>/dev/null | tail -1" 2>/dev/null \
-    | sed -E 's/.*Now in ([A-Z_]+).*/\1/'
-}
+# ------------------------------- node probes --------------------------------
+# Status / back-pressure / ISS lines land in files under output/, not pod stdout,
+# so we grep those files over `kubectl exec` (no Solo node client involved).
+node_exec()      { ${KCTL} exec -n "${NAMESPACE}" "network-node$1-0" -c root-container -- sh -c "$2" 2>/dev/null; }
+node_iss_count() { node_exec "$1" "grep -hc 'Invalid State Signature' ${LOG_DIR}/swirlds.log 2>/dev/null" | tr -dc '0-9'; }
+log_has()        { node_exec "$1" "grep -rqF '$2' ${LOG_DIR} 2>/dev/null"; }   # single grep, for fast polling
 
-node_iss_count() {
-  ${KCTL} exec -n "${NAMESPACE}" "network-node$1-0" -c root-container -- \
-    sh -c "grep -hc 'Invalid State Signature' ${LOG_DIR}/swirlds.log 2>/dev/null" 2>/dev/null \
-    | tr -dc '0-9'
+# swirlds.log grows to tens of MB, so grepping the whole file for the status is slow and
+# flaky under load. Read a bounded TAIL instead (tail -c seeks to the last few MB -- cheap),
+# and cache the last seen status per node. A stuck node logs no new "Now in" transition, so
+# if the tail finds none we fall back to the cached value -- still correct, the node hasn't
+# moved. "" is returned only when the tail is empty AND nothing was ever cached.
+node_status() {
+  local n="$1" s i c="${STATUS_CACHE_DIR}/node$1"
+  for i in 1 2 3; do
+    s="$(node_exec "$n" "tail -c 4000000 ${LOG_DIR}/swirlds.log 2>/dev/null | grep 'Now in' | tail -1" | sed -E 's/.*Now in ([A-Z_]+).*/\1/')"
+    [ -n "${s}" ] && { printf '%s' "${s}" > "${c}" 2>/dev/null; printf '%s\n' "${s}"; return 0; }
+    sleep 1
+  done
+  cat "${c}" 2>/dev/null   # fall back to last known status (stuck node logs no new transition)
 }
 
 print_statuses() {
@@ -111,6 +140,7 @@ monitor_stop() {
   MON_PID=""
 }
 
+# --------------------------------- waiters ----------------------------------
 wait_status() {  # <n> <status> <timeout>
   local n="$1" want="$2" timeout="$3" deadline
   deadline=$(( $(date +%s) + timeout ))
@@ -132,24 +162,9 @@ wait_any_status() {  # <n> <timeout> <status...> -> echoes the status reached
   echo "$(node_status "$n")"; return 1
 }
 
-wait_log() {  # <n> <pattern> <timeout>
-  local n="$1" pat="$2" timeout="$3" deadline
-  deadline=$(( $(date +%s) + timeout ))
-  while [ "$(date +%s)" -lt "${deadline}" ]; do
-    ${KCTL} exec -n "${NAMESPACE}" "network-node$1-0" -c root-container -- \
-      sh -c "grep -rqF '${pat}' ${LOG_DIR} 2>/dev/null" 2>/dev/null && return 0
-    sleep 5
-  done
-  return 1
-}
-
-log_has() {  # <n> <pattern>  (single grep, for fast polling)
-  ${KCTL} exec -n "${NAMESPACE}" "network-node$1-0" -c root-container -- \
-    sh -c "grep -rqF '$2' ${LOG_DIR} 2>/dev/null" 2>/dev/null
-}
-
 wait_ready() { ${KCTL} wait --for=condition=Ready "pod/network-node$1-0" -n "${NAMESPACE}" --timeout=200s >/dev/null 2>&1; }
 
+# ------------------------------ fault injection -----------------------------
 # Stall node1 -> block-node acks by dropping only that stream at the kind node, by
 # source IP, so the block-node's kubelet liveness probe still passes and the pod
 # stays up (scaling it to 0 makes Solo's pre-flight fail "Block Node ... not found").
@@ -179,6 +194,24 @@ set_cfg_version() {  # <n> <set|clear> [version]
   ${KCTL} delete pod "network-node${n}-0" -n "${NAMESPACE}" --wait=false >/dev/null 2>&1 || true
 }
 
+# Kill a PID and ALL its descendants, leaf-first. `solo` is npm -> node -> kubectl
+# port-forward, so killing only the direct child (pkill -P) orphans the port-forward,
+# which then holds ports 30212+ and makes the next solo command hang. Recurse so nothing
+# is left behind.
+kill_tree() {  # <pid>
+  local p="$1" c
+  for c in $(pgrep -P "$p" 2>/dev/null); do kill_tree "$c"; done
+  kill -9 "$p" 2>/dev/null || true
+}
+
+# Kill leftover solo CLI / port-forward processes from a prior aborted run -- they hold
+# ports (30212+) and would make this run's solo commands hang. Safe: this run recreates the
+# cluster anyway, and the lockfile already prevents a concurrent run of this script.
+kill_strays() {
+  pkill -9 -f "solo-test.*${DEPLOYMENT}"        2>/dev/null || true
+  pkill -9 -f "port-forward.*${NAMESPACE}"      2>/dev/null || true
+}
+
 # Best-effort load txn, killed after <timeout>s so a wedged-node retry can't stall the loop.
 bounded_solo() {  # <timeout> <solo args...>
   local t="$1"; shift
@@ -187,12 +220,23 @@ bounded_solo() {  # <timeout> <solo args...>
   while kill -0 "${pid}" 2>/dev/null; do
     if [ "$(date +%s)" -ge "${end}" ]; then
       disown 2>/dev/null || true
-      pkill -P "${pid}" 2>/dev/null; kill "${pid}" 2>/dev/null
+      kill_tree "${pid}"
       return 0
     fi
     sleep 2
   done
   wait "${pid}" 2>/dev/null || true
+}
+
+# Run a long solo command in the background, give up after <timeout>s, kill the whole
+# tree cleanly (disown silences the "Terminated" job message on bash 3.2).
+bounded_bg() {  # <timeout> <outfile> <solo args...>
+  local t="$1" outf="$2"; shift 2
+  ( cd "${ROOT}"; solo "$@" ) >"${outf}" 2>&1 &
+  local pid=$! end=$(( $(date +%s) + t ))
+  disown 2>/dev/null || true
+  while kill -0 "${pid}" 2>/dev/null; do [ "$(date +%s)" -ge "${end}" ] && break; sleep 3; done
+  kill_tree "${pid}"
 }
 
 # Retry transient ghcr.io pull failures; a failed helm install leaves no committed state.
@@ -208,8 +252,27 @@ add_block_node() {  # <n>
   return 1
 }
 
+# Make Solo's node client tolerate an unreachable node so upgrade/freeze can run while
+# one node is wedged (builds the client from the reachable nodes instead of throwing on
+# the first unreachable one). Idempotent; clears the tsx cache so the patch takes effect.
+patch_solo() {
+  local patch="${SCRIPT_DIR}/solo-tolerant-nodeclient.patch"
+  [ -f "${patch}" ] || { warn "patch file not found: ${patch}"; return 0; }
+  if git -C "${ROOT}" apply --reverse --check "${patch}" 2>/dev/null; then
+    sub "solo node-client tolerance patch already applied"
+  elif git -C "${ROOT}" apply --check "${patch}" 2>/dev/null; then
+    git -C "${ROOT}" apply "${patch}" && ok "applied solo node-client tolerance patch" || warn "solo patch failed to apply"
+  else
+    warn "solo node-client patch does not apply cleanly (source changed?); skipping"
+  fi
+  rm -rf "$(node -e 'process.stdout.write(require("os").tmpdir())' 2>/dev/null)"/tsx-* 2>/dev/null || true
+}
+
+# =================================== phases =================================
 phase_cluster() {
-  log "PHASE 1/6  kind cluster + Solo init"
+  log "PHASE 1/5  kind cluster + Solo init (+ apply Solo tolerance patch)"
+  kill_strays   # clear any orphaned solo/port-forward processes from a prior aborted run
+  patch_solo
   solo init --dev >/dev/null 2>&1 || true
   # Recreate from scratch: reusing a cluster inherits stale Solo local-config and
   # then fails pre-flight with "Context ... is not valid for cluster ...".
@@ -232,7 +295,7 @@ phase_cluster() {
 }
 
 phase_deploy() {
-  log "PHASE 2/6  deploy ${NODES} consensus nodes + ${NODES} block nodes (1:1), config.version=0"
+  log "PHASE 2/5  deploy ${NODES} consensus nodes + ${NODES} block nodes (1:1), config.version=0"
   local props; props="$(mktemp -t bn-bp-app-props)"
   cat > "${props}" <<'PROPS'
 hedera.config.version=0
@@ -292,8 +355,9 @@ PROPS
   ok "network is ACTIVE at config.version=0"
 }
 
+# Issue #25468 step 1: node1's block node stops acking -> node1 falls into CHECKING.
 phase_backpressure() {
-  log "PHASE 3/6  induce back-pressure on node1 (its block node stops acknowledging)"
+  log "PHASE 3/5  back-pressure node1 (its block node stops acknowledging)"
   stall_acks on || die "could not install the ack-stall rule"
   sub "stalled node1 -> block-node-1 acks; node1's buffer fills as the network produces blocks"
   sub "generating light load and polling until node1 leaves ACTIVE (typically 2-5 min) ..."
@@ -316,116 +380,152 @@ phase_backpressure() {
   if [ -n "${reached}" ]; then
     log_has 1 "Block buffer is saturated; backpressure is being enabled" \
       && ok "node1 logged buffer saturation; back-pressure enabled"
-    ok "node1 is wedged (status: ${reached}) -- the node that would miss an upgrade"
+    ok "node1 is wedged (status: ${reached}) -- the node that will miss the upgrade"
   else
-    warn "node1 did not leave ACTIVE within timeout; status: $(node_status 1)"
+    die "node1 did not leave ACTIVE within timeout; status: $(node_status 1)"
   fi
 }
 
-phase_upgrade_blocked() {
-  log "PHASE 4/6  Solo's upgrade cannot run while node1 is wedged (structural limit)"
-  # node1 must be genuinely unreachable, else the upgrade gets past the ping and
-  # starts a real freeze+restart that hangs on it.
-  local s; s="$(node_status 1)"
-  if [ "${s}" = "ACTIVE" ] || [ -z "${s}" ]; then
-    sub "node1 is ${s:-unknown}; waiting for it to leave ACTIVE before attempting ..."
-    wait_any_status 1 180 CHECKING BEHIND >/dev/null
-    s="$(node_status 1)"
-  fi
-  sub "attempting: consensus network upgrade --upgrade-version ${UPGRADE_VERSION} (node1 is ${s}) ..."
-  sub "(expected to stall/abort -- the upgrade pings every node, including the wedged one)"
+# Issue #25468 steps 2-3: upgrade the network while node1 is wedged, then restart node2/3/4
+# on the new config.version. freeze-upgrade only submits the FREEZE and is rejected unless
+# an upgrade was prepared first, so run prepare-upgrade then freeze-upgrade -- the same pair
+# Solo's own upgrade flow runs. Both skip node1 (tolerance patch). The freeze is a clean
+# state boundary, so node2/3/4 come up agreeing; node1 stays behind at the old version.
+phase_upgrade() {
+  log "PHASE 4/5  upgrade: prepare + freeze (skipping node1), restart node2/3/4 at config.version=1"
+  local outf t; outf="$(mktemp -t bn-bp-upg-XXXXXX)"
 
-  # Output to a file (a $() pipe would block on orphaned children). An error or a
-  # stall both mean it can't complete; only a real success contradicts the limit.
-  local outf pid end err_pat done_pat
-  outf="$(mktemp -t bn-bp-upg-XXXXXX)"
-  err_pat="sdk ping network node: 127\.0\.0\.1:[0-9]+|failed to (refresh|setup) node client|Block Node .* not found"
-  done_pat="Successfully upgraded|[Uu]pgrade.*completed|✔ .*[Uu]pgrade.*network"
-  ( cd "${ROOT}"; solo consensus network upgrade --deployment "${DEPLOYMENT}" --upgrade-version "${UPGRADE_VERSION}" ) >"${outf}" 2>&1 &
-  pid=$!; disown 2>/dev/null || true; end=$(( $(date +%s) + 90 ))
-  while kill -0 "${pid}" 2>/dev/null; do
-    grep -qiE "${err_pat}" "${outf}" 2>/dev/null && break
-    grep -qiE "${done_pat}" "${outf}" 2>/dev/null && break
-    [ "$(date +%s)" -ge "${end}" ] && break
-    sleep 3
-  done
-  pkill -f "consensus network upgrade" 2>/dev/null || true
-  kill "${pid}" 2>/dev/null || true; pkill -P "${pid}" 2>/dev/null || true
+  t=$(date +%s)
+  sub "prepare-upgrade --skip-node-alias node1 (stage upgrade zip + record its hash) ..."
+  bounded_bg 240 "${outf}" consensus dev-freeze prepare-upgrade --skip-node-alias node1 --deployment "${DEPLOYMENT}"
+  grep -qi "skipping unreachable" "${outf}" 2>/dev/null && sub "tolerant client skipped the wedged node (patch active)"
+  grep -qiE "Success|prepare" "${outf}" 2>/dev/null \
+    || { warn "prepare-upgrade did not report success; tail:"; tail -5 "${outf}" 2>/dev/null | sed 's/^/     /'; }
+  sub "  prepare took $(( $(date +%s) - t ))s"
 
-  if grep -qiE "${err_pat}" "${outf}" 2>/dev/null; then
-    ok "BLOCKED: upgrade pre-flight aborted on the wedged node"
-    grep -iE "sdk ping network node|refresh node client|setup node client|not found in remote" "${outf}" | head -2 | sed 's/^/       /'
-  elif grep -qiE "${done_pat}" "${outf}" 2>/dev/null; then
-    warn "upgrade reported SUCCESS despite node1 wedged -- unexpected; tail:"
-    tail -4 "${outf}" 2>/dev/null | sed 's/^/       /'
-  else
-    ok "BLOCKED: upgrade could not complete while node1 was wedged (stalled, killed after 90s)"
-  fi
+  t=$(date +%s)
+  sub "freeze-upgrade --skip-node-alias node1 (submit the freeze) ..."
+  bounded_bg 240 "${outf}" consensus dev-freeze freeze-upgrade --skip-node-alias node1 --deployment "${DEPLOYMENT}"
   rm -f "${outf}"
-  sub "=> the faithful 'one node misses the freeze' flow can't be driven through Solo."
+  sub "  freeze submit took $(( $(date +%s) - t ))s"
+
+  # node2/3/4 freeze together at the same consensus time, so gate on node2.
+  t=$(date +%s)
+  sub "waiting for node2/3/4 to freeze (FREEZE_COMPLETE) ..."
+  wait_status 2 FREEZE_COMPLETE 180 >/dev/null 2>&1 || true
+  local froze=0; for n in ${UPGRADE_NODES}; do [ "$(node_status "$n")" = "FREEZE_COMPLETE" ] && froze=$(( froze + 1 )); done
+  [ "${froze}" -gt 0 ] && ok "${froze}/3 nodes reached FREEZE_COMPLETE ($(( $(date +%s) - t ))s)" \
+                        || die "node2/3/4 never froze -- prepare/freeze upgrade did not take (see Solo output above)"
+  print_statuses
+
+  # Restart from the freeze boundary at version=1 (no replay across it). node1 missed
+  # the freeze, so leaving it at version=0 is exactly the divergence the upgrade creates.
+  # All 3 restart in parallel and boot from the same freeze state, so gate ACTIVE on node2.
+  t=$(date +%s)
+  sub "restarting node2/3/4 at hedera.config.version=1 from the freeze state ..."
+  for n in ${UPGRADE_NODES}; do set_cfg_version "$n" set 1; done
+  for n in ${UPGRADE_NODES}; do wait_ready "$n"; done
+  wait_any_status 2 200 ACTIVE CATASTROPHIC_FAILURE >/dev/null
+  sleep 5
+  sub "  restart -> settle took $(( $(date +%s) - t ))s"
+  print_statuses
+  local act=0 s; for n in ${UPGRADE_NODES}; do s="$(node_status "$n")"; [ "$s" = "ACTIVE" ] && act=$(( act + 1 )); done
+  [ "${act}" -eq 3 ] && ok "node2/3/4 came up CLEAN ACTIVE at config.version=1 (freeze boundary worked, no replay-ISS)" \
+                     || warn "node2/3/4 did not all reach ACTIVE (${act}/3) -- inspect statuses above"
+  sub "node1 missed the freeze and stays at config.version=0 (status: $(node_status 1))"
 }
 
-phase_restore() {
-  log "PHASE 5/6  release the stall so node1 recovers to ACTIVE"
-  stall_acks off
-  sub "removed the ack-stall rule; node1's block node resumes acknowledging"
-  # node1 can flap (reconnect to ACTIVE, then briefly fall behind again under load),
-  # so wait for ACTIVE first -- it marks the recovery even if it degrades afterward.
-  if wait_status 1 ACTIVE 240; then ok "node1 recovered to ACTIVE"; else warn "node1 did not reach ACTIVE within timeout; status: $(node_status 1)"; fi
-  log_has 1 "back pressure will be disabled" && ok "node1 logged back-pressure disabled (buffer drained)"
-  print_statuses
-}
+# Issue #25468 steps 4-5 + operator heal. Release node1's acks right after the upgrade:
+# node2/3/4 are ACTIVE at v1 but node1 stays stuck at v0 -- the config.version gap (not the
+# stall) blocks re-entry, so it does NOT self-heal. Then the operator heals the cluster by
+# realigning node1 to v1.
+phase_release() {
+  log "PHASE 5/5  release node1's acks; show it can't rejoin, then heal the cluster"
+  local before; before="$(node_status 1)"
+  sub "node1 before release: ${before:-unknown} (config.version=0); node2/3/4 ACTIVE at config.version=1"
+  stall_acks off || warn "could not remove the ack-stall rule"
+  sub "removed the ack-stall rule; node1 -> block-node-1 acknowledgements resume, buffer can drain"
+  log_has 1 "back pressure will be disabled" && sub "node1 logged back-pressure disabled (buffer draining)"
 
-phase_version_split() {
-  log "PHASE 6/6  manufacture the config-version split a missed upgrade produces"
-  # node1 stays at config.version=0, the rest go to 1. The version is part of the
-  # hashed state, so the split nodes ISS and go to CATASTROPHIC_FAILURE.
-  for n in ${SKEW_NODES}; do
-    set_cfg_version "$n" set "${NEW_CONFIG_VERSION}"
-    sub "node${n} -> hedera.config.version=${NEW_CONFIG_VERSION} (restarting)"
-  done
-  for n in ${SKEW_NODES}; do wait_ready "$n"; done
-  sub "waiting for the version-split nodes to settle ..."
-  for n in ${SKEW_NODES}; do wait_status "$n" CATASTROPHIC_FAILURE 120 >/dev/null 2>&1 || true; done
-  sleep 10
+  # node1 should NOT recover on its own. Give it ~2 min, then show the split.
+  sub "watching ~2 min: does node1 rejoin on its own, or stay stuck while node2/3/4 stay ACTIVE? ..."
+  wait_any_status 1 120 ACTIVE CATASTROPHIC_FAILURE >/dev/null
+  sleep 5
   print_statuses
-  local cat=0; for n in ${SKEW_NODES}; do [ "$(node_status "$n")" = "CATASTROPHIC_FAILURE" ] && cat=$(( cat + 1 )); done
-  if [ "${cat}" -gt 0 ]; then
-    ok "${cat} node(s) hit a fatal ISS and went to CATASTROPHIC_FAILURE -- the version split is fatal"
-    sub "the network cannot return to ACTIVE on its own (Tim's 'can't self-heal')"
+  local s1; s1="$(node_status 1)"
+  if [ "${s1}" = "ACTIVE" ]; then
+    ok "node1 returned to ACTIVE on its own -- unexpected for a config.version gap; verify node1's version"
   else
-    warn "no node reached CATASTROPHIC_FAILURE; inspect statuses above"
+    ok "all nodes ACTIVE except node1 (node1: ${s1:-unreadable} @ config.version=0) -- it does NOT self-heal"
+    sub "ANSWER to #25468: releasing the acks cleared the back-pressure, but the config.version gap"
+    sub "blocks re-entry. The straggler cannot rejoin on its own -- an operator must realign it."
+  fi
+
+  # Operator heals the cluster: realign node1 to the upgraded version and let it rejoin.
+  log "HEAL  operator realigns node1 to config.version=1 so it rejoins and the cluster recovers"
+  heal_node1
+}
+
+# Bring the missed-upgrade straggler (node1) to the upgraded version and let it rejoin.
+# No freeze path exists: node1 is version-split, so it can neither process the v1
+# FREEZE_UPGRADE (won't reach consensus with the v1 majority) nor reconnect (it'd be handed
+# a v1 state it cannot run at v0 -- the mirror of "Cannot downgrade build=1 to build=0").
+# Realign it through its CONFIG SOURCE -- the shared data-config ConfigMap that seeds
+# application.properties -- not a -D flag: set config.version=1 there, restart node1 so
+# init-copier seeds data/config at v1, and node1 reconnects to the v1 majority and catches up.
+heal_node1() {
+  local cur; cur="$(${KCTL} get configmap "${CONFIG_CM}" -n "${NAMESPACE}" \
+    -o jsonpath='{.data.application\.properties}' 2>/dev/null | grep -oE 'hedera\.config\.version=[0-9]+' | head -1)"
+  sub "config source ${CONFIG_CM}: ${cur:-<none>} -> hedera.config.version=1"
+  local tmp; tmp="$(mktemp -t bn-bp-cm-XXXXXX)"
+  ${KCTL} get configmap "${CONFIG_CM}" -n "${NAMESPACE}" -o yaml 2>/dev/null \
+    | sed -E 's/hedera\.config\.version=[0-9]+/hedera.config.version=1/' > "${tmp}"
+  ${KCTL} apply -f "${tmp}" >/dev/null 2>&1 || ${KCTL} replace -f "${tmp}" >/dev/null 2>&1 \
+    || { warn "failed to patch ${CONFIG_CM}"; rm -f "${tmp}"; return 1; }
+  rm -f "${tmp}"
+
+  # ConfigMap mounts reach the pod through the kubelet cache, which lags ~60s. If node1 is
+  # restarted before the new value lands, init-copier seeds data/config with the OLD version,
+  # so node1 boots at v0, reconnects to the v1 network and ISS's (-> CATASTROPHIC). Give the
+  # cache time, then restart and judge by STATUS: ACTIVE means it booted v1 and rejoined;
+  # CATASTROPHIC means it booted the stale v0 -> wait for the cache and restart again.
+  sub "waiting ~75s for the config update to reach node1's kubelet ConfigMap cache ..."
+  sleep 75
+  local attempt result healed=""
+  for attempt in 1 2 3; do
+    sub "restart node1 (attempt ${attempt}); it should boot at config.version=1 and rejoin ..."
+    ${KCTL} delete pod network-node1-0 -n "${NAMESPACE}" --wait=false >/dev/null 2>&1 || true
+    wait_ready 1
+    rm -f "${STATUS_CACHE_DIR}/node1" 2>/dev/null   # fresh status for this boot (log truncates on restart)
+    result="$(wait_any_status 1 240 ACTIVE CATASTROPHIC_FAILURE)"
+    [ "${result}" = "ACTIVE" ] && { healed=1; break; }
+    warn "node1 booted on the stale config and hit ISS (cache lag); waiting 40s and restarting"
+    sleep 40
+  done
+  sleep 5
+  print_statuses
+  if [ -n "${healed}" ]; then
+    ok "node1 realigned to config.version=1 and rejoined -- cluster healed, all nodes ACTIVE"
+  else
+    warn "node1 did not reach ACTIVE after 3 restarts (status: $(node_status 1)) -- inspect node1 swirlds.log"
   fi
 }
 
+# Standalone operator heal (same as the heal step folded into phase 5).
 phase_recover() {
-  log "RECOVER  operator realigns versions and restarts"
-  for n in ${SKEW_NODES}; do
-    set_cfg_version "$n" clear
-    sub "node${n} -> config.version override cleared (restarting)"
-  done
-  ${KCTL} delete pod network-node1-0 -n "${NAMESPACE}" --wait=false >/dev/null 2>&1 || true
-  for n in $(seq 1 "${NODES}"); do wait_ready "$n"; done
-  sub "waiting for the realigned network to return to ACTIVE ..."
-  local active=0
-  for n in $(seq 1 "${NODES}"); do wait_status "$n" ACTIVE 300 >/dev/null 2>&1 && active=$(( active + 1 )); done
-  print_statuses
-  if [ "${active}" -eq "${NODES}" ]; then
-    ok "all ${NODES} nodes returned to ACTIVE once versions were realigned"
-  else
-    warn "only ${active}/${NODES} nodes returned to ACTIVE"
-  fi
+  log "RECOVER  realign node1's config.version to 1 via its config source, restart, rejoin"
+  heal_node1
 }
 
 verdict() {
-  log "FINAL STATE"
+  log "FINAL STATE  (all 4 nodes should be ACTIVE at config.version=1 after the heal)"
   print_statuses
   sub ""
-  sub "version-split nodes stay in CATASTROPHIC_FAILURE -- the network does not self-heal."
-  sub "recover:  ./reproduce.sh recover"
+  sub "re-heal:  ./reproduce.sh recover    (re-realign node1 if it didn't rejoin)"
   sub "teardown: ./reproduce.sh teardown"
 }
 
+# =================================== main ===================================
 case "${1:-}" in
   teardown) kind delete cluster -n "${CLUSTER_NAME}"; exit 0 ;;
   recover|"") : ;;
@@ -438,16 +538,13 @@ need docker; need kind; need kubectl; need perl; need node
 # Refuse concurrent runs: two Solo processes corrupt each other's kube context.
 LOCKFILE="/tmp/reproduce-${CLUSTER_NAME}.lock"
 if [ -f "${LOCKFILE}" ] && kill -0 "$(cat "${LOCKFILE}" 2>/dev/null)" 2>/dev/null; then
-  die "another reproduce.sh run is active (pid $(cat "${LOCKFILE}")). Wait for it or kill it, then retry."
+  die "another run is active (pid $(cat "${LOCKFILE}")). Wait for it or kill it, then retry."
 fi
 echo $$ > "${LOCKFILE}"
-trap 'monitor_stop 2>/dev/null; rm -f "${LOCKFILE}"' EXIT
+trap 'monitor_stop 2>/dev/null; rm -f "${LOCKFILE}"; rm -rf "${STATUS_CACHE_DIR}" 2>/dev/null' EXIT
 
 if [ "${1:-}" = "recover" ]; then
-  monitor_start
-  phase_recover
-  monitor_stop
-  exit 0
+  monitor_start; phase_recover; monitor_stop; exit 0
 fi
 
 log "Scenario configuration"
@@ -458,9 +555,8 @@ sub "solo invocation mode: ${SOLO_MODE}"
 phase_cluster
 phase_deploy
 monitor_start
-phase_backpressure
-phase_upgrade_blocked
-phase_restore
-phase_version_split
+phase_backpressure   # step 1: wedge node1
+phase_upgrade        # steps 2-3: freeze + restart node2/3/4 at v1
+phase_release        # steps 4-5 + heal: release acks, show node1 stuck, then realign it -> rejoin
 monitor_stop
 verdict
