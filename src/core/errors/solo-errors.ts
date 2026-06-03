@@ -84,6 +84,10 @@ import {UnsupportedOperationError} from './classes/internal/unsupported-operatio
 import {CreateDeploymentSoloError} from './classes/deployment/create-deployment-solo-error.js';
 import {DeploymentAlreadyExistsSoloError} from './classes/deployment/deployment-already-exists-solo-error.js';
 import {RapidFireExecutionSoloError} from './classes/rapid-fire-execution-solo-error.js';
+import {StateFilePathNotFoundSoloError} from './classes/validation/state-file-path-not-found-solo-error.js';
+import {StateFileNotFoundSoloError} from './classes/validation/state-file-not-found-solo-error.js';
+import {InvalidStateFileFormatSoloError} from './classes/validation/invalid-state-file-format-solo-error.js';
+import {InvalidStateZipFileNameSoloError} from './classes/validation/invalid-state-zip-file-name-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -208,6 +212,10 @@ export class SoloErrors {
     readonly nonInteractivePrompt: typeof NonInteractivePromptSoloError;
     readonly realmShardVersionConstraint: typeof RealmShardVersionConstraintSoloError;
     readonly wrapsVersionConstraint: typeof WrapsVersionConstraintSoloError;
+    readonly stateFilePathNotFound: typeof StateFilePathNotFoundSoloError;
+    readonly stateFileNotFound: typeof StateFileNotFoundSoloError;
+    readonly invalidStateFileFormat: typeof InvalidStateFileFormatSoloError;
+    readonly invalidStateZipFileName: typeof InvalidStateZipFileNameSoloError;
   } = Object.freeze({
     consensusNodeCountRequired: ConsensusNodeCountRequiredError,
     illegalArgument: IllegalArgumentError,
@@ -229,6 +237,10 @@ export class SoloErrors {
     nonInteractivePrompt: NonInteractivePromptSoloError,
     realmShardVersionConstraint: RealmShardVersionConstraintSoloError,
     wrapsVersionConstraint: WrapsVersionConstraintSoloError,
+    stateFilePathNotFound: StateFilePathNotFoundSoloError,
+    stateFileNotFound: StateFileNotFoundSoloError,
+    invalidStateFileFormat: InvalidStateFileFormatSoloError,
+    invalidStateZipFileName: InvalidStateZipFileNameSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
