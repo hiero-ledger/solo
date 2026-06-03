@@ -33,7 +33,13 @@ import {RefreshLocalConfigSourceError} from './classes/config/refresh-local-conf
 import {RemoteConfigsMismatchSoloError} from './classes/config/remote-configs-mismatch-solo-error.js';
 import {WriteLocalConfigFileError} from './classes/config/write-local-config-file-error.js';
 import {WriteRemoteConfigBeforeLoadError} from './classes/internal/write-remote-config-before-load-error.js';
+import {BlockNodeAddExternalFailedSoloError} from './classes/component/block-node-add-external-failed-solo-error.js';
 import {BlockNodeConfigFailedSoloError} from './classes/component/block-node-config-failed-solo-error.js';
+import {BlockNodeDeleteExternalFailedSoloError} from './classes/component/block-node-delete-external-failed-solo-error.js';
+import {BlockNodeDeployFailedSoloError} from './classes/component/block-node-deploy-failed-solo-error.js';
+import {BlockNodeDestroyFailedSoloError} from './classes/component/block-node-destroy-failed-solo-error.js';
+import {BlockNodeHealthCheckFailedSoloError} from './classes/component/block-node-health-check-failed-solo-error.js';
+import {BlockNodeUpgradeFailedSoloError} from './classes/component/block-node-upgrade-failed-solo-error.js';
 import {ChartInstallFailedSoloError} from './classes/component/chart-install-failed-solo-error.js';
 import {NetworkDestroyFailedSoloError} from './classes/component/network-destroy-failed-solo-error.js';
 import {NodeBuildCopyFailedSoloError} from './classes/component/node-build-copy-failed-solo-error.js';
@@ -105,6 +111,10 @@ import {OneShotDeployFailedSoloError} from './classes/component/one-shot-deploy-
 import {OneShotDestroyFailedSoloError} from './classes/component/one-shot-destroy-failed-solo-error.js';
 import {OneShotDeploymentInfoRetrievalFailedSoloError} from './classes/component/one-shot-deployment-info-retrieval-failed-solo-error.js';
 import {FalconValuesPreparationFailedSoloError} from './classes/component/falcon-values-preparation-failed-solo-error.js';
+import {BlockNodeNotInRemoteConfigSoloError} from './classes/system/block-node-not-in-remote-config-solo-error.js';
+import {BlockNodeNotReadySoloError} from './classes/system/block-node-not-ready-solo-error.js';
+import {BlockNodePodNotFoundSoloError} from './classes/system/block-node-pod-not-found-solo-error.js';
+import {ExternalBlockNodeNotInRemoteConfigSoloError} from './classes/system/external-block-node-not-in-remote-config-solo-error.js';
 import {ExplorerPodNotFoundSoloError} from './classes/system/explorer-pod-not-found-solo-error.js';
 import {ExplorerNotInRemoteConfigSoloError} from './classes/system/explorer-not-in-remote-config-solo-error.js';
 import {RelayPodNotFoundSoloError} from './classes/system/relay-pod-not-found-solo-error.js';
@@ -113,6 +123,10 @@ import {MirrorNodePodsNotFoundSoloError} from './classes/system/mirror-node-pods
 import {MirrorIngressControllerPodNotFoundSoloError} from './classes/system/mirror-ingress-controller-pod-not-found-solo-error.js';
 import {MirrorNodeNotInRemoteConfigSoloError} from './classes/system/mirror-node-not-in-remote-config-solo-error.js';
 import {ClusterNotFoundInRemoteConfigSoloError} from './classes/system/cluster-not-found-in-remote-config-solo-error.js';
+import {BlockNodeInvalidComponentIdSoloError} from './classes/validation/block-node-invalid-component-id-solo-error.js';
+import {BlockNodeLivenessPortVersionIncompatibleSoloError} from './classes/validation/block-node-liveness-port-version-incompatible-solo-error.js';
+import {BlockNodeLocalImageNotFoundSoloError} from './classes/validation/block-node-local-image-not-found-solo-error.js';
+import {BlockNodePlatformVersionTooLowSoloError} from './classes/validation/block-node-platform-version-too-low-solo-error.js';
 import {ExplorerInvalidComponentIdSoloError} from './classes/validation/explorer-invalid-component-id-solo-error.js';
 import {RelayInvalidComponentIdSoloError} from './classes/validation/relay-invalid-component-id-solo-error.js';
 import {OneShotCachedDeploymentNotFoundSoloError} from './classes/validation/one-shot-cached-deployment-not-found-solo-error.js';
@@ -186,6 +200,12 @@ export class SoloErrors {
     readonly nodeJfrPidNotFound: typeof NodeJfrPidNotFoundSoloError;
     readonly nodeDebugArchiveFailed: typeof NodeDebugArchiveFailedSoloError;
     readonly blockNodeConfigFailed: typeof BlockNodeConfigFailedSoloError;
+    readonly blockNodeDeployFailed: typeof BlockNodeDeployFailedSoloError;
+    readonly blockNodeDestroyFailed: typeof BlockNodeDestroyFailedSoloError;
+    readonly blockNodeUpgradeFailed: typeof BlockNodeUpgradeFailedSoloError;
+    readonly blockNodeAddExternalFailed: typeof BlockNodeAddExternalFailedSoloError;
+    readonly blockNodeDeleteExternalFailed: typeof BlockNodeDeleteExternalFailedSoloError;
+    readonly blockNodeHealthCheckFailed: typeof BlockNodeHealthCheckFailedSoloError;
     readonly chartInstallFailed: typeof ChartInstallFailedSoloError;
     readonly networkDestroyFailed: typeof NetworkDestroyFailedSoloError;
     readonly rapidFireExecutionFailed: typeof RapidFireExecutionSoloError;
@@ -223,6 +243,12 @@ export class SoloErrors {
     nodeJfrPidNotFound: NodeJfrPidNotFoundSoloError,
     nodeDebugArchiveFailed: NodeDebugArchiveFailedSoloError,
     blockNodeConfigFailed: BlockNodeConfigFailedSoloError,
+    blockNodeDeployFailed: BlockNodeDeployFailedSoloError,
+    blockNodeDestroyFailed: BlockNodeDestroyFailedSoloError,
+    blockNodeUpgradeFailed: BlockNodeUpgradeFailedSoloError,
+    blockNodeAddExternalFailed: BlockNodeAddExternalFailedSoloError,
+    blockNodeDeleteExternalFailed: BlockNodeDeleteExternalFailedSoloError,
+    blockNodeHealthCheckFailed: BlockNodeHealthCheckFailedSoloError,
     chartInstallFailed: ChartInstallFailedSoloError,
     networkDestroyFailed: NetworkDestroyFailedSoloError,
     rapidFireExecutionFailed: RapidFireExecutionSoloError,
@@ -255,6 +281,10 @@ export class SoloErrors {
 
   // 4xxx — Validation: User input, flags, IDs, formatting
   public static readonly validation: {
+    readonly blockNodeLocalImageNotFound: typeof BlockNodeLocalImageNotFoundSoloError;
+    readonly blockNodeInvalidComponentId: typeof BlockNodeInvalidComponentIdSoloError;
+    readonly blockNodePlatformVersionTooLow: typeof BlockNodePlatformVersionTooLowSoloError;
+    readonly blockNodeLivenessPortVersionIncompatible: typeof BlockNodeLivenessPortVersionIncompatibleSoloError;
     readonly consensusNodeCountRequired: typeof ConsensusNodeCountRequiredError;
     readonly illegalArgument: typeof IllegalArgumentError;
     readonly invalidOutputFormat: typeof InvalidOutputFormatError;
@@ -284,6 +314,10 @@ export class SoloErrors {
     readonly mirrorNodeInvalidComponentId: typeof MirrorNodeInvalidComponentIdSoloError;
     readonly oneShotCachedDeploymentNotFound: typeof OneShotCachedDeploymentNotFoundSoloError;
   } = Object.freeze({
+    blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
+    blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
+    blockNodePlatformVersionTooLow: BlockNodePlatformVersionTooLowSoloError,
+    blockNodeLivenessPortVersionIncompatible: BlockNodeLivenessPortVersionIncompatibleSoloError,
     consensusNodeCountRequired: ConsensusNodeCountRequiredError,
     illegalArgument: IllegalArgumentError,
     invalidOutputFormat: InvalidOutputFormatError,
@@ -316,6 +350,10 @@ export class SoloErrors {
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
   public static readonly system: {
+    readonly blockNodePodNotFound: typeof BlockNodePodNotFoundSoloError;
+    readonly blockNodeNotReady: typeof BlockNodeNotReadySoloError;
+    readonly blockNodeNotInRemoteConfig: typeof BlockNodeNotInRemoteConfigSoloError;
+    readonly externalBlockNodeNotInRemoteConfig: typeof ExternalBlockNodeNotInRemoteConfigSoloError;
     readonly clusterConnectionFailed: typeof ClusterConnectionFailedError;
     readonly githubApiHttpResponseError: typeof GitHubApiHttpResponseError;
     readonly githubApiRequestFailed: typeof GitHubApiRequestFailedError;
@@ -347,6 +385,10 @@ export class SoloErrors {
     readonly mirrorNodeNotInRemoteConfig: typeof MirrorNodeNotInRemoteConfigSoloError;
     readonly clusterNotFoundInRemoteConfig: typeof ClusterNotFoundInRemoteConfigSoloError;
   } = Object.freeze({
+    blockNodePodNotFound: BlockNodePodNotFoundSoloError,
+    blockNodeNotReady: BlockNodeNotReadySoloError,
+    blockNodeNotInRemoteConfig: BlockNodeNotInRemoteConfigSoloError,
+    externalBlockNodeNotInRemoteConfig: ExternalBlockNodeNotInRemoteConfigSoloError,
     clusterConnectionFailed: ClusterConnectionFailedError,
     githubApiHttpResponseError: GitHubApiHttpResponseError,
     githubApiRequestFailed: GitHubApiRequestFailedError,
