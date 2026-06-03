@@ -12,6 +12,10 @@ import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {OneShotCommand} from './one-shot.js';
 import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
+import {type OneShotVersionsObject} from './one-shot-versions-object.js';
+import * as version from '../../../version.js';
+import {EdgeVersionFetcher} from '../../core/edge-version-fetcher.js';
+import {type EdgeVersionsObject} from '../../core/edge-versions-object.js';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type FalconPrepareConfig} from './falcon-prepare-config.js';
 import {FALCON_DEPLOY_COMMAND, FALCON_PREPARE_COMMAND} from './one-shot-command-paths.js';
@@ -588,6 +592,45 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     }
 
     return true;
+  }
+
+  private async resolveOneShotComponentVersions(useEdge: boolean): Promise<OneShotVersionsObject> {
+    if (!useEdge) {
+      return {
+        soloChart: version.SOLO_CHART_VERSION,
+        consensus: version.HEDERA_PLATFORM_VERSION,
+        mirror: version.MIRROR_NODE_VERSION,
+        explorer: version.EXPLORER_VERSION,
+        relay: version.HEDERA_JSON_RPC_RELAY_VERSION,
+        blockNode: version.BLOCK_NODE_VERSION,
+      };
+    }
+
+    const edgeVersions: OneShotVersionsObject = {
+      soloChart: version.SOLO_CHART_EDGE_VERSION,
+      consensus: version.HEDERA_PLATFORM_EDGE_VERSION,
+      mirror: version.MIRROR_NODE_EDGE_VERSION,
+      explorer: version.EXPLORER_EDGE_VERSION,
+      relay: version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION,
+      blockNode: version.BLOCK_NODE_EDGE_VERSION,
+    };
+
+    const resolvedComponentVersions: EdgeVersionsObject = await EdgeVersionFetcher.resolveEdgeVersions({
+      consensus: edgeVersions.consensus,
+      mirror: edgeVersions.mirror,
+      blockNode: edgeVersions.blockNode,
+      explorer: edgeVersions.explorer,
+      relay: edgeVersions.relay,
+    });
+
+    return {
+      soloChart: edgeVersions.soloChart,
+      consensus: resolvedComponentVersions.consensus,
+      mirror: resolvedComponentVersions.mirror,
+      explorer: resolvedComponentVersions.explorer,
+      relay: resolvedComponentVersions.relay,
+      blockNode: resolvedComponentVersions.blockNode,
+    };
   }
 
   public async prepareFalcon(argv: ArgvStruct): Promise<boolean> {
