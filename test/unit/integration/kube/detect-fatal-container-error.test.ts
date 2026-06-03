@@ -12,7 +12,10 @@ import {
   V1ContainerStateRunning,
   V1ObjectMeta,
 } from '@kubernetes/client-node';
-import {detectFatalContainerError} from '../../../../src/integration/kube/k8-client/resources/pod/k8-client-pods.js';
+import {
+  detectFatalContainerError,
+  isContainerdSocketError,
+} from '../../../../src/integration/kube/k8-client/resources/pod/k8-client-pods.js';
 
 function buildPodWithContainerStatus(containerStatus: V1ContainerStatus): V1Pod {
   const pod: V1Pod = new V1Pod();
@@ -152,5 +155,53 @@ describe('detectFatalContainerError', (): void => {
 
     const result: string | undefined = detectFatalContainerError(pod);
     expect(result).to.include('<unknown>');
+  });
+
+  describe('containerd socket error (Docker Desktop macOS race)', (): void => {
+    const containerdSocketMessage: string =
+      'Failed to inspect image "ghcr.io/hiero-ledger/hiero-json-rpc-relay:0.76.2": ' +
+      'rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: ' +
+      'dial unix /run/containerd/containerd.sock: connect: connection refused"';
+
+    it('isContainerdSocketError returns true for containerd socket message', (): void => {
+      expect(isContainerdSocketError(containerdSocketMessage)).to.be.true;
+    });
+
+    it('isContainerdSocketError returns false for undefined', (): void => {
+      // eslint-disable-next-line unicorn/no-useless-undefined
+      expect(isContainerdSocketError(undefined)).to.be.false;
+    });
+
+    it('isContainerdSocketError returns false for an unrelated image pull error', (): void => {
+      expect(isContainerdSocketError('not found')).to.be.false;
+    });
+
+    it('detectFatalContainerError returns an actionable message for ImageInspectError with containerd socket', (): void => {
+      const pod: V1Pod = buildPodWithContainerStatus(
+        buildWaitingContainerStatus('ImageInspectError', containerdSocketMessage),
+      );
+      const result: string | undefined = detectFatalContainerError(pod);
+      expect(result).to.not.be.undefined;
+      expect(result).to.include('containerd socket error');
+      expect(result).to.include('Docker Desktop');
+      expect(result).to.include('"test-pod"');
+      expect(result).to.include('"test-container"');
+    });
+
+    it('detectFatalContainerError returns undefined for ImageInspectError with a non-containerd transient message', (): void => {
+      const pod: V1Pod = buildPodWithContainerStatus(
+        buildWaitingContainerStatus('ImageInspectError', 'Some transient network hiccup'),
+      );
+      expect(detectFatalContainerError(pod)).to.be.undefined;
+    });
+
+    it('detectFatalContainerError still treats ImageInspectError + "not found" as non-recoverable', (): void => {
+      const pod: V1Pod = buildPodWithContainerStatus(
+        buildWaitingContainerStatus('ImageInspectError', 'image not found in registry'),
+      );
+      const result: string | undefined = detectFatalContainerError(pod);
+      expect(result).to.not.be.undefined;
+      expect(result).to.include('non-recoverable');
+    });
   });
 });

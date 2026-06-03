@@ -55,6 +55,13 @@ const FATAL_WAITING_REASONS: ReadonlySet<string> = new Set([
  */
 const FATAL_TERMINATED_REASONS: ReadonlySet<string> = new Set(['OOMKilled']);
 const FATAL_ERROR_RETRY_THRESHOLD: number = 3;
+/**
+ * Higher retry allowance for the Docker Desktop containerd-socket error, which is a
+ * transient race condition on macOS during Docker Desktop startup.  Giving it more
+ * attempts before we surface the actionable error message avoids false positives while
+ * still failing fast when the socket is persistently unavailable.
+ */
+const CONTAINERD_SOCKET_FATAL_THRESHOLD: number = 5;
 const NON_RECOVERABLE_IMAGE_PULL_PATTERNS: ReadonlyArray<RegExp> = [
   /not found/i,
   /manifest unknown/i,
@@ -65,6 +72,24 @@ const NON_RECOVERABLE_IMAGE_PULL_PATTERNS: ReadonlyArray<RegExp> = [
   /authentication required/i,
   /invalid reference format/i,
 ];
+/**
+ * Patterns that identify a Docker Desktop containerd-socket error inside an
+ * ImageInspectError message.  This occurs on macOS when the "Use containerd for
+ * pulling and storing images" toggle is enabled in Docker Desktop settings.
+ */
+export const CONTAINERD_SOCKET_PATTERNS: ReadonlyArray<RegExp> = [
+  /dial unix.*containerd\.sock.*connection refused/i,
+  /containerd\.sock.*connection refused/i,
+  /transport.*Error while dialing.*containerd/i,
+  /rpc error.*Unavailable.*containerd/i,
+];
+
+export function isContainerdSocketError(message?: string): boolean {
+  if (!message) {
+    return false;
+  }
+  return CONTAINERD_SOCKET_PATTERNS.some((pattern): boolean => pattern.test(message));
+}
 
 /**
  * Inspect a V1Pod's container statuses for non-recoverable error states and return a descriptive
@@ -74,6 +99,11 @@ const NON_RECOVERABLE_IMAGE_PULL_PATTERNS: ReadonlyArray<RegExp> = [
  * - Waiting: ImagePullBackOff, ErrImagePull, InvalidImageName, ImageInspectError,
  *            RegistryUnavailable (image unavailable in registry)
  * - Terminated: OOMKilled (container killed due to out-of-memory)
+ *
+ * Special handling: ImageInspectError messages that match CONTAINERD_SOCKET_PATTERNS are treated
+ * as a separate, actionable error class rather than a generic non-recoverable state.  They are
+ * given more retries before being surfaced (see CONTAINERD_SOCKET_FATAL_THRESHOLD) to tolerate
+ * Docker Desktop startup races on macOS.
  */
 export function detectFatalContainerError(pod: V1Pod): string | undefined {
   const podName: string = pod.metadata?.name ?? '<unknown>';
@@ -94,6 +124,16 @@ export function detectFatalContainerError(pod: V1Pod): string | undefined {
           waitingState.reason === 'ImageInspectError') &&
         !isNonRecoverableImagePullError(waitingState.message)
       ) {
+        if (waitingState.reason === 'ImageInspectError' && isContainerdSocketError(waitingState.message)) {
+          // Return an actionable message that is tracked by the streak counter with a higher
+          // threshold (CONTAINERD_SOCKET_FATAL_THRESHOLD) to tolerate transient startup races.
+          const detail: string = waitingState.message ? `: ${waitingState.message}` : '';
+          return (
+            `Pod "${podName}" container "${containerName}" failed to inspect image due to a containerd socket error${detail}. ` +
+            'This is likely caused by Docker Desktop\'s "Use containerd for pulling and storing images" setting. ' +
+            'To fix: open Docker Desktop → Settings → General → uncheck "Use containerd for pulling and storing images" → restart Docker Desktop.'
+          );
+        }
         continue;
       }
       const detail: string = waitingState.message ? `: ${waitingState.message}` : '';
@@ -359,13 +399,17 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                 const nextCount: number = previous?.error === fatalError ? previous.count + 1 : 1;
                 fatalErrorStreakByPod.set(podName, {count: nextCount, error: fatalError});
 
-                if (nextCount >= FATAL_ERROR_RETRY_THRESHOLD) {
+                // Use a higher threshold for containerd socket errors to tolerate transient
+                // Docker Desktop startup races on macOS before surfacing the actionable hint.
+                const threshold: number = isContainerdSocketError(fatalError)
+                  ? CONTAINERD_SOCKET_FATAL_THRESHOLD
+                  : FATAL_ERROR_RETRY_THRESHOLD;
+
+                if (nextCount >= threshold) {
                   return reject(new SoloError(fatalError));
                 }
 
-                this.logger.info(
-                  `Detected fatal pod state for "${podName}" (${nextCount}/${FATAL_ERROR_RETRY_THRESHOLD}); retrying`,
-                );
+                this.logger.info(`Detected fatal pod state for "${podName}" (${nextCount}/${threshold}); retrying`);
               } else {
                 fatalErrorStreakByPod.delete(podName);
               }

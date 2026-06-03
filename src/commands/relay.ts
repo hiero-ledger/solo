@@ -49,6 +49,10 @@ import {ImageReference, type ParsedImageReference} from '../business/utils/image
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {optionFromFlag} from './command-helpers.js';
+import {
+  checkDockerDesktopContainerdSetting,
+  type DockerDesktopContainerdCheckResult,
+} from '../core/docker-desktop-checker.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -405,6 +409,18 @@ export class RelayCommand extends BaseCommand {
     };
   }
 
+  private dockerDesktopPreflightTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Pre-flight: check Docker Desktop containerd setting',
+      task: async (): Promise<void> => {
+        const result: DockerDesktopContainerdCheckResult = checkDockerDesktopContainerdSetting();
+        if (result.containerdSnapshotterEnabled && result.warningMessage) {
+          this.logger.warn(result.warningMessage);
+        }
+      },
+    };
+  }
+
   private prepareChartValuesTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare chart values',
@@ -642,6 +658,7 @@ export class RelayCommand extends BaseCommand {
         },
         this.addRelayComponent(),
         this.checkChartIsInstalledTask(),
+        this.dockerDesktopPreflightTask(),
         this.prepareChartValuesTask(),
         this.deployJsonRpcRelayTask(RelayCommandType.ADD),
         this.checkRelayIsRunningTask(),
@@ -762,6 +779,7 @@ export class RelayCommand extends BaseCommand {
           },
         },
         this.prepareChartValuesTask(),
+        this.dockerDesktopPreflightTask(),
         this.deployJsonRpcRelayTask(RelayCommandType.UPGRADE),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
