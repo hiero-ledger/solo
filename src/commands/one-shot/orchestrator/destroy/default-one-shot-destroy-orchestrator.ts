@@ -87,98 +87,146 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
       OrchestratorPipelinePhase.composite(
         'Destroy extended setup',
         [
-          new OrchestratorPipelinePhase('Destroy explorer', {
-            asListrTask: (
-              getConfig: () => OneShotSingleDestroyConfigClass,
-            ): SoloListrTask<OneShotSingleDestroyContext> =>
-              invokeSoloCommand(
-                `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
-                ExplorerCommandDefinition.DESTROY_COMMAND,
-                (): string[] => DestroyArgvBuilders.buildDestroyExplorerArgv(getConfig()),
-                this.taskList,
-                (): boolean => !getConfig().hasExplorers,
-              ),
-          }),
-          new OrchestratorPipelinePhase('Destroy relay', {
-            asListrTask: (
-              getConfig: () => OneShotSingleDestroyConfigClass,
-            ): SoloListrTask<OneShotSingleDestroyContext> =>
-              invokeSoloCommand(
-                `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
-                RelayCommandDefinition.DESTROY_COMMAND,
-                (): string[] => DestroyArgvBuilders.buildDestroyRelayArgv(getConfig()),
-                this.taskList,
-                (): boolean => !getConfig().hasRelays,
-              ),
-          }),
+          new OrchestratorPipelinePhase(
+            'Destroy explorer',
+            {
+              asListrTask: (
+                getConfig: () => OneShotSingleDestroyConfigClass,
+              ): SoloListrTask<OneShotSingleDestroyContext> =>
+                invokeSoloCommand(
+                  `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
+                  ExplorerCommandDefinition.DESTROY_COMMAND,
+                  (): string[] => DestroyArgvBuilders.buildDestroyExplorerArgv(getConfig()),
+                  this.taskList,
+                  (): boolean => !getConfig().hasExplorers,
+                ),
+            },
+            undefined,
+            undefined,
+            false,
+          ),
+          new OrchestratorPipelinePhase(
+            'Destroy relay',
+            {
+              asListrTask: (
+                getConfig: () => OneShotSingleDestroyConfigClass,
+              ): SoloListrTask<OneShotSingleDestroyContext> =>
+                invokeSoloCommand(
+                  `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
+                  RelayCommandDefinition.DESTROY_COMMAND,
+                  (): string[] => DestroyArgvBuilders.buildDestroyRelayArgv(getConfig()),
+                  this.taskList,
+                  (): boolean => !getConfig().hasRelays,
+                ),
+            },
+            undefined,
+            undefined,
+            false,
+          ),
         ],
         OrchestratorPipelinePhase.EXECUTION_MODE.CONCURRENT,
         false,
       ),
-      new OrchestratorPipelinePhase('Destroy mirror node', {
-        asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
-          invokeSoloCommand(
-            `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
-            MirrorCommandDefinition.DESTROY_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildDestroyMirrorNodeArgv(getConfig()),
-            this.taskList,
-            (): boolean => getConfig().skipAll || !getConfig().deployment || !getConfig().hasMirrorNodes,
-          ),
-      }),
-      new OrchestratorPipelinePhase('Destroy block node', {
-        asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
-          invokeSoloCommand(
-            `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
-            BlockCommandDefinition.DESTROY_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildDestroyBlockNodeArgv(getConfig()),
-            this.taskList,
-            (): boolean =>
-              getConfig().skipAll ||
-              !getConfig().deployment ||
-              constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
-              getConfig().hasBlockNodes === false,
-          ),
-      }),
-      new OrchestratorPipelinePhase('Destroy consensus node', {
-        asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
-          invokeSoloCommand(
-            `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
-            ConsensusCommandDefinition.DESTROY_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildDestroyConsensusNodeArgv(getConfig()),
-            this.taskList,
-            (): boolean => getConfig().skipAll || !getConfig().deployment,
-          ),
-      }),
-      new OrchestratorPipelinePhase('Cluster reset', {
-        asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
-          invokeSoloCommand(
-            `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
-            ClusterReferenceCommandDefinition.RESET_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildClusterResetArgv(getConfig()),
-            this.taskList,
-            (): boolean => getConfig().skipAll || !getConfig().deployment,
-          ),
-      }),
-      new OrchestratorPipelinePhase('Cluster disconnect', {
-        asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
-          invokeSoloCommand(
-            `solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND}`,
-            ClusterReferenceCommandDefinition.DISCONNECT_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildClusterDisconnectArgv(getConfig()),
-            this.taskList,
-            (): boolean => getConfig().skipAll || !getConfig().deployment,
-          ),
-      }),
-      new OrchestratorPipelinePhase('Deployment delete', {
-        asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
-          invokeSoloCommand(
-            `solo ${DeploymentCommandDefinition.DELETE_COMMAND}`,
-            DeploymentCommandDefinition.DELETE_COMMAND,
-            (): string[] => DestroyArgvBuilders.buildDeploymentDeleteArgv(getConfig()),
-            this.taskList,
-            (): boolean => !getConfig().deployment,
-          ),
-      }),
+      new OrchestratorPipelinePhase(
+        'Destroy mirror node',
+        {
+          asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+            invokeSoloCommand(
+              `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
+              MirrorCommandDefinition.DESTROY_COMMAND,
+              (): string[] => DestroyArgvBuilders.buildDestroyMirrorNodeArgv(getConfig()),
+              this.taskList,
+              (): boolean => getConfig().skipAll || !getConfig().deployment || !getConfig().hasMirrorNodes,
+            ),
+        },
+        undefined,
+        undefined,
+        false,
+      ),
+      new OrchestratorPipelinePhase(
+        'Destroy block node',
+        {
+          asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+            invokeSoloCommand(
+              `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
+              BlockCommandDefinition.DESTROY_COMMAND,
+              (): string[] => DestroyArgvBuilders.buildDestroyBlockNodeArgv(getConfig()),
+              this.taskList,
+              (): boolean =>
+                getConfig().skipAll ||
+                !getConfig().deployment ||
+                constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+                getConfig().hasBlockNodes === false,
+            ),
+        },
+        undefined,
+        undefined,
+        false,
+      ),
+      new OrchestratorPipelinePhase(
+        'Destroy consensus node',
+        {
+          asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+            invokeSoloCommand(
+              `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
+              ConsensusCommandDefinition.DESTROY_COMMAND,
+              (): string[] => DestroyArgvBuilders.buildDestroyConsensusNodeArgv(getConfig()),
+              this.taskList,
+              (): boolean => getConfig().skipAll || !getConfig().deployment,
+            ),
+        },
+        undefined,
+        undefined,
+        false,
+      ),
+      new OrchestratorPipelinePhase(
+        'Cluster reset',
+        {
+          asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+            invokeSoloCommand(
+              `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
+              ClusterReferenceCommandDefinition.RESET_COMMAND,
+              (): string[] => DestroyArgvBuilders.buildClusterResetArgv(getConfig()),
+              this.taskList,
+              (): boolean => getConfig().skipAll || !getConfig().deployment,
+            ),
+        },
+        undefined,
+        undefined,
+        false,
+      ),
+      new OrchestratorPipelinePhase(
+        'Cluster disconnect',
+        {
+          asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+            invokeSoloCommand(
+              `solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND}`,
+              ClusterReferenceCommandDefinition.DISCONNECT_COMMAND,
+              (): string[] => DestroyArgvBuilders.buildClusterDisconnectArgv(getConfig()),
+              this.taskList,
+              (): boolean => getConfig().skipAll || !getConfig().deployment,
+            ),
+        },
+        undefined,
+        undefined,
+        false,
+      ),
+      new OrchestratorPipelinePhase(
+        'Deployment delete',
+        {
+          asListrTask: (getConfig: () => OneShotSingleDestroyConfigClass): SoloListrTask<OneShotSingleDestroyContext> =>
+            invokeSoloCommand(
+              `solo ${DeploymentCommandDefinition.DELETE_COMMAND}`,
+              DeploymentCommandDefinition.DELETE_COMMAND,
+              (): string[] => DestroyArgvBuilders.buildDeploymentDeleteArgv(getConfig()),
+              this.taskList,
+              (): boolean => !getConfig().deployment,
+            ),
+        },
+        undefined,
+        undefined,
+        false,
+      ),
     ];
 
     const phases: Array<OrchestratorPipelinePhase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>> = [
