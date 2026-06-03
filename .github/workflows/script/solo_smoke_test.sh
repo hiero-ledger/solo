@@ -69,6 +69,79 @@ function start_contract_test ()
   fi
 }
 
+function wait_for_contract_test_accounts ()
+{
+  local relay_url="${1:-http://127.0.0.1:37546}"
+  local mirror_url="${2:-http://127.0.0.1:38081}"
+  local max_attempts="${3:-60}"
+  local sleep_seconds="${4:-5}"
+  local -a contract_test_addresses=()
+  local address=""
+  local attempt=0
+  local ready=0
+  local relay_response=""
+  local mirror_response=""
+  local derived_addresses=""
+  local address_lower=""
+
+  echo "Resolve contract test addresses from generated private keys"
+  derived_addresses=$(
+    cd hedera-smart-contracts && CONTRACT_TEST_KEYS="${CONTRACT_TEST_KEYS}" node - <<'NODE'
+const { Wallet } = require('ethers');
+
+const keys = (process.env.CONTRACT_TEST_KEYS || '')
+  .split(',')
+  .map((key) => key.trim())
+  .filter(Boolean);
+
+for (const key of keys) {
+  console.log(new Wallet(key).address);
+}
+NODE
+  )
+
+  while IFS= read -r address; do
+    [[ -z "${address}" ]] && continue
+    contract_test_addresses+=("${address}")
+  done <<EOF
+${derived_addresses}
+EOF
+
+  if [[ ${#contract_test_addresses[@]} -eq 0 ]]; then
+    echo "Could not derive contract test addresses from CONTRACT_TEST_KEYS"
+    log_and_exit 1
+  fi
+
+  echo "Wait for contract test accounts to become visible through relay and mirror"
+  for address in "${contract_test_addresses[@]}"; do
+    ready=0
+    address_lower=$(printf '%s' "${address}" | tr '[:upper:]' '[:lower:]')
+    for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+      relay_response=$(curl -sS -H 'content-type: application/json' \
+        --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getTransactionCount\",\"params\":[\"${address}\",\"latest\"],\"id\":1}" \
+        "${relay_url}" || true)
+      mirror_response=$(curl -sS "${mirror_url}/api/v1/accounts/${address}" || true)
+
+      if echo "${relay_response}" | grep -Eq '"result":"0x[0-9a-fA-F]+"' && \
+        echo "${mirror_response}" | grep -q "\"evm_address\":\"${address_lower}\""; then
+        echo "Account ${address} is ready [attempt=${attempt}/${max_attempts}]"
+        ready=1
+        break
+      fi
+
+      echo "Account ${address} not ready yet [attempt=${attempt}/${max_attempts}]"
+      sleep "${sleep_seconds}"
+    done
+
+    if [[ ${ready} -ne 1 ]]; then
+      echo "Timed out waiting for account ${address} to appear in relay/mirror"
+      echo "Last relay response: ${relay_response}"
+      echo "Last mirror response: ${mirror_response}"
+      log_and_exit 1
+    fi
+  done
+}
+
 function start_sdk_test ()
 {
   realm_num="${1:-0}"
@@ -323,6 +396,7 @@ fi
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
+wait_for_contract_test_accounts
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"

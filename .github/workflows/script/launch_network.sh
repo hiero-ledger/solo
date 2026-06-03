@@ -352,9 +352,12 @@ cat > /tmp/.solo-pgpass <<'PGPASS'
 localhost:5432:mirror_node:postgres:${pgPassword}
 PGPASS
 chmod 600 /tmp/.solo-pgpass
-PGPASSFILE=/tmp/.solo-pgpass psql -U postgres -d mirror_node -t -A \
-  -v mismatch_hash="${mismatchActualHash}" \
-  -c "UPDATE record_file SET hash = :'mismatch_hash' WHERE consensus_end = (SELECT MAX(consensus_end) FROM record_file);"
+PGPASSFILE=/tmp/.solo-pgpass psql -v ON_ERROR_STOP=1 -U postgres -d mirror_node -t -A \
+  -v mismatch_hash="${mismatchActualHash}" <<'SQL'
+UPDATE record_file
+SET hash = :'mismatch_hash'
+WHERE consensus_end = (SELECT MAX(consensus_end) FROM record_file);
+SQL
 rm -f /tmp/.solo-pgpass
 EOF
   ) || sqlResult="SQL_FAILED"
@@ -514,16 +517,16 @@ cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 # Generated for migration workflow launch.
 network:
   --pvcs: true
-  --release-tag: "${FROM_CONSENSUS_NODE_VERSION}"
+  --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
 
 setup:
-  --release-tag: "${FROM_CONSENSUS_NODE_VERSION}"
+  --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
 EOF
 
 export ONE_SHOT_WITH_BLOCK_NODE=true
 solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
-  --no-parallel-deploy \
+  --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
   --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"
 
 echo "::endgroup::"
@@ -535,12 +538,12 @@ show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
 save_cluster_ips "${SOLO_NAMESPACE}"
 
 # using new solo to redeploy solo deployment chart to new version
-npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "AFTER network deploy"
 restore_cluster_ips "${SOLO_NAMESPACE}" "${NODE1_IP}" "${NODE2_IP}"
 
-npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "AFTER node setup"
 
