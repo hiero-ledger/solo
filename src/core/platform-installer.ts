@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import * as fs from 'node:fs';
 import {Listr} from 'listr2';
 import * as path from 'node:path';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
 import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
 import {type ConfigManager} from './config-manager.js';
@@ -48,17 +47,17 @@ export class PlatformInstaller {
   private _getNamespace(): NamespaceName {
     const ns: NamespaceName = this.configManager.getFlag<NamespaceName>(flags.namespace);
     if (!ns) {
-      throw new MissingArgumentError('namespace is not set');
+      throw new SoloErrors.validation.missingArgument('namespace is not set');
     }
     return ns;
   }
 
   public validatePlatformReleaseDir(releaseDirectory: string): void {
     if (!releaseDirectory) {
-      throw new MissingArgumentError('releaseDirectory is required');
+      throw new SoloErrors.validation.missingArgument('releaseDirectory is required');
     }
     if (!fs.existsSync(releaseDirectory)) {
-      throw new IllegalArgumentError('releaseDirectory does not exists', releaseDirectory);
+      throw new SoloErrors.validation.illegalArgument('releaseDirectory does not exists', releaseDirectory);
     }
 
     const dataDirectory: string = `${releaseDirectory}/data`;
@@ -66,18 +65,21 @@ export class PlatformInstaller {
     const libraryDirectory: string = `${releaseDirectory}/${constants.HEDERA_DATA_LIB_DIR}`;
 
     if (!fs.existsSync(dataDirectory)) {
-      throw new IllegalArgumentError('releaseDirectory does not have data directory', releaseDirectory);
+      throw new SoloErrors.validation.illegalArgument(
+        'releaseDirectory does not have data directory',
+        releaseDirectory,
+      );
     }
 
     if (!fs.existsSync(appsDirectory)) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         `'${constants.HEDERA_DATA_APPS_DIR}' missing in '${releaseDirectory}'`,
         releaseDirectory,
       );
     }
 
     if (!fs.existsSync(libraryDirectory)) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         `'${constants.HEDERA_DATA_LIB_DIR}' missing in '${releaseDirectory}'`,
         releaseDirectory,
       );
@@ -87,7 +89,7 @@ export class PlatformInstaller {
       .readdirSync(appsDirectory)
       .filter((file: string): boolean => file.endsWith('.jar'));
     if (appsJarFiles.length === 0) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         `No jar files found in '${constants.HEDERA_DATA_APPS_DIR}' in releaseDir: ${releaseDirectory}`,
         releaseDirectory,
       );
@@ -97,7 +99,7 @@ export class PlatformInstaller {
       .readdirSync(libraryDirectory)
       .filter((file: string): boolean => file.endsWith('.jar'));
     if (libraryJarFiles.length === 0) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         `No jar files found in '${constants.HEDERA_DATA_LIB_DIR}' in releaseDir: ${releaseDirectory}`,
         releaseDirectory,
       );
@@ -106,7 +108,7 @@ export class PlatformInstaller {
 
   public async getPlatformRelease(stagingDirectory: string, tag: string): Promise<string[]> {
     if (!tag) {
-      throw new MissingArgumentError('tag is required');
+      throw new SoloErrors.validation.missingArgument('tag is required');
     }
 
     // Download the platform zip client-side into {stagingDir}/build/
@@ -136,16 +138,16 @@ export class PlatformInstaller {
     context?: string,
   ) {
     if (!podReference) {
-      throw new MissingArgumentError('podReference is required');
+      throw new SoloErrors.validation.missingArgument('podReference is required');
     }
     if (!tag) {
-      throw new MissingArgumentError('tag is required');
+      throw new SoloErrors.validation.missingArgument('tag is required');
     }
     if (!zipPath) {
-      throw new IllegalArgumentError('zipPath is required');
+      throw new SoloErrors.validation.illegalArgument('zipPath is required');
     }
     if (!checksumPath) {
-      throw new IllegalArgumentError('checksumPath is required');
+      throw new SoloErrors.validation.illegalArgument('checksumPath is required');
     }
 
     try {
@@ -237,13 +239,13 @@ export class PlatformInstaller {
     consensusNodes: ConsensusNode[],
   ): Promise<void> {
     if (!consensusNode) {
-      throw new MissingArgumentError('consensusNode is required');
+      throw new SoloErrors.validation.missingArgument('consensusNode is required');
     }
     if (!stagingDirectory) {
-      throw new MissingArgumentError('stagingDirectory is required');
+      throw new SoloErrors.validation.missingArgument('stagingDirectory is required');
     }
     if (!consensusNodes || consensusNodes.length <= 0) {
-      throw new MissingArgumentError('consensusNodes cannot be empty');
+      throw new SoloErrors.validation.missingArgument('consensusNodes cannot be empty');
     }
 
     try {
@@ -302,10 +304,10 @@ export class PlatformInstaller {
     contexts: string[],
   ): Promise<void> {
     if (!consensusNodes || consensusNodes.length <= 0) {
-      throw new MissingArgumentError('consensusNodes cannot be empty');
+      throw new SoloErrors.validation.missingArgument('consensusNodes cannot be empty');
     }
     if (!stagingDirectory) {
-      throw new MissingArgumentError('stagingDirectory is required');
+      throw new SoloErrors.validation.missingArgument('stagingDirectory is required');
     }
 
     try {
@@ -351,16 +353,16 @@ export class PlatformInstaller {
   public async setPathPermission(
     podReference: PodReference,
     destinationPath: string,
-    mode: string = '0755',
+    mode: string = '0750',
     recursive: boolean = true,
     container: ContainerName = constants.ROOT_CONTAINER,
     context?: string,
   ): Promise<boolean> {
     if (!podReference) {
-      throw new MissingArgumentError('podReference is required');
+      throw new SoloErrors.validation.missingArgument('podReference is required');
     }
     if (!destinationPath) {
-      throw new MissingArgumentError('destPath is required');
+      throw new SoloErrors.validation.missingArgument('destPath is required');
     }
     const containerReference: ContainerReference = ContainerReference.of(podReference, container);
 
@@ -380,7 +382,7 @@ export class PlatformInstaller {
 
   public async setPlatformDirPermissions(podReference: PodReference, context?: string): Promise<boolean> {
     if (!podReference) {
-      throw new MissingArgumentError('podReference is required');
+      throw new SoloErrors.validation.missingArgument('podReference is required');
     }
 
     try {

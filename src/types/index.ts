@@ -149,6 +149,8 @@ export interface GitHubReleaseAsset {
 export interface GitHubRelease {
   tag_name: string;
   html_url: string;
+  prerelease: boolean;
+  draft: boolean;
   assets: GitHubReleaseAsset[];
 }
 
@@ -176,7 +178,7 @@ export type ComponentData = {
   componentDisplayName: ComponentDisplayName;
 };
 
-export type InitDependenciesOptions = {deps: string[]; createCluster: boolean};
+export type InitDependenciesOptions = {deps: string[]; createCluster: boolean; useSmallMemoryCluster?: boolean};
 
 export type ReleaseNameData = {
   releaseName: Optional<string>;

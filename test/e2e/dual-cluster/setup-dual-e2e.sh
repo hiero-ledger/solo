@@ -10,6 +10,7 @@ export PATH=~/.solo/bin:${PATH}
 SCRIPT_PATH=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 readonly SCRIPT_PATH
 readonly KIND_CONFIG_RENDERER="${SCRIPT_PATH}/../../../.github/workflows/script/render_kind_config.sh"
+readonly METALLB_CHART_VERSION="0.15.3"
 
 readonly KIND_IMAGE="kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30"
 
@@ -140,6 +141,7 @@ for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   if [[ "${SOLO_CLUSTER_DUALITY}" -gt 1 && "${SOLO_SKIP_METALLB}" != "1" ]]; then
     helm upgrade --install metallb metallb/metallb \
       --namespace metallb-system --create-namespace --atomic --wait \
+      --version "${METALLB_CHART_VERSION}" \
       --set speaker.frr.enabled=true
 
     kubectl apply -f "${SCRIPT_PATH}/metallb-cluster-${i}.yaml"

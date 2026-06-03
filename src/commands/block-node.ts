@@ -183,7 +183,9 @@ export class BlockNodeCommand extends BaseCommand {
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [
+      // Keep legacy flag visible as a separate deprecated option.
       flags.blockNodeChartVersion,
+      flags.blockNodeVersion,
       flags.blockNodeChartDirectory,
       flags.blockNodeTssOverlay,
       flags.chartDirectory,
@@ -193,7 +195,9 @@ export class BlockNodeCommand extends BaseCommand {
       flags.enableIngress,
       flags.quiet,
       flags.valuesFile,
+      // Keep deprecated legacy flag accepted for backward compatibility.
       flags.releaseTag,
+      flags.consensusNodeVersion,
       flags.imageTag,
       flags.priorityMapping,
     ],
@@ -536,7 +540,6 @@ export class BlockNodeCommand extends BaseCommand {
               releaseName,
               chartVersion,
               valuesArg,
-              clusterRef,
               imageTag,
               blockNodeChartDirectory,
               newBlockNodeComponent,
@@ -563,11 +566,7 @@ export class BlockNodeCommand extends BaseCommand {
             if (imageTag) {
               // update config map with new VERSION info since
               // it will be used as a critical environment variable by block node
-              const blockNodeStateSchema: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
-                clusterRef,
-                namespace,
-              );
-              const blockNodeId: ComponentId = blockNodeStateSchema.metadata.id;
+              const blockNodeId: ComponentId = newBlockNodeComponent.metadata.id;
 
               const name: string = `block-node-${blockNodeId}-config`;
               const data: Record<string, string> = {VERSION: imageTag};

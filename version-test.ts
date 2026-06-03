@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // using a different version than the one in version.ts to test backwards compatibility
 
-export const TEST_UPGRADE_FROM_VERSION: string = 'v0.70.0';
-export const TEST_UPGRADE_TO_VERSION: string = 'v0.71.0';
+export const TEST_UPGRADE_FROM_VERSION: string = 'v0.72.0';
+export const TEST_UPGRADE_TO_VERSION: string = 'v0.73.0';
 
 // Do not delete, used by test script or Taskfile
-export const PREV_BLOCK_NODE_VERSION: string = 'v0.28.1';
+export const PREV_BLOCK_NODE_VERSION: string = 'v0.31.0';
 export const PREV_MIRROR_NODE_VERSION: string = 'v0.150.0';
 export const PREV_EXPLORER_VERSION: string = '25.1.1';
 export const PREV_RELAY_VERSION: string = '0.72.0';

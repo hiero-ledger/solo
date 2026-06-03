@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {type OneShotState} from '../../core/one-shot-state.js';
@@ -48,7 +49,6 @@ import {
   TransactionResponse,
 } from '@hiero-ledger/sdk';
 import {SoloError} from '../../core/errors/solo-error.js';
-import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {execSync} from 'node:child_process';
@@ -190,10 +190,13 @@ import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
+import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 
 const {gray, cyan, red, green, yellow} = chalk;
 
-export type LeaseWrapper = {lease: Lock};
+export interface LeaseWrapper {
+  lease: Lock;
+}
 
 @injectable()
 export class NodeCommandTasks {
@@ -319,7 +322,7 @@ export class NodeCommandTasks {
 
       return zipHash;
     } catch (error) {
-      throw new SoloError(`failed to upload build.zip file: ${error.message}`, error);
+      throw new SoloErrors.component.nodeBuildUploadFailed(error);
     }
   }
 
@@ -406,7 +409,7 @@ export class NodeCommandTasks {
         : defaultDataLibraryBuildPath;
 
       if (!fs.existsSync(localDataLibraryBuildPath)) {
-        throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
+        throw new SoloErrors.validation.localBuildPathNotFound(localDataLibraryBuildPath);
       }
 
       // The local build path points to the `data` directory itself (containing apps/ and lib/).
@@ -414,21 +417,19 @@ export class NodeCommandTasks {
       const applicationsSubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'apps');
       const librarySubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'lib');
       if (!fs.existsSync(applicationsSubDirectory) || !fs.existsSync(librarySubDirectory)) {
-        throw new SoloError(
-          `local build path '${localDataLibraryBuildPath}' must contain 'apps' and 'lib' subdirectories`,
-        );
+        throw new SoloErrors.validation.localBuildMissingSubdirectories(localDataLibraryBuildPath);
       }
       const applicationsJarFiles: string[] = fs
         .readdirSync(applicationsSubDirectory)
         .filter((file: string): boolean => file.endsWith('.jar'));
       if (applicationsJarFiles.length === 0) {
-        throw new SoloError(`No jar files found in '${applicationsSubDirectory}'; please check your local build path`);
+        throw new SoloErrors.validation.localBuildNoJarFiles(applicationsSubDirectory);
       }
       const libraryJarFiles: string[] = fs
         .readdirSync(librarySubDirectory)
         .filter((file: string): boolean => file.endsWith('.jar'));
       if (libraryJarFiles.length === 0) {
-        throw new SoloError(`No jar files found in '${librarySubDirectory}'; please check your local build path`);
+        throw new SoloErrors.validation.localBuildNoJarFiles(librarySubDirectory);
       }
 
       const k8: K8 = this.k8Factory.getK8(context);
@@ -458,19 +459,17 @@ export class NodeCommandTasks {
           }
 
           // retry copying the build to the node to handle edge cases during performance testing
-          let storedError: Error | null = null;
-          let index: number = 0;
-          for (; index < constants.LOCAL_BUILD_COPY_RETRY; index++) {
-            storedError = null;
+          for (let retryIndex: number = 0; retryIndex < constants.LOCAL_BUILD_COPY_RETRY; retryIndex++) {
             try {
               // filter the data/config and data/keys to avoid failures due to config and secret mounts
               await this.copyLocalBuildPathToNode(k8, podReference, this.configManager, localDataLibraryBuildPath);
+              break;
             } catch (error) {
-              storedError = error;
+              // max attempts reached
+              if (retryIndex === constants.LOCAL_BUILD_COPY_RETRY - 1) {
+                throw new SoloErrors.component.nodeBuildCopyFailed(error);
+              }
             }
-          }
-          if (storedError) {
-            throw new SoloError(`Error in copying local build to node: ${storedError.message}`, storedError);
           }
         },
       });
@@ -659,10 +658,7 @@ export class NodeCommandTasks {
     }
 
     if (!success) {
-      throw new SoloError(
-        `node '${nodeAlias}' is not ${NodeStatusEnums[status]}` +
-          `[ attempt = ${chalk.blueBright(`${attempt}/${maxAttempts}`)} ]`,
-      );
+      throw new SoloErrors.component.nodeNotReady(nodeAlias, NodeStatusEnums[status], attempt, maxAttempts);
     }
 
     if (status === NodeStatusCodes.ACTIVE) {
@@ -825,55 +821,64 @@ export class NodeCommandTasks {
     nodeAlias: NodeAlias,
     stakeAmount: number = HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
   ): Promise<void> {
+    const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+    await this.accountManager.loadNodeClient(
+      namespace,
+      this.remoteConfig.getClusterRefs(),
+      deploymentName,
+      this.configManager.getFlag<boolean>(flags.forcePortForward),
+    );
+    const client: Client = this.accountManager._nodeClient;
+    const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
+      namespace,
+      deploymentName,
+    );
+
+    const treasuryPrivateKey: PrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
+    const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
+    client.setOperator(treasuryAccountId, treasuryPrivateKey);
+
+    // check balance
+    let treasuryBalance: AccountBalance;
     try {
-      const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
-      await this.accountManager.loadNodeClient(
-        namespace,
-        this.remoteConfig.getClusterRefs(),
-        deploymentName,
-        this.configManager.getFlag<boolean>(flags.forcePortForward),
-      );
-      const client: Client = this.accountManager._nodeClient;
-      const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
-        namespace,
-        deploymentName,
-      );
-
-      const treasuryPrivateKey: PrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
-      const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
-      client.setOperator(treasuryAccountId, treasuryPrivateKey);
-
-      // check balance
-      const treasuryBalance: AccountBalance = await new AccountBalanceQuery()
-        .setAccountId(treasuryAccountId)
-        .execute(client);
-
-      this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
-
-      // get some initial balance
-      await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
-
-      // check balance
-      const balance: AccountBalance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
-      this.logger.debug(`Account ${accountId} balance: ${balance.hbars}`);
-
-      // Create the transaction
-      const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
-        .setAccountId(accountId)
-        .setStakedNodeId(Templates.nodeIdFromNodeAlias(nodeAlias))
-        .freezeWith(client);
-
-      // Sign the transaction with the account's private key
-      const signTransaction: AccountUpdateTransaction = await transaction.sign(treasuryPrivateKey);
-
-      const transactionResponse: TransactionResponse = await signTransaction.execute(client);
-
-      const receipt: TransactionReceipt = await transactionResponse.getReceipt(client);
-
-      this.logger.debug(`The transaction consensus status is ${receipt.status}`);
+      treasuryBalance = await new AccountBalanceQuery().setAccountId(treasuryAccountId).execute(client);
     } catch (error) {
-      throw new SoloError(`Error in adding stake: ${error.message}`, error);
+      throw new SoloErrors.component.accountBalanceQueryFailed(treasuryAccountId, error);
     }
+
+    this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
+
+    // get some initial balance
+    await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
+
+    // check balance
+    let balance: AccountBalance;
+    try {
+      balance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
+    } catch (error) {
+      throw new SoloErrors.component.accountBalanceQueryFailed(accountId, error);
+    }
+    this.logger.debug(`Account ${accountId} balance: ${balance.hbars}`);
+
+    // Create the transaction
+    const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
+      .setAccountId(accountId)
+      .setStakedNodeId(Templates.nodeIdFromNodeAlias(nodeAlias))
+      .freezeWith(client);
+
+    // Sign the transaction with the account's private key
+    const signTransaction: AccountUpdateTransaction = await transaction.sign(treasuryPrivateKey);
+
+    let transactionResponse: TransactionResponse;
+    let receipt: TransactionReceipt;
+    try {
+      transactionResponse = await signTransaction.execute(client);
+      receipt = await transactionResponse.getReceipt(client);
+    } catch (error) {
+      throw new SoloErrors.component.nodeStakeTransactionError(error);
+    }
+
+    this.logger.debug(`The transaction consensus status is ${receipt.status}`);
   }
 
   public prepareUpgradeZip(): SoloListrTask<AnyListrContext> {
@@ -982,42 +987,49 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {nodeClient, freezeAdminPrivateKey, deployment} = context_.config;
+        const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+        const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
+
+        // query the balance
+        let balance: AccountBalance;
         try {
-          const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-          const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
+          balance = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
+        } catch (error) {
+          throw new SoloErrors.component.accountBalanceQueryFailed(freezeAccountId, error);
+        }
 
-          // query the balance
-          const balance: AccountBalance = await new AccountBalanceQuery()
-            .setAccountId(freezeAccountId)
-            .execute(nodeClient);
+        this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
-          this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
+        // transfer some tiny amount to the freeze admin account
+        await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
 
-          // transfer some tiny amount to the freeze admin account
-          await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
+        // set operator of freeze transaction as freeze admin account
+        nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
 
-          // set operator of freeze transaction as freeze admin account
-          nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
-
-          const prepareUpgradeTransaction: TransactionResponse = await new FreezeTransaction()
+        let prepareUpgradeTransaction: TransactionResponse;
+        let prepareUpgradeReceipt: TransactionReceipt;
+        try {
+          prepareUpgradeTransaction = await new FreezeTransaction()
             .setFreezeType(FreezeType.PrepareUpgrade)
             .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
+          prepareUpgradeReceipt = await prepareUpgradeTransaction.getReceipt(nodeClient);
+        } catch (error) {
+          throw new SoloErrors.component.nodePrepareUpgradeTransactionError(error);
+        }
 
-          const prepareUpgradeReceipt: TransactionReceipt = await prepareUpgradeTransaction.getReceipt(nodeClient);
+        this.logger.debug(
+          `sent prepare upgrade transaction [id: ${prepareUpgradeTransaction.transactionId.toString()}]`,
+          prepareUpgradeReceipt.status.toString(),
+        );
 
-          this.logger.debug(
-            `sent prepare upgrade transaction [id: ${prepareUpgradeTransaction.transactionId.toString()}]`,
+        if (prepareUpgradeReceipt.status !== Status.Success) {
+          throw new SoloErrors.component.nodeTransactionFailed(
+            'Prepare upgrade',
             prepareUpgradeReceipt.status.toString(),
           );
-
-          if (prepareUpgradeReceipt.status !== Status.Success) {
-            throw new SoloError(`Prepare upgrade transaction failed: ${prepareUpgradeReceipt.status}`);
-          }
-        } catch (error) {
-          throw new SoloError(`Error in prepare upgrade: ${error.message}`, error);
         }
       },
     };
@@ -1031,39 +1043,44 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const {upgradeZipHash} = context_;
         const {freezeAdminPrivateKey, nodeClient, deployment} = context_.config;
+        const futureDate: Date = new Date();
+        this.logger.debug(`Current time: ${futureDate}`);
+
+        futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
+        this.logger.debug(`Freeze time: ${futureDate}`);
+
+        const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+
+        // query the balance
+        let balance: AccountBalance;
         try {
-          const futureDate: Date = new Date();
-          this.logger.debug(`Current time: ${futureDate}`);
+          balance = await new AccountBalanceQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
+        } catch (error) {
+          throw new SoloErrors.component.accountBalanceQueryFailed(freezeAdminAccountId, error);
+        }
 
-          futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
-          this.logger.debug(`Freeze time: ${futureDate}`);
+        this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
 
-          const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-
-          // query the balance
-          const balance: AccountBalance = await new AccountBalanceQuery()
-            .setAccountId(freezeAdminAccountId)
-            .execute(nodeClient);
-
-          this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
-
-          nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeUpgradeTx: TransactionResponse = await new FreezeTransaction()
+        nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
+        let freezeUpgradeReceipt: TransactionReceipt;
+        let freezeUpgradeTx: TransactionResponse;
+        try {
+          freezeUpgradeTx = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeUpgrade)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
-
-          const freezeUpgradeReceipt: TransactionReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
-          this.logger.debug(
-            `Upgrade frozen with transaction id: ${freezeUpgradeTx.transactionId.toString()}`,
-            freezeUpgradeReceipt.status.toString(),
-          );
+          freezeUpgradeReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
         } catch (error) {
-          throw new SoloError(`Error in freeze upgrade: ${error.message}`, error);
+          throw new SoloErrors.component.nodeFreezeUpgradeTransactionError(error);
         }
+
+        this.logger.debug(
+          `Upgrade frozen with transaction id: ${freezeUpgradeTx.transactionId.toString()}`,
+          freezeUpgradeReceipt.status.toString(),
+        );
       },
     };
   }
@@ -1073,35 +1090,36 @@ export class NodeCommandTasks {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
         const {freezeAdminPrivateKey, deployment, namespace}: any = context_.config;
+        const nodeClient: Client = await this.accountManager.loadNodeClient(
+          namespace,
+          this.remoteConfig.getClusterRefs(),
+          deployment,
+        );
+        const futureDate: Date = new Date();
+        this.logger.debug(`Current time: ${futureDate}`);
+
+        futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
+        this.logger.debug(`Freeze time: ${futureDate}`);
+
+        const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+        nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
+        let freezeOnlyTransaction: TransactionResponse;
+        let freezeOnlyReceipt: TransactionReceipt;
         try {
-          const nodeClient: Client = await this.accountManager.loadNodeClient(
-            namespace,
-            this.remoteConfig.getClusterRefs(),
-            deployment,
-          );
-          const futureDate: Date = new Date();
-          this.logger.debug(`Current time: ${futureDate}`);
-
-          futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
-          this.logger.debug(`Freeze time: ${futureDate}`);
-
-          const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-          nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeOnlyTransaction: TransactionResponse = await new FreezeTransaction()
+          freezeOnlyTransaction = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeOnly)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .freezeWith(nodeClient)
             .execute(nodeClient);
-
-          const freezeOnlyReceipt: TransactionReceipt = await freezeOnlyTransaction.getReceipt(nodeClient);
-
-          this.logger.debug(
-            `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
-            freezeOnlyReceipt.status.toString(),
-          );
+          freezeOnlyReceipt = await freezeOnlyTransaction.getReceipt(nodeClient);
         } catch (error) {
-          throw new SoloError(`Error in sending freeze transaction: ${error.message}`, error);
+          throw new SoloErrors.component.nodeFreezeTransactionError(error);
         }
+
+        this.logger.debug(
+          `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
+          freezeOnlyReceipt.status.toString(),
+        );
       },
     };
   }
@@ -1286,7 +1304,7 @@ export class NodeCommandTasks {
 
       return podReference;
     } catch (error) {
-      throw new SoloError(`no pod found for nodeAlias: ${nodeAlias}`, error);
+      throw new SoloErrors.system.podNotFound(nodeAlias, error);
     }
   }
 
@@ -1353,7 +1371,6 @@ export class NodeCommandTasks {
       },
     };
   }
-
   public uploadStateFiles(skip: SkipCheck | boolean, stateFileDirectory?: string) {
     return {
       title: 'Upload state files network nodes',
@@ -1361,42 +1378,54 @@ export class NodeCommandTasks {
         const config: NodeAddConfigClass & {stateFile?: string} = context_.config;
 
         // Get the source node ID from the first consensus node (the state file's original node)
-        const sourceNodeId: any = config.consensusNodes[0].nodeId;
+        const sourceNodeId: NodeId = config.consensusNodes[0].nodeId;
 
         for (const nodeAlias of context_.config.nodeAliases) {
           const kubeContext: Optional<string> = helpers.extractContextFromConsensusNodes(
             nodeAlias,
             config.consensusNodes,
           );
+
           if (!kubeContext) {
-            throw new SoloError(`Unable to determine Kubernetes context for node ${nodeAlias}`);
+            throw new SoloErrors.system.kubeContextNotFound(nodeAlias);
           }
+
           const k8: K8 = this.k8Factory.getK8(kubeContext);
-          const podReference: any = context_.config.podRefs[nodeAlias];
+          const podReference: PodReference = context_.config.podRefs[nodeAlias];
           const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-          const consensusNode: any = config.consensusNodes.find((node): boolean => node.name === nodeAlias);
+          const consensusNode: ConsensusNode = config.consensusNodes.find((node): boolean => node.name === nodeAlias);
+
           if (!consensusNode) {
-            throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
+            throw new SoloErrors.system.consensusNodeNotInConfig(nodeAlias);
           }
-          const clusterReference: any = consensusNode.cluster ?? kubeContext;
-          const targetNodeId: any = consensusNode.nodeId;
-          const container: Container = await k8.containers().readByRef(containerReference);
+
+          const clusterReference: ClusterReferenceName = consensusNode.cluster ?? kubeContext;
+          const targetNodeId: NodeId = consensusNode.nodeId;
+          const container: Container = k8.containers().readByRef(containerReference);
 
           // Determine the state file to use
           let zipFile: string;
-          const stateInputPath: string = stateFileDirectory || config.stateFile;
-          if (stateInputPath && fs.existsSync(stateInputPath) && fs.statSync(stateInputPath).isDirectory()) {
+          let stateInputPath: string = stateFileDirectory || config.stateFile;
+
+          if (!stateInputPath || !fs.existsSync(stateInputPath)) {
+            throw new SoloErrors.validation.stateFilePathNotFound(stateInputPath);
+          }
+
+          stateInputPath = PathEx.resolve(stateInputPath);
+
+          if (fs.statSync(stateInputPath).isDirectory()) {
             // It's a directory - find the state file for this specific pod
-            const podName: any = podReference.name.name;
+            const podName: string = podReference.name.name;
             const statesDirectory: string = PathEx.join(
               stateInputPath,
               'states',
               clusterReference,
               config.namespace.name,
             );
+
             if (!fs.existsSync(statesDirectory)) {
               this.logger.showUserError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
-              throw new SoloError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
+              throw new SoloErrors.system.statesDirectoryNotFound(nodeAlias, statesDirectory);
             }
 
             const stateFiles: string[] = fs
@@ -1416,17 +1445,36 @@ export class NodeCommandTasks {
             zipFile = stateInputPath;
           }
 
+          if (!zipFile.endsWith('.zip')) {
+            throw new SoloErrors.validation.invalidStateFileFormat(zipFile);
+          }
+
+          if (!fs.existsSync(zipFile) || !fs.statSync(zipFile).isFile()) {
+            throw new SoloErrors.validation.stateFileNotFound(zipFile);
+          }
+
+          const zipFileName: string = PathEx.basename(zipFile);
+
+          // The zip filename is later passed to `unzip` inside the container.
+          // Keep the accepted filename format intentionally small so user input cannot
+          // be interpreted as command options, path traversal, shell syntax, or nested paths.
+          if (zipFileName.startsWith('-') || !/^[a-zA-Z0-9._-]+$/.test(zipFileName)) {
+            throw new SoloErrors.validation.invalidStateZipFileName(zipFileName);
+          }
+
           this.logger.debug(`Uploading state files to pod ${podReference.name}`);
           await container.copyTo(zipFile, `${constants.HEDERA_HAPI_PATH}/data`);
 
           this.logger.info(
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
+
           await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+
           await container.execContainer([
             'unzip',
             '-o',
-            `${constants.HEDERA_HAPI_PATH}/data/${PathEx.basename(zipFile)}`,
+            `${constants.HEDERA_HAPI_PATH}/data/${zipFileName}`,
             '-d',
             `${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
@@ -1436,6 +1484,7 @@ export class NodeCommandTasks {
           // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
           // The chown is required so the hedera process can access the extracted state files.
           this.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
+
           await container.execContainer([
             'bash',
             '-c',
@@ -1444,8 +1493,10 @@ export class NodeCommandTasks {
 
           // Clean up old rounds - keep only the latest/biggest round
           this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
+
           const cleanupScriptName: string = PathEx.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
           const cleanupScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
@@ -1456,11 +1507,14 @@ export class NodeCommandTasks {
             this.logger.info(
               `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
             );
+
             const renameScriptName: string = PathEx.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
             const renameScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
+
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
             await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
             await container.execContainer(['chmod', '+x', renameScriptDestination]);
+
             await container.execContainer([
               renameScriptDestination,
               constants.HEDERA_HAPI_PATH,
@@ -1499,11 +1553,12 @@ export class NodeCommandTasks {
         }
 
         if ('upgradeVersion' in context_.config) {
-          if (!context_.config.upgradeVersion) {
+          if (context_.config.upgradeVersion) {
+            releaseTag = context_.config.upgradeVersion;
+          } else if (!localBuildPath) {
             this.logger.info('Skip, no need to update the platform software');
             return;
           }
-          releaseTag = context_.config.upgradeVersion;
         }
 
         context_.config.releaseTag = releaseTag;
@@ -1641,7 +1696,7 @@ export class NodeCommandTasks {
             .containers()
             .readByRef(rootContainer);
 
-          await container.execContainer('chmod 777 /opt/hgcapp/services-hedera/HapiApp2.0/data');
+          await container.execContainer('chmod 750 /opt/hgcapp/services-hedera/HapiApp2.0/data');
 
           // save consensus node version in remote config
           this.remoteConfig.updateComponentVersion(
@@ -1701,7 +1756,7 @@ export class NodeCommandTasks {
               }
 
               if (!success) {
-                throw new Error(`Node ${node.name} did not become ready after ${maxAttempts} attempts`);
+                throw new SoloErrors.component.nodeNotReady(node.name, 'TSS Ready', maxAttempts, maxAttempts);
               }
             },
           });
@@ -1813,11 +1868,17 @@ export class NodeCommandTasks {
             updateTransaction = await updateTransaction.sign(adminKey);
           }
 
-          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
-          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+          let transactionResponse: TransactionResponse;
+          let updateTransactionReceipt: TransactionReceipt;
+          try {
+            transactionResponse = await updateTransaction.execute(nodeClient);
+            updateTransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+          } catch (error) {
+            throw new SoloErrors.component.nodeUpdateTransactionError(error);
+          }
 
           if (updateTransactionReceipt.status !== Status.Success) {
-            throw new SoloError('Failed to set gRPC web proxy endpoint');
+            throw new SoloErrors.system.grpcProxyEndpointFailed();
           }
         }
       },
@@ -1905,7 +1966,7 @@ export class NodeCommandTasks {
 
               const stagingDirectory: string = Templates.renderStagingDir(
                 this.configManager.getFlag(flags.cacheDir),
-                this.configManager.getFlag(flags.releaseTag),
+                this.configManager.getFlag(flags.consensusNodeVersion),
               );
 
               if (!fs.existsSync(stagingDirectory)) {
@@ -1976,10 +2037,7 @@ export class NodeCommandTasks {
                   `ls "${directoryPath}"/*.jar 2>/dev/null | wc -l`,
                 ]);
                 if (Number.parseInt(output.trim(), 10) === 0) {
-                  throw new SoloError(
-                    `Node '${nodeAlias}': no JAR files found in ${directoryPath}. ` +
-                      'Ensure platform software was copied to the node before starting.',
-                  );
+                  throw new SoloErrors.validation.nodeJarFilesNotInContainer(nodeAlias, directoryPath);
                 }
               }
               await container.execContainer(['bash', '-c', startCommand]);
@@ -2046,7 +2104,7 @@ export class NodeCommandTasks {
             .list(config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
 
           if (pods.length === 0) {
-            throw new SoloError('No HAProxy pods found');
+            throw new SoloErrors.system.haproxyPodsNotFound();
           }
 
           for (const pod of pods) {
@@ -2297,7 +2355,7 @@ export class NodeCommandTasks {
 
   public stopNodes(
     nodeAliasesProperty: string,
-  ): SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDestroyContext> {
+  ): SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDestroyContext | NodeUpgradeContext> {
     return {
       title: 'Stopping nodes',
       task: async (context_, task): Promise<any> => {
@@ -2410,7 +2468,7 @@ export class NodeCommandTasks {
 
         const stagingDirectory: string = Templates.renderStagingDir(
           this.configManager.getFlag(flags.cacheDir),
-          this.configManager.getFlag(flags.releaseTag),
+          this.configManager.getFlag(flags.consensusNodeVersion),
         );
 
         for (const flag of flags.nodeConfigFileFlags.values()) {
@@ -2422,9 +2480,7 @@ export class NodeCommandTasks {
           const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
           const sourceAbsoluteFilePath: string = PathEx.resolve(currentWorkingDirectory, sourceFilePath);
           if (!fs.existsSync(sourceAbsoluteFilePath)) {
-            throw new SoloError(
-              `Configuration file does not exist for: ${flag.name}, absolute path: ${sourceAbsoluteFilePath}, path: ${sourceFilePath}`,
-            );
+            throw new SoloErrors.validation.configFileNotFound(flag.name, sourceAbsoluteFilePath, sourceFilePath);
           }
 
           const destinationFileName: string = PathEx.basename(flag.definition.defaultValue as string);
@@ -2799,10 +2855,7 @@ export class NodeCommandTasks {
               task.title += '\n\t' + gray('Pod port') + ' ' + yellow(`[${podPort}]`);
 
               if (check && !isReachable) {
-                throw new SoloError(
-                  `Configured port-forward is missing: ${componentDisplayName} ${componentId} ` +
-                    `localhost:${localPort} -> pod:${podPort}`,
-                );
+                throw new SoloErrors.system.portForwardMissing(componentDisplayName, componentId, localPort, podPort);
               }
             },
           });
@@ -3008,7 +3061,7 @@ export class NodeCommandTasks {
       title: 'Check that PVCs are enabled',
       task: async (context_): Promise<void> => {
         if (!this.configManager.getFlag(flags.persistentVolumeClaims)) {
-          throw new SoloError('PVCs flag are not enabled. Please enable PVCs before adding a node');
+          throw new SoloErrors.validation.pvcFlagNotEnabled();
         }
 
         // Create an array of promises
@@ -3021,9 +3074,7 @@ export class NodeCommandTasks {
 
           this.logger.info(`Found ${pvcs.length} PVCs in namespace ${context_.config.namespace}: ${pvcs.join(', ')}`);
           if (pvcs.length === 0) {
-            throw new SoloError(
-              'No PVCs found in the namespace. Please ensure PVCs are enabled during network deployment.',
-            );
+            throw new SoloErrors.system.noPvcFound(String(context_.config.namespace));
           }
           return pvcs;
         });
@@ -3236,7 +3287,7 @@ export class NodeCommandTasks {
           endpoints = splitFlagInput(config.grpcEndpoints);
         } else {
           if (config.endpointType !== constants.ENDPOINT_TYPE_FQDN) {
-            throw new SoloError(`--grpc-endpoints must be set if --endpoint-type is: ${constants.ENDPOINT_TYPE_IP}`);
+            throw new SoloErrors.validation.grpcEndpointsRequired(constants.ENDPOINT_TYPE_IP);
           }
 
           endpoints = [
@@ -3272,90 +3323,97 @@ export class NodeCommandTasks {
           );
         }
 
+        let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
+
+        if (config.tlsPublicKey && config.tlsPrivateKey) {
+          this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
+          const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
+          const tlsCertHash: Buffer = crypto.createHash('sha384').update(tlsCertDer).digest();
+          nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
+
+          const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
+          const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
+          renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir);
+          renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir);
+        }
+
+        if (config.gossipPublicKey && config.gossipPrivateKey) {
+          this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
+          const signingCertDer: Uint8Array = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
+          nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
+
+          const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
+          const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
+          renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir);
+          renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir);
+        }
+
+        if (config.newAccountNumber) {
+          nodeUpdateTx = nodeUpdateTx.setAccountId(config.newAccountNumber);
+        }
+
+        let parsedNewKey: PrivateKey;
+        if (config.newAdminKey) {
+          parsedNewKey = PrivateKey.fromStringED25519(config.newAdminKey.toString());
+          nodeUpdateTx = nodeUpdateTx.setAdminKey(parsedNewKey.publicKey);
+        }
+        nodeUpdateTx = nodeUpdateTx.freezeWith(config.nodeClient);
+
+        // config.adminKey contains the original key, needed to sign the transaction
+        if (config.newAdminKey) {
+          nodeUpdateTx = await nodeUpdateTx.sign(parsedNewKey);
+        }
+
+        // also sign with new account's key if account is being updated
+        if (config.newAccountNumber) {
+          const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
+            config.newAccountNumber,
+            config.namespace,
+          );
+          nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
+        }
+
+        const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(config.adminKey);
+
+        let txResp: TransactionResponse;
+        let nodeUpdateReceipt: TransactionReceipt;
         try {
-          let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
-
-          if (config.tlsPublicKey && config.tlsPrivateKey) {
-            this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
-            const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
-            const tlsCertHash: Buffer = crypto.createHash('sha384').update(tlsCertDer).digest();
-            nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
-
-            const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir);
-            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir);
-          }
-
-          if (config.gossipPublicKey && config.gossipPrivateKey) {
-            this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-            const signingCertDer: Uint8Array = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
-            nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
-
-            const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir);
-            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir);
-          }
-
-          if (config.newAccountNumber) {
-            nodeUpdateTx = nodeUpdateTx.setAccountId(config.newAccountNumber);
-          }
-
-          let parsedNewKey: PrivateKey;
-          if (config.newAdminKey) {
-            parsedNewKey = PrivateKey.fromStringED25519(config.newAdminKey.toString());
-            nodeUpdateTx = nodeUpdateTx.setAdminKey(parsedNewKey.publicKey);
-          }
-          nodeUpdateTx = nodeUpdateTx.freezeWith(config.nodeClient);
-
-          // config.adminKey contains the original key, needed to sign the transaction
-          if (config.newAdminKey) {
-            nodeUpdateTx = await nodeUpdateTx.sign(parsedNewKey);
-          }
-
-          // also sign with new account's key if account is being updated
-          if (config.newAccountNumber) {
-            const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
-              config.newAccountNumber,
-              config.namespace,
-            );
-            nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
-          }
-          const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(config.adminKey);
-          const txResp: TransactionResponse = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
-          this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
-
-          // If admin key was updated, save the new key to k8s secret
-          if (config.newAdminKey) {
-            const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
-            const data: {privateKey: string; publicKey: string} = {
-              privateKey: Base64.encode(parsedNewKey.toString()),
-              publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
-            };
-
-            const isAdminKeySecretCreated: boolean = await this.k8Factory
-              .getK8(context)
-              .secrets()
-              .createOrReplace(
-                config.namespace,
-                Templates.renderNodeAdminKeyName(config.nodeAlias),
-                SecretType.OPAQUE,
-                data,
-                {
-                  'solo.hedera.com/node-admin-key': 'true',
-                },
-              );
-
-            if (!isAdminKeySecretCreated) {
-              throw new SoloError(`failed to create admin key secret for node '${config.nodeAlias}'`);
-            }
-
-            this.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
-          }
+          txResp = await signedTx.execute(config.nodeClient);
+          nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
         } catch (error) {
-          throw new SoloError(`Error updating node to network: ${error.message}`, error);
+          throw new SoloErrors.component.nodeUpdateTransactionError(error);
+        }
+
+        this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+
+        // If admin key was updated, save the new key to k8s secret
+        if (config.newAdminKey) {
+          const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+          const data: {privateKey: string; publicKey: string} = {
+            privateKey: Base64.encode(parsedNewKey.toString()),
+            publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
+          };
+
+          const isAdminKeySecretCreated: boolean = await this.k8Factory
+            .getK8(context)
+            .secrets()
+            .createOrReplace(
+              config.namespace,
+              Templates.renderNodeAdminKeyName(config.nodeAlias),
+              SecretType.OPAQUE,
+              data,
+              {
+                'solo.hedera.com/node-admin-key': 'true',
+              },
+            );
+
+          if (!isAdminKeySecretCreated) {
+            throw new SoloErrors.system.k8sSecretCreateFailed(
+              `failed to create admin key secret for node '${config.nodeAlias}'`,
+            );
+          }
+
+          this.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
         }
       },
     };
@@ -3391,7 +3449,7 @@ export class NodeCommandTasks {
         if (wrapsKeyPath) {
           // Use user-provided local directory containing WRAPs proving key files
           if (!fs.existsSync(wrapsKeyPath)) {
-            throw new SoloError(`WRAPs key path does not exist: ${wrapsKeyPath}`);
+            throw new SoloErrors.validation.wrapsKeyPathNotFound(wrapsKeyPath);
           }
 
           if (!fs.existsSync(extractedDirectory)) {
@@ -3843,9 +3901,7 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const outputDirectory: string = argv[flags.outputDir.name];
         if (!outputDirectory) {
-          throw new SoloError(
-            `Path to export context data not specified. Please set a value for --${flags.outputDir.name}`,
-          );
+          throw new SoloErrors.validation.outputDirectoryNotSpecified(flags.outputDir.name);
         }
 
         if (!fs.existsSync(outputDirectory)) {
@@ -3867,7 +3923,7 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const inputDirectory: string = argv[flags.inputDir.name];
         if (!inputDirectory) {
-          throw new SoloError(`Path to context data not specified. Please set a value for --${flags.inputDir.name}`);
+          throw new SoloErrors.validation.inputDirectoryNotSpecified(flags.inputDir.name);
         }
 
         // @ts-expect-error - TS2345
@@ -3951,6 +4007,30 @@ export class NodeCommandTasks {
         );
 
         for (const service of config.serviceMap.values()) {
+          // Disable the network-node autostart BEFORE killing the pod so the restarted
+          // pod does not auto-launch the JVM while fetchPlatformSoftware is still
+          // rm-ing and re-copying jars under data/lib (HederaNode.jar has an explicit
+          // Class-Path manifest; a JVM that lazy-loads a jar mid-rm crashes with
+          // NoSuchFileException). startNodes() re-enables autostart after the upload.
+          try {
+            const podReference: PodReference = PodReference.of(config.namespace, service.nodePodName);
+            const containerReference: ContainerReference = ContainerReference.of(
+              podReference,
+              constants.ROOT_CONTAINER,
+            );
+            await this.k8Factory
+              .getK8(service.context)
+              .containers()
+              .readByRef(containerReference)
+              .execContainer([
+                'bash',
+                '-c',
+                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
+              ]);
+          } catch {
+            // Best-effort: container may already be restarting; the kill below will follow
+          }
+
           await this.k8Factory
             .getK8(service.context)
             .pods()
@@ -4098,45 +4178,48 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeDestroyConfigClass = context_.config;
 
+        const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
+        const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
+          config.existingNodeAliases,
+          deploymentName,
+        );
+        const deleteAccountId: string = accountMap.get(config.nodeAlias);
+        this.logger.debug(`Deleting node: ${config.nodeAlias} with account: ${deleteAccountId}`);
+
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+
+        const nodeDeleteTransaction: NodeDeleteTransaction = new NodeDeleteTransaction()
+          .setNodeId(new Long(nodeId))
+          .freezeWith(config.nodeClient);
+
+        let signedTransaction: NodeDeleteTransaction;
+        let transactionResponse: TransactionResponse;
+        let nodeDeleteReceipt: TransactionReceipt;
         try {
-          const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
-          const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
-            config.existingNodeAliases,
-            deploymentName,
-          );
-          const deleteAccountId: string = accountMap.get(config.nodeAlias);
-          this.logger.debug(`Deleting node: ${config.nodeAlias} with account: ${deleteAccountId}`);
-
-          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-
-          const nodeDeleteTransaction: NodeDeleteTransaction = new NodeDeleteTransaction()
-            .setNodeId(new Long(nodeId))
-            .freezeWith(config.nodeClient);
-
-          const signedTransaction: NodeDeleteTransaction = await nodeDeleteTransaction.sign(config.adminKey);
-          const transactionResponse: TransactionResponse = await signedTransaction.execute(config.nodeClient);
-          const nodeDeleteReceipt: TransactionReceipt = await transactionResponse.getReceipt(config.nodeClient);
-
-          this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
-
-          if (nodeDeleteReceipt.status !== Status.Success) {
-            throw new SoloError(`Node delete transaction failed with status: ${nodeDeleteReceipt.status}.`);
-          }
-
-          // Delete admin key secret from k8s after successful node deletion
-          try {
-            const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
-            await this.k8Factory
-              .getK8(context)
-              .secrets()
-              .delete(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias));
-            this.logger.debug(`Deleted admin key secret for node ${config.nodeAlias} from k8s`);
-          } catch (deleteError) {
-            // Log but don't fail the delete operation if secret doesn't exist or can't be deleted
-            this.logger.debug(`Could not delete admin key secret for ${config.nodeAlias}: ${deleteError.message}`);
-          }
+          signedTransaction = await nodeDeleteTransaction.sign(config.adminKey);
+          transactionResponse = await signedTransaction.execute(config.nodeClient);
+          nodeDeleteReceipt = await transactionResponse.getReceipt(config.nodeClient);
         } catch (error) {
-          throw new SoloError(`Error deleting node from network: ${error.message}`, error);
+          throw new SoloErrors.component.nodeDeleteTransactionError(error);
+        }
+
+        this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
+
+        if (nodeDeleteReceipt.status !== Status.Success) {
+          throw new SoloErrors.component.nodeTransactionFailed('Node delete', nodeDeleteReceipt.status.toString());
+        }
+
+        // Delete admin key secret from k8s after successful node deletion
+        try {
+          const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+          await this.k8Factory
+            .getK8(context)
+            .secrets()
+            .delete(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias));
+          this.logger.debug(`Deleted admin key secret for node ${config.nodeAlias} from k8s`);
+        } catch (deleteError) {
+          // Log but don't fail the delete operation if secret doesn't exist or can't be deleted
+          this.logger.debug(`Could not delete admin key secret for ${config.nodeAlias}: ${deleteError.message}`);
         }
       },
     };
@@ -4148,46 +4231,49 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass = context_.config;
 
+        const nodeCreateTransaction: NodeCreateTransaction = new NodeCreateTransaction()
+          .setAccountId(context_.newNode.accountId)
+          .setGossipEndpoints(context_.gossipEndpoints)
+          .setServiceEndpoints(context_.grpcServiceEndpoints)
+          .setGossipCaCertificate(context_.signingCertDer)
+          .setCertificateHash(context_.tlsCertHash)
+          .setAdminKey(context_.adminKey.publicKey)
+          .freezeWith(config.nodeClient);
+
+        let signedTransaction: NodeCreateTransaction;
+        let txResp: TransactionResponse;
+        let nodeCreateReceipt: TransactionReceipt;
         try {
-          const nodeCreateTransaction: NodeCreateTransaction = new NodeCreateTransaction()
-            .setAccountId(context_.newNode.accountId)
-            .setGossipEndpoints(context_.gossipEndpoints)
-            .setServiceEndpoints(context_.grpcServiceEndpoints)
-            .setGossipCaCertificate(context_.signingCertDer)
-            .setCertificateHash(context_.tlsCertHash)
-            .setAdminKey(context_.adminKey.publicKey)
-            .freezeWith(config.nodeClient);
-
-          const signedTransaction: NodeCreateTransaction = await nodeCreateTransaction.sign(context_.adminKey);
-          const txResp: TransactionResponse = await signedTransaction.execute(config.nodeClient);
-          const nodeCreateReceipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
-
-          this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
-
-          if (nodeCreateReceipt.status !== Status.Success) {
-            throw new SoloError(`Node Create Transaction failed: ${nodeCreateReceipt.status}`);
-          }
-
-          // Save admin key to k8s secret after successful node creation
-          // nodeAlias was set in determineNewNodeAccountNumber step
-          const nodeAlias: NodeAlias = config.nodeAlias;
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const data: {privateKey: string; publicKey: string} = {
-            privateKey: Base64.encode(context_.adminKey.toString()),
-            publicKey: Base64.encode(context_.adminKey.publicKey.toString()),
-          };
-
-          await this.k8Factory
-            .getK8(context)
-            .secrets()
-            .createOrReplace(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
-              'solo.hedera.com/node-admin-key': 'true',
-            });
-
-          this.logger.debug(`Saved admin key for node ${nodeAlias} to k8s secret`);
+          signedTransaction = await nodeCreateTransaction.sign(context_.adminKey);
+          txResp = await signedTransaction.execute(config.nodeClient);
+          nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
         } catch (error) {
-          throw new SoloError(`Error adding node to network: ${error.message}`, error);
+          throw new SoloErrors.component.nodeCreateTransactionError(error);
         }
+
+        this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
+
+        if (nodeCreateReceipt.status !== Status.Success) {
+          throw new SoloErrors.component.nodeTransactionFailed('Node Create', nodeCreateReceipt.status.toString());
+        }
+
+        // Save admin key to k8s secret after successful node creation
+        // nodeAlias was set in determineNewNodeAccountNumber step
+        const nodeAlias: NodeAlias = config.nodeAlias;
+        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+        const data: {privateKey: string; publicKey: string} = {
+          privateKey: Base64.encode(context_.adminKey.toString()),
+          publicKey: Base64.encode(context_.adminKey.publicKey.toString()),
+        };
+
+        await this.k8Factory
+          .getK8(context)
+          .secrets()
+          .createOrReplace(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
+            'solo.hedera.com/node-admin-key': 'true',
+          });
+
+        this.logger.debug(`Saved admin key for node ${nodeAlias} to k8s secret`);
       },
     };
   }
@@ -4233,7 +4319,7 @@ export class NodeCommandTasks {
 
         for (const flag of required) {
           if (config[flag.constName] === undefined) {
-            throw new MissingArgumentError(`No value set for required flag: ${flag.name}`, flag.name);
+            throw new SoloErrors.validation.missingArgument(`No value set for required flag: ${flag.name}`);
           }
         }
 
@@ -4374,6 +4460,7 @@ export class NodeCommandTasks {
           {name: 'explorer', labels: [constants.SOLO_EXPLORER_LABEL]},
           {name: 'block node', labels: [constants.SOLO_BLOCK_NODE_NAME_LABEL]},
           {name: 'ingress controller', labels: [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
+          {name: 'network load generator', labels: constants.NETWORK_LOAD_GENERATOR_POD_LABELS},
         ];
 
         // Create output directory structure - use custom dir if provided, otherwise use default
@@ -4491,6 +4578,9 @@ export class NodeCommandTasks {
       if (!processInfo?.cmd?.includes('port-forward')) {
         continue;
       }
+      if (processInfo.cmd.includes('persist-port-forward')) {
+        continue;
+      }
       uniqueByPid.set(processInfo.pid, processInfo);
     }
 
@@ -4547,7 +4637,10 @@ export class NodeCommandTasks {
 
     try {
       const k8: K8 = this.k8Factory.getK8(context);
-      const containerReference: ContainerReference = ContainerReference.of(pod.podReference, constants.ROOT_CONTAINER);
+      const containerReference: ContainerReference = ContainerReference.of(
+        pod.podReference,
+        ContainerName.of(constants.BLOCK_NODE_IMAGE_NAME),
+      );
       const container: Container = k8.containers().readByRef(containerReference);
 
       // Create directory for block node log files
@@ -4556,7 +4649,25 @@ export class NodeCommandTasks {
         fs.mkdirSync(blockNodeLogDirectory, {recursive: true});
       }
 
-      await container.copyFrom('/opt/hiero/block-node/logs/*.log', blockNodeLogDirectory);
+      const blockNodeLogsDirectory: string = '/opt/hiero/block-node/logs';
+      if (!(await container.hasDir(blockNodeLogsDirectory))) {
+        this.logger.info(`Block node logs directory not found for ${podName}: ${blockNodeLogsDirectory}`);
+        return;
+      }
+
+      const directoryEntries: TDirectoryData[] = await container.listDir(blockNodeLogsDirectory);
+      const logFiles: TDirectoryData[] = directoryEntries.filter(
+        (entry: TDirectoryData): boolean => !entry.directory && entry.name.endsWith('.log'),
+      );
+
+      if (logFiles.length === 0) {
+        this.logger.info(`No block node .log files found for ${podName} in ${blockNodeLogsDirectory}`);
+        return;
+      }
+
+      for (const logFile of logFiles) {
+        await container.copyFrom(`${blockNodeLogsDirectory}/${logFile.name}`, blockNodeLogDirectory);
+      }
     } catch (error) {
       this.logger.error(`Failed to download block node log files from ${podName}: ${error}`);
     }
@@ -4565,7 +4676,10 @@ export class NodeCommandTasks {
   public downloadJavaFlightRecorderLogs(): SoloListrTask<NodeCollectJfrLogsContext> {
     return {
       title: 'Download Java Flight Recorder logs from node pod',
-      task: async (context_: NodeCollectJfrLogsContext): Promise<void> => {
+      task: async (
+        context_: NodeCollectJfrLogsContext,
+        task: SoloListrTaskWrapper<NodeCollectJfrLogsContext>,
+      ): Promise<void> => {
         this.logger.info(`Downloading Java Flight Recorder logs from node ${context_.config.nodeAlias}...`);
         const config: NodeCollectJfrLogsConfigClass = context_.config;
         const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
@@ -4583,21 +4697,40 @@ export class NodeCommandTasks {
           );
           pid = servicesMainProcess.trim().split(' ')[0];
         } catch (error) {
-          throw new SoloError(`Failed to get process list from node pod ${nodeFullyQualifiedPodName}`, error);
+          throw new SoloErrors.component.nodeJfrExecutionFailed(
+            'Failed to get process list',
+            nodeFullyQualifiedPodName.toString(),
+            error,
+          );
         }
 
         if (!pid) {
-          throw new SoloError(`Could not find process ID for ServicesMain in node pod ${nodeFullyQualifiedPodName}`);
+          throw new SoloErrors.component.nodeJfrPidNotFound(nodeFullyQualifiedPodName.toString());
         }
 
         const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
+        let dumpResult: string;
         try {
-          const result: string = await k8Container.execContainer(
-            `jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`,
-          );
-          this.logger.info(`JFR dump command output: ${result}`);
+          dumpResult = await k8Container.execContainer(`jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`);
+          this.logger.info(`JFR dump command output: ${dumpResult}`);
         } catch (error) {
-          throw new SoloError(`Failed to create JFR recording on node pod ${nodeFullyQualifiedPodName}`, error);
+          throw new SoloErrors.component.nodeJfrExecutionFailed(
+            'Failed to create JFR recording',
+            nodeFullyQualifiedPodName.toString(),
+            error,
+          );
+        }
+
+        // jcmd exits 0 even when no JFR recording is active and just prints an
+        // informational message. Detect that case and skip the task gracefully
+        // rather than failing the subsequent copy — performance-test runs
+        // without JFR enabled should not fail at teardown.
+        const jfrNotEnabledPattern: RegExp = /Could not find any recording|No recording (?:with|named)|No recordings/i;
+        if (jfrNotEnabledPattern.test(dumpResult)) {
+          const reason: string = `Java Flight Recorder is not enabled on node pod ${nodeFullyQualifiedPodName}`;
+          this.logger.warn(reason);
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey(reason)}`);
+          return;
         }
 
         try {
@@ -4608,8 +4741,9 @@ export class NodeCommandTasks {
           fs.renameSync(PathEx.joinWithRealPath(localJfrLogsDirectory, 'recording.jfr'), targetPath);
           this.logger.showUser(`Downloaded Java Flight Recorder logs to ${targetPath}`);
         } catch (error) {
-          throw new SoloError(
-            `Failed to copy JFR recording from node pod ${nodeFullyQualifiedPodName} to local machine`,
+          throw new SoloErrors.component.nodeJfrExecutionFailed(
+            'Failed to copy JFR recording',
+            nodeFullyQualifiedPodName.toString(),
             error,
           );
         }

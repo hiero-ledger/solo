@@ -29,6 +29,11 @@ on:
         type: string
         required: false
         default: "22"
+      consensus-node-version:
+        description: "Consensus node release tag to use"
+        type: string
+        required: false
+        default: ""
       released-or-latest:
         description: "Use released or latest version"
         type: boolean
@@ -51,6 +56,11 @@ on:
         type: string
         required: false
         default: "22"
+      consensus-node-version:
+        description: "Consensus node release tag to use"
+        type: string
+        required: false
+        default: ""
       released-or-latest:
         description: "Use released or latest version"
         type: boolean
@@ -88,7 +98,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -151,7 +161,7 @@ jobs:
       max-parallel: 4
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -198,13 +208,32 @@ jobs:
         run: |
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
+      - name: Resolve consensus node version and Java version
+        id: resolve-consensus-java
+        if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source .github/workflows/script/helper.sh
+          consensus_node_version="$(extract_version HEDERA_PLATFORM_VERSION version.ts)"
+          normalized_version="$(echo "${consensus_node_version}" | sed -E 's/^v//; s/-.*$//')"
+
+          java_version="21"
+          if printf '%s\n' '0.73.0' "${normalized_version}" | sort -C -V; then
+            java_version="25"
+          fi
+
+          echo "consensus-node-version=${consensus_node_version}" >> "${GITHUB_OUTPUT}"
+          echo "java-version=${java_version}" >> "${GITHUB_OUTPUT}"
+
       - name: Setup Java
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
         uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
-          java-version: 25
+          java-version: ${{ steps.resolve-consensus-java.outputs.java-version }}
 
       - name: Setup Gradle
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}

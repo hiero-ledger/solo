@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import chalk from 'chalk';
 import * as fs from 'node:fs';
 import {BaseCommand} from './base.js';
-import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {Flags as flags} from './flags.js';
 import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
@@ -167,7 +167,7 @@ export class AccountCommand extends BaseCommand {
     shouldRetrievePrivateKey: boolean,
   ): Promise<{accountId: string; balance: number; publicKey: string; privateKey?: string; privateKeyRaw?: string}> {
     if (!accountInfo || !(accountInfo instanceof AccountInfo)) {
-      throw new IllegalArgumentError('An instance of AccountInfo is required');
+      throw new SoloErrors.validation.illegalArgument('An instance of AccountInfo is required');
     }
 
     const newAccountInfo: {
