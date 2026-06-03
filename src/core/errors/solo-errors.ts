@@ -89,7 +89,10 @@ import {UpgradeVersionFetchFailedSoloError} from './classes/system/upgrade-versi
 import {UnsupportedOperationError} from './classes/internal/unsupported-operation-error.js';
 import {CreateDeploymentSoloError} from './classes/deployment/create-deployment-solo-error.js';
 import {DeploymentAlreadyExistsSoloError} from './classes/deployment/deployment-already-exists-solo-error.js';
-import {RapidFireExecutionSoloError} from './classes/rapid-fire-execution-solo-error.js';
+import {RapidFireExecutionSoloError} from './classes/component/rapid-fire-execution-solo-error.js';
+import {RapidFireKillFailedSoloError} from './classes/component/rapid-fire-kill-failed-solo-error.js';
+import {RapidFireLoadStartFailedSoloError} from './classes/component/rapid-fire-load-start-failed-solo-error.js';
+import {RapidFireLoadStopFailedSoloError} from './classes/component/rapid-fire-load-stop-failed-solo-error.js';
 import {StateFilePathNotFoundSoloError} from './classes/validation/state-file-path-not-found-solo-error.js';
 import {StateFileNotFoundSoloError} from './classes/validation/state-file-not-found-solo-error.js';
 import {InvalidStateFileFormatSoloError} from './classes/validation/invalid-state-file-format-solo-error.js';
@@ -209,6 +212,9 @@ export class SoloErrors {
     readonly chartInstallFailed: typeof ChartInstallFailedSoloError;
     readonly networkDestroyFailed: typeof NetworkDestroyFailedSoloError;
     readonly rapidFireExecutionFailed: typeof RapidFireExecutionSoloError;
+    readonly rapidFireLoadStartFailed: typeof RapidFireLoadStartFailedSoloError;
+    readonly rapidFireLoadStopFailed: typeof RapidFireLoadStopFailedSoloError;
+    readonly rapidFireKillFailed: typeof RapidFireKillFailedSoloError;
     readonly nodeStakeTransactionError: typeof NodeStakeTransactionErrorSoloError;
     readonly nodePrepareUpgradeTransactionError: typeof NodePrepareUpgradeTransactionErrorSoloError;
     readonly nodeFreezeUpgradeTransactionError: typeof NodeFreezeUpgradeTransactionErrorSoloError;
@@ -252,6 +258,9 @@ export class SoloErrors {
     chartInstallFailed: ChartInstallFailedSoloError,
     networkDestroyFailed: NetworkDestroyFailedSoloError,
     rapidFireExecutionFailed: RapidFireExecutionSoloError,
+    rapidFireLoadStartFailed: RapidFireLoadStartFailedSoloError,
+    rapidFireLoadStopFailed: RapidFireLoadStopFailedSoloError,
+    rapidFireKillFailed: RapidFireKillFailedSoloError,
     nodeStakeTransactionError: NodeStakeTransactionErrorSoloError,
     nodePrepareUpgradeTransactionError: NodePrepareUpgradeTransactionErrorSoloError,
     nodeFreezeUpgradeTransactionError: NodeFreezeUpgradeTransactionErrorSoloError,

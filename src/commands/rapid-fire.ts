@@ -625,7 +625,7 @@ export class RapidFireCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error running rapid-fire: ${error.message}`, error);
+      throw new SoloErrors.component.rapidFireLoadStartFailed(error);
     } finally {
       if (!this.oneShotState.isActive()) {
         await leaseReference.lease?.release();
@@ -684,7 +684,7 @@ export class RapidFireCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error running rapid-fire stop: ${error.message}`, error);
+      throw new SoloErrors.component.rapidFireLoadStopFailed(error);
     } finally {
       if (!this.oneShotState.isActive() && leaseReference.lease) {
         await leaseReference.lease.release();
@@ -716,7 +716,7 @@ export class RapidFireCommand extends BaseCommand {
           try {
             await container.execContainer(`pkill -f ${testClass}`);
           } catch (error) {
-            throw new SoloError(`Error stopping ${testClass} load test: ${error.message}`, error);
+            throw new SoloErrors.component.rapidFireKillFailed(testClass, error);
           }
         }
       },
@@ -733,7 +733,7 @@ export class RapidFireCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error running rapid-fire stop: ${error.message}`, error);
+      throw new SoloErrors.component.rapidFireLoadStopFailed(error);
     } finally {
       if (!this.oneShotState.isActive() && leaseReference.lease) {
         await leaseReference.lease.release();
