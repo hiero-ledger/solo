@@ -396,7 +396,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const data: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number> = {};
 
-    if (!constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+    if (config.forceBlockNodeIntegration || !constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+      if (config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+        this.logger.showUser(
+          `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
+        );
+      }
       data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
     }
 
