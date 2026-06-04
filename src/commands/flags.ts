@@ -757,6 +757,28 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly blockNodeMessageSizeSoftLimitBytes: CommandFlag = {
+    constName: 'blockNodeMessageSizeSoftLimitBytes',
+    name: 'block-node-message-size-soft-limit-bytes',
+    definition: {
+      describe: 'Soft limit, in bytes, for block node connection message size in block-nodes.json',
+      defaultValue: undefined,
+      type: 'number',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeMessageSizeHardLimitBytes: CommandFlag = {
+    constName: 'blockNodeMessageSizeHardLimitBytes',
+    name: 'block-node-message-size-hard-limit-bytes',
+    definition: {
+      describe: 'Hard limit, in bytes, for block node connection message size in block-nodes.json',
+      defaultValue: undefined,
+      type: 'number',
+    },
+    prompt: undefined,
+  };
+
   public static readonly blockNodeMapping: CommandFlag = {
     constName: 'blockNodeIds',
     name: 'block-node-mapping',
@@ -3223,6 +3245,8 @@ export class Flags {
     Flags.blockNodeChartVersion,
     Flags.blockNodeVersion,
     Flags.blockNodeTssOverlay,
+    Flags.blockNodeMessageSizeSoftLimitBytes,
+    Flags.blockNodeMessageSizeHardLimitBytes,
     Flags.priorityMapping,
     Flags.externalBlockNodeAddress,
     Flags.realm,
@@ -3281,7 +3305,12 @@ export class Flags {
     ].map(f => [f.name, f]),
   );
 
-  public static readonly integerFlags = new Map([Flags.replicaCount].map(f => [f.name, f]));
+  public static readonly integerFlags = new Map(
+    [Flags.replicaCount, Flags.blockNodeMessageSizeSoftLimitBytes, Flags.blockNodeMessageSizeHardLimitBytes].map(f => [
+      f.name,
+      f,
+    ]),
+  );
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],
