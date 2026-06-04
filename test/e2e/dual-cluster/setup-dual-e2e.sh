@@ -163,7 +163,7 @@ SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 
 for i in $(seq 1 "${SOLO_CLUSTER_DUALITY}"); do
   kubectl config use-context "kind-${SOLO_CLUSTER_NAME}-c${i}"
-  npm run solo -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev || exit 1
+  npm run solo -- cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev --no-minio || exit 1
   helm list --all-namespaces
 done
 
