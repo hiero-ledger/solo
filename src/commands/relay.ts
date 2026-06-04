@@ -2,7 +2,6 @@
 
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
-import {SoloError} from '../core/errors/solo-error.js';
 import * as helpers from '../core/helpers.js';
 import {showVersionBanner} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
@@ -314,7 +313,7 @@ export class RelayCommand extends BaseCommand {
             .set('ws.config.OPERATOR_KEY_MAIN', operatorKeyFromK8);
         }
       } catch (error) {
-        throw new SoloError(`Error getting operator key: ${error.message}`, error);
+        throw new SoloErrors.component.relayOperatorKeyRetrievalFailed(error);
       }
     }
 
@@ -380,7 +379,7 @@ export class RelayCommand extends BaseCommand {
 
   private renderReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
+      throw new SoloErrors.validation.relayInvalidComponentId(id);
     }
     return `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
   }
@@ -481,7 +480,7 @@ export class RelayCommand extends BaseCommand {
               constants.RELAY_PODS_RUNNING_DELAY,
             );
         } catch (error) {
-          throw new SoloError(`Relay ${config.releaseName} is not running: ${error.message}`, error);
+          throw new SoloErrors.component.relayNotRunning(config.releaseName, error);
         }
         // reset nodeAlias
         this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
@@ -504,7 +503,7 @@ export class RelayCommand extends BaseCommand {
               constants.RELAY_PODS_READY_DELAY,
             );
         } catch (error) {
-          throw new SoloError(`Relay ${config.releaseName} is not ready: ${error.message}`, error);
+          throw new SoloErrors.component.relayNotReady(config.releaseName, error);
         }
       },
     };
@@ -525,7 +524,7 @@ export class RelayCommand extends BaseCommand {
           );
 
         if (pods.length === 0) {
-          throw new SoloError('No Relay pod found');
+          throw new SoloErrors.system.relayPodNotFound();
         }
 
         const podReference: PodReference = pods[0].podReference;
@@ -667,7 +666,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error deploying relay: ${error.message}`, error);
+        throw new SoloErrors.component.relayDeployFailed(error);
       } finally {
         if (lease && !this.oneShotState.isActive()) {
           await lease.release();
@@ -779,7 +778,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error upgrading relay: ${error.message}`, error);
+        throw new SoloErrors.component.relayUpgradeFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -878,7 +877,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError('Error uninstalling relays', error);
+        throw new SoloErrors.component.relayDestroyFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -948,7 +947,7 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.relayNodes.length === 0) {
-      throw new SoloError('Relay node not found in remote config');
+      throw new SoloErrors.system.relayNotInRemoteConfig();
     }
 
     return this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;

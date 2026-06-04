@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr} from 'listr2';
-import {SoloError} from '../core/errors/solo-error.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
@@ -621,7 +620,7 @@ export class RapidFireCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error running rapid-fire: ${error.message}`, error);
+      throw new SoloErrors.component.rapidFireLoadStartFailed(error);
     } finally {
       if (!this.oneShotState.isActive()) {
         await leaseReference.lease?.release();
@@ -680,7 +679,7 @@ export class RapidFireCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error running rapid-fire stop: ${error.message}`, error);
+      throw new SoloErrors.component.rapidFireLoadStopFailed(error);
     } finally {
       if (!this.oneShotState.isActive() && leaseReference.lease) {
         await leaseReference.lease.release();
@@ -712,7 +711,7 @@ export class RapidFireCommand extends BaseCommand {
           try {
             await container.execContainer(`pkill -f ${testClass}`);
           } catch (error) {
-            throw new SoloError(`Error stopping ${testClass} load test: ${error.message}`, error);
+            throw new SoloErrors.component.rapidFireKillFailed(testClass, error);
           }
         }
       },
@@ -729,7 +728,7 @@ export class RapidFireCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error running rapid-fire stop: ${error.message}`, error);
+      throw new SoloErrors.component.rapidFireLoadStopFailed(error);
     } finally {
       if (!this.oneShotState.isActive() && leaseReference.lease) {
         await leaseReference.lease.release();

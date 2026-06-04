@@ -4,7 +4,6 @@ import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {SoloError} from '../core/errors/solo-error.js';
 import {UserBreak} from '../core/errors/user-break.js';
 import * as constants from '../core/constants.js';
 import {type AccountManager} from '../core/account-manager.js';
@@ -380,7 +379,7 @@ export class MirrorNodeCommand extends BaseCommand {
       );
 
       if (!cluster) {
-        throw new SoloError(`Cluster ${clusterReference} not found in remote config`);
+        throw new SoloErrors.system.clusterNotFoundInRemoteConfig(clusterReference);
       }
 
       const serviceName: string = Templates.renderBlockNodeName(id);
@@ -732,14 +731,14 @@ export class MirrorNodeCommand extends BaseCommand {
 
   private renderReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
+      throw new SoloErrors.validation.mirrorNodeInvalidComponentId(id);
     }
     return `${constants.MIRROR_NODE_RELEASE_NAME}-${id}`;
   }
 
   private renderIngressReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
+      throw new SoloErrors.validation.mirrorNodeInvalidComponentId(id);
     }
     return `${constants.INGRESS_CONTROLLER_RELEASE_NAME}-${id}`;
   }
@@ -1070,8 +1069,9 @@ export class MirrorNodeCommand extends BaseCommand {
         );
 
         if (deployedPods.length === 0) {
-          throw new SoloError(
-            `No deployed mirror-node pods found for release ${context_.config.releaseName} in namespace ${context_.config.namespace.name}`,
+          throw new SoloErrors.system.mirrorNodePodsNotFound(
+            context_.config.releaseName,
+            context_.config.namespace.name,
           );
         }
 
@@ -1136,7 +1136,7 @@ export class MirrorNodeCommand extends BaseCommand {
           .pods()
           .list(config.namespace, [`app.kubernetes.io/instance=${config.ingressReleaseName}`]);
         if (pods.length === 0) {
-          throw new SoloError('No mirror ingress controller pod found');
+          throw new SoloErrors.system.mirrorIngressControllerPodNotFound();
         }
         let podReference: PodReference;
         for (const pod of pods) {
@@ -1322,7 +1322,7 @@ export class MirrorNodeCommand extends BaseCommand {
                     config.chartValues.setLiteral('pinger.env.HIERO_MIRROR_PINGER_OPERATOR_KEY', operatorKeyFromK8);
                   }
                 } catch (error) {
-                  throw new SoloError(`Error getting operator key: ${error.message}`, error);
+                  throw new SoloErrors.component.mirrorNodeOperatorKeyRetrievalFailed(error);
                 }
               }
             } else {
@@ -1413,7 +1413,7 @@ export class MirrorNodeCommand extends BaseCommand {
         await tasks.run();
         this.logger.debug('mirror node add has completed');
       } catch (error) {
-        throw new SoloError(`Error adding mirror node: ${error.message}`, error);
+        throw new SoloErrors.component.mirrorNodeDeployFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1606,7 +1606,7 @@ export class MirrorNodeCommand extends BaseCommand {
                     config.chartValues.setLiteral('pinger.env.HIERO_MIRROR_PINGER_OPERATOR_KEY', operatorKeyFromK8);
                   }
                 } catch (error) {
-                  throw new SoloError(`Error getting operator key: ${error.message}`, error);
+                  throw new SoloErrors.component.mirrorNodeOperatorKeyRetrievalFailed(error);
                 }
               }
             } else {
@@ -1670,7 +1670,7 @@ export class MirrorNodeCommand extends BaseCommand {
         await tasks.run();
         this.logger.debug('mirror node upgrade has completed');
       } catch (error) {
-        throw new SoloError(`Error upgrading mirror node: ${error.message}`, error);
+        throw new SoloErrors.component.mirrorNodeUpgradeFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease.release();
@@ -1745,7 +1745,7 @@ export class MirrorNodeCommand extends BaseCommand {
         'There are missing values that need to be provided when' +
         `${chalk.cyan(`--${flags.useExternalDatabase.name}`)} is provided: `;
 
-      throw new SoloError(
+      throw new SoloErrors.validation.missingArgument(
         `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
       );
     }
@@ -1929,7 +1929,7 @@ export class MirrorNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error destroying mirror node: ${error.message}`, error);
+        throw new SoloErrors.component.mirrorNodeDestroyFailed(error);
       } finally {
         await this.accountManager?.close().catch();
         if (!this.oneShotState.isActive()) {
@@ -2028,7 +2028,7 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.mirrorNodes.length === 0) {
-      throw new SoloError('Mirror node not found in remote config');
+      throw new SoloErrors.system.mirrorNodeNotInRemoteConfig();
     }
 
     return this.remoteConfig.configuration.components.state.mirrorNodes[0].metadata.id;
