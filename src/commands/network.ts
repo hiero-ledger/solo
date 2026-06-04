@@ -636,18 +636,18 @@ export class NetworkCommand extends BaseCommand {
 
     if (config.minioEnabled && config.storageType === constants.StorageType.MINIO_ONLY) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] += ' --set cloud.minio.enabled=true';
-        valuesArguments[clusterReference] += ' --set cloud.generateNewSecrets=true';
+        chartValuesMap[clusterReference].set('cloud.minio.enabled', true);
+        chartValuesMap[clusterReference].set('cloud.generateNewSecrets', true);
       }
     }
 
     if (!config.minioEnabled) {
       for (const clusterReference of clusterReferences) {
-        valuesArguments[clusterReference] += ' --set cloud.minio.enabled=false';
-        valuesArguments[clusterReference] += ' --set cloud.generateNewSecrets=false';
-        valuesArguments[clusterReference] += ' --set defaults.sidecars.recordStreamUploader.enabled=false';
-        valuesArguments[clusterReference] += ' --set defaults.sidecars.eventStreamUploader.enabled=false';
-        valuesArguments[clusterReference] += ' --set defaults.sidecars.blockstreamUploader.enabled=false';
+        chartValuesMap[clusterReference].set('cloud.minio.enabled', false);
+        chartValuesMap[clusterReference].set('cloud.generateNewSecrets', false);
+        chartValuesMap[clusterReference].set('defaults.sidecars.recordStreamUploader.enabled', false);
+        chartValuesMap[clusterReference].set('defaults.sidecars.eventStreamUploader.enabled', false);
+        chartValuesMap[clusterReference].set('defaults.sidecars.blockstreamUploader.enabled', false);
       }
     }
 
