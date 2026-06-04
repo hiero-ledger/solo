@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr} from 'listr2';
-import {SoloError} from '../core/errors/solo-error.js';
 import * as helpers from '../core/helpers.js';
 import {
   checkDockerImageExists,
@@ -53,6 +52,7 @@ import {
   type ComponentUpgradeMigrationStep,
 } from './migrations/component-upgrade-rules.js';
 import {optionFromFlag} from './command-helpers.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface BlockNodeDeployConfigClass {
@@ -260,7 +260,7 @@ export class BlockNodeCommand extends BaseCommand {
     if ('imageTag' in config && config.imageTag) {
       config.imageTag = SemanticVersion.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
       if (!checkDockerImageExists(constants.BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
-        throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
+        throw new SoloErrors.validation.blockNodeLocalImageNotFound(config.imageTag);
       }
       // use local image from docker engine
       chartValues
@@ -307,7 +307,7 @@ export class BlockNodeCommand extends BaseCommand {
 
   private renderReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
+      throw new SoloErrors.validation.blockNodeInvalidComponentId(id);
     }
     return `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
   }
@@ -465,8 +465,9 @@ export class BlockNodeCommand extends BaseCommand {
             );
 
             if (currentVersion.lessThan(minimumVersion)) {
-              throw new SoloError(
-                `Current version is ${consensusNodeVersion}, Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
+              throw new SoloErrors.validation.blockNodePlatformVersionTooLow(
+                consensusNodeVersion,
+                versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE,
               );
             }
 
@@ -487,9 +488,10 @@ export class BlockNodeCommand extends BaseCommand {
               ) &&
               currentBlockNodeVersion.greaterThanOrEqual(MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
             ) {
-              throw new SoloError(
-                `Current platform version is ${consensusNodeVersion}, Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
-                  `are not supported for block node version ${MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.toString()}`,
+              throw new SoloErrors.validation.blockNodeLivenessPortVersionIncompatible(
+                consensusNodeVersion,
+                versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE,
+                MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.toString(),
               );
             }
 
@@ -599,7 +601,7 @@ export class BlockNodeCommand extends BaseCommand {
             const blockNodePods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
 
             if (blockNodePods.length === 0) {
-              throw new SoloError('Failed to list block node pod');
+              throw new SoloErrors.system.blockNodePodNotFound();
             }
           },
         },
@@ -617,7 +619,7 @@ export class BlockNodeCommand extends BaseCommand {
                   constants.BLOCK_NODE_PODS_RUNNING_DELAY,
                 );
             } catch (error) {
-              throw new SoloError(`Block node ${config.releaseName} is not ready: ${error.message}`, error);
+              throw new SoloErrors.system.blockNodeNotReady(config.releaseName, error);
             }
           },
         },
@@ -633,7 +635,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error deploying block node: ${error.message}`, error);
+        throw new SoloErrors.component.blockNodeDeployFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -735,7 +737,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error destroying block node: ${error.message}`, error);
+        throw new SoloErrors.component.blockNodeDestroyFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -827,7 +829,7 @@ export class BlockNodeCommand extends BaseCommand {
                 config.id,
               );
             } catch (error) {
-              throw new SoloError(`Block node ${config.releaseName} was not found`, error);
+              throw new SoloErrors.system.blockNodeNotInRemoteConfig(config.releaseName, error);
             }
           },
         },
@@ -924,10 +926,7 @@ export class BlockNodeCommand extends BaseCommand {
                   config.recreateInstallTime,
                 );
             } catch (error) {
-              throw new SoloError(
-                `Block node ${config.releaseName} is not ready after upgrade: ${error.message}`,
-                error,
-              );
+              throw new SoloErrors.system.blockNodeNotReady(config.releaseName, error);
             }
           },
         },
@@ -941,7 +940,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error upgrading block node: ${error.message}`, error);
+        throw new SoloErrors.component.blockNodeUpgradeFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1028,7 +1027,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error adding external block node: ${error.message}`, error);
+        throw new SoloErrors.component.blockNodeAddExternalFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1102,7 +1101,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error removing external block node: ${error.message}`, error);
+        throw new SoloErrors.component.blockNodeDeleteExternalFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1384,7 +1383,7 @@ export class BlockNodeCommand extends BaseCommand {
             );
 
             if (response !== 'OK') {
-              throw new SoloError('Bad response status');
+              throw new SoloErrors.component.blockNodeHealthCheckFailed('bad response status');
             }
 
             success = true;
@@ -1402,7 +1401,7 @@ export class BlockNodeCommand extends BaseCommand {
 
         if (!success) {
           displayHealthcheckCallback(attempt, maxAttempts, 'red', 'max attempts reached');
-          throw new SoloError('Max attempts reached');
+          throw new SoloErrors.component.blockNodeHealthCheckFailed('max attempts reached');
         }
 
         displayHealthcheckCallback(attempt, maxAttempts, 'green', 'success');
@@ -1418,7 +1417,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.blockNodes.length === 0) {
-      throw new SoloError('Block node not found in remote config.' + id ? `ID ${id}` : '');
+      throw new SoloErrors.system.blockNodeNotInRemoteConfig(id);
     }
 
     return this.remoteConfig.configuration.components.state.blockNodes[0].metadata.id;
@@ -1430,7 +1429,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.externalBlockNodes.length === 0) {
-      throw new SoloError('No External block node not found in remote config. ' + id ? `ID ${id}` : '');
+      throw new SoloErrors.system.externalBlockNodeNotInRemoteConfig(id);
     }
 
     return this.remoteConfig.configuration.components.state.externalBlockNodes[0].id;
