@@ -149,6 +149,8 @@ export interface GitHubReleaseAsset {
 export interface GitHubRelease {
   tag_name: string;
   html_url: string;
+  prerelease: boolean;
+  draft: boolean;
   assets: GitHubReleaseAsset[];
 }
 

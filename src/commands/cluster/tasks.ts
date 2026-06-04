@@ -36,6 +36,7 @@ import {type OneShotState} from '../../core/one-shot-state.js';
 import * as versions from '../../../version.js';
 import {findMinioOperator} from '../../core/helpers.js';
 import {K8} from '../../integration/kube/k8.js';
+import {HelmChartValues} from '../../integration/helm/model/values.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -227,7 +228,7 @@ export class ClusterCommandTasks {
             constants.MINIO_OPERATOR_CHART,
             constants.MINIO_OPERATOR_CHART,
             versions.MINIO_OPERATOR_VERSION,
-            '--set operator.replicaCount=1',
+            new HelmChartValues().set('operator.replicaCount', 1),
             context,
           );
 
@@ -268,7 +269,7 @@ export class ClusterCommandTasks {
               constants.PROMETHEUS_STACK_CHART,
               constants.PROMETHEUS_STACK_CHART,
               versions.PROMETHEUS_STACK_VERSION,
-              '',
+              new HelmChartValues(),
               context_.config.context,
             );
             this.logger.showUser('✅ Prometheus Stack chart installed successfully');
@@ -313,7 +314,7 @@ export class ClusterCommandTasks {
             constants.METRICS_SERVER_CHART,
             constants.METRICS_SERVER_CHART,
             versions.METRICS_SERVER_VERSION,
-            constants.METRICS_SERVER_INSTALL_ARGS,
+            new HelmChartValues().setLiteral('args[0]', '--kubelet-insecure-tls'),
             context,
           );
           this.logger.showUser('metrics-server chart installed successfully');
