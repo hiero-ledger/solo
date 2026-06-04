@@ -41,7 +41,7 @@ import {
 } from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type NodeId, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {entityId, sleep} from './helpers.js';
+import {entityId, resolveGossipFqdnRestricted, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -517,6 +517,20 @@ export class AccountManager {
         );
       }
 
+      // Resolve once per cluster context so multi-cluster deployments honor each cluster's config.
+      const gossipFqdnRestrictedByContext: Map<string, boolean> = new Map();
+      for (const context of new Set(clusterReferences.values())) {
+        gossipFqdnRestrictedByContext.set(
+          context,
+          await resolveGossipFqdnRestricted({
+            k8: this.k8Factory.getK8(context),
+            namespace,
+            cacheDir: constants.SOLO_CACHE_DIR,
+            resourcesDir: constants.RESOURCES_DIR,
+          }),
+        );
+      }
+
       // retrieve the list of services and build custom objects for the attributes we need
       for (const service of services) {
         let nodeId: NodeId;
@@ -611,6 +625,7 @@ export class AccountManager {
           consensusNode,
           this.k8Factory.getK8(serviceBuilder.context),
           0,
+          gossipFqdnRestrictedByContext.get(serviceBuilder.context) ?? true,
         );
         serviceBuilder.withExternalAddress(address.hostString());
         serviceBuilderMap.set(serviceBuilder.key(), serviceBuilder);
