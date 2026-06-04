@@ -1,20 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr} from 'listr2';
-import {BlockNodeAddExternalFailedSoloError} from '../core/errors/classes/component/block-node-add-external-failed-solo-error.js';
-import {BlockNodeDeleteExternalFailedSoloError} from '../core/errors/classes/component/block-node-delete-external-failed-solo-error.js';
-import {BlockNodeDeployFailedSoloError} from '../core/errors/classes/component/block-node-deploy-failed-solo-error.js';
-import {BlockNodeDestroyFailedSoloError} from '../core/errors/classes/component/block-node-destroy-failed-solo-error.js';
-import {BlockNodeHealthCheckFailedSoloError} from '../core/errors/classes/component/block-node-health-check-failed-solo-error.js';
-import {BlockNodeUpgradeFailedSoloError} from '../core/errors/classes/component/block-node-upgrade-failed-solo-error.js';
-import {BlockNodeInvalidComponentIdSoloError} from '../core/errors/classes/validation/block-node-invalid-component-id-solo-error.js';
-import {BlockNodeLivenessPortVersionIncompatibleSoloError} from '../core/errors/classes/validation/block-node-liveness-port-version-incompatible-solo-error.js';
-import {BlockNodeLocalImageNotFoundSoloError} from '../core/errors/classes/validation/block-node-local-image-not-found-solo-error.js';
-import {BlockNodePlatformVersionTooLowSoloError} from '../core/errors/classes/validation/block-node-platform-version-too-low-solo-error.js';
-import {BlockNodeNotInRemoteConfigSoloError} from '../core/errors/classes/system/block-node-not-in-remote-config-solo-error.js';
-import {BlockNodeNotReadySoloError} from '../core/errors/classes/system/block-node-not-ready-solo-error.js';
-import {BlockNodePodNotFoundSoloError} from '../core/errors/classes/system/block-node-pod-not-found-solo-error.js';
-import {ExternalBlockNodeNotInRemoteConfigSoloError} from '../core/errors/classes/system/external-block-node-not-in-remote-config-solo-error.js';
 import * as helpers from '../core/helpers.js';
 import {
   checkDockerImageExists,
@@ -66,6 +52,7 @@ import {
   type ComponentUpgradeMigrationStep,
 } from './migrations/component-upgrade-rules.js';
 import {optionFromFlag} from './command-helpers.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -278,7 +265,7 @@ export class BlockNodeCommand extends BaseCommand {
     if ('imageTag' in config && config.imageTag) {
       config.imageTag = SemanticVersion.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
       if (!checkDockerImageExists(constants.BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
-        throw new BlockNodeLocalImageNotFoundSoloError(config.imageTag);
+        throw new SoloErrors.validation.blockNodeLocalImageNotFound(config.imageTag);
       }
       // use local image from docker engine
       valuesArgument += helpers.populateHelmArguments({
@@ -324,7 +311,7 @@ export class BlockNodeCommand extends BaseCommand {
 
   private renderReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      throw new BlockNodeInvalidComponentIdSoloError(id);
+      throw new SoloErrors.validation.blockNodeInvalidComponentId(id);
     }
     return `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
   }
@@ -482,7 +469,7 @@ export class BlockNodeCommand extends BaseCommand {
             );
 
             if (currentVersion.lessThan(minimumVersion)) {
-              throw new BlockNodePlatformVersionTooLowSoloError(
+              throw new SoloErrors.validation.blockNodePlatformVersionTooLow(
                 consensusNodeVersion,
                 versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE,
               );
@@ -505,7 +492,7 @@ export class BlockNodeCommand extends BaseCommand {
               ) &&
               currentBlockNodeVersion.greaterThanOrEqual(MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
             ) {
-              throw new BlockNodeLivenessPortVersionIncompatibleSoloError(
+              throw new SoloErrors.validation.blockNodeLivenessPortVersionIncompatible(
                 consensusNodeVersion,
                 versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE,
                 MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.toString(),
@@ -618,7 +605,7 @@ export class BlockNodeCommand extends BaseCommand {
             const blockNodePods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
 
             if (blockNodePods.length === 0) {
-              throw new BlockNodePodNotFoundSoloError();
+              throw new SoloErrors.system.blockNodePodNotFound();
             }
           },
         },
@@ -636,7 +623,7 @@ export class BlockNodeCommand extends BaseCommand {
                   constants.BLOCK_NODE_PODS_RUNNING_DELAY,
                 );
             } catch (error) {
-              throw new BlockNodeNotReadySoloError(config.releaseName, error);
+              throw new SoloErrors.system.blockNodeNotReady(config.releaseName, error);
             }
           },
         },
@@ -652,7 +639,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new BlockNodeDeployFailedSoloError(error);
+        throw new SoloErrors.component.blockNodeDeployFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -754,7 +741,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new BlockNodeDestroyFailedSoloError(error);
+        throw new SoloErrors.component.blockNodeDestroyFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -846,7 +833,7 @@ export class BlockNodeCommand extends BaseCommand {
                 config.id,
               );
             } catch (error) {
-              throw new BlockNodeNotInRemoteConfigSoloError(config.releaseName, error);
+              throw new SoloErrors.system.blockNodeNotInRemoteConfig(config.releaseName, error);
             }
           },
         },
@@ -943,7 +930,7 @@ export class BlockNodeCommand extends BaseCommand {
                   config.recreateInstallTime,
                 );
             } catch (error) {
-              throw new BlockNodeNotReadySoloError(config.releaseName, error);
+              throw new SoloErrors.system.blockNodeNotReady(config.releaseName, error);
             }
           },
         },
@@ -957,7 +944,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new BlockNodeUpgradeFailedSoloError(error);
+        throw new SoloErrors.component.blockNodeUpgradeFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1044,7 +1031,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new BlockNodeAddExternalFailedSoloError(error);
+        throw new SoloErrors.component.blockNodeAddExternalFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1118,7 +1105,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new BlockNodeDeleteExternalFailedSoloError(error);
+        throw new SoloErrors.component.blockNodeDeleteExternalFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1397,7 +1384,7 @@ export class BlockNodeCommand extends BaseCommand {
             );
 
             if (response !== 'OK') {
-              throw new BlockNodeHealthCheckFailedSoloError('bad response status');
+              throw new SoloErrors.component.blockNodeHealthCheckFailed('bad response status');
             }
 
             success = true;
@@ -1415,7 +1402,7 @@ export class BlockNodeCommand extends BaseCommand {
 
         if (!success) {
           displayHealthcheckCallback(attempt, maxAttempts, 'red', 'max attempts reached');
-          throw new BlockNodeHealthCheckFailedSoloError('max attempts reached');
+          throw new SoloErrors.component.blockNodeHealthCheckFailed('max attempts reached');
         }
 
         displayHealthcheckCallback(attempt, maxAttempts, 'green', 'success');
@@ -1431,7 +1418,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.blockNodes.length === 0) {
-      throw new BlockNodeNotInRemoteConfigSoloError(id);
+      throw new SoloErrors.system.blockNodeNotInRemoteConfig(id);
     }
 
     return this.remoteConfig.configuration.components.state.blockNodes[0].metadata.id;
@@ -1443,7 +1430,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.externalBlockNodes.length === 0) {
-      throw new ExternalBlockNodeNotInRemoteConfigSoloError(id);
+      throw new SoloErrors.system.externalBlockNodeNotInRemoteConfig(id);
     }
 
     return this.remoteConfig.configuration.components.state.externalBlockNodes[0].id;
