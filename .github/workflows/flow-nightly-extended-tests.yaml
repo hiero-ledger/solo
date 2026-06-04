@@ -241,6 +241,13 @@ jobs:
     uses: ./.github/workflows/flow-one-shot-timing.yaml
     secrets: inherit
 
+  ledger-reset-warm-start-timing:
+    name: Extended Test (ledger-reset-warm-start-timing)
+    needs:
+      - generate_matrix
+    uses: ./.github/workflows/flow-ledger-reset-warm-start-timing.yaml
+    secrets: inherit
+
   flow-performance-test:
     name: Extended Test (flow-performance-test)
     needs:
