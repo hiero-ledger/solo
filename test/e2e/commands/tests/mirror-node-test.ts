@@ -27,6 +27,7 @@ import {type HelmClient} from '../../../../src/integration/helm/helm-client.js';
 import {Repository} from '../../../../src/integration/helm/model/repository.js';
 import {Chart} from '../../../../src/integration/helm/model/chart.js';
 import {InstallChartOptionsBuilder} from '../../../../src/integration/helm/model/install/install-chart-options-builder.js';
+import {HelmChartValues} from '../../../../src/integration/helm/model/values.js';
 import {ContainerReference} from '../../../../src/integration/kube/resources/container/container-reference.js';
 import {ContainerName} from '../../../../src/integration/kube/resources/container/container-name.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
@@ -475,7 +476,12 @@ export class MirrorNodeTest extends BaseCommandTest {
         'my-postgresql',
         new Chart('postgresql', 'postgresql-helm'),
         InstallChartOptionsBuilder.builder()
-          .set(['deploymentType=local', `postgresql.auth.password=${this.postgresPassword}`])
+          .valueArguments(
+            new HelmChartValues()
+              .set('deploymentType', 'local')
+              .set('postgresql.auth.password', this.postgresPassword)
+              .toArguments(),
+          )
           .namespace(this.nameSpace)
           .createNamespace(true)
           .kubeContext(contexts[1])
