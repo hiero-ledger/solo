@@ -4,13 +4,11 @@ import {expect} from 'chai';
 import {describe, it, beforeEach, afterEach} from 'mocha';
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
 import sinon from 'sinon';
-import {
-  checkDockerDesktopContainerdSetting,
-  type DockerDesktopContainerdCheckResult,
-} from '../../../src/core/docker-desktop-checker.js';
+import {checkDockerDesktopContainerdSetting} from '../../../src/core/docker-desktop-checker.js';
+import {type DockerDesktopContainerdCheckResult} from '../../../src/core/docker-desktop-containerd-check-result.js';
 import {OperatingSystem} from '../../../src/business/utils/operating-system.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 describe('checkDockerDesktopContainerdSetting', (): void => {
   let temporaryDirectory: string;
@@ -18,7 +16,7 @@ describe('checkDockerDesktopContainerdSetting', (): void => {
 
   beforeEach((): void => {
     sandbox = sinon.createSandbox();
-    temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-docker-desktop-test-'));
+    temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-docker-desktop-test-'));
   });
 
   afterEach((): void => {
@@ -37,7 +35,7 @@ describe('checkDockerDesktopContainerdSetting', (): void => {
   it('returns false when no Docker Desktop settings file exists', (): void => {
     sandbox.stub(OperatingSystem, 'isLinux').returns(false);
     // Override homedir so the lookup paths don't match real files on the test host.
-    sandbox.stub(os, 'homedir').returns(path.join(temporaryDirectory, 'nonexistent'));
+    sandbox.stub(os, 'homedir').returns(PathEx.join(temporaryDirectory, 'nonexistent'));
     const result: DockerDesktopContainerdCheckResult = checkDockerDesktopContainerdSetting();
     expect(result.containerdSnapshotterEnabled).to.be.false;
     expect(result.settingsFilePath).to.be.undefined;
@@ -48,19 +46,19 @@ describe('checkDockerDesktopContainerdSetting', (): void => {
     // Make the checker find our temp file by pointing homedir at temporaryDirectory.
     sandbox.stub(os, 'homedir').returns(temporaryDirectory);
     // Create the expected path structure: <homedir>/.docker/settings-store.json
-    const dockerDirectory: string = path.join(temporaryDirectory, '.docker');
+    const dockerDirectory: string = PathEx.join(temporaryDirectory, '.docker');
     fs.mkdirSync(dockerDirectory, {recursive: true});
-    fs.writeFileSync(path.join(dockerDirectory, 'settings-store.json'), JSON.stringify({otherSetting: true}));
+    fs.writeFileSync(PathEx.join(dockerDirectory, 'settings-store.json'), JSON.stringify({otherSetting: true}));
     const result: DockerDesktopContainerdCheckResult = checkDockerDesktopContainerdSetting();
     expect(result.containerdSnapshotterEnabled).to.be.false;
   });
 
   it('returns false when useContainerdSnapshotter is false in settings', (): void => {
     sandbox.stub(OperatingSystem, 'isLinux').returns(false);
-    const dockerDirectory: string = path.join(temporaryDirectory, '.docker');
+    const dockerDirectory: string = PathEx.join(temporaryDirectory, '.docker');
     fs.mkdirSync(dockerDirectory, {recursive: true});
     fs.writeFileSync(
-      path.join(dockerDirectory, 'settings-store.json'),
+      PathEx.join(dockerDirectory, 'settings-store.json'),
       JSON.stringify({useContainerdSnapshotter: false}),
     );
     sandbox.stub(os, 'homedir').returns(temporaryDirectory);
@@ -70,9 +68,9 @@ describe('checkDockerDesktopContainerdSetting', (): void => {
 
   it('returns true with warning when useContainerdSnapshotter is true in settings', (): void => {
     sandbox.stub(OperatingSystem, 'isLinux').returns(false);
-    const dockerDirectory: string = path.join(temporaryDirectory, '.docker');
+    const dockerDirectory: string = PathEx.join(temporaryDirectory, '.docker');
     fs.mkdirSync(dockerDirectory, {recursive: true});
-    const settingsFile: string = path.join(dockerDirectory, 'settings-store.json');
+    const settingsFile: string = PathEx.join(dockerDirectory, 'settings-store.json');
     fs.writeFileSync(settingsFile, JSON.stringify({useContainerdSnapshotter: true}));
     sandbox.stub(os, 'homedir').returns(temporaryDirectory);
     const result: DockerDesktopContainerdCheckResult = checkDockerDesktopContainerdSetting();
@@ -84,12 +82,12 @@ describe('checkDockerDesktopContainerdSetting', (): void => {
 
   it('skips a settings file with invalid JSON and continues', (): void => {
     sandbox.stub(OperatingSystem, 'isLinux').returns(false);
-    const dockerDirectory: string = path.join(temporaryDirectory, '.docker');
+    const dockerDirectory: string = PathEx.join(temporaryDirectory, '.docker');
     fs.mkdirSync(dockerDirectory, {recursive: true});
     // Write invalid JSON to first candidate path so it should be skipped.
-    fs.writeFileSync(path.join(dockerDirectory, 'settings-store.json'), '{not valid json}');
+    fs.writeFileSync(PathEx.join(dockerDirectory, 'settings-store.json'), '{not valid json}');
     // Write a valid file to second candidate.
-    fs.writeFileSync(path.join(dockerDirectory, 'settings.json'), JSON.stringify({useContainerdSnapshotter: false}));
+    fs.writeFileSync(PathEx.join(dockerDirectory, 'settings.json'), JSON.stringify({useContainerdSnapshotter: false}));
     sandbox.stub(os, 'homedir').returns(temporaryDirectory);
     const result: DockerDesktopContainerdCheckResult = checkDockerDesktopContainerdSetting();
     // Should not throw; may return false from the second valid file.

@@ -2,34 +2,35 @@
 
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
+import {PathEx} from '../business/utils/path-ex.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
+import {type DockerDesktopContainerdCheckResult} from './docker-desktop-containerd-check-result.js';
 
 /**
  * Returns the ordered list of well-known Docker Desktop settings file paths to probe.
  * Docker Desktop >= 4.30 writes settings to `~/.docker/settings-store.json`.
- * Older versions use `~/Library/Group Containers/group.com.docker/settings.json`.
+ * On Windows the primary location is `%APPDATA%\Docker\settings-store.json`.
+ * On macOS, older versions use `~/Library/Group Containers/group.com.docker/settings.json`.
  * Evaluated lazily so that os.homedir() reflects any test-time overrides.
  */
 function getDockerDesktopSettingsPaths(): string[] {
   const home: string = os.homedir();
-  return [
-    path.join(home, '.docker', 'settings-store.json'),
-    path.join(home, '.docker', 'settings.json'),
-    path.join(home, 'Library', 'Group Containers', 'group.com.docker', 'settings.json'),
+  const paths: string[] = [
+    PathEx.join(home, '.docker', 'settings-store.json'),
+    PathEx.join(home, '.docker', 'settings.json'),
   ];
-}
-
-/**
- * Result returned by {@link checkDockerDesktopContainerdSetting}.
- */
-export interface DockerDesktopContainerdCheckResult {
-  /** Whether the "Use containerd for pulling and storing images" setting is enabled. */
-  readonly containerdSnapshotterEnabled: boolean;
-  /** Path of the settings file that was read, or undefined if none was found. */
-  readonly settingsFilePath?: string;
-  /** Human-readable warning message when containerdSnapshotterEnabled is true. */
-  readonly warningMessage?: string;
+  if (OperatingSystem.isWin32()) {
+    // On Windows, Docker Desktop stores settings under %APPDATA%\Docker\.
+    const appData: string = process.env['APPDATA'] ?? PathEx.join(home, 'AppData', 'Roaming');
+    paths.unshift(
+      PathEx.join(appData, 'Docker', 'settings-store.json'),
+      PathEx.join(appData, 'Docker', 'settings.json'),
+    );
+  } else if (OperatingSystem.isDarwin()) {
+    // macOS legacy path used by older Docker Desktop versions.
+    paths.push(PathEx.join(home, 'Library', 'Group Containers', 'group.com.docker', 'settings.json'));
+  }
+  return paths;
 }
 
 /**

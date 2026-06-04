@@ -47,10 +47,8 @@ import {ImageReference, type ParsedImageReference} from '../business/utils/image
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {optionFromFlag} from './command-helpers.js';
-import {
-  checkDockerDesktopContainerdSetting,
-  type DockerDesktopContainerdCheckResult,
-} from '../core/docker-desktop-checker.js';
+import {checkDockerDesktopContainerdSetting} from '../core/docker-desktop-checker.js';
+import {type DockerDesktopContainerdCheckResult} from '../core/docker-desktop-containerd-check-result.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface RelayDestroyConfigClass {
