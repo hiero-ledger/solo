@@ -5,6 +5,7 @@ import {afterEach, beforeEach, describe, it} from 'mocha';
 import sinon, {type SinonStub} from 'sinon';
 
 import {NodeCommandHandlers} from '../../../../src/commands/node/handlers.js';
+import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {DiagnosticsCollector} from '../../../../src/commands/util/diagnostics-collector.js';
 import {DiagnosticsReporter} from '../../../../src/commands/util/diagnostics-reporter.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
@@ -33,6 +34,18 @@ function makeLoggerStub(): SoloLogger {
     showList: sinon.stub(),
     showJSON: sinon.stub(),
   } as unknown as SoloLogger;
+}
+
+/**
+ * Builds the positional command tokens for a `deployment diagnostics <subcommand>`
+ * invocation from the command definition, avoiding hardcoded command strings.
+ */
+function diagnosticsCommand(subcommand: string): string[] {
+  return [
+    DeploymentCommandDefinition.COMMAND_NAME,
+    DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
+    subcommand,
+  ];
 }
 
 /**
@@ -149,7 +162,9 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
   });
 
   it('logs collects local diagnostics when no active kube context is present', async (): Promise<void> => {
-    const argv: ArgvStruct = {_: ['deployment', 'diagnostics', 'logs']} as unknown as ArgvStruct;
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_LOGS),
+    } as unknown as ArgvStruct;
 
     const result: boolean = await handlers.logs(argv);
 
@@ -166,7 +181,9 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
     // Context exists (kubeconfig entry survives the cluster) but the API call is refused.
     defaultK8Stub.returns(makeK8WithListError(connectionRefusedError()));
 
-    const argv: ArgvStruct = {_: ['deployment', 'diagnostics', 'logs']} as unknown as ArgvStruct;
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_LOGS),
+    } as unknown as ArgvStruct;
 
     const result: boolean = await handlers.logs(argv);
 
@@ -178,7 +195,9 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
   });
 
   it('all collects local diagnostics when no active kube context is present', async (): Promise<void> => {
-    const argv: ArgvStruct = {_: ['deployment', 'diagnostics', 'all']} as unknown as ArgvStruct;
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_ALL),
+    } as unknown as ArgvStruct;
 
     const result: boolean = await handlers.all(argv);
 
@@ -192,7 +211,9 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
   it('all collects local diagnostics when the context is stale and the cluster is unreachable', async (): Promise<void> => {
     defaultK8Stub.returns(makeK8WithListError(connectionRefusedError()));
 
-    const argv: ArgvStruct = {_: ['deployment', 'diagnostics', 'all']} as unknown as ArgvStruct;
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_ALL),
+    } as unknown as ArgvStruct;
 
     const result: boolean = await handlers.all(argv);
 
@@ -208,7 +229,9 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
     // through the normal collection path instead of being hidden by a local-only fallback.
     defaultK8Stub.returns(makeK8WithListError(forbiddenError()));
 
-    const argv: ArgvStruct = {_: ['deployment', 'diagnostics', 'logs']} as unknown as ArgvStruct;
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_LOGS),
+    } as unknown as ArgvStruct;
 
     const result: boolean = await handlers.logs(argv);
 
@@ -221,7 +244,10 @@ describe('NodeCommandHandlers - diagnostics local fallback', (): void => {
   it('report resolves the deployment from local config when the cluster is unreachable', async (): Promise<void> => {
     defaultK8Stub.returns(makeK8WithListError(connectionRefusedError()));
 
-    const argv: ArgvStruct = {_: ['deployment', 'diagnostics', 'report'], quiet: true} as unknown as ArgvStruct;
+    const argv: ArgvStruct = {
+      _: diagnosticsCommand(DeploymentCommandDefinition.DIAGNOSTICS_REPORT),
+      quiet: true,
+    } as unknown as ArgvStruct;
 
     const result: boolean = await handlers.report(argv);
 
