@@ -423,12 +423,21 @@ export const JVM_DEBUG_PORT: number = 5005;
 
 export const PODS_RUNNING_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_RUNNING_MAX_ATTEMPTS') || 60 * 15;
 export const PODS_RUNNING_DELAY: number = +getEnvironmentVariable('PODS_RUNNING_DELAY') || 1000;
+
+// Node Checks
 export const NETWORK_NODE_ACTIVE_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_NODE_ACTIVE_MAX_ATTEMPTS') || 300;
 export const NETWORK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_DELAY') || 1000;
 export const NETWORK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('NETWORK_NODE_ACTIVE_TIMEOUT') || 1000;
-export const NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS: number =
-  +getEnvironmentVariable('NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS') || 2000;
+
+// GRPC Healtcheck Checks
+export const NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS') || 20;
+export const NETWORK_NODE_GRPC_READINESS_DELAY: number =
+  +getEnvironmentVariable('NETWORK_NODE_GRPC_READINESS_DELAY') || 1000;
+export const NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES: number =
+  +getEnvironmentVariable('NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES') || 3;
+
 export const NETWORK_PROXY_MAX_ATTEMPTS: number = +getEnvironmentVariable('NETWORK_PROXY_MAX_ATTEMPTS') || 300;
 export const NETWORK_PROXY_DELAY: number = +getEnvironmentVariable('NETWORK_PROXY_DELAY') || 2000;
 export const PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_READY_MAX_ATTEMPTS') || 300;

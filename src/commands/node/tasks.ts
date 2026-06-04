@@ -620,7 +620,7 @@ export class NodeCommandTasks {
           throw new SoloError('empty response'); // Guard
         }
 
-        const statusLine: string = response
+        const statusLine: string | undefined = response
           .split('\n')
           .find((line: string): boolean => line.startsWith('platform_PlatformStatus'));
 
@@ -630,7 +630,7 @@ export class NodeCommandTasks {
           throw new SoloError('missing status line'); // Guard
         }
 
-        const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
+        const statusNumber: number = Number.parseInt(statusLine.split(' ').pop() || '');
 
         if (statusNumber === status) {
           task.title = `${title} - status ${chalk.green(NodeStatusEnums[status])}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -659,11 +659,61 @@ export class NodeCommandTasks {
       throw new SoloErrors.component.nodeNotReady(nodeAlias, NodeStatusEnums[status], attempt, maxAttempts);
     }
 
-    if (constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS > 0) {
-      await sleep(Duration.ofMillis(constants.NETWORK_NODE_ACTIVE_EXTRA_DELAY_MS)); // delaying prevents - gRPC service error
+    if (status === NodeStatusCodes.ACTIVE) {
+      await this.waitForGrpcReadiness(namespace, nodeAlias, task, title);
     }
 
     return podReference;
+  }
+
+  private async waitForGrpcReadiness(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    task: SoloListrTaskWrapper<AnyListrContext>,
+    title: string,
+  ): Promise<void> {
+    const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+
+    let attempt: number = 0;
+    let consecutiveSuccesses: number = 0;
+
+    while (attempt < constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS) {
+      try {
+        await this.accountManager.refreshNodeClient(namespace, clusterReferences, deployment, true, {
+          type: 'only',
+          nodeAlias,
+        });
+        consecutiveSuccesses++;
+
+        task.title =
+          `${title} - gRPC readiness ${chalk.green(`${consecutiveSuccesses}/${constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES}`)}, ` +
+          `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
+
+        if (consecutiveSuccesses >= constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES) {
+          return;
+        }
+      } catch (error) {
+        consecutiveSuccesses = 0;
+
+        this.logger.debug(
+          `${title} : Error in checking gRPC readiness for node '${nodeAlias}': ` +
+            `attempt: ${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}: ${JSON.stringify(error)}`,
+        );
+
+        task.title =
+          `${title} - gRPC readiness ${chalk.yellow('WAITING')}, ` +
+          `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
+      }
+
+      attempt++;
+      await sleep(Duration.ofMillis(constants.NETWORK_NODE_GRPC_READINESS_DELAY));
+    }
+
+    this.logger.showUser(
+      `node '${nodeAlias}' failed gRPC readiness check ` +
+        `[ attempt = ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)} ]`,
+    );
   }
 
   /** Return task for check if node proxies are ready */
@@ -2219,8 +2269,9 @@ export class NodeCommandTasks {
         config.nodeClient = await this.accountManager.refreshNodeClient(
           config.namespace,
           this.remoteConfig.getClusterRefs(),
-          skipNodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
+          undefined,
+          {type: 'all', skipNodeAlias},
         );
 
         // send some write transactions to invoke the handler that will trigger the stake weight recalculate
@@ -2282,9 +2333,9 @@ export class NodeCommandTasks {
         await this.accountManager.refreshNodeClient(
           context_.config.namespace,
           this.remoteConfig.getClusterRefs(),
-          context_.config.nodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
           this.configManager.getFlag<boolean>(flags.forcePortForward),
+          {type: 'all', skipNodeAlias: context_.config.nodeAlias},
         );
         await this._addStake(context_.config.namespace, context_.newNode.accountId, context_.config.nodeAlias);
       },
@@ -3265,8 +3316,9 @@ export class NodeCommandTasks {
           config.nodeClient = await this.accountManager.refreshNodeClient(
             config.namespace,
             this.remoteConfig.getClusterRefs(),
-            config.nodeAlias,
             this.configManager.getFlag<DeploymentName>(flags.deployment),
+            undefined,
+            {type: 'all', skipNodeAlias: config.nodeAlias},
           );
         }
 
