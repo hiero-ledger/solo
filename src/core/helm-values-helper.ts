@@ -119,16 +119,6 @@ export class HelmValuesHelper {
     return filePath;
   }
 
-  public parseValuesFilePaths(valuesArgument: string): string[] {
-    const filePaths: string[] = [];
-    const regex: RegExp = /--values\s+"([^"]+)"|--values\s+(\S+)/g;
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(valuesArgument)) !== null) {
-      filePaths.push(match[1] ?? match[2]);
-    }
-    return filePaths;
-  }
-
   private parseValuesFile(filePath: string): Record<string, unknown> | undefined {
     let content: string;
     try {
@@ -316,7 +306,7 @@ export class HelmValuesHelper {
     }
     for (const environmentVariable of environmentVariables) {
       const existingIndex: number = result[nodeAlias].findIndex(
-        (variable: EnvironmentVariable): boolean => variable.name === environmentVariable.name,
+        (variable): boolean => variable.name === environmentVariable.name,
       );
       const environmentVariableClone: EnvironmentVariable = {...environmentVariable};
       if (existingIndex === -1) {
@@ -340,7 +330,7 @@ export class HelmValuesHelper {
       if (!entry || typeof entry !== 'object') {
         continue;
       }
-      const entryRecord: Record<string, unknown> = entry as Record<string, unknown>;
+      const entryRecord: Record<string, unknown> = entry;
       if (typeof entryRecord.name !== 'string' || typeof entryRecord.value !== 'string') {
         continue;
       }
