@@ -420,8 +420,9 @@ export class AccountCommand extends BaseCommand {
                       const nodeClient: Client = await this.accountManager.refreshNodeClient(
                         config.namespace,
                         this.remoteConfig.getClusterRefs(),
-                        nodeAlias,
                         config.deployment,
+                        undefined,
+                        {type: 'all', skipNodeAlias: nodeAlias},
                       );
 
                       try {
