@@ -5,10 +5,11 @@ import sinon from 'sinon';
 import {describe, it} from 'mocha';
 import {type HelmExecutionBuilder} from '../../../../../src/integration/helm/execution/helm-execution-builder.js';
 import {InstallChartOptionsBuilder} from '../../../../../src/integration/helm/model/install/install-chart-options-builder.js';
+import {type InstallChartOptions} from '../../../../../src/integration/helm/model/install/install-chart-options.js';
 
-describe('InstallChartOptionsBuilder Tests', () => {
-  it('Test InstallChartOptionsBuilder', () => {
-    const options = InstallChartOptionsBuilder.builder()
+describe('InstallChartOptionsBuilder Tests', (): void => {
+  it('Test InstallChartOptionsBuilder', (): void => {
+    const options: InstallChartOptions = InstallChartOptionsBuilder.builder()
       .atomic(true)
       .createNamespace(true)
       .dependencyUpdate(true)
@@ -18,16 +19,21 @@ describe('InstallChartOptionsBuilder Tests', () => {
       .passCredentials(true)
       .password('password')
       .repo('repo')
-      .set(['set', 'livenessProbe.exec.command=[cat,docroot/CHANGELOG.txt]'])
+      .valueArguments([
+        '--set',
+        'livenessProbe.exec.command=[cat,docroot/CHANGELOG.txt]',
+        '--values',
+        'values1',
+        '--values',
+        'values2',
+      ])
       .skipCrds(true)
       .timeout('timeout')
       .username('username')
-      .values(['values1', 'values2'])
       .verify(true)
       .version('version')
       .waitFor(true)
       .kubeContext('my-context')
-      .extraArgs('--debug')
       .build();
 
     // Verify all options are set correctly
@@ -41,29 +47,29 @@ describe('InstallChartOptionsBuilder Tests', () => {
     expect(options.passCredentials).to.be.true;
     expect(options.password).to.equal('password');
     expect(options.repo).to.equal('repo');
-    expect(options.set).to.include('livenessProbe.exec.command=[cat,docroot/CHANGELOG.txt]');
-    expect(options.set).to.include('set');
+    expect(options.valueArguments).to.include('--set');
+    expect(options.valueArguments).to.include('livenessProbe.exec.command=[cat,docroot/CHANGELOG.txt]');
     expect(options.skipCrds).to.be.true;
     expect(options.timeout).to.equal('timeout');
     expect(options.username).to.equal('username');
-    expect(options.values).to.include('values1');
-    expect(options.values).to.include('values2');
+    expect(options.valueArguments).to.include('values1');
+    expect(options.valueArguments).to.include('values2');
     expect(options.verify).to.be.true;
     expect(options.version).to.equal('version');
     expect(options.waitFor).to.be.true;
     expect(options.kubeContext).to.equal('my-context');
-    expect(options.extraArgs).to.equal('--debug');
 
     // Test apply method with mock
-    const builderMock = {
+    const builderMock: HelmExecutionBuilder = {
       flag: sinon.stub().returnsThis(),
       argument: sinon.stub().returnsThis(),
       optionsWithMultipleValues: sinon.stub().returnsThis(),
       positional: sinon.stub().returnsThis(),
+      arguments: sinon.stub().returnsThis(),
     } as unknown as HelmExecutionBuilder;
 
     options.apply(builderMock);
 
-    expect(builderMock.optionsWithMultipleValues).to.have.been.callCount(2);
+    expect(builderMock.arguments).to.have.been.calledOnceWith(...options.valueArguments);
   });
 });

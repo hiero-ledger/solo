@@ -8,12 +8,13 @@ import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {type ChartManager} from '../chart-manager.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import * as constants from '../../core/constants.js';
+import {HelmChartValues, type HelmChartValue} from '../../integration/helm/model/values.js';
 
 @injectable()
 export class SharedResourceManager {
   private postgresEnabled: boolean = false;
   private redisEnabled: boolean = false;
-  private additionalValuesArgument: string = '';
+  private additionalChartValues: HelmChartValues = new HelmChartValues();
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -25,8 +26,8 @@ export class SharedResourceManager {
     this.chartManager = patchInject(chartManager, InjectTokens.ChartManager, this.constructor.name);
   }
 
-  public setAdditionalValuesArgument(additionalArguments: string): void {
-    this.additionalValuesArgument = additionalArguments;
+  public setAdditionalChartValues(additionalChartValues: HelmChartValues): void {
+    this.additionalChartValues = additionalChartValues.clone();
   }
 
   public enablePostgres(): void {
@@ -68,7 +69,7 @@ export class SharedResourceManager {
     chartDirectory: string,
     soloChartVersion: string,
     context?: string,
-    valuesArgumentsMap?: Record<string, string>,
+    valuesArgumentsMap?: Record<string, HelmChartValue>,
   ): Promise<boolean> {
     const isChartInstalled: boolean = await this.chartManager.isChartInstalled(
       namespace,
@@ -83,18 +84,15 @@ export class SharedResourceManager {
       return false;
     }
 
-    valuesArgumentsMap = {
-      ...valuesArgumentsMap,
-      'postgresql.enabled': this.postgresEnabled.toString(),
-      'redis.enabled': this.redisEnabled.toString(),
-    };
+    const chartValues: HelmChartValues = new HelmChartValues()
+      .setMany({
+        ...valuesArgumentsMap,
+        'postgresql.enabled': this.postgresEnabled,
+        'redis.enabled': this.redisEnabled,
+      })
+      .add(this.additionalChartValues);
 
-    const values: string = Object.entries(valuesArgumentsMap)
-      .map(([key, value]): string => `--set ${key}=${value}`)
-      .join(' ');
-
-    const fullValues: string = this.additionalValuesArgument ? `${values} ${this.additionalValuesArgument}` : values;
-    this.additionalValuesArgument = '';
+    this.additionalChartValues = new HelmChartValues();
 
     await this.chartManager.install(
       namespace,
@@ -102,7 +100,7 @@ export class SharedResourceManager {
       constants.SOLO_SHARED_RESOURCES_CHART,
       chartDirectory || constants.SOLO_TESTING_CHART_URL,
       soloChartVersion,
-      fullValues,
+      chartValues,
       context,
     );
 

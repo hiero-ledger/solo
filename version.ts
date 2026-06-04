@@ -22,7 +22,7 @@ export const KUBECTL_VERSION: string = 'v1.32.2';
 export const CRANE_VERSION: string = 'v0.21.4';
 
 export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.63.3';
-export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.73.0';
+export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.74.0';
 export const S6_NODE_IMAGE_VERSION: string = constants.getEnvironmentVariable('SOLO_S6_NODE_IMAGE_VERSION') || '0.45.3';
 export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.154.0';
 export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.1.0';
@@ -51,7 +51,7 @@ export const REDIS_SENTINEL_IMAGE_VERSION: string =
 export const SOLO_CHART_EDGE_VERSION: string =
   constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || SOLO_CHART_VERSION;
 export const HEDERA_PLATFORM_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.74.0-rc.4';
+  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.74.0';
 export const MIRROR_NODE_EDGE_VERSION: string =
   constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || MIRROR_NODE_VERSION;
 export const EXPLORER_EDGE_VERSION: string =

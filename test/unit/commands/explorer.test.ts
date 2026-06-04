@@ -653,7 +653,7 @@ describe('ExplorerCommand unit tests', (): void => {
 
     await expect(harness.command.destroy(argv as never)).to.be.rejectedWith(
       SoloError,
-      'Error destroy explorer: Aborted application by user prompt',
+      'Error destroying explorer: Aborted application by user prompt',
     );
 
     const components: Record<string, unknown> = (harness.remoteConfig.configuration as Record<string, unknown>)

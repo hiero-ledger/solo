@@ -124,11 +124,13 @@ export class NodeCommandConfigs {
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
 
     await this.initializeSetup(context_.config, this.k8Factory);
+
     context_.config.nodeClient = await this.accountManager.refreshNodeClient(
       context_.config.namespace,
       this.remoteConfig.getClusterRefs(),
-      context_.config.skipNodeAlias,
       context_.config.deployment,
+      undefined,
+      {type: 'all', skipNodeAlias: context_.config.skipNodeAlias},
     );
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
