@@ -20,6 +20,10 @@ import {ConsensusNodeCountRequiredError} from './classes/validation/consensus-no
 import {InvalidOutputFormatError} from './classes/validation/invalid-output-format-error.js';
 import {InvalidPortNumberError} from './classes/validation/invalid-port-number-error.js';
 import {ClusterConnectionFailedError} from './classes/system/cluster-connection-failed-error.js';
+import {GitHubApiHttpResponseError} from './classes/system/github-api-http-response-error.js';
+import {GitHubApiRequestFailedError} from './classes/system/github-api-request-failed-error.js';
+import {GitHubApiResponseMissingTagNameError} from './classes/system/github-api-response-missing-tag-name-error.js';
+import {GitHubApiResponseParseFailedError} from './classes/system/github-api-response-parse-failed-error.js';
 import {PortForwardRefreshFailedError} from './classes/system/port-forward-refresh-failed-error.js';
 import {PortForwardStatusFailedError} from './classes/system/port-forward-status-failed-error.js';
 import {ResourceNotFoundError} from './classes/system/resource-not-found-error.js';
@@ -80,6 +84,10 @@ import {UnsupportedOperationError} from './classes/internal/unsupported-operatio
 import {CreateDeploymentSoloError} from './classes/deployment/create-deployment-solo-error.js';
 import {DeploymentAlreadyExistsSoloError} from './classes/deployment/deployment-already-exists-solo-error.js';
 import {RapidFireExecutionSoloError} from './classes/rapid-fire-execution-solo-error.js';
+import {StateFilePathNotFoundSoloError} from './classes/validation/state-file-path-not-found-solo-error.js';
+import {StateFileNotFoundSoloError} from './classes/validation/state-file-not-found-solo-error.js';
+import {InvalidStateFileFormatSoloError} from './classes/validation/invalid-state-file-format-solo-error.js';
+import {InvalidStateZipFileNameSoloError} from './classes/validation/invalid-state-zip-file-name-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -204,6 +212,10 @@ export class SoloErrors {
     readonly nonInteractivePrompt: typeof NonInteractivePromptSoloError;
     readonly realmShardVersionConstraint: typeof RealmShardVersionConstraintSoloError;
     readonly wrapsVersionConstraint: typeof WrapsVersionConstraintSoloError;
+    readonly stateFilePathNotFound: typeof StateFilePathNotFoundSoloError;
+    readonly stateFileNotFound: typeof StateFileNotFoundSoloError;
+    readonly invalidStateFileFormat: typeof InvalidStateFileFormatSoloError;
+    readonly invalidStateZipFileName: typeof InvalidStateZipFileNameSoloError;
   } = Object.freeze({
     consensusNodeCountRequired: ConsensusNodeCountRequiredError,
     illegalArgument: IllegalArgumentError,
@@ -225,11 +237,19 @@ export class SoloErrors {
     nonInteractivePrompt: NonInteractivePromptSoloError,
     realmShardVersionConstraint: RealmShardVersionConstraintSoloError,
     wrapsVersionConstraint: WrapsVersionConstraintSoloError,
+    stateFilePathNotFound: StateFilePathNotFoundSoloError,
+    stateFileNotFound: StateFileNotFoundSoloError,
+    invalidStateFileFormat: InvalidStateFileFormatSoloError,
+    invalidStateZipFileName: InvalidStateZipFileNameSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
   public static readonly system: {
     readonly clusterConnectionFailed: typeof ClusterConnectionFailedError;
+    readonly githubApiHttpResponseError: typeof GitHubApiHttpResponseError;
+    readonly githubApiRequestFailed: typeof GitHubApiRequestFailedError;
+    readonly githubApiResponseMissingTagName: typeof GitHubApiResponseMissingTagNameError;
+    readonly githubApiResponseParseFailed: typeof GitHubApiResponseParseFailedError;
     readonly portForwardRefreshFailed: typeof PortForwardRefreshFailedError;
     readonly portForwardStatusFailed: typeof PortForwardStatusFailedError;
     readonly resourceNotFound: typeof ResourceNotFoundError;
@@ -249,6 +269,10 @@ export class SoloErrors {
     readonly grpcProxyEndpointFailed: typeof GrpcProxyEndpointFailedSoloError;
   } = Object.freeze({
     clusterConnectionFailed: ClusterConnectionFailedError,
+    githubApiHttpResponseError: GitHubApiHttpResponseError,
+    githubApiRequestFailed: GitHubApiRequestFailedError,
+    githubApiResponseMissingTagName: GitHubApiResponseMissingTagNameError,
+    githubApiResponseParseFailed: GitHubApiResponseParseFailedError,
     portForwardRefreshFailed: PortForwardRefreshFailedError,
     portForwardStatusFailed: PortForwardStatusFailedError,
     resourceNotFound: ResourceNotFoundError,

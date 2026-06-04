@@ -10,8 +10,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import * as helpers from '../core/helpers.js';
-import {prepareValuesFiles, showVersionBanner, sleep} from '../core/helpers.js';
+import {showVersionBanner, sleep} from '../core/helpers.js';
 import {
   type ClusterReferenceName,
   type ComponentId,
@@ -43,6 +42,7 @@ import {K8} from '../integration/kube/k8.js';
 import {createHash} from 'node:crypto';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {optionFromFlag} from './command-helpers.js';
+import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -59,7 +59,6 @@ interface ExplorerDeployConfigClass {
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
   valuesFile: string;
-  valuesArg: string;
   clusterSetupNamespace: NamespaceName;
   getUnusedConfigs: () => string[];
   soloChartVersion: string;
@@ -99,7 +98,6 @@ interface ExplorerUpgradeConfigClass {
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
   valuesFile: string;
-  valuesArg: string;
   clusterSetupNamespace: NamespaceName;
   getUnusedConfigs: () => string[];
   soloChartVersion: string;
@@ -226,28 +224,23 @@ export class ExplorerCommand extends BaseCommand {
     optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
   };
 
-  private async prepareHederaExplorerValuesArg(
+  private async prepareHederaExplorerChartValues(
     config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass,
-  ): Promise<string> {
-    let valuesArgument: string = '';
-
-    if (config.valuesFile) {
-      valuesArgument += prepareValuesFiles(config.valuesFile);
-    }
+  ): Promise<HelmChartValues> {
+    const chartValues: HelmChartValues = new HelmChartValues().filesFromCommaSeparatedInput(config.valuesFile);
 
     if (config.enableIngress) {
-      valuesArgument += ' --set ingress.enabled=true';
-      valuesArgument += ` --set ingressClassName=${config.ingressReleaseName}`;
+      chartValues.set('ingress.enabled', true).setLiteral('ingressClassName', config.ingressReleaseName);
     }
-    valuesArgument += ` --set fullnameOverride=${config.releaseName}-${config.namespace.name}`;
+    chartValues.setLiteral('fullnameOverride', `${config.releaseName}-${config.namespace.name}`);
 
-    valuesArgument += ` --set proxyPass./api="http://${constants.MIRROR_INGRESS_CONTROLLER}-${config.mirrorNamespace}.${config.mirrorNamespace}.svc.cluster.local" `;
+    chartValues.setLiteral(
+      'proxyPass./api',
+      `http://${constants.MIRROR_INGRESS_CONTROLLER}-${config.mirrorNamespace}.${config.mirrorNamespace}.svc.cluster.local`,
+    );
 
     if (config.domainName) {
-      valuesArgument += helpers.populateHelmArguments({
-        'ingress.enabled': true,
-        'ingress.hosts[0].host': config.domainName,
-      });
+      chartValues.set('ingress.enabled', true).setLiteral('ingress.hosts[0].host', config.domainName);
 
       if (config.tlsClusterIssuerType === 'self-signed') {
         // Create TLS secret for Explorer
@@ -260,19 +253,19 @@ export class ExplorerCommand extends BaseCommand {
         );
 
         if (config.enableIngress) {
-          valuesArgument += ` --set ingress.tls[0].hosts[0]=${config.domainName}`;
+          chartValues.setLiteral('ingress.tls[0].hosts[0]', config.domainName);
         }
       }
     }
-    return valuesArgument;
+    return chartValues;
   }
 
-  private async prepareCertManagerChartValuesArg(
+  private async prepareCertManagerChartValues(
     config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass,
-  ): Promise<string> {
+  ): Promise<HelmChartValues> {
     const {tlsClusterIssuerType, namespace} = config;
 
-    let valuesArgument: string = ' --install ';
+    const chartValues: HelmChartValues = new HelmChartValues();
 
     if (!['acme-staging', 'acme-prod', 'self-signed'].includes(tlsClusterIssuerType)) {
       throw new Error(
@@ -281,28 +274,21 @@ export class ExplorerCommand extends BaseCommand {
     }
 
     if (!(await this.clusterChecks.isCertManagerInstalled())) {
-      valuesArgument += ' --set cert-manager.installCRDs=true';
+      chartValues.set('cert-manager.installCRDs', true);
     }
 
     if (tlsClusterIssuerType === 'self-signed') {
-      valuesArgument += ' --set selfSignedClusterIssuer.enabled=true';
+      chartValues.set('selfSignedClusterIssuer.enabled', true);
     } else {
-      valuesArgument += ` --set global.explorerNamespace=${namespace}`;
-      valuesArgument += ' --set acmeClusterIssuer.enabled=true';
-      valuesArgument += ` --set certClusterIssuerType=${tlsClusterIssuerType}`;
+      chartValues
+        .setLiteral('global.explorerNamespace', namespace.name)
+        .set('acmeClusterIssuer.enabled', true)
+        .setLiteral('certClusterIssuerType', tlsClusterIssuerType);
     }
-    if (config.valuesFile) {
-      valuesArgument += prepareValuesFiles(config.valuesFile);
-    }
-    return valuesArgument;
-  }
 
-  private async prepareValuesArg(config: ExplorerDeployConfigClass | ExplorerUpgradeConfigClass): Promise<string> {
-    let valuesArgument: string = '';
-    if (config.valuesFile) {
-      valuesArgument += prepareValuesFiles(config.valuesFile);
-    }
-    return valuesArgument;
+    chartValues.filesFromCommaSeparatedInput(config.valuesFile);
+
+    return chartValues;
   }
 
   private installCertManagerTask(commandType: ExplorerCommandType): SoloListrTask<AnyListrContext> {
@@ -318,7 +304,7 @@ export class ExplorerCommand extends BaseCommand {
 
         const {soloChartVersion} = config;
 
-        const soloCertManagerValuesArgument: string = await this.prepareCertManagerChartValuesArg(config);
+        const soloCertManagerChartValues: HelmChartValues = await this.prepareCertManagerChartValues(config);
         // check if CRDs of cert-manager are already installed
         let needInstall: boolean = false;
         for (const crd of constants.CERT_MANAGER_CRDS) {
@@ -340,9 +326,11 @@ export class ExplorerCommand extends BaseCommand {
             constants.SOLO_CERT_MANAGER_CHART,
             config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
             soloChartVersion,
-            ' --install --create-namespace --set cert-manager.installCRDs=true',
+            new HelmChartValues().set('cert-manager.installCRDs', true),
             config.clusterContext,
             commandType !== ExplorerCommandType.ADD,
+            commandType === ExplorerCommandType.ADD,
+            true,
           );
           showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion);
         }
@@ -369,8 +357,11 @@ export class ExplorerCommand extends BaseCommand {
           constants.SOLO_CERT_MANAGER_CHART,
           config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
           soloChartVersion,
-          soloCertManagerValuesArgument,
+          soloCertManagerChartValues,
           config.clusterContext,
+          commandType !== ExplorerCommandType.ADD,
+          commandType === ExplorerCommandType.ADD,
+          true,
         );
         showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion, 'Upgraded');
       },
@@ -387,14 +378,14 @@ export class ExplorerCommand extends BaseCommand {
           'Explorer version',
         );
 
-        let exploreValuesArgument: string = ' --install ';
-        exploreValuesArgument += prepareValuesFiles(constants.EXPLORER_VALUES_FILE);
-        exploreValuesArgument += await this.prepareHederaExplorerValuesArg(config);
+        const explorerChartValues: HelmChartValues = new HelmChartValues()
+          .file(constants.EXPLORER_VALUES_FILE)
+          .add(await this.prepareHederaExplorerChartValues(config));
 
         // Local chart checkouts can keep appVersion/tag at placeholder values (for example 0.0.1),
         // so pin the runtime image tag explicitly to the requested explorer version.
         if (config.explorerChartDirectory) {
-          exploreValuesArgument += helpers.populateHelmArguments({'image.tag': config.explorerVersion});
+          explorerChartValues.set('image.tag', config.explorerVersion);
         }
 
         await this.chartManager.upgrade(
@@ -403,8 +394,10 @@ export class ExplorerCommand extends BaseCommand {
           '',
           config.explorerChartDirectory || constants.EXPLORER_CHART_URL,
           config.explorerVersion,
-          exploreValuesArgument,
+          explorerChartValues,
           config.clusterContext,
+          false,
+          true,
         );
 
         if (commandType === ExplorerCommandType.ADD) {
@@ -435,16 +428,19 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Install explorer ingress controller',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableIngress,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        let explorerIngressControllerValuesArgument: string = ' --install ';
+        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues();
 
         if (config.explorerStaticIp !== '') {
-          explorerIngressControllerValuesArgument += ` --set controller.service.loadBalancerIP=${config.explorerStaticIp}`;
+          explorerIngressControllerChartValues.setLiteral('controller.service.loadBalancerIP', config.explorerStaticIp);
         }
-        explorerIngressControllerValuesArgument += ` --set fullnameOverride=${config.ingressReleaseName}`;
-        explorerIngressControllerValuesArgument += ` --set controller.ingressClass=${config.ingressReleaseName}`;
-        explorerIngressControllerValuesArgument += ` --set controller.extraArgs.controller-class=${config.ingressReleaseName}`;
+        explorerIngressControllerChartValues.setLiteral('fullnameOverride', config.ingressReleaseName);
+        explorerIngressControllerChartValues.setLiteral('controller.ingressClass', config.ingressReleaseName);
+        explorerIngressControllerChartValues.setLiteral(
+          'controller.extraArgs.controller-class',
+          config.ingressReleaseName,
+        );
         if (config.tlsClusterIssuerType === 'self-signed') {
-          explorerIngressControllerValuesArgument += prepareValuesFiles(config.ingressControllerValueFile);
+          explorerIngressControllerChartValues.filesFromCommaSeparatedInput(config.ingressControllerValueFile);
         }
 
         await this.chartManager.upgrade(
@@ -453,8 +449,10 @@ export class ExplorerCommand extends BaseCommand {
           constants.INGRESS_CONTROLLER_RELEASE_NAME,
           constants.INGRESS_CONTROLLER_RELEASE_NAME,
           INGRESS_CONTROLLER_VERSION,
-          explorerIngressControllerValuesArgument,
+          explorerIngressControllerChartValues,
           config.clusterContext,
+          false,
+          true,
         );
 
         showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
@@ -684,8 +682,6 @@ export class ExplorerCommand extends BaseCommand {
 
             config.id = config.newExplorerComponent.metadata.id;
 
-            config.valuesArg = await this.prepareValuesArg(context_.config);
-
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
 
             if (!this.oneShotState.isActive()) {
@@ -790,8 +786,6 @@ export class ExplorerCommand extends BaseCommand {
             config.mirrorNodeId = mirrorNodeId;
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
-
-            config.valuesArg = await this.prepareValuesArg(context_.config);
 
             assertUpgradeVersionNotOlder(
               'Explorer',
