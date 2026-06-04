@@ -23,9 +23,13 @@ env:
   HUGO_BASEPATH: /solo
   PATH:
     sh: echo "$(go env GOPATH)/bin:$PATH"
+# The site is published to GitHub Pages under https://hiero-ledger.github.io/solo/, so every base
+#  URL must carry the ${HUGO_BASEPATH} (/solo) prefix ahead of the version segment. ${HUGO_ORIGIN}
+#  ends with a slash and ${HUGO_BASEPATH} starts with one, so the leading slash is stripped to avoid
+#  a doubled slash, yielding e.g. https://hiero-ledger.github.io/solo/main/.
 vars:
-  hugo_base_url: "${HUGO_ORIGIN}${HUGO_SOLO_VERSION}/"
-  hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_SOLO_VERSION}/"
+  hugo_base_url: "${HUGO_ORIGIN}${HUGO_BASEPATH#/}/${HUGO_SOLO_VERSION}/"
+  hugo_local_base_url: "${HUGO_LOCAL_ORIGIN}${HUGO_BASEPATH#/}/${HUGO_SOLO_VERSION}/"
 
 tasks:
   default:
@@ -81,6 +85,7 @@ tasks:
       - task: "github:download:solo:assets"
       - task: "github:extract:latest"
       - task: "github:extract:versioned"
+      - task: "github:mutate:urls"
       - task: "github:update:hugo:config"
       - task: "build:hugo"
       - task: "build:doc:artifacts"
@@ -169,7 +174,7 @@ tasks:
         echo "HUGO_SOLO_VERSION=$SOLO_VERSION task build" 
         cp docs/site/hugo-template.yaml docs/site/hugo.yaml
         if [ "$HUGO_SOLO_VERSION" != "main" ]; then
-         echo "    - {version: $SOLO_VERSION, url: /$SOLO_VERSION}">> docs/site/hugo.yaml
+         echo "    - {version: $SOLO_VERSION, url: /solo/$SOLO_VERSION}">> docs/site/hugo.yaml
         fi
 
   build:doc:artifacts:
@@ -229,6 +234,15 @@ tasks:
     silent: true
     cmds:
       - task: "build"
+      # 'task local' builds and serves only the current version (public/${HUGO_SOLO_VERSION}), so the
+      #  docs live at {{.hugo_local_base_url}} — not at /solo/latest. To test 'latest', the versions
+      #  dropdown and every released version under /solo, run 'task deploy:nginx' instead.
+      - |
+        echo "==============================================================================="
+        echo " Serving the '${HUGO_SOLO_VERSION}' docs only."
+        echo " Open: {{.hugo_local_base_url}}"
+        echo " (For 'latest' + all versions + the dropdown, use: task deploy:nginx)"
+        echo "==============================================================================="
       - PATH="$(go env GOPATH)/bin:$PATH" hugo server --cleanDestinationDir -e dev -DFE --minify serve --baseURL "{{.hugo_local_base_url}}" -d public/${HUGO_SOLO_VERSION}
 
   deploy:nginx:
@@ -266,11 +280,20 @@ tasks:
                 listen       7777;
                 server_name  localhost;
 
-                root   {{.TASKFILE_DIR}}/public;
                 index  index.html index.htm;
 
-                location / {
-                    try_files $uri $uri/ /index.html;
+                # GitHub Pages serves this repo under https://hiero-ledger.github.io/solo/, so mirror
+                #  that locally by exposing ./public beneath /solo/. This lets the released-versions
+                #  dropdown and the /solo/main, /solo/latest and /solo/<tag> URLs resolve exactly as
+                #  they do in production. Visiting the root redirects into /solo/ (which in turn
+                #  redirects to /solo/latest via public/index.html).
+                location = / {
+                    return 302 /solo/;
+                }
+
+                location /solo/ {
+                    alias  {{.TASKFILE_DIR}}/public/;
+                    try_files $uri $uri/ =404;
                 }
 
                 error_page   500 502 503 504  /50x.html;
@@ -291,7 +314,15 @@ tasks:
           nginx -s stop
         fi
       - |
-        echo "Starting Nginx... on http://localhost:7777/"
+        # The site is served under /solo (mirroring GitHub Pages). Point users at /solo/ — the bare
+        #  root only 302-redirects there, and browsers may have cached an older root redirect.
+        echo "==============================================================================="
+        echo " Nginx is serving the docs under /solo. Open:"
+        echo "   http://localhost:7777/solo/         (entry point, redirects to latest)"
+        echo "   http://localhost:7777/solo/main/    (main)"
+        echo "   http://localhost:7777/solo/latest/  (latest released version)"
+        echo " Tip: if the bare root sends you to a stale /latest/, hard-reload to clear the cache."
+        echo "==============================================================================="
         nginx -c {{.TASKFILE_DIR}}/nginx/nginx.conf
 
   deploy:nginx:stop:

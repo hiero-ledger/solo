@@ -49,7 +49,7 @@ export async function update(): Promise<void> {
 
   await addCommandOutput(
     soloCommandOutput,
-    'solo-cluster-ref-connect',
+    'solo-cluster-ref-config-connect',
     `solo cluster-ref config connect --cluster-ref kind-${process.env.SOLO_CLUSTER_NAME} --context kind-${process.env.SOLO_CLUSTER_NAME}`,
   );
 

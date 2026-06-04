@@ -5,6 +5,7 @@ import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js
 import {container} from 'tsyringe-neo';
 import {type K8ClientFactory} from '../../src/integration/kube/k8-client/k8-client-factory.js';
 import * as constants from '../../src/core/constants.js';
+import {HelmChartValues} from '../../src/integration/helm/model/values.js';
 
 export class HelmMetricsServer {
   public static readonly REPOSITORY_NAME: string = constants.METRICS_SERVER_CHART;
@@ -22,7 +23,7 @@ export class HelmMetricsServer {
         constants.METRICS_SERVER_CHART,
         this.REPOSITORY_NAME,
         this.VERSION,
-        constants.METRICS_SERVER_INSTALL_ARGS,
+        new HelmChartValues().setLiteral('args[0]', '--kubelet-insecure-tls'),
         k8Factory.default().contexts().readCurrent(),
       );
     } catch (error) {
