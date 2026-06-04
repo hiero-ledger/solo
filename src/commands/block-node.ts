@@ -574,7 +574,7 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
-            config.chartValues = await this.prepareHelmChartValuesForBlockNode(config);
+            config.chartValues = await this.prepareValuesArgForBlockNode(config);
           },
         },
         {
@@ -884,7 +884,7 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
-            config.chartValues = await this.prepareHelmChartValuesForBlockNode(config);
+            config.chartValues = await this.prepareValuesArgForBlockNode(config);
           },
         },
         {
