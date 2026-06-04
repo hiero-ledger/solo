@@ -55,9 +55,11 @@ export class DiagnosticsCollector {
     let k8: K8;
     try {
       k8 = k8Factory.default();
-    } catch {
-      // k8Factory.default() throws when there is no active context/cluster in the kubeconfig.
-      return {reachable: false, reason: 'no active Kubernetes context'};
+    } catch (error) {
+      // The default client could not be constructed: no active context/cluster in the
+      // kubeconfig, or an unreadable/invalid kubeconfig. Either way a cluster cannot be
+      // reached, so degrade — surfacing the actual error rather than assuming a cause.
+      return {reachable: false, reason: (error as Error)?.message || 'no active Kubernetes context'};
     }
 
     if (!k8.contexts().readCurrent()) {
