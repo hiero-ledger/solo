@@ -82,6 +82,32 @@ jobs:
           command: |
             npm ci
 
+      - name: Check SoloError Subclasses Registered in SoloErrors
+        run: |
+          missing=""
+          while IFS= read -r file; do
+            class_name=$(grep -oE "^export class [A-Za-z]+" "$file" | awk '{print $3}')
+            if [ -n "$class_name" ] && ! grep -q "$class_name" src/core/errors/solo-errors.ts; then
+              missing="$missing\n  $class_name ($file)"
+            fi
+          done < <(find src/core/errors/classes -name "*.ts" -type f)
+          if [ -n "$missing" ]; then
+            echo "✘ The following SoloError subclasses are missing from solo-errors.ts:"
+            printf "%b\n" "$missing"
+            exit 1
+          fi
+          echo "✔ All SoloError subclasses are registered in solo-errors.ts"
+
+      - name: Check for Duplicate Error Codes
+        run: |
+          duplicates=$(grep -oE "'SOLO-[0-9]+'" src/core/errors/error-code-registry.ts | tr -d "'" | sort | uniq -d)
+          if [ -n "$duplicates" ]; then
+            echo "✘ Duplicate error codes found in error-code-registry.ts:"
+            echo "$duplicates"
+            exit 1
+          fi
+          echo "✔ No duplicate error codes found"
+
       - name: Check Code Style
         run: |
           task check

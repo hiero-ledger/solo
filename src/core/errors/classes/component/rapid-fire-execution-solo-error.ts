@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {ErrorCodeRegistry} from '../error-code-registry.js';
-import {ErrorOwnership} from '../error-ownership.js';
-import {SoloError} from '../solo-error.js';
+import {ErrorCodeRegistry} from '../../error-code-registry.js';
+import {ErrorOwnership} from '../../error-ownership.js';
+import {SoloError} from '../../solo-error.js';
 
 export class RapidFireExecutionSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
@@ -14,7 +14,9 @@ export class RapidFireExecutionSoloError extends SoloError {
         message,
         code: ErrorCodeRegistry.RAPID_FIRE_EXECUTION_FAILED,
         troubleshootingSteps:
-          'Inspect diagnostics path printed in the error output\nCheck NLG pod logs for completion lines and TPS values\nRetry with lower load parameters or --max-tps',
+          'Check NLG pod logs for TPS output and errors: ' +
+          'kubectl logs -n <namespace> -l app.kubernetes.io/instance=network-load-generator\n' +
+          'Retry with lower load parameters or a reduced --max-tps value',
       },
       cause,
     );

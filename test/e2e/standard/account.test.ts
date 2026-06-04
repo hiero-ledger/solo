@@ -156,7 +156,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         for (const [start, end] of testSystemAccounts) {
           for (let index = start; index <= end; index++) {
             it(`account ${index} should not have genesis key`, async () => {
-              expect(accountManager._nodeClient).not.to.be.null;
+              expect(accountManager._nodeClient).not.to.be.undefined;
 
               const accountId = entityId(shard, realm, index);
               testLogger.info(`Fetching account keys: accountId ${accountId}`);
