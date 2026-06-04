@@ -3,15 +3,18 @@
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import each from 'mocha-each';
+import sinon, {type SinonStub} from 'sinon';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type ConfigMap} from '../../../src/integration/kube/resources/config-map/config-map.js';
+import {type K8} from '../../../src/integration/kube/k8.js';
 import yaml from 'yaml';
 
 import * as helpers from '../../../src/core/helpers.js';
+import * as constants from '../../../src/core/constants.js';
 import {helmValuesHelper} from '../../../src/core/helm-values-helper.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
@@ -248,6 +251,339 @@ describe('Helpers', (): void => {
       const rows: string[] = helpers.remoteConfigsToDeploymentsTable(remoteConfigs);
 
       expect(rows).to.deep.equal(['Namespace : deployment']);
+    });
+  });
+
+  describe('parseGossipFqdnRestricted', (): void => {
+    it('parses true value', (): void => {
+      const content: string = 'nodes.gossipFqdnRestricted=true';
+      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+    });
+
+    it('parses false value', (): void => {
+      const content: string = 'nodes.gossipFqdnRestricted=false';
+      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(false);
+    });
+
+    it('handles whitespace around equals sign', (): void => {
+      const content: string = 'nodes.gossipFqdnRestricted  =  true';
+      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+    });
+
+    it('handles leading and trailing whitespace in value', (): void => {
+      const content: string = 'nodes.gossipFqdnRestricted = false ';
+      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(false);
+    });
+
+    it('handles property in middle of file', (): void => {
+      const content: string = `
+# Configuration file
+some.other.property=value
+nodes.gossipFqdnRestricted=true
+another.property=123
+`;
+      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+    });
+
+    it('is case-sensitive for true value', (): void => {
+      // The regex only matches lowercase "true" or "false"
+      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=TRUE')).to.be.undefined;
+      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=True')).to.be.undefined;
+      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=true')).to.equal(true);
+    });
+
+    it('is case-sensitive for false value', (): void => {
+      // The regex only matches lowercase "true" or "false"
+      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=FALSE')).to.be.undefined;
+      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=False')).to.be.undefined;
+      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=false')).to.equal(false);
+    });
+
+    it('returns undefined for missing property', (): void => {
+      const content: string = 'some.other.property=value\nanother.property=123';
+      expect(helpers.parseGossipFqdnRestricted(content)).to.be.undefined;
+    });
+
+    it('returns undefined for empty string', (): void => {
+      expect(helpers.parseGossipFqdnRestricted('')).to.be.undefined;
+    });
+
+    it('does not match similar property names', (): void => {
+      const testCases: string[] = [
+        'nodes.gossipFqdn=true', // Missing "Restricted"
+        'nodes.gossipFqdnRestricted_=true', // Extra underscore
+        'nodes.gossipFqdnRestrictedValue=true', // Different property name
+        'myNodes.gossipFqdnRestricted=true', // Different prefix
+      ];
+      for (const content of testCases) {
+        expect(helpers.parseGossipFqdnRestricted(content)).to.be.undefined;
+      }
+    });
+
+    it('does not match invalid values', (): void => {
+      const testCases: string[] = [
+        'nodes.gossipFqdnRestricted=yes',
+        'nodes.gossipFqdnRestricted=1',
+        'nodes.gossipFqdnRestricted=FALSE_VALUE',
+      ];
+      for (const content of testCases) {
+        expect(helpers.parseGossipFqdnRestricted(content)).to.be.undefined;
+      }
+    });
+
+    it('matches property at beginning of file', (): void => {
+      const content: string = 'nodes.gossipFqdnRestricted=true\nother.property=value';
+      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+    });
+
+    it('handles comments and other content', (): void => {
+      const content: string = `# This is a comment
+# nodes.gossipFqdnRestricted=false
+nodes.gossipFqdnRestricted=true
+# Another comment`;
+      // Should match the non-commented line
+      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+    });
+
+    it('matches first occurrence only (multiline)', (): void => {
+      const content: string = `nodes.gossipFqdnRestricted=true
+nodes.gossipFqdnRestricted=false`;
+      // Should return the first match
+      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+    });
+  });
+
+  describe('readGossipFqdnRestrictedFromFile', (): void => {
+    afterEach((): void => {
+      sinon.restore();
+    });
+
+    it('returns undefined for non-existent file', (): void => {
+      sinon.stub(fs, 'existsSync').returns(false);
+      expect(helpers.readGossipFqdnRestrictedFromFile('/path/to/non/existent/file')).to.be.undefined;
+    });
+
+    it('reads and parses true value from file', (): void => {
+      const existsSyncStub: SinonStub = sinon.stub(fs, 'existsSync').returns(true);
+      const readFileSyncStub: SinonStub = sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true');
+      expect(helpers.readGossipFqdnRestrictedFromFile('/path/to/file')).to.equal(true);
+      expect(existsSyncStub.called).to.be.true;
+      expect(readFileSyncStub.called).to.be.true;
+    });
+
+    it('reads and parses false value from file', (): void => {
+      sinon.stub(fs, 'existsSync').returns(true);
+      sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=false\nother.property=value');
+      expect(helpers.readGossipFqdnRestrictedFromFile('/path/to/file')).to.equal(false);
+    });
+
+    it('returns undefined when file exists but property is missing', (): void => {
+      sinon.stub(fs, 'existsSync').returns(true);
+      sinon.stub(fs, 'readFileSync').returns('some.other.property=value');
+      expect(helpers.readGossipFqdnRestrictedFromFile('/path/to/file')).to.be.undefined;
+    });
+  });
+
+  describe('resolveGossipFqdnRestricted', (): void => {
+    afterEach((): void => {
+      sinon.restore();
+    });
+
+    it('returns K8s configMap value when available', async (): Promise<void> => {
+      const mockK8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>}>}} = {
+        configMaps: (): {read: () => Promise<{data?: Record<string, string>}>} => ({
+          read: async (): Promise<{data?: Record<string, string>}> => ({
+            data: {
+              [constants.APPLICATION_PROPERTIES]: 'nodes.gossipFqdnRestricted=false',
+            },
+          }),
+        }),
+      };
+      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
+        stagingDir: '/staging',
+        cacheDir: '/cache',
+        resourcesDir: '/resources',
+      });
+      expect(result).to.equal(false);
+    });
+
+    it('falls back to staging directory when K8s configMap is unavailable', async (): Promise<void> => {
+      const mockK8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>}>}} = {
+        configMaps: (): {read: () => Promise<{data?: Record<string, string>}>} => ({
+          read: async (): Promise<never> => {
+            throw new Error('ConfigMap not found');
+          },
+        }),
+      };
+
+      sinon.stub(fs, 'existsSync').callsFake((filePath: string | Buffer): boolean => {
+        const filePathString: string = typeof filePath === 'string' ? filePath : filePath.toString();
+        return filePathString.includes('/staging');
+      });
+      sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true');
+
+      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
+        stagingDir: '/staging',
+        cacheDir: '/cache',
+        resourcesDir: '/resources',
+      });
+      expect(result).to.equal(true);
+    });
+
+    it('falls back to cache directory when staging directory has no value', async (): Promise<void> => {
+      const mockK8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>}>}} = {
+        configMaps: (): {read: () => Promise<{data?: Record<string, string>}>} => ({
+          read: async (): Promise<{data?: Record<string, string>}> => ({}),
+        }),
+      };
+
+      sinon.stub(fs, 'existsSync').callsFake((filePath: string | Buffer): boolean => {
+        const filePathString: string = (typeof filePath === 'string' ? filePath : filePath.toString()).replaceAll(
+          '\\',
+          '/',
+        );
+        return filePathString.includes('/cache');
+      });
+      sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=false');
+
+      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
+        stagingDir: '/staging',
+        cacheDir: '/cache',
+        resourcesDir: '/resources',
+      });
+      expect(result).to.equal(false);
+    });
+
+    it('falls back to resources directory when cache is unavailable', async (): Promise<void> => {
+      const mockK8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>}>}} = {
+        configMaps: (): {read: () => Promise<{data?: Record<string, string>}>} => ({
+          read: async (): Promise<{data?: Record<string, string>}> => ({}),
+        }),
+      };
+
+      sinon.stub(fs, 'existsSync').callsFake((filePath: string | Buffer): boolean => {
+        const filePathString: string = typeof filePath === 'string' ? filePath : filePath.toString();
+        return filePathString.includes('/resources');
+      });
+      sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true');
+
+      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
+        stagingDir: '/staging',
+        cacheDir: '/cache',
+        resourcesDir: '/resources',
+      });
+      expect(result).to.equal(true);
+    });
+
+    it('returns default true when no source has value', async (): Promise<void> => {
+      const mockK8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>}>}} = {
+        configMaps: (): {read: () => Promise<{data?: Record<string, string>}>} => ({
+          read: async (): Promise<{data?: Record<string, string>}> => ({}),
+        }),
+      };
+
+      sinon.stub(fs, 'existsSync').returns(false);
+
+      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
+        stagingDir: '/staging',
+        cacheDir: '/cache',
+        resourcesDir: '/resources',
+      });
+      expect(result).to.equal(true);
+    });
+
+    it('handles missing K8s client gracefully', async (): Promise<void> => {
+      sinon.stub(fs, 'existsSync').returns(false);
+
+      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+        stagingDir: '/staging',
+        cacheDir: '/cache',
+        resourcesDir: '/resources',
+      });
+      expect(result).to.equal(true);
+    });
+
+    it('handles missing namespace gracefully', async (): Promise<void> => {
+      const mockK8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>}>}} = {
+        configMaps: (): {read: () => Promise<{data?: Record<string, string>}>} => ({
+          read: async (): Promise<never> => {
+            throw new Error('Should not be called');
+          },
+        }),
+      };
+
+      sinon.stub(fs, 'existsSync').returns(false);
+
+      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+        k8: mockK8 as unknown as K8,
+        // No namespace provided
+        stagingDir: '/staging',
+        cacheDir: '/cache',
+        resourcesDir: '/resources',
+      });
+      expect(result).to.equal(true);
+    });
+
+    it('prefers earlier sources over later sources', async (): Promise<void> => {
+      const mockK8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>}>}} = {
+        configMaps: (): {read: () => Promise<{data?: Record<string, string>}>} => ({
+          read: async (): Promise<{data?: Record<string, string>}> => ({
+            data: {
+              [constants.APPLICATION_PROPERTIES]: 'nodes.gossipFqdnRestricted=false', // K8s has false
+            },
+          }),
+        }),
+      };
+
+      sinon.stub(fs, 'existsSync').returns(true);
+      sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true'); // Staging/cache/repo have true
+
+      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
+        stagingDir: '/staging',
+        cacheDir: '/cache',
+        resourcesDir: '/resources',
+      });
+      // Should prefer K8s value (false) over staging/cache/repo values (true)
+      expect(result).to.equal(false);
+    });
+
+    it('ignores invalid property values in lower-priority sources', async (): Promise<void> => {
+      const mockK8: {configMaps: () => {read: () => Promise<{data?: Record<string, string>}>}} = {
+        configMaps: (): {read: () => Promise<{data?: Record<string, string>}>} => ({
+          read: async (): Promise<{data?: Record<string, string>}> => ({}),
+        }),
+      };
+
+      sinon.stub(fs, 'existsSync').returns(true);
+      sinon.stub(fs, 'readFileSync').callsFake((filePath: string | Buffer): string => {
+        const filePathString: string = typeof filePath === 'string' ? filePath : filePath.toString();
+        if (filePathString.includes('/staging')) {
+          return 'invalid.property=value'; // No gossipFqdnRestricted
+        }
+        return 'nodes.gossipFqdnRestricted=true'; // Cache/repo have valid value
+      });
+
+      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+        k8: mockK8 as unknown as K8,
+        namespace: NamespaceName.of('solo'),
+        stagingDir: '/staging',
+        cacheDir: '/cache',
+        resourcesDir: '/resources',
+      });
+      // Should skip staging (no value) and use cache value
+      expect(result).to.equal(true);
     });
   });
 });

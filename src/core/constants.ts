@@ -293,10 +293,6 @@ export const MIRROR_NODE_HIKARI_LIMITS_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-node-hikari-limits.yaml',
 );
-export const MIRROR_NODE_VALUES_FILE_HEDERA: string = PathEx.joinWithRealPath(
-  RESOURCES_DIR,
-  'mirror-node-values-hedera.yaml',
-);
 export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'ingress-controller-values.yaml',

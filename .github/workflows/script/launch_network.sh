@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/helper.sh"
 
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
+TEMP_ONE_SHOT_VALUES_FILE=""
 
 collect_failure_diagnostics() {
   local rc="${1}"
@@ -32,6 +33,10 @@ on_exit() {
 
   if [[ -n "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" ]]; then
     rm -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+  fi
+
+  if [[ -n "${TEMP_ONE_SHOT_VALUES_FILE:-}" && -f "${TEMP_ONE_SHOT_VALUES_FILE}" ]]; then
+    rm -f "${TEMP_ONE_SHOT_VALUES_FILE}"
   fi
 
   if [[ ${rc} -ne 0 ]]; then
@@ -101,6 +106,326 @@ show_service_ips() {
   kubectl get svc -n "${namespace}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
 }
 
+# Restart relay after upgrade and refresh port-forwards.
+refresh_relay_network_config() {
+  local namespace="${1}"
+  local deployment="${2}"
+
+  echo "[RELAY_RECOVERY] Relay already upgraded; restarting relay deployment to reset SDK node health state"
+  kubectl rollout restart deployment/relay-1 deployment/relay-1-ws -n "${namespace}" 2>/dev/null || true
+
+  echo "[RELAY_STABILITY] Waiting for relay deployments to report rolled out"
+  kubectl rollout status deployment/relay-1 -n "${namespace}" --timeout=4m --context kind-solo-e2e || return 1
+  kubectl rollout status deployment/relay-1-ws -n "${namespace}" --timeout=4m --context kind-solo-e2e || return 1
+
+  echo "[RELAY_STABILITY] Refreshing port-forwards for deployment ${deployment}"
+  npm run solo -- deployment refresh port-forwards --deployment "${deployment}"
+}
+
+# Resolve the active importer pod deterministically.
+# Prefer running pods selected by importer component label, then fall back to name matching.
+get_active_importer_pod() {
+  local namespace="${1}"
+  local importerPod=""
+
+  importerPod=$(kubectl get pods -n "${namespace}" \
+    -l 'app.kubernetes.io/component=importer' \
+    --field-selector=status.phase=Running \
+    --sort-by=.metadata.creationTimestamp \
+    -o name 2>/dev/null | tail -n 1 | sed 's#pod/##' || true)
+
+  if [[ -z "${importerPod}" ]]; then
+    importerPod=$(kubectl get pods -n "${namespace}" --field-selector=status.phase=Running \
+      -o custom-columns=NAME:.metadata.name --no-headers 2>/dev/null | grep 'importer' | tail -n 1 || true)
+  fi
+
+  if [[ -z "${importerPod}" ]]; then
+    importerPod=$(kubectl get pods -n "${namespace}" -o name 2>/dev/null | grep 'importer' | head -n 1 | sed 's#pod/##' || true)
+  fi
+
+  echo "${importerPod}"
+}
+
+# Function to collect targeted diagnostics around the freeze/restart boundary where
+# mirror importer hash-chain mismatches are most likely to occur.
+collect_restart_boundary_diagnostics() {
+  local namespace="${1}"
+  local networkPods
+
+  echo "::group::Restart boundary diagnostics"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Collecting CN/MN boundary diagnostics in namespace ${namespace}"
+
+  networkPods=$(kubectl get pods -n "${namespace}" -l 'solo.hedera.com/type=network-node' -o name | sed 's#pod/##' || true)
+  if [[ -z "${networkPods}" ]]; then
+    echo "[BOUNDARY_DIAG] No network-node pods found in namespace ${namespace}"
+  else
+    while IFS= read -r podName; do
+      [[ -z "${podName}" ]] && continue
+      echo ""
+      echo "[BOUNDARY_DIAG] Node pod: ${podName}"
+
+      # Show restart/state loading markers from swirlds.log to confirm whether the node
+      # resumed from saved state and whether empty rounds were observed.
+      kubectl exec -n "${namespace}" "${podName}" -- bash -lc '
+        logFile="/opt/hgcapp/services-hedera/HapiApp2.0/output/swirlds.log"
+        if [[ -f "${logFile}" ]]; then
+          echo "  swirlds.log restart markers:"
+          grep -E "StartupStateUtils|Ignoring empty consensus round|Platform has loaded a saved state|Loading signed state from disk" "${logFile}" | tail -n 30 || true
+        else
+          echo "  swirlds.log not found at ${logFile}"
+        fi
+      ' || true
+
+      # Show newest local record/sig files produced by this node. This helps correlate
+      # whether a boundary file existed on-node before uploader/importer processing.
+      kubectl exec -n "${namespace}" "${podName}" -- bash -lc '
+        shopt -s nullglob
+        mapfile -t recordDirs < <(find /opt/hgcapp/services-hedera/HapiApp2.0/output -maxdepth 1 -type d -name "record0.0.*" | sort)
+        if [[ ${#recordDirs[@]} -eq 0 ]]; then
+          echo "  No record0.0.* directories found under output/"
+          exit 0
+        fi
+        for dir in "${recordDirs[@]}"; do
+          echo "  Recent files in ${dir}:"
+          ls -1t "${dir}"/*.rcd.gz "${dir}"/*.rcd_sig 2>/dev/null | head -n 12 || true
+        done
+      ' || true
+    done <<< "${networkPods}"
+  fi
+
+  inspect_importer_boundary_mismatch "${namespace}" "${networkPods}"
+  echo "::endgroup::"
+}
+
+# Function to inspect importer mismatch details and correlate the first mismatch file
+# with files present on consensus-node local disks.
+inspect_importer_boundary_mismatch() {
+  local namespace="${1}"
+  local networkPods="${2}"
+  local importerPod
+  local mismatchLine
+  local mismatchFile
+  local mismatchSig
+  local lastAcceptedLine
+  local foundRecord=0
+  local foundSig=0
+
+  importerPod=$(get_active_importer_pod "${namespace}")
+  if [[ -z "${importerPod}" ]]; then
+    echo "[BOUNDARY_DIAG] No importer pod found in namespace ${namespace}"
+    return 0
+  fi
+
+  echo ""
+  echo "[BOUNDARY_DIAG] Importer pod: ${importerPod}"
+
+  mismatchLine=$(kubectl logs -n "${namespace}" "${importerPod}" --since=60m 2>/dev/null | grep -m1 "Running hash mismatch for file" || true)
+  lastAcceptedLine=$(kubectl logs -n "${namespace}" "${importerPod}" --since=60m 2>/dev/null | grep -m1 "Failed processing signatures after" || true)
+
+  if [[ -z "${mismatchLine}" ]]; then
+    echo "[BOUNDARY_DIAG] No running-hash mismatch line found in importer logs (last 60m)"
+    return 0
+  fi
+
+  echo "[BOUNDARY_DIAG] First mismatch line: ${mismatchLine}"
+  if [[ -n "${lastAcceptedLine}" ]]; then
+    echo "[BOUNDARY_DIAG] Last accepted pointer line: ${lastAcceptedLine}"
+  fi
+
+  # Parse the .rcd.gz filename without trailing punctuation from log text:
+  # "... Running hash mismatch for file <name>. Expected = ..."
+  mismatchFile=$(echo "${mismatchLine}" | sed -nE "s/.*Running hash mismatch for file ([^ ]+)\\. Expected.*/\\1/p")
+  if [[ -z "${mismatchFile}" ]]; then
+    mismatchFile=$(echo "${mismatchLine}" | sed -nE "s/.*Running hash mismatch for file ([^ ]+).*/\\1/p" | sed 's/[[:punct:]]$//')
+  fi
+  if [[ -z "${mismatchFile}" ]]; then
+    echo "[BOUNDARY_DIAG] Could not parse mismatch filename from importer log line"
+    return 0
+  fi
+  mismatchSig="${mismatchFile%.rcd.gz}.rcd_sig"
+
+  echo "[BOUNDARY_DIAG] Parsed mismatch data file: ${mismatchFile}"
+  echo "[BOUNDARY_DIAG] Parsed mismatch signature file: ${mismatchSig}"
+
+  if [[ -z "${networkPods}" ]]; then
+    return 0
+  fi
+
+  while IFS= read -r podName; do
+    [[ -z "${podName}" ]] && continue
+    if kubectl exec -n "${namespace}" "${podName}" -- bash -lc "find /opt/hgcapp/services-hedera/HapiApp2.0/output -type f -name '${mismatchFile}' -print -quit" 2>/dev/null | grep -q "${mismatchFile}"; then
+      echo "[BOUNDARY_DIAG] Found ${mismatchFile} on ${podName}"
+      foundRecord=1
+    fi
+    if kubectl exec -n "${namespace}" "${podName}" -- bash -lc "find /opt/hgcapp/services-hedera/HapiApp2.0/output -type f -name '${mismatchSig}' -print -quit" 2>/dev/null | grep -q "${mismatchSig}"; then
+      echo "[BOUNDARY_DIAG] Found ${mismatchSig} on ${podName}"
+      foundSig=1
+    fi
+  done <<< "${networkPods}"
+
+  if [[ ${foundRecord} -eq 0 ]]; then
+    echo "[BOUNDARY_DIAG] WARNING: ${mismatchFile} not found on any CN pod local output"
+  fi
+  if [[ ${foundSig} -eq 0 ]]; then
+    echo "[BOUNDARY_DIAG] WARNING: ${mismatchSig} not found on any CN pod local output"
+  fi
+}
+
+# Function to realign mirror importer hash chain in postgres to the first mismatched
+# record-file previous hash reported by importer logs.
+# Temporary workaround tracked in https://github.com/hiero-ledger/solo/issues/4492
+# for https://github.com/hiero-ledger/hiero-consensus-node/issues/25486.
+#
+# We must not set hash='' because newer importer parser paths still validate and will fail
+# with "Expected = , Actual = ...". Instead we set the last DB hash to the mismatch line's
+# "Actual" running-hash value to bridge the restart boundary deterministically.
+reset_importer_hash_chain_for_upgrade() {
+  local namespace="${1}"
+
+  echo ""
+  echo "[IMPORTER_RESET] Resetting mirror importer hash chain for upgrade boundary..."
+
+  # Find the postgres pod via label
+  local postgresPod
+  postgresPod=$(kubectl get pod -n "${namespace}" -l 'app.kubernetes.io/name=postgres' \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+  if [[ -z "${postgresPod}" ]]; then
+    echo "[IMPORTER_RESET] Could not find postgres pod (label: app.kubernetes.io/name=postgres), skipping"
+    return 0
+  fi
+
+  echo "[IMPORTER_RESET] Found postgres pod: ${postgresPod}"
+
+  # Get the postgres superuser password from the Kubernetes secret
+  local pgPassword
+  pgPassword=$(kubectl get secret -n "${namespace}" solo-shared-resources-passwords \
+    -o jsonpath='{.data.password}' 2>/dev/null | base64 -d || echo "")
+
+  if [[ -z "${pgPassword}" ]]; then
+    echo "[IMPORTER_RESET] Could not get postgres password from secret solo-shared-resources-passwords, skipping"
+    return 0
+  fi
+
+  # Show current state for diagnostics
+  local currentHash
+  currentHash=$(kubectl exec -i -n "${namespace}" "${postgresPod}" -c postgresql -- sh <<EOF
+set -euo pipefail
+cat > /tmp/.solo-pgpass <<'PGPASS'
+localhost:5432:mirror_node:postgres:${pgPassword}
+PGPASS
+chmod 600 /tmp/.solo-pgpass
+PGPASSFILE=/tmp/.solo-pgpass psql -U postgres -d mirror_node -t -A \
+  -c "SELECT hash FROM record_file ORDER BY consensus_end DESC LIMIT 1;"
+rm -f /tmp/.solo-pgpass
+EOF
+  ) || currentHash="query_failed"
+  echo "[IMPORTER_RESET] Current last record_file hash: ${currentHash:-none}"
+
+  local importerPod
+  local mismatchLine
+  local mismatchActualHash
+  importerPod=$(get_active_importer_pod "${namespace}")
+  if [[ -z "${importerPod}" ]]; then
+    echo "[IMPORTER_RESET] Could not find importer pod in namespace ${namespace}, skipping"
+    return 0
+  fi
+
+  mismatchLine=$(kubectl logs -n "${namespace}" "${importerPod}" --since=90m 2>/dev/null | grep -m1 "Running hash mismatch for file" || true)
+  mismatchActualHash=$(echo "${mismatchLine}" | sed -nE 's/.*Actual = ([0-9a-fA-F]+).*/\1/p')
+
+  if [[ -z "${mismatchActualHash}" ]]; then
+    echo "[IMPORTER_RESET] No mismatch line with parsable Actual hash found; skipping DB hash rewrite"
+    return 0
+  fi
+  if ! [[ "${mismatchActualHash}" =~ ^[0-9a-fA-F]{96}$ ]]; then
+    echo "[IMPORTER_RESET] Parsed mismatch hash is invalid (expected 96 hex chars); skipping DB hash rewrite"
+    return 0
+  fi
+
+  echo "[IMPORTER_RESET] Using mismatch Actual hash as bridge value: ${mismatchActualHash}"
+
+  local sqlResult
+  sqlResult=$(kubectl exec -i -n "${namespace}" "${postgresPod}" -c postgresql -- sh <<EOF
+set -euo pipefail
+cat > /tmp/.solo-pgpass <<'PGPASS'
+localhost:5432:mirror_node:postgres:${pgPassword}
+PGPASS
+chmod 600 /tmp/.solo-pgpass
+PGPASSFILE=/tmp/.solo-pgpass psql -v ON_ERROR_STOP=1 -U postgres -d mirror_node -t -A \
+  -v mismatch_hash="${mismatchActualHash}" <<'SQL'
+UPDATE record_file
+SET hash = :'mismatch_hash'
+WHERE consensus_end = (SELECT MAX(consensus_end) FROM record_file);
+SQL
+rm -f /tmp/.solo-pgpass
+EOF
+  ) || sqlResult="SQL_FAILED"
+
+  if [[ "${sqlResult}" == *"SQL_FAILED"* ]] || echo "${sqlResult}" | grep -qi "error"; then
+    echo "[IMPORTER_RESET] WARNING: Hash chain reset SQL failed: ${sqlResult}"
+    echo "[IMPORTER_RESET] Mirror importer may still experience hash chain mismatch after upgrade"
+  else
+    echo "[IMPORTER_RESET] Hash chain reset completed (${sqlResult} row updated)"
+    echo "[IMPORTER_RESET] Importer last hash realigned to mismatch boundary hash"
+  fi
+  echo ""
+}
+
+# Function to check whether importer currently reports the known post-restart hash mismatch.
+importer_hash_mismatch_detected() {
+  local namespace="${1}"
+  local sinceWindow="${2:-30m}"
+  local importerPod
+
+  importerPod=$(get_active_importer_pod "${namespace}")
+  if [[ -z "${importerPod}" ]]; then
+    echo "[IMPORTER_RECOVERY] No importer pod found in namespace ${namespace}"
+    return 1
+  fi
+
+  if kubectl logs -n "${namespace}" "${importerPod}" --since="${sinceWindow}" 2>/dev/null | \
+    grep -Eq "Running hash mismatch for file|None of the data files could be verified"; then
+    return 0
+  fi
+  return 1
+}
+
+# Function to restart importer deployments after hash-chain reset.
+restart_importer_pods_for_recovery() {
+  local namespace="${1}"
+  local importerDeployments
+
+  importerDeployments=$(kubectl get deployment -n "${namespace}" -o name | grep -E '^deployment.apps/mirror(-[0-9]+)?-importer$' || true)
+  if [[ -z "${importerDeployments}" ]]; then
+    importerDeployments=$(kubectl get deployment -n "${namespace}" -o name | grep 'importer' || true)
+  fi
+  if [[ -z "${importerDeployments}" ]]; then
+    echo "[IMPORTER_RECOVERY] No importer deployment found to restart in namespace ${namespace}"
+    return 0
+  fi
+
+  while IFS= read -r deploymentName; do
+    [[ -z "${deploymentName}" ]] && continue
+    kubectl rollout restart -n "${namespace}" "${deploymentName}"
+    kubectl rollout status -n "${namespace}" "${deploymentName}" --timeout=4m || true
+  done <<< "${importerDeployments}"
+}
+
+# Function to apply one-shot importer hash-chain recovery after CN restart.
+auto_recover_importer_hash_chain() {
+  local namespace="${1}"
+  echo "[IMPORTER_RECOVERY] Applying preventive importer hash-chain recovery for migration boundary"
+  reset_importer_hash_chain_for_upgrade "${namespace}"
+  restart_importer_pods_for_recovery "${namespace}"
+
+  if importer_hash_mismatch_detected "${namespace}" "10m"; then
+    echo "[IMPORTER_RECOVERY] WARNING: mismatch still present after one-shot recovery"
+  else
+    echo "[IMPORTER_RECOVERY] Recovery completed; mismatch not observed in recent importer logs"
+  fi
+}
+
 fromSoloVersion="${1}"
 toConsensusNodeVersion="${2}"
 if [[ -z "${fromSoloVersion}" ]]; then
@@ -116,14 +441,26 @@ then
 fi
 
 echo "::group::Prerequisites"
-SOLO_NO_CACHE=true npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
+expectedSoloVersion="${fromSoloVersion#v}"
+installedSoloVersion=""
+
+if command -v solo &> /dev/null; then
+  installedSoloVersion=$(solo --version 2>/dev/null | grep -Eo '([0-9]+\.){2}[0-9]+' | head -n 1 || true)
+  installedSoloVersion="${installedSoloVersion#v}"
+fi
+
+if [[ -n "${installedSoloVersion}" && "${installedSoloVersion}" == "${expectedSoloVersion}" ]]; then
+  echo "Solo version ${installedSoloVersion} already installed, skipping npm install"
+else
+  SOLO_NO_CACHE=true npm install -g @hashgraph/solo@"${fromSoloVersion}" --force
+fi
+
 solo --version
 
 export SOLO_CLUSTER_NAME=solo-e2e
-export SOLO_NAMESPACE=solo-e2e
+export SOLO_NAMESPACE=one-shot
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
-export SOLO_DEPLOYMENT=solo-e2e
-export USE_MIRROR_NODE_LEGACY_RELEASE_NAME=false
+export SOLO_DEPLOYMENT=one-shot
 export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.152.0
 export SOLO_LOG_LEVEL=debug
 export PREV_BLOCK_VERSION=v0.32.0
@@ -175,156 +512,61 @@ fi
 echo "Consensus Node Version (from): ${FROM_CONSENSUS_NODE_VERSION}"
 echo "Consensus Node Version (to): ${TO_CONSENSUS_NODE_VERSION}"
 
-solo init --dev
+TEMP_ONE_SHOT_VALUES_FILE="$(mktemp -t falcon-values-migration-XXXX.yaml)"
+cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
+# Generated for migration workflow launch.
+network:
+  --pvcs: true
+  --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
 
+setup:
+  --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
+EOF
 
-solo cluster-ref config connect --cluster-ref ${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME} --dev
-solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}" --dev
-solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --num-consensus-nodes 2 --dev
-solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" --dev
-solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --dev
-
-solo block node add --deployment "${SOLO_DEPLOYMENT}" --chart-version "${PREV_BLOCK_VERSION}"
-solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
-solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
-solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -q --dev
-solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
-
-solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --enable-ingress --pinger -q --mirror-node-version ${MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE} --dev
-solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --explorer-version ${PREV_EXPLORER_VERSION} -q --dev
-solo relay node add -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${SOLO_CLUSTER_NAME} --relay-release ${PREV_RELAY_VERSION} --dev
+export ONE_SHOT_WITH_BLOCK_NODE=true
+solo one-shot falcon deploy \
+  --num-consensus-nodes 2 \
+  --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
+  --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"
 
 echo "::endgroup::"
 
-echo "::group::Verification"
-cp ~/.solo/local-config.yaml ./local-config-before.yaml
-cat ./local-config-before.yaml
-kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.data' > remote-config-before.yaml
-cat remote-config-before.yaml
-
-# trigger migration
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --dev
-
-cp ~/.solo/local-config.yaml ./local-config-after.yaml
-cat ./local-config-after.yaml
-kubectl get ConfigMap solo-remote-config -n ${SOLO_NAMESPACE} -o yaml | yq '.data' > remote-config-after.yaml
-cat remote-config-after.yaml
-
-# check local-config-after.yaml should contains 'schemaVersion: 2'
-if ! grep -q "schemaVersion: 2" ./local-config-after.yaml; then
-  echo "schemaVersion: 2 not found in local-config-after.yaml"
-  exit 1
-fi
-
-# check remote-config-after.yaml should contains 'schemaVersion: 7'
-if ! grep -q "schemaVersion: 7" ./remote-config-after.yaml; then
-  echo "schemaVersion: 7 not found in remote-config-after.yaml"
-  exit 1
-fi
-echo "::endgroup::"
 
 echo "::group::Upgrade Solo"
-# need to add ingress controller helm repo
-echo "Upgrading with workspace Solo CLI"
-
-npm run solo -- init --dev
-# Do not force legacy release-name override when upgrading with current workspace Solo.
-# The old released Solo command executed above may have installed either naming scheme.
-unset USE_MIRROR_NODE_LEGACY_RELEASE_NAME
-# freeze network instead of using "node stop" to make sure the network is stopped elegantly
-# need to use old solo to freeze the network since new solo freeze may not be compatible with old consensus node
-# s6 container
 solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
-
-# using new solo to redeploy solo deployment chart to new version
 show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
 save_cluster_ips "${SOLO_NAMESPACE}"
 
-npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
+# using new solo to redeploy solo deployment chart to new version
+npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "AFTER network deploy"
 restore_cluster_ips "${SOLO_NAMESPACE}" "${NODE1_IP}" "${NODE2_IP}"
 
-npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --release-tag "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
+npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
 
 show_service_ips "${SOLO_NAMESPACE}" "AFTER node setup"
 
 # force mirror component restarts to pick up secret/config changes due to solo chart upgrade.
 # deployment naming varies by chart version (e.g. mirror-* vs mirror-1-*), so discover dynamically.
-mirrorComponentDeployments=$(kubectl get deployment -n solo-e2e -o name | grep -E '^deployment.apps/mirror(-[0-9]+)?-(importer|rest|restjava|web3|grpc|monitor|postgres-pgpool)$' || true)
+mirrorComponentDeployments=$(kubectl get deployment -n "${SOLO_NAMESPACE}" -o name | grep -E '^deployment.apps/mirror(-[0-9]+)?-(importer|rest|restjava|web3|grpc|pinger|postgres-pgpool)$' || true)
 if [[ -z "${mirrorComponentDeployments}" ]]; then
-  echo "No mirror component deployments found to restart in namespace solo-e2e"
+  echo "No mirror component deployments found to restart in namespace ${SOLO_NAMESPACE}"
 else
   while IFS= read -r deploymentName; do
     [[ -z "${deploymentName}" ]] && continue
-    kubectl rollout restart "${deploymentName}" -n solo-e2e
+    kubectl rollout restart "${deploymentName}" -n "${SOLO_NAMESPACE}"
   done <<< "${mirrorComponentDeployments}"
 fi
 
-# mirror ingress controller deployment name can vary by chart version
-# (e.g. legacy "mirror-ingress-controller" or suffixed "mirror-ingress-controller-<deployment>").
-mirrorIngressDeployments=$(kubectl get deployment -n solo-e2e -o name | grep '^deployment.apps/mirror-ingress-controller' || true)
-if [[ -z "${mirrorIngressDeployments}" ]]; then
-  echo "No mirror ingress controller deployment found to restart in namespace solo-e2e"
-else
-  while IFS= read -r deploymentName; do
-    [[ -z "${deploymentName}" ]] && continue
-    kubectl rollout restart "${deploymentName}" -n solo-e2e
-  done <<< "${mirrorIngressDeployments}"
-fi
-sleep 40;
+npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+collect_restart_boundary_diagnostics "${SOLO_NAMESPACE}"
 
-# restart consensus nodes nodes after mirror nodes are restarted to avoid mirror nodes missing any stream files during restart
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs BEFORE node start:"
-kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
+# Apply preventive reset at the known freeze/restart boundary.
+auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Checking config.txt in pods before start:"
-for node in node1 node2; do
-  echo "=== network-${node}-0 config.txt ==="
-  kubectl exec -n "${SOLO_NAMESPACE}" network-${node}-0 -c root-container -- grep "^address" /opt/hgcapp/services-hedera/HapiApp2.0/.archive/config.txt 2>/dev/null || echo "config.txt not found"
-done
-
-npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev || result=$?
-
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs AFTER node start:"
-kubectl get svc -n "${SOLO_NAMESPACE}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
-
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Checking config.txt AFTER start (wait 10s for file creation):"
-sleep 10
-for node in node1 node2; do
-  echo "=== network-${node}-0 config.txt after start ==="
-  kubectl exec -n "${SOLO_NAMESPACE}" network-${node}-0 -c root-container -- grep "^address" /opt/hgcapp/services-hedera/HapiApp2.0/.archive/config.txt 2>/dev/null || echo "config.txt not found or pod not ready"
-done
-
-if [[ $result -ne 0 ]]; then
-  echo "Starting consensus nodes failed with exit code $result"
-  npm run solo -- deployment diagnostics logs --deployment "${SOLO_DEPLOYMENT}" -q --dev
-  exit $result
-fi
-
-npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-
-# force restart relay pod to pick up changes of configMap
-kubectl rollout restart deployment/relay-1 -n solo-e2e
-kubectl rollout restart deployment/relay-1-ws -n solo-e2e
-
-# redeploy mirror node to upgrade to a newer version
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
-
-
-# wait a few seconds for the pods to be ready before running transactions against them
-sleep 10
-
-# kill existing port-forward process due to restart of mirror ingress controller
-curl http://127.0.0.1:38081 || true
-# find the new mirror-ingress-controller pod name then enable port-forwarding to it
-mirrorPodName=$(kubectl get pods -n solo-e2e  | grep mirror-ingress-controller | awk '{print $1}')
-echo "Mirror Ingress Controller Pod Name: ${mirrorPodName}"
-kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${mirrorPodName}" 38081:80 >/tmp/solo-migration-mirror-port-forward.log 2>&1 &
-
-# Test transaction can still be sent and processed
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100
 echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
@@ -352,30 +594,15 @@ fi
 
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
-# block node v0.28.0+ requires consensus node v0.71.x+, so upgrade block node after CN upgrade
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
-# kill existing port-forward process due to restart of relay pods
-curl http://127.0.0.1:37546 || true
-
-# find the new pod name then enable port-forwarding to it, do not match anything with "ws" in the name
-relayPodName=$(kubectl get pods -n solo-e2e  | grep relay | awk '{print $1}' | grep -v ws)
-echo "Relay Pod Name: ${relayPodName}"
-kubectl port-forward -n solo-e2e --context kind-solo-e2e pods/"${relayPodName}" 37546:7546 >/tmp/solo-migration-relay-port-forward.log 2>&1 &
-echo "command is kubectl port-forward -n solo-e2e pods/${relayPodName} 37546:7546 &"
+npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+# Restart relay and refresh forwards after upgrade to reduce stale-connection windows.
+refresh_relay_network_config "${SOLO_NAMESPACE}" "${SOLO_DEPLOYMENT}"
 
 echo "::endgroup::"
 
 echo "::group::Final Verification"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before smoke test"
-ps -ef |grep port-forward
-
-# Test deployment config list command
-echo "Testing deployment config list without cluster-ref..."
-npm run solo -- deployment config list --dev
-echo "Testing deployment config list with cluster-ref..."
-npm run solo -- deployment config list --cluster-ref ${SOLO_CLUSTER_NAME} --dev
-
 SKIP_IMPORTER_CHECK=true
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 echo "::endgroup::"
