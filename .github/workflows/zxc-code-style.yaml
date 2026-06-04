@@ -57,7 +57,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
@@ -81,6 +81,32 @@ jobs:
           timeout_minutes: 10
           command: |
             npm ci
+
+      - name: Check SoloError Subclasses Registered in SoloErrors
+        run: |
+          missing=""
+          while IFS= read -r file; do
+            class_name=$(grep -oE "^export class [A-Za-z]+" "$file" | awk '{print $3}')
+            if [ -n "$class_name" ] && ! grep -q "$class_name" src/core/errors/solo-errors.ts; then
+              missing="$missing\n  $class_name ($file)"
+            fi
+          done < <(find src/core/errors/classes -name "*.ts" -type f)
+          if [ -n "$missing" ]; then
+            echo "✘ The following SoloError subclasses are missing from solo-errors.ts:"
+            printf "%b\n" "$missing"
+            exit 1
+          fi
+          echo "✔ All SoloError subclasses are registered in solo-errors.ts"
+
+      - name: Check for Duplicate Error Codes
+        run: |
+          duplicates=$(grep -oE "'SOLO-[0-9]+'" src/core/errors/error-code-registry.ts | tr -d "'" | sort | uniq -d)
+          if [ -n "$duplicates" ]; then
+            echo "✘ Duplicate error codes found in error-code-registry.ts:"
+            echo "$duplicates"
+            exit 1
+          fi
+          echo "✔ No duplicate error codes found"
 
       - name: Check Code Style
         run: |

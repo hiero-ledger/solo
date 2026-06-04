@@ -8,11 +8,18 @@ import {RelayCommand} from '../../../src/commands/relay.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {resetForTest} from '../../test-container.js';
+import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
 
 interface RelayCommandInternal {
   prepareNetworkJsonString: (nodeAliases: string[], namespace: NamespaceName, deployment: string) => Promise<string>;
-  prepareValuesArgForRelay: (configuration: Record<string, unknown>) => Promise<string>;
+  prepareHelmChartValuesForRelay: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
 }
+
+const prepareRelayValueArguments = async (
+  relayCommandInternal: RelayCommandInternal,
+  configuration: Record<string, unknown>,
+  // eslint-disable-next-line unicorn/no-await-expression-member
+): Promise<string[]> => (await relayCommandInternal.prepareHelmChartValuesForRelay(configuration)).toArguments();
 
 const createRelayConfig: (overrides?: Record<string, unknown>) => Record<string, unknown> = (
   overrides: Record<string, unknown> = {},
@@ -51,19 +58,15 @@ describe('RelayCommand unit tests', (): void => {
 
     sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
-    const valuesArgument: string = await relayCommandInternal.prepareValuesArgForRelay(
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
       createRelayConfig({
         [flags.relayReleaseTag.constName]: '0.77.0',
       }),
     );
 
-    const relayImageTagMatches: RegExpMatchArray[] = [...valuesArgument.matchAll(/--set relay\.image\.tag=([^\s]+)/g)];
-    const webSocketImageTagMatches: RegExpMatchArray[] = [...valuesArgument.matchAll(/--set ws\.image\.tag=([^\s]+)/g)];
-
-    expect(relayImageTagMatches).to.have.lengthOf(1);
-    expect(relayImageTagMatches[0][1]).to.equal('0.77.0');
-    expect(webSocketImageTagMatches).to.have.lengthOf(1);
-    expect(webSocketImageTagMatches[0][1]).to.equal('0.77.0');
+    expect(valueArguments).to.include('relay.image.tag=0.77.0');
+    expect(valueArguments).to.include('ws.image.tag=0.77.0');
   });
 
   it('should accept full relay image reference and set relay/ws image registry repository and tag', async (): Promise<void> => {
@@ -71,18 +74,19 @@ describe('RelayCommand unit tests', (): void => {
 
     sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
-    const valuesArgument: string = await relayCommandInternal.prepareValuesArgForRelay(
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
       createRelayConfig({
         [flags.componentImage.constName]: 'docker.io/library/v400.0',
       }),
     );
 
-    expect(valuesArgument).to.include('--set relay.image.registry=docker.io');
-    expect(valuesArgument).to.include('--set ws.image.registry=docker.io');
-    expect(valuesArgument).to.include('--set relay.image.repository=library/v400.0');
-    expect(valuesArgument).to.include('--set ws.image.repository=library/v400.0');
-    expect(valuesArgument).to.include('--set relay.image.tag=latest');
-    expect(valuesArgument).to.include('--set ws.image.tag=latest');
+    expect(valueArguments).to.include('relay.image.registry=docker.io');
+    expect(valueArguments).to.include('ws.image.registry=docker.io');
+    expect(valueArguments).to.include('relay.image.repository=library/v400.0');
+    expect(valueArguments).to.include('ws.image.repository=library/v400.0');
+    expect(valueArguments).to.include('relay.image.tag=latest');
+    expect(valueArguments).to.include('ws.image.tag=latest');
   });
 
   it('should accept docker hub shorthand and infer docker.io/library repository', async (): Promise<void> => {
@@ -90,18 +94,19 @@ describe('RelayCommand unit tests', (): void => {
 
     sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
-    const valuesArgument: string = await relayCommandInternal.prepareValuesArgForRelay(
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
       createRelayConfig({
         [flags.componentImage.constName]: 'redis:7',
       }),
     );
 
-    expect(valuesArgument).to.include('--set relay.image.registry=docker.io');
-    expect(valuesArgument).to.include('--set ws.image.registry=docker.io');
-    expect(valuesArgument).to.include('--set relay.image.repository=library/redis');
-    expect(valuesArgument).to.include('--set ws.image.repository=library/redis');
-    expect(valuesArgument).to.include('--set relay.image.tag=7');
-    expect(valuesArgument).to.include('--set ws.image.tag=7');
+    expect(valueArguments).to.include('relay.image.registry=docker.io');
+    expect(valueArguments).to.include('ws.image.registry=docker.io');
+    expect(valueArguments).to.include('relay.image.repository=library/redis');
+    expect(valueArguments).to.include('ws.image.repository=library/redis');
+    expect(valueArguments).to.include('relay.image.tag=7');
+    expect(valueArguments).to.include('ws.image.tag=7');
   });
 
   it('should reject plain tag value for componentImage', async (): Promise<void> => {
@@ -110,12 +115,13 @@ describe('RelayCommand unit tests', (): void => {
     sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
 
     try {
-      await relayCommandInternal.prepareValuesArgForRelay(
+      await prepareRelayValueArguments(
+        relayCommandInternal,
         createRelayConfig({
           [flags.componentImage.constName]: 'latest',
         }),
       );
-      expect.fail('Expected prepareValuesArgForRelay to throw');
+      expect.fail('Expected prepareHelmChartValuesForRelay to throw');
     } catch (error) {
       expect(error.message).to.include('Invalid image reference format: latest');
     }

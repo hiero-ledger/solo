@@ -555,8 +555,8 @@ export class ConsensusNodeTest extends BaseCommandTest {
   ): Promise<string> {
     const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
     try {
-      await accountManager.refreshNodeClient(namespace, clusterReferences, undefined, deployment);
-      expect(accountManager._nodeClient).not.to.be.null;
+      await accountManager.refreshNodeClient(namespace, clusterReferences, deployment);
+      expect(accountManager._nodeClient).not.to.be.undefined;
       const privateKey: PrivateKey = PrivateKey.generate();
       const amount: number = 777;
 

@@ -338,7 +338,7 @@ export class ClusterTaskManager extends ShellRunner {
   private getConfigFilePath(useSmallMemoryCluster: boolean): string {
     let kindConfigFilePath: string = constants.KIND_CLUSTER_CONFIG_FILE;
     if (useSmallMemoryCluster && kindConfigFilePath === constants.DEFAULT_KIND_CLUSTER_CONFIG_FILE) {
-      kindConfigFilePath = 'resources/templates/small-memory/kind-config.yaml';
+      kindConfigFilePath = path.join(constants.RESOURCES_DIR, 'templates', 'small-memory', 'kind-config.yaml');
       this.logger.info(`Using small memory cluster configuration: ${kindConfigFilePath}`);
     }
     return kindConfigFilePath;

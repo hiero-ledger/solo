@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr} from 'listr2';
-import {SoloError} from '../core/errors/solo-error.js';
 import * as helpers from '../core/helpers.js';
 import {
   checkDockerImageExists,
@@ -53,6 +52,8 @@ import {
   type ComponentUpgradeMigrationStep,
 } from './migrations/component-upgrade-rules.js';
 import {optionFromFlag} from './command-helpers.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
+import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -70,7 +71,7 @@ interface BlockNodeDeployConfigClass {
   imageTag: Optional<string>;
   namespace: NamespaceName;
   context: string;
-  valuesArg: string;
+  chartValues: HelmChartValues;
   newBlockNodeComponent: BlockNodeStateSchema;
   releaseName: string;
   livenessCheckPort: number;
@@ -90,7 +91,6 @@ interface BlockNodeDestroyConfigClass {
   namespace: NamespaceName;
   context: string;
   isChartInstalled: boolean;
-  valuesArg: string;
   releaseName: string;
   id: number;
   isLegacyChartInstalled: boolean;
@@ -115,7 +115,7 @@ interface BlockNodeUpgradeConfigClass {
   upgradeVersion: string;
   currentVersion: string;
   migrationPlan: ComponentUpgradeMigrationStep[];
-  valuesArg: string;
+  chartValues: HelmChartValues;
   id: number;
   isLegacyChartInstalled: boolean;
   /** Set by recreateBlockNodeChart; used by the readiness check to ignore the terminating predecessor pod. */
@@ -233,46 +233,40 @@ export class BlockNodeCommand extends BaseCommand {
     ],
   };
 
-  private async prepareValuesArgForBlockNode(
+  private async prepareHelmChartValuesForBlockNode(
     config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
-  ): Promise<string> {
-    let valuesArgument: string = '';
-
-    valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_VALUES_FILE);
+  ): Promise<HelmChartValues> {
+    const chartValues: HelmChartValues = new HelmChartValues().file(constants.BLOCK_NODE_VALUES_FILE);
 
     // Block node can be deployed before consensus deploy persists tssEnabled into remote config.
     // The explicit CLI switch allows users to opt into TSS sizing and message limits in that order-of-operations.
     if (this.remoteConfig.configuration.state.tssEnabled || config.blockNodeTssOverlay) {
-      valuesArgument += helpers.prepareValuesFiles(constants.BLOCK_NODE_TSS_VALUES_FILE);
+      chartValues.file(constants.BLOCK_NODE_TSS_VALUES_FILE);
     }
 
-    if (config.valuesFile) {
-      valuesArgument += helpers.prepareValuesFiles(config.valuesFile);
-    }
+    chartValues.filesFromCommaSeparatedInput(config.valuesFile);
 
-    valuesArgument += helpers.populateHelmArguments({nameOverride: config.releaseName});
+    chartValues.set('nameOverride', config.releaseName);
 
     // Only handle domainName and imageTag for deploy config (not upgrade config)
     if ('domainName' in config && config.domainName) {
-      valuesArgument += helpers.populateHelmArguments({
-        'ingress.enabled': true,
-        'ingress.hosts[0].host': config.domainName,
-        'ingress.hosts[0].paths[0].path': '/',
-        'ingress.hosts[0].paths[0].pathType': 'ImplementationSpecific',
-      });
+      chartValues
+        .set('ingress.enabled', true)
+        .set('ingress.hosts[0].host', config.domainName)
+        .set('ingress.hosts[0].paths[0].path', '/')
+        .set('ingress.hosts[0].paths[0].pathType', 'ImplementationSpecific');
     }
 
     if ('imageTag' in config && config.imageTag) {
       config.imageTag = SemanticVersion.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
       if (!checkDockerImageExists(constants.BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
-        throw new SoloError(`Local block node image with tag "${config.imageTag}" does not exist.`);
+        throw new SoloErrors.validation.blockNodeLocalImageNotFound(config.imageTag);
       }
       // use local image from docker engine
-      valuesArgument += helpers.populateHelmArguments({
-        'image.repository': constants.BLOCK_NODE_IMAGE_NAME,
-        'image.tag': config.imageTag,
-        'image.pullPolicy': 'Never',
-      });
+      chartValues
+        .set('image.repository', constants.BLOCK_NODE_IMAGE_NAME)
+        .set('image.tag', config.imageTag)
+        .set('image.pullPolicy', 'Never');
     }
 
     const {state, clusters} = this.remoteConfig.configuration;
@@ -286,21 +280,23 @@ export class BlockNodeCommand extends BaseCommand {
         cluster.dnsBaseDomain,
       );
 
-      valuesArgument += helpers.populateHelmArguments({
-        [`blockNode.sources[${index}].address`]: fqdn,
-        [`blockNode.sources[${index}].port`]: constants.BLOCK_NODE_PORT,
-        [`blockNode.sources[${index}].priority`]: 1,
-      });
+      chartValues
+        .set(`blockNode.sources[${index}].address`, fqdn)
+        .set(`blockNode.sources[${index}].port`, constants.BLOCK_NODE_PORT)
+        .set(`blockNode.sources[${index}].priority`, 1);
     }
 
-    return valuesArgument;
+    return chartValues;
   }
 
-  private static appendExtraCommandArgs(baseArgument: string, extraCommandArguments: string[]): string {
+  private static appendExtraCommandArgs(
+    chartValues: HelmChartValues,
+    extraCommandArguments: string[],
+  ): HelmChartValues {
     if (extraCommandArguments.length === 0) {
-      return baseArgument;
+      return chartValues;
     }
-    return `${baseArgument} ${extraCommandArguments.join(' ')}`.trim();
+    return chartValues.clone().arguments(...extraCommandArguments);
   }
 
   private getReleaseName(): string {
@@ -311,7 +307,7 @@ export class BlockNodeCommand extends BaseCommand {
 
   private renderReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
+      throw new SoloErrors.validation.blockNodeInvalidComponentId(id);
     }
     return `${constants.BLOCK_NODE_RELEASE_NAME}-${id}`;
   }
@@ -469,8 +465,9 @@ export class BlockNodeCommand extends BaseCommand {
             );
 
             if (currentVersion.lessThan(minimumVersion)) {
-              throw new SoloError(
-                `Current version is ${consensusNodeVersion}, Hedera platform versions less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE} are not supported`,
+              throw new SoloErrors.validation.blockNodePlatformVersionTooLow(
+                consensusNodeVersion,
+                versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE,
               );
             }
 
@@ -491,9 +488,10 @@ export class BlockNodeCommand extends BaseCommand {
               ) &&
               currentBlockNodeVersion.greaterThanOrEqual(MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
             ) {
-              throw new SoloError(
-                `Current platform version is ${consensusNodeVersion}, Hedera platform version less than ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE} ` +
-                  `are not supported for block node version ${MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.toString()}`,
+              throw new SoloErrors.validation.blockNodeLivenessPortVersionIncompatible(
+                consensusNodeVersion,
+                versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE,
+                MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.toString(),
               );
             }
 
@@ -528,7 +526,7 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
-            config.valuesArg = await this.prepareValuesArgForBlockNode(config);
+            config.chartValues = await this.prepareHelmChartValuesForBlockNode(config);
           },
         },
         {
@@ -539,7 +537,7 @@ export class BlockNodeCommand extends BaseCommand {
               namespace,
               releaseName,
               chartVersion,
-              valuesArg,
+              chartValues,
               imageTag,
               blockNodeChartDirectory,
               newBlockNodeComponent,
@@ -551,7 +549,7 @@ export class BlockNodeCommand extends BaseCommand {
               constants.BLOCK_NODE_CHART,
               blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
               chartVersion,
-              valuesArg,
+              chartValues,
               context,
             );
 
@@ -603,7 +601,7 @@ export class BlockNodeCommand extends BaseCommand {
             const blockNodePods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
 
             if (blockNodePods.length === 0) {
-              throw new SoloError('Failed to list block node pod');
+              throw new SoloErrors.system.blockNodePodNotFound();
             }
           },
         },
@@ -621,7 +619,7 @@ export class BlockNodeCommand extends BaseCommand {
                   constants.BLOCK_NODE_PODS_RUNNING_DELAY,
                 );
             } catch (error) {
-              throw new SoloError(`Block node ${config.releaseName} is not ready: ${error.message}`, error);
+              throw new SoloErrors.system.blockNodeNotReady(config.releaseName, error);
             }
           },
         },
@@ -637,7 +635,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error deploying block node: ${error.message}`, error);
+        throw new SoloErrors.component.blockNodeDeployFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -739,7 +737,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error destroying block node: ${error.message}`, error);
+        throw new SoloErrors.component.blockNodeDestroyFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -831,14 +829,14 @@ export class BlockNodeCommand extends BaseCommand {
                 config.id,
               );
             } catch (error) {
-              throw new SoloError(`Block node ${config.releaseName} was not found`, error);
+              throw new SoloErrors.system.blockNodeNotInRemoteConfig(config.releaseName, error);
             }
           },
         },
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
-            config.valuesArg = await this.prepareValuesArgForBlockNode(config);
+            config.chartValues = await this.prepareHelmChartValuesForBlockNode(config);
           },
         },
         {
@@ -866,8 +864,8 @@ export class BlockNodeCommand extends BaseCommand {
                 false,
                 'Block node chart version',
               );
-              const stepValuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(
-                config.valuesArg,
+              const stepChartValues: HelmChartValues = BlockNodeCommand.appendExtraCommandArgs(
+                config.chartValues,
                 step.extraCommandArgs,
               );
 
@@ -884,7 +882,7 @@ export class BlockNodeCommand extends BaseCommand {
                     constants.BLOCK_NODE_CHART,
                     config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
                     stepTargetVersion,
-                    stepValuesArgument,
+                    stepChartValues,
                     context,
                   );
                 } catch (error) {
@@ -928,10 +926,7 @@ export class BlockNodeCommand extends BaseCommand {
                   config.recreateInstallTime,
                 );
             } catch (error) {
-              throw new SoloError(
-                `Block node ${config.releaseName} is not ready after upgrade: ${error.message}`,
-                error,
-              );
+              throw new SoloErrors.system.blockNodeNotReady(config.releaseName, error);
             }
           },
         },
@@ -945,7 +940,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error upgrading block node: ${error.message}`, error);
+        throw new SoloErrors.component.blockNodeUpgradeFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1032,7 +1027,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error adding external block node: ${error.message}`, error);
+        throw new SoloErrors.component.blockNodeAddExternalFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1106,7 +1101,7 @@ export class BlockNodeCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error removing external block node: ${error.message}`, error);
+        throw new SoloErrors.component.blockNodeDeleteExternalFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1216,7 +1211,10 @@ export class BlockNodeCommand extends BaseCommand {
     validatedUpgradeVersion: string,
     step: ComponentUpgradeMigrationStep,
   ): Promise<void> {
-    const valuesArgument: string = BlockNodeCommand.appendExtraCommandArgs(config.valuesArg, step.extraCommandArgs);
+    const chartValues: HelmChartValues = BlockNodeCommand.appendExtraCommandArgs(
+      config.chartValues,
+      step.extraCommandArgs,
+    );
     await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
     // Wait for the old pod to be fully terminated before creating the new StatefulSet.
@@ -1235,7 +1233,7 @@ export class BlockNodeCommand extends BaseCommand {
       constants.BLOCK_NODE_CHART,
       config.blockNodeChartDirectory || constants.BLOCK_NODE_CHART_URL,
       validatedUpgradeVersion,
-      valuesArgument,
+      chartValues,
       config.context,
     );
   }
@@ -1385,7 +1383,7 @@ export class BlockNodeCommand extends BaseCommand {
             );
 
             if (response !== 'OK') {
-              throw new SoloError('Bad response status');
+              throw new SoloErrors.component.blockNodeHealthCheckFailed('bad response status');
             }
 
             success = true;
@@ -1403,7 +1401,7 @@ export class BlockNodeCommand extends BaseCommand {
 
         if (!success) {
           displayHealthcheckCallback(attempt, maxAttempts, 'red', 'max attempts reached');
-          throw new SoloError('Max attempts reached');
+          throw new SoloErrors.component.blockNodeHealthCheckFailed('max attempts reached');
         }
 
         displayHealthcheckCallback(attempt, maxAttempts, 'green', 'success');
@@ -1419,7 +1417,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.blockNodes.length === 0) {
-      throw new SoloError('Block node not found in remote config.' + id ? `ID ${id}` : '');
+      throw new SoloErrors.system.blockNodeNotInRemoteConfig(id);
     }
 
     return this.remoteConfig.configuration.components.state.blockNodes[0].metadata.id;
@@ -1431,7 +1429,7 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.externalBlockNodes.length === 0) {
-      throw new SoloError('No External block node not found in remote config. ' + id ? `ID ${id}` : '');
+      throw new SoloErrors.system.externalBlockNodeNotInRemoteConfig(id);
     }
 
     return this.remoteConfig.configuration.components.state.externalBlockNodes[0].id;
