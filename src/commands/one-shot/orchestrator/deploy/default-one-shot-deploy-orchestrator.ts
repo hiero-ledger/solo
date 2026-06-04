@@ -60,7 +60,7 @@ import * as helpers from '../../../../core/helpers.js';
 import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../../../core/helpers.js';
 import {Duration} from '../../../../core/time/duration.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
-import {SoloError} from '../../../../core/errors/solo-error.js';
+import {UserBreak} from '../../../../core/errors/user-break.js';
 import {Templates} from '../../../../core/templates.js';
 import {PathEx} from '../../../../business/utils/path-ex.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
@@ -326,7 +326,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               };
               const proceed: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, promptOptions);
               if (!proceed) {
-                throw new SoloError('Aborted by user');
+                throw new UserBreak('Aborted by user');
               }
             }
           },
@@ -404,7 +404,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           title: 'Create remote config components',
           task: async (): Promise<void> => {
             const deployConfig: OneShotSingleDeployConfigClass = getConfig();
-            if (constants.ONE_SHOT_WITH_BLOCK_NODE === 'true') {
+            if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
               const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
                 deployConfig.clusterRef,
                 deployConfig.namespace,
@@ -919,7 +919,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     });
 
     if (!proceed) {
-      throw new SoloError('Aborted by user');
+      throw new UserBreak('Aborted by user');
     }
   }
 

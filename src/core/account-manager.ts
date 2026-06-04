@@ -23,6 +23,8 @@ import {
   Long,
   PrivateKey,
   Status,
+  TransactionReceipt,
+  TransactionResponse,
   TransferTransaction,
 } from '@hiero-ledger/sdk';
 import {SoloError} from './errors/solo-error.js';
@@ -74,6 +76,10 @@ const REASON_FAILED_TO_CREATE_K8S_S_KEY: string = 'failed to create k8s scrt key
 const FULFILLED: string = 'fulfilled';
 const REJECTED: string = 'rejected';
 
+type NodeClientSelection = {type: 'all'; skipNodeAlias?: NodeAlias} | {type: 'only'; nodeAlias: NodeAlias};
+
+const DEFAULT_NODE_CLIENT_SELECTION: NodeClientSelection = {type: 'all'};
+
 @injectable()
 export class AccountManager {
   private _portForwards: number[];
@@ -92,7 +98,7 @@ export class AccountManager {
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
 
     this._portForwards = [];
-    this._nodeClient = null;
+    this._nodeClient = undefined;
   }
 
   /**
@@ -193,7 +199,7 @@ export class AccountManager {
       }
     }
 
-    this._nodeClient = null;
+    this._nodeClient = undefined;
     this._portForwards = [];
     this.logger.debug('node client and port forwards have been closed');
   }
@@ -219,7 +225,7 @@ export class AccountManager {
         this.logger.debug(
           `refreshing node client: [!this._nodeClient=${!this._nodeClient}, this._nodeClient.isClientShutDown=${this._nodeClient?.isClientShutDown}]`,
         );
-        await this.refreshNodeClient(namespace, clusterReferences, undefined, deployment, forcePortForward);
+        await this.refreshNodeClient(namespace, clusterReferences, deployment, forcePortForward);
       } else {
         try {
           if (!constants.SKIP_NODE_PING) {
@@ -227,31 +233,39 @@ export class AccountManager {
           }
         } catch {
           this.logger.debug('node client ping failed, refreshing node client');
-          await this.refreshNodeClient(namespace, clusterReferences, undefined, deployment, forcePortForward);
+          await this.refreshNodeClient(namespace, clusterReferences, deployment, forcePortForward);
         }
       }
 
       return this._nodeClient!;
     } catch (error) {
-      const message: string = `failed to load node client: ${error.message}`;
-      throw new SoloError(message, error);
+      throw new SoloError(`failed to load node client: ${error.message}`, error);
     }
   }
 
-  /**
-   * loads and initializes the Node Client, throws a SoloError if anything fails
-   * @param namespace - the namespace of the network
-   * @param clusterReferences - the cluster references
-   * @param skipNodeAlias - the node alias to skip
-   * @param deployment - the deployment name
-   * @param [forcePortForward] - whether to force the port forward
-   */
+  private selectNodeServices(
+    networkNodeServicesMap: NodeServiceMapping,
+    selection: NodeClientSelection,
+  ): NodeServiceMapping {
+    if (selection.type === 'all') {
+      return networkNodeServicesMap;
+    }
+
+    const targetNodeService: NetworkNodeServices | undefined = networkNodeServicesMap.get(selection.nodeAlias);
+
+    if (!targetNodeService) {
+      throw new SoloError(`failed to resolve node service for node '${selection.nodeAlias}'`);
+    }
+
+    return new Map<NodeAlias, NetworkNodeServices>([[selection.nodeAlias, targetNodeService]]);
+  }
+
   public async refreshNodeClient(
     namespace: NamespaceName,
     clusterReferences: ClusterReferences,
-    skipNodeAlias: NodeAlias,
     deployment: DeploymentName,
     forcePortForward?: boolean,
+    selection: NodeClientSelection = DEFAULT_NODE_CLIENT_SELECTION,
   ): Promise<Client> {
     try {
       await this.close();
@@ -260,25 +274,31 @@ export class AccountManager {
       }
 
       const treasuryAccountInfo: AccountIdWithKeyPairObject = await this.getTreasuryAccountKeys(namespace, deployment);
-      const networkNodeServicesMap: Map<NodeAlias, NetworkNodeServices> = await this.getNodeServiceMap(
+      const networkNodeServicesMap: NodeServiceMapping = await this.getNodeServiceMap(
         namespace,
         clusterReferences,
         deployment,
       );
 
-      this._nodeClient = await this._getNodeClient(
+      const selectedNodeServicesMap: NodeServiceMapping = this.selectNodeServices(networkNodeServicesMap, selection);
+      const nodeClient = await this._getNodeClient(
         namespace,
-        networkNodeServicesMap,
+        selectedNodeServicesMap,
         treasuryAccountInfo.accountId,
         treasuryAccountInfo.privateKey,
-        skipNodeAlias,
+        selection.type === 'all' ? selection.skipNodeAlias : undefined,
+        selection.type === 'only',
       );
 
-      this.logger.debug('node client has been refreshed');
-      return this._nodeClient;
+      this.logger.debug(
+        selection.type === 'only'
+          ? `single-node client has been refreshed for node '${selection.nodeAlias}'`
+          : 'node client has been refreshed',
+      );
+
+      return nodeClient;
     } catch (error) {
-      const message: string = `failed to refresh node client: ${error.message}`;
-      throw new SoloError(message, error);
+      throw new SoloError(`failed to refresh node client: ${error.message}`, error);
     }
   }
 
@@ -298,6 +318,7 @@ export class AccountManager {
    * @param operatorId - the account id of the operator of the transactions
    * @param operatorKey - the private key of the operator of the transactions
    * @param skipNodeAlias - the node alias to skip
+   * @param skipAssignment
    * @returns a node client that can be used to call transactions
    */
   public async _getNodeClient(
@@ -305,7 +326,8 @@ export class AccountManager {
     networkNodeServicesMap: NodeServiceMapping,
     operatorId: string,
     operatorKey: string,
-    skipNodeAlias: string,
+    skipNodeAlias?: NodeAlias | undefined,
+    skipAssignment: boolean = false,
   ): Promise<Client> {
     let nodes: Record<SdkNetworkEndpoint, AccountId> = {};
     const configureNodeAccessPromiseArray: Promise<Record<SdkNetworkEndpoint, AccountId>>[] = [];
@@ -349,21 +371,25 @@ export class AccountManager {
 
       // scheduleNetworkUpdate is set to false, because the ports 50212/50211 are hardcoded in JS SDK that will not work
       // when running locally or in a pipeline
-      this._nodeClient = Client.fromConfig({network: nodes, scheduleNetworkUpdate: false});
-      this._nodeClient.setOperator(operatorId, operatorKey);
-      this._nodeClient.setLogger(new Logger(LogLevel.Trace, PathEx.join(constants.SOLO_LOGS_DIR, 'hashgraph-sdk.log')));
-      this._nodeClient.setMaxAttempts(constants.NODE_CLIENT_MAX_ATTEMPTS as number);
-      this._nodeClient.setMinBackoff(constants.NODE_CLIENT_MIN_BACKOFF as number);
-      this._nodeClient.setMaxBackoff(constants.NODE_CLIENT_MAX_BACKOFF as number);
-      this._nodeClient.setRequestTimeout(constants.NODE_CLIENT_REQUEST_TIMEOUT as number);
-      this._nodeClient.setMaxQueryPayment(new Hbar(constants.NODE_CLIENT_MAX_QUERY_PAYMENT));
+      const nodeClient = Client.fromConfig({network: nodes, scheduleNetworkUpdate: false});
+      nodeClient.setOperator(operatorId, operatorKey);
+      nodeClient.setLogger(new Logger(LogLevel.Trace, PathEx.join(constants.SOLO_LOGS_DIR, 'hashgraph-sdk.log')));
+      nodeClient.setMaxAttempts(constants.NODE_CLIENT_MAX_ATTEMPTS as number);
+      nodeClient.setMinBackoff(constants.NODE_CLIENT_MIN_BACKOFF as number);
+      nodeClient.setMaxBackoff(constants.NODE_CLIENT_MAX_BACKOFF as number);
+      nodeClient.setRequestTimeout(constants.NODE_CLIENT_REQUEST_TIMEOUT as number);
+      nodeClient.setMaxQueryPayment(new Hbar(constants.NODE_CLIENT_MAX_QUERY_PAYMENT));
+
+      if (!skipAssignment) {
+        this._nodeClient = nodeClient;
+      }
 
       // ping the node client to ensure it is working
       if (!constants.SKIP_NODE_PING) {
-        await this._nodeClient.ping(AccountId.fromString(operatorId));
+        await nodeClient.ping(AccountId.fromString(operatorId));
       }
 
-      return this._nodeClient;
+      return nodeClient;
     } catch (error) {
       throw new SoloError(`failed to setup node client: ${error.message}`, error);
     }
@@ -614,7 +640,7 @@ export class AccountManager {
         serviceBuilder.withHaProxyPodName(podList[0].podReference.name);
       }
 
-      for (const [_, context] of clusterReferences) {
+      for (const [, context] of clusterReferences) {
         // get the pod name of the network node
         const pods: Pod[] = await this.k8Factory
           .getK8(context)
@@ -666,7 +692,9 @@ export class AccountManager {
     deploymentName: DeploymentName,
   ): Promise<{skippedCount: number; rejectedCount: number; fulfilledCount: number}> {
     const genesisKey: PrivateKey = PrivateKey.fromStringED25519(constants.OPERATOR_KEY);
-    const accountUpdatePromiseArray: any[] = [];
+    const accountUpdatePromiseArray: Promise<
+      {value: string; status: string} | {reason: string; value: string; status: string}
+    >[] = [];
 
     for (const accountNumber of currentSet) {
       accountUpdatePromiseArray.push(
@@ -862,7 +890,7 @@ export class AccountManager {
    * @returns the private key of the account
    */
   public async getAccountKeys(accountId: AccountId | string): Promise<Key[]> {
-    const accountInfo = await this.accountInfoQuery(accountId);
+    const accountInfo: AccountInfo = await this.accountInfoQuery(accountId);
 
     let keys: Key[] = [];
     if (accountInfo.key instanceof KeyList) {
@@ -881,7 +909,7 @@ export class AccountManager {
    * @param oldPrivateKey - the genesis key that is the current key
    * @returns whether the update was successful
    */
-  async sendAccountKeyUpdate(
+  public async sendAccountKeyUpdate(
     accountId: AccountId | string,
     newPrivateKey: PrivateKey | string,
     oldPrivateKey: PrivateKey | string,
@@ -895,20 +923,20 @@ export class AccountManager {
     }
 
     // Create the transaction to update the key on the account
-    const transaction: any = new AccountUpdateTransaction()
+    const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
       .setAccountId(accountId)
       .setKey(newPrivateKey.publicKey)
       .freezeWith(this._nodeClient);
 
     // Sign the transaction with the old key and new key
-    let signedTransaction: any = await transaction.sign(oldPrivateKey);
+    let signedTransaction: AccountUpdateTransaction = await transaction.sign(oldPrivateKey);
     signedTransaction = await signedTransaction.sign(newPrivateKey);
 
     // SIgn the transaction with the client operator private key and submit to a Hedera network
-    const txResponse: any = await signedTransaction.execute(this._nodeClient);
+    const txResponse: TransactionResponse = await signedTransaction.execute(this._nodeClient);
 
     // Request the receipt of the transaction
-    const receipt: any = await txResponse.getReceipt(this._nodeClient);
+    const receipt: TransactionReceipt = await txResponse.getReceipt(this._nodeClient);
 
     return receipt.status === Status.Success;
   }
@@ -922,14 +950,14 @@ export class AccountManager {
    * @param context
    * @returns a custom object with the account information in it
    */
-  async createNewAccount(
+  public async createNewAccount(
     namespace: NamespaceName,
     privateKey: PrivateKey,
     amount: number,
     setAlias: boolean = false,
     context: string,
   ): Promise<{accountId: string; privateKey: string; publicKey: string; balance: number; accountAlias?: string}> {
-    const newAccountTransaction: any = new AccountCreateTransaction()
+    const newAccountTransaction: AccountCreateTransaction = new AccountCreateTransaction()
       .setKey(privateKey)
       .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar));
 
@@ -937,10 +965,10 @@ export class AccountManager {
       newAccountTransaction.setAlias(privateKey.publicKey.toEvmAddress());
     }
 
-    const newAccountResponse: any = await newAccountTransaction.execute(this._nodeClient);
+    const newAccountResponse: TransactionResponse = await newAccountTransaction.execute(this._nodeClient);
 
     // Get the new account ID
-    const transactionReceipt: any = await newAccountResponse.getReceipt(this._nodeClient);
+    const transactionReceipt: TransactionReceipt = await newAccountResponse.getReceipt(this._nodeClient);
     const accountInfo: {
       accountId: string;
       privateKey: string;
@@ -957,8 +985,8 @@ export class AccountManager {
     // add the account alias if setAlias is true
     if (setAlias) {
       const accountId: string = accountInfo.accountId;
-      const realm: any = transactionReceipt.accountId!.realm;
-      const shard: any = transactionReceipt.accountId!.shard;
+      const realm: Long = transactionReceipt.accountId!.realm;
+      const shard: Long = transactionReceipt.accountId!.shard;
       const accountInfoQueryResult: AccountInfo = await this.accountInfoQuery(accountId);
       accountInfo.accountAlias = entityId(shard, realm, accountInfoQueryResult.contractAccountId);
     }
@@ -1007,20 +1035,20 @@ export class AccountManager {
    * @param hbarAmount - the amount of HBAR
    * @returns if the transaction was successfully posted
    */
-  async transferAmount(
+  public async transferAmount(
     fromAccountId: AccountId | string,
     toAccountId: AccountId | string,
     hbarAmount: number,
   ): Promise<boolean> {
     try {
-      const transaction: any = new TransferTransaction()
+      const transaction: TransferTransaction = new TransferTransaction()
         .addHbarTransfer(fromAccountId, new Hbar(-1 * hbarAmount))
         .addHbarTransfer(toAccountId, new Hbar(hbarAmount))
         .freezeWith(this._nodeClient);
 
-      const txResponse: any = await transaction.execute(this._nodeClient);
+      const txResponse: TransactionResponse = await transaction.execute(this._nodeClient);
 
-      const receipt: any = await txResponse.getReceipt(this._nodeClient);
+      const receipt: TransactionReceipt = await txResponse.getReceipt(this._nodeClient);
 
       this.logger.debug(
         `The transfer from account ${fromAccountId} to account ${toAccountId} for amount ${hbarAmount} was ${receipt.status.toString()} `,
@@ -1035,7 +1063,7 @@ export class AccountManager {
   /**
    * Fetch and prepare address book as a base64 string
    */
-  async prepareAddressBookBase64(
+  public async prepareAddressBookBase64(
     namespace: NamespaceName,
     clusterReferences: ClusterReferences,
     deployment: DeploymentName,
@@ -1070,8 +1098,8 @@ export class AccountManager {
     const client = this._nodeClient;
     const realm: number | Long = this.localConfig.configuration.realmForDeployment(deployment);
     const shard: number | Long = this.localConfig.configuration.shardForDeployment(deployment);
-    const fileId: any = FileId.fromString(entityId(shard, realm, fileNumber));
-    const queryFees: any = new FileContentsQuery().setFileId(fileId);
+    const fileId: FileId = FileId.fromString(entityId(shard, realm, fileNumber));
+    const queryFees: FileContentsQuery = new FileContentsQuery().setFileId(fileId);
     return Buffer.from(await queryFees.execute(client)).toString('hex');
   }
 
@@ -1142,7 +1170,7 @@ export class AccountManager {
 
   /**
    * Pings the network node with a grpc call to ensure it is working, throws a SoloError if the ping fails
-   * @param obj - the network node object where the key is the network endpoint and the value is the account id
+   * @param object
    * @param accountId - the account id to ping
    * @throws {@link SoloError} if the ping fails
    */

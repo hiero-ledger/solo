@@ -75,6 +75,45 @@ describe('NodeCommandTasks local build path PVC validation', (): void => {
   });
 });
 
+describe('NodeCommandTasks platform software fetch routing', (): void => {
+  it('uploads local build software when upgrade version is empty', async (): Promise<void> => {
+    const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+    const uploadResult: object = {};
+    const validateNodePvcsStub: sinon.SinonStub = sinon
+      .stub(nodeCommandTasks as unknown as Record<string, unknown>, 'validateNodePvcsForLocalBuildPath')
+      .resolves();
+    const uploadPlatformSoftwareStub: sinon.SinonStub = sinon
+      .stub(nodeCommandTasks as unknown as Record<string, unknown>, '_uploadPlatformSoftware')
+      .returns(uploadResult);
+
+    try {
+      const fetchPlatformSoftwareTask: ReturnType<NodeCommandTasks['fetchPlatformSoftware']> =
+        nodeCommandTasks.fetchPlatformSoftware('nodeAliases');
+      const result: unknown = await fetchPlatformSoftwareTask.task(
+        {
+          config: {
+            consensusNodes: [{name: 'node1', context: 'kind-solo'}],
+            localBuildPath: '/tmp/local-build/data',
+            namespace: NamespaceName.of('solo'),
+            nodeAliases: ['node1'],
+            podRefs: {},
+            releaseTag: 'v0.74.0',
+            stagingDir: '/tmp/staging',
+            upgradeVersion: '',
+          },
+        } as never,
+        {} as never,
+      );
+
+      expect(result).to.equal(uploadResult);
+      expect(validateNodePvcsStub.calledOnceWith(NamespaceName.of('solo'), ['kind-solo'])).to.equal(true);
+      expect(uploadPlatformSoftwareStub.calledOnce).to.equal(true);
+    } finally {
+      sinon.restore();
+    }
+  });
+});
+
 describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
   const configMapFalseData: {data: Record<string, string>} = {
     data: {[constants.APPLICATION_PROPERTIES]: 'nodes.gossipFqdnRestricted=false\n'},
