@@ -9,22 +9,28 @@ import {type Options} from '../options.js';
 export class UpgradeChartOptions implements Options {
   private readonly _namespace?: string;
   private readonly _kubeContext?: string;
-  private readonly _reuseValues: boolean;
-  private readonly _extraArgs?: string;
+  private readonly _reuseValues?: boolean;
+  private readonly _valueArguments: string[];
   private readonly _version?: string;
+  private readonly _install?: boolean;
+  private readonly _createNamespace?: boolean;
 
   public constructor(
     namespace?: string,
     kubeContext?: string,
     reuseValues: boolean = false,
-    extraArguments?: string,
+    valueArguments: string[] = [],
     version?: string,
+    install: boolean = false,
+    createNamespace: boolean = false,
   ) {
     this._namespace = namespace;
     this._kubeContext = kubeContext;
     this._reuseValues = reuseValues;
-    this._extraArgs = extraArguments;
+    this._valueArguments = [...valueArguments];
     this._version = version;
+    this._install = install;
+    this._createNamespace = createNamespace;
   }
 
   /**
@@ -52,19 +58,33 @@ export class UpgradeChartOptions implements Options {
   }
 
   /**
-   * Gets additional arguments to pass to the helm command.
-   * @returns The additional arguments or undefined if not set.
+   * Gets ordered Helm value arguments.
+   * @returns The ordered Helm value arguments.
    */
-  public get extraArgs(): string | undefined {
-    return this._extraArgs;
+  public get valueArguments(): string[] {
+    return [...this._valueArguments];
   }
 
   /**
    * Gets the version of the chart to upgrade to.
    * @returns The version or undefined if not set.
    */
-  public get version(): string | undefined {
+  public get version(): string {
     return this._version;
+  }
+
+  /**
+   * Gets whether to perform an install during upgrade if the release is not created
+   */
+  public get install(): boolean {
+    return this._install;
+  }
+
+  /**
+   * Gets whether to create the namespace if it's not found
+   */
+  public get createNamespace(): boolean {
+    return this._createNamespace;
   }
 
   /**
@@ -74,21 +94,32 @@ export class UpgradeChartOptions implements Options {
   public apply(builder: HelmExecutionBuilder): void {
     builder.argument('output', 'json');
 
-    if (this._namespace) {
-      builder.argument('namespace', this._namespace);
-    }
-    if (this._kubeContext) {
-      builder.argument('kube-context', this._kubeContext);
-    }
-    if (this._reuseValues) {
-      builder.flag('--reuse-values');
-    }
-    if (this._extraArgs) {
-      builder.positional(this._extraArgs);
+    if (this.namespace) {
+      builder.argument('namespace', this.namespace);
     }
 
-    if (this._version) {
-      builder.argument('version', this._version);
+    if (this.kubeContext) {
+      builder.argument('kube-context', this.kubeContext);
+    }
+
+    if (this.reuseValues) {
+      builder.flag('--reuse-values');
+    }
+
+    if (this.install) {
+      builder.flag('--install');
+    }
+
+    if (this.createNamespace) {
+      builder.flag('--create-namespace');
+    }
+
+    if (this.valueArguments.length > 0) {
+      builder.arguments(...this.valueArguments);
+    }
+
+    if (this.version) {
+      builder.argument('version', this.version);
     }
   }
 }

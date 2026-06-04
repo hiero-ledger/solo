@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr} from 'listr2';
-import {SoloError} from '../core/errors/solo-error.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
@@ -26,7 +25,6 @@ import {
   NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72,
 } from '../../version.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
-import * as helpers from '../core/helpers.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {type Pods} from '../integration/kube/resources/pod/pods.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
@@ -34,6 +32,7 @@ import {Containers} from '../integration/kube/resources/container/containers.js'
 import {Container} from '../integration/kube/resources/container/container.js';
 import chalk from 'chalk';
 import {PassThrough} from 'node:stream';
+import {HelmChartValues} from '../integration/helm/model/values.js';
 import fs from 'node:fs';
 import {PathEx} from '../business/utils/path-ex.js';
 
@@ -45,7 +44,6 @@ interface RapidFireStartConfigClass {
   valuesFile: Optional<string>;
   namespace: NamespaceName;
   context: string;
-  valuesArg: string;
   nlgArguments: string;
   parsedNlgArguments: string;
   javaHeap: number;
@@ -141,11 +139,9 @@ export class RapidFireCommand extends BaseCommand {
           {
             title: 'Install Network Load Generator chart',
             task: async (context_): Promise<void> => {
-              let valuesArgument: string = helpers.prepareValuesFiles(constants.RAPID_FIRE_VALUES_FILE);
-
-              if (context_.config.valuesFile) {
-                valuesArgument += helpers.prepareValuesFiles(context_.config.valuesFile);
-              }
+              const chartValues: HelmChartValues = new HelmChartValues()
+                .file(constants.RAPID_FIRE_VALUES_FILE)
+                .filesFromCommaSeparatedInput(context_.config.valuesFile);
 
               const haproxyPods: Pod[] = await this.k8Factory
                 .getK8(context_.config.context)
@@ -153,15 +149,14 @@ export class RapidFireCommand extends BaseCommand {
                 .list(context_.config.namespace, ['solo.hedera.com/type=haproxy']);
 
               const port: number = constants.GRPC_PORT;
-              const networkProperties: string[] = haproxyPods.map((pod: Pod) => {
+              const networkProperties: string[] = haproxyPods.map((pod): string => {
                 const accountId: string = pod.labels['solo.hedera.com/account-id'] ?? 'unknown';
-                // Using multiple backslashes to ensure it is not stripped when the network.properties file is generated
-                // Final result should look like: x.x.x.x\:50211=0.0.y
-                return String.raw`${pod.podIp}\\\:${port}=${accountId}`;
+                // eslint-disable-next-line unicorn/prefer-string-raw
+                return `${pod.podIp}\\:${port}=${accountId}`;
               });
 
-              for (const row of networkProperties) {
-                valuesArgument += ` --set loadGenerator.properties[${networkProperties.indexOf(row)}]="${row}"`;
+              for (const [index, row] of networkProperties.entries()) {
+                chartValues.setLiteral(`loadGenerator.properties[${index}]`, row);
               }
 
               const consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
@@ -175,7 +170,7 @@ export class RapidFireCommand extends BaseCommand {
                 )
                   ? NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72
                   : NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72,
-                valuesArgument,
+                chartValues,
                 context_.config.context,
               );
             },
@@ -573,7 +568,7 @@ export class RapidFireCommand extends BaseCommand {
   public async start(argv: ArgvStruct): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
 
-    const tasks: Listr<RapidFireStartContext, any, any> = new Listr(
+    const tasks: SoloListr<RapidFireStartContext> = new Listr(
       [
         {
           title: 'Initialize',
@@ -625,7 +620,7 @@ export class RapidFireCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error running rapid-fire: ${error.message}`, error);
+      throw new SoloErrors.component.rapidFireLoadStartFailed(error);
     } finally {
       if (!this.oneShotState.isActive()) {
         await leaseReference.lease?.release();
@@ -676,7 +671,7 @@ export class RapidFireCommand extends BaseCommand {
 
   private async allStopTasks(argv: ArgvStruct, stopTask: SoloListrTask<RapidFireStopContext>): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
-    const tasks: Listr<RapidFireStopContext, any, any> = new Listr(
+    const tasks: SoloListr<RapidFireStopContext> = new Listr(
       [this.stopInitializeTask(argv, leaseReference), stopTask],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
@@ -684,7 +679,7 @@ export class RapidFireCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error running rapid-fire stop: ${error.message}`, error);
+      throw new SoloErrors.component.rapidFireLoadStopFailed(error);
     } finally {
       if (!this.oneShotState.isActive() && leaseReference.lease) {
         await leaseReference.lease.release();
@@ -716,7 +711,7 @@ export class RapidFireCommand extends BaseCommand {
           try {
             await container.execContainer(`pkill -f ${testClass}`);
           } catch (error) {
-            throw new SoloError(`Error stopping ${testClass} load test: ${error.message}`, error);
+            throw new SoloErrors.component.rapidFireKillFailed(testClass, error);
           }
         }
       },
@@ -725,7 +720,7 @@ export class RapidFireCommand extends BaseCommand {
 
   public async stop(argv: ArgvStruct): Promise<boolean> {
     const leaseReference: {lease?: Lock} = {}; // This allows the lease to be passed by reference to the init task
-    const tasks: Listr<RapidFireStopContext, any, any> = new Listr(
+    const tasks: SoloListr<RapidFireStopContext> = new Listr(
       [this.stopInitializeTask(argv, leaseReference), this.stopLoadTest()],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
     );
@@ -733,7 +728,7 @@ export class RapidFireCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error running rapid-fire stop: ${error.message}`, error);
+      throw new SoloErrors.component.rapidFireLoadStopFailed(error);
     } finally {
       if (!this.oneShotState.isActive() && leaseReference.lease) {
         await leaseReference.lease.release();
