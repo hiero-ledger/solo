@@ -55,9 +55,10 @@ export class Middlewares {
     return async (argv: ArgvStruct): Promise<AnyObject> => {
       if (!this.initExecuted) {
         this.initExecuted = true;
-        const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> =
-          // @ts-expect-error - TS2445: Property taskList is protected and only accessible within class BaseCommand and its subclasses.
-          this.initCommand.taskList.newTaskList(this.initCommand.setupSystemFilesTasks(argv), {renderer: 'silent'});
+        const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.taskList.newTaskList(
+          this.initCommand.setupSystemFilesTasks(argv),
+          {renderer: 'silent'},
+        );
         if (tasks.isRoot()) {
           try {
             await tasks.run();
