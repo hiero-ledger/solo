@@ -1104,7 +1104,7 @@ export class NetworkCommand extends BaseCommand {
             if (shouldDeleteNamespace) {
               await this.k8Factory.getK8(context).namespaces().delete(namespace);
             } else {
-              this.logger.warn(`Skipping deletion of namespace '${namespace.name}'`);
+              this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
             }
           }),
         ),
@@ -1993,7 +1993,7 @@ export class NetworkCommand extends BaseCommand {
                 if (shouldDeleteNamespace) {
                   await this.k8Factory.getK8(context).namespaces().delete(namespace);
                 } else {
-                  this.logger.warn(`Skipping deletion of namespace '${namespace.name}'`);
+                  this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
                 }
               }
             }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
