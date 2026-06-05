@@ -404,7 +404,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           title: 'Create remote config components',
           task: async (): Promise<void> => {
             const deployConfig: OneShotSingleDeployConfigClass = getConfig();
-            if (constants.ONE_SHOT_WITH_BLOCK_NODE === 'true') {
+            if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
               const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
                 deployConfig.clusterRef,
                 deployConfig.namespace,
