@@ -298,7 +298,7 @@ export class MirrorNodeTest extends BaseCommandTest {
     }
   }
 
-  public static add(options: BaseTestOptions): void {
+  public static add(options: BaseTestOptions, clusterReferenceIndex: number = 1): void {
     const {
       testName,
       testLogger,
@@ -314,7 +314,15 @@ export class MirrorNodeTest extends BaseCommandTest {
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
     it(`${testName}: mirror node add`, async (): Promise<void> => {
-      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger, valuesFile));
+      await main(
+        soloMirrorNodeDeployArgv(
+          testName,
+          deployment,
+          clusterReferenceNameArray[clusterReferenceIndex],
+          pinger,
+          valuesFile,
+        ),
+      );
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,
@@ -325,6 +333,82 @@ export class MirrorNodeTest extends BaseCommandTest {
       );
       await verifyPingerStatus(contexts, namespace, pinger, testName);
     }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  /**
+   * Fetches the highest block number the mirror node has ingested from the block stream.
+   *
+   * Returns -1 while the mirror node has not yet ingested any block (e.g. the importer is still
+   * catching up), so callers can poll until blocks become available.
+   */
+  private static async getLatestIngestedBlockNumber(portForwarder: number, testLogger: SoloLogger): Promise<number> {
+    const blocksEndpoint: string = `http://localhost:${portForwarder}/api/v1/blocks?limit=1&order=desc`;
+    const fetchOptions: object = {
+      cache: 'no-cache' as RequestCache,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    };
+
+    try {
+      const response: Response = await fetch(blocksEndpoint, fetchOptions);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await response.json();
+      const blocks: {number: number}[] | undefined = data?.blocks;
+      if (!blocks || blocks.length === 0) {
+        return -1;
+      }
+      return blocks[0].number;
+    } catch (error) {
+      testLogger.debug(`problem querying mirror node blocks endpoint: ${(error as Error).message}`, error as Error);
+      return -1;
+    }
+  }
+
+  /**
+   * Confirms WRAPs/TSS is operational by proving the network keeps producing blocks and the mirror
+   * node keeps ingesting them: it waits for the first block to appear, then verifies the latest
+   * ingested block number advances over time. A network that stalled (e.g. broken TSS signing)
+   * would stop producing blocks and fail this check.
+   */
+  public static verifyBlocksAreBeingProduced(options: BaseTestOptions): void {
+    const {testName, testLogger, contexts, namespace} = options;
+    const {forwardMirrorIngressServicePort, stopPortForward, getLatestIngestedBlockNumber} = MirrorNodeTest;
+
+    it(`${testName}: verify blocks are produced and ingested by the mirror node`, async (): Promise<void> => {
+      const createdPortForwarder: number = await forwardMirrorIngressServicePort(contexts, namespace, testName);
+      const portForwarder: number = createdPortForwarder || MIRROR_NODE_PORT;
+      try {
+        // Wait until the mirror node has ingested at least one block from the block stream.
+        let firstBlockNumber: number = -1;
+        const maxAttempts: number = 60;
+        for (let attempt: number = 0; firstBlockNumber < 0 && attempt < maxAttempts; attempt++) {
+          firstBlockNumber = await getLatestIngestedBlockNumber(portForwarder, testLogger);
+          if (firstBlockNumber < 0) {
+            await sleep(Duration.ofSeconds(2));
+          }
+        }
+        expect(firstBlockNumber, 'expected the mirror node to ingest at least one block').to.be.greaterThanOrEqual(0);
+
+        // Give the network time to produce more blocks, then confirm the ingested block number advanced.
+        let secondBlockNumber: number = firstBlockNumber;
+        for (let attempt: number = 0; secondBlockNumber <= firstBlockNumber && attempt < maxAttempts; attempt++) {
+          await sleep(Duration.ofSeconds(2));
+          secondBlockNumber = await getLatestIngestedBlockNumber(portForwarder, testLogger);
+        }
+
+        expect(
+          secondBlockNumber,
+          `expected the latest ingested block number to advance beyond ${firstBlockNumber}, confirming WRAPs/TSS-signed blocks keep flowing to the mirror node`,
+        ).to.be.greaterThan(firstBlockNumber);
+      } finally {
+        if (createdPortForwarder) {
+          await stopPortForward(contexts, createdPortForwarder);
+        }
+      }
+    }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
   public static destroy(options: BaseTestOptions): void {
