@@ -16,7 +16,7 @@ import {type CachedItemStructure} from '../models/cached-item-structure.js';
  *
  * This keeps domain-specific behavior out of the coordinator.
  */
-export interface CacheOperationHandler {
+  export interface CacheOperationHandler {
   /**
    * Returns the artifact type handled by this strategy.
    */
@@ -65,4 +65,9 @@ export interface CacheOperationHandler {
    * It may be used by callers to inspect or report cache contents.
    */
   list(): Promise<readonly CachedItemStructure[]>;
+
+  /**
+   * Deletes all cached artifacts and cache metadata for this domain.
+   */
+  prune(): Promise<void>;
 }
