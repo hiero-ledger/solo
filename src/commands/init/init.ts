@@ -127,6 +127,7 @@ export class InitCommand extends BaseCommand {
     }
 
     const tasks: SoloListrTask<InitContext>[] = [
+      this.dockerDesktopPreflightTask(),
       {
         title: 'Check dependencies',
         task: (_, task) => {
