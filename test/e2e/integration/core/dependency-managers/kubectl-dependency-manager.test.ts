@@ -253,7 +253,7 @@ describe('KubectlDependencyManager', (): void => {
         expect.fail('Should have thrown an error');
       } catch (error: unknown) {
         expect(error).to.be.instanceOf(Error);
-        expect((error as Error).message).to.include('Failed to get kubectl version');
+        expect((error as Error).message).to.include('Failed to check kubectl version');
       }
     });
 
@@ -265,7 +265,7 @@ describe('KubectlDependencyManager', (): void => {
         expect.fail('Should have thrown an error');
       } catch (error: unknown) {
         expect(error).to.be.instanceOf(Error);
-        expect((error as Error).message).to.include('Failed to get kubectl version');
+        expect((error as Error).message).to.include('Failed to check kubectl version');
       }
     });
 

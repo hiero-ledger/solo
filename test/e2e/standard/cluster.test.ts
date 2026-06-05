@@ -139,7 +139,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             await main(ClusterReferenceTest.soloClusterReferenceReset(testName, 'INVALID'));
             expect.fail();
           } catch (error) {
-            expect(error.message).to.include('Error on cluster reset');
+            expect(error.message).to.include('Cluster reset failed');
           }
         }).timeout(Duration.ofMinutes(1).toMillis());
 
