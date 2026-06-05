@@ -163,6 +163,7 @@ import {NodeClientRefreshFailedSoloError} from './classes/component/node-client-
 import {NodeClientSetupFailedSoloError} from './classes/component/node-client-setup-failed-solo-error.js';
 import {SdkPingFailedSoloError} from './classes/component/sdk-ping-failed-solo-error.js';
 import {NodeServicesRetrievalFailedSoloError} from './classes/component/node-services-retrieval-failed-solo-error.js';
+import {NodeServiceNotFoundSoloError} from './classes/component/node-service-not-found-solo-error.js';
 import {GossipKeySecretCreationFailedSoloError} from './classes/component/gossip-key-secret-creation-failed-solo-error.js';
 import {TlsKeySecretCreationFailedSoloError} from './classes/component/tls-key-secret-creation-failed-solo-error.js';
 import {TlsKeyGenerationFailedSoloError} from './classes/component/tls-key-generation-failed-solo-error.js';
@@ -271,6 +272,7 @@ import {ContainerOperationFailedSoloError} from './classes/system/container-oper
 import {PostgresPodNotFoundSoloError} from './classes/system/postgres-pod-not-found-solo-error.js';
 import {InitSystemFilesFailedSoloError} from './classes/system/init-system-files-failed-solo-error.js';
 import {CacheProviderNotConfiguredSoloError} from './classes/system/cache-provider-not-configured-solo-error.js';
+import {PodTerminationTimeoutSoloError} from './classes/system/pod-termination-timeout-solo-error.js';
 import {TimeoutSoloError} from './classes/system/timeout-solo-error.js';
 import {LoggerMessageGroupNotFoundError} from './classes/internal/logger-message-group-not-found-error.js';
 import {CommandReturnedFalseError} from './classes/internal/command-returned-false-error.js';
@@ -428,6 +430,7 @@ export class SoloErrors {
     readonly nodeClientSetupFailed: typeof NodeClientSetupFailedSoloError;
     readonly sdkPingFailed: typeof SdkPingFailedSoloError;
     readonly nodeServicesRetrievalFailed: typeof NodeServicesRetrievalFailedSoloError;
+    readonly nodeServiceNotFound: typeof NodeServiceNotFoundSoloError;
     readonly gossipKeySecretCreationFailed: typeof GossipKeySecretCreationFailedSoloError;
     readonly tlsKeySecretCreationFailed: typeof TlsKeySecretCreationFailedSoloError;
     readonly tlsKeyGenerationFailed: typeof TlsKeyGenerationFailedSoloError;
@@ -515,6 +518,7 @@ export class SoloErrors {
     nodeClientSetupFailed: NodeClientSetupFailedSoloError,
     sdkPingFailed: SdkPingFailedSoloError,
     nodeServicesRetrievalFailed: NodeServicesRetrievalFailedSoloError,
+    nodeServiceNotFound: NodeServiceNotFoundSoloError,
     gossipKeySecretCreationFailed: GossipKeySecretCreationFailedSoloError,
     tlsKeySecretCreationFailed: TlsKeySecretCreationFailedSoloError,
     tlsKeyGenerationFailed: TlsKeyGenerationFailedSoloError,
@@ -774,6 +778,7 @@ export class SoloErrors {
     readonly postgresPodNotFound: typeof PostgresPodNotFoundSoloError;
     readonly initSystemFilesFailed: typeof InitSystemFilesFailedSoloError;
     readonly cacheProviderNotConfigured: typeof CacheProviderNotConfiguredSoloError;
+    readonly podTerminationTimeout: typeof PodTerminationTimeoutSoloError;
     readonly timeout: typeof TimeoutSoloError;
   } = Object.freeze({
     blockNodePodNotFound: BlockNodePodNotFoundSoloError,
@@ -847,6 +852,7 @@ export class SoloErrors {
     postgresPodNotFound: PostgresPodNotFoundSoloError,
     initSystemFilesFailed: InitSystemFilesFailedSoloError,
     cacheProviderNotConfigured: CacheProviderNotConfiguredSoloError,
+    podTerminationTimeout: PodTerminationTimeoutSoloError,
     timeout: TimeoutSoloError,
   });
 

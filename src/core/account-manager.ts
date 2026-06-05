@@ -254,7 +254,7 @@ export class AccountManager {
     const targetNodeService: NetworkNodeServices | undefined = networkNodeServicesMap.get(selection.nodeAlias);
 
     if (!targetNodeService) {
-      throw new SoloError(`failed to resolve node service for node '${selection.nodeAlias}'`);
+      throw new SoloErrors.component.nodeServiceNotFound(selection.nodeAlias);
     }
 
     return new Map<NodeAlias, NetworkNodeServices>([[selection.nodeAlias, targetNodeService]]);

@@ -127,6 +127,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   NODE_STATUS_MISSING_LINE: 'SOLO-3086',
   PREDEFINED_ACCOUNTS_CREATION_FAILED: 'SOLO-3087',
   FILE_CONTENT_MISMATCH: 'SOLO-3088',
+  NODE_SERVICE_NOT_FOUND: 'SOLO-3089',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -278,6 +279,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   POSTGRES_POD_NOT_FOUND: 'SOLO-5069',
   INIT_SYSTEM_FILES_FAILED: 'SOLO-5070',
   CACHE_PROVIDER_NOT_CONFIGURED: 'SOLO-5071',
+  POD_TERMINATION_TIMEOUT: 'SOLO-5072',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
