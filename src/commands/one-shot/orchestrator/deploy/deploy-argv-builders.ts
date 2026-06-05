@@ -268,6 +268,18 @@ export class DeployArgvBuilders {
       ...CacheCommandDefinition.IMAGE_PULL_COMMAND.split(' '),
       optionFromFlag(Flags.edgeEnabled),
       (!!config.edgeEnabled).toString(),
+
+      optionFromFlag(Flags.mirrorNodeVersion),
+      config.versions.mirror,
+
+      optionFromFlag(Flags.blockNodeVersion),
+      config.versions.blockNode,
+
+      optionFromFlag(Flags.relayVersion),
+      config.versions.relay,
+
+      optionFromFlag(Flags.explorerVersion),
+      config.versions.explorer,
     );
     return argvPushGlobalFlags(argv);
   }
