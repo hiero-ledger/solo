@@ -12,7 +12,7 @@ export class NoClustersForDeploymentError extends SoloError {
     super({
       message: `No clusters found for deployment ${deployment}`,
       code: ErrorCodeRegistry.NO_CLUSTERS_FOR_DEPLOYMENT,
-      troubleshootingSteps: `Attach a cluster to the deployment: solo deployment cluster attach --deployment <name>`,
+      troubleshootingSteps: 'Attach a cluster to the deployment: solo deployment cluster attach --deployment <name>',
     });
   }
 }
