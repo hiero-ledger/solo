@@ -27,6 +27,7 @@ import {MetricsServerImpl} from '../../../src/business/runtime-state/services/me
 import * as constants from '../../../src/core/constants.js';
 import {BlockNodeTest} from './tests/block-node-test.js';
 import {type NodeAlias, type NodeAliases} from '../../../src/types/aliases.js';
+import {destroyEnabled} from '../../test-utility.js';
 
 const testName: string = 'dual-cluster-full';
 
