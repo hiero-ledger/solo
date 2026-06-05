@@ -26,8 +26,6 @@ import {NpmClient} from '../integration/npm/npm-client.js';
 
 @injectable()
 export class Middlewares {
-  private initExecuted: boolean = false;
-
   public constructor(
     @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,
     @inject(InjectTokens.RemoteConfigRuntimeState) private readonly remoteConfig: RemoteConfigRuntimeStateApi,
@@ -53,20 +51,17 @@ export class Middlewares {
 
   public initSystemFiles(): (argv: ArgvStruct) => AnyObject {
     return async (argv: ArgvStruct): Promise<AnyObject> => {
-      if (!this.initExecuted) {
-        this.initExecuted = true;
-        const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.taskList.newTaskList(
-          this.initCommand.setupSystemFilesTasks(argv),
-          {renderer: 'silent'},
-        );
-        if (tasks.isRoot()) {
-          try {
-            await tasks.run();
-          } catch (error: Error | any) {
-            throw new SoloError('Error initiating Solo system files', error);
-          }
+      const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> =
+        // @ts-expect-error - TS2445: Property taskList is protected and only accessible within class BaseCommand and its subclasses.
+        this.initCommand.taskList.newTaskList(this.initCommand.setupSystemFilesTasks(argv), {renderer: 'silent'});
+      if (tasks.isRoot()) {
+        try {
+          await tasks.run();
+        } catch (error: Error | any) {
+          throw new SoloError('Error initiating Solo system files', error);
         }
       }
+
       return argv;
     };
   }
