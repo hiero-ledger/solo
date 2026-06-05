@@ -141,6 +141,9 @@ describe('NetworkCommand unit tests', (): void => {
         waitForRunningPhase: sinon.stub(),
         waitForReadyStatus: sinon.stub(),
       });
+      options.k8Factory.default().secrets = sinon.stub().returns({
+        createOrReplace: sinon.stub().resolves(true),
+      });
       options.k8Factory.default().leases = sinon.stub().returns({
         read: sinon.stub(),
       });
@@ -155,6 +158,9 @@ describe('NetworkCommand unit tests', (): void => {
       options.k8Factory.getK8().pods = sinon.stub().returns({
         waitForRunningPhase: sinon.stub(),
         waitForReadyStatus: sinon.stub(),
+      });
+      options.k8Factory.getK8().secrets = sinon.stub().returns({
+        createOrReplace: sinon.stub().resolves(true),
       });
       options.k8Factory.getK8().leases = sinon.stub().returns({
         read: sinon.stub(),

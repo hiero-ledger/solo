@@ -67,7 +67,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
     (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>): void => {
       describe('External Database E2E Test', (): void => {
         const {testCacheDirectory, testLogger, namespace, contexts} = options;
-        const blockNodeEnabled: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_BLOCK_NODE === 'true';
+        const blockNodeEnabled: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_BLOCK_NODE !== 'false';
         const topicTestOnly: boolean = process.env.SOLO_E2E_EXTERNAL_DB_TEST_TOPIC_ONLY === 'true';
 
         before(async (): Promise<void> => {

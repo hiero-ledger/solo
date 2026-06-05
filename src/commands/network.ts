@@ -634,13 +634,6 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    if (config.minioEnabled && config.storageType === constants.StorageType.MINIO_ONLY) {
-      for (const clusterReference of clusterReferences) {
-        chartValuesMap[clusterReference].set('cloud.minio.enabled', true);
-        chartValuesMap[clusterReference].set('cloud.generateNewSecrets', true);
-      }
-    }
-
     if (!config.minioEnabled) {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', false);
@@ -1062,9 +1055,11 @@ export class NetworkCommand extends BaseCommand {
 
         return blockNodeMapLength > 0 || externalBlockNodeMapLength > 0;
       });
-    // Disable MinIO only for TSS-era deployments that route streams via block nodes.
-    // Non-block-node deployments still require MinIO/S3-backed record streams for mirror importer.
-    config.minioEnabled = !(tssByDefaultSupported && blockNodeConfigured);
+    // MinIO is no longer used for Solo deployments. Streams should flow through block nodes instead.
+    // Retain the TSS-era detection only for downstream configuration decisions that depend on block nodes.
+    void tssByDefaultSupported;
+    void blockNodeConfigured;
+    config.minioEnabled = false;
 
     config.chartValuesMap = await this.prepareHelmChartValuesMap(config);
 
