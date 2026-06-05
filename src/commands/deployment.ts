@@ -48,6 +48,7 @@ import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-stat
 import yaml from 'yaml';
 import {PathEx} from '../business/utils/path-ex.js';
 import fs from 'node:fs/promises';
+import {DEFAULT_SOLO_NAMESPACE_LABELS} from '../core/constants.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -936,7 +937,7 @@ export class DeploymentCommand extends BaseCommand {
         task.title += `: ${deployment} in cluster reference: ${clusterRef}`;
 
         if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
-          await this.k8Factory.getK8(context).namespaces().create(namespace);
+          await this.k8Factory.getK8(context).namespaces().create(namespace, DEFAULT_SOLO_NAMESPACE_LABELS);
         }
 
         if (await this.k8Factory.getK8(context).configMaps().exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME)) {

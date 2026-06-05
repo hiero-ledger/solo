@@ -14,6 +14,8 @@ import {type Pod} from '../../integration/kube/resources/pod/pod.js';
 import {Templates} from '../../core/templates.js';
 import {type PodReference} from '../../integration/kube/resources/pod/pod-reference.js';
 import {type K8} from '../../integration/kube/k8.js';
+import {type V1Namespace} from '@kubernetes/client-node';
+import {SOLO_CREATED_BY_LABEL, SOLO_CREATED_BY_VALUE} from '../../core/constants.js';
 
 export class K8Helper {
   private k8: K8;
@@ -45,5 +47,12 @@ export class K8Helper {
       .pods()
       .list(namespace, Templates.renderBlockNodeLabels(id))
       .then((pods: Pod[]): Pod => pods[0]);
+  }
+
+  public async isNamespaceOwnedBySolo(namespace: NamespaceName): Promise<boolean> {
+    const namespaceObject: V1Namespace = await this.k8.namespaces().get(namespace);
+    const labels: Record<string, string> = namespaceObject?.metadata?.labels;
+
+    return labels.hasOwnProperty(SOLO_CREATED_BY_LABEL) && labels[SOLO_CREATED_BY_LABEL] === SOLO_CREATED_BY_VALUE;
   }
 }

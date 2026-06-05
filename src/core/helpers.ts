@@ -7,6 +7,7 @@ import {format} from 'node:util';
 import {SoloError} from './errors/solo-error.js';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
+import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
 import {type AnyYargs, type AnyListrContext, type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {type CommandFlag} from '../types/flag-types.js';
@@ -18,7 +19,6 @@ import {type Optional, type ReleaseNameData} from '../types/index.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import chalk from 'chalk';
-import {PathEx} from '../business/utils/path-ex.js';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
@@ -78,6 +78,93 @@ export function splitFlagInput(input: string, separator: string = ','): string[]
     .split(separator)
     .map((s): string => s.trim())
     .filter(Boolean);
+}
+
+export function parseGossipFqdnRestricted(applicationPropertiesText: string): boolean | undefined {
+  const match: RegExpMatchArray | null = applicationPropertiesText.match(
+    /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
+  );
+  if (match?.[1]) {
+    return match[1].toLowerCase() === 'true';
+  }
+  return undefined;
+}
+
+export function readGossipFqdnRestrictedFromFile(filePath: string): boolean | undefined {
+  if (!fs.existsSync(filePath)) {
+    return undefined;
+  }
+  const applicationPropertiesContent: string = fs.readFileSync(filePath, 'utf8');
+  return parseGossipFqdnRestricted(applicationPropertiesContent);
+}
+
+export interface ResolveGossipFqdnRestrictedOptions {
+  k8?: K8;
+  namespace?: NamespaceName;
+  stagingDir?: string;
+  cacheDir?: string;
+  resourcesDir?: string;
+  applicationPropertiesPath?: string;
+}
+
+export async function resolveGossipFqdnRestricted(options: ResolveGossipFqdnRestrictedOptions): Promise<boolean> {
+  const {k8, namespace, stagingDir, cacheDir, resourcesDir, applicationPropertiesPath} = options;
+
+  // 1. K8s configMap
+  if (k8 && namespace) {
+    try {
+      const configMap: ConfigMap = await k8
+        .configMaps()
+        .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+      const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
+      if (configMapProperties) {
+        const parsed: boolean | undefined = parseGossipFqdnRestricted(configMapProperties);
+        if (parsed !== undefined) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore errors and continue to next source.
+    }
+  }
+
+  // 2. Explicit application.properties path.
+  if (applicationPropertiesPath) {
+    const parsedFromApplicationPropertiesPath: boolean | undefined =
+      readGossipFqdnRestrictedFromFile(applicationPropertiesPath);
+    if (parsedFromApplicationPropertiesPath !== undefined) {
+      return parsedFromApplicationPropertiesPath;
+    }
+  }
+
+  // 3. Staged application.properties
+  if (stagingDir) {
+    const stagedPath: string = PathEx.join(stagingDir, 'templates', constants.APPLICATION_PROPERTIES);
+    const parsedFromStaging: boolean | undefined = readGossipFqdnRestrictedFromFile(stagedPath);
+    if (parsedFromStaging !== undefined) {
+      return parsedFromStaging;
+    }
+  }
+
+  // 4. Cache template
+  if (cacheDir) {
+    const cachePath: string = PathEx.join(cacheDir, 'templates', constants.APPLICATION_PROPERTIES);
+    const parsedFromCache: boolean | undefined = readGossipFqdnRestrictedFromFile(cachePath);
+    if (parsedFromCache !== undefined) {
+      return parsedFromCache;
+    }
+  }
+
+  // 5. Repo template
+  if (resourcesDir) {
+    const repoPath: string = PathEx.join(resourcesDir, 'templates', constants.APPLICATION_PROPERTIES);
+    const parsedFromRepo: boolean | undefined = readGossipFqdnRestrictedFromFile(repoPath);
+    if (parsedFromRepo !== undefined) {
+      return parsedFromRepo;
+    }
+  }
+
+  return true;
 }
 
 /**

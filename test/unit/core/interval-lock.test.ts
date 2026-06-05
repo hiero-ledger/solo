@@ -14,7 +14,7 @@ import {type Lease} from '../../../src/integration/kube/resources/lease/lease.js
 import {LockAcquisitionError} from '../../../src/core/lock/lock-acquisition-error.js';
 import {StatusCodes} from 'http-status-codes';
 import {Duration} from '../../../src/core/time/duration.js';
-import {type V1Status} from '@kubernetes/client-node';
+import {type V1Namespace, type V1Status} from '@kubernetes/client-node';
 
 describe('IntervalLock', (): void => {
   it('should ignore a renew conflict when latest lease is still held by the same lock holder', async (): Promise<void> => {
@@ -65,6 +65,7 @@ describe('IntervalLock', (): void => {
       delete: async (): Promise<boolean> => true,
       list: async (): Promise<NamespaceName[]> => [],
       has: async (): Promise<boolean> => true,
+      get: async (): Promise<V1Namespace> => ({}),
     };
 
     const k8: K8 = {
@@ -128,6 +129,7 @@ describe('IntervalLock', (): void => {
       delete: async (): Promise<boolean> => true,
       list: async (): Promise<NamespaceName[]> => [],
       has: async (): Promise<boolean> => true,
+      get: async (): Promise<V1Namespace> => ({}),
     };
 
     const k8: K8 = {
@@ -190,6 +192,7 @@ describe('IntervalLock', (): void => {
       delete: async (): Promise<boolean> => true,
       list: async (): Promise<NamespaceName[]> => [],
       has: async (): Promise<boolean> => true,
+      get: async (): Promise<V1Namespace> => ({}),
     };
 
     const k8: K8 = {

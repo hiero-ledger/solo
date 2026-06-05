@@ -13,6 +13,7 @@ import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 interface MirrorNodeMemoryOverrideConfig {
   mirrorNodeVersion: string;
   chartValues: HelmChartValues;
+  componentImage?: string;
 }
 
 interface MirrorNodeCommandInternal {
@@ -88,5 +89,51 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(valuesArguments).to.not.include(`web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`);
     expect(valuesArguments).to.not.include(`web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`);
     expect(valuesArguments).to.not.include(`web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`);
+  });
+
+  it('should not override module image registry/repository when componentImage is provided for legacy versions', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const config: MirrorNodeMemoryOverrideConfig = {
+      mirrorNodeVersion: '0.100.0',
+      chartValues: new HelmChartValues(),
+      componentImage: 'docker.io/library/custom-mirror:dev',
+    };
+
+    mirrorNodeCommandInternal.addMirrorNodeMemoryOverrides(false, config);
+
+    const valuesArguments: string[] = config.chartValues.toArguments();
+
+    expect(
+      valuesArguments.some((argument: string): boolean =>
+        argument.includes(`.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`),
+      ),
+    ).to.equal(false);
+    expect(
+      valuesArguments.some((argument: string): boolean =>
+        argument.includes(`.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}`),
+      ),
+    ).to.equal(false);
+    expect(valuesArguments).to.include(`grpc.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_GRPC}`);
+  });
+
+  it('should not override arm64 web3 image registry/repository when componentImage is provided', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const config: MirrorNodeMemoryOverrideConfig = {
+      mirrorNodeVersion: '0.100.0',
+      chartValues: new HelmChartValues(),
+      componentImage: 'docker.io/library/custom-mirror:dev',
+    };
+
+    sinon.stub(process, 'arch').value('arm64');
+
+    mirrorNodeCommandInternal.addMirrorNodeMemoryOverrides(true, config);
+
+    const valuesArguments: string[] = config.chartValues.toArguments();
+
+    expect(valuesArguments).to.not.include(`web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`);
+    expect(valuesArguments).to.not.include(`web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`);
+    expect(valuesArguments).to.include(`web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`);
   });
 });
