@@ -170,6 +170,9 @@ export class DeployArgvBuilders {
     if (config.networkConfiguration) {
       appendConfigToArgv(argv, config.networkConfiguration);
     }
+    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+      argv.push(optionFromFlag(Flags.tssEnabled));
+    }
     return argvPushGlobalFlags(argv, config.cacheDir);
   }
 
