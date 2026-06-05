@@ -187,6 +187,9 @@ export class DeployArgvBuilders {
     if (config.networkConfiguration) {
       appendConfigToArgv(argv, config.networkConfiguration);
     }
+    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+      argv.push(optionFromFlag(Flags.tssEnabled));
+    }
     return argvPushGlobalFlags(argv, config.cacheDir);
   }
 
@@ -290,6 +293,18 @@ export class DeployArgvBuilders {
       ...CacheCommandDefinition.IMAGE_PULL_COMMAND.split(' '),
       optionFromFlag(Flags.edgeEnabled),
       (!!config.edgeEnabled).toString(),
+
+      optionFromFlag(Flags.mirrorNodeVersion),
+      config.versions.mirror,
+
+      optionFromFlag(Flags.blockNodeVersion),
+      config.versions.blockNode,
+
+      optionFromFlag(Flags.relayVersion),
+      config.versions.relay,
+
+      optionFromFlag(Flags.explorerVersion),
+      config.versions.explorer,
     );
     return argvPushGlobalFlags(argv);
   }
