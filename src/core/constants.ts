@@ -519,3 +519,7 @@ export const BUG_REPORT_URL: string = 'https://github.com/hiero-ledger/solo/issu
 export const DISABLE_IMPORTER_SPRING_PROFILES: boolean =
   getEnvironmentVariable('DISABLE_IMPORTER_SPRING_PROFILES') === 'true' || false;
 export const SPRING_PROFILES_ACTIVE: string = getEnvironmentVariable('SPRING_PROFILES_ACTIVE') || 'blocknode';
+
+export const SOLO_CREATED_BY_LABEL: string = 'app.kubernetes.io/created-by';
+export const SOLO_CREATED_BY_VALUE: string = 'solo';
+export const DEFAULT_SOLO_NAMESPACE_LABELS: Record<string, string> = {[SOLO_CREATED_BY_LABEL]: SOLO_CREATED_BY_VALUE};

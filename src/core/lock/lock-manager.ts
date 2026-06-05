@@ -13,6 +13,7 @@ import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {LockAcquisitionError} from './lock-acquisition-error.js';
 import {type RemoteConfigRuntimeStateApi} from '../../business/runtime-state/api/remote-config-runtime-state-api.js';
+import {DEFAULT_SOLO_NAMESPACE_LABELS} from '../constants.js';
 
 /**
  * Manages the acquisition and renewal of locks.
@@ -99,7 +100,7 @@ export class LockManager {
     const namespace: NamespaceName = deploymentNamespace || clusterSetupNamespace;
 
     if (!(await this.k8Factory.default().namespaces().has(namespace))) {
-      await this.k8Factory.default().namespaces().create(namespace);
+      await this.k8Factory.default().namespaces().create(namespace, DEFAULT_SOLO_NAMESPACE_LABELS);
 
       if (!(await this.k8Factory.default().namespaces().has(namespace))) {
         throw new LockAcquisitionError(`failed to create the '${namespace}' namespace`);

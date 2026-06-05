@@ -4,7 +4,7 @@ import {SoloErrors} from '../errors/solo-errors.js';
 import {SoloError} from '../errors/solo-error.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {LockHolder} from './lock-holder.js';
-import {DEFAULT_LEASE_DURATION} from '../constants.js';
+import {DEFAULT_LEASE_DURATION, DEFAULT_SOLO_NAMESPACE_LABELS} from '../constants.js';
 import {sleep} from '../helpers.js';
 import {Duration} from '../time/duration.js';
 import {type Lock, type LockRenewalService} from './lock.js';
@@ -380,7 +380,7 @@ export class IntervalLock implements Lock {
     try {
       if (!(await this.k8Factory.default().namespaces().has(this.namespace))) {
         // handles the condition for creating a lease on cluster setup which may not have a namespace created yet
-        await this.k8Factory.default().namespaces().create(this.namespace);
+        await this.k8Factory.default().namespaces().create(this.namespace, DEFAULT_SOLO_NAMESPACE_LABELS);
       }
       if (lease) {
         try {

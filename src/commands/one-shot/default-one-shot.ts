@@ -47,6 +47,7 @@ import {OneShotInfoContext} from './one-shot-info-context.js';
 import {type ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
 import path from 'node:path';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
+import {K8Helper} from '../../business/utils/k8-helper.js';
 
 /** Primitive value type used in falcon override maps. */
 type FalconOverrideValue = string | number | boolean | null;
@@ -232,8 +233,16 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       try {
         const k8: K8 = this.k8Factory.getK8(config.context);
         if (await k8.namespaces().has(config.namespace)) {
-          this.logger.warn(`Rollback cleanup: deleting namespace '${config.namespace.name}'`);
-          await k8.namespaces().delete(config.namespace);
+          const shouldDeleteNamespace: boolean = await new K8Helper(config.context).isNamespaceOwnedBySolo(
+            config.namespace,
+          );
+
+          if (shouldDeleteNamespace) {
+            this.logger.warn(`Rollback cleanup: deleting namespace '${config.namespace.name}'`);
+            await k8.namespaces().delete(config.namespace);
+          } else {
+            this.logger.warn(`Rollback cleanup: skipping namespace '${config.namespace.name}', not created by solo`);
+          }
         }
       } catch (cleanupError) {
         this.logger.warn(
