@@ -18,6 +18,7 @@ import {
   type Context,
   NamespaceNameAsString,
   Optional,
+  type SoloListrTask,
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Flags as flags, Flags} from './flags.js';
@@ -38,6 +39,8 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {NodeCommandTasks} from './node/tasks.js';
 import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
 import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
+import {checkDockerDesktopContainerdSetting} from '../core/docker-desktop-checker.js';
+import {type DockerDesktopContainerdCheckResult} from '../core/docker-desktop-containerd-check-result.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public readonly soloConfig: SoloConfig;
@@ -93,6 +96,25 @@ export abstract class BaseCommand extends ShellRunner {
   }
 
   public abstract close(): Promise<void>;
+
+  /**
+   * Returns a Listr task that checks whether Docker Desktop's
+   * "Use containerd for pulling and storing images" setting is enabled and emits a
+   * warning when it is. This check is relevant for any Solo command that deploys pods,
+   * since the containerd snapshotter setting can cause ImageInspectError failures.
+   * The task is non-blocking — it warns only and does not halt the command.
+   */
+  protected dockerDesktopPreflightTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Pre-flight: check Docker Desktop containerd setting',
+      task: async (): Promise<void> => {
+        const result: DockerDesktopContainerdCheckResult = checkDockerDesktopContainerdSetting();
+        if (result.containerdSnapshotterEnabled && result.warningMessage) {
+          this.logger.warn(result.warningMessage);
+        }
+      },
+    };
+  }
 
   /**
    * Setup home directories

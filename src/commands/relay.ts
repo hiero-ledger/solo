@@ -47,8 +47,6 @@ import {ImageReference, type ParsedImageReference} from '../business/utils/image
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {optionFromFlag} from './command-helpers.js';
-import {checkDockerDesktopContainerdSetting} from '../core/docker-desktop-checker.js';
-import {type DockerDesktopContainerdCheckResult} from '../core/docker-desktop-containerd-check-result.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface RelayDestroyConfigClass {
@@ -403,18 +401,6 @@ export class RelayCommand extends BaseCommand {
           config.releaseName,
           config.context,
         );
-      },
-    };
-  }
-
-  private dockerDesktopPreflightTask(): SoloListrTask<AnyListrContext> {
-    return {
-      title: 'Pre-flight: check Docker Desktop containerd setting',
-      task: async (): Promise<void> => {
-        const result: DockerDesktopContainerdCheckResult = checkDockerDesktopContainerdSetting();
-        if (result.containerdSnapshotterEnabled && result.warningMessage) {
-          this.logger.warn(result.warningMessage);
-        }
       },
     };
   }
