@@ -16,7 +16,7 @@ import {type CachedItemStructure} from '../models/cached-item-structure.js';
  *
  * This keeps domain-specific behavior out of the coordinator.
  */
-  export interface CacheOperationHandler {
+export interface CacheOperationHandler {
   /**
    * Returns the artifact type handled by this strategy.
    */
