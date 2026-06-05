@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {BUG_REPORT_URL} from '../../../constants.js';
 
 export class DataValidationError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -14,7 +13,7 @@ export class DataValidationError extends SoloError {
       {
         message: `Data validation failed: ${context} (expected: ${JSON.stringify(expected)}, found: ${JSON.stringify(found)})`,
         code: ErrorCodeRegistry.DATA_VALIDATION,
-        troubleshootingSteps: `This is an internal Solo error. File a bug report: ${BUG_REPORT_URL}`,
+        troubleshootingSteps: `This is an internal Solo error. File a bug report: ${SoloError.bugReportUrl}`,
       },
       cause,
       {expected, found},

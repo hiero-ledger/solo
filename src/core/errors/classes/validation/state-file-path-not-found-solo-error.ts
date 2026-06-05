@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {Flags} from '../../../../commands/flags.js';
 
 export class StateFilePathNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -16,7 +15,7 @@ export class StateFilePathNotFoundSoloError extends SoloError {
       troubleshootingSteps:
         `Verify the path exists: ls -la ${path ?? '<stateFilePath>'}\n` +
         'Download a valid state file first: solo consensus state download\n' +
-        `Then provide either the downloaded .zip file or the download parent directory using ${Flags.getFormattedFlagKey(Flags.stateFile)} <path>\n` +
+        'Then provide either the downloaded .zip file or the download parent directory using --state-file <path>\n' +
         'When a directory is provided, Solo looks for state files under: <path>/states/<cluster>/<namespace>',
     });
   }

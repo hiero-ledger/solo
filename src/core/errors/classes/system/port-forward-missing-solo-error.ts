@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {Flags} from '../../../../commands/flags.js';
 
 export class PortForwardMissingSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
@@ -14,7 +13,7 @@ export class PortForwardMissingSoloError extends SoloError {
       message: `Configured port-forward is missing: ${componentDisplayName} ${componentId} localhost:${localPort} -> pod:${podPort}`,
       code: ErrorCodeRegistry.PORT_FORWARD_MISSING,
       troubleshootingSteps:
-        `Check port-forward status: solo deployment diagnostics connections ${Flags.getFormattedFlagKey(Flags.deployment)} <name>\n` +
+        'Check port-forward status: solo deployment diagnostics connections --deployment <name>\n' +
         'Re-establish port forwards: solo consensus node start\n' +
         'Verify the pod is running: kubectl get pods -n <namespace>',
     });

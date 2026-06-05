@@ -5,7 +5,7 @@ import * as constants from '../core/constants.js';
 import * as version from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import fs from 'node:fs';
-import {SoloError} from '../core/errors/solo-error.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {
   select as selectPrompt,
@@ -42,7 +42,7 @@ export class Flags {
         if (!process.stdout.isTTY || !process.stdin.isTTY) {
           // this is to help find issues with prompts running in non-interactive mode, user should supply quite mode,
           // or provide all flags required for command
-          throw new SoloError('Cannot prompt for input in non-interactive mode');
+          throw new SoloErrors.validation.nonInteractivePrompt(Flags.getFormattedFlagKey(Flags.deployment));
         }
 
         const promptOptions = {default: defaultValue, message: promptMessage};
@@ -64,12 +64,12 @@ export class Flags {
       }
 
       if (emptyCheckMessage && !input) {
-        throw new SoloError(emptyCheckMessage);
+        throw new SoloErrors.validation.missingArgument(emptyCheckMessage);
       }
 
       return input;
     } catch (error) {
-      throw new SoloError(`input failed: ${flagName}: ${error.message}`, error);
+      throw new SoloErrors.validation.flagInputFailed(flagName, error);
     }
   }
 
@@ -707,7 +707,7 @@ export class Flags {
 
         return input;
       } catch (error) {
-        throw new SoloError(`input failed: ${Flags.chartDirectory.name}`, error);
+        throw new SoloErrors.validation.flagInputFailed(Flags.chartDirectory.name, error);
       }
     },
   };
@@ -1068,7 +1068,7 @@ export class Flags {
 
         return input;
       } catch (error) {
-        throw new SoloError(`input failed: ${Flags.tlsClusterIssuerType.name}`, error);
+        throw new SoloErrors.validation.flagInputFailed(Flags.tlsClusterIssuerType.name, error);
       }
     },
   };

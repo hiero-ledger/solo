@@ -102,7 +102,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   private ensureInteractiveSelectionPrompt(): void {
     if (!process.stdout.isTTY || !process.stdin.isTTY) {
-      throw new SoloErrors.validation.nonInteractivePrompt();
+      throw new SoloErrors.validation.nonInteractivePrompt(flags.getFormattedFlagKey(flags.deployment));
     }
   }
 
@@ -752,7 +752,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
       if (this.resolveQuietFlag(argv)) {
         const names: string = remoteDeploymentNames.join(', ');
-        throw new SoloErrors.system.multipleDeploymentsFound('remote', names, flags.deployment.name);
+        throw new SoloErrors.system.multipleDeploymentsFound('remote', names);
       }
 
       this.ensureInteractiveSelectionPrompt();
@@ -772,7 +772,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
     if (this.resolveQuietFlag(argv)) {
       const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
-      throw new SoloErrors.system.multipleDeploymentsFound('local', deploymentNames, flags.deployment.name);
+      throw new SoloErrors.system.multipleDeploymentsFound('local', deploymentNames);
     }
 
     this.ensureInteractiveSelectionPrompt();
