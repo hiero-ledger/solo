@@ -4,7 +4,6 @@ templates:
   - RELAY_VERSION
   - EXPLORER_VERSION
   - MINIO_OPERATOR_VERSION
-  - CONSENSUS_NODE_VERSION
 
 images:
   # --- Mirror Node ---
