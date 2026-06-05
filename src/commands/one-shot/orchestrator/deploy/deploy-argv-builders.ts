@@ -46,6 +46,9 @@ export class DeployArgvBuilders {
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
     const argv: string[] = newArgv();
     argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), optionFromFlag(Flags.deployment), config.deployment);
+    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+      argv.push(optionFromFlag(Flags.blockNodeTssOverlay));
+    }
 
     const consensusNodeVersionFlag: string = optionFromFlag(Flags.consensusNodeVersion);
     const legacyReleaseTagFlag: string = optionFromFlag(Flags.releaseTag);
@@ -95,6 +98,9 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.parallelDeploy),
       config.parallelDeploy.toString(),
     );
+    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+      argv.push(optionFromFlag(Flags.forceBlockNodeIntegration));
+    }
     // Append HikariCP limits file without mutating the shared config object.
     const mirrorExistingValuesFile: string =
       config.mirrorNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
