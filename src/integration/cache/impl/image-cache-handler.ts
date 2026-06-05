@@ -119,6 +119,10 @@ export class ImageCacheHandler implements CacheOperationHandler {
     }
   }
 
+  public async prune(): Promise<void> {
+    await this.store.clear();
+  }
+
   public async healthcheck(): Promise<readonly ArtifactHealthResult[]> {
     const results: ArtifactHealthResult[] = [];
 
