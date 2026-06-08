@@ -17,7 +17,7 @@ import {ValueContainer} from '../../../src/core/dependency-injection/value-conta
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
-import {SoloLogger} from '../../../src/core/logging/solo-logger.js';
+import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 
 describe('DeploymentCommand unit tests', (): void => {
   type K8StubbedMethods = Pick<K8, 'namespaces' | 'configMaps' | 'contexts' | 'clusters' | 'leases'>;
