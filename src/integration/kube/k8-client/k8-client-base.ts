@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type V1ObjectMeta} from '@kubernetes/client-node';
 import {type ObjectMeta} from '../resources/object-meta.js';
 import {K8ClientObjectMeta} from './resources/k8-client-object-meta.js';
 import {NamespaceName} from '../../../types/namespace/namespace-name.js';
+import {KubeMissingArgumentError} from '../errors/kube-missing-argument-error.js';
+import {KubeMultipleItemsFoundError} from '../errors/kube-multiple-items-found-error.js';
+import {KubeIllegalArgumentError} from '../errors/kube-illegal-argument-error.js';
 
 /**
  * The abstract K8 Client Filter adds the `filterItem` method to the class that extends it.
@@ -19,7 +21,7 @@ export abstract class K8ClientBase {
    */
   private applyMetadataFilter(items: (object | any)[], filters: Record<string, string> = {}): any[] {
     if (!filters) {
-      throw new SoloErrors.validation.missingArgument('filters are required');
+      throw new KubeMissingArgumentError('filters are required');
     }
 
     const matched: any[] = [];
@@ -55,7 +57,7 @@ export abstract class K8ClientBase {
   protected filterItem(items: (object | any)[], filters: Record<string, string> = {}): any {
     const filtered: any[] = this.applyMetadataFilter(items, filters);
     if (filtered.length > 1) {
-      throw new SoloErrors.system.multipleItemsFound(filters);
+      throw new KubeMultipleItemsFoundError(filters);
     }
     return filtered[0];
   }
@@ -67,7 +69,7 @@ export abstract class K8ClientBase {
    */
   protected wrapObjectMeta(v1meta: V1ObjectMeta): ObjectMeta {
     if (!v1meta) {
-      throw new SoloErrors.validation.illegalArgument('metadata is required');
+      throw new KubeIllegalArgumentError('metadata is required');
     }
 
     return new K8ClientObjectMeta(
