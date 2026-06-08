@@ -155,7 +155,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             );
             expect.fail();
           } catch (error) {
-            expect(error.message).to.include(`Context ${invalidContextName} is not valid for cluster`);
+            expect(error.message).to.include(`Context not found for cluster reference ${clusterReferenceName}`);
           }
         });
       });
