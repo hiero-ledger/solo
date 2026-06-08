@@ -49,6 +49,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly logXml: string = 'log4j2.xml',
     public readonly settingsTxt: string = 'settings.txt',
     public readonly javaFlightRecorderConfiguration: string = '',
+    public readonly chainId: number = 0,
     public readonly testSuiteCallback: (
       options: BaseTestOptions,
       preDestroy?: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>,
@@ -114,6 +115,7 @@ export class EndToEndTestSuite extends Suite {
       logXml: this.logXml,
       settingsTxt: this.settingsTxt,
       javaFlightRecorderConfiguration: this.javaFlightRecorderConfiguration,
+      chainId: this.chainId,
     } as BaseTestOptions;
   }
 

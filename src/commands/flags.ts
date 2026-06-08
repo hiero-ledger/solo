@@ -896,7 +896,10 @@ export class Flags {
     name: 'chain-id',
     definition: {
       describe: 'Chain ID',
-      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
+      // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
+      get defaultValue(): string {
+        return constants.getEnvironmentVariable('SOLO_CHAIN_ID') ?? '298';
+      },
       alias: 'l',
       type: 'string',
     },
