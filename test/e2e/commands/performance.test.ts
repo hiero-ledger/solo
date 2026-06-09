@@ -8,7 +8,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import fs from 'node:fs';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
-import {DEFAULT_LOCAL_CONFIG_FILE, SOLO_CACHE_DIR} from '../../../src/core/constants.js';
+import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
@@ -39,6 +39,7 @@ type PerformanceSummary = AugmentedSnapshot & {
 const testName: string = 'performance-tests';
 const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
+const performanceOneShotValuesFile: string = 'test/data/performance-one-shot-values.yaml';
 
 const duration: number = Duration.ofMinutes(
   Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
@@ -78,6 +79,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
     (options: BaseTestOptions, preDestroy: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>): void => {
       describe(testTitle, (): void => {
         const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
+        let deploySucceeded: boolean = false;
 
         // TODO the kube config context causes issues if it isn't one of the selected clusters we are deploying to
         before(async (): Promise<void> => {
@@ -103,6 +105,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: beginning ${testName}: deploy`);
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = options.javaFlightRecorderConfiguration;
           await main(soloOneShotDeploy(testName, deployment));
+          deploySucceeded = true;
           testLogger.info(`${testName}: finished ${testName}: deploy`);
 
           startTime = new Date();
@@ -117,71 +120,33 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // restore environment variable for other tests
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
 
-          // read all logged metrics and parse the JSON
-          const namespace: string = await getNamespaceFromDeployment();
-          const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
-          const files: string[] = fs.readdirSync(tartgetDirectory);
-          const allMetrics: Record<string, AggregatedMetrics> = {};
-          for (const file of files) {
-            const filePath: string = PathEx.join(tartgetDirectory, file);
-            const fileContents: string = fs.readFileSync(filePath, 'utf8');
-            const fileName: string = file.split('.')[0];
-            allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
+          if (deploySucceeded) {
+            await writeAggregatedMetrics();
+          } else {
+            testLogger.warn(`${testName}: skipping metrics aggregation because one-shot deploy did not complete`);
           }
 
-          // save the aggregated metrics to a single file
-          const aggregatedMetricsFileName: string = 'timeline-metrics.json';
-          const aggregatedMetricsPath: string = PathEx.join(tartgetDirectory, aggregatedMetricsFileName);
-          fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
-
-          let maxCpuMetrics: number = 0;
-          let maxCpuFile: string = '';
-          let maxMemoryMetrics: number = 0;
-          let maxMemoryFile: string = '';
-          for (const [fileName, metrics] of Object.entries(allMetrics)) {
-            if (metrics.cpuInMillicores > maxCpuMetrics) {
-              maxCpuMetrics = metrics.cpuInMillicores;
-              maxCpuFile = fileName;
+          try {
+            await preDestroy(endToEndTestSuite);
+          } catch (error) {
+            if (deploySucceeded) {
+              throw error;
             }
-            if (metrics.memoryInMebibytes > maxMemoryMetrics) {
-              maxMemoryMetrics = metrics.memoryInMebibytes;
-              maxMemoryFile = fileName;
-            }
+            const errorMessage: string = error instanceof Error ? error.message : String(error);
+            testLogger.warn(`${testName}: pre-destroy after failed deploy did not complete: ${errorMessage}`);
           }
 
-          // Use the max-memory snapshot as the representative record since memory
-          // pressure reflects actual workload behavior, not startup CPU spikes
-          const representativeFileName: string = `${maxMemoryFile}.json`;
-          const {clusterMetrics: clusterMetricsData, ...summaryFields} = allMetrics[maxMemoryFile];
-          const namespaceJson: PerformanceSummary = {
-            ...summaryFields,
-            peakCpuInMillicores: maxCpuMetrics,
-            peakCpuSnapshot: allMetrics[maxCpuFile]?.snapshotName,
-            peakMemoryInMebibytes: maxMemoryMetrics,
-            peakMemorySnapshot: allMetrics[maxMemoryFile]?.snapshotName,
-            clusterMetrics: clusterMetricsData,
-          };
-          fs.writeFileSync(PathEx.join(tartgetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
-
-          // remove all snapshot files except the representative one
-          const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
-          for (const file of files) {
-            if (!filesToKeep.has(file)) {
-              fs.rmSync(PathEx.join(tartgetDirectory, file));
+          try {
+            testLogger.info(`${testName}: beginning ${testName}: destroy`);
+            await main(soloOneShotDestroy(testName));
+            testLogger.info(`${testName}: finished ${testName}: destroy`);
+          } catch (error) {
+            if (deploySucceeded) {
+              throw error;
             }
+            const errorMessage: string = error instanceof Error ? error.message : String(error);
+            testLogger.warn(`${testName}: destroy after failed deploy did not complete: ${errorMessage}`);
           }
-
-          // copy the summary to the main solo logs directory to be accessible by existing scripts
-          fs.copyFileSync(
-            PathEx.join(tartgetDirectory, `${namespace}.json`),
-            PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
-          );
-
-          await preDestroy(endToEndTestSuite);
-
-          testLogger.info(`${testName}: beginning ${testName}: destroy`);
-          await main(soloOneShotDestroy(testName));
-          testLogger.info(`${testName}: finished ${testName}: destroy`);
         }).timeout(Duration.ofMinutes(8).toMillis());
 
         // NOTE: NLG 0.14.0 expanded -R (reuse) to cover tokens as well as accounts. It reuses
@@ -259,13 +224,74 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 endToEndTestSuite.runTestSuite();
 
 async function getNamespaceFromDeployment(): Promise<string> {
-  const deploymentName: string = fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
   const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
     InjectTokens.LocalConfigRuntimeState,
   );
   await localConfig.load();
   const deployment: Deployment = localConfig.configuration.deploymentByName(deploymentName);
   return deployment.namespace;
+}
+
+async function writeAggregatedMetrics(): Promise<void> {
+  // read all logged metrics and parse the JSON
+  const namespace: string = await getNamespaceFromDeployment();
+  const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
+  const files: string[] = fs.readdirSync(tartgetDirectory);
+  const allMetrics: Record<string, AggregatedMetrics> = {};
+  for (const file of files) {
+    const filePath: string = PathEx.join(tartgetDirectory, file);
+    const fileContents: string = fs.readFileSync(filePath, 'utf8');
+    const fileName: string = file.split('.')[0];
+    allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
+  }
+
+  // save the aggregated metrics to a single file
+  const aggregatedMetricsFileName: string = 'timeline-metrics.json';
+  const aggregatedMetricsPath: string = PathEx.join(tartgetDirectory, aggregatedMetricsFileName);
+  fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
+
+  let maxCpuMetrics: number = 0;
+  let maxCpuFile: string = '';
+  let maxMemoryMetrics: number = 0;
+  let maxMemoryFile: string = '';
+  for (const [fileName, metrics] of Object.entries(allMetrics)) {
+    if (metrics.cpuInMillicores > maxCpuMetrics) {
+      maxCpuMetrics = metrics.cpuInMillicores;
+      maxCpuFile = fileName;
+    }
+    if (metrics.memoryInMebibytes > maxMemoryMetrics) {
+      maxMemoryMetrics = metrics.memoryInMebibytes;
+      maxMemoryFile = fileName;
+    }
+  }
+
+  // Use the max-memory snapshot as the representative record since memory
+  // pressure reflects actual workload behavior, not startup CPU spikes
+  const representativeFileName: string = `${maxMemoryFile}.json`;
+  const {clusterMetrics: clusterMetricsData, ...summaryFields} = allMetrics[maxMemoryFile];
+  const namespaceJson: PerformanceSummary = {
+    ...summaryFields,
+    peakCpuInMillicores: maxCpuMetrics,
+    peakCpuSnapshot: allMetrics[maxCpuFile]?.snapshotName,
+    peakMemoryInMebibytes: maxMemoryMetrics,
+    peakMemorySnapshot: allMetrics[maxMemoryFile]?.snapshotName,
+    clusterMetrics: clusterMetricsData,
+  };
+  fs.writeFileSync(PathEx.join(tartgetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
+
+  // remove all snapshot files except the representative one
+  const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
+  for (const file of files) {
+    if (!filesToKeep.has(file)) {
+      fs.rmSync(PathEx.join(tartgetDirectory, file));
+    }
+  }
+
+  // copy the summary to the main solo logs directory to be accessible by existing scripts
+  fs.copyFileSync(
+    PathEx.join(tartgetDirectory, `${namespace}.json`),
+    PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
+  );
 }
 
 export async function logMetrics(startTime: Date): Promise<void> {
@@ -307,7 +333,13 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
-  argv.push(optionFromFlag(Flags.deployment), deployment, optionFromFlag(Flags.deployMetricsServer));
+  argv.push(
+    optionFromFlag(Flags.deployment),
+    deployment,
+    optionFromFlag(Flags.deployMetricsServer),
+    optionFromFlag(Flags.valuesFile),
+    performanceOneShotValuesFile,
+  );
   if (process.env.ONE_SHOT_USE_EDGE === 'true') {
     argv.push(optionFromFlag(Flags.edgeEnabled));
   }
@@ -315,7 +347,7 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
 }
 
 export function soloOneShotDestroy(testName: string): string[] {
-  const {newArgv, argvPushGlobalFlags} = BaseCommandTest;
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
   argv.push(
@@ -324,6 +356,7 @@ export function soloOneShotDestroy(testName: string): string[] {
     OneShotCommandDefinition.SINGLE_DESTROY,
   );
   argvPushGlobalFlags(argv, testName);
+  argv.push(optionFromFlag(Flags.deployment), deploymentName);
   return argv;
 }
 
@@ -343,7 +376,6 @@ export function soloRapidFire(
 ): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
-  const deploymentName: string = fs.readFileSync(PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'), 'utf8');
   const argv: string[] = newArgv();
   argv.push(
     'rapid-fire',

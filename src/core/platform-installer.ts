@@ -449,7 +449,7 @@ export class PlatformInstaller {
 
       // Create a persistent archive copy used by `ledger system reset` to restore
       // genesis-network.json without needing to re-run `consensus node setup`.
-      const archiveDir: string = `${constants.HEDERA_HAPI_PATH}/data/config/.archive`;
+      const archiveDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config/.archive`;
       await this.k8Factory
         .getK8(context)
         .containers()
@@ -457,8 +457,8 @@ export class PlatformInstaller {
         .execContainer([
           'bash',
           '-c',
-          `mkdir -p ${archiveDir} && ` +
-            `cp ${constants.HEDERA_HAPI_PATH}/data/config/genesis-network.json ${archiveDir}/genesis-network.json`,
+          `mkdir -p ${archiveDirectory} && ` +
+            `cp ${constants.HEDERA_HAPI_PATH}/data/config/genesis-network.json ${archiveDirectory}/genesis-network.json`,
         ]);
     }
 
