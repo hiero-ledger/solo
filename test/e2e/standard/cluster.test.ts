@@ -30,7 +30,7 @@ const testName: string = 'cluster-test';
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
-  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withTestSuiteName('Standard Test Suite')
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
@@ -76,15 +76,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await k8Factory.default().namespaces().delete(namespace);
 
           ClusterReferenceTest.setup(options);
-
-          do {
-            await sleep(Duration.ofSeconds(5));
-          } while (
-            !(await chartManager.isChartInstalled(
-              constants.SOLO_SETUP_NAMESPACE,
-              constants.MINIO_OPERATOR_RELEASE_NAME,
-            ))
-          );
         });
 
         // give a few ticks so that connections can close

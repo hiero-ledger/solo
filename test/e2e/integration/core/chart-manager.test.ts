@@ -10,18 +10,21 @@ import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tok
 
 describe('ChartManager', () => {
   const chartManager: ChartManager = container.resolve(InjectTokens.ChartManager);
+  const chartNamespace = constants.METRICS_SERVER_NAMESPACE;
+  const releaseName: string = constants.METRICS_SERVER_RELEASE_NAME;
 
   it('should be able to list installed charts', async () => {
-    const ns = constants.SOLO_SETUP_NAMESPACE;
-    expect(ns, 'namespace should not be null').not.to.be.null;
-    const list = await chartManager.getInstalledCharts(ns);
-    expect(list, 'should have at least one installed chart').not.to.have.lengthOf(0);
+    expect(chartNamespace, 'namespace should not be null').not.to.be.null;
+    const list = await chartManager.getInstalledCharts(chartNamespace);
+    expect(
+      list.some((chart): boolean => chart.startsWith(`${releaseName} [`)),
+      'should include metrics-server chart',
+    ).to.be.ok;
   });
 
   it('should be able to check if a chart is installed', async () => {
-    const ns = constants.SOLO_SETUP_NAMESPACE;
-    expect(ns, 'namespace should not be null').not.to.be.null;
-    const isInstalled = await chartManager.isChartInstalled(ns, constants.MINIO_OPERATOR_RELEASE_NAME);
-    expect(isInstalled, `${constants.MINIO_OPERATOR_RELEASE_NAME} should be installed`).to.be.ok;
+    expect(chartNamespace, 'namespace should not be null').not.to.be.null;
+    const isInstalled = await chartManager.isChartInstalled(chartNamespace, releaseName);
+    expect(isInstalled, `${releaseName} should be installed`).to.be.ok;
   });
 });
