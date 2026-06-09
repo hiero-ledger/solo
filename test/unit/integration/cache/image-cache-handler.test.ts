@@ -12,9 +12,16 @@ import {type CacheCatalogStore} from '../../../../src/integration/cache/api/cach
 import {type CacheHealthInspector} from '../../../../src/integration/cache/api/cache-health-inspector.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type ContainerEngineClient} from '../../../../src/integration/container-engine/container-engine-client.js';
+import {type SoloListrTask} from '../../../../src/types/index.js';
+import {type AnyListrContext} from '../../../../src/types/aliases.js';
 
 describe('ImageCacheHandler pull', (): void => {
-  const target = {
+  const target: {
+    type: CacheArtifactEnum;
+    name: string;
+    version: string;
+    source: string | undefined;
+  } = {
     type: CacheArtifactEnum.IMAGE,
     name: 'docker.io/library/busybox',
     version: '1.36.1',
@@ -74,7 +81,7 @@ describe('ImageCacheHandler pull', (): void => {
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
     const handler: ImageCacheHandler = new ImageCacheHandler(engine, provider, store, inspector, logger);
 
-    const subtasks = await handler.pull();
+    const subtasks: readonly SoloListrTask<AnyListrContext>[] = await handler.pull();
     const context: {config: {results: unknown[]}} = {config: {results: []}};
 
     await expect(subtasks[0].task(context as never, {title: 'task'} as never)).to.be.rejectedWith('rate limited');
@@ -94,7 +101,7 @@ describe('ImageCacheHandler pull', (): void => {
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
     const handler: ImageCacheHandler = new ImageCacheHandler(engine, provider, store, inspector, logger);
 
-    const subtasks = await handler.pull();
+    const subtasks: readonly SoloListrTask<AnyListrContext>[] = await handler.pull();
     const context: {config: {results: unknown[]}} = {config: {results: []}};
 
     await subtasks[0].task(context as never, {title: 'task'} as never);

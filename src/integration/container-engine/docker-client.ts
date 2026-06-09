@@ -19,6 +19,7 @@ import {Architecture} from '../../business/utils/architecture.js';
 @injectable()
 export class DockerClient implements ContainerEngineClient {
   private static readonly IMAGE_PULL_TIMEOUT_MS: number = 15 * 60 * 1000;
+  private static readonly IMAGE_PULL_IDLE_TIMEOUT_MS: number = 45 * 1000;
   private readonly shellRunner: ShellRunner;
 
   public constructor(
@@ -42,6 +43,8 @@ export class DockerClient implements ContainerEngineClient {
       false,
       {},
       DockerClient.IMAGE_PULL_TIMEOUT_MS,
+      true,
+      DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
     );
   }
 
@@ -58,6 +61,8 @@ export class DockerClient implements ContainerEngineClient {
       false,
       {},
       DockerClient.IMAGE_PULL_TIMEOUT_MS,
+      true,
+      DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
     );
   }
 

@@ -37,6 +37,7 @@ export class ShellRunner {
     environmentVariablesToAppend: Record<string, string> = {},
     timeoutMs?: number,
     useShell: boolean = true,
+    idleTimeoutMs?: number,
   ): Promise<string[]> {
     const redactedArguments: string[] = ShellRunner.redactArguments(arguments_);
     const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${redactedArguments.join(' ')}`;
@@ -65,6 +66,7 @@ export class ShellRunner {
 
       let timedOut: boolean = false;
       let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      let idleTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
       if (timeoutMs !== undefined) {
         timeoutHandle = setTimeout((): void => {
@@ -76,8 +78,29 @@ export class ShellRunner {
         }, timeoutMs);
       }
 
+      const resetIdleTimeout: () => void = (): void => {
+        if (idleTimeoutMs === undefined) {
+          return;
+        }
+
+        if (idleTimeoutHandle) {
+          clearTimeout(idleTimeoutHandle);
+        }
+
+        idleTimeoutHandle = setTimeout((): void => {
+          timedOut = true;
+          child.kill();
+          const error: Error = new Error(`Command produced no output for ${idleTimeoutMs}ms: '${cmd}'`);
+          error.stack = callStack;
+          reject(error);
+        }, idleTimeoutMs);
+      };
+
+      resetIdleTimeout();
+
       const output: string[] = [];
       child.stdout.on('data', (data): void => {
+        resetIdleTimeout();
         const items: string[] = data.toString().split(/\r?\n/);
         for (const item of items) {
           if (item) {
@@ -91,6 +114,7 @@ export class ShellRunner {
 
       const errorOutput: string[] = [];
       child.stderr.on('data', (data): void => {
+        resetIdleTimeout();
         const items: string[] = data.toString().split(/\r?\n/);
         for (const item of items) {
           if (item) {
@@ -106,6 +130,10 @@ export class ShellRunner {
       child.on('exit', (code, signal): void => {
         if (timeoutHandle) {
           clearTimeout(timeoutHandle);
+        }
+
+        if (idleTimeoutHandle) {
+          clearTimeout(idleTimeoutHandle);
         }
 
         if (timedOut) {

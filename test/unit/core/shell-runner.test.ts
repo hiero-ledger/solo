@@ -70,6 +70,15 @@ describe('ShellRunner', (): void => {
     expect(loggerShowUserStub).to.have.been.calledWith('verbose-output');
   }).timeout(Duration.ofSeconds(10).toMillis());
 
+  it('should reject when command is idle with no output', async (): Promise<void> => {
+    const commandToRun: string = 'node -e "setTimeout(()=>{}, 10000)"';
+    const idleTimeoutMs: number = 500;
+
+    await expect(shellRunner.run(commandToRun, [], false, false, {}, 10_000, true, idleTimeoutMs)).to.be.rejectedWith(
+      `Command produced no output for ${idleTimeoutMs}ms`,
+    );
+  }).timeout(Duration.ofSeconds(10).toMillis());
+
   describe('redactArguments', (): void => {
     it('should redact --password and its value', (): void => {
       const arguments_: string[] = ['--password', 'mySecret'];
