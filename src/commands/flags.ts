@@ -45,7 +45,11 @@ export class Flags {
           throw new SoloErrors.validation.nonInteractivePrompt(Flags.getFormattedFlagKey(Flags.deployment));
         }
 
-        const promptOptions = {default: defaultValue, message: promptMessage};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const promptOptions: {default: Optional<any>; message: string} = {
+          default: defaultValue,
+          message: promptMessage,
+        };
 
         switch (type) {
           case 'input': {
@@ -2379,7 +2383,7 @@ export class Flags {
       alias: 'u',
     },
     prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
-      const promptForInput = async () => {
+      const promptForInput: () => Promise<string> = async (): Promise<string> => {
         return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
           message: 'Please enter your username. Can only contain letters and numbers:',
         });
@@ -2816,7 +2820,7 @@ export class Flags {
       type: 'number',
     },
     prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: number): Promise<number> {
-      const promptForInput = (): Promise<number> =>
+      const promptForInput: () => Promise<number> = (): Promise<number> =>
         Flags.prompt(
           'number',
           task,
@@ -3265,7 +3269,7 @@ export class Flags {
   ];
 
   /** Resets the definition.disablePrompt for all flags */
-  private static resetDisabledPrompts() {
+  private static resetDisabledPrompts(): void {
     for (const f of Flags.allFlags) {
       if (f.definition.disablePrompt) {
         delete f.definition.disablePrompt;
@@ -3273,9 +3277,11 @@ export class Flags {
     }
   }
 
-  public static readonly allFlagsMap = new Map(Flags.allFlags.map(f => [f.name, f]));
+  public static readonly allFlagsMap: Map<string, CommandFlag> = new Map(
+    Flags.allFlags.map((f): [string, CommandFlag] => [f.name, f]),
+  );
 
-  public static readonly nodeConfigFileFlags = new Map(
+  public static readonly nodeConfigFileFlags: Map<string, CommandFlag> = new Map(
     [
       Flags.apiPermissionProperties,
       Flags.applicationEnv,
@@ -3283,10 +3289,12 @@ export class Flags {
       Flags.bootstrapProperties,
       Flags.log4j2Xml,
       Flags.settingTxt,
-    ].map(f => [f.name, f]),
+    ].map((f): [string, CommandFlag] => [f.name, f]),
   );
 
-  public static readonly integerFlags = new Map([Flags.replicaCount].map(f => [f.name, f]));
+  public static readonly integerFlags: Map<string, CommandFlag> = new Map(
+    [Flags.replicaCount].map((f): [string, CommandFlag] => [f.name, f]),
+  );
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],
