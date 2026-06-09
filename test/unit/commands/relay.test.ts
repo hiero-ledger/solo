@@ -69,6 +69,21 @@ describe('RelayCommand unit tests', (): void => {
     expect(valueArguments).to.include('ws.image.tag=0.77.0');
   });
 
+  it('should allow relay startup to wait for mirror node operator balance ingestion', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+
+    const valueArguments: string[] = await prepareRelayValueArguments(relayCommandInternal, createRelayConfig());
+
+    expect(valueArguments).to.include('relay.config.OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS=600');
+    expect(valueArguments).to.include('relay.config.OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS=1000');
+    expect(valueArguments).to.include('relay.startupProbe.failureThreshold=660');
+    expect(valueArguments).to.include('ws.config.OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS=600');
+    expect(valueArguments).to.include('ws.config.OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS=1000');
+    expect(valueArguments).to.include('ws.startupProbe.failureThreshold=660');
+  });
+
   it('should accept full relay image reference and set relay/ws image registry repository and tag', async (): Promise<void> => {
     const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
 

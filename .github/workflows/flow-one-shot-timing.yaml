@@ -258,6 +258,7 @@ jobs:
             echo ""
             echo "mirrorNode:"
             echo "  --mirror-node-version: \"${{ steps.versions.outputs.mn-version }}\""
+            echo "  --pinger: false"
             echo ""
             echo "relayNode:"
             echo "  --relay-release: \"${{ steps.versions.outputs.relay-version }}\""
