@@ -151,7 +151,11 @@ jobs:
           else
             echo "No consensus node edge version specified, using default from version.ts"
           fi
-          if [[ "${{ inputs.use-edge }}" == "true" ]]; then
+          USE_EDGE="false"
+          if [[ "${{ github.event_name }}" != "pull_request" && "${{ inputs.use-edge }}" == "true" ]]; then
+            USE_EDGE="true"
+          fi
+          if [[ "${USE_EDGE}" == "true" ]]; then
             echo ONE_SHOT_USE_EDGE=true >> .env
           fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
