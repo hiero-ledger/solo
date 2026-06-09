@@ -446,6 +446,20 @@ export class PlatformInstaller {
         undefined,
         context,
       );
+
+      // Create a persistent archive copy used by `ledger system reset` to restore
+      // genesis-network.json without needing to re-run `consensus node setup`.
+      const archiveDir: string = `${constants.HEDERA_HAPI_PATH}/data/config/.archive`;
+      await this.k8Factory
+        .getK8(context)
+        .containers()
+        .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+        .execContainer([
+          'bash',
+          '-c',
+          `mkdir -p ${archiveDir} && ` +
+            `cp ${constants.HEDERA_HAPI_PATH}/data/config/genesis-network.json ${archiveDir}/genesis-network.json`,
+        ]);
     }
 
     // TODO: temporarily disable this until we add logic to only set this when the user provides the node override gossip endpoints for each node they want to override
