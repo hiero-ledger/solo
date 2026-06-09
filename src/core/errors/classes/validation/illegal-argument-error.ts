@@ -8,7 +8,7 @@ export class IllegalArgumentError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
 
-  public constructor(reason: string, value?: any, cause?: Error) {
+  public constructor(reason: string, value?: unknown, cause?: Error) {
     super(
       {
         message: reason,

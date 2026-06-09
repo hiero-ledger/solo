@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../errors/solo-error.js';
+import {SoloErrors} from '../../errors/solo-errors.js';
 import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
@@ -35,16 +35,16 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     const componentId: ComponentId = component.metadata.id;
 
     if (typeof componentId !== 'number') {
-      throw new SoloError(`Component id is required ${componentId}`);
+      throw new SoloErrors.validation.componentIdRequired(componentId);
     }
 
     if (!(component instanceof BaseStateSchema)) {
-      throw new SoloError('Component must be instance of BaseState', undefined, BaseStateSchema);
+      throw new SoloErrors.internal.dataValidation('component type', 'BaseState', 'unknown');
     }
 
     const addComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
       if (this.checkComponentExists(components, component) && !isReplace) {
-        throw new SoloError('Component exists', undefined, component);
+        throw new SoloErrors.validation.componentAlreadyExists(String(componentId));
       }
       components.push(component);
     };
@@ -60,7 +60,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   // TODO: Remove once unified method is fully utilized
   public changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void {
     if (!this.state.consensusNodes.some((component): boolean => +component.metadata.id === +componentId)) {
-      throw new SoloError(`Consensus node ${componentId} doesn't exist`);
+      throw new SoloErrors.validation.componentNotFound(String(componentId), 'consensus-node', 'read');
     }
 
     const component: ConsensusNodeStateSchema = this.state.consensusNodes.find(
@@ -72,14 +72,14 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
 
   public changeComponentPhase(componentId: ComponentId, type: ComponentTypes, phase: DeploymentPhase): void {
     if (typeof componentId !== 'number') {
-      throw new SoloError(`Component id is required ${componentId}`);
+      throw new SoloErrors.validation.componentIdRequired(componentId);
     }
 
     const updateComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
       const component: BaseStateSchema = components.find((component): boolean => component.metadata.id === componentId);
 
       if (!component) {
-        throw new SoloError(`Component ${componentId} of type ${type} not found while attempting to update`);
+        throw new SoloErrors.validation.componentNotFound(String(componentId), type, 'update');
       }
 
       component.metadata.phase = phase;
@@ -91,17 +91,17 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   /** Used to remove specific component from their respective group. */
   public removeComponent(componentId: ComponentId, type: ComponentTypes): void {
     if (typeof componentId !== 'number') {
-      throw new SoloError(`Component id is required ${componentId}`);
+      throw new SoloErrors.validation.componentIdRequired(componentId);
     }
 
     if (!isValidEnum(type, ComponentTypes)) {
-      throw new SoloError(`Invalid component type ${type}`);
+      throw new SoloErrors.validation.unknownComponentType(type);
     }
 
     const removeComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
       const index: number = components.findIndex((component): boolean => component.metadata.id === componentId);
       if (index === -1) {
-        throw new SoloError(`Component ${componentId} of type ${type} not found while attempting to remove`);
+        throw new SoloErrors.validation.componentNotFound(String(componentId), type, 'remove');
       }
 
       components.splice(index, 1);
@@ -119,7 +119,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       component = components.find((component): boolean => component.metadata.id === componentId) as T;
 
       if (!component) {
-        throw new SoloError(`Component ${componentId} of type ${type} not found while attempting to read`);
+        throw new SoloErrors.validation.componentNotFound(String(componentId), type, 'read');
       }
     };
 
@@ -165,7 +165,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     this.applyCallbackToComponentGroup(type, getComponentByIdCallback);
 
     if (!filteredComponent) {
-      throw new SoloError(`Component of type ${type} with id ${id} was not found in remote config`);
+      throw new SoloErrors.validation.componentNotInRemoteConfig(type, String(id));
     }
 
     return filteredComponent;
@@ -227,7 +227,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       }
 
       default: {
-        throw new SoloError(`Unknown component type ${componentType}, component id: ${componentId}`);
+        throw new SoloErrors.validation.unknownComponentType(componentType, String(componentId));
       }
     }
   }

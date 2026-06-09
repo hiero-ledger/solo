@@ -247,7 +247,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     } catch (error: Error | unknown) {
       const errorMessage: string = error instanceof Error ? error.message : String(error);
       this.logger.showUser(`Pod readiness check failed: ${errorMessage}`);
-      throw new SoloError(`Pod with labels [${labels.join(', ')}] not ready [maxAttempts = ${maxAttempts}]`, error);
+      throw new SoloErrors.system.podNotFound(`pods:${labels.join(',')}`);
     }
   }
 
@@ -277,7 +277,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       );
       await sleep(Duration.ofMillis(delay));
     }
-    throw new SoloError(`Pod ${podName} not found after ${maxAttempts} attempts`);
+    throw new SoloErrors.system.podNotFound(podName);
   }
 
   /**
@@ -340,7 +340,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     createdAfter?: Date,
     excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
-    const phases: string[] = [constants.POD_PHASE_RUNNING];
+    const phases: Set<string> = new Set([constants.POD_PHASE_RUNNING]);
     const labelSelector: string = labels ? labels.join(',') : undefined;
 
     this.logger.info(
@@ -405,8 +405,8 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                   ? CONTAINERD_SOCKET_FATAL_THRESHOLD
                   : FATAL_ERROR_RETRY_THRESHOLD;
 
-                if (nextCount >= threshold) {
-                  return reject(new SoloError(fatalError));
+                if (nextCount >= FATAL_ERROR_RETRY_THRESHOLD) {
+                  return reject(new SoloErrors.system.podCreationFailed(fatalError));
                 }
 
                 this.logger.info(`Detected fatal pod state for "${podName}" (${nextCount}/${threshold}); retrying`);
@@ -425,7 +425,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                 this.kubeConfig,
                 this.kubectlInstallationDirectory,
               );
-              if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
+              if (phases.has(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
                 return resolve([pod]);
               }
             }
@@ -437,11 +437,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         if (++attempts < maxAttempts) {
           setTimeout((): Promise<void> => check(resolve, reject), delay);
         } else {
-          return reject(
-            new SoloError(
-              `Expected at least 1 pod not found for labels: ${labelSelector}, phases: ${phases.join(',')} [attempts = ${attempts}/${maxAttempts}]`,
-            ),
-          );
+          return reject(new SoloErrors.system.podNotFound(`labels:${labelSelector}`));
         }
       };
 
@@ -470,9 +466,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       }
     }
 
-    throw new SoloError(
-      `Timed out waiting for pods to terminate in namespace ${namespace.name} for labels [${labels.join(', ')}]`,
-    );
+    throw new SoloErrors.system.podTerminationTimeout(namespace.name, labels);
   }
 
   public async listForAllNamespaces(labels: string[]): Promise<Pod[]> {
@@ -553,7 +547,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     if (result) {
       return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlInstallationDirectory);
     } else {
-      throw new SoloError('Error creating pod', result);
+      throw new SoloErrors.system.podCreationFailed(result);
     }
   }
 

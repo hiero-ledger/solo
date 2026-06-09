@@ -317,7 +317,8 @@ describe('PodmanDependencyManager', (): void => {
         await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error) {
-        expect(error.message).to.include('GitHub API request failed with status 404');
+        expect(error.message).to.include('GitHub API request');
+        expect(error.message).to.include('returned HTTP 404');
       }
     });
 
@@ -341,7 +342,7 @@ describe('PodmanDependencyManager', (): void => {
         await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error) {
-        expect(error.message).to.include('No matching asset found for');
+        expect(error.message).to.include('No matching GitHub release asset found');
       }
     });
   });
