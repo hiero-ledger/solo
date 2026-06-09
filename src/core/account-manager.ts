@@ -27,7 +27,7 @@ import {
   TransactionResponse,
   TransferTransaction,
 } from '@hiero-ledger/sdk';
-import {SoloError} from './errors/solo-error.js';
+import {SoloError} from './errors/solo-error.js'; // kept for instanceof checks
 import {Templates} from './templates.js';
 import {type NetworkNodeServices} from './network-node-services.js';
 
@@ -239,7 +239,7 @@ export class AccountManager {
 
       return this._nodeClient!;
     } catch (error) {
-      throw new SoloError(`failed to load node client: ${error.message}`, error);
+      throw new SoloErrors.component.nodeClientLoadFailed(error);
     }
   }
 
@@ -254,7 +254,7 @@ export class AccountManager {
     const targetNodeService: NetworkNodeServices | undefined = networkNodeServicesMap.get(selection.nodeAlias);
 
     if (!targetNodeService) {
-      throw new SoloError(`failed to resolve node service for node '${selection.nodeAlias}'`);
+      throw new SoloErrors.component.nodeServiceNotFound(selection.nodeAlias);
     }
 
     return new Map<NodeAlias, NetworkNodeServices>([[selection.nodeAlias, targetNodeService]]);
@@ -298,7 +298,7 @@ export class AccountManager {
 
       return nodeClient;
     } catch (error) {
-      throw new SoloError(`failed to refresh node client: ${error.message}`, error);
+      throw new SoloErrors.component.nodeClientRefreshFailed(error);
     }
   }
 
@@ -352,7 +352,9 @@ export class AccountManager {
         for (const result of results) {
           switch (result.status) {
             case REJECTED: {
-              throw new SoloError(`failed to configure node access: ${(result as PromiseRejectedResult).reason}`);
+              throw new SoloErrors.component.nodeAccessConfigFailed(
+                new Error(String((result as PromiseRejectedResult).reason)),
+              );
             }
             case FULFILLED: {
               nodes = {...nodes, ...(result as PromiseFulfilledResult<Record<NodeAlias, AccountId>>).value};
@@ -391,7 +393,7 @@ export class AccountManager {
 
       return nodeClient;
     } catch (error) {
-      throw new SoloError(`failed to setup node client: ${error.message}`, error);
+      throw new SoloErrors.component.nodeClientSetupFailed(error);
     }
   }
 
@@ -442,7 +444,7 @@ export class AccountManager {
 
       return object;
     } catch (error) {
-      throw new SoloError(`failed to configure node access: ${error.message}`, error);
+      throw new SoloErrors.component.nodeAccessConfigFailed(error);
     }
   }
 
@@ -479,12 +481,11 @@ export class AccountManager {
         }
       }
     } catch (error) {
-      const message: string = `failed testing node client connection for network node: ${Object.keys(object)[0]}, after ${maxRetries} retries: ${error.message}`;
-      throw new SoloError(message, error);
+      throw new SoloErrors.component.sdkPingFailed(Object.keys(object)[0], maxRetries, error);
     }
 
     if (currentRetry >= maxRetries) {
-      throw new SoloError(`failed to sdk ping network node: ${Object.keys(object)[0]}, after ${maxRetries} retries`);
+      throw new SoloErrors.component.sdkPingFailed(Object.keys(object)[0], maxRetries);
     }
 
     return;
@@ -667,7 +668,7 @@ export class AccountManager {
       this.logger.debug('node services have been loaded');
       return serviceMap;
     } catch (error) {
-      throw new SoloError(`failed to get node services: ${error.message}`, error);
+      throw new SoloErrors.component.nodeServicesRetrievalFailed(error);
     }
   }
 
@@ -856,14 +857,11 @@ export class AccountManager {
           : this.k8Factory.getK8(context).secrets().create(namespace, secretName, secretType, data, secretLabels));
 
         if (!createdOrUpdated) {
-          throw new SoloError(`failed to create secret for accountId ${accountId.toString()}`);
+          throw new SoloErrors.component.accountSecretCreationFailed(accountId.toString());
         }
       }
     } catch (error) {
-      throw new SoloError(
-        `failed to create secret for accountId ${accountId.toString()}, e: ${error.toString()}`,
-        error,
-      );
+      throw new SoloErrors.component.accountSecretCreationFailed(accountId.toString(), error);
     }
   }
 
@@ -1011,18 +1009,13 @@ export class AccountManager {
           `new account created [accountId=${accountInfo.accountId}, amount=${amount} HBAR, publicKey=${accountInfo.publicKey}, privateKey=${accountInfo.privateKey}] but failed to create secret in Kubernetes`,
         );
 
-        throw new SoloError(
-          `failed to create secret for accountId ${accountInfo.accountId.toString()}, keys were sent to log file`,
-        );
+        throw new SoloErrors.component.accountSecretCreationFailed(accountInfo.accountId.toString());
       }
     } catch (error) {
       if (error instanceof SoloError) {
         throw error;
       }
-      throw new SoloError(
-        `failed to create secret for accountId ${accountInfo.accountId.toString()}, e: ${error.toString()}`,
-        error,
-      );
+      throw new SoloErrors.component.accountSecretCreationFailed(accountInfo.accountId.toString(), error);
     }
 
     return accountInfo;
@@ -1056,7 +1049,7 @@ export class AccountManager {
 
       return receipt.status === Status.Success;
     } catch (error) {
-      throw new SoloError(`transfer amount failed with an error: ${error.toString()}`, error);
+      throw new SoloErrors.component.accountTransferFailed(error);
     }
   }
 
@@ -1187,7 +1180,7 @@ export class AccountManager {
 
       return;
     } catch (error) {
-      throw new SoloError(`failed to sdk ping network node: ${Object.keys(object)[0]} ${error.message}`, error);
+      throw new SoloErrors.component.sdkPingFailed(Object.keys(object)[0], 1, error);
     } finally {
       if (nodeClient) {
         try {

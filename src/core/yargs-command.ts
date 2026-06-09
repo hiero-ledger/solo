@@ -2,7 +2,6 @@
 
 import {SoloErrors} from './errors/solo-errors.js';
 import {Flags as commandFlags} from '../commands/flags.js';
-import {SoloError} from './errors/solo-error.js';
 import {type BaseCommand} from '../commands/base.js';
 import {type CommandFlag} from '../types/flag-types.js';
 
@@ -66,12 +65,12 @@ export class YargsCommand {
             .then((r: any) => {
               commandDef.logger.info(`==== Finished running '${commandNamespace} ${command}' ====`);
               if (!r) {
-                throw new SoloError(`${commandNamespace} ${command} failed, expected returned value to be true`);
+                throw new SoloErrors.internal.commandReturnedFalse(commandNamespace, command);
               }
             })
             .catch((error: Error | any) => {
               commandDef.logger.showUserError(error);
-              throw new SoloError(`${commandNamespace} ${command} failed: ${error.message}`, error);
+              throw error;
             });
         },
       };

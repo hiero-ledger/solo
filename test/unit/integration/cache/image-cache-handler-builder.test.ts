@@ -15,16 +15,12 @@ describe('ImageCacheHandlerBuilder', (): void => {
   };
 
   it('should throw when provider is missing', (): void => {
-    expect(() => new ImageCacheHandlerBuilder().engine(engine as never).build()).to.throw(
-      'ImageCacheHandlerBuilder: provider must be set',
-    );
+    expect(() => new ImageCacheHandlerBuilder().engine(engine as never).build()).to.throw('cache provider must be set');
   });
 
   it('should throw when engine is missing', (): void => {
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([]);
-    expect(() => new ImageCacheHandlerBuilder().provider(provider).build()).to.throw(
-      'ImageCacheHandlerBuilder: engine must be set',
-    );
+    expect(() => new ImageCacheHandlerBuilder().provider(provider).build()).to.throw('cache engine must be set');
   });
 
   it('should build ImageCacheHandler when provider and engine are set', (): void => {

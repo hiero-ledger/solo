@@ -20,7 +20,7 @@ import {MIRROR_NODE_VERSION} from '../../../version.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
 import {PassThrough, pipeline} from 'node:stream';
 import {promisify} from 'node:util';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import * as Base64 from 'js-base64';
 import {sleep} from '../helpers.js';
 import {Duration} from '../time/duration.js';
@@ -67,9 +67,7 @@ export class PostgresSharedResource {
       return ContainerReference.of(postgresPod.podReference, ContainerName.of('postgresql'));
     }
 
-    throw new SoloError(
-      `Postgres pod not found in namespace ${namespace.name} with selector: ${PostgresSharedResource.POSTGRES_LABEL_SELECTOR.join(',')}`,
-    );
+    throw new SoloErrors.system.postgresPodNotFound(namespace.name);
   }
 
   private static tryToDecode(value: string): string {
@@ -141,10 +139,7 @@ export class PostgresSharedResource {
       await k8Container.copyTo(initScriptLocalPath, '/tmp');
       await k8Container.execContainer('chmod +x /tmp/init-postgres.sh');
     } catch (error) {
-      throw new SoloError(
-        `Failed to copy Mirror Node Postgres initialization script to container: ${(error as Error).message}`,
-        error as Error,
-      );
+      throw new SoloErrors.component.postgresInitScriptCopyFailed(namespace.name, error as Error);
     }
 
     const sharedResourcesSecrets: Secret[] = await this.k8Factory
@@ -277,10 +272,7 @@ export class PostgresSharedResource {
         );
         attempt++;
         if (attempt >= maxAttempts) {
-          throw new SoloError(
-            `Failed to run Mirror Node Postgres initialization script in container after ${attempt} attempts: ${error}`,
-            error,
-          );
+          throw new SoloErrors.component.postgresInitScriptFailed(attempt, error);
         }
         await sleep(Duration.ofSeconds(backoff * attempt)); // wait before retrying
       }

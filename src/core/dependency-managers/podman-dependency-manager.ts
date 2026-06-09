@@ -9,6 +9,7 @@ import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import fs from 'node:fs';
 import {Zippy} from '../zippy.js';
 import {GitHubRelease, ReleaseInfo, PodmanMode} from '../../types/index.js';
@@ -77,10 +78,10 @@ export class PodmanDependencyManager extends BaseDependencyManager {
           return match[1];
         }
       } catch (error: any) {
-        throw new SoloError('Failed to check podman version', error);
+        throw new SoloErrors.system.dependencyVersionCheckFailed('podman', error);
       }
     }
-    throw new SoloError('Failed to check podman version');
+    throw new SoloErrors.system.dependencyVersionCheckFailed('podman');
   }
 
   /**
@@ -99,14 +100,14 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       });
 
       if (!response.ok) {
-        throw new SoloError(`GitHub API request failed with status ${response.status}`);
+        throw new SoloErrors.system.githubApiHttpResponseError(PODMAN_RELEASES_LIST_URL, response.status);
       }
 
       // Parse the JSON response
       const releases: GitHubRelease[] = await response.json();
 
       if (!releases || releases.length === 0) {
-        throw new SoloError('No releases found');
+        throw new SoloErrors.system.gitHubReleasesNotFound();
       }
 
       // Get the latest release
@@ -133,7 +134,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       const matchingAsset = release.assets.find(asset => assetPattern.test(asset.browser_download_url));
 
       if (!matchingAsset) {
-        throw new SoloError(`No matching asset found for ${OperatingSystem.getPlatform()}-${arch}`);
+        throw new SoloErrors.system.gitHubReleaseAssetNotFound(OperatingSystem.getPlatform(), arch);
       }
 
       // Get the digest from the shasums file
@@ -157,7 +158,7 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       if (error instanceof SoloError) {
         throw error;
       }
-      throw new SoloError('Failed to parse GitHub API response', error);
+      throw new SoloErrors.system.githubApiResponseParseFailed(PODMAN_RELEASES_LIST_URL, error);
     }
   }
 

@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {Flags} from '../../../../commands/flags.js';
 
 export class LocalBuildPathNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -15,7 +14,7 @@ export class LocalBuildPathNotFoundSoloError extends SoloError {
       code: ErrorCodeRegistry.LOCAL_BUILD_PATH_NOT_FOUND,
       troubleshootingSteps:
         'Verify the path exists: ls -la <localBuildPath>\n' +
-        `Set the correct path: solo consensus node setup ${Flags.getFormattedFlagKey(Flags.localBuildPath)} <path>\n` +
+        'Set the correct path: solo consensus node setup --local-build-path <path>\n' +
         'Build the platform locally and point to the data/ directory output',
     });
   }

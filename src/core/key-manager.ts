@@ -4,7 +4,6 @@ import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
 import fs from 'node:fs';
 import path from 'node:path';
-import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {Templates} from './templates.js';
@@ -318,7 +317,7 @@ export class KeyManager {
         certificateChain: certChain,
       };
     } catch (error: Error | any) {
-      throw new SoloError(`failed to generate signing key: ${error.message}`, error);
+      throw new SoloErrors.component.signingKeyGenerationFailed(error);
     }
   }
 
@@ -407,7 +406,7 @@ export class KeyManager {
         certificateChain: certChain,
       };
     } catch (error: Error | any) {
-      throw new SoloError(`failed to generate gRPC TLS key: ${error.message}`, error);
+      throw new SoloErrors.component.grpcTlsKeyGenerationFailed(error);
     }
   }
 
@@ -440,7 +439,7 @@ export class KeyManager {
   copyNodeKeysToStaging(nodeKey: PrivateKeyAndCertificateObject, destinationDirectory: string): void {
     for (const keyFile of [nodeKey.privateKeyFile, nodeKey.certificateFile]) {
       if (!fs.existsSync(keyFile)) {
-        throw new SoloError(`file (${keyFile}) is missing`);
+        throw new SoloErrors.component.platformKeyFileMissing(keyFile);
       }
 
       const fileName: string = path.basename(keyFile);
@@ -515,7 +514,7 @@ export class KeyManager {
   ): SoloListrTask<any>[] {
     // check if nodeAliases is an array of strings
     if (!Array.isArray(nodeAliases) || !nodeAliases.every((nodeAlias): boolean => typeof nodeAlias === 'string')) {
-      throw new SoloError('nodeAliases must be an array of strings');
+      throw new SoloErrors.validation.nodeAliasesMustBeArray();
     }
     const nodeKeyFiles = new Map();
     const subTasks: SoloListrTask<any>[] = [
@@ -549,7 +548,7 @@ export class KeyManager {
     const certPem: string = fs.readFileSync(pemCertFullPath).toString();
     const decodedDers: any = x509.PemConverter.decode(certPem);
     if (!decodedDers || decodedDers.length === 0) {
-      throw new SoloError('unable to load perm key: ' + pemCertFullPath);
+      throw new SoloErrors.component.platformKeyFileMissing(pemCertFullPath);
     }
     return new Uint8Array(decodedDers[0]);
   }
@@ -595,12 +594,10 @@ export class KeyManager {
         .createOrReplace(namespace, caSecretName, SecretType.OPAQUE, data);
 
       if (!isSecretCreated) {
-        throw new SoloError('failed to create secret for explorer TLS certificates');
+        throw new SoloErrors.component.explorerTlsSecretCreationFailed();
       }
     } catch (error: Error | any) {
-      const errorMessage: string =
-        'failed to create secret for explorer TLS certificates, please check if the secret already exists';
-      throw new SoloError(errorMessage, error);
+      throw new SoloErrors.component.explorerTlsSecretCreationFailed(error);
     }
   }
 
@@ -644,7 +641,7 @@ export class KeyManager {
       };
     } catch (error: Error | unknown) {
       const errorMessage: string = error instanceof Error ? error.message : String(error);
-      throw new SoloError(`Error generating TLS keys: ${errorMessage}`);
+      throw new SoloErrors.component.tlsKeyGenerationFailed(errorMessage);
     }
   }
 }

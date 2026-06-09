@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from '../../../core/errors/solo-errors.js';
-import {SoloError} from '../../../core/errors/solo-error.js';
 import {type V1ObjectMeta} from '@kubernetes/client-node';
 import {type ObjectMeta} from '../resources/object-meta.js';
 import {K8ClientObjectMeta} from './resources/k8-client-object-meta.js';
@@ -56,7 +55,7 @@ export abstract class K8ClientBase {
   protected filterItem(items: (object | any)[], filters: Record<string, string> = {}): any {
     const filtered: any[] = this.applyMetadataFilter(items, filters);
     if (filtered.length > 1) {
-      throw new SoloError('multiple items found with filters', {filters});
+      throw new SoloErrors.system.multipleItemsFound(filters);
     }
     return filtered[0];
   }
