@@ -410,12 +410,17 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 deployConfig.namespace,
               );
               blockNode.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(
+
+              const blockNodeAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
                 blockNode,
                 ComponentTypes.BlockNode,
                 false,
                 true,
               );
+
+              if (!blockNodeAdded) {
+                this.logger.info(`Block node with id: ${blockNode.metadata.id} already exists, skipping creation`);
+              }
             }
 
             if (deployConfig.deployExplorer) {
@@ -424,12 +429,17 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 deployConfig.namespace,
               );
               explorer.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(
+
+              const explorerAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
                 explorer,
                 ComponentTypes.Explorer,
                 false,
                 true,
               );
+
+              if (!explorerAdded) {
+                this.logger.info(`Explorer with id: ${explorer.metadata.id} already exists, skipping creation`);
+              }
             }
 
             if (deployConfig.deployMirrorNode) {
@@ -438,12 +448,17 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 deployConfig.namespace,
               );
               mirrorNode.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(
+
+              const mirrorNodeAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
                 mirrorNode,
                 ComponentTypes.MirrorNode,
                 false,
                 true,
               );
+
+              if (!mirrorNodeAdded) {
+                this.logger.info(`Mirror node with id ${mirrorNode.metadata.id} already exists, skipping creation`);
+              }
             }
 
             if (deployConfig.deployRelay) {
@@ -457,7 +472,16 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 nodeIds,
               );
               relay.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(relay, ComponentTypes.RelayNodes, false, true);
+              const relayAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
+                relay,
+                ComponentTypes.RelayNodes,
+                false,
+                true,
+              );
+
+              if (!relayAdded) {
+                this.logger.info(`Relay node with id: ${relay.metadata.id} already exists, skipping creation`);
+              }
             }
 
             await this.remoteConfig.persist();
