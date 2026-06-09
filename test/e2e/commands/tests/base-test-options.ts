@@ -33,5 +33,6 @@ export interface BaseTestOptions {
   readonly logXml: string;
   readonly settingsTxt: string;
   readonly javaFlightRecorderConfiguration: string;
+  readonly chainId?: number;
   readonly valuesFile?: string;
 }
