@@ -107,7 +107,7 @@ describe('ComponentsDataWrapper', () => {
 
     expect(() => componentsDataWrapper.addNewComponent(existingComponent, ComponentTypes.ConsensusNode)).to.throw(
       SoloError,
-      'Component exists',
+      'already exists',
     );
   });
 
@@ -153,7 +153,7 @@ describe('ComponentsDataWrapper', () => {
 
     expect(() => componentsDataWrapper.changeNodePhase(notFoundComponentId, DeploymentPhase.FROZEN)).to.throw(
       SoloError,
-      `Consensus node ${notFoundComponentId} doesn't exist`,
+      'not found',
     );
   });
 
@@ -178,7 +178,7 @@ describe('ComponentsDataWrapper', () => {
 
     expect(() => componentsDataWrapper.removeComponent(notFoundComponentId, ComponentTypes.RelayNodes)).to.throw(
       SoloError,
-      `Component ${notFoundComponentId} of type ${ComponentTypes.RelayNodes} not found while attempting to remove`,
+      'not found',
     );
   });
 
@@ -208,7 +208,7 @@ describe('ComponentsDataWrapper', () => {
     const type: ComponentTypes = ComponentTypes.MirrorNode;
 
     expect(() => componentsDataWrapper.getComponent<MirrorNodeStateSchema>(type, notFoundComponentId)).to.throw(
-      `Component ${notFoundComponentId} of type ${type} not found while attempting to read`,
+      'not found',
     );
   });
 });

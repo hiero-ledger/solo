@@ -6,7 +6,7 @@ import {Flags as flags} from '../commands/flags.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type SoloListrTaskWrapper} from '../types/index.js';
 import {input as inputPrompt} from '@inquirer/prompts';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import {type AnyListrContext} from '../types/aliases.js';
 import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 
@@ -23,7 +23,9 @@ export async function resolveNamespaceFromDeployment(
     if (namespaceFromFlag) {
       return typeof namespaceFromFlag === 'string' ? NamespaceName.of(namespaceFromFlag) : namespaceFromFlag;
     }
-    throw new SoloError(`Deployment ${deploymentName} not found in local config and no --namespace provided`);
+    throw new SoloErrors.deployment.notFound(
+      `Deployment ${deploymentName} not found in local config and no --namespace provided`,
+    );
   }
 }
 
@@ -43,7 +45,7 @@ export async function promptTheUserForDeployment(
 
     // if the quiet or forced flag is passed don't prompt the user
     if (isQuiet === true || isForced === true) {
-      throw new SoloError('deployment is required');
+      throw new SoloErrors.validation.missingArgument('deployment is required');
     }
 
     const answer = await inputPrompt({
@@ -57,7 +59,7 @@ export async function promptTheUserForDeployment(
   const deploymentName = configManager.getFlag<DeploymentName>(flags.deployment);
 
   if (!deploymentName) {
-    throw new SoloError('deployment is required');
+    throw new SoloErrors.validation.missingArgument('deployment is required');
   }
 
   return deploymentName;

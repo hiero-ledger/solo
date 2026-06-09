@@ -49,7 +49,7 @@ describe('Certificate Manager', () => {
     // @ts-expect-error - TS2341: to access private property
     expect(() => certificateManager.parseAndValidate(input, 'testing')).to.throw(
       SoloError,
-      'Failed to parse input =/usr/bin/fake.cert of type testing on =/usr/bin/fake.cert, index 0',
+      'Failed to parse testing input',
     );
   });
 
@@ -59,7 +59,7 @@ describe('Certificate Manager', () => {
     // @ts-expect-error - TS2341: to access private property
     expect(() => certificateManager.parseAndValidate(input, 'testing')).to.throw(
       SoloError,
-      'Failed to parse input node= of type testing on node=, index 0',
+      'Failed to parse testing input',
     );
   });
 
@@ -69,7 +69,7 @@ describe('Certificate Manager', () => {
     // @ts-expect-error - TS2341: to access private property
     expect(() => certificateManager.parseAndValidate(input, 'testing')).to.throw(
       SoloError,
-      "File doesn't exist on path node=/invalid/path input of type testing on node=/invalid/path, index 0",
+      'Certificate file not found at path',
     );
   });
 });

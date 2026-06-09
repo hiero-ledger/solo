@@ -13,6 +13,7 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {SoloError} from '../errors/solo-error.js';
 import {MessageLevel} from './message-level.js';
 import {SOLO_SILENT_MODE} from '../constants.js';
@@ -372,7 +373,7 @@ export class SoloPinoLogger implements SoloLogger {
 
   public getMessageGroup(key: string): string[] {
     if (!this.messageGroupMap.has(key)) {
-      throw new SoloError(`Message group with key "${key}" does not exist.`);
+      throw new SoloErrors.internal.loggerMessageGroupNotFound(key);
     }
     return this.messageGroupMap.get(key);
   }
@@ -388,7 +389,7 @@ export class SoloPinoLogger implements SoloLogger {
 
   public addMessageGroupMessage(key: string, message: string): void {
     if (!this.messageGroupMap.has(key)) {
-      throw new SoloError(`Message group with key "${key}" does not exist.`);
+      throw new SoloErrors.internal.loggerMessageGroupNotFound(key);
     }
     this.messageGroupMap.get(key)!.push(message);
     this.debug(`Added message to group "${key}": ${message}`);

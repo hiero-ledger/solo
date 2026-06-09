@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {Flags} from '../../../../commands/flags.js';
 
 export class NamespaceNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -15,7 +14,7 @@ export class NamespaceNotFoundSoloError extends SoloError {
       code: ErrorCodeRegistry.NAMESPACE_NOT_FOUND,
       troubleshootingSteps:
         'List existing namespaces: kubectl get namespaces\n' +
-        `Check the active deployment: solo deployment config info ${Flags.getFormattedFlagKey(Flags.deployment)} <name>\n` +
+        'Check the active deployment: solo deployment config info --deployment <name>\n' +
         'Redeploy the network to re-create the namespace: solo consensus network deploy',
     });
   }

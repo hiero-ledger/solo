@@ -8,7 +8,7 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import fs from 'node:fs';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -64,12 +64,10 @@ export class KindDependencyManager extends BaseDependencyManager {
           }
         }
       } catch (error: any) {
-        throw new SoloError(`Failed to check kind version for input ${executableWithPath}`, error);
+        throw new SoloErrors.system.dependencyVersionCheckFailed('kind', error);
       }
     }
-    throw new SoloError(
-      'Failed to check kind version - no output received after multiple attempts for ' + executableWithPath,
-    );
+    throw new SoloErrors.system.dependencyVersionCheckFailed('kind');
   }
 
   protected getDownloadURL(): string {

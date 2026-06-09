@@ -186,7 +186,7 @@ describe('DiagnosticsReporter', (): void => {
 
       await expect(
         DiagnosticsReporter.createGitHubIssue(loggerStub, 'Test Title', 'Test Body', '/tmp/analysis'),
-      ).to.be.rejectedWith(SoloError, /Failed to create GitHub issue/);
+      ).to.be.rejectedWith(SoloError, /GitHub API request to/);
     });
   });
 });
