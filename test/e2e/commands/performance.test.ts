@@ -307,12 +307,10 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
-  argv.push(
-    optionFromFlag(Flags.deployment),
-    deployment,
-    optionFromFlag(Flags.edgeEnabled),
-    optionFromFlag(Flags.deployMetricsServer),
-  );
+  argv.push(optionFromFlag(Flags.deployment), deployment, optionFromFlag(Flags.deployMetricsServer));
+  if (process.env.ONE_SHOT_USE_EDGE === 'true') {
+    argv.push(optionFromFlag(Flags.edgeEnabled));
+  }
   return argv;
 }
 
