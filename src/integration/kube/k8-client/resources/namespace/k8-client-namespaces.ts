@@ -2,7 +2,7 @@
 
 import {type Namespaces} from '../../../../../types/namespace/namespaces.js';
 import {type CoreV1Api, type V1Namespace, type V1NamespaceList} from '@kubernetes/client-node';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
+import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
@@ -66,6 +66,6 @@ export class K8ClientNamespaces implements Namespaces {
       return namespaces;
     }
 
-    throw new SoloError('incorrect response received from kubernetes API. Unable to list namespaces');
+    throw new SoloErrors.system.kubernetesApiInvalidResponse();
   }
 }

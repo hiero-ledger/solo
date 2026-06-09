@@ -57,7 +57,7 @@ export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 
 export const CONFIG: {ENABLE_IMAGE_CACHE: boolean} = {
-  ENABLE_IMAGE_CACHE: getEnvironmentVariable('ENABLE_IMAGE_CACHE') === 'false',
+  ENABLE_IMAGE_CACHE: getEnvironmentVariable('ENABLE_IMAGE_CACHE') !== 'false',
 };
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
@@ -513,8 +513,6 @@ export const CERT_MANAGER_CRDS: string[] = [
 
 export const TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS: number =
   +getEnvironmentVariable('TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS') || 60;
-
-export const BUG_REPORT_URL: string = 'https://github.com/hiero-ledger/solo/issues';
 
 export const DISABLE_IMPORTER_SPRING_PROFILES: boolean =
   getEnvironmentVariable('DISABLE_IMPORTER_SPRING_PROFILES') === 'true' || false;

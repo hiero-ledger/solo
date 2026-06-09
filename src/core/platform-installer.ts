@@ -4,7 +4,6 @@ import {SoloErrors} from './errors/solo-errors.js';
 import * as fs from 'node:fs';
 import {Listr} from 'listr2';
 import * as path from 'node:path';
-import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
 import {type ConfigManager} from './config-manager.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
@@ -181,7 +180,7 @@ export class PlatformInstaller {
       this.logger.showUser(`Log file content from ${logFile}:\n${response}`);
 
       const message: string = `failed to extract platform code in this pod '${podReference}' while using the '${context}' context: ${error.message}`;
-      throw new SoloError(message, error);
+      throw new SoloErrors.system.containerOperationFailed(message, error);
     }
   }
 
@@ -208,7 +207,7 @@ export class PlatformInstaller {
       // prepare the file mapping
       for (const sourcePath of sourceFiles) {
         if (!fs.existsSync(sourcePath)) {
-          throw new SoloError(`file does not exist: ${sourcePath}`);
+          throw new SoloErrors.component.platformFileNotFound(sourcePath);
         }
 
         const k8Containers: Containers = this.k8Factory.getK8(context).containers();
@@ -226,8 +225,10 @@ export class PlatformInstaller {
 
       return copiedFiles;
     } catch (error) {
-      throw new SoloError(
-        `failed to copy files: ${sourceFiles.join(', ')}, to ${podReference.name}:${destinationDirectory}: ${error.message}`,
+      throw new SoloErrors.component.platformFileCopyFailed(
+        sourceFiles,
+        podReference.name.toString(),
+        destinationDirectory,
         error,
       );
     }
@@ -289,12 +290,14 @@ export class PlatformInstaller {
         );
 
       if (!secretCreated) {
-        throw new SoloError(`failed to create secret for gossip keys for node '${consensusNode.name}'`);
+        throw new SoloErrors.component.gossipKeySecretCreationFailed(consensusNode.name);
       }
     } catch (error) {
-      const errorMessage: string = error instanceof Error ? error.message : String(error);
-      const message: string = `failed to copy gossip keys to secret '${Templates.renderGossipKeySecretName(consensusNode.name as NodeAlias)}': ${errorMessage}`;
-      throw new SoloError(message, error);
+      throw new SoloErrors.component.gossipKeySecretCreationFailed(
+        consensusNode.name,
+        `failed to copy gossip keys to secret '${Templates.renderGossipKeySecretName(consensusNode.name as NodeAlias)}'`,
+        error,
+      );
     }
   }
 
@@ -342,11 +345,11 @@ export class PlatformInstaller {
           .createOrReplace(this._getNamespace(), 'network-node-hapi-app-secrets', SecretType.OPAQUE, data);
 
         if (!secretCreated) {
-          throw new SoloError('failed to create secret for TLS keys');
+          throw new SoloErrors.component.tlsKeySecretCreationFailed();
         }
       }
     } catch (error: unknown) {
-      throw new SoloError('failed to copy TLS keys to secret', error);
+      throw new SoloErrors.component.tlsKeySecretCreationFailed(error as Error);
     }
   }
 
@@ -394,7 +397,7 @@ export class PlatformInstaller {
 
       return true;
     } catch (error) {
-      throw new SoloError(`failed to set permission in '${podReference.name}'`, error);
+      throw new SoloErrors.system.containerOperationFailed(`set permission in ${podReference.name}`, error);
     }
   }
 

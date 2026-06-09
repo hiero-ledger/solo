@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {Flags} from '../../../../commands/flags.js';
 
 export class NoPvcFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -13,7 +12,7 @@ export class NoPvcFoundSoloError extends SoloError {
     super({
       message: `No PVCs found in namespace ${namespace}. Please ensure PVCs are enabled during network deployment`,
       code: ErrorCodeRegistry.NO_PVC_FOUND,
-      troubleshootingSteps: `Redeploy with PVCs enabled: solo consensus network deploy ${Flags.getFormattedFlagKey(Flags.persistentVolumeClaims)} true`,
+      troubleshootingSteps: 'Redeploy with PVCs enabled: solo consensus network deploy --pvcs true',
     });
   }
 }

@@ -21,7 +21,7 @@ import {type TaskList} from './task-list/task-list.js';
 import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {type InitCommand} from '../commands/init/init.js';
 import {InitContext} from '../commands/init/init-context.js';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import {NpmClient} from '../integration/npm/npm-client.js';
 
 @injectable()
@@ -58,7 +58,7 @@ export class Middlewares {
         try {
           await tasks.run();
         } catch (error: Error | any) {
-          throw new SoloError('Error initiating Solo system files', error);
+          throw new SoloErrors.system.initSystemFilesFailed(error);
         }
       }
 
@@ -121,22 +121,23 @@ export class Middlewares {
               this.logger.showUser(chalk.yellow(logMessage));
               this.logger.info(logMessage);
               foundLinkedPackages.push(packageName);
-            } catch (error: Error | unknown) {
+            } catch {
               this.logger.error(
-                new SoloError(
-                  `Failed to parse npm list output line "${item}". Please check for any globally linked Solo packages and unlink them manually using "npm unlink -g <package-name>".`,
-                  error,
+                new SoloErrors.system.initSystemFilesFailed(
+                  new Error(
+                    `Failed to parse npm list output line "${item}". Please check for any globally linked Solo packages and unlink them manually using "npm unlink -g <package-name>".`,
+                  ),
                 ),
               );
             }
           }
         }
-      } catch (error: Error | unknown) {
+      } catch {
         this.logger.warn(
-          new SoloError(
-            'Failed to detect globally linked Solo packages. Please check for any globally linked Solo packages and' +
-              ' unlink them manually using "npm unlink -g <package-name>".',
-            error,
+          new SoloErrors.system.initSystemFilesFailed(
+            new Error(
+              'Failed to detect globally linked Solo packages. Please check for any globally linked Solo packages and unlink them manually using "npm unlink -g <package-name>".',
+            ),
           ),
         );
       }
