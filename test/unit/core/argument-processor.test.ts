@@ -7,6 +7,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {container} from 'tsyringe-neo';
 import * as constants from '../../../src/core/constants.js';
 import {ArgumentProcessor} from '../../../src/argument-processor.js';
+import {SoloError} from '../../../src/core/errors/solo-error.js';
 
 describe('ArgumentProcessor', (): void => {
   let originalExit: (code?: string | number | null | undefined) => never;
@@ -124,7 +125,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Unknown');
       }
 
@@ -138,7 +139,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Unknown');
       }
 
@@ -152,7 +153,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Unknown');
       }
 
@@ -168,7 +169,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('deployment');
       }
 
@@ -185,7 +186,7 @@ describe('ArgumentProcessor', (): void => {
         await ArgumentProcessor.process(argv);
         expect.fail('Expected SoloError to be thrown');
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Missing required argument: deployment');
       }
 
@@ -211,7 +212,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Unknown');
       }
 
@@ -413,7 +414,7 @@ describe('ArgumentProcessor', (): void => {
         expect.fail('Expected error to be thrown');
       } catch (error: unknown) {
         // Should throw SoloError for missing required arguments
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Missing required argument');
       }
     });
@@ -441,7 +442,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
       }
 
       // Exit code should be set to error (1) for actual errors
@@ -464,7 +465,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
       }
 
       // Exit code should be set to error (1) for unknown arguments

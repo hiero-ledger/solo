@@ -5,8 +5,7 @@ import {type AnyListrContext, type ArgvStruct, type ConfigBuilder} from '../../t
 import * as constants from '../../core/constants.js';
 import chalk from 'chalk';
 import {ListrLock} from '../../core/lock/listr-lock.js';
-import {ErrorMessages} from '../../core/error-messages.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type Context, type ReleaseNameData, type SoloListr, type SoloListrTask} from '../../types/index.js';
@@ -37,6 +36,7 @@ import * as versions from '../../../version.js';
 import {findMinioOperator} from '../../core/helpers.js';
 import {K8} from '../../integration/kube/k8.js';
 import {HelmChartValues} from '../../integration/helm/model/values.js';
+import {Flags} from '../flags.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -101,7 +101,11 @@ export class ClusterCommandTasks {
           await this.k8Factory.getK8(context).namespaces().list();
         } catch {
           task.title = `${task.title} - ${chalk.red('Cluster connection failed')}`;
-          throw new SoloError(ErrorMessages.INVALID_CONTEXT_FOR_CLUSTER_DETAILED(context, clusterRef));
+          throw new SoloErrors.deployment.contextNotFoundForCluster(
+            clusterRef,
+            Flags.getFormattedFlagKey(Flags.clusterRef),
+            Flags.getFormattedFlagKey(Flags.context),
+          );
         }
       },
     };
@@ -240,7 +244,7 @@ export class ClusterCommandTasks {
           } catch (uninstallError) {
             this.logger.showUserError(uninstallError);
           }
-          throw new SoloError('Error installing MinIO Operator chart', error);
+          throw new SoloErrors.deployment.minioInstallFailed(error);
         }
       },
       skip: ({config: {deployMinio}}): boolean => !deployMinio,
@@ -284,7 +288,7 @@ export class ClusterCommandTasks {
             } catch (uninstallError) {
               this.logger.showUserError(uninstallError);
             }
-            throw new SoloError('Error installing Prometheus Stack chart', error);
+            throw new SoloErrors.deployment.prometheusInstallFailed(error);
           }
         }
       },
@@ -329,7 +333,7 @@ export class ClusterCommandTasks {
           } catch (uninstallError) {
             this.logger.showUserError(uninstallError);
           }
-          throw new SoloError('Error installing metrics-server chart', error);
+          throw new SoloErrors.deployment.metricsServerInstallFailed(error);
         }
       },
       skip: ({config: {deployMetricsServer}}): boolean => !deployMetricsServer,
@@ -372,7 +376,7 @@ export class ClusterCommandTasks {
             );
           } catch (installError) {
             this.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
-            throw new SoloError('Error installing pod-monitor-role ClusterRole', installError);
+            throw new SoloErrors.deployment.clusterRoleInstallFailed(installError);
           }
         }
       },

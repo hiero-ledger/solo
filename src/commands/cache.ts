@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
@@ -189,7 +190,7 @@ export class CacheCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error pulling cache: ${error.message}`, error);
+        throw new SoloErrors.system.containerOperationFailed('cache pull', error);
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {});
@@ -240,7 +241,7 @@ export class CacheCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error loading from cache: ${error.message}`, error);
+        throw new SoloErrors.system.containerOperationFailed('cache load', error);
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {});
@@ -560,7 +561,7 @@ export class CacheCommand extends BaseCommand {
     try {
       await fs.access(renderedYamlPath);
     } catch {
-      throw new SoloError(CacheCommand.CACHE_NOT_MATERIALIZED_ERROR_MESSAGE);
+      throw new SoloErrors.validation.cacheNotMaterialized();
     }
 
     return this.buildImageCacheHandlerFromYaml(renderedYamlPath);

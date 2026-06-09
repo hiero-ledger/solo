@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {BUG_REPORT_URL} from '../../../constants.js';
 
 export class ReadRemoteConfigBeforeLoadError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -14,7 +13,7 @@ export class ReadRemoteConfigBeforeLoadError extends SoloError {
       {
         message: 'Attempted to read remote config before it was loaded',
         code: ErrorCodeRegistry.READ_REMOTE_CONFIG_BEFORE_LOAD,
-        troubleshootingSteps: `This is an internal Solo error. File a bug report: ${BUG_REPORT_URL}`,
+        troubleshootingSteps: `This is an internal Solo error. File a bug report: ${SoloError.bugReportUrl}`,
       },
       cause,
     );

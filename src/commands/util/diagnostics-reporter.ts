@@ -7,7 +7,7 @@ import {spawnSync, type SpawnSyncReturns} from 'node:child_process';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {Listr} from 'listr2';
 import {ShellRunner} from '../../core/shell-runner.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import * as constants from '../../core/constants.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -77,11 +77,7 @@ export class DiagnosticsReporter {
           title: 'Verify GitHub CLI availability',
           task: async (_context_): Promise<void> => {
             if (!(await DiagnosticsReporter.isGhCliAvailable(logger))) {
-              throw new SoloError(
-                'The GitHub CLI (gh) is required for this command but was not found.\n' +
-                  'Please install it from https://cli.github.com/ and authenticate with: gh auth login\n' +
-                  `Diagnostic logs are available at: ${analysisDirectory}`,
-              );
+              throw new SoloErrors.system.dependencyNotFound('gh (GitHub CLI)');
             }
           },
         },
@@ -353,7 +349,7 @@ export class DiagnosticsReporter {
 
       return issueUrl;
     } catch (error: Error | unknown) {
-      throw new SoloError(`Failed to create GitHub issue: ${(error as Error).message}`, error as Error);
+      throw new SoloErrors.system.githubApiRequestFailed('https://api.github.com', error as Error);
     } finally {
       fs.rmSync(bodyFilePath, {force: true});
     }

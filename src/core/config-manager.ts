@@ -2,7 +2,6 @@
 
 import {SoloErrors} from './errors/solo-errors.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {SoloError} from './errors/solo-error.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {Flags, Flags as flags} from '../commands/flags.js';
 import type * as yargs from 'yargs';
@@ -191,7 +190,7 @@ export class ConfigManager {
               ? Number.parseInt(value)
               : Number.parseFloat(value);
           } catch (error) {
-            throw new SoloError(`invalid number value '${value}': ${error.message}`, error);
+            throw new SoloErrors.validation.invalidConfigNumberValue(value, error);
           }
           break;
         }
@@ -206,12 +205,12 @@ export class ConfigManager {
           if (isValidEnum(`${value}`, StorageType)) {
             activeConfig.flags[flag.name] = value;
           } else {
-            throw new SoloError(`Invalid storage type value '${value}'`);
+            throw new SoloErrors.validation.invalidStorageType(value);
           }
           break;
         }
         default: {
-          throw new SoloError(`Unsupported field type for flag '${flag.name}': ${flag.definition.type}`);
+          throw new SoloErrors.validation.unsupportedFlagFieldType(flag.name, flag.definition.type);
         }
       }
     }

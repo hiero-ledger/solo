@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {SOLO_REMOTE_CONFIGMAP_NAME} from '../../../constants.js';
 
 export class ClusterNotFoundInRemoteConfigSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -15,7 +14,7 @@ export class ClusterNotFoundInRemoteConfigSoloError extends SoloError {
       code: ErrorCodeRegistry.CLUSTER_NOT_FOUND_IN_REMOTE_CONFIG,
       troubleshootingSteps:
         'List configured cluster references: solo cluster-ref list\n' +
-        `Inspect the remote config to see which clusters block nodes reference: kubectl get configmap ${SOLO_REMOTE_CONFIGMAP_NAME} -n <namespace> -o yaml\n` +
+        'Inspect the remote config to see which clusters block nodes reference: kubectl get configmap solo-remote-config -n <namespace> -o yaml\n' +
         'If the cluster was renamed or removed, the deployment config may need to be repaired',
     });
   }

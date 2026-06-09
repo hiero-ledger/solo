@@ -4,7 +4,7 @@ import {type ClusterCommandTasks} from './tasks.js';
 import * as helpers from '../../core/helpers.js';
 import * as constants from '../../core/constants.js';
 import * as ContextFlags from './flags.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {CommandHandler} from '../../core/command-handler.js';
@@ -68,7 +68,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         'cluster-ref config disconnect',
       );
     } catch (error) {
-      throw new SoloError('Error on cluster-ref config disconnect', error);
+      throw new SoloErrors.deployment.clusterSetupFailed(error);
     }
 
     return true;
@@ -121,7 +121,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         'cluster-ref config setup',
       );
     } catch (error) {
-      throw new SoloError('Error on cluster setup', error);
+      throw new SoloErrors.deployment.clusterSetupFailed(error);
     }
 
     return true;
@@ -143,7 +143,7 @@ export class ClusterCommandHandlers extends CommandHandler {
         'cluster-ref config reset',
       );
     } catch (error) {
-      throw new SoloError('Error on cluster reset', error);
+      throw new SoloErrors.deployment.clusterResetFailed(error);
     }
 
     return true;

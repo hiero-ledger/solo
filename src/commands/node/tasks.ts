@@ -49,7 +49,6 @@ import {
   TransactionReceipt,
   TransactionResponse,
 } from '@hiero-ledger/sdk';
-import {SoloError} from '../../core/errors/solo-error.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {execSync} from 'node:child_process';
@@ -616,7 +615,7 @@ export class NodeCommandTasks {
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           clearTimeout(timeoutId);
-          throw new SoloError('empty response'); // Guard
+          throw new SoloErrors.component.nodeStatusEmptyResponse();
         }
 
         const statusLine: string | undefined = response
@@ -626,7 +625,7 @@ export class NodeCommandTasks {
         if (!statusLine) {
           task.title = `${title} - status ${chalk.yellow('STARTING')}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           clearTimeout(timeoutId);
-          throw new SoloError('missing status line'); // Guard
+          throw new SoloErrors.component.nodeStatusMissingLine();
         }
 
         const statusNumber: number = Number.parseInt(statusLine.split(' ').pop() || '');
@@ -3995,7 +3994,7 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const outputDirectory: string = argv[flags.outputDir.name];
         if (!outputDirectory) {
-          throw new SoloErrors.validation.outputDirectoryNotSpecified(flags.outputDir.name);
+          throw new SoloErrors.validation.outputDirectoryNotSpecified();
         }
 
         if (!fs.existsSync(outputDirectory)) {
@@ -4017,7 +4016,7 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const inputDirectory: string = argv[flags.inputDir.name];
         if (!inputDirectory) {
-          throw new SoloErrors.validation.inputDirectoryNotSpecified(flags.inputDir.name);
+          throw new SoloErrors.validation.inputDirectoryNotSpecified();
         }
 
         // @ts-expect-error - TS2345

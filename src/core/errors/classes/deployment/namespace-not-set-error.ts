@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {Flags} from '../../../../commands/flags.js';
 
 export class NamespaceNotSetError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -14,8 +13,8 @@ export class NamespaceNotSetError extends SoloError {
       message: 'Namespace not set',
       code: ErrorCodeRegistry.NAMESPACE_NOT_SET,
       troubleshootingSteps:
-        `Ensure a namespace is specified: pass ${Flags.getFormattedFlagKey(Flags.namespace)} <name> to your command\n` +
-        `Check deployment config: solo deployment config info ${Flags.getFormattedFlagKey(Flags.deployment)} <name>`,
+        'Ensure a namespace is specified: pass --namespace <name> to your command\n' +
+        'Check deployment config: solo deployment config info --deployment <name>',
     });
   }
 }

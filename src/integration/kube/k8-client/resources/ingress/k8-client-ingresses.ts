@@ -12,7 +12,7 @@ import {
 } from '@kubernetes/client-node';
 import {container} from 'tsyringe-neo';
 import {ResourceType} from '../../../resources/resource-type.js';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
+import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
@@ -80,9 +80,7 @@ export class K8ClientIngresses implements Ingresses {
       }
 
       if (!result) {
-        throw new SoloError(
-          `Failed to update Ingress ${ingressName} in namespace ${namespace}, received no ingress in response to patch`,
-        );
+        throw new SoloErrors.system.kubernetesApiInvalidResponse();
       }
     }
   }
