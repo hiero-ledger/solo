@@ -174,7 +174,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           return new Promise<void>((resolve, reject): void => {
             const process: ChildProcessWithoutNullStreams = spawn(scriptPath, {
               stdio: 'pipe', // Use pipe to capture output
-              shell: true, // Run in shell to support bash features
+              shell: '/bin/bash', // Run in bash because the command uses `source`
             });
 
             // Stream stdout in real-time
