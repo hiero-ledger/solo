@@ -270,15 +270,23 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     //* add the new nodes to components
     for (const nodeAlias of nodeAliases) {
-      this.configuration.components.addNewComponent(
-        componentFactory.createNewConsensusNodeComponent(
-          Templates.renderComponentIdFromNodeAlias(nodeAlias),
-          clusterReference,
-          namespace,
-          DeploymentPhase.REQUESTED,
-        ),
+      const consensusNodeComponent: ConsensusNodeStateSchema = componentFactory.createNewConsensusNodeComponent(
+        Templates.renderComponentIdFromNodeAlias(nodeAlias),
+        clusterReference,
+        namespace,
+        DeploymentPhase.REQUESTED,
+      );
+
+      const consensusNodeAdded: boolean = this.configuration.components.addNewComponent(
+        consensusNodeComponent,
         ComponentTypes.ConsensusNode,
       );
+
+      if (!consensusNodeAdded) {
+        this.logger.info(
+          `Consensus node with id: ${consensusNodeComponent.metadata.id} already exists, skipping creation`,
+        );
+      }
     }
 
     await this.persist();

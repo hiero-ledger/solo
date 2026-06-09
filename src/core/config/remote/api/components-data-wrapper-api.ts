@@ -21,7 +21,12 @@ export interface ComponentsDataWrapperApi {
    * @param isReplace
    * @param skipIncrement
    */
-  addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean, skipIncrement?: boolean): void;
+  addNewComponent(
+    component: BaseStateSchema,
+    type: ComponentTypes,
+    isReplace?: boolean,
+    skipIncrement?: boolean,
+  ): boolean;
 
   changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void;
 
