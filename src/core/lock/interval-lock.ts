@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from '../errors/solo-errors.js';
-import {SoloError} from '../errors/solo-error.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {LockHolder} from './lock-holder.js';
 import {DEFAULT_LEASE_DURATION, DEFAULT_SOLO_NAMESPACE_LABELS} from '../constants.js';
@@ -352,23 +351,15 @@ export class IntervalLock implements Lock {
     try {
       return await this.k8Factory.default().leases().read(this.namespace, this.leaseName);
     } catch (error: any) {
-      if (!(error instanceof SoloError)) {
-        throw new LockAcquisitionError(
-          `failed to read the lease named '${this.leaseName}' in the ` +
-            `'${this.namespace}' namespace, caused by: ${error.message}`,
-          error,
-        );
+      if (IntervalLock.hasStatusCode(error, StatusCodes.NOT_FOUND)) {
+        return null;
       }
-
-      if (error.statusCode !== StatusCodes.NOT_FOUND) {
-        throw new LockAcquisitionError(
-          'failed to read existing leases, unexpected server response of ' + `'${error.meta.statusCode}' received`,
-          error,
-        );
-      }
+      throw new LockAcquisitionError(
+        `failed to read the lease named '${this.leaseName}' in the ` +
+          `'${this.namespace}' namespace, caused by: ${error.message}`,
+        error,
+      );
     }
-
-    return null;
   }
 
   /**
