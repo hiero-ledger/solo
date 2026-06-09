@@ -6,13 +6,15 @@ import fs from 'node:fs';
 import yaml from 'yaml';
 import * as constants from '../../../src/core/constants.js';
 
-interface BlockNodePersistencePluginsConfig {
+interface BlockNodePersistenceVolumeConfig {
   size?: string;
   existingClaim?: string;
 }
 
 interface BlockNodePersistenceConfig {
-  plugins?: BlockNodePersistencePluginsConfig;
+  archive?: BlockNodePersistenceVolumeConfig;
+  live?: BlockNodePersistenceVolumeConfig;
+  logging?: BlockNodePersistenceVolumeConfig;
 }
 
 interface BlockNodeValuesConfig {
@@ -22,14 +24,21 @@ interface BlockNodeValuesConfig {
 }
 
 describe('Block node default values', (): void => {
-  it('should not hardcode plugins existingClaim in default values', (): void => {
+  it('should not hardcode persistence existingClaim values in default values', (): void => {
     const valuesContent: string = fs.readFileSync(constants.BLOCK_NODE_VALUES_FILE, 'utf8');
     const parsedValues: BlockNodeValuesConfig = yaml.parse(valuesContent) as BlockNodeValuesConfig;
-    const pluginsPersistence: BlockNodePersistencePluginsConfig | undefined =
-      parsedValues.blockNode?.persistence?.plugins;
+    const persistence: BlockNodePersistenceConfig | undefined = parsedValues.blockNode?.persistence;
 
-    expect(pluginsPersistence, 'blockNode.persistence.plugins should be defined').to.not.equal(undefined);
-    expect(pluginsPersistence?.size, 'blockNode.persistence.plugins.size').to.equal('1Gi');
-    expect(pluginsPersistence?.existingClaim, 'plugins existingClaim must remain unset by default').to.equal(undefined);
+    expect(persistence, 'blockNode.persistence should be defined').to.not.equal(undefined);
+    expect(persistence?.archive?.size, 'blockNode.persistence.archive.size').to.equal('1Gi');
+    expect(persistence?.live?.size, 'blockNode.persistence.live.size').to.equal('1Gi');
+    expect(persistence?.logging?.size, 'blockNode.persistence.logging.size').to.equal('1Gi');
+    expect(persistence?.archive?.existingClaim, 'archive existingClaim must remain unset by default').to.equal(
+      undefined,
+    );
+    expect(persistence?.live?.existingClaim, 'live existingClaim must remain unset by default').to.equal(undefined);
+    expect(persistence?.logging?.existingClaim, 'logging existingClaim must remain unset by default').to.equal(
+      undefined,
+    );
   });
 });
