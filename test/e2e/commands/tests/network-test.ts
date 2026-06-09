@@ -24,6 +24,7 @@ export class NetworkTest extends BaseCommandTest {
     enableLocalBuildPathTesting: boolean,
     localBuildReleaseTag: string,
     loadBalancerEnabled: boolean,
+    wrapsEnabled: boolean,
     releaseTagOverride?: string,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = NetworkTest;
@@ -45,6 +46,11 @@ export class NetworkTest extends BaseCommandTest {
       argv.push(optionFromFlag(Flags.loadBalancerEnabled));
     }
 
+    // TSS is enabled by default; enabling WRAPs exercises recursive hinTS/TSS aggregation (CN >= v0.74).
+    if (wrapsEnabled) {
+      argv.push(optionFromFlag(Flags.wrapsEnabled));
+    }
+
     if (releaseTagOverride) {
       argv.push(optionFromFlag(Flags.releaseTag), releaseTagOverride);
     } else if (enableLocalBuildPathTesting) {
@@ -63,6 +69,7 @@ export class NetworkTest extends BaseCommandTest {
       enableLocalBuildPathTesting,
       localBuildReleaseTag,
       loadBalancerEnabled,
+      wrapsEnabled,
       clusterReferenceNameArray,
       consensusNodesCount,
     } = options;
@@ -76,6 +83,7 @@ export class NetworkTest extends BaseCommandTest {
           enableLocalBuildPathTesting,
           localBuildReleaseTag,
           loadBalancerEnabled,
+          wrapsEnabled,
           releaseTagOverride,
         ),
       );

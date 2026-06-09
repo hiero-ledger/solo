@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from './core/errors/solo-error.js';
+import {SoloErrors} from './core/errors/solo-errors.js';
 import {SilentBreak} from './core/errors/silent-break.js';
 import {Flags as flags} from './commands/flags.js';
 import {type Middlewares} from './core/middlewares.js';
@@ -46,7 +46,7 @@ export class ArgumentProcessor {
     // Expand the terminal width to the maximum available
     rootCmd.wrap(rootCmd.terminalWidth());
 
-    rootCmd.fail((message, error): void => {
+    rootCmd.fail((message): void => {
       if (message) {
         const usedHelpShorthand: boolean =
           rawArguments.includes('help') && !rawArguments.includes('--help') && !rawArguments.includes('-h');
@@ -83,11 +83,11 @@ export class ArgumentProcessor {
           if (!rootCmd.parsed.argv.help) {
             // Set exit code but don't exit immediately - allows I/O buffers to flush
             process.exitCode = 1;
-            throw new SoloError(message, error);
+            throw new SoloErrors.internal.commandReturnedFalse('argument-processor', message);
           }
         } else {
-          logger.showUserError(new SoloError(`Error running Solo CLI, failure occurred: ${message ?? ''}`));
-          throw new SoloError(message, error);
+          logger.showUserError(new SoloErrors.internal.commandReturnedFalse('argument-processor', message));
+          throw new SoloErrors.internal.commandReturnedFalse('argument-processor', message);
         }
       }
     });

@@ -5,7 +5,7 @@ import {type CacheTargetProvider} from './cache-target-provider.js';
 import {type CacheTargetStructure} from '../models/cache-target-structure.js';
 import {CacheTarget} from '../models/impl/cache-target.js';
 import {CacheArtifactEnum} from '../enums/cache-artifact-enum.js';
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 
 export class KindNodeImageTargetProvider implements CacheTargetProvider {
   public async getRequiredTargets(): Promise<readonly CacheTargetStructure[]> {
@@ -18,7 +18,7 @@ export class KindNodeImageTargetProvider implements CacheTargetProvider {
     const tagSeparatorIndex: number = image.indexOf(':');
 
     if (tagSeparatorIndex === -1) {
-      throw new SoloError(`Invalid kind node image reference: ${image}`);
+      throw new SoloErrors.validation.invalidKindNodeImage(image);
     }
 
     return {

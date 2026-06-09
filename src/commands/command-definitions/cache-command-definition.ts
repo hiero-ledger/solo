@@ -31,6 +31,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
   public static readonly IMAGE_LIST: string = 'list';
   public static readonly IMAGE_CLEAR: string = 'clear';
   public static readonly IMAGE_STATUS: string = 'status';
+  public static readonly IMAGE_PRUNE: string = 'prune';
 
   public static readonly IMAGE_PULL_COMMAND: string = `${CacheCommandDefinition.COMMAND_NAME} ${CacheCommandDefinition.IMAGE_SUBCOMMAND_NAME} ${CacheCommandDefinition.IMAGE_PULL}`;
 
@@ -77,6 +78,16 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.clear,
               CacheCommand.CLEAR_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              CacheCommandDefinition.IMAGE_PRUNE,
+              'Prune the image archives.',
+              this.cacheCommand,
+              this.cacheCommand.prune,
+              CacheCommand.PRUNE_FLAGS_LIST,
               [],
             ),
           )

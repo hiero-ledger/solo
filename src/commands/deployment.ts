@@ -4,7 +4,7 @@ import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {select as selectPrompt} from '@inquirer/prompts';
 import {BaseCommand} from './base.js';
-import {Flags as flags} from './flags.js';
+import {Flags, Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
 import chalk from 'chalk';
 import {type ClusterCommandTasks} from './cluster/tasks.js';
@@ -48,6 +48,7 @@ import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-stat
 import yaml from 'yaml';
 import {PathEx} from '../business/utils/path-ex.js';
 import fs from 'node:fs/promises';
+import {DEFAULT_SOLO_NAMESPACE_LABELS} from '../core/constants.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -347,7 +348,11 @@ export class DeploymentCommand extends BaseCommand {
               }
 
               if (remoteConfigExists || existingConfigMaps.length > 0) {
-                throw new SoloErrors.deployment.hasRemoteResources(deployment, clusterReference);
+                throw new SoloErrors.deployment.hasRemoteResources(
+                  deployment,
+                  clusterReference,
+                  Flags.getFormattedFlagKey(Flags.deployment),
+                );
               }
             }
           },
@@ -409,7 +414,11 @@ export class DeploymentCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloErrors.deployment.clusterAddFailed(error);
+        throw new SoloErrors.deployment.clusterAddFailed(
+          flags.getFormattedFlagKey(flags.clusterRef),
+          flags.getFormattedFlagKey(flags.context),
+          error,
+        );
       }
     }
 
@@ -735,7 +744,11 @@ export class DeploymentCommand extends BaseCommand {
         const {clusterRef, deployment} = context_.config;
 
         if (!this.localConfig.configuration.clusterRefs.get(clusterRef)) {
-          throw new SoloErrors.deployment.clusterRefNotFound(clusterRef);
+          throw new SoloErrors.deployment.clusterRefNotFound(
+            clusterRef,
+            Flags.getFormattedFlagKey(Flags.clusterRef),
+            Flags.getFormattedFlagKey(Flags.context),
+          );
         }
 
         context_.config.context = this.localConfig.configuration.clusterRefs.get(clusterRef)?.toString();
@@ -747,7 +760,10 @@ export class DeploymentCommand extends BaseCommand {
         if (
           this.localConfig.configuration.deploymentByName(deployment).clusters.includes(new StringFacade(clusterRef))
         ) {
-          throw new SoloErrors.deployment.clusterRefAlreadyExists(clusterRef);
+          throw new SoloErrors.deployment.clusterRefAlreadyExists(
+            clusterRef,
+            Flags.getFormattedFlagKey(Flags.clusterRef),
+          );
         }
       },
     };
@@ -936,7 +952,7 @@ export class DeploymentCommand extends BaseCommand {
         task.title += `: ${deployment} in cluster reference: ${clusterRef}`;
 
         if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
-          await this.k8Factory.getK8(context).namespaces().create(namespace);
+          await this.k8Factory.getK8(context).namespaces().create(namespace, DEFAULT_SOLO_NAMESPACE_LABELS);
         }
 
         if (await this.k8Factory.getK8(context).configMaps().exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME)) {
@@ -1054,7 +1070,12 @@ export class DeploymentCommand extends BaseCommand {
             }
 
             if (clusterReferences.length === 0) {
-              throw new SoloErrors.deployment.clusterReferenceResolutionFailed(context_.config.deployment);
+              throw new SoloErrors.deployment.clusterReferenceResolutionFailed(
+                context_.config.deployment,
+                Flags.getFormattedFlagKey(Flags.deployment),
+                Flags.getFormattedFlagKey(Flags.numberOfConsensusNodes),
+                Flags.getFormattedFlagKey(Flags.clusterRef),
+              );
             }
 
             let clusterReference: string = clusterReferences[0];
@@ -1070,7 +1091,11 @@ export class DeploymentCommand extends BaseCommand {
 
             const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
             if (!contextValue) {
-              throw new SoloErrors.deployment.contextNotFoundForCluster(clusterReference);
+              throw new SoloErrors.deployment.contextNotFoundForCluster(
+                clusterReference,
+                Flags.getFormattedFlagKey(Flags.clusterRef),
+                Flags.getFormattedFlagKey(Flags.context),
+              );
             }
 
             const context: string = contextValue.toString();

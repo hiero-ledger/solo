@@ -396,7 +396,12 @@ export class MirrorNodeCommand extends BaseCommand {
 
     const data: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number> = {};
 
-    if (!constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+    if (config.forceBlockNodeIntegration || !constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+      if (config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+        this.logger.showUser(
+          `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
+        );
+      }
       data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
     }
 
@@ -1695,14 +1700,17 @@ export class MirrorNodeCommand extends BaseCommand {
     config: MirrorNodeUpgradeConfigClass,
   ): void {
     const improvedMemoryModules: string[] = ['grpc', 'importer', 'rest', 'rest-java', 'web3'];
+    const hasCustomComponentImage: boolean = !!config.componentImage?.trim();
     if (!hasMirrorNodeMemoryImprovements) {
       for (const module of improvedMemoryModules) {
         const configRoot: string = module.replaceAll('-', '');
-        config.chartValues.setLiteral(`${configRoot}.image.registry`, constants.MIRROR_NODE_OLD_IMAGE_REGISTRY);
-        config.chartValues.setLiteral(
-          `${configRoot}.image.repository`,
-          `${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}${module}`,
-        );
+        if (!hasCustomComponentImage) {
+          config.chartValues.setLiteral(`${configRoot}.image.registry`, constants.MIRROR_NODE_OLD_IMAGE_REGISTRY);
+          config.chartValues.setLiteral(
+            `${configRoot}.image.repository`,
+            `${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}${module}`,
+          );
+        }
 
         const memoryKey: keyof typeof constants =
           `MIRROR_NODE_OLD_MEMORY_${configRoot.toUpperCase()}` as keyof typeof constants;
@@ -1715,8 +1723,10 @@ export class MirrorNodeCommand extends BaseCommand {
       )
     ) {
       // web3 arm64 native images are only published starting with mirror node 0.155.0.
-      config.chartValues.setLiteral('web3.image.registry', constants.MIRROR_NODE_OLD_IMAGE_REGISTRY);
-      config.chartValues.setLiteral('web3.image.repository', `${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`);
+      if (!hasCustomComponentImage) {
+        config.chartValues.setLiteral('web3.image.registry', constants.MIRROR_NODE_OLD_IMAGE_REGISTRY);
+        config.chartValues.setLiteral('web3.image.repository', `${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`);
+      }
       config.chartValues.setLiteral('web3.resources.limits.memory', constants.MIRROR_NODE_OLD_MEMORY_WEB3);
     }
   }

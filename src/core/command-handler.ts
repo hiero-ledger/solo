@@ -3,7 +3,7 @@
 import {inject, injectable} from 'tsyringe-neo';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {patchInject} from './dependency-injection/container-helper.js';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import {type Lock} from './lock/lock.js';
 import * as constants from './constants.js';
 import fs from 'node:fs';
@@ -56,7 +56,7 @@ export class CommandHandler {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`${errorString}: ${error.message}`, error);
+        throw new SoloErrors.system.containerOperationFailed(errorString, error);
       } finally {
         const promises: Promise<void>[] = [];
         if (!this.oneShotState.isActive() && lease) {
@@ -97,7 +97,7 @@ export class CommandHandler {
         this.logger.debug(`OK: setup directory: ${directoryPath}`);
       }
     } catch (error) {
-      throw new SoloError(`failed to create directory: ${error.message}`, error);
+      throw new SoloErrors.system.directoryCreationFailed(error);
     }
 
     return directories;

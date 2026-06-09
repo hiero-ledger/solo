@@ -3,7 +3,7 @@
 import {BaseCommand} from '../base.js';
 import fs from 'node:fs';
 import * as constants from '../../core/constants.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {Flags as flags} from '../flags.js';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -192,7 +192,7 @@ export class InitCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error: Error | any) {
-        throw new SoloError('Error running init', error);
+        throw new SoloErrors.deployment.initFailed(error);
       }
     }
 
@@ -215,11 +215,11 @@ export class InitCommand extends BaseCommand {
         await this.init(argv)
           .then((r: boolean): void => {
             if (!r) {
-              throw new SoloError('Error running init, expected return value to be true');
+              throw new SoloErrors.deployment.initFailed();
             }
           })
           .catch(error => {
-            throw new SoloError('Error running init', error);
+            throw new SoloErrors.deployment.initFailed(error);
           });
       },
     };

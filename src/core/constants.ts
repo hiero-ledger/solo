@@ -57,7 +57,7 @@ export const PODMAN_MACHINE_NAME: string = 'podman-machine-default';
 export const SOLO_DEV_OUTPUT: boolean = Boolean(getEnvironmentVariable('SOLO_DEV_OUTPUT')) || false;
 
 export const CONFIG: {ENABLE_IMAGE_CACHE: boolean} = {
-  ENABLE_IMAGE_CACHE: getEnvironmentVariable('ENABLE_IMAGE_CACHE') === 'false',
+  ENABLE_IMAGE_CACHE: getEnvironmentVariable('ENABLE_IMAGE_CACHE') !== 'false',
 };
 
 export const ROOT_CONTAINER: ContainerName = ContainerName.of('root-container');
@@ -293,10 +293,6 @@ export const MIRROR_NODE_HIKARI_LIMITS_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-node-hikari-limits.yaml',
 );
-export const MIRROR_NODE_VALUES_FILE_HEDERA: string = PathEx.joinWithRealPath(
-  RESOURCES_DIR,
-  'mirror-node-values-hedera.yaml',
-);
 export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'ingress-controller-values.yaml',
@@ -518,8 +514,10 @@ export const CERT_MANAGER_CRDS: string[] = [
 export const TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS: number =
   +getEnvironmentVariable('TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS') || 60;
 
-export const BUG_REPORT_URL: string = 'https://github.com/hiero-ledger/solo/issues';
-
 export const DISABLE_IMPORTER_SPRING_PROFILES: boolean =
   getEnvironmentVariable('DISABLE_IMPORTER_SPRING_PROFILES') === 'true' || false;
 export const SPRING_PROFILES_ACTIVE: string = getEnvironmentVariable('SPRING_PROFILES_ACTIVE') || 'blocknode';
+
+export const SOLO_CREATED_BY_LABEL: string = 'app.kubernetes.io/created-by';
+export const SOLO_CREATED_BY_VALUE: string = 'solo';
+export const DEFAULT_SOLO_NAMESPACE_LABELS: Record<string, string> = {[SOLO_CREATED_BY_LABEL]: SOLO_CREATED_BY_VALUE};
