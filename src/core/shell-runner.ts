@@ -82,6 +82,9 @@ export class ShellRunner {
         for (const item of items) {
           if (item) {
             output.push(item);
+            if (verbose) {
+              this.logger.showUser(item);
+            }
           }
         }
       });
@@ -91,7 +94,11 @@ export class ShellRunner {
         const items: string[] = data.toString().split(/\r?\n/);
         for (const item of items) {
           if (item) {
-            errorOutput.push(item.trim());
+            const errorMessage: string = item.trim();
+            errorOutput.push(errorMessage);
+            if (verbose) {
+              this.logger.showUser(errorMessage);
+            }
           }
         }
       });

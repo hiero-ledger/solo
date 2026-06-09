@@ -18,6 +18,7 @@ import {Architecture} from '../../business/utils/architecture.js';
 
 @injectable()
 export class DockerClient implements ContainerEngineClient {
+  private static readonly IMAGE_PULL_TIMEOUT_MS: number = 15 * 60 * 1000;
   private readonly shellRunner: ShellRunner;
 
   public constructor(
@@ -34,7 +35,14 @@ export class DockerClient implements ContainerEngineClient {
   public async pullImage(image: string): Promise<void> {
     const platform: string = Architecture.getLinuxPlatform();
 
-    await this.shellRunner.run('docker', ['pull', '--platform', platform, image]);
+    await this.shellRunner.run(
+      'docker',
+      ['pull', '--platform', platform, image],
+      true,
+      false,
+      {},
+      DockerClient.IMAGE_PULL_TIMEOUT_MS,
+    );
   }
 
   public async saveImage(image: string, archivePath: string): Promise<void> {
@@ -43,7 +51,14 @@ export class DockerClient implements ContainerEngineClient {
     const platform: string = Architecture.getLinuxPlatform();
     const craneExecutable: string = await this.dependencyManager.getExecutable(constants.CRANE);
 
-    await this.shellRunner.run(craneExecutable, ['pull', '--platform', platform, image, archivePath]);
+    await this.shellRunner.run(
+      craneExecutable,
+      ['pull', '--platform', platform, image, archivePath],
+      true,
+      false,
+      {},
+      DockerClient.IMAGE_PULL_TIMEOUT_MS,
+    );
   }
 
   public async loadImage(archivePath: string): Promise<void> {
