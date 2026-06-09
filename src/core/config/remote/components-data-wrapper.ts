@@ -31,7 +31,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     type: ComponentTypes,
     isReplace?: boolean,
     skipIncrement: boolean = false,
-  ): void {
+  ): boolean {
     const componentId: ComponentId = component.metadata.id;
 
     if (typeof componentId !== 'number') {
@@ -42,19 +42,32 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       throw new SoloErrors.internal.dataValidation('component type', 'BaseState', 'unknown');
     }
 
+    let componentAdded: boolean = false;
+
     const addComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
-      if (this.checkComponentExists(components, component) && !isReplace) {
-        throw new SoloErrors.validation.componentAlreadyExists(String(componentId));
+      const existingComponentIndex: number = components.findIndex(
+        (existingComponent): boolean => existingComponent.metadata.id === componentId,
+      );
+
+      if (existingComponentIndex !== -1) {
+        if (isReplace) {
+          components[existingComponentIndex] = component;
+        }
+
+        return;
       }
+
       components.push(component);
+      componentAdded = true;
     };
 
     this.applyCallbackToComponentGroup(type, addComponentCallback, componentId);
 
-    if (!skipIncrement) {
-      // Increment the component id counter for the specified type when adding
+    if (componentAdded && !skipIncrement) {
       this.componentIds[type] += 1;
     }
+
+    return componentAdded;
   }
 
   // TODO: Remove once unified method is fully utilized
@@ -230,11 +243,6 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
         throw new SoloErrors.validation.unknownComponentType(componentType, String(componentId));
       }
     }
-  }
-
-  /** checks if component exists in the respective group */
-  private checkComponentExists(components: BaseStateSchema[], newComponent: BaseStateSchema): boolean {
-    return components.some((component): boolean => component.metadata.id === newComponent.metadata.id);
   }
 
   public getNewComponentId(componentType: ComponentTypes): number {

@@ -6,7 +6,7 @@ import {describe, it} from 'mocha';
 import {ComponentsDataWrapper} from '../../../../../src/core/config/remote/components-data-wrapper.js';
 import {SoloError} from '../../../../../src/core/errors/solo-error.js';
 import {ComponentTypes} from '../../../../../src/core/config/remote/enumerations/component-types.js';
-import {type NodeId} from '../../../../../src/types/aliases.js';
+import {type AnyObject, type NodeId} from '../../../../../src/types/aliases.js';
 import {
   type ClusterReferenceName,
   type ComponentId,
@@ -94,10 +94,10 @@ export function createComponentsDataWrapper(): {
   };
 }
 
-describe('ComponentsDataWrapper', () => {
-  it('should be able to create a instance', () => createComponentsDataWrapper());
+describe('ComponentsDataWrapper', (): void => {
+  it('should be able to create a instance', (): AnyObject => createComponentsDataWrapper());
 
-  it('should not be able to add new component with the .addNewComponent() method if it already exist', () => {
+  it('should skip adding a component with the .addNewComponent() method if it already exists', (): void => {
     const {
       wrapper: {componentsDataWrapper},
       components: {consensusNodes},
@@ -105,13 +105,16 @@ describe('ComponentsDataWrapper', () => {
 
     const existingComponent: ConsensusNodeStateSchema = consensusNodes[0];
 
-    expect(() => componentsDataWrapper.addNewComponent(existingComponent, ComponentTypes.ConsensusNode)).to.throw(
-      SoloError,
-      'already exists',
+    const componentAdded: boolean = componentsDataWrapper.addNewComponent(
+      existingComponent,
+      ComponentTypes.ConsensusNode,
     );
+
+    expect(componentAdded).to.be.false;
+    expect(componentsDataWrapper.state.consensusNodes).to.have.lengthOf(1);
   });
 
-  it('should be able to add new component with the .addNewComponent() method', () => {
+  it('should be able to add new component with the .addNewComponent() method', (): void => {
     const {
       wrapper: {componentsDataWrapper},
     } = createComponentsDataWrapper();
@@ -127,12 +130,34 @@ describe('ComponentsDataWrapper', () => {
     const metadata: ComponentStateMetadataSchema = new ComponentStateMetadataSchema(id, namespace, cluster, phase);
     const newComponent: EnvoyProxyStateSchema = new EnvoyProxyStateSchema(metadata);
 
-    componentsDataWrapper.addNewComponent(newComponent, ComponentTypes.EnvoyProxy);
+    const componentAdded: boolean = componentsDataWrapper.addNewComponent(newComponent, ComponentTypes.EnvoyProxy);
 
+    expect(componentAdded).to.be.true;
     expect(componentsDataWrapper.state.envoyProxies).to.have.lengthOf(2);
   });
 
-  it('should be able to change node state with the .changeNodeState(()', () => {
+  it('should not increment component id counter when existing component is skipped', (): void => {
+    const {
+      wrapper: {componentsDataWrapper},
+      components: {consensusNodes},
+    } = createComponentsDataWrapper();
+
+    const existingComponent: ConsensusNodeStateSchema = consensusNodes[0];
+    const originalComponentIdCounter: number = componentsDataWrapper.componentIds[ComponentTypes.ConsensusNode];
+
+    const componentAdded: boolean = componentsDataWrapper.addNewComponent(
+      existingComponent,
+      ComponentTypes.ConsensusNode,
+      false,
+      true,
+    );
+
+    expect(componentAdded).to.be.false;
+    expect(componentsDataWrapper.state.consensusNodes).to.have.lengthOf(1);
+    expect(componentsDataWrapper.componentIds[ComponentTypes.ConsensusNode]).to.equal(originalComponentIdCounter);
+  });
+
+  it('should be able to change node state with the .changeNodeState(()', (): void => {
     const {
       wrapper: {componentsDataWrapper},
       componentId,
@@ -145,19 +170,19 @@ describe('ComponentsDataWrapper', () => {
     expect(componentsDataWrapper.state.consensusNodes[0].metadata.phase).to.equal(newNodeState);
   });
 
-  it("should not be able to edit component with the .editComponent() if it doesn't exist ", () => {
+  it("should not be able to edit component with the .editComponent() if it doesn't exist ", (): void => {
     const {
       wrapper: {componentsDataWrapper},
     } = createComponentsDataWrapper();
     const notFoundComponentId: ComponentId = 9;
 
-    expect(() => componentsDataWrapper.changeNodePhase(notFoundComponentId, DeploymentPhase.FROZEN)).to.throw(
+    expect((): void => componentsDataWrapper.changeNodePhase(notFoundComponentId, DeploymentPhase.FROZEN)).to.throw(
       SoloError,
       'not found',
     );
   });
 
-  it('should be able to remove component with the .removeComponent()', () => {
+  it('should be able to remove component with the .removeComponent()', (): void => {
     const {
       wrapper: {componentsDataWrapper},
       components: {relays},
@@ -169,20 +194,20 @@ describe('ComponentsDataWrapper', () => {
     expect(relays).to.not.have.own.property(componentId.toString());
   });
 
-  it("should not be able to remove component with the .removeComponent() if it doesn't exist ", () => {
+  it("should not be able to remove component with the .removeComponent() if it doesn't exist ", (): void => {
     const {
       wrapper: {componentsDataWrapper},
     } = createComponentsDataWrapper();
 
     const notFoundComponentId: ComponentId = 9;
 
-    expect(() => componentsDataWrapper.removeComponent(notFoundComponentId, ComponentTypes.RelayNodes)).to.throw(
+    expect((): void => componentsDataWrapper.removeComponent(notFoundComponentId, ComponentTypes.RelayNodes)).to.throw(
       SoloError,
       'not found',
     );
   });
 
-  it('should be able to get components with .getComponent()', () => {
+  it('should be able to get components with .getComponent()', (): void => {
     const {
       wrapper: {componentsDataWrapper},
       componentId,
@@ -199,7 +224,7 @@ describe('ComponentsDataWrapper', () => {
     );
   });
 
-  it("should fail if trying to get component that doesn't exist with .getComponent()", () => {
+  it("should fail if trying to get component that doesn't exist with .getComponent()", (): void => {
     const {
       wrapper: {componentsDataWrapper},
     } = createComponentsDataWrapper();
@@ -207,8 +232,8 @@ describe('ComponentsDataWrapper', () => {
     const notFoundComponentId: ComponentId = 9;
     const type: ComponentTypes = ComponentTypes.MirrorNode;
 
-    expect(() => componentsDataWrapper.getComponent<MirrorNodeStateSchema>(type, notFoundComponentId)).to.throw(
-      'not found',
-    );
+    expect(
+      (): MirrorNodeStateSchema => componentsDataWrapper.getComponent<MirrorNodeStateSchema>(type, notFoundComponentId),
+    ).to.throw('not found');
   });
 });
