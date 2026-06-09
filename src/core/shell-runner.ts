@@ -68,13 +68,20 @@ export class ShellRunner {
       let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
       let idleTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
+      const failOnTimeout: (error: Error) => void = (error: Error): void => {
+        if (timedOut) {
+          return;
+        }
+
+        timedOut = true;
+        child.kill();
+        error.stack = callStack;
+        reject(error);
+      };
+
       if (timeoutMs !== undefined) {
         timeoutHandle = setTimeout((): void => {
-          timedOut = true;
-          child.kill();
-          const error: Error = new Error(`Command timed out after ${timeoutMs}ms: '${cmd}'`);
-          error.stack = callStack;
-          reject(error);
+          failOnTimeout(new Error(`Command timed out after ${timeoutMs}ms: '${cmd}'`));
         }, timeoutMs);
       }
 
@@ -88,11 +95,7 @@ export class ShellRunner {
         }
 
         idleTimeoutHandle = setTimeout((): void => {
-          timedOut = true;
-          child.kill();
-          const error: Error = new Error(`Command produced no output for ${idleTimeoutMs}ms: '${cmd}'`);
-          error.stack = callStack;
-          reject(error);
+          failOnTimeout(new Error(`Command produced no output for ${idleTimeoutMs}ms: '${cmd}'`));
         }, idleTimeoutMs);
       };
 
