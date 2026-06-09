@@ -255,4 +255,5 @@ jobs:
     uses: ./.github/workflows/flow-performance-test.yaml
     with:
       cn-edge-version: v0.74.0
+      use-edge: true
     secrets: inherit

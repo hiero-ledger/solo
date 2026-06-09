@@ -310,9 +310,11 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
   argv.push(
     optionFromFlag(Flags.deployment),
     deployment,
-    optionFromFlag(Flags.edgeEnabled),
     optionFromFlag(Flags.deployMetricsServer),
   );
+  if (process.env.ONE_SHOT_USE_EDGE === 'true') {
+    argv.push(optionFromFlag(Flags.edgeEnabled));
+  }
   return argv;
 }
 
