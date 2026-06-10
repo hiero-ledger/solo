@@ -729,8 +729,11 @@ export class ProfileManager {
         return undefined;
       }
 
-      const pod: Pod = pods[0];
-      const podReference: PodReference = pod.podReference;
+      const pod: Pod | undefined = pods.find((candidate: Pod): boolean => Boolean(candidate?.podReference)) ?? pods[0];
+      const podReference: PodReference | null | undefined = pod?.podReference;
+      if (!podReference) {
+        return undefined;
+      }
 
       // Get container reference
       const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);

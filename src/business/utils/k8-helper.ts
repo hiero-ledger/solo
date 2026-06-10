@@ -35,7 +35,7 @@ export class K8Helper {
     return await this.k8
       .pods()
       .list(namespace, Templates.renderNodeLabelsFromNodeAlias(nodeAlias))
-      .then((pods): Pod => pods[0]);
+      .then((pods): Pod => this.selectPodWithReference(pods));
   }
 
   public async getConsensusNodePodReference(namespace: NamespaceName, nodeAlias: NodeAlias): Promise<PodReference> {
@@ -46,7 +46,15 @@ export class K8Helper {
     return this.k8
       .pods()
       .list(namespace, Templates.renderBlockNodeLabels(id))
-      .then((pods: Pod[]): Pod => pods[0]);
+      .then((pods: Pod[]): Pod => this.selectPodWithReference(pods));
+  }
+
+  private selectPodWithReference(pods: Pod[]): Pod {
+    const pod: Pod | undefined = pods.find((candidate: Pod): boolean => Boolean(candidate?.podReference)) ?? pods[0];
+    if (!pod?.podReference) {
+      throw new Error('No pod with a valid pod reference found');
+    }
+    return pod;
   }
 
   public async isNamespaceOwnedBySolo(namespace: NamespaceName): Promise<boolean> {
