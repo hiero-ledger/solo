@@ -67,7 +67,9 @@ export class ImageCacheHandler implements CacheOperationHandler {
             try {
               await this.engine.saveImage(image, archivePath);
             } catch (error) {
+              const message: string = error instanceof Error ? error.message : String(error);
               task.title += ' - ' + chalk.red(`failed to SAVE image: ${image}`);
+              this.logger.showUser(`Failed to save image archive: ${image}. ${message}`);
               this.logger.error('Failed to save image archive:', error);
               return;
             }

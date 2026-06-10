@@ -17,6 +17,7 @@ describe('ShellRunner', (): void => {
   let shellRunner: ShellRunner,
     loggerDebugStub: SinonStub,
     loggerInfoStub: SinonStub,
+    loggerShowUserStub: SinonStub,
     childProcessSpy: SinonSpy,
     readableSpy: SinonSpy;
 
@@ -26,6 +27,7 @@ describe('ShellRunner', (): void => {
     // Spy on methods
     loggerDebugStub = sinon.stub(SoloPinoLogger.prototype, 'debug');
     loggerInfoStub = sinon.stub(SoloPinoLogger.prototype, 'info');
+    loggerShowUserStub = sinon.stub(SoloPinoLogger.prototype, 'showUser');
     childProcessSpy = sinon.spy(ChildProcess.prototype, 'on');
     readableSpy = sinon.spy(Readable.prototype, 'on');
   });
@@ -59,6 +61,21 @@ describe('ShellRunner', (): void => {
 
     await expect(shellRunner.run(commandToRun, [], false, false, {}, timeoutMs)).to.be.rejectedWith(
       `Command timed out after ${timeoutMs}ms`,
+    );
+  }).timeout(Duration.ofSeconds(10).toMillis());
+
+  it('should stream output when verbose mode is enabled', async (): Promise<void> => {
+    await shellRunner.run('node -e "console.log(\'verbose-output\')"', [], true);
+
+    expect(loggerShowUserStub).to.have.been.calledWith('verbose-output');
+  }).timeout(Duration.ofSeconds(10).toMillis());
+
+  it('should reject when command is idle with no output', async (): Promise<void> => {
+    const commandToRun: string = 'node -e "setTimeout(()=>{}, 10000)"';
+    const idleTimeoutMs: number = 500;
+
+    await expect(shellRunner.run(commandToRun, [], false, false, {}, 10_000, true, idleTimeoutMs)).to.be.rejectedWith(
+      `Command produced no output for ${idleTimeoutMs}ms`,
     );
   }).timeout(Duration.ofSeconds(10).toMillis());
 
