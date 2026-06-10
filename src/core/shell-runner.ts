@@ -37,6 +37,7 @@ export class ShellRunner {
     environmentVariablesToAppend: Record<string, string> = {},
     timeoutMs?: number,
     useShell: boolean = true,
+    idleTimeoutMs?: number,
   ): Promise<string[]> {
     const redactedArguments: string[] = ShellRunner.redactArguments(arguments_);
     const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${redactedArguments.join(' ')}`;
@@ -65,33 +66,66 @@ export class ShellRunner {
 
       let timedOut: boolean = false;
       let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      let idleTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+      const failOnTimeout: (error: Error) => void = (error: Error): void => {
+        if (timedOut) {
+          return;
+        }
+
+        timedOut = true;
+        child.kill();
+        error.stack = callStack;
+        reject(error);
+      };
 
       if (timeoutMs !== undefined) {
         timeoutHandle = setTimeout((): void => {
-          timedOut = true;
-          child.kill();
-          const error: Error = new Error(`Command timed out after ${timeoutMs}ms: '${cmd}'`);
-          error.stack = callStack;
-          reject(error);
+          failOnTimeout(new Error(`Command timed out after ${timeoutMs}ms: '${cmd}'`));
         }, timeoutMs);
       }
 
+      const resetIdleTimeout: () => void = (): void => {
+        if (idleTimeoutMs === undefined) {
+          return;
+        }
+
+        if (idleTimeoutHandle) {
+          clearTimeout(idleTimeoutHandle);
+        }
+
+        idleTimeoutHandle = setTimeout((): void => {
+          failOnTimeout(new Error(`Command produced no output for ${idleTimeoutMs}ms: '${cmd}'`));
+        }, idleTimeoutMs);
+      };
+
+      resetIdleTimeout();
+
       const output: string[] = [];
       child.stdout.on('data', (data): void => {
+        resetIdleTimeout();
         const items: string[] = data.toString().split(/\r?\n/);
         for (const item of items) {
           if (item) {
             output.push(item);
+            if (verbose) {
+              this.logger.showUser(item);
+            }
           }
         }
       });
 
       const errorOutput: string[] = [];
       child.stderr.on('data', (data): void => {
+        resetIdleTimeout();
         const items: string[] = data.toString().split(/\r?\n/);
         for (const item of items) {
           if (item) {
-            errorOutput.push(item.trim());
+            const errorMessage: string = item.trim();
+            errorOutput.push(errorMessage);
+            if (verbose) {
+              this.logger.showUser(errorMessage);
+            }
           }
         }
       });
@@ -99,6 +133,10 @@ export class ShellRunner {
       child.on('exit', (code, signal): void => {
         if (timeoutHandle) {
           clearTimeout(timeoutHandle);
+        }
+
+        if (idleTimeoutHandle) {
+          clearTimeout(idleTimeoutHandle);
         }
 
         if (timedOut) {
