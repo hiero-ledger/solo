@@ -71,7 +71,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
               task.title += ' - ' + chalk.red(`failed to SAVE image: ${image}`);
               this.logger.showUser(`Failed to save image archive: ${image}. ${message}`);
               this.logger.error('Failed to save image archive:', error);
-              throw error;
+              return;
             }
           }
 
