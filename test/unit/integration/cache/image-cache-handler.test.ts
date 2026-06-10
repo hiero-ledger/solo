@@ -67,7 +67,7 @@ describe('ImageCacheHandler pull', (): void => {
     flush: (callback: (error?: Error) => void): void => callback(),
   };
 
-  it('should throw when saveImage fails', async (): Promise<void> => {
+  it('should continue without registering cached result when saveImage fails', async (): Promise<void> => {
     const saveImageStub: SinonStub = sinon.stub().rejects(new Error('rate limited'));
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
@@ -84,7 +84,9 @@ describe('ImageCacheHandler pull', (): void => {
     const subtasks: readonly SoloListrTask<AnyListrContext>[] = await handler.pull();
     const context: {config: {results: unknown[]}} = {config: {results: []}};
 
-    await expect(subtasks[0].task(context as never, {title: 'task'} as never)).to.be.rejectedWith('rate limited');
+    await subtasks[0].task(context as never, {title: 'task'} as never);
+
+    expect(saveImageStub).to.have.been.calledOnce;
     expect(context.config.results).to.have.lengthOf(0);
   });
 
