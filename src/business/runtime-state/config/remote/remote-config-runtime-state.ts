@@ -54,6 +54,7 @@ import {UserIdentitySchema} from '../../../../data/schema/model/common/user-iden
 import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
 import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/component-ids-schema.js';
+import {type BaseStateSchema} from '../../../../data/schema/model/remote/state/base-state-schema.js';
 import * as helpers from '../../../../core/helpers.js';
 import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
 import {MissingRequiredParametersError} from '../../errors/missing-required-parameters-error.js';
@@ -734,5 +735,50 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     this.applyCallbackToVersionField(type, getVersionCallback);
     return version;
+  }
+
+  private static readonly SNAPSHOT_COMPONENT_TYPES: readonly ComponentTypes[] = [
+    ComponentTypes.ConsensusNode,
+    ComponentTypes.BlockNode,
+    ComponentTypes.MirrorNode,
+    ComponentTypes.Explorer,
+    ComponentTypes.RelayNodes,
+  ];
+
+  private static readonly PHASE_ORDER: Readonly<Record<DeploymentPhase, number>> = {
+    [DeploymentPhase.REQUESTED]: 0,
+    [DeploymentPhase.DEPLOYED]: 1,
+    [DeploymentPhase.CONFIGURED]: 2,
+    [DeploymentPhase.STARTED]: 3,
+    [DeploymentPhase.STOPPED]: 4,
+    [DeploymentPhase.FROZEN]: 5,
+  };
+
+  public getComponentPhasesMap(): Map<ComponentTypes, DeploymentPhase> {
+    if (!this.isLoaded()) {
+      return new Map();
+    }
+    const phaseMap: Map<ComponentTypes, DeploymentPhase> = new Map();
+    for (const componentType of RemoteConfigRuntimeState.SNAPSHOT_COMPONENT_TYPES) {
+      const components: BaseStateSchema[] =
+        this.configuration.components.getComponentByType<BaseStateSchema>(componentType);
+      if (components.length === 0) {
+        continue;
+      }
+      const phases: DeploymentPhase[] = components
+        .map((component: BaseStateSchema): DeploymentPhase | undefined => component.metadata?.phase)
+        .filter((phase: DeploymentPhase | undefined): phase is DeploymentPhase => phase !== undefined);
+      if (phases.length === 0) {
+        continue;
+      }
+      let minimumPhase: DeploymentPhase = phases[0];
+      for (const phase of phases) {
+        if (RemoteConfigRuntimeState.PHASE_ORDER[phase] < RemoteConfigRuntimeState.PHASE_ORDER[minimumPhase]) {
+          minimumPhase = phase;
+        }
+      }
+      phaseMap.set(componentType, minimumPhase);
+    }
+    return phaseMap;
   }
 }
