@@ -49,7 +49,12 @@ export function getBlockStreamModeForConsensusVersion(consensusNodeVersion?: Sem
   );
 
   if (version.greaterThanOrEqual(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
-    return 'BLOCKS';
+    // CN >= v0.74.0 defaults to BLOCKS (pure block-node streaming, no MinIO record streams).
+    // BLOCK_STREAM_STREAM_MODE env var overrides this default — used in performance tests as a
+    // workaround for SmartContractLoadTest returning INVALID_TRANSACTION_BODY in BLOCKS mode.
+    // TODO: remove the override from flow-performance-test.yaml once
+    //   https://github.com/hiero-ledger/hiero-consensus-node/issues/25883 is resolved.
+    return constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
   }
 
   return constants.BLOCK_STREAM_STREAM_MODE;
