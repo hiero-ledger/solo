@@ -157,6 +157,8 @@ jobs:
           fi
           if [[ "${USE_EDGE}" == "true" ]]; then
             echo ONE_SHOT_USE_EDGE=true >> .env
+          else
+            echo ONE_SHOT_USE_EDGE=false >> .env
           fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
