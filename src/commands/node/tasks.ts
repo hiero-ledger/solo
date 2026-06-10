@@ -49,7 +49,6 @@ import {
   TransactionReceipt,
   TransactionResponse,
 } from '@hiero-ledger/sdk';
-import {SoloError} from '../../core/errors/solo-error.js';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import {execSync} from 'node:child_process';
@@ -186,7 +185,6 @@ import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
-import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
 import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
 import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 
@@ -617,7 +615,7 @@ export class NodeCommandTasks {
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           clearTimeout(timeoutId);
-          throw new SoloError('empty response'); // Guard
+          throw new SoloErrors.component.nodeStatusEmptyResponse();
         }
 
         const statusLine: string | undefined = response
@@ -627,7 +625,7 @@ export class NodeCommandTasks {
         if (!statusLine) {
           task.title = `${title} - status ${chalk.yellow('STARTING')}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           clearTimeout(timeoutId);
-          throw new SoloError('missing status line'); // Guard
+          throw new SoloErrors.component.nodeStatusMissingLine();
         }
 
         const statusNumber: number = Number.parseInt(statusLine.split(' ').pop() || '');
@@ -3217,47 +3215,14 @@ export class NodeCommandTasks {
     };
   }
 
-  private parseGossipFqdnRestricted(applicationPropertiesText: string): boolean | undefined {
-    const match: RegExpMatchArray | null = applicationPropertiesText.match(
-      /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
-    );
-    if (match?.[1]) {
-      return match[1].toLowerCase() === 'true';
-    }
-    return undefined;
-  }
-
   private async getGossipFqdnRestricted(config: NodeAddConfigClass, k8: K8): Promise<boolean> {
-    // Prefer live cluster config when present, then staged file, then default true.
-    try {
-      const configMap: ConfigMap = await k8
-        .configMaps()
-        .read(config.namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
-      const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
-      if (configMapProperties) {
-        const parsedFromConfigMap: boolean | undefined = this.parseGossipFqdnRestricted(configMapProperties);
-        if (parsedFromConfigMap !== undefined) {
-          return parsedFromConfigMap;
-        }
-      }
-    } catch {
-      // Fall through to staged application.properties
-    }
-
-    const applicationPropertiesPath: string = PathEx.join(
-      config.stagingDir,
-      'templates',
-      constants.APPLICATION_PROPERTIES,
-    );
-    if (fs.existsSync(applicationPropertiesPath)) {
-      const appProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-      const parsedFromStaging: boolean | undefined = this.parseGossipFqdnRestricted(appProperties);
-      if (parsedFromStaging !== undefined) {
-        return parsedFromStaging;
-      }
-    }
-
-    return true;
+    return await helpers.resolveGossipFqdnRestricted({
+      k8,
+      namespace: config.namespace,
+      stagingDir: config.stagingDir,
+      cacheDir: constants.SOLO_CACHE_DIR,
+      resourcesDir: constants.RESOURCES_DIR,
+    });
   }
 
   public refreshNodeList(): SoloListrTask<NodeDestroyContext> {
@@ -4029,7 +3994,7 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const outputDirectory: string = argv[flags.outputDir.name];
         if (!outputDirectory) {
-          throw new SoloErrors.validation.outputDirectoryNotSpecified(flags.outputDir.name);
+          throw new SoloErrors.validation.outputDirectoryNotSpecified();
         }
 
         if (!fs.existsSync(outputDirectory)) {
@@ -4051,7 +4016,7 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const inputDirectory: string = argv[flags.inputDir.name];
         if (!inputDirectory) {
-          throw new SoloErrors.validation.inputDirectoryNotSpecified(flags.inputDir.name);
+          throw new SoloErrors.validation.inputDirectoryNotSpecified();
         }
 
         // @ts-expect-error - TS2345

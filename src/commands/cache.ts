@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
@@ -52,6 +53,14 @@ interface CacheClearContext {
   config: CacheClearConfigClass;
 }
 
+interface CachePruneConfigClass {
+  imageCacheHandler: ImageCacheHandler;
+}
+
+interface CachePruneContext {
+  config: CachePruneConfigClass;
+}
+
 interface CacheStatusConfigClass {
   imageCacheHandler: ImageCacheHandler;
   clusterReference: ClusterReferenceName;
@@ -94,7 +103,18 @@ export class CacheCommand extends BaseCommand {
 
   public static readonly PULL_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode, flags.edgeEnabled],
+    optional: [
+      flags.quiet,
+      flags.cacheDir,
+      flags.devMode,
+      flags.edgeEnabled,
+
+      // Versions
+      flags.mirrorNodeVersion,
+      flags.blockNodeVersion,
+      flags.relayVersion,
+      flags.explorerVersion,
+    ],
   };
 
   public static readonly LOAD_FLAGS_LIST: CommandFlags = {
@@ -108,6 +128,11 @@ export class CacheCommand extends BaseCommand {
   };
 
   public static readonly CLEAR_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+  };
+
+  public static readonly PRUNE_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.cacheDir, flags.devMode],
   };
@@ -138,7 +163,13 @@ export class CacheCommand extends BaseCommand {
 
             const edgeEnabled: boolean = this.configManager.getFlag(flags.edgeEnabled);
 
-            const renderedYamlPath: string = await this.renderImageTargetsFile(edgeEnabled);
+            const renderedYamlPath: string = await this.renderImageTargetsFile(
+              edgeEnabled,
+              this.configManager.getFlag(flags.mirrorNodeVersion),
+              this.configManager.getFlag(flags.blockNodeVersion),
+              this.configManager.getFlag(flags.relayVersion),
+              this.configManager.getFlag(flags.explorerVersion),
+            );
 
             context_.config = {
               imageCacheHandler: await this.buildImageCacheHandlerFromYaml(renderedYamlPath),
@@ -159,7 +190,7 @@ export class CacheCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error pulling cache: ${error.message}`, error);
+        throw new SoloErrors.system.containerOperationFailed('cache pull', error);
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {});
@@ -210,7 +241,7 @@ export class CacheCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error loading from cache: ${error.message}`, error);
+        throw new SoloErrors.system.containerOperationFailed('cache load', error);
       }
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {});
@@ -289,6 +320,33 @@ export class CacheCommand extends BaseCommand {
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       'cache image clear',
+    );
+
+    await tasks.run();
+    return true;
+  }
+
+  public async prune(): Promise<boolean> {
+    const tasks: SoloListr<CachePruneContext> = this.taskList.newTaskList(
+      [
+        {
+          title: 'Prune image cache',
+          task: async (context_): Promise<void> => {
+            const cacheDirectory: string = this.configManager.getFlag(flags.cacheDir);
+
+            const config: CachePruneConfigClass = {
+              imageCacheHandler: await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory),
+            };
+
+            context_.config = config;
+
+            await config.imageCacheHandler.prune();
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'cache image prune',
     );
 
     await tasks.run();
@@ -467,19 +525,27 @@ export class CacheCommand extends BaseCommand {
     return PathEx.join(cacheDirectory, 'config', CacheImageTargetTemplateRenderer.RENDERED_FILE_NAME);
   }
 
-  private async renderImageTargetsFile(edgeEnabled: boolean): Promise<string> {
+  private async renderImageTargetsFile(
+    edgeEnabled: boolean,
+    mirrorNodeVersion?: string,
+    blockNodeVersion?: string,
+    relayVersion?: string,
+    explorerVersion?: string,
+  ): Promise<string> {
     const cacheDirectory: string = this.configManager.getFlag(flags.cacheDir);
     const renderedConfigDirectory: string = PathEx.join(cacheDirectory, 'config');
 
     return new CacheImageTargetTemplateRenderer(
       new DefaultCacheImageTemplateResolver(
         new CacheImageTemplateValues(
-          edgeEnabled ? version.MIRROR_NODE_EDGE_VERSION : version.MIRROR_NODE_VERSION,
-          edgeEnabled ? version.BLOCK_NODE_EDGE_VERSION : version.BLOCK_NODE_VERSION,
-          edgeEnabled ? version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION : version.HEDERA_JSON_RPC_RELAY_VERSION,
-          edgeEnabled ? version.EXPLORER_EDGE_VERSION : version.EXPLORER_VERSION,
+          mirrorNodeVersion || (edgeEnabled ? version.MIRROR_NODE_EDGE_VERSION : version.MIRROR_NODE_VERSION),
+          blockNodeVersion || (edgeEnabled ? version.BLOCK_NODE_EDGE_VERSION : version.BLOCK_NODE_VERSION),
+          relayVersion ||
+            (edgeEnabled ? version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION : version.HEDERA_JSON_RPC_RELAY_VERSION),
+          explorerVersion || (edgeEnabled ? version.EXPLORER_EDGE_VERSION : version.EXPLORER_VERSION),
+
+          // MinIO is an external dependency and currently has no Solo edge variant.
           version.MINIO_OPERATOR_VERSION,
-          edgeEnabled ? version.HEDERA_PLATFORM_EDGE_VERSION : version.HEDERA_PLATFORM_VERSION,
         ),
       ),
     ).renderToFile(constants.SOLO_CACHE_IMAGES_TARGET_FILE, renderedConfigDirectory);
@@ -495,7 +561,7 @@ export class CacheCommand extends BaseCommand {
     try {
       await fs.access(renderedYamlPath);
     } catch {
-      throw new SoloError(CacheCommand.CACHE_NOT_MATERIALIZED_ERROR_MESSAGE);
+      throw new SoloErrors.validation.cacheNotMaterialized();
     }
 
     return this.buildImageCacheHandlerFromYaml(renderedYamlPath);

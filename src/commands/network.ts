@@ -9,7 +9,7 @@ import {UserBreak} from '../core/errors/user-break.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
-import {getEnvironmentVariable} from '../core/constants.js';
+import {DEFAULT_SOLO_NAMESPACE_LABELS, getEnvironmentVariable} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
 import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
@@ -898,7 +898,7 @@ export class NetworkCommand extends BaseCommand {
         this.logger.debug(`namespace '${namespace}' found using context: ${context}`);
       } else {
         this.logger.debug(`creating namespace '${namespace}' using context: ${context}`);
-        await k8client.namespaces().create(namespace);
+        await k8client.namespaces().create(namespace, DEFAULT_SOLO_NAMESPACE_LABELS);
         this.logger.debug(`created namespace '${namespace}' using context: ${context}`);
       }
     }
@@ -1101,7 +1101,13 @@ export class NetworkCommand extends BaseCommand {
         'Delete namespace',
         await Promise.allSettled(
           contexts.map(async (context): Promise<void> => {
-            await this.k8Factory.getK8(context).namespaces().delete(namespace);
+            const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(namespace);
+
+            if (shouldDeleteNamespace) {
+              await this.k8Factory.getK8(context).namespaces().delete(namespace);
+            } else {
+              this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
+            }
           }),
         ),
       );
@@ -1996,13 +2002,31 @@ export class NetworkCommand extends BaseCommand {
               }
 
               for (const context of contexts) {
-                await this.k8Factory.getK8(context).namespaces().delete(namespace);
+                const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(namespace);
+
+                if (shouldDeleteNamespace) {
+                  await this.k8Factory.getK8(context).namespaces().delete(namespace);
+                } else {
+                  this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
+                }
               }
             }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
             await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
 
             clearTimeout(onTimeoutCallback);
+          },
+        },
+        {
+          title: `Remove ${constants.SOLO_SETUP_NAMESPACE.name}`,
+          task: async ({config: {contexts}}): Promise<void> => {
+            const namespace: NamespaceName = constants.SOLO_SETUP_NAMESPACE;
+
+            for (const context of contexts) {
+              if (await this.k8Factory.getK8(context).namespaces().has(namespace)) {
+                await this.k8Factory.getK8(context).namespaces().delete(namespace);
+              }
+            }
           },
         },
       ],

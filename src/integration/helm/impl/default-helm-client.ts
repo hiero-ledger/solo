@@ -29,7 +29,7 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {AddRepoOptions} from '../model/add/add-repo-options.js';
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {RepositoryUpdateRequest} from '../request/repository/repository-update-request.js';
 import path from 'node:path';
 import {SemanticVersion} from '../../../business/utils/semantic-version.js';
@@ -213,7 +213,7 @@ export class DefaultHelmClient implements HelmClient {
         ].join('\n'),
       );
 
-      throw new SoloError('GHCR stale Docker auth detected');
+      throw new SoloErrors.system.dockerAuthStale();
     }
   }
 

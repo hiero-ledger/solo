@@ -3,7 +3,6 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {Flags} from '../../../../commands/flags.js';
 
 export class NodeJarFilesNotInContainerSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
@@ -16,7 +15,7 @@ export class NodeJarFilesNotInContainerSoloError extends SoloError {
       troubleshootingSteps:
         'Run setup before starting: solo consensus node setup\n' +
         'Verify the directory inside the pod: kubectl exec <pod> -n <namespace> -- ls <directoryPath>\n' +
-        `Re-copy platform software: solo consensus node setup ${Flags.getFormattedFlagKey(Flags.localBuildPath)} <path>`,
+        'Re-copy platform software: solo consensus node setup --local-build-path <path>',
     });
   }
 }

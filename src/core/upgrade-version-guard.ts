@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SemanticVersion} from '../business/utils/semantic-version.js';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 
 export function assertUpgradeVersionNotOlder(
   componentName: string,
@@ -16,9 +16,11 @@ export function assertUpgradeVersionNotOlder(
   const targetSemVersion: SemanticVersion<string> = new SemanticVersion<string>(targetVersion);
 
   if (targetSemVersion.lessThan(currentVersion)) {
-    throw new SoloError(
-      `${componentName} upgrade target version ${targetVersion} is older than the current version ${currentVersion.toString()} stored in remote config. ` +
-        `Use ${flagHint} to specify a version equal to or newer than the currently deployed version.`,
+    throw new SoloErrors.validation.versionDowngradeBlocked(
+      componentName,
+      targetVersion,
+      currentVersion.toString(),
+      flagHint,
     );
   }
 }

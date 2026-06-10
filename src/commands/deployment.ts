@@ -4,7 +4,7 @@ import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {select as selectPrompt} from '@inquirer/prompts';
 import {BaseCommand} from './base.js';
-import {Flags as flags} from './flags.js';
+import {Flags, Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
 import chalk from 'chalk';
 import {type ClusterCommandTasks} from './cluster/tasks.js';
@@ -48,6 +48,7 @@ import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-stat
 import yaml from 'yaml';
 import {PathEx} from '../business/utils/path-ex.js';
 import fs from 'node:fs/promises';
+import {DEFAULT_SOLO_NAMESPACE_LABELS} from '../core/constants.js';
 
 interface DeploymentAddClusterConfig {
   quiet: boolean;
@@ -154,6 +155,7 @@ export class DeploymentCommand extends BaseCommand {
       deployment: DeploymentName;
       realm: Realm;
       shard: Shard;
+      skipDeploymentCreate?: boolean;
     }
 
     interface Context {
@@ -171,13 +173,15 @@ export class DeploymentCommand extends BaseCommand {
 
             await this.configManager.executePrompt(task, [flags.namespace, flags.deployment]);
 
-            context_.config = {
+            const config: Config = {
               quiet: this.configManager.getFlag<boolean>(flags.quiet),
               namespace: this.configManager.getFlag<NamespaceName>(flags.namespace),
               deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
               realm: this.configManager.getFlag<Realm>(flags.realm) || flags.realm.definition.defaultValue,
               shard: this.configManager.getFlag<Shard>(flags.shard) || flags.shard.definition.defaultValue,
             } as Config;
+
+            context_.config = config;
 
             if (
               this.localConfig.configuration.deployments &&
@@ -187,43 +191,15 @@ export class DeploymentCommand extends BaseCommand {
             ) {
               const deploymentName: DeploymentName = context_.config.deployment;
               const existingDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
-              const deploymentNamespace: NamespaceName = NamespaceName.of(existingDeployment.namespace);
-              const clusterReferences: FacadeArray<StringFacade, string> = existingDeployment.clusters;
 
-              let deploymentExistsInCluster: boolean = false;
-
-              for (const clusterReferenceFacade of clusterReferences) {
-                const clusterReference: string = clusterReferenceFacade.toString();
-                const clusterContext: Optional<string> = this.localConfig.configuration.clusterRefs
-                  .get(clusterReference)
-                  ?.toString();
-
-                if (clusterContext) {
-                  try {
-                    const k8: K8 = this.k8Factory.getK8(clusterContext);
-                    const namespaceExists: boolean = await k8.namespaces().has(deploymentNamespace);
-                    if (namespaceExists) {
-                      const remoteConfigExists: boolean = await k8
-                        .configMaps()
-                        .exists(deploymentNamespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
-                      if (remoteConfigExists) {
-                        deploymentExistsInCluster = true;
-                        break;
-                      }
-                    }
-                  } catch (error: unknown) {
-                    this.logger.debug(
-                      `Could not connect to cluster context '${clusterContext}' for deployment '${deploymentName}': ${error instanceof Error ? error.message : String(error)}. Treating as stale.`,
-                    );
-                  }
-                }
-              }
+              const deploymentExistsInCluster: boolean = await this.deploymentRemoteConfigExists(existingDeployment);
 
               if (deploymentExistsInCluster) {
-                throw new SoloErrors.deployment.alreadyExists(context_.config.deployment);
+                this.logger.info(`Deployment '${deploymentName}' already exists, skipping creation`);
+                context_.config.skipDeploymentCreate = true;
+                return;
               }
 
-              // Local config is stale - deployment does not actually exist in any cluster
               this.logger.showUser(
                 chalk.yellow(
                   `\nLocal config shows deployment '${deploymentName}' exists, ` +
@@ -231,6 +207,7 @@ export class DeploymentCommand extends BaseCommand {
                     'Cleaning up stale local config and proceeding with fresh deployment.',
                 ),
               );
+
               this.localConfig.configuration.deployments.remove(existingDeployment);
               await this.localConfig.persist();
             }
@@ -238,8 +215,8 @@ export class DeploymentCommand extends BaseCommand {
         },
         {
           title: 'Add deployment to local config',
-          task: async (context_: Context, task): Promise<void> => {
-            const {namespace, deployment, realm, shard} = context_.config;
+          skip: ({config}: Context): boolean => config.skipDeploymentCreate === true,
+          task: async ({config: {namespace, deployment, realm, shard}}: Context, task): Promise<void> => {
             task.title = `Adding deployment: ${deployment} with namespace: ${namespace.name} to local config`;
 
             if (this.localConfig.configuration.deployments.some((d: Deployment): boolean => d.name === deployment)) {
@@ -347,7 +324,11 @@ export class DeploymentCommand extends BaseCommand {
               }
 
               if (remoteConfigExists || existingConfigMaps.length > 0) {
-                throw new SoloErrors.deployment.hasRemoteResources(deployment, clusterReference);
+                throw new SoloErrors.deployment.hasRemoteResources(
+                  deployment,
+                  clusterReference,
+                  Flags.getFormattedFlagKey(Flags.deployment),
+                );
               }
             }
           },
@@ -409,7 +390,11 @@ export class DeploymentCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloErrors.deployment.clusterAddFailed(error);
+        throw new SoloErrors.deployment.clusterAddFailed(
+          flags.getFormattedFlagKey(flags.clusterRef),
+          flags.getFormattedFlagKey(flags.context),
+          error,
+        );
       }
     }
 
@@ -735,7 +720,11 @@ export class DeploymentCommand extends BaseCommand {
         const {clusterRef, deployment} = context_.config;
 
         if (!this.localConfig.configuration.clusterRefs.get(clusterRef)) {
-          throw new SoloErrors.deployment.clusterRefNotFound(clusterRef);
+          throw new SoloErrors.deployment.clusterRefNotFound(
+            clusterRef,
+            Flags.getFormattedFlagKey(Flags.clusterRef),
+            Flags.getFormattedFlagKey(Flags.context),
+          );
         }
 
         context_.config.context = this.localConfig.configuration.clusterRefs.get(clusterRef)?.toString();
@@ -747,7 +736,10 @@ export class DeploymentCommand extends BaseCommand {
         if (
           this.localConfig.configuration.deploymentByName(deployment).clusters.includes(new StringFacade(clusterRef))
         ) {
-          throw new SoloErrors.deployment.clusterRefAlreadyExists(clusterRef);
+          throw new SoloErrors.deployment.clusterRefAlreadyExists(
+            clusterRef,
+            Flags.getFormattedFlagKey(Flags.clusterRef),
+          );
         }
       },
     };
@@ -936,7 +928,7 @@ export class DeploymentCommand extends BaseCommand {
         task.title += `: ${deployment} in cluster reference: ${clusterRef}`;
 
         if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
-          await this.k8Factory.getK8(context).namespaces().create(namespace);
+          await this.k8Factory.getK8(context).namespaces().create(namespace, DEFAULT_SOLO_NAMESPACE_LABELS);
         }
 
         if (await this.k8Factory.getK8(context).configMaps().exists(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME)) {
@@ -1054,7 +1046,12 @@ export class DeploymentCommand extends BaseCommand {
             }
 
             if (clusterReferences.length === 0) {
-              throw new SoloErrors.deployment.clusterReferenceResolutionFailed(context_.config.deployment);
+              throw new SoloErrors.deployment.clusterReferenceResolutionFailed(
+                context_.config.deployment,
+                Flags.getFormattedFlagKey(Flags.deployment),
+                Flags.getFormattedFlagKey(Flags.numberOfConsensusNodes),
+                Flags.getFormattedFlagKey(Flags.clusterRef),
+              );
             }
 
             let clusterReference: string = clusterReferences[0];
@@ -1070,7 +1067,11 @@ export class DeploymentCommand extends BaseCommand {
 
             const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
             if (!contextValue) {
-              throw new SoloErrors.deployment.contextNotFoundForCluster(clusterReference);
+              throw new SoloErrors.deployment.contextNotFoundForCluster(
+                clusterReference,
+                Flags.getFormattedFlagKey(Flags.clusterRef),
+                Flags.getFormattedFlagKey(Flags.context),
+              );
             }
 
             const context: string = contextValue.toString();
@@ -1502,5 +1503,46 @@ export class DeploymentCommand extends BaseCommand {
       this.logger.warn(`Error finding pod for ${componentType}: ${error.message}`);
       return undefined;
     }
+  }
+
+  private async deploymentRemoteConfigExists(existingDeployment: Deployment): Promise<boolean> {
+    const deploymentNamespace: NamespaceName = NamespaceName.of(existingDeployment.namespace);
+    const clusterReferences: FacadeArray<StringFacade, string> = existingDeployment.clusters;
+
+    for (const clusterReferenceFacade of clusterReferences) {
+      const clusterReference: string = clusterReferenceFacade.toString();
+      const clusterContext: Optional<string> = this.localConfig.configuration.clusterRefs
+        .get(clusterReference)
+        ?.toString();
+
+      if (!clusterContext) {
+        continue;
+      }
+
+      try {
+        const k8: K8 = this.k8Factory.getK8(clusterContext);
+        const namespaceExists: boolean = await k8.namespaces().has(deploymentNamespace);
+
+        if (!namespaceExists) {
+          continue;
+        }
+
+        const remoteConfigExists: boolean = await k8
+          .configMaps()
+          .exists(deploymentNamespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+
+        if (remoteConfigExists) {
+          return true;
+        }
+      } catch (error: unknown) {
+        this.logger.debug(
+          `Could not connect to cluster context '${clusterContext}' for deployment '${existingDeployment.name}': ${
+            error instanceof Error ? error.message : String(error)
+          }. Treating as stale.`,
+        );
+      }
+    }
+
+    return false;
   }
 }

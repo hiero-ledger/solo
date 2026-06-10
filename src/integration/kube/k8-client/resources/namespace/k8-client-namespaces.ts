@@ -2,7 +2,7 @@
 
 import {type Namespaces} from '../../../../../types/namespace/namespaces.js';
 import {type CoreV1Api, type V1Namespace, type V1NamespaceList} from '@kubernetes/client-node';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
+import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
@@ -10,15 +10,20 @@ import {Duration} from '../../../../../core/time/duration.js';
 export class K8ClientNamespaces implements Namespaces {
   public constructor(private readonly kubeClient: CoreV1Api) {}
 
-  public async create(namespace: NamespaceName): Promise<boolean> {
+  public async create(namespace: NamespaceName, labels?: Record<string, string>): Promise<boolean> {
     const body: V1Namespace = {
       metadata: {
         name: namespace.name,
+        labels,
       },
     };
 
     await this.kubeClient.createNamespace({body});
     return true;
+  }
+
+  public async get(namespace: NamespaceName): Promise<V1Namespace> {
+    return await this.kubeClient.readNamespace({name: namespace.name});
   }
 
   public async delete(namespace: NamespaceName): Promise<boolean> {
@@ -61,6 +66,6 @@ export class K8ClientNamespaces implements Namespaces {
       return namespaces;
     }
 
-    throw new SoloError('incorrect response received from kubernetes API. Unable to list namespaces');
+    throw new SoloErrors.system.kubernetesApiInvalidResponse();
   }
 }

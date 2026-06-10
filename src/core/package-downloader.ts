@@ -6,7 +6,6 @@ import * as fs from 'node:fs';
 import {pipeline as streamPipeline} from 'node:stream/promises';
 import got from 'got';
 import path from 'node:path';
-import {SoloError} from './errors/solo-error.js';
 import * as https from 'node:https';
 import * as http from 'node:http';
 import {Templates} from './templates.js';
@@ -152,7 +151,7 @@ export class PackageDownloader {
 
       return destinationPath;
     } catch (error) {
-      throw new SoloError(`Error fetching file ${url}: ${error.message}`, error);
+      throw new SoloErrors.system.packageDownloadFailed(url, error);
     }
   }
 
@@ -182,7 +181,7 @@ export class PackageDownloader {
           reject(error);
         });
       } catch (error) {
-        reject(new SoloError('failed to compute checksum', error, {filePath, algo}));
+        reject(new SoloErrors.system.packageDownloadFailed(filePath, error));
       }
     });
   }
@@ -254,7 +253,7 @@ export class PackageDownloader {
           // Then read its contents
           const checksumData: string = fs.readFileSync(checksumFile).toString();
           if (!checksumData) {
-            throw new SoloError(`unable to read checksum file: ${checksumFile}`);
+            throw new SoloErrors.system.checksumReadFailed(checksumFile);
           }
           checksum = checksumData.split(' ')[0];
         } else {
@@ -277,7 +276,7 @@ export class PackageDownloader {
         fs.rmSync(packageFile);
       }
 
-      throw new SoloError(error.message, error);
+      throw new SoloErrors.system.packageDownloadFailed(packageURL, error);
     }
   }
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {IllegalArgumentError} from '../../core/errors/classes/validation/illegal-argument-error.js';
 import {Numbers} from './numbers.js';
 
@@ -417,7 +417,7 @@ export class SemanticVersion<T extends string | number> {
     label: string = 'SemanticVersion',
   ): string {
     if (!versionString) {
-      throw new SoloError(`${label} cannot be empty`);
+      throw new SoloErrors.validation.illegalArgument(`${label} cannot be empty`);
     }
 
     // Validate the version string

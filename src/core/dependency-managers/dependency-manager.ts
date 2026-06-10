@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import os from 'node:os';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {ShellRunner} from '../shell-runner.js';
 import {HelmDependencyManager} from './helm-dependency-manager.js';
 import {container, inject, injectable} from 'tsyringe-neo';
@@ -81,7 +81,7 @@ export class DependencyManager extends ShellRunner {
     if (manager) {
       return manager;
     }
-    throw new SoloError(`Dependency manager for '${dependency}' is not found`);
+    throw new SoloErrors.system.dependencyManagerNotFound(dependency);
   }
 
   /**
@@ -98,7 +98,7 @@ export class DependencyManager extends ShellRunner {
     }
 
     if (!status) {
-      throw new SoloError(`Dependency '${dependency}' is not found`);
+      throw new SoloErrors.system.dependencyNotFound(dependency);
     }
 
     this.logger.debug(`Dependency '${dependency}' is found`);
@@ -134,6 +134,6 @@ export class DependencyManager extends ShellRunner {
     if (manager) {
       return await manager.getExecutable();
     }
-    throw new SoloError(`Dependency manager for '${dependency}' is not found`);
+    throw new SoloErrors.system.dependencyManagerNotFound(dependency);
   }
 }
