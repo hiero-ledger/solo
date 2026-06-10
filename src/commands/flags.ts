@@ -3317,7 +3317,9 @@ export class Flags {
   );
 
   public static readonly integerFlags: Map<string, CommandFlag> = new Map(
-    [Flags.replicaCount,  Flags.blockNodeMessageSizeSoftLimitBytes, Flags.blockNodeMessageSizeHardLimitBytes].map((f): [string, CommandFlag] => [f.name, f]),
+    [Flags.replicaCount, Flags.blockNodeMessageSizeSoftLimitBytes, Flags.blockNodeMessageSizeHardLimitBytes].map(
+      (f): [string, CommandFlag] => [f.name, f],
+    ),
   );
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
