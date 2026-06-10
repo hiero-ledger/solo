@@ -27,6 +27,7 @@ export class EndToEndTestSuiteBuilder {
   private logXml: string;
   private settingsTxt: string;
   private javaFlightRecorderConfiguration: string;
+  private chainId: number;
 
   private testSuiteCallback: (
     endToEndTestSuite: EndToEndTestSuite,
@@ -153,6 +154,11 @@ export class EndToEndTestSuiteBuilder {
     return this;
   }
 
+  public withChainId(chainId: number): this {
+    this.chainId = chainId;
+    return this;
+  }
+
   public build(): EndToEndTestSuite {
     if (!this.testName || !this.testSuiteName || !this.testSuiteCallback) {
       throw new Error('Missing required properties to build EndToEndTestSuite');
@@ -180,6 +186,7 @@ export class EndToEndTestSuiteBuilder {
       this.logXml,
       this.settingsTxt,
       this.javaFlightRecorderConfiguration,
+      this.chainId || 0,
       this.testSuiteCallback,
     );
   }

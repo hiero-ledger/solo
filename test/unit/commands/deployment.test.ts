@@ -17,6 +17,7 @@ import {ValueContainer} from '../../../src/core/dependency-injection/value-conta
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
+import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 
 describe('DeploymentCommand unit tests', (): void => {
   type K8StubbedMethods = Pick<K8, 'namespaces' | 'configMaps' | 'contexts' | 'clusters' | 'leases'>;
@@ -118,8 +119,7 @@ describe('DeploymentCommand unit tests', (): void => {
       await expect(deploymentCommand.create(argv.build())).to.eventually.be.true;
     });
 
-    it('should throw "already exists" error when deployment genuinely exists in cluster', async (): Promise<void> => {
-      // Simulate namespace AND remote config both existing (genuine deployment)
+    it('should skip creation when deployment exists in local config and remote ConfigMap', async (): Promise<void> => {
       namespacesStub.resolves(true);
       configMapsStub.resolves(true);
 
@@ -129,8 +129,14 @@ describe('DeploymentCommand unit tests', (): void => {
       argv.setArg(flags.deployment, deploymentName);
       argv.setArg(flags.namespace, namespace.name);
 
-      // The outer error is "Error creating deployment" wrapping the actual cause
-      await expect(deploymentCommand.create(argv.build())).to.be.rejectedWith('Error creating deployment');
+      await expect(deploymentCommand.create(argv.build())).to.eventually.be.true;
+
+      const logger: SoloLogger = container.resolve(InjectTokens.SoloLogger);
+      const infoSpy: SinonStub = sinon.stub(logger, 'info');
+
+      await expect(deploymentCommand.create(argv.build())).to.eventually.be.true;
+
+      expect(infoSpy.calledWith(`Deployment '${deploymentName}' already exists, skipping creation`)).to.be.true;
     });
 
     it('should proceed normally when deployment does not exist in local config', async (): Promise<void> => {

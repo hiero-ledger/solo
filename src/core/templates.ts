@@ -2,7 +2,6 @@
 
 import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
-import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
 import {type AccountId} from '@hiero-ledger/sdk';
 import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
@@ -185,7 +184,7 @@ export class Templates {
       }
 
       default: {
-        throw new SoloError(`unknown dependency: ${dependency}`);
+        throw new SoloErrors.validation.unknownTemplateDependency(dependency);
       }
     }
   }
@@ -205,7 +204,7 @@ export class Templates {
       }
     }
 
-    throw new SoloError(`Can't get node id from node ${nodeAlias}`);
+    throw new SoloErrors.validation.unknownNodeAlias(nodeAlias);
   }
 
   public static renderComponentIdFromNodeId(nodeId: NodeId): ComponentId {
@@ -325,7 +324,7 @@ export class Templates {
         : [nodes[index]?.name, data];
 
       if (!nodeAlias) {
-        throw new SoloError(`Node alias for ${addressData} cannot be inferred`);
+        throw new SoloErrors.validation.nodeAliasInferenceFailed(addressData);
       }
 
       const [address, port] = addressData.includes(':') ? addressData.split(':') : [addressData, '8080'];
@@ -343,10 +342,10 @@ export class Templates {
       const [nodeAlias, domainName] = data.split('=') as [NodeAlias, string];
 
       if (!nodeAlias || typeof nodeAlias !== 'string') {
-        throw new SoloError(`Can't parse node alias: ${data}`);
+        throw new SoloErrors.validation.nodeAliasParseFailed(data);
       }
       if (!domainName || typeof domainName !== 'string') {
-        throw new SoloError(`Can't parse domain name: ${data}`);
+        throw new SoloErrors.validation.domainNameParseFailed(data);
       }
 
       mapping[nodeAlias] = domainName;

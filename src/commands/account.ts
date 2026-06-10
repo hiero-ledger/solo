@@ -4,7 +4,6 @@ import {SoloErrors} from '../core/errors/solo-errors.js';
 import chalk from 'chalk';
 import * as fs from 'node:fs';
 import {BaseCommand} from './base.js';
-import {SoloError} from '../core/errors/solo-error.js';
 import {Flags as flags} from './flags.js';
 import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
@@ -194,7 +193,7 @@ export class AccountCommand extends BaseCommand {
         const privateKey: PrivateKey = PrivateKey.fromStringDer(newAccountInfo.privateKey);
         newAccountInfo.privateKeyRaw = privateKey.toStringRaw();
       } catch {
-        throw new SoloError(`failed to retrieve EVM address for accountId ${newAccountInfo.accountId}`);
+        throw new SoloErrors.component.evmAddressRetrievalFailed(newAccountInfo.accountId.toString());
       }
     }
 
@@ -246,7 +245,7 @@ export class AccountCommand extends BaseCommand {
           context_.accountInfo.privateKey,
         ))
       ) {
-        throw new SoloError(`failed to update account keys for accountId ${context_.accountInfo.accountId}`);
+        throw new SoloErrors.component.accountKeyUpdateFailed(context_.accountInfo.accountId.toString());
       }
     } else {
       const defaultAmount: number = flags.amount.definition.defaultValue as number;
@@ -255,13 +254,15 @@ export class AccountCommand extends BaseCommand {
 
     const hbarAmount: number = Number.parseFloat(amount.toString());
     if (Number.isNaN(hbarAmount)) {
-      throw new SoloError(`The HBAR amount was invalid: ${amount}`);
+      throw new SoloErrors.validation.invalidHbarAmount(String(amount));
     }
 
     if (hbarAmount > 0) {
       const deployment: DeploymentName = context_.config.deployment;
       if (!(await this.transferAmountFromOperator(context_.accountInfo.accountId, hbarAmount, deployment))) {
-        throw new SoloError(`failed to transfer amount for accountId ${context_.accountInfo.accountId}`);
+        throw new SoloErrors.component.accountTransferFailed(
+          new Error(`failed to transfer amount for accountId ${context_.accountInfo.accountId}`),
+        );
       }
       this.logger.debug(`sent transfer amount for account ${context_.accountInfo.accountId}`);
     }
@@ -457,7 +458,7 @@ export class AccountCommand extends BaseCommand {
                             {'solo.hedera.com/node-admin-key': 'true'},
                           );
                       } catch (error) {
-                        throw new SoloError(`Error updating admin key for node ${nodeAlias}: ${error.message}`, error);
+                        throw new SoloErrors.component.nodeAccessConfigFailed(error);
                       }
                     }
                   },
@@ -478,7 +479,7 @@ export class AccountCommand extends BaseCommand {
                     this.logger.showUser(chalk.gray('Waiting for sockets to be closed....'));
 
                     if (rejectedCount > 0) {
-                      throw new SoloError(`Account keys updates failed for ${rejectedCount} accounts.`);
+                      throw new SoloErrors.component.accountKeysBatchUpdateFailed(rejectedCount);
                     }
                   },
                 },
@@ -499,7 +500,7 @@ export class AccountCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error in creating account: ${error.message}`, error);
+      throw new SoloErrors.component.accountCreationFailed(error);
     } finally {
       await this.closeConnections();
       // create two accounts to force the handler to trigger
@@ -548,7 +549,7 @@ export class AccountCommand extends BaseCommand {
             const resolvedNodeAliases: NodeAliases =
               nodeAliases.length > 0 ? nodeAliases : await nodeTasks.getExistingNodeAliases(namespace, deployment);
             if (resolvedNodeAliases.length === 0) {
-              throw new SoloError('No consensus nodes found to reset; check your deployment or --node-aliases input.');
+              throw new SoloErrors.validation.noConsensusNodesFound();
             }
 
             context_.config = {
@@ -607,7 +608,7 @@ export class AccountCommand extends BaseCommand {
             for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
               const context: Context | undefined = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
               if (!context) {
-                throw new SoloError(`No cluster context found for block node ${blockNode.metadata.id}`);
+                throw new SoloErrors.deployment.blockNodeClusterContextNotFound(String(blockNode.metadata.id));
               }
 
               const namespace: string = blockNode.metadata.namespace.toString();
@@ -630,7 +631,7 @@ export class AccountCommand extends BaseCommand {
             for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
               const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
               if (!context) {
-                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+                throw new SoloErrors.deployment.mirrorNodeClusterContextNotFound(String(mirrorNode.metadata.id));
               }
 
               const namespaceName: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
@@ -655,7 +656,7 @@ export class AccountCommand extends BaseCommand {
             for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
               const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
               if (!context) {
-                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+                throw new SoloErrors.deployment.mirrorNodeClusterContextNotFound(String(mirrorNode.metadata.id));
               }
 
               const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
@@ -679,14 +680,14 @@ export class AccountCommand extends BaseCommand {
             for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
               const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
               if (!context) {
-                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+                throw new SoloErrors.deployment.mirrorNodeClusterContextNotFound(String(mirrorNode.metadata.id));
               }
 
               const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
               const k8: K8 = this.k8Factory.getK8(context);
               const postgresPods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_MIRROR_POSTGRES_NAME_LABEL]);
               if (postgresPods.length === 0) {
-                throw new SoloError(`postgres pod not found in namespace ${namespace}`);
+                throw new SoloErrors.system.postgresPodNotFound(namespace.name ?? String(namespace));
               }
 
               const postgresPod: Pod = postgresPods[0];
@@ -700,7 +701,7 @@ export class AccountCommand extends BaseCommand {
                 (key: string): boolean => key.endsWith('_MIRROR_IMPORTER_DB_OWNER'),
               );
               if (!ownerKey) {
-                throw new SoloError('Could not find MIRROR_IMPORTER_DB_OWNER in mirror-passwords secret.');
+                throw new SoloErrors.component.mirrorPasswordSecretMissing();
               }
 
               const environmentVariablePrefix: string = ownerKey.replace('_MIRROR_IMPORTER_DB_OWNER', '');
@@ -735,7 +736,7 @@ export class AccountCommand extends BaseCommand {
             for (const mirrorNode of this.remoteConfig.configuration.state.mirrorNodes) {
               const context: Context | undefined = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
               if (!context) {
-                throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+                throw new SoloErrors.deployment.mirrorNodeClusterContextNotFound(String(mirrorNode.metadata.id));
               }
 
               const namespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
@@ -793,7 +794,7 @@ export class AccountCommand extends BaseCommand {
             this.logger.debug(`context_.config  = ${JSON.stringify(context_.config)}`);
             const nodeAliases: NodeAliases = context_.config.nodeAliases;
             if (!nodeAliases || nodeAliases.length === 0) {
-              throw new SoloError('No consensus nodes found to reset; check your deployment or --node-aliases input.');
+              throw new SoloErrors.validation.noConsensusNodesFound();
             }
 
             for (const nodeAlias of nodeAliases) {
@@ -899,7 +900,7 @@ export class AccountCommand extends BaseCommand {
             for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
               const context: Context | undefined = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
               if (!context) {
-                throw new SoloError(`No cluster context found for block node ${blockNode.metadata.id}`);
+                throw new SoloErrors.deployment.blockNodeClusterContextNotFound(String(blockNode.metadata.id));
               }
               const releaseName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
               const pvcs: string[] = await this.k8Factory
@@ -937,7 +938,7 @@ export class AccountCommand extends BaseCommand {
                         .getClusterRefs()
                         .get(blockNode.metadata.cluster);
                       if (!context) {
-                        throw new SoloError(`No cluster context found for block node ${blockNode.metadata.id}`);
+                        throw new SoloErrors.deployment.blockNodeClusterContextNotFound(String(blockNode.metadata.id));
                       }
 
                       const namespace: string = blockNode.metadata.namespace.toString();
@@ -966,7 +967,9 @@ export class AccountCommand extends BaseCommand {
                         .getClusterRefs()
                         .get(mirrorNode.metadata.cluster);
                       if (!context) {
-                        throw new SoloError(`No cluster context found for mirror node ${mirrorNode.metadata.id}`);
+                        throw new SoloErrors.deployment.mirrorNodeClusterContextNotFound(
+                          String(mirrorNode.metadata.id),
+                        );
                       }
 
                       const namespaceName: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
@@ -1003,9 +1006,7 @@ export class AccountCommand extends BaseCommand {
                   > => {
                     const nodeAliases: NodeAliases = context_.config.nodeAliases;
                     if (!nodeAliases || nodeAliases.length === 0) {
-                      throw new SoloError(
-                        'No consensus nodes found to start; check your deployment or --node-aliases input.',
-                      );
+                      throw new SoloErrors.validation.noConsensusNodesFound();
                     }
                     return invokeSoloCommand(
                       'Start consensus nodes',
@@ -1093,7 +1094,7 @@ export class AccountCommand extends BaseCommand {
             }
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
-              throw new SoloError(`namespace ${config.namespace} does not exist`);
+              throw new SoloErrors.system.namespaceNotFound(config.namespace?.name ?? String(config.namespace));
             }
 
             // set config in the context for later tasks to use
@@ -1151,7 +1152,7 @@ export class AccountCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error in creating account: ${error.message}`, error);
+      throw new SoloErrors.component.accountCreationFailed(error);
     } finally {
       await this.closeConnections();
     }
@@ -1193,7 +1194,7 @@ export class AccountCommand extends BaseCommand {
               this.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
-              throw new SoloError(`namespace ${config.namespace} does not exist`);
+              throw new SoloErrors.system.namespaceNotFound(config.namespace?.name ?? String(config.namespace));
             }
 
             // set config in the context for later tasks to use
@@ -1221,7 +1222,7 @@ export class AccountCommand extends BaseCommand {
           title: 'update the account',
           task: async (context_: UpdateAccountContext): Promise<void> => {
             if (!(await this.updateAccountInfo(context_))) {
-              throw new SoloError(`An error occurred updating account ${context_.accountInfo.accountId}`);
+              throw new SoloErrors.component.accountUpdateFailed(context_.accountInfo.accountId.toString());
             }
           },
         },
@@ -1243,8 +1244,8 @@ export class AccountCommand extends BaseCommand {
 
     try {
       await tasks.run();
-    } catch (error) {
-      throw new SoloError(`Error in updating account: ${error.message}`, error);
+    } catch {
+      throw new SoloErrors.component.accountUpdateFailed('unknown');
     } finally {
       await this.closeConnections();
     }
@@ -1289,7 +1290,7 @@ export class AccountCommand extends BaseCommand {
               this.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
-              throw new SoloError(`namespace ${config.namespace} does not exist`);
+              throw new SoloErrors.system.namespaceNotFound(config.namespace?.name ?? String(config.namespace));
             }
 
             context_.config = config;
@@ -1362,7 +1363,7 @@ export class AccountCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error in creating predefined accounts: ${error.message}`, error);
+      throw new SoloErrors.component.predefinedAccountsCreationFailed(error);
     } finally {
       await this.closeConnections();
     }
@@ -1505,7 +1506,7 @@ export class AccountCommand extends BaseCommand {
               this.k8Factory.default().contexts().readCurrent();
 
             if (!(await this.k8Factory.getK8(config.contextName).namespaces().has(config.namespace))) {
-              throw new SoloError(`namespace ${config.namespace} does not exist`);
+              throw new SoloErrors.system.namespaceNotFound(config.namespace?.name ?? String(config.namespace));
             }
 
             // set config in the context for later tasks to use
@@ -1538,7 +1539,7 @@ export class AccountCommand extends BaseCommand {
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error in getting account info: ${error.message}`, error);
+      throw new SoloErrors.component.accountInfoFailed(error);
     } finally {
       await this.closeConnections();
     }

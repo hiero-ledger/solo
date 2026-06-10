@@ -2,7 +2,7 @@
 
 import * as constants from './constants.js';
 import chalk from 'chalk';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -56,7 +56,7 @@ export class ChartManager {
       await this.helm.updateRepositories();
       return urls;
     } catch (error) {
-      throw new SoloError(`failed to setup chart repositories: ${error.message}`, error);
+      throw new SoloErrors.system.helmRepoSetupFailed(error);
     }
   }
 
@@ -80,7 +80,7 @@ export class ChartManager {
       }
       return true;
     } catch (error) {
-      throw new SoloError(`failed to check chart repositories: ${error.message}`, error);
+      throw new SoloErrors.system.helmRepoCheckFailed(error);
     }
   }
 
@@ -113,7 +113,7 @@ export class ChartManager {
       return result.map((release): string => `${release.name} [${release.chart}]`);
     } catch (error) {
       this.logger.showUserError(error);
-      throw new SoloError(`failed to list installed charts: ${error.message}`, error);
+      throw new SoloErrors.system.helmChartListFailed(error);
     }
   }
 
@@ -155,7 +155,7 @@ export class ChartManager {
         this.logger.debug(`OK: chart is installed: ${chartReleaseName} (${chartName}) (${repoName})`);
       }
     } catch (error) {
-      throw new SoloError(`failed to install chart ${chartReleaseName}: ${error.message}`, error);
+      throw new SoloErrors.system.helmChartGenericInstallFailed(chartReleaseName, error);
     }
 
     return true;
@@ -201,7 +201,7 @@ export class ChartManager {
         this.logger.debug(`OK: chart release is already uninstalled: ${chartReleaseName}`);
       }
     } catch (error) {
-      throw new SoloError(`failed to uninstall chart ${chartReleaseName}: ${error.message}`, error);
+      throw new SoloErrors.system.helmChartUninstallFailed(chartReleaseName, error);
     }
 
     return true;
@@ -240,7 +240,7 @@ export class ChartManager {
       await this.helm.upgradeChart(chartReleaseName, chart, options);
       this.logger.debug(chalk.green('OK'), `chart '${chartReleaseName}' is upgraded`);
     } catch (error) {
-      throw new SoloError(`failed to upgrade chart ${chartReleaseName}: ${error.message}`, error);
+      throw new SoloErrors.system.helmChartUpgradeFailed(chartReleaseName, error);
     }
 
     return true;

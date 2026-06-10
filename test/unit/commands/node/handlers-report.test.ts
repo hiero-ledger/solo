@@ -108,7 +108,7 @@ describe('NodeCommandHandlers - report', (): void => {
       [flags.deployment.name]: 'test-deployment',
     };
 
-    await expect(handlers.report(argv)).to.be.rejectedWith(SoloError, /GitHub CLI \(gh\) is required/);
+    await expect(handlers.report(argv)).to.be.rejectedWith(SoloError, /gh \(GitHub CLI\).*is not found/);
 
     expect(debugStub).to.have.been.calledOnce;
   });

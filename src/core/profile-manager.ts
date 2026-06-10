@@ -3,7 +3,6 @@
 import {SoloErrors} from './errors/solo-errors.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import {SoloError} from './errors/solo-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
 import {readFile, writeFile} from 'node:fs/promises';
@@ -213,9 +212,7 @@ export class ProfileManager {
       const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
       const sourceAbsoluteFilePath: string = PathEx.resolve(currentWorkingDirectory, sourceFilePath);
       if (!fs.existsSync(sourceAbsoluteFilePath)) {
-        throw new SoloError(
-          `Configuration file does not exist for: ${flag.name}, absolute path: ${sourceAbsoluteFilePath}, path: ${sourceFilePath}`,
-        );
+        throw new SoloErrors.validation.configFileNotFound(flag.name, sourceAbsoluteFilePath, sourceFilePath);
       }
 
       const destinationFileName: string = path.basename(flag.definition.defaultValue as string);
@@ -890,9 +887,8 @@ export class ProfileManager {
       fs.writeFileSync(configFilePath, configLines.join('\n'));
       return configFilePath;
     } catch (error: Error | unknown) {
-      throw new SoloError(
-        `failed to generate config.txt, ${error instanceof Error ? (error as Error).message : 'unknown error'}`,
-        error,
+      throw new SoloErrors.component.genesisDataGenerationFailed(
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }

@@ -5,7 +5,7 @@ import * as constants from '../core/constants.js';
 import * as version from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import fs from 'node:fs';
-import {SoloError} from '../core/errors/solo-error.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {
   select as selectPrompt,
@@ -42,10 +42,14 @@ export class Flags {
         if (!process.stdout.isTTY || !process.stdin.isTTY) {
           // this is to help find issues with prompts running in non-interactive mode, user should supply quite mode,
           // or provide all flags required for command
-          throw new SoloError('Cannot prompt for input in non-interactive mode');
+          throw new SoloErrors.validation.nonInteractivePrompt(Flags.getFormattedFlagKey(Flags.deployment));
         }
 
-        const promptOptions = {default: defaultValue, message: promptMessage};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const promptOptions: {default: Optional<any>; message: string} = {
+          default: defaultValue,
+          message: promptMessage,
+        };
 
         switch (type) {
           case 'input': {
@@ -64,12 +68,12 @@ export class Flags {
       }
 
       if (emptyCheckMessage && !input) {
-        throw new SoloError(emptyCheckMessage);
+        throw new SoloErrors.validation.missingArgument(emptyCheckMessage);
       }
 
       return input;
     } catch (error) {
-      throw new SoloError(`input failed: ${flagName}: ${error.message}`, error);
+      throw new SoloErrors.validation.flagInputFailed(flagName, error);
     }
   }
 
@@ -707,7 +711,7 @@ export class Flags {
 
         return input;
       } catch (error) {
-        throw new SoloError(`input failed: ${Flags.chartDirectory.name}`, error);
+        throw new SoloErrors.validation.flagInputFailed(Flags.chartDirectory.name, error);
       }
     },
   };
@@ -896,7 +900,10 @@ export class Flags {
     name: 'chain-id',
     definition: {
       describe: 'Chain ID',
-      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
+      // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
+      get defaultValue(): string {
+        return constants.getEnvironmentVariable('SOLO_CHAIN_ID') ?? '298';
+      },
       alias: 'l',
       type: 'string',
     },
@@ -1068,7 +1075,7 @@ export class Flags {
 
         return input;
       } catch (error) {
-        throw new SoloError(`input failed: ${Flags.tlsClusterIssuerType.name}`, error);
+        throw new SoloErrors.validation.flagInputFailed(Flags.tlsClusterIssuerType.name, error);
       }
     },
   };
@@ -2376,7 +2383,7 @@ export class Flags {
       alias: 'u',
     },
     prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
-      const promptForInput = async () => {
+      const promptForInput: () => Promise<string> = async (): Promise<string> => {
         return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
           message: 'Please enter your username. Can only contain letters and numbers:',
         });
@@ -2813,7 +2820,7 @@ export class Flags {
       type: 'number',
     },
     prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: number): Promise<number> {
-      const promptForInput = (): Promise<number> =>
+      const promptForInput: () => Promise<number> = (): Promise<number> =>
         Flags.prompt(
           'number',
           task,
@@ -3262,7 +3269,7 @@ export class Flags {
   ];
 
   /** Resets the definition.disablePrompt for all flags */
-  private static resetDisabledPrompts() {
+  private static resetDisabledPrompts(): void {
     for (const f of Flags.allFlags) {
       if (f.definition.disablePrompt) {
         delete f.definition.disablePrompt;
@@ -3270,9 +3277,11 @@ export class Flags {
     }
   }
 
-  public static readonly allFlagsMap = new Map(Flags.allFlags.map(f => [f.name, f]));
+  public static readonly allFlagsMap: Map<string, CommandFlag> = new Map(
+    Flags.allFlags.map((f): [string, CommandFlag] => [f.name, f]),
+  );
 
-  public static readonly nodeConfigFileFlags = new Map(
+  public static readonly nodeConfigFileFlags: Map<string, CommandFlag> = new Map(
     [
       Flags.apiPermissionProperties,
       Flags.applicationEnv,
@@ -3280,10 +3289,12 @@ export class Flags {
       Flags.bootstrapProperties,
       Flags.log4j2Xml,
       Flags.settingTxt,
-    ].map(f => [f.name, f]),
+    ].map((f): [string, CommandFlag] => [f.name, f]),
   );
 
-  public static readonly integerFlags = new Map([Flags.replicaCount].map(f => [f.name, f]));
+  public static readonly integerFlags: Map<string, CommandFlag> = new Map(
+    [Flags.replicaCount].map((f): [string, CommandFlag] => [f.name, f]),
+  );
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],

@@ -4,7 +4,7 @@ import fs, {type Stats} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {format} from 'node:util';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {PathEx} from '../business/utils/path-ex.js';
@@ -84,7 +84,7 @@ export function splitFlagInput(input: string, separator: string = ','): string[]
   if (!input) {
     return [];
   } else if (typeof input !== 'string') {
-    throw new SoloError(`input [input='${input}'] is not a comma separated string`);
+    throw new SoloErrors.validation.invalidCommaSeparatedString(input);
   }
 
   return input
@@ -300,7 +300,7 @@ export function renameAndCopyFile(
     PathEx.join(destinationDirectory, expectedBaseName),
     (error): void => {
       if (error) {
-        throw new SoloError(`Error copying file: ${error.message}`);
+        throw new SoloErrors.system.fileCopyFailed(error);
       }
     },
   );
@@ -416,7 +416,7 @@ export function prepareEndpoints(
     } else if (parts.length === 1) {
       url = parts[0];
     } else {
-      throw new SoloError(`incorrect endpoint format. expected url:port, found ${endpoint}`);
+      throw new SoloErrors.validation.invalidEndpointFormat(endpoint);
     }
 
     if (endpointType.toUpperCase() === constants.ENDPOINT_TYPE_IP) {
@@ -469,7 +469,7 @@ export function resolveValidJsonFilePath(filePath: string, defaultPath?: string)
       return resolveValidJsonFilePath(defaultPath);
     }
 
-    throw new SoloError(`File does not exist: ${filePath}`);
+    throw new SoloErrors.system.fileNotFound(filePath);
   }
 
   // If the file is empty (or size cannot be determined) then fallback on the default values
@@ -477,7 +477,7 @@ export function resolveValidJsonFilePath(filePath: string, defaultPath?: string)
   if (throttleInfo.size === 0 && defaultPath) {
     return resolveValidJsonFilePath(defaultPath);
   } else if (throttleInfo.size === 0) {
-    throw new SoloError(`File is empty: ${filePath}`);
+    throw new SoloErrors.system.fileEmpty(filePath);
   }
 
   try {
@@ -490,7 +490,7 @@ export function resolveValidJsonFilePath(filePath: string, defaultPath?: string)
       return resolveValidJsonFilePath(defaultPath);
     }
 
-    throw new SoloError(`Invalid JSON data in file: ${filePath}`);
+    throw new SoloErrors.system.fileInvalidJson(filePath);
   }
 }
 
@@ -527,7 +527,7 @@ export async function checkNamespace(
   for (const consensusNode of consensusNodes) {
     const k8: K8 = k8Factory.getK8(consensusNode.context);
     if (!(await k8.namespaces().has(namespace))) {
-      throw new SoloError(`namespace ${namespace} does not exist in context ${consensusNode.context}`);
+      throw new SoloErrors.system.namespaceNotFound(namespace.name);
     }
   }
 }
@@ -601,7 +601,7 @@ export async function withTimeout<T>(
 
 async function throwAfter(duration: Duration, message: string = 'Timeout'): Promise<never> {
   await sleep(duration);
-  throw new SoloError(message);
+  throw new SoloErrors.system.timeout(message);
 }
 
 /**
