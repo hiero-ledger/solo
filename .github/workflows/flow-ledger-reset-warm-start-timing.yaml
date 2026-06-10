@@ -198,6 +198,7 @@ jobs:
             echo ""
             echo "mirrorNode:"
             echo "  --mirror-node-version: \"${{ steps.versions.outputs.mn-version }}\""
+            echo "  --pinger: false"
             echo ""
             echo "relayNode:"
             echo "  --relay-release: \"${{ steps.versions.outputs.relay-version }}\""
@@ -248,7 +249,7 @@ jobs:
 
             echo "-- Cold start --"
             COLD_SAMPLE_START=$SECONDS
-            $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
+            $SOLO_CMD one-shot falcon deploy --no-parallel-deploy --values-file "$VALUES_FILE"
             COLD_ELAPSED=$(( SECONDS - COLD_SAMPLE_START ))
             COLD_SAMPLES+=("$COLD_ELAPSED")
             echo "Cold ${i}: $(( COLD_ELAPSED / 60 ))m $(( COLD_ELAPSED % 60 ))s (${COLD_ELAPSED}s)"
@@ -443,4 +444,3 @@ jobs:
           path: ~/.solo/logs/*
           overwrite: true
           if-no-files-found: warn
-
