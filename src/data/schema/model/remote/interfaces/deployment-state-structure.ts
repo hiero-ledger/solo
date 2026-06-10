@@ -26,4 +26,6 @@ export interface DeploymentStateStructure {
   redis: RedisStateSchema[];
   tssEnabled: boolean;
   wrapsEnabled: boolean;
+  blockNodeMessageSizeSoftLimitBytes: number;
+  blockNodeMessageSizeHardLimitBytes: number;
 }
