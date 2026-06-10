@@ -38,7 +38,7 @@ export class IntervalLock implements Lock {
   private readonly _durationSeconds: number;
 
   /** The identifier of the scheduled lease renewal. */
-  private _scheduleId: number | null = null;
+  private _scheduleId: number | null = undefined;
 
   /**
    * @param k8Factory - Injected kubernetes K8Factory need by the methods to create, renew, and delete leases.
@@ -83,14 +83,14 @@ export class IntervalLock implements Lock {
   /**
    * The name of the lease.
    */
-  get leaseName(): string {
+  public get leaseName(): string {
     return this._leaseName;
   }
 
   /**
    * The holder of the lock.
    */
-  get lockHolder(): LockHolder {
+  public get lockHolder(): LockHolder {
     return this._lockHolder;
   }
 
@@ -98,7 +98,7 @@ export class IntervalLock implements Lock {
    * The namespace in which the lease is to be acquired. By default, the namespace is used as the lease name.
    * The defaults assume there is only a single deployment in a given namespace.
    */
-  get namespace(): NamespaceName {
+  public get namespace(): NamespaceName {
     return this._namespace;
   }
 
@@ -106,14 +106,14 @@ export class IntervalLock implements Lock {
    * The duration in seconds for which the lease is held before being considered expired. By default, the duration
    * is set to 20 seconds. It is recommended to renew the lease at 50% of the duration to prevent unexpected expiration.
    */
-  get durationSeconds(): number {
+  public get durationSeconds(): number {
     return this._durationSeconds;
   }
 
   /**
    * The identifier of the scheduled lease renewal task.
    */
-  get scheduleId(): number | null {
+  public get scheduleId(): number | null {
     return this._scheduleId;
   }
 
@@ -350,7 +350,7 @@ export class IntervalLock implements Lock {
   private async retrieveLease(): Promise<Lease> {
     try {
       return await this.k8Factory.default().leases().read(this.namespace, this.leaseName);
-    } catch (error: any) {
+    } catch (error) {
       if (IntervalLock.hasStatusCode(error, StatusCodes.NOT_FOUND)) {
         return null;
       }
