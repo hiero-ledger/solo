@@ -780,6 +780,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     const data: string[] = [
       `Solo Chart Version: ${config.versions.soloChart}`,
       `Consensus Node Version: ${config.versions.consensus}`,
+      `Block Node Version: ${config.versions.blockNode}`,
       `Mirror Node Version: ${config.versions.mirror}`,
       `Explorer Version: ${config.versions.explorer}`,
       `JSON RPC Relay Version: ${config.versions.relay}`,
