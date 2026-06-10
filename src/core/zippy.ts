@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from './errors/solo-errors.js';
-import {SoloError} from './errors/solo-error.js';
 import fs from 'node:fs';
 import AdmZip from 'adm-zip';
 import * as tar from 'tar';
@@ -50,7 +49,7 @@ export class Zippy {
 
       return destinationPath;
     } catch (error: Error | any) {
-      throw new SoloError(`failed to unzip ${sourcePath}: ${error.message}`, error);
+      throw new SoloErrors.system.archiveUnzipFailed(sourcePath, error);
     }
   }
 
@@ -88,7 +87,7 @@ export class Zippy {
 
       return destinationPath;
     } catch (error: Error | any) {
-      throw new SoloError(`failed to unzip ${sourcePath}: ${error.message}`, error);
+      throw new SoloErrors.system.archiveUnzipFailed(sourcePath, error);
     }
   }
 
@@ -118,7 +117,7 @@ export class Zippy {
       );
       return destinationPath;
     } catch (error: Error | any) {
-      throw new SoloError(`failed to tar ${sourcePath}: ${error.message}`, error);
+      throw new SoloErrors.system.archiveTarFailed(sourcePath, error);
     }
   }
 
@@ -145,7 +144,7 @@ export class Zippy {
       });
       return destinationPath;
     } catch (error: Error | any) {
-      throw new SoloError(`failed to untar ${sourcePath}: ${error.message}`, error);
+      throw new SoloErrors.system.archiveUntarFailed(sourcePath, error);
     }
   }
 }

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from './errors/solo-errors.js';
-import {SoloError} from './errors/solo-error.js';
 import {Flags as flags} from '../commands/flags.js';
 import fs from 'node:fs';
 import {Templates} from './templates.js';
@@ -85,13 +84,10 @@ export class CertificateManager {
         .secrets()
         .createOrReplace(namespace, name, SecretType.OPAQUE, data, labels);
       if (!isSecretCreated) {
-        throw new SoloError(`failed to create secret for TLS certificates for node '${nodeAlias}'`);
+        throw new SoloErrors.component.certificateSecretCreationFailed(nodeAlias);
       }
     } catch (error: Error | any) {
-      const errorMessage =
-        'failed to copy tls certificate to secret ' +
-        `'${Templates.renderGrpcTlsCertificatesSecretName(nodeAlias, type)}': ${error.message}`;
-      throw new SoloError(errorMessage, error);
+      throw new SoloErrors.component.certificateSecretCreationFailed(nodeAlias, error);
     }
   }
 
@@ -130,16 +126,13 @@ export class CertificateManager {
     };
 
     if (grpcTlsParsedValues.certs.length !== grpcTlsParsedValues.keys.length) {
-      throw new SoloError(
-        "The structure of the gRPC TLS Certificate doesn't match" +
-          `Certificates: ${grpcTlsCertificatePathsUnparsed}, Keys: ${grpcTlsKeyPathsUnparsed}`,
-      );
+      throw new SoloErrors.component.grpcTlsCertMismatch(grpcTlsCertificatePathsUnparsed, grpcTlsKeyPathsUnparsed);
     }
 
     if (grpcTlsParsedValues.certs.length !== grpcTlsParsedValues.keys.length) {
-      throw new SoloError(
-        "The structure of the gRPC Web TLS Certificate doesn't match" +
-          `Certificates: ${grpcWebTlsCertificatePathsUnparsed}, Keys: ${grpcWebTlsKeyPathsUnparsed}`,
+      throw new SoloErrors.component.grpcWebTlsCertMismatch(
+        grpcWebTlsCertificatePathsUnparsed,
+        grpcWebTlsKeyPathsUnparsed,
       );
     }
 
@@ -179,12 +172,12 @@ export class CertificateManager {
   private parseAndValidate(input: string, type: string): {nodeAlias: NodeAlias; filePath: string}[] {
     return input.split(',').map((line, index) => {
       if (!line.includes('=')) {
-        throw new SoloError(`Failed to parse input ${input} of type ${type} on ${line}, index ${index}`);
+        throw new SoloErrors.component.certificateParsingFailed(input, type, line as unknown as number, index);
       }
 
       const [nodeAlias, filePath] = line.split('=') as [NodeAlias, string];
       if (!nodeAlias?.length || !filePath?.length) {
-        throw new SoloError(`Failed to parse input ${input} of type ${type} on ${line}, index ${index}`);
+        throw new SoloErrors.component.certificateParsingFailed(input, type, line as unknown as number, index);
       }
 
       let fileExists = false;
@@ -194,7 +187,7 @@ export class CertificateManager {
         fileExists = false;
       }
       if (!fileExists) {
-        throw new SoloError(`File doesn't exist on path ${input} input of type ${type} on ${line}, index ${index}`);
+        throw new SoloErrors.component.certificateFileNotFound(input, type, line as unknown as number, index);
       }
 
       return {nodeAlias, filePath};

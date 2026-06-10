@@ -24,6 +24,11 @@ on:
         type: string
         required: false
         default: ""
+      use-edge:
+        description: "Enable --edge flag for the one-shot deploy"
+        type: boolean
+        required: false
+        default: false
   workflow_call:
     inputs:
       cn-edge-version:
@@ -31,6 +36,11 @@ on:
         type: string
         required: false
         default: ""
+      use-edge:
+        description: "Enable --edge flag for the one-shot deploy"
+        type: boolean
+        required: false
+        default: false
   pull_request:
     types:
       - opened
@@ -140,6 +150,9 @@ jobs:
             export CONSENSUS_NODE_EDGE_VERSION="${CN_EDGE_VERSION}"
           else
             echo "No consensus node edge version specified, using default from version.ts"
+          fi
+          if [[ "${{ inputs.use-edge }}" == "true" ]]; then
+            echo ONE_SHOT_USE_EDGE=true >> .env
           fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env

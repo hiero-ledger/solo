@@ -34,7 +34,6 @@ import {Templates} from '../../../../core/templates.js';
 import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {getSoloVersion} from '../../../../../version.js';
 import * as constants from '../../../../core/constants.js';
-import {SoloError} from '../../../../core/errors/solo-error.js';
 import {Flags as flags} from '../../../../commands/flags.js';
 import {promptTheUserForDeployment} from '../../../../core/resolvers.js';
 import {ConsensusNode} from '../../../../core/model/consensus-node.js';
@@ -271,15 +270,23 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     //* add the new nodes to components
     for (const nodeAlias of nodeAliases) {
-      this.configuration.components.addNewComponent(
-        componentFactory.createNewConsensusNodeComponent(
-          Templates.renderComponentIdFromNodeAlias(nodeAlias),
-          clusterReference,
-          namespace,
-          DeploymentPhase.REQUESTED,
-        ),
+      const consensusNodeComponent: ConsensusNodeStateSchema = componentFactory.createNewConsensusNodeComponent(
+        Templates.renderComponentIdFromNodeAlias(nodeAlias),
+        clusterReference,
+        namespace,
+        DeploymentPhase.REQUESTED,
+      );
+
+      const consensusNodeAdded: boolean = this.configuration.components.addNewComponent(
+        consensusNodeComponent,
         ComponentTypes.ConsensusNode,
       );
+
+      if (!consensusNodeAdded) {
+        this.logger.info(
+          `Consensus node with id: ${consensusNodeComponent.metadata.id} already exists, skipping creation`,
+        );
+      }
     }
 
     await this.persist();
@@ -318,15 +325,12 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         .configMaps()
         .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
     } catch (error) {
-      throw error instanceof ResourceNotFoundError
-        ? error
-        : new SoloError(
-            `Failed to get remote config ConfigMap for namespace: ${namespace}, context: ${context}. Error: ${error.message}`,
-            error,
-          );
+      throw error instanceof ResourceNotFoundError ? error : new SoloErrors.system.kubernetesApiInvalidResponse();
     }
     if (!configMap) {
-      throw new SoloError(`Remote config ConfigMap not found for namespace: ${namespace}, context: ${context}`);
+      throw new SoloErrors.system.resourceNotFound(
+        `remote config ConfigMap for namespace: ${namespace}, context: ${context}`,
+      );
     }
 
     return configMap;
@@ -473,7 +477,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
             break;
           }
           default: {
-            throw new SoloError(`Unsupported component type: ${componentType}`);
+            throw new SoloErrors.internal.remoteConfigUnsupportedComponent(componentType);
           }
         }
       }
@@ -531,7 +535,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     if (!currentDeployment) {
-      throw new SoloError(`Selected deployment name is not set in local config - ${deploymentName}`);
+      throw new SoloErrors.internal.remoteConfigDeploymentNotSet(deploymentName);
     }
 
     const namespace: NamespaceNameAsString = currentDeployment.namespace;
@@ -554,7 +558,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     if (!context) {
-      throw new SoloError("Context is not passed and default one can't be acquired");
+      throw new SoloErrors.internal.remoteConfigContextUnavailable();
     }
 
     this.logger.warn(`Context not found in flags, setting it to: ${context}`);
@@ -569,7 +573,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
    */
   public getConsensusNodes(): ConsensusNode[] {
     if (!this.isLoaded()) {
-      throw new SoloError('Remote configuration is not loaded, and was expected to be loaded');
+      throw new SoloErrors.internal.readRemoteConfigBeforeLoad();
     }
 
     const consensusNodes: ConsensusNode[] = [];
@@ -716,7 +720,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         break;
       }
       default: {
-        throw new SoloError(`Unsupported component type: ${componentType}`);
+        throw new SoloErrors.internal.remoteConfigUnsupportedComponent(componentType);
       }
     }
   }

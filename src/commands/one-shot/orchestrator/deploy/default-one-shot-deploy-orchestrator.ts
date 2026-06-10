@@ -255,12 +255,37 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   )
                 : settingsMergedPath;
 
+              const mergedApplicationPropertiesPath: string = PathEx.join(
+                mergedDirectory,
+                constants.APPLICATION_PROPERTIES,
+              );
               config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationProperties)] =
                 this.concatConfigFiles(
                   PathEx.join(defaultsDirectory, constants.APPLICATION_PROPERTIES),
                   PathEx.join(overridesDirectory, constants.APPLICATION_PROPERTIES),
-                  PathEx.join(mergedDirectory, constants.APPLICATION_PROPERTIES),
+                  mergedApplicationPropertiesPath,
                 );
+
+              // Remove the properties that are managed by solo from the template.
+              // They will be populated later when building the staging directory
+              const applicationPropertiesMerged: string = fs.readFileSync(mergedApplicationPropertiesPath, 'utf8');
+              const propertiesLines: string[] = applicationPropertiesMerged.split('\n');
+              const soloManagedKeys: Set<string> = new Set([
+                'hedera.realm',
+                'hedera.shard',
+                'contracts.chainId',
+                'blockStream.streamMode',
+                'blockStream.writerMode',
+              ]);
+              const filteredLines: string[] = propertiesLines.filter((line: string): boolean => {
+                const keyValuePair: string[] = line.split('=');
+                if (keyValuePair && keyValuePair.length === 2) {
+                  return !soloManagedKeys.has(keyValuePair[0]);
+                }
+                return true;
+              });
+
+              fs.writeFileSync(mergedApplicationPropertiesPath, filteredLines.join('\n'));
 
               // For CN >= 0.73.0, use state-on-disk application.env instead of default small-memory
               config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationEnv)] = PathEx.join(
@@ -410,12 +435,17 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 deployConfig.namespace,
               );
               blockNode.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(
+
+              const blockNodeAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
                 blockNode,
                 ComponentTypes.BlockNode,
                 false,
                 true,
               );
+
+              if (!blockNodeAdded) {
+                this.logger.info(`Block node with id: ${blockNode.metadata.id} already exists, skipping creation`);
+              }
             }
 
             if (deployConfig.deployExplorer) {
@@ -424,12 +454,17 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 deployConfig.namespace,
               );
               explorer.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(
+
+              const explorerAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
                 explorer,
                 ComponentTypes.Explorer,
                 false,
                 true,
               );
+
+              if (!explorerAdded) {
+                this.logger.info(`Explorer with id: ${explorer.metadata.id} already exists, skipping creation`);
+              }
             }
 
             if (deployConfig.deployMirrorNode) {
@@ -438,12 +473,17 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 deployConfig.namespace,
               );
               mirrorNode.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(
+
+              const mirrorNodeAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
                 mirrorNode,
                 ComponentTypes.MirrorNode,
                 false,
                 true,
               );
+
+              if (!mirrorNodeAdded) {
+                this.logger.info(`Mirror node with id ${mirrorNode.metadata.id} already exists, skipping creation`);
+              }
             }
 
             if (deployConfig.deployRelay) {
@@ -457,7 +497,16 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 nodeIds,
               );
               relay.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(relay, ComponentTypes.RelayNodes, false, true);
+              const relayAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
+                relay,
+                ComponentTypes.RelayNodes,
+                false,
+                true,
+              );
+
+              if (!relayAdded) {
+                this.logger.info(`Relay node with id: ${relay.metadata.id} already exists, skipping creation`);
+              }
             }
 
             await this.remoteConfig.persist();
