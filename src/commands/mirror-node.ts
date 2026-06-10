@@ -629,6 +629,8 @@ export class MirrorNodeCommand extends BaseCommand {
       true,
     );
 
+    this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
+
     showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
 
     if (commandType === MirrorNodeCommandType.ADD) {
@@ -1397,12 +1399,6 @@ export class MirrorNodeCommand extends BaseCommand {
           },
         },
         this.checkPodsAreReadyNodeTask(),
-        {
-          title: 'Signal mirror node deployed',
-          task: ({config}: MirrorNodeDeployContext): void => {
-            this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
-          },
-        },
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',

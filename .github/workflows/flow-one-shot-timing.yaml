@@ -258,7 +258,6 @@ jobs:
             echo ""
             echo "mirrorNode:"
             echo "  --mirror-node-version: \"${{ steps.versions.outputs.mn-version }}\""
-            echo "  --pinger: false"
             echo ""
             echo "relayNode:"
             echo "  --relay-release: \"${{ steps.versions.outputs.relay-version }}\""
@@ -309,7 +308,7 @@ jobs:
 
             echo "-- Cold start --"
             COLD_SAMPLE_START=$SECONDS
-            $SOLO_CMD one-shot falcon deploy --no-parallel-deploy --values-file "$VALUES_FILE"
+            $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
             COLD_ELAPSED=$(( SECONDS - COLD_SAMPLE_START ))
             COLD_SAMPLES+=("$COLD_ELAPSED")
             echo "Cold ${i}: $(( COLD_ELAPSED / 60 ))m $(( COLD_ELAPSED % 60 ))s (${COLD_ELAPSED}s)"
@@ -318,7 +317,7 @@ jobs:
 
             echo "-- Warm start --"
             WARM_SAMPLE_START=$SECONDS
-            $SOLO_CMD one-shot falcon deploy --no-parallel-deploy --values-file "$VALUES_FILE"
+            $SOLO_CMD one-shot falcon deploy --values-file "$VALUES_FILE"
             WARM_ELAPSED=$(( SECONDS - WARM_SAMPLE_START ))
             WARM_SAMPLES+=("$WARM_ELAPSED")
             echo "Warm ${i}: $(( WARM_ELAPSED / 60 ))m $(( WARM_ELAPSED % 60 ))s (${WARM_ELAPSED}s)"

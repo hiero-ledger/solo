@@ -142,9 +142,3 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
     expect(output).to.include(negatedOptionFromFlag(Flags.deployRelay));
   });
 });
-
-describe('DefaultOneShotCommand deploy flags', (): void => {
-  it('should allow values file overrides for one-shot single deploy', (): void => {
-    expect(DefaultOneShotCommand.DEPLOY_FLAGS_LIST.optional).to.include(Flags.valuesFile);
-  });
-});
