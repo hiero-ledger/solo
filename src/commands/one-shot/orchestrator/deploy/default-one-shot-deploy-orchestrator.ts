@@ -405,6 +405,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           return {
             ...baseTask,
             skip: (context_: OneShotSingleDeployContext): boolean => {
+              // Idempotency guard: skip if cluster ref already exists in local config
               if (context_.deploymentStateSnapshot?.localConfig.clusterRefs.has(context_.config.clusterRef)) {
                 this.logger.info(
                   `Step '${ClusterReferenceCommandDefinition.CONNECT_COMMAND}' skipped: cluster ref already in local config`,
@@ -445,6 +446,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           return {
             ...baseTask,
             skip: (context_: OneShotSingleDeployContext): boolean => {
+              // Idempotency guard: skip if pod-monitor-role exists in cluster
               if (context_.deploymentStateSnapshot?.cluster.podMonitorRoleExists) {
                 this.logger.info(
                   `Step '${ClusterReferenceCommandDefinition.SETUP_COMMAND}' skipped: pod-monitor-role already installed`,
@@ -467,6 +469,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           return {
             ...baseTask,
             skip: (context_: OneShotSingleDeployContext): boolean => {
+              // Idempotency guard: skip if keys already exist in the SOLO_HOME directory
               if (context_.deploymentStateSnapshot?.keys.consensusKeysOnDisk) {
                 this.logger.info(
                   `Step '${KeysCommandDefinition.KEYS_COMMAND}' skipped: consensus keys already on disk`,
