@@ -48,7 +48,7 @@ tasks:
           sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
               -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
             "{{ .USER_WORKING_DIR }}/falcon-values.yaml" > "${RESOLVED}"
-          $SOLO_COMMAND one-shot falcon deploy \
+          ONE_SHOT_WITH_BLOCK_NODE=true $SOLO_COMMAND one-shot falcon deploy \
             --values-file "${RESOLVED}" --num-consensus-nodes 2 --no-rollback
           rm -f "${RESOLVED}"
 
@@ -62,7 +62,7 @@ tasks:
           sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
               -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
             "{{ .USER_WORKING_DIR }}/falcon-values.yaml" > "${RESOLVED}"
-          $SOLO_COMMAND one-shot falcon deploy \
+          ONE_SHOT_WITH_BLOCK_NODE=true $SOLO_COMMAND one-shot falcon deploy \
             --values-file "${RESOLVED}" --num-consensus-nodes 2 \
             --deploy-explorer=false --deploy-relay=false
           rm -f "${RESOLVED}"
@@ -77,7 +77,7 @@ tasks:
           sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
               -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
             "{{ .USER_WORKING_DIR }}/falcon-values.yaml" > "${RESOLVED}"
-          $SOLO_COMMAND one-shot falcon deploy \
+          ONE_SHOT_WITH_BLOCK_NODE=true $SOLO_COMMAND one-shot falcon deploy \
             --values-file "${RESOLVED}" --num-consensus-nodes 2 \
             --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
           rm -f "${RESOLVED}"
@@ -169,7 +169,7 @@ tasks:
     desc: Destroy the Solo network using one-shot falcon destroy
     cmds:
       # Solo one-shot falcon destroy
-      - cmd: $SOLO_COMMAND one-shot falcon destroy
+      - cmd: ONE_SHOT_WITH_BLOCK_NODE=true $SOLO_COMMAND one-shot falcon destroy
 
       # Delete Kind cluster
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
