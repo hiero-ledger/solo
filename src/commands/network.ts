@@ -246,6 +246,8 @@ export class NetworkCommand extends BaseCommand {
       flags.wrapsEnabled,
       flags.wrapsKeyPath,
       flags.tssEnabled,
+      flags.blockNodeMessageSizeSoftLimitBytes,
+      flags.blockNodeMessageSizeHardLimitBytes,
     ],
   };
 
@@ -1482,6 +1484,18 @@ export class NetworkCommand extends BaseCommand {
             }
 
             this.remoteConfig.configuration.state.tssEnabled = tssEnabled;
+
+            // Deployment-wide block node message-size overrides written into block-nodes.json.
+            // Persisted here so every later regeneration (node add/setup, block node add, etc.) honors them.
+            const softLimitBytes: number = this.configManager.getFlag(flags.blockNodeMessageSizeSoftLimitBytes);
+            const hardLimitBytes: number = this.configManager.getFlag(flags.blockNodeMessageSizeHardLimitBytes);
+            if (typeof softLimitBytes === 'number') {
+              this.remoteConfig.configuration.state.blockNodeMessageSizeSoftLimitBytes = softLimitBytes;
+            }
+            if (typeof hardLimitBytes === 'number') {
+              this.remoteConfig.configuration.state.blockNodeMessageSizeHardLimitBytes = hardLimitBytes;
+            }
+
             await this.remoteConfig.persist();
 
             context_.config = await this.prepareConfig(task, argv);

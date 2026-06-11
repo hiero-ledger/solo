@@ -76,6 +76,8 @@ interface BlockNodeDeployConfigClass {
   releaseName: string;
   livenessCheckPort: number;
   priorityMapping: Record<NodeAlias, number>;
+  blockNodeMessageSizeSoftLimitBytes: Optional<number>;
+  blockNodeMessageSizeHardLimitBytes: Optional<number>;
 }
 
 interface BlockNodeDeployContext {
@@ -136,6 +138,8 @@ interface BlockNodeAddExternalConfigClass {
   newExternalBlockNodeComponent: ExternalBlockNodeStateSchema;
   namespace: NamespaceName;
   priorityMapping: Record<NodeAlias, number>;
+  blockNodeMessageSizeSoftLimitBytes: Optional<number>;
+  blockNodeMessageSizeHardLimitBytes: Optional<number>;
 }
 
 interface BlockNodeAddExternalContext {
@@ -188,6 +192,8 @@ export class BlockNodeCommand extends BaseCommand {
       flags.blockNodeVersion,
       flags.blockNodeChartDirectory,
       flags.blockNodeTssOverlay,
+      flags.blockNodeMessageSizeSoftLimitBytes,
+      flags.blockNodeMessageSizeHardLimitBytes,
       flags.chartDirectory,
       flags.clusterRef,
       flags.devMode,
@@ -205,7 +211,14 @@ export class BlockNodeCommand extends BaseCommand {
 
   public static readonly ADD_EXTERNAL_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.externalBlockNodeAddress],
-    optional: [flags.clusterRef, flags.devMode, flags.quiet, flags.priorityMapping],
+    optional: [
+      flags.clusterRef,
+      flags.devMode,
+      flags.quiet,
+      flags.priorityMapping,
+      flags.blockNodeMessageSizeSoftLimitBytes,
+      flags.blockNodeMessageSizeHardLimitBytes,
+    ],
   };
 
   public static readonly DELETE_EXTERNAL_FLAGS_LIST: CommandFlags = {
@@ -233,7 +246,37 @@ export class BlockNodeCommand extends BaseCommand {
     ],
   };
 
-  private async prepareHelmChartValuesForBlockNode(
+  /**
+   * Persists the deployment-wide block node message-size overrides into remote config when provided.
+   * BlockNodesJsonWrapper reads these when generating block-nodes.json for the consensus nodes; when
+   * they are left undefined it falls back to the TSS config defaults.
+   */
+  private async persistBlockNodeMessageSizeOverrides(
+    softLimitBytes: Optional<number>,
+    hardLimitBytes: Optional<number>,
+  ): Promise<void> {
+    if (!this.remoteConfig.isLoaded()) {
+      return;
+    }
+
+    const state: DeploymentStateSchema = this.remoteConfig.configuration.state;
+    let changed: boolean = false;
+
+    if (typeof softLimitBytes === 'number') {
+      state.blockNodeMessageSizeSoftLimitBytes = softLimitBytes;
+      changed = true;
+    }
+    if (typeof hardLimitBytes === 'number') {
+      state.blockNodeMessageSizeHardLimitBytes = hardLimitBytes;
+      changed = true;
+    }
+
+    if (changed) {
+      await this.remoteConfig.persist();
+    }
+  }
+
+  private async prepareValuesArgForBlockNode(
     config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
   ): Promise<HelmChartValues> {
     const chartValues: HelmChartValues = new HelmChartValues().file(constants.BLOCK_NODE_VALUES_FILE);
@@ -513,6 +556,11 @@ export class BlockNodeCommand extends BaseCommand {
 
             config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.imageTag);
 
+            await this.persistBlockNodeMessageSizeOverrides(
+              config.blockNodeMessageSizeSoftLimitBytes,
+              config.blockNodeMessageSizeHardLimitBytes,
+            );
+
             if (!this.oneShotState.isActive()) {
               return ListrLock.newAcquireLockTask(lease, task);
             }
@@ -536,7 +584,7 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
-            config.chartValues = await this.prepareHelmChartValuesForBlockNode(config);
+            config.chartValues = await this.prepareValuesArgForBlockNode(config);
           },
         },
         {
@@ -846,7 +894,7 @@ export class BlockNodeCommand extends BaseCommand {
         {
           title: 'Prepare chart values',
           task: async ({config}): Promise<void> => {
-            config.chartValues = await this.prepareHelmChartValuesForBlockNode(config);
+            config.chartValues = await this.prepareValuesArgForBlockNode(config);
           },
         },
         {
@@ -1017,6 +1065,11 @@ export class BlockNodeCommand extends BaseCommand {
               'Configuring external block node, ' +
                 `${chalk.grey('ID')} ${chalk.cyan(`[${id}]`)}, ` +
                 `${chalk.grey('address')} ${chalk.cyan(`[${address}:${port}]`)} `,
+            );
+
+            await this.persistBlockNodeMessageSizeOverrides(
+              config.blockNodeMessageSizeSoftLimitBytes,
+              config.blockNodeMessageSizeHardLimitBytes,
             );
 
             if (!this.oneShotState.isActive()) {
