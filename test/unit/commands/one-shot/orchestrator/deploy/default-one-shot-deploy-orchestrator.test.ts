@@ -8,6 +8,9 @@ import {NamespaceName} from '../../../../../../src/types/namespace/namespace-nam
 import {SoloError} from '../../../../../../src/core/errors/solo-error.js';
 import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
 import {type DeploymentStateSnapshot} from '../../../../../../src/commands/one-shot/deployment-state-snapshot.js';
+import {ComponentTypes} from '../../../../../../src/core/config/remote/enumerations/component-types.js';
+import {DeploymentPhase} from '../../../../../../src/data/schema/model/remote/deployment-phase.js';
+import * as constants from '../../../../../../src/core/constants.js';
 
 type MockType = any;
 type MockListr = MockType;
@@ -348,6 +351,179 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
 
     expect(snapshot.helm.installedReleases.has('solo-deployment')).to.be.true;
     expect(snapshot.helm.installedReleases.has('solo-cluster-setup')).to.be.true;
+  });
+});
+
+function makeSnapshot(
+  componentPhases: Map<ComponentTypes, DeploymentPhase>,
+  installedReleases: Set<string> = new Set<string>(),
+): DeploymentStateSnapshot {
+  return {
+    localConfig: {deploymentExists: false, clusterRefs: new Set<string>()},
+    remoteConfig: {configMapExists: true, componentPhases},
+    helm: {installedReleases},
+    keys: {consensusKeysOnDisk: false},
+    accounts: {accountsFileExists: false},
+  };
+}
+
+describe('DefaultOneShotDeployOrchestrator isComponentInPhaseAtLeast', (): void => {
+  it('returns false when the snapshot is undefined', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isComponentInPhaseAtLeast(undefined, ComponentTypes.MirrorNode, DeploymentPhase.DEPLOYED)).to.be
+      .false;
+  });
+
+  it('returns false when the component has no recorded phase', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const snapshot: DeploymentStateSnapshot = makeSnapshot(new Map());
+
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isComponentInPhaseAtLeast(snapshot, ComponentTypes.MirrorNode, DeploymentPhase.DEPLOYED)).to.be
+      .false;
+  });
+
+  it('returns false when the component is only REQUESTED (below DEPLOYED)', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const snapshot: DeploymentStateSnapshot = makeSnapshot(
+      new Map([[ComponentTypes.MirrorNode, DeploymentPhase.REQUESTED]]),
+    );
+
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isComponentInPhaseAtLeast(snapshot, ComponentTypes.MirrorNode, DeploymentPhase.DEPLOYED)).to.be
+      .false;
+  });
+
+  it('returns true when the component is exactly at the minimum phase', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const snapshot: DeploymentStateSnapshot = makeSnapshot(
+      new Map([[ComponentTypes.BlockNode, DeploymentPhase.DEPLOYED]]),
+    );
+
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isComponentInPhaseAtLeast(snapshot, ComponentTypes.BlockNode, DeploymentPhase.DEPLOYED)).to.be
+      .true;
+  });
+
+  it('returns true when the component is beyond the minimum phase (e.g. STARTED >= DEPLOYED)', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const snapshot: DeploymentStateSnapshot = makeSnapshot(
+      new Map([[ComponentTypes.RelayNodes, DeploymentPhase.STARTED]]),
+    );
+
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isComponentInPhaseAtLeast(snapshot, ComponentTypes.RelayNodes, DeploymentPhase.DEPLOYED)).to.be
+      .true;
+  });
+
+  it('honours the requested minimum phase (CONFIGURED for consensus setup)', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const deployedOnly: DeploymentStateSnapshot = makeSnapshot(
+      new Map([[ComponentTypes.ConsensusNode, DeploymentPhase.DEPLOYED]]),
+    );
+    const configured: DeploymentStateSnapshot = makeSnapshot(
+      new Map([[ComponentTypes.ConsensusNode, DeploymentPhase.CONFIGURED]]),
+    );
+
+    // DEPLOYED is below CONFIGURED, so the consensus setup step must NOT be skipped.
+    // @ts-expect-error - to access private method
+    const deployedSkipsSetup: boolean = orchestrator.isComponentInPhaseAtLeast(
+      deployedOnly,
+      ComponentTypes.ConsensusNode,
+      DeploymentPhase.CONFIGURED,
+    );
+    // @ts-expect-error - to access private method
+    const configuredSkipsSetup: boolean = orchestrator.isComponentInPhaseAtLeast(
+      configured,
+      ComponentTypes.ConsensusNode,
+      DeploymentPhase.CONFIGURED,
+    );
+    expect(deployedSkipsSetup).to.be.false;
+    expect(configuredSkipsSetup).to.be.true;
+  });
+
+  it('honours the requested minimum phase (STARTED for consensus start)', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const configured: DeploymentStateSnapshot = makeSnapshot(
+      new Map([[ComponentTypes.ConsensusNode, DeploymentPhase.CONFIGURED]]),
+    );
+    const started: DeploymentStateSnapshot = makeSnapshot(
+      new Map([[ComponentTypes.ConsensusNode, DeploymentPhase.STARTED]]),
+    );
+
+    // CONFIGURED is below STARTED, so the consensus start step must NOT be skipped.
+    // @ts-expect-error - to access private method
+    const configuredSkipsStart: boolean = orchestrator.isComponentInPhaseAtLeast(
+      configured,
+      ComponentTypes.ConsensusNode,
+      DeploymentPhase.STARTED,
+    );
+    // @ts-expect-error - to access private method
+    const startedSkipsStart: boolean = orchestrator.isComponentInPhaseAtLeast(
+      started,
+      ComponentTypes.ConsensusNode,
+      DeploymentPhase.STARTED,
+    );
+    expect(configuredSkipsStart).to.be.false;
+    expect(startedSkipsStart).to.be.true;
+  });
+
+  it('evaluates each component independently', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const snapshot: DeploymentStateSnapshot = makeSnapshot(
+      new Map([
+        [ComponentTypes.MirrorNode, DeploymentPhase.DEPLOYED],
+        [ComponentTypes.Explorer, DeploymentPhase.REQUESTED],
+      ]),
+    );
+
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isComponentInPhaseAtLeast(snapshot, ComponentTypes.MirrorNode, DeploymentPhase.DEPLOYED)).to.be
+      .true;
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isComponentInPhaseAtLeast(snapshot, ComponentTypes.Explorer, DeploymentPhase.DEPLOYED)).to.be
+      .false;
+  });
+});
+
+describe('DefaultOneShotDeployOrchestrator isConsensusDeployStepComplete', (): void => {
+  it('returns false when the snapshot is undefined', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const noSnapshot: DeploymentStateSnapshot | undefined = undefined;
+
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isConsensusDeployStepComplete(noSnapshot)).to.be.false;
+  });
+
+  it('returns false on a fresh deploy (no phase, no Helm release)', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const snapshot: DeploymentStateSnapshot = makeSnapshot(new Map());
+
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isConsensusDeployStepComplete(snapshot)).to.be.false;
+  });
+
+  it('returns true when the consensus node phase is at or beyond DEPLOYED', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const snapshot: DeploymentStateSnapshot = makeSnapshot(
+      new Map([[ComponentTypes.ConsensusNode, DeploymentPhase.DEPLOYED]]),
+    );
+
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isConsensusDeployStepComplete(snapshot)).to.be.true;
+  });
+
+  it('returns true when the network Helm release already exists (phase not yet recorded)', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+    const snapshot: DeploymentStateSnapshot = makeSnapshot(
+      new Map([[ComponentTypes.ConsensusNode, DeploymentPhase.REQUESTED]]),
+      new Set<string>([constants.SOLO_DEPLOYMENT_CHART]),
+    );
+
+    // @ts-expect-error - to access private method
+    expect(orchestrator.isConsensusDeployStepComplete(snapshot)).to.be.true;
   });
 });
 

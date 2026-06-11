@@ -76,7 +76,7 @@ import {BlockNodeStateSchema} from '../../../../data/schema/model/remote/state/b
 import {MirrorNodeStateSchema} from '../../../../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {ExplorerStateSchema} from '../../../../data/schema/model/remote/state/explorer-state-schema.js';
 import {RelayNodeStateSchema} from '../../../../data/schema/model/remote/state/relay-node-state-schema.js';
-import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
+import {DeploymentPhase, isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../../../../core/config/remote/enumerations/component-types.js';
 import {ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
 import chalk from 'chalk';
@@ -129,6 +129,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
   ): OrchestratorPipeline<OneShotSingleDeployContext> {
     let config: OneShotSingleDeployConfigClass;
     const getConfigGlobal: () => OneShotSingleDeployConfigClass = (): OneShotSingleDeployConfigClass => config;
+
+    let deploymentStateSnapshot: DeploymentStateSnapshot | undefined;
 
     const phases: Array<OrchestratorPipelinePhase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
       new OrchestratorPipelinePhase('Initialize', {
@@ -328,6 +330,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           exitOnError: false,
           task: async (context_: OneShotSingleDeployContext): Promise<void> => {
             context_.deploymentStateSnapshot = await this.buildDeploymentStateSnapshot(getConfig());
+            deploymentStateSnapshot = context_.deploymentStateSnapshot;
           },
         }),
       }),
@@ -538,7 +541,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 BlockCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
                 this.taskList,
-                (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
+                (): boolean =>
+                  constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+                  this.isComponentInPhaseAtLeast(
+                    deploymentStateSnapshot,
+                    ComponentTypes.BlockNode,
+                    DeploymentPhase.DEPLOYED,
+                  ),
               ),
           }),
           OrchestratorPipelinePhase.composite('Deploy network node', [
@@ -551,6 +560,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   ConsensusCommandDefinition.DEPLOY_COMMAND,
                   (): string[] => DeployArgvBuilders.buildConsensusDeployArgv(getConfig()),
                   this.taskList,
+                  // Idempotency guard: skip if the consensus node is already deployed or the network Helm release exists.
+                  (): boolean => this.isConsensusDeployStepComplete(deploymentStateSnapshot),
                 ),
             }),
             OrchestratorPipelinePhase.composite('Setup and start consensus node', [
@@ -563,6 +574,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                     ConsensusCommandDefinition.SETUP_COMMAND,
                     (): string[] => DeployArgvBuilders.buildConsensusSetupArgv(getConfig()),
                     this.taskList,
+                    // Idempotency guard: skip if the consensus node is already configured (setup already ran).
+                    (): boolean =>
+                      this.isComponentInPhaseAtLeast(
+                        deploymentStateSnapshot,
+                        ComponentTypes.ConsensusNode,
+                        DeploymentPhase.CONFIGURED,
+                      ),
                   ),
               }),
               new OrchestratorPipelinePhase('Start consensus node', {
@@ -574,6 +592,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                     ConsensusCommandDefinition.START_COMMAND,
                     (): string[] => DeployArgvBuilders.buildConsensusStartArgv(getConfig()),
                     this.taskList,
+                    // Idempotency guard: skip if the consensus node is already started.
+                    (): boolean =>
+                      this.isComponentInPhaseAtLeast(
+                        deploymentStateSnapshot,
+                        ComponentTypes.ConsensusNode,
+                        DeploymentPhase.STARTED,
+                      ),
                   ),
               }),
               new OrchestratorPipelinePhase('Create accounts', {
@@ -590,7 +615,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 MirrorCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig().deployMirrorNode,
+                // Feature-flag short-circuit takes precedence; otherwise skip if already deployed (idempotency guard).
+                (): boolean =>
+                  !getConfig().deployMirrorNode ||
+                  this.isComponentInPhaseAtLeast(
+                    deploymentStateSnapshot,
+                    ComponentTypes.MirrorNode,
+                    DeploymentPhase.DEPLOYED,
+                  ),
               ),
           }),
           new OrchestratorPipelinePhase('Deploy explorer', {
@@ -600,7 +632,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 ExplorerCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildExplorerArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig().deployExplorer && !getConfig().minimalSetup,
+                // Feature-flag short-circuit takes precedence; otherwise skip if already deployed (idempotency guard).
+                (): boolean =>
+                  (!getConfig().deployExplorer && !getConfig().minimalSetup) ||
+                  this.isComponentInPhaseAtLeast(
+                    deploymentStateSnapshot,
+                    ComponentTypes.Explorer,
+                    DeploymentPhase.DEPLOYED,
+                  ),
               ),
           }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
           new OrchestratorPipelinePhase('Deploy JSON-RPC Relay', {
@@ -610,7 +649,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 RelayCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildRelayArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig().deployRelay && !getConfig().minimalSetup,
+                // Feature-flag short-circuit takes precedence; otherwise skip if already deployed (idempotency guard).
+                (): boolean =>
+                  (!getConfig().deployRelay && !getConfig().minimalSetup) ||
+                  this.isComponentInPhaseAtLeast(
+                    deploymentStateSnapshot,
+                    ComponentTypes.RelayNodes,
+                    DeploymentPhase.DEPLOYED,
+                  ),
               ),
           })
             .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
@@ -759,6 +805,38 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
   private getOneShotOutputDirectory(deploymentName: string): string {
     return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${deploymentName}`);
+  }
+
+  /**
+   * Idempotency guard shared by the optional-component `add` steps and the consensus-node steps.
+   * Returns true when the component's recorded phase is at or beyond {@link minimumPhase},
+   * indicating the corresponding step already completed in a prior run and should be skipped on
+   * re-run. Returns false when the snapshot is unavailable or the component has no recorded phase
+   * (treat as not yet at that phase).
+   */
+  private isComponentInPhaseAtLeast(
+    snapshot: DeploymentStateSnapshot | undefined,
+    componentType: ComponentTypes,
+    minimumPhase: DeploymentPhase,
+  ): boolean {
+    const phase: DeploymentPhase | undefined = snapshot?.remoteConfig.componentPhases.get(componentType);
+    if (phase === undefined) {
+      return false;
+    }
+    return isDeploymentPhaseAtLeast(phase, minimumPhase);
+  }
+
+  /**
+   * Idempotency guard for the `consensus deploy` step. Returns true when the consensus node is
+   * already at or beyond {@link DeploymentPhase.DEPLOYED}, or when the network Helm release
+   * ({@link constants.SOLO_DEPLOYMENT_CHART}) is already installed — either signal means the
+   * deploy step ran in a prior attempt and should be skipped on re-run.
+   */
+  private isConsensusDeployStepComplete(snapshot: DeploymentStateSnapshot | undefined): boolean {
+    if (this.isComponentInPhaseAtLeast(snapshot, ComponentTypes.ConsensusNode, DeploymentPhase.DEPLOYED)) {
+      return true;
+    }
+    return snapshot?.helm.installedReleases.has(constants.SOLO_DEPLOYMENT_CHART) ?? false;
   }
 
   private async buildDeploymentStateSnapshot(
