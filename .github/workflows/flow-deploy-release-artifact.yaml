@@ -679,6 +679,7 @@ jobs:
     needs:
       - prepare-release
       - hugo-docs-build-main
+      - docs-automation
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     with:
       docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'
