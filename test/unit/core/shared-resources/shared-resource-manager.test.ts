@@ -3,6 +3,8 @@
 import {expect} from 'chai';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import sinon from 'sinon';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 
 import {SharedResourceManager} from '../../../../src/core/shared-resources/shared-resource-manager.js';
 import {type ChartManager} from '../../../../src/core/chart-manager.js';
@@ -11,7 +13,8 @@ import {type HelmClient} from '../../../../src/integration/helm/helm-client.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import * as constants from '../../../../src/core/constants.js';
 import {type AnyObject} from '../../../../src/types/aliases.js';
-import {type HelmChartValues} from '../../../../src/integration/helm/model/values.js';
+import {HelmChartValues} from '../../../../src/integration/helm/model/values.js';
+import {PathEx} from '../../../../src/business/utils/path-ex.js';
 
 describe('SharedResourceManager', (): void => {
   const namespace: NamespaceName = NamespaceName.of('test-namespace');
@@ -22,6 +25,7 @@ describe('SharedResourceManager', (): void => {
   let helmStub: HelmClient;
   let chartManagerStub: ChartManager;
   let manager: SharedResourceManager;
+  let temporaryDirectory: string;
 
   const chartValueArguments: () => string[] = (): string[] => {
     const chartValues: HelmChartValues = (chartManagerStub.install as sinon.SinonStub).firstCall.args[5];
@@ -41,10 +45,12 @@ describe('SharedResourceManager', (): void => {
     chartManagerStub.uninstall = sinon.stub().resolves(true);
 
     manager = new SharedResourceManager(loggerStub, helmStub, chartManagerStub);
+    temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-shared-resource-manager-'));
   });
 
   afterEach((): void => {
     sinon.restore();
+    fs.rmSync(temporaryDirectory, {force: true, recursive: true});
   });
 
   describe('installChart()', (): void => {
@@ -116,6 +122,85 @@ describe('SharedResourceManager', (): void => {
       expect(valueArguments).to.include('--set');
       expect(valueArguments).to.include('redis.image.registry=gcr.io');
       expect(valueArguments).to.include('redis.sentinel.masterSet=mirror');
+    });
+
+    it('maps mirror-node scheduling values into shared-resource chart paths', async (): Promise<void> => {
+      const valuesFilePath: string = PathEx.join(temporaryDirectory, 'mirror-node-values.yaml');
+      fs.writeFileSync(
+        valuesFilePath,
+        [
+          'tolerations:',
+          '  - key: "solo.hashgraph.io/owner"',
+          '    operator: "Equal"',
+          '    value: "adhoc-performance-test"',
+          '    effect: "NoSchedule"',
+          'postgresql:',
+          '  postgresql:',
+          '    tolerations:',
+          '      - key: "solo-scheduling.io/os"',
+          '        operator: "Equal"',
+          '        value: "linux"',
+          '        effect: "NoSchedule"',
+          'redis:',
+          '  tolerations:',
+          '    - key: "solo.hashgraph.io/role"',
+          '      operator: "Equal"',
+          '      value: "consensus-node"',
+          '      effect: "NoSchedule"',
+          '',
+        ].join('\n'),
+      );
+
+      manager.setSchedulingChartValues(new HelmChartValues().file(valuesFilePath));
+
+      await manager.installChart(namespace, '', chartVersion, context);
+
+      const valueArguments: string[] = chartValueArguments();
+
+      expect(valueArguments).to.include('--set-literal');
+      expect(valueArguments).to.include('postgresql.primary.tolerations[0].key=solo.hashgraph.io/owner');
+      expect(valueArguments).to.include('postgresql.primary.tolerations[0].value=adhoc-performance-test');
+      expect(valueArguments).to.include('postgresql.primary.tolerations[1].key=solo-scheduling.io/os');
+      expect(valueArguments).to.include('redis.replica.tolerations[0].key=solo.hashgraph.io/owner');
+      expect(valueArguments).to.include('redis.replica.tolerations[0].value=adhoc-performance-test');
+      expect(valueArguments).to.include('redis.replica.tolerations[1].key=solo.hashgraph.io/role');
+      expect(valueArguments).to.include('redis.master.tolerations[1].key=solo.hashgraph.io/role');
+    });
+
+    it('maps direct shared-resource scheduling values from values files', async (): Promise<void> => {
+      const valuesFilePath: string = PathEx.join(temporaryDirectory, 'shared-resource-values.yaml');
+      fs.writeFileSync(
+        valuesFilePath,
+        [
+          'postgresql:',
+          '  primary:',
+          '    nodeSelector:',
+          '      solo.hashgraph.io/role: "database"',
+          '    tolerations:',
+          '      - key: "solo.hashgraph.io/owner"',
+          '        operator: "Equal"',
+          '        value: "adhoc-single-day-test"',
+          '        effect: "NoSchedule"',
+          'redis:',
+          '  replica:',
+          '    tolerations:',
+          '      - key: "solo.hashgraph.io/owner"',
+          '        operator: "Equal"',
+          '        value: "adhoc-performance-test"',
+          '        effect: "NoSchedule"',
+          '',
+        ].join('\n'),
+      );
+
+      manager.setSchedulingChartValues(new HelmChartValues().file(valuesFilePath));
+
+      await manager.installChart(namespace, '', chartVersion, context);
+
+      const valueArguments: string[] = chartValueArguments();
+
+      expect(valueArguments).to.include(String.raw`postgresql.primary.nodeSelector.solo\.hashgraph\.io/role=database`);
+      expect(valueArguments).to.include('postgresql.primary.tolerations[0].value=adhoc-single-day-test');
+      expect(valueArguments).to.include('redis.replica.tolerations[0].value=adhoc-performance-test');
     });
 
     it('installs chart with the correct release name and chart name', async (): Promise<void> => {
