@@ -51,7 +51,7 @@ DEPLOYMENT="one-shot"
 NAMESPACE="one-shot"
 
 EXPECTED_MSG="no matching resources were found in the cluster"
-EXPECTED_ACCOUNT_ERR="Failed to get remote config ConfigMap"
+EXPECTED_ACCOUNT_ERR="Received an incorrect or unexpected response from the Kubernetes API"
 REDEPLOY_LOG="$(mktemp /tmp/solo-stale-config-redeploy-XXXX.log)"
 ACCOUNT_LOG="$(mktemp /tmp/solo-stale-config-account-XXXX.log)"
 
