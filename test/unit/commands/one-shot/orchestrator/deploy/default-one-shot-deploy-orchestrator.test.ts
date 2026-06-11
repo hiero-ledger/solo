@@ -1,29 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {describe, it} from 'mocha';
+import {describe, it, afterEach} from 'mocha';
 import {expect} from 'chai';
 import sinon from 'sinon';
 import {DefaultOneShotDeployOrchestrator} from '../../../../../../src/commands/one-shot/orchestrator/deploy/default-one-shot-deploy-orchestrator.js';
 import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
 import {SoloError} from '../../../../../../src/core/errors/solo-error.js';
 import {type OneShotSingleDeployConfigClass} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-config-class.js';
+import {type DeploymentStateSnapshot} from '../../../../../../src/commands/one-shot/deployment-state-snapshot.js';
 
 type MockType = any;
 type MockListr = MockType;
 
-function makeOrchestrator(): DefaultOneShotDeployOrchestrator {
+function makeOrchestrator(
+  overrides: {
+    localConfig?: MockType;
+    remoteConfig?: MockType;
+    helm?: MockType;
+  } = {},
+): DefaultOneShotDeployOrchestrator {
   return new DefaultOneShotDeployOrchestrator(
     {} as MockType,
     {} as MockType,
     {} as MockType,
+    overrides.localConfig ?? ({} as MockType),
+    overrides.remoteConfig ?? ({} as MockType),
     {} as MockType,
     {} as MockType,
     {} as MockType,
     {} as MockType,
     {} as MockType,
     {} as MockType,
-    {} as MockType,
-    {} as MockType,
+    overrides.helm ?? ({} as MockType),
   );
 }
 
@@ -202,5 +210,143 @@ describe('DefaultOneShotDeployOrchestrator non-Kind context guard', (): void => 
         expect((error as Error).message).to.equal('Aborted by user');
       }
     });
+  });
+});
+
+describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): void => {
+  afterEach((): void => {
+    sinon.restore();
+  });
+
+  it('returns conservative defaults when remoteConfig.load() throws', async (): Promise<void> => {
+    const remoteConfigMock: MockType = {
+      load: sinon.stub().rejects(new Error('K8s unreachable')),
+      isLoaded: sinon.stub().returns(false),
+      getComponentPhasesMap: sinon.stub().returns(new Map()),
+    };
+    const localConfigMock: MockType = {
+      isLoaded: false,
+    };
+    const helmMock: MockType = {
+      listReleases: sinon.stub().resolves([]),
+    };
+    const loggerMock: MockType = {
+      info: sinon.stub(),
+      debug: sinon.stub(),
+    };
+    const orchestrator: DefaultOneShotDeployOrchestrator = new DefaultOneShotDeployOrchestrator(
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      localConfigMock,
+      remoteConfigMock,
+      loggerMock,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      helmMock,
+    );
+
+    // @ts-expect-error - to access private method
+    const snapshot: DeploymentStateSnapshot = await orchestrator.buildDeploymentStateSnapshot(makeConfig());
+
+    expect(snapshot.remoteConfig.configMapExists).to.be.false;
+    expect(snapshot.remoteConfig.componentPhases.size).to.equal(0);
+  });
+
+  it('returns conservative defaults when helm.listReleases() throws', async (): Promise<void> => {
+    const remoteConfigMock: MockType = {
+      load: sinon.stub().rejects(new Error('ConfigMap not found')),
+      isLoaded: sinon.stub().returns(false),
+      getComponentPhasesMap: sinon.stub().returns(new Map()),
+    };
+    const localConfigMock: MockType = {
+      isLoaded: false,
+    };
+    const helmMock: MockType = {
+      listReleases: sinon.stub().rejects(new Error('Helm unavailable')),
+    };
+    const loggerMock: MockType = {
+      info: sinon.stub(),
+      debug: sinon.stub(),
+    };
+    const orchestrator: DefaultOneShotDeployOrchestrator = new DefaultOneShotDeployOrchestrator(
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      localConfigMock,
+      remoteConfigMock,
+      loggerMock,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      helmMock,
+    );
+
+    // @ts-expect-error - to access private method
+    const snapshot: DeploymentStateSnapshot = await orchestrator.buildDeploymentStateSnapshot(makeConfig());
+
+    expect(snapshot.helm.installedReleases.size).to.equal(0);
+  });
+
+  it('populates installedReleases from helm when available', async (): Promise<void> => {
+    const remoteConfigMock: MockType = {
+      load: sinon.stub().rejects(new Error('no config')),
+      isLoaded: sinon.stub().returns(false),
+      getComponentPhasesMap: sinon.stub().returns(new Map()),
+    };
+    const localConfigMock: MockType = {
+      isLoaded: false,
+    };
+    const helmMock: MockType = {
+      listReleases: sinon.stub().resolves([
+        {
+          name: 'solo-deployment',
+          namespace: 'one-shot',
+          revision: '1',
+          updated: '',
+          status: 'deployed',
+          chart: '',
+          app_version: '',
+        },
+        {
+          name: 'solo-cluster-setup',
+          namespace: 'one-shot',
+          revision: '1',
+          updated: '',
+          status: 'deployed',
+          chart: '',
+          app_version: '',
+        },
+      ]),
+    };
+    const loggerMock: MockType = {
+      info: sinon.stub(),
+      debug: sinon.stub(),
+    };
+    const orchestrator: DefaultOneShotDeployOrchestrator = new DefaultOneShotDeployOrchestrator(
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      localConfigMock,
+      remoteConfigMock,
+      loggerMock,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      helmMock,
+    );
+
+    // @ts-expect-error - to access private method
+    const snapshot: DeploymentStateSnapshot = await orchestrator.buildDeploymentStateSnapshot(makeConfig());
+
+    expect(snapshot.helm.installedReleases.has('solo-deployment')).to.be.true;
+    expect(snapshot.helm.installedReleases.has('solo-cluster-setup')).to.be.true;
   });
 });

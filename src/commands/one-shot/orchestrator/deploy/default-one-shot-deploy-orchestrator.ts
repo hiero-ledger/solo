@@ -22,17 +22,21 @@ import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../types/i
 import {type Realm, type Shard} from '../../../../types/index.js';
 import {type AccountManager} from '../../../../core/account-manager.js';
 import {type LocalConfigRuntimeState} from '../../../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type Deployment} from '../../../../business/runtime-state/config/local/deployment.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type SoloLogger} from '../../../../core/logging/solo-logger.js';
 import {type ConfigManager} from '../../../../core/config-manager.js';
 import {type OneShotState} from '../../../../core/one-shot-state.js';
 import {type K8Factory} from '../../../../integration/kube/k8-factory.js';
+import {type HelmClient} from '../../../../integration/helm/helm-client.js';
+import {type ReleaseItem} from '../../../../integration/helm/model/release/release-item.js';
 import {type LockManager} from '../../../../core/lock/lock-manager.js';
 import {type ComponentFactoryApi} from '../../../../core/config/remote/api/component-factory-api.js';
 import {type Lock} from '../../../../core/lock/lock.js';
 import {type OneShotSingleDeployConfigClass} from '../../one-shot-single-deploy-config-class.js';
 import {type OneShotVersionsObject} from '../../one-shot-versions-object.js';
 import {type OneShotSingleDeployContext} from '../../one-shot-single-deploy-context.js';
+import {type DeploymentStateSnapshot} from '../../deployment-state-snapshot.js';
 import {
   type CreatedPredefinedAccount,
   predefinedEcdsaAccountsWithAlias,
@@ -101,6 +105,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
+    @inject(InjectTokens.Helm) private readonly helm: HelmClient,
   ) {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
@@ -113,6 +118,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
+    this.helm = patchInject(helm, InjectTokens.Helm, this.constructor.name);
   }
 
   public buildDeployPipeline(
@@ -313,6 +319,15 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
 
             context_.createdAccounts = [];
+          },
+        }),
+      }),
+      new OrchestratorPipelinePhase('Check existing deployment state', {
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+          title: 'Check existing deployment state',
+          exitOnError: false,
+          task: async (context_: OneShotSingleDeployContext): Promise<void> => {
+            context_.deploymentStateSnapshot = await this.buildDeploymentStateSnapshot(getConfig());
           },
         }),
       }),
@@ -740,6 +755,60 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
   private getOneShotOutputDirectory(deploymentName: string): string {
     return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${deploymentName}`);
+  }
+
+  private async buildDeploymentStateSnapshot(
+    deployConfig: OneShotSingleDeployConfigClass,
+  ): Promise<DeploymentStateSnapshot> {
+    let deploymentExists: boolean = false;
+    let clusterReferences: Set<string> = new Set();
+    try {
+      await this.localConfig.load();
+      if (this.localConfig.isLoaded) {
+        deploymentExists = this.localConfig.configuration.deployments.some(
+          (deployment: Deployment): boolean => deployment.name === deployConfig.deployment,
+        );
+        clusterReferences = new Set(this.localConfig.configuration.clusterRefs.keys());
+      }
+    } catch {
+      this.logger.info('Local config unavailable during snapshot, treating as fresh deploy');
+    }
+
+    let configMapExists: boolean = false;
+    let componentPhases: Map<ComponentTypes, DeploymentPhase> = new Map();
+    try {
+      await this.remoteConfig.load(deployConfig.namespace, deployConfig.context);
+      configMapExists = true;
+      componentPhases = this.remoteConfig.getComponentPhasesMap();
+    } catch {
+      this.logger.info('Remote config unavailable during snapshot, treating as fresh deploy');
+    }
+
+    let installedReleases: Set<string> = new Set();
+    try {
+      const releases: ReleaseItem[] = await this.helm.listReleases(
+        false,
+        deployConfig.namespace.name,
+        deployConfig.context,
+      );
+      installedReleases = new Set(releases.map((release: ReleaseItem): string => release.name));
+    } catch {
+      this.logger.info('Helm releases unavailable during snapshot, treating as fresh deploy');
+    }
+
+    const consensusKeysOnDisk: boolean = fs.existsSync(PathEx.join(deployConfig.cacheDir, 'keys'));
+
+    const accountsFileExists: boolean = fs.existsSync(
+      PathEx.join(this.getOneShotOutputDirectory(deployConfig.deployment), 'accounts.json'),
+    );
+
+    return {
+      localConfig: {deploymentExists, clusterRefs: clusterReferences},
+      remoteConfig: {configMapExists, componentPhases},
+      helm: {installedReleases},
+      keys: {consensusKeysOnDisk},
+      accounts: {accountsFileExists},
+    };
   }
 
   private showOneShotUserNotes(context_: OneShotSingleDeployContext, outputFile?: string): void {
