@@ -418,22 +418,50 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         },
       }),
       new OrchestratorPipelinePhase('Deployment create', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const baseTask = invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
             DeploymentCommandDefinition.CREATE_COMMAND,
             (): string[] => DeployArgvBuilders.buildDeploymentCreateArgv(getConfig()),
             this.taskList,
-          ),
+          );
+          return {
+            ...baseTask,
+            skip: (context_: OneShotSingleDeployContext): boolean => {
+              // Idempotency guard: skip if deployment already exists in local config
+              if (context_.deploymentStateSnapshot?.localConfig.deploymentExists) {
+                this.logger.info(
+                  `Step '${DeploymentCommandDefinition.CREATE_COMMAND}' skipped: deployment already exists in local config`,
+                );
+                return true;
+              }
+              return false;
+            },
+          };
+        },
       }),
       new OrchestratorPipelinePhase('Deployment attach', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const baseTask = invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
             DeploymentCommandDefinition.ATTACH_COMMAND,
             (): string[] => DeployArgvBuilders.buildDeploymentAttachArgv(getConfig()),
             this.taskList,
-          ),
+          );
+          return {
+            ...baseTask,
+            skip: (context_: OneShotSingleDeployContext): boolean => {
+              // Idempotency guard: skip if remote config already exists in cluster
+              if (context_.deploymentStateSnapshot?.remoteConfig.configMapExists) {
+                this.logger.info(
+                  `Step '${DeploymentCommandDefinition.ATTACH_COMMAND}' skipped: remote config already exists`,
+                );
+                return true;
+              }
+              return false;
+            },
+          };
+        },
       }),
       new OrchestratorPipelinePhase('Cluster setup', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {

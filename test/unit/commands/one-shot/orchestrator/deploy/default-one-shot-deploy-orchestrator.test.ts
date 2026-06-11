@@ -478,6 +478,8 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
 
 describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void => {
   const CLUSTER_CONNECT_TASK_INDEX: number = 6;
+  const DEPLOYMENT_CREATE_TASK_INDEX: number = 7;
+  const DEPLOYMENT_ATTACH_TASK_INDEX: number = 8;
   const CLUSTER_SETUP_TASK_INDEX: number = 9;
   const KEYS_GENERATE_TASK_INDEX: number = 10;
 
@@ -552,6 +554,74 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
     };
 
     expect(tasks[CLUSTER_CONNECT_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('deployment create: does not skip when snapshot is absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
+
+    expect(tasks[DEPLOYMENT_CREATE_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('deployment create: skips when deployment already exists in local config', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({
+        localConfig: {deploymentExists: true, clusterRefs: new Set()},
+      }),
+    };
+
+    expect(tasks[DEPLOYMENT_CREATE_TASK_INDEX].skip(context_)).to.be.true;
+  });
+
+  it('deployment create: does not skip when deployment does not exist', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({
+        localConfig: {deploymentExists: false, clusterRefs: new Set()},
+      }),
+    };
+
+    expect(tasks[DEPLOYMENT_CREATE_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('deployment attach: does not skip when snapshot is absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
+
+    expect(tasks[DEPLOYMENT_ATTACH_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('deployment attach: skips when remote config already exists', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({
+        remoteConfig: {configMapExists: true, componentPhases: new Map()},
+      }),
+    };
+
+    expect(tasks[DEPLOYMENT_ATTACH_TASK_INDEX].skip(context_)).to.be.true;
+  });
+
+  it('deployment attach: does not skip when remote config is absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({
+        remoteConfig: {configMapExists: false, componentPhases: new Map()},
+      }),
+    };
+
+    expect(tasks[DEPLOYMENT_ATTACH_TASK_INDEX].skip(context_)).to.be.false;
   });
 
   it('cluster setup: does not skip when snapshot is absent', (): void => {
