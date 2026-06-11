@@ -31,7 +31,7 @@ import {
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {ComponentStateMetadataSchema} from '../../../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {Templates} from '../../../../core/templates.js';
-import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
+import {DeploymentPhase, DEPLOYMENT_PHASE_ORDER} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {getSoloVersion} from '../../../../../version.js';
 import * as constants from '../../../../core/constants.js';
 import {Flags as flags} from '../../../../commands/flags.js';
@@ -745,15 +745,6 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     ComponentTypes.RelayNodes,
   ];
 
-  private static readonly PHASE_ORDER: Readonly<Record<DeploymentPhase, number>> = {
-    [DeploymentPhase.REQUESTED]: 0,
-    [DeploymentPhase.DEPLOYED]: 1,
-    [DeploymentPhase.CONFIGURED]: 2,
-    [DeploymentPhase.STARTED]: 3,
-    [DeploymentPhase.STOPPED]: 4,
-    [DeploymentPhase.FROZEN]: 5,
-  };
-
   public getComponentPhasesMap(): Map<ComponentTypes, DeploymentPhase> {
     if (!this.isLoaded()) {
       return new Map();
@@ -773,7 +764,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       }
       let minimumPhase: DeploymentPhase = phases[0];
       for (const phase of phases) {
-        if (RemoteConfigRuntimeState.PHASE_ORDER[phase] < RemoteConfigRuntimeState.PHASE_ORDER[minimumPhase]) {
+        if (DEPLOYMENT_PHASE_ORDER[phase] < DEPLOYMENT_PHASE_ORDER[minimumPhase]) {
           minimumPhase = phase;
         }
       }
