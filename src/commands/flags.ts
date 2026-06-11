@@ -2020,7 +2020,8 @@ export class Flags {
     name: 'rollback',
     definition: {
       describe:
-        'Automatically clean up resources when deploy fails. Use --no-rollback to skip cleanup and keep partial resources for inspection.',
+        'Opt in to automatic cleanup when deploy fails. By default, ' +
+        'failed one-shot deploys keep partial resources so you can inspect the failure and re-run the same command.',
       defaultValue: false,
       type: 'boolean',
       disablePrompt: true,
