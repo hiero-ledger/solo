@@ -21,6 +21,7 @@ import {
   Logger,
   LogLevel,
   Long,
+  PrecheckStatusError,
   PrivateKey,
   Status,
   TransactionReceipt,
@@ -1074,10 +1075,36 @@ export class AccountManager {
 
     const realm: Realm = this.localConfig.configuration.realmForDeployment(deployment);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
-    const query: FileContentsQuery = new FileContentsQuery().setFileId(
-      new FileId(shard, realm, FileId.ADDRESS_BOOK.num),
-    );
-    return Buffer.from(await query.execute(client)).toString('base64');
+    const fileId: FileId = new FileId(shard, realm, FileId.ADDRESS_BOOK.num);
+
+    // The SDK does not retry INVALID_NODE_ACCOUNT for queries (only for transactions), so we
+    // retry here to handle the race where a node's gRPC endpoint is up but its Hedera state
+    // has not finished initializing yet.
+    const maxAttempts: number = 5;
+    const retryDelayMs: number = 5000;
+    let lastError: PrecheckStatusError | undefined;
+
+    for (let attempt: number = 0; attempt < maxAttempts; attempt++) {
+      try {
+        return Buffer.from(await new FileContentsQuery().setFileId(fileId).execute(client)).toString('base64');
+      } catch (error) {
+        if (
+          error instanceof PrecheckStatusError &&
+          error.status === Status.InvalidNodeAccount &&
+          attempt < maxAttempts - 1
+        ) {
+          this.logger.warn(
+            `Address book query returned INVALID_NODE_ACCOUNT (attempt ${attempt + 1}/${maxAttempts}), retrying in ${retryDelayMs}ms`,
+          );
+          lastError = error;
+          await sleep(Duration.ofMillis(retryDelayMs));
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError!;
   }
 
   public async getFileContents(
