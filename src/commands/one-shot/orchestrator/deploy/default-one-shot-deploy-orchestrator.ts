@@ -325,6 +325,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       new OrchestratorPipelinePhase('Check existing deployment state', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Check existing deployment state',
+          exitOnError: false,
           task: async (context_: OneShotSingleDeployContext): Promise<void> => {
             context_.deploymentStateSnapshot = await this.buildDeploymentStateSnapshot(getConfig());
           },
