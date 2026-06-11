@@ -21,4 +21,7 @@ export interface DeploymentStateSnapshot {
   accounts: {
     accountsFileExists: boolean;
   };
+  cluster: {
+    podMonitorRoleExists: boolean;
+  };
 }

@@ -395,13 +395,26 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           ),
       }),
       new OrchestratorPipelinePhase('Cluster connect', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const baseTask = invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
             ClusterReferenceCommandDefinition.CONNECT_COMMAND,
             (): string[] => DeployArgvBuilders.buildClusterConnectArgv(getConfig()),
             this.taskList,
-          ),
+          );
+          return {
+            ...baseTask,
+            skip: (context_: OneShotSingleDeployContext): boolean => {
+              if (context_.deploymentStateSnapshot?.localConfig.clusterRefs.has(context_.config.clusterRef)) {
+                this.logger.info(
+                  `Step '${ClusterReferenceCommandDefinition.CONNECT_COMMAND}' skipped: cluster ref already in local config`,
+                );
+                return true;
+              }
+              return false;
+            },
+          };
+        },
       }),
       new OrchestratorPipelinePhase('Deployment create', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
@@ -422,22 +435,48 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           ),
       }),
       new OrchestratorPipelinePhase('Cluster setup', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const baseTask = invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
             ClusterReferenceCommandDefinition.SETUP_COMMAND,
             (): string[] => DeployArgvBuilders.buildClusterSetupArgv(getConfig()),
             this.taskList,
-          ),
+          );
+          return {
+            ...baseTask,
+            skip: (context_: OneShotSingleDeployContext): boolean => {
+              if (context_.deploymentStateSnapshot?.cluster.podMonitorRoleExists) {
+                this.logger.info(
+                  `Step '${ClusterReferenceCommandDefinition.SETUP_COMMAND}' skipped: pod-monitor-role already installed`,
+                );
+                return true;
+              }
+              return false;
+            },
+          };
+        },
       }),
       new OrchestratorPipelinePhase('Keys generate', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const baseTask = invokeSoloCommand(
             `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
             KeysCommandDefinition.KEYS_COMMAND,
             (): string[] => DeployArgvBuilders.buildKeysGenerateArgv(getConfig()),
             this.taskList,
-          ),
+          );
+          return {
+            ...baseTask,
+            skip: (context_: OneShotSingleDeployContext): boolean => {
+              if (context_.deploymentStateSnapshot?.keys.consensusKeysOnDisk) {
+                this.logger.info(
+                  `Step '${KeysCommandDefinition.KEYS_COMMAND}' skipped: consensus keys already on disk`,
+                );
+                return true;
+              }
+              return false;
+            },
+          };
+        },
       }),
       new OrchestratorPipelinePhase('Create remote config components', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
@@ -802,12 +841,23 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       PathEx.join(this.getOneShotOutputDirectory(deployConfig.deployment), 'accounts.json'),
     );
 
+    let podMonitorRoleExists: boolean = false;
+    try {
+      podMonitorRoleExists = await this.k8Factory
+        .getK8(deployConfig.context)
+        .rbac()
+        .clusterRoleExists(constants.POD_MONITOR_ROLE);
+    } catch {
+      this.logger.info('ClusterRole check unavailable during snapshot, treating as fresh deploy');
+    }
+
     return {
       localConfig: {deploymentExists, clusterRefs: clusterReferences},
       remoteConfig: {configMapExists, componentPhases},
       helm: {installedReleases},
       keys: {consensusKeysOnDisk},
       accounts: {accountsFileExists},
+      cluster: {podMonitorRoleExists},
     };
   }
 
