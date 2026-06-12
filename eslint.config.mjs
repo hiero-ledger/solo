@@ -220,6 +220,15 @@ export default [
       'unicorn/import-style': 'warn', // TODO error
       'unicorn/prefer-optional-catch-binding': 'warn', // TODO error
       'unicorn/no-array-push-push': 'warn', // TODO error
+      'unicorn/prefer-split-limit': 'off',
+      'unicorn/no-unused-array-method-return': 'off',
+      'unicorn/prefer-includes-over-repeated-comparisons': 'off',
+      'unicorn/consistent-compound-words': 'off',
+      'unicorn/no-array-from-fill': 'off',
+      'unicorn/consistent-json-file-read': 'off',
+      'unicorn/no-this-outside-of-class': 'off',
+      'unicorn/prefer-https': 'off',
+      'unicorn/better-dom-traversing': 'off',
     },
   },
   {

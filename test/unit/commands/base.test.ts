@@ -47,6 +47,7 @@ describe('BaseCommand', (): void => {
       remoteConfig = container.resolve(InjectTokens.RemoteConfigRuntimeState);
 
       sandbox = sinon.createSandbox();
+      // eslint-disable-next-line unicorn/no-this-outside-of-class
       sandbox.stub(K8Client.prototype, 'init').callsFake(() => this);
       const k8Factory = container.resolve(InjectTokens.K8Factory);
 
