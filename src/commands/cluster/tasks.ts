@@ -346,38 +346,44 @@ export class ClusterCommandTasks {
       task: async (context_: ClusterReferenceSetupContext): Promise<void> => {
         const k8: K8 = this.k8Factory.getK8(context_.config.context);
 
+        // Check if ClusterRole already exists using Kubernetes JavaScript API
+        let podMonitorRoleExists: boolean = false;
         try {
-          // Check if ClusterRole already exists using Kubernetes JavaScript API
-          await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
+          podMonitorRoleExists = await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
+        } catch (error) {
+          throw new SoloErrors.system.clusterRoleCheckFailed(constants.POD_MONITOR_ROLE, error as Error);
+        }
+        if (podMonitorRoleExists) {
           this.logger.showUser(
             `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
           );
-        } catch {
-          // ClusterRole doesn't exist, create it
-          try {
-            await k8.rbac().createClusterRole(
-              constants.POD_MONITOR_ROLE,
-              [
-                {
-                  apiGroups: [''],
-                  resources: ['pods', 'services', 'clusterroles', 'pods/log', 'secrets'],
-                  verbs: ['get', 'list'],
-                },
-                {
-                  apiGroups: [''],
-                  resources: ['pods/exec'],
-                  verbs: ['create'],
-                },
-              ],
-              {'solo.hedera.com/type': 'cluster-role'},
-            );
-            this.logger.showUser(
-              `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
-            );
-          } catch (installError) {
-            this.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
-            throw new SoloErrors.deployment.clusterRoleInstallFailed(installError);
-          }
+          return;
+        }
+
+        // ClusterRole doesn't exist, create it
+        try {
+          await k8.rbac().createClusterRole(
+            constants.POD_MONITOR_ROLE,
+            [
+              {
+                apiGroups: [''],
+                resources: ['pods', 'services', 'clusterroles', 'pods/log', 'secrets'],
+                verbs: ['get', 'list'],
+              },
+              {
+                apiGroups: [''],
+                resources: ['pods/exec'],
+                verbs: ['create'],
+              },
+            ],
+            {'solo.hedera.com/type': 'cluster-role'},
+          );
+          this.logger.showUser(
+            `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
+          );
+        } catch (installError) {
+          this.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
+          throw new SoloErrors.deployment.clusterRoleInstallFailed(installError);
         }
       },
     };
