@@ -699,7 +699,11 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
   private buildCreateAccountsTask(config: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> {
     return {
       title: 'Create Accounts',
-      skip: (): boolean => config.predefinedAccounts === false,
+      // Skip when predefined accounts are disabled, or (idempotency guard) when accounts.json
+      // already exists from a prior successful run. The file is written only on full success of
+      // this step (in the Finish phase), so its presence is an all-or-nothing completion signal.
+      skip: (context_: OneShotSingleDeployContext): boolean =>
+        config.predefinedAccounts === false || context_.deploymentStateSnapshot?.accounts.accountsFileExists === true,
       task: async (
         _: OneShotSingleDeployContext,
         task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
