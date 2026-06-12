@@ -553,7 +553,8 @@ export class ProfileManager {
       fileText.split('\n'),
     );
 
-    const streamMode: string = helpers.getBlockStreamModeForConsensusVersion(
+    const streamMode: string = helpers.resolveBlockStreamModeForConsensusVersion(
+      helpers.parseBlockStreamMode(lines.join('\n')),
       this.remoteConfig.configuration.versions.consensusNode,
     );
     const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;

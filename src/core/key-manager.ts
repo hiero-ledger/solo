@@ -116,6 +116,28 @@ export class KeyManager {
   }
 
   /**
+   * Return file names for agreement key
+   * @param nodeAlias
+   * @param keysDirectory - directory where keys and certs are stored
+   */
+  prepareAgreementKeyFilePaths(nodeAlias: NodeAlias, keysDirectory: string): PrivateKeyAndCertificateObject {
+    if (!nodeAlias) {
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
+    }
+    if (!keysDirectory) {
+      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
+    }
+
+    const keyFile: string = PathEx.join(keysDirectory, Templates.renderAgreementPemPrivateKeyFile(nodeAlias));
+    const certFile: string = PathEx.join(keysDirectory, Templates.renderAgreementPemPublicKeyFile(nodeAlias));
+
+    return {
+      privateKeyFile: keyFile,
+      certificateFile: certFile,
+    };
+  }
+
+  /**
    * Return file names for TLS key
    * @param nodeAlias
    * @param keysDirectory - directory where keys and certs are stored
@@ -347,6 +369,69 @@ export class KeyManager {
     return this.loadNodeKey(nodeAlias, keysDirectory, KeyManager.SigningKeyAlgo, nodeKeyFiles, 'signing');
   }
 
+  /** Generate agreement key and certificate signed by the node signing key */
+  async generateAgreementKey(nodeAlias: NodeAlias, signingKey: NodeKeyObject): Promise<NodeKeyObject> {
+    try {
+      const keyPrefix: string = constants.AGREEMENT_KEY_PREFIX;
+      const currentDate: Date = new Date();
+      const friendlyName: string = Templates.renderNodeFriendlyName(keyPrefix, nodeAlias);
+
+      this.logger.debug(`generating ${keyPrefix}-key for node: ${nodeAlias}`, {friendlyName});
+
+      // eslint-disable-next-line n/no-unsupported-features/node-builtins
+      const keypair: CryptoKeyPair = await crypto.subtle.generateKey(KeyManager.ECKeyAlgo, true, ['sign', 'verify']);
+
+      const cert: x509.X509Certificate = await x509.X509CertificateGenerator.create({
+        serialNumber: '01',
+        subject: `CN=${friendlyName}`,
+        issuer: signingKey.certificate.subject,
+        notBefore: currentDate,
+        // @ts-ignore
+        notAfter: new Date().setFullYear(currentDate.getFullYear() + constants.CERTIFICATE_VALIDITY_YEARS),
+        publicKey: keypair.publicKey,
+        signingKey: signingKey.privateKey as CryptoKey,
+        extensions: [
+          new x509.BasicConstraintsExtension(false, 0, true),
+          new x509.ExtendedKeyUsageExtension(
+            [x509.ExtendedKeyUsage.serverAuth, x509.ExtendedKeyUsage.clientAuth],
+            true,
+          ),
+          new x509.KeyUsagesExtension(x509.KeyUsageFlags.digitalSignature | x509.KeyUsageFlags.keyAgreement, true),
+          await x509.SubjectKeyIdentifierExtension.create(keypair.publicKey),
+          await x509.AuthorityKeyIdentifierExtension.create(signingKey.certificate.publicKey),
+        ],
+        signingAlgorithm: {name: 'ECDSA', hash: 'SHA-384'},
+      });
+
+      const certChain: x509.X509Certificates = new x509.X509Certificates([cert, signingKey.certificate]);
+
+      this.logger.debug(`generated ${keyPrefix}-key for node: ${nodeAlias}`, {cert: cert.toString('pem')});
+
+      return {
+        privateKey: keypair.privateKey,
+        certificate: cert,
+        certificateChain: certChain,
+      };
+    } catch (error: Error | any) {
+      throw new SoloErrors.component.signingKeyGenerationFailed(error);
+    }
+  }
+
+  /**
+   * Store agreement key and certificate
+   * @param nodeAlias
+   * @param nodeKey - an object containing private key and certificate chain data
+   * @param keysDirectory - directory where keys and certs are stored
+   */
+  storeAgreementKey(
+    nodeAlias: NodeAlias,
+    nodeKey: NodeKeyObject,
+    keysDirectory: string,
+  ): Promise<PrivateKeyAndCertificateObject> {
+    const nodeKeyFiles: PrivateKeyAndCertificateObject = this.prepareAgreementKeyFilePaths(nodeAlias, keysDirectory);
+    return this.storeNodeKey(nodeAlias, nodeKey, keysDirectory, nodeKeyFiles, 'agreement');
+  }
+
   /**
    * Generate gRPC TLS key
    *
@@ -452,6 +537,14 @@ export class KeyManager {
     for (const nodeAlias of nodeAliases) {
       const signingKeyFiles: PrivateKeyAndCertificateObject = this.prepareNodeKeyFilePaths(nodeAlias, keysDirectory);
       this.copyNodeKeysToStaging(signingKeyFiles, stagingKeysDirectory);
+
+      const agreementKeyFiles: PrivateKeyAndCertificateObject = this.prepareAgreementKeyFilePaths(
+        nodeAlias,
+        keysDirectory,
+      );
+      if (fs.existsSync(agreementKeyFiles.privateKeyFile) && fs.existsSync(agreementKeyFiles.certificateFile)) {
+        this.copyNodeKeysToStaging(agreementKeyFiles, stagingKeysDirectory);
+      }
     }
   }
 
@@ -490,7 +583,10 @@ export class KeyManager {
         task: async () => {
           const signingKey = await this.generateSigningKey(nodeAlias);
           const signingKeyFiles = await this.storeSigningKey(nodeAlias, signingKey, keysDirectory);
+          const agreementKey = await this.generateAgreementKey(nodeAlias, signingKey);
+          const agreementKeyFiles = await this.storeAgreementKey(nodeAlias, agreementKey, keysDirectory);
           this.logger.debug(`generated Gossip signing keys for node ${nodeAlias}`, {keyFiles: signingKeyFiles});
+          this.logger.debug(`generated Gossip agreement keys for node ${nodeAlias}`, {keyFiles: agreementKeyFiles});
         },
       });
     }

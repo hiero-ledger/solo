@@ -65,6 +65,14 @@ export class Templates {
     return `${constants.SIGNING_KEY_PREFIX}-public-${nodeAlias}.pem`;
   }
 
+  public static renderAgreementPemPrivateKeyFile(nodeAlias: NodeAlias): string {
+    return `${constants.AGREEMENT_KEY_PREFIX}-private-${nodeAlias}.pem`;
+  }
+
+  public static renderAgreementPemPublicKeyFile(nodeAlias: NodeAlias): string {
+    return `${constants.AGREEMENT_KEY_PREFIX}-public-${nodeAlias}.pem`;
+  }
+
   public static renderTLSPemPrivateKeyFile(nodeAlias: NodeAlias): string {
     return `hedera-${nodeAlias}.key`;
   }

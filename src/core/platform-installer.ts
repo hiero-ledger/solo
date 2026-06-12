@@ -259,6 +259,20 @@ export class PlatformInstaller {
         ),
       ];
 
+      const agreementPrivateKeyPath: string = PathEx.joinWithRealPath(
+        stagingDirectory,
+        'keys',
+        Templates.renderAgreementPemPrivateKeyFile(consensusNode.name as NodeAlias),
+      );
+      const agreementPublicKeyPath: string = PathEx.joinWithRealPath(
+        stagingDirectory,
+        'keys',
+        Templates.renderAgreementPemPublicKeyFile(consensusNode.name as NodeAlias),
+      );
+      if (fs.existsSync(agreementPrivateKeyPath) && fs.existsSync(agreementPublicKeyPath)) {
+        sourceFiles.push(agreementPrivateKeyPath);
+      }
+
       // copy all public keys for all nodes
       for (const consensusNode of consensusNodes) {
         sourceFiles.push(
@@ -268,6 +282,15 @@ export class PlatformInstaller {
             Templates.renderGossipPemPublicKeyFile(consensusNode.name as NodeAlias),
           ),
         );
+
+        const agreementPublicKeyPath: string = PathEx.joinWithRealPath(
+          stagingDirectory,
+          'keys',
+          Templates.renderAgreementPemPublicKeyFile(consensusNode.name as NodeAlias),
+        );
+        if (fs.existsSync(agreementPublicKeyPath)) {
+          sourceFiles.push(agreementPublicKeyPath);
+        }
       }
 
       const data: Record<string, string> = {};

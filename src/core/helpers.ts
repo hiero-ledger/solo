@@ -60,6 +60,27 @@ export function getBlockStreamModeForConsensusVersion(consensusNodeVersion?: Sem
   return constants.BLOCK_STREAM_STREAM_MODE;
 }
 
+export function resolveBlockStreamModeForConsensusVersion(
+  existingStreamMode: string | undefined,
+  consensusNodeVersion?: SemanticVersion<string> | string,
+): string {
+  // Preserve an already block-node-compatible setting during upgrades. This prevents
+  // networks created on older CN versions (for example 0.73 with BOTH) from being
+  // silently flipped to the newer 0.74+ default during later maintenance steps.
+  if (existingStreamMode === 'BOTH' || existingStreamMode === 'BLOCKS') {
+    return existingStreamMode;
+  }
+
+  return getBlockStreamModeForConsensusVersion(consensusNodeVersion);
+}
+
+export function parseBlockStreamMode(applicationPropertiesText: string): string | undefined {
+  const match: RegExpMatchArray | null = applicationPropertiesText.match(
+    /^\s*blockStream\.streamMode\s*=\s*(\S+)\s*$/m,
+  );
+  return match?.[1];
+}
+
 export function sleep(duration: Duration): Promise<void> {
   return new Promise<void>((resolve: (value: PromiseLike<void> | void) => void): void => {
     setTimeout(resolve, duration.toMillis());
@@ -263,9 +284,16 @@ export function backupOldPemKeys(
 
   const fileMap: Map<string, string> = new Map<string, string>();
   for (const nodeAlias of nodeAliases) {
-    const sourcePath: string = PathEx.join(keysDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
-    const destinationPath: string = PathEx.join(backupDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
-    fileMap.set(sourcePath, destinationPath);
+    for (const fileName of [
+      Templates.renderGossipPemPrivateKeyFile(nodeAlias),
+      Templates.renderGossipPemPublicKeyFile(nodeAlias),
+      Templates.renderAgreementPemPrivateKeyFile(nodeAlias),
+      Templates.renderAgreementPemPublicKeyFile(nodeAlias),
+    ]) {
+      const sourcePath: string = PathEx.join(keysDirectory, fileName);
+      const destinationPath: string = PathEx.join(backupDirectory, fileName);
+      fileMap.set(sourcePath, destinationPath);
+    }
   }
 
   makeBackup(fileMap, true);
@@ -727,6 +755,10 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 
   const k8: K8 = k8Factory.getK8(context);
 
+  await k8
+    .pods()
+    .waitForReadyStatus(namespace, Templates.renderNodeLabelsFromNodeAlias(nodeAlias), 120, 1000, undefined, true);
+
   const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
 
   await container.execContainer('pwd');
@@ -750,7 +782,10 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 
   const lines: string[] = applicationPropertiesData.split('\n');
 
-  const blockStreamMode: string = getBlockStreamModeForConsensusVersion(consensusNodeVersion);
+  const blockStreamMode: string = resolveBlockStreamModeForConsensusVersion(
+    parseBlockStreamMode(applicationPropertiesData),
+    consensusNodeVersion,
+  );
   let streamModeUpdated: boolean = false;
   for (const line of lines) {
     if (line.startsWith('blockStream.streamMode=')) {
@@ -768,9 +803,12 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
     lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
   }
 
-  await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
-    [constants.APPLICATION_PROPERTIES]: lines.join('\n'),
-  });
+  const updatedApplicationPropertiesData: string = lines.join('\n');
+  if (updatedApplicationPropertiesData !== applicationPropertiesData) {
+    await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
+      [constants.APPLICATION_PROPERTIES]: updatedApplicationPropertiesData,
+    });
+  }
 
   const configName: string = `network-${nodeAlias}-data-config-cm`;
   const configMapExists: boolean = await k8.configMaps().exists(namespace, configName);
@@ -786,6 +824,8 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
     constants.APPLICATION_PROPERTIES,
   );
 
-  fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
-  await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+  if (updatedApplicationPropertiesData !== applicationPropertiesData) {
+    fs.writeFileSync(updatedApplicationPropertiesFilePath, updatedApplicationPropertiesData);
+    await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+  }
 }

@@ -43,6 +43,28 @@ describe('KeyManager', () => {
     fs.rmSync(temporaryDirectory, {recursive: true});
   });
 
+  it('should generate agreement key signed by the node signing key', async () => {
+    const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'keys-'));
+    const nodeAlias = 'node1' as NodeAlias;
+
+    const signingKey = await keyManager.generateSigningKey(nodeAlias);
+    await keyManager.storeSigningKey(nodeAlias, signingKey, temporaryDirectory);
+
+    const agreementKey = await keyManager.generateAgreementKey(nodeAlias, signingKey);
+    const agreementFiles = await keyManager.storeAgreementKey(nodeAlias, agreementKey, temporaryDirectory);
+
+    expect(agreementFiles.privateKeyFile).not.to.be.null;
+    expect(agreementFiles.certificateFile).not.to.be.null;
+    expect(fs.existsSync(agreementFiles.privateKeyFile)).to.be.true;
+    expect(fs.existsSync(agreementFiles.certificateFile)).to.be.true;
+
+    const agreementCertificatePem = fs.readFileSync(agreementFiles.certificateFile, 'utf8');
+    expect(agreementCertificatePem).to.include('BEGIN CERTIFICATE');
+    expect(agreementCertificatePem.match(/BEGIN CERTIFICATE/g)?.length).to.equal(2);
+
+    fs.rmSync(temporaryDirectory, {recursive: true});
+  });
+
   it('should generate TLS key', async () => {
     const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'keys-'));
     const nodeAlias = 'node1';
