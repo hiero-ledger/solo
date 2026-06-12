@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {KubeError} from './kube-error.js';
 
-export class KubeApiError extends SoloError {
+export class KubeApiError extends KubeError {
   /**
    * Instantiates a new error with a message and an optional cause.
    *
@@ -13,6 +13,6 @@ export class KubeApiError extends SoloError {
    * @param meta - optional metadata to be reported.
    */
   public constructor(message: string, statusCode: number, input?: unknown, cause?: Error, meta?: object) {
-    super(message + `, statusCode: ${statusCode}, input: ${input}`, cause, {...meta, statusCode: statusCode});
+    super(message + `, statusCode: ${statusCode}, input: ${input}`, cause, {...meta, statusCode}, statusCode);
   }
 }

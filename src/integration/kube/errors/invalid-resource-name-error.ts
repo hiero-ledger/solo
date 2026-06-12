@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {KubeError} from './kube-error.js';
 import {type ResourceType} from '../resources/resource-type.js';
 
 const RFC_1123_POSTFIX: (prefix: string) => string = (
@@ -9,7 +9,7 @@ const RFC_1123_POSTFIX: (prefix: string) => string = (
     "A DNS 1123 label must consist of lower case alphanumeric characters, '-' " +
     "or '.', must not exceed 63 characters, and must start and end with an alphanumeric character.`;
 
-export class InvalidResourceNameError extends SoloError {
+export class InvalidResourceNameError extends KubeError {
   public static RESOURCE_NAME_INVALID: (type: ResourceType, name: string) => string = (
     type: ResourceType,
     name: string,
