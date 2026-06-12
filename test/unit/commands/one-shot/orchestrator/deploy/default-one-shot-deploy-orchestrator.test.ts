@@ -698,6 +698,7 @@ function makeSnapshot(
     helm: {installedReleases},
     keys: {consensusKeysOnDisk: false},
     accounts: {accountsFileExists: false},
+    cluster: {podMonitorRoleExists: false},
   };
 }
 
