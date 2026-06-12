@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloErrors} from '../../../core/errors/solo-errors.js';
+import {CacheImageTemplateUnknownError} from '../errors/cache-image-template-unknown-error.js';
 import {type CacheImageTemplateResolver} from '../api/cache-image-template-resolver.js';
 import {type CacheImageTemplateValuesStructure} from '../models/cache-image-template-values-structure.js';
 
@@ -15,7 +15,7 @@ export class DefaultCacheImageTemplateResolver implements CacheImageTemplateReso
 
   public resolve(key: string): string {
     if (!this.has(key)) {
-      throw new SoloErrors.validation.cacheImageTemplateUnknown(key);
+      throw new CacheImageTemplateUnknownError(key);
     }
 
     return this.templateValues[key as TemplateKey];

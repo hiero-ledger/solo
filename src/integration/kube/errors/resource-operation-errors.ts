@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {KubeError} from './kube-error.js';
 import {ResourceOperation} from '../resources/resource-operation.js';
 import {type ResourceType} from '../resources/resource-type.js';
 import {type NamespaceName} from '../../../types/namespace/namespace-name.js';
 
-export class ResourceOperationError extends SoloError {
+export class ResourceOperationError extends KubeError {
   /**
    * Instantiates a new error with a message and an optional cause.
    * @param operation - the operation that failed.
