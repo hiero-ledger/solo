@@ -11,6 +11,8 @@ import {type DeploymentStateSnapshot} from '../../../../../../src/commands/one-s
 import {ComponentTypes} from '../../../../../../src/core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../../../../../src/data/schema/model/remote/deployment-phase.js';
 import * as constants from '../../../../../../src/core/constants.js';
+import {type OrchestratorPipeline} from '../../../../../../src/commands/one-shot/orchestrator/orchestrator-pipeline.js';
+import {type OneShotSingleDeployContext} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-context.js';
 
 type MockType = any;
 type MockListr = MockType;
@@ -86,6 +88,33 @@ function makeTaskWrapper(promptResult: boolean): MockListr {
   return {
     prompt: promptAdapterStub,
   };
+}
+
+function makeMinimalOrchestrator(): DefaultOneShotDeployOrchestrator {
+  return new DefaultOneShotDeployOrchestrator(
+    {} as MockType,
+    {emit: sinon.stub(), waitFor: sinon.stub()} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {info: sinon.stub()} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+  );
+}
+
+function buildPipelineTasks(orchestrator: DefaultOneShotDeployOrchestrator): MockType[] {
+  const pipeline: OrchestratorPipeline<OneShotSingleDeployContext> = orchestrator.buildDeployPipeline(
+    {_: []} as MockType,
+    {required: [], optional: []} as MockType,
+    {} as MockType,
+    {} as MockType,
+  );
+  return pipeline.tasks as MockType[];
 }
 
 describe('DefaultOneShotDeployOrchestrator non-Kind context guard', (): void => {
@@ -352,6 +381,313 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
     expect(snapshot.helm.installedReleases.has('solo-deployment')).to.be.true;
     expect(snapshot.helm.installedReleases.has('solo-cluster-setup')).to.be.true;
   });
+
+  it('sets cluster.podMonitorRoleExists to true when the ClusterRole exists', async (): Promise<void> => {
+    const remoteConfigMock: MockType = {
+      load: sinon.stub().rejects(new Error('no config')),
+      isLoaded: sinon.stub().returns(false),
+      getComponentPhasesMap: sinon.stub().returns(new Map()),
+    };
+    const localConfigMock: MockType = {
+      isLoaded: false,
+    };
+    const helmMock: MockType = {
+      listReleases: sinon.stub().resolves([]),
+    };
+    const loggerMock: MockType = {
+      info: sinon.stub(),
+      debug: sinon.stub(),
+    };
+    const k8FactoryMock: MockType = {
+      getK8: sinon.stub().returns({
+        rbac: sinon.stub().returns({
+          clusterRoleExists: sinon.stub().resolves(true),
+        }),
+      }),
+    };
+    const orchestrator: DefaultOneShotDeployOrchestrator = new DefaultOneShotDeployOrchestrator(
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      localConfigMock,
+      remoteConfigMock,
+      loggerMock,
+      {} as MockType,
+      {} as MockType,
+      k8FactoryMock,
+      {} as MockType,
+      {} as MockType,
+      helmMock,
+    );
+
+    // @ts-expect-error - to access private method
+    const snapshot: DeploymentStateSnapshot = await orchestrator.buildDeploymentStateSnapshot(makeConfig());
+
+    expect(snapshot.cluster.podMonitorRoleExists).to.be.true;
+  });
+
+  it('sets cluster.podMonitorRoleExists to false when the ClusterRole does not exist', async (): Promise<void> => {
+    const remoteConfigMock: MockType = {
+      load: sinon.stub().rejects(new Error('no config')),
+      isLoaded: sinon.stub().returns(false),
+      getComponentPhasesMap: sinon.stub().returns(new Map()),
+    };
+    const localConfigMock: MockType = {
+      isLoaded: false,
+    };
+    const helmMock: MockType = {
+      listReleases: sinon.stub().resolves([]),
+    };
+    const loggerMock: MockType = {
+      info: sinon.stub(),
+      debug: sinon.stub(),
+    };
+    const k8FactoryMock: MockType = {
+      getK8: sinon.stub().returns({
+        rbac: sinon.stub().returns({
+          clusterRoleExists: sinon.stub().resolves(false),
+        }),
+      }),
+    };
+    const orchestrator: DefaultOneShotDeployOrchestrator = new DefaultOneShotDeployOrchestrator(
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      localConfigMock,
+      remoteConfigMock,
+      loggerMock,
+      {} as MockType,
+      {} as MockType,
+      k8FactoryMock,
+      {} as MockType,
+      {} as MockType,
+      helmMock,
+    );
+
+    // @ts-expect-error - to access private method
+    const snapshot: DeploymentStateSnapshot = await orchestrator.buildDeploymentStateSnapshot(makeConfig());
+
+    expect(snapshot.cluster.podMonitorRoleExists).to.be.false;
+  });
+
+  it('defaults cluster.podMonitorRoleExists to false when k8Factory is unavailable', async (): Promise<void> => {
+    const remoteConfigMock: MockType = {
+      load: sinon.stub().rejects(new Error('no config')),
+      isLoaded: sinon.stub().returns(false),
+      getComponentPhasesMap: sinon.stub().returns(new Map()),
+    };
+    const localConfigMock: MockType = {
+      isLoaded: false,
+    };
+    const helmMock: MockType = {
+      listReleases: sinon.stub().resolves([]),
+    };
+    const loggerMock: MockType = {
+      info: sinon.stub(),
+      debug: sinon.stub(),
+    };
+    const orchestrator: DefaultOneShotDeployOrchestrator = new DefaultOneShotDeployOrchestrator(
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      localConfigMock,
+      remoteConfigMock,
+      loggerMock,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      {} as MockType,
+      helmMock,
+    );
+
+    // @ts-expect-error - to access private method
+    const snapshot: DeploymentStateSnapshot = await orchestrator.buildDeploymentStateSnapshot(makeConfig());
+
+    expect(snapshot.cluster.podMonitorRoleExists).to.be.false;
+  });
+});
+
+describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void => {
+  const CLUSTER_CONNECT_TASK_INDEX: number = 6;
+  const DEPLOYMENT_CREATE_TASK_INDEX: number = 7;
+  const DEPLOYMENT_ATTACH_TASK_INDEX: number = 8;
+  const CLUSTER_SETUP_TASK_INDEX: number = 9;
+  const KEYS_GENERATE_TASK_INDEX: number = 10;
+
+  function makeSnapshot(overrides: Partial<DeploymentStateSnapshot> = {}): DeploymentStateSnapshot {
+    return {
+      localConfig: {deploymentExists: false, clusterRefs: new Set()},
+      remoteConfig: {configMapExists: false, componentPhases: new Map()},
+      helm: {installedReleases: new Set()},
+      keys: {consensusKeysOnDisk: false},
+      accounts: {accountsFileExists: false},
+      cluster: {podMonitorRoleExists: false},
+      ...overrides,
+    };
+  }
+
+  it('cluster connect: does not skip when snapshot is absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
+
+    expect(tasks[CLUSTER_CONNECT_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('cluster connect: skips when clusterRef is already in local config', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig({clusterRef: 'one-shot'}),
+      deploymentStateSnapshot: makeSnapshot({
+        localConfig: {deploymentExists: true, clusterRefs: new Set(['one-shot'])},
+      }),
+    };
+
+    expect(tasks[CLUSTER_CONNECT_TASK_INDEX].skip(context_)).to.be.true;
+  });
+
+  it('cluster connect: does not skip when clusterRef is not in local config', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig({clusterRef: 'one-shot'}),
+      deploymentStateSnapshot: makeSnapshot({
+        localConfig: {deploymentExists: false, clusterRefs: new Set()},
+      }),
+    };
+
+    expect(tasks[CLUSTER_CONNECT_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('deployment create: does not skip when snapshot is absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
+
+    expect(tasks[DEPLOYMENT_CREATE_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('deployment create: skips when deployment already exists in local config', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({
+        localConfig: {deploymentExists: true, clusterRefs: new Set()},
+      }),
+    };
+
+    expect(tasks[DEPLOYMENT_CREATE_TASK_INDEX].skip(context_)).to.be.true;
+  });
+
+  it('deployment create: does not skip when deployment does not exist', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({
+        localConfig: {deploymentExists: false, clusterRefs: new Set()},
+      }),
+    };
+
+    expect(tasks[DEPLOYMENT_CREATE_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('deployment attach: does not skip when snapshot is absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
+
+    expect(tasks[DEPLOYMENT_ATTACH_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('deployment attach: skips when remote config already exists', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({
+        remoteConfig: {configMapExists: true, componentPhases: new Map()},
+      }),
+    };
+
+    expect(tasks[DEPLOYMENT_ATTACH_TASK_INDEX].skip(context_)).to.be.true;
+  });
+
+  it('deployment attach: does not skip when remote config is absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({
+        remoteConfig: {configMapExists: false, componentPhases: new Map()},
+      }),
+    };
+
+    expect(tasks[DEPLOYMENT_ATTACH_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('cluster setup: does not skip when snapshot is absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
+
+    expect(tasks[CLUSTER_SETUP_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('cluster setup: skips when pod-monitor-role already exists', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({cluster: {podMonitorRoleExists: true}}),
+    };
+
+    expect(tasks[CLUSTER_SETUP_TASK_INDEX].skip(context_)).to.be.true;
+  });
+
+  it('cluster setup: does not skip when pod-monitor-role is absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({cluster: {podMonitorRoleExists: false}}),
+    };
+
+    expect(tasks[CLUSTER_SETUP_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('keys generate: does not skip when snapshot is absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
+
+    expect(tasks[KEYS_GENERATE_TASK_INDEX].skip(context_)).to.be.false;
+  });
+
+  it('keys generate: skips when consensus keys are already on disk', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({keys: {consensusKeysOnDisk: true}}),
+    };
+
+    expect(tasks[KEYS_GENERATE_TASK_INDEX].skip(context_)).to.be.true;
+  });
+
+  it('keys generate: does not skip when keys are absent', (): void => {
+    const orchestrator: DefaultOneShotDeployOrchestrator = makeMinimalOrchestrator();
+    const tasks: MockType[] = buildPipelineTasks(orchestrator);
+    const context_: MockType = {
+      config: makeConfig(),
+      deploymentStateSnapshot: makeSnapshot({keys: {consensusKeysOnDisk: false}}),
+    };
+
+    expect(tasks[KEYS_GENERATE_TASK_INDEX].skip(context_)).to.be.false;
+  });
 });
 
 function makeSnapshot(
@@ -364,6 +700,7 @@ function makeSnapshot(
     helm: {installedReleases},
     keys: {consensusKeysOnDisk: false},
     accounts: {accountsFileExists: false},
+    cluster: {podMonitorRoleExists: false},
   };
 }
 
@@ -534,6 +871,7 @@ function makeAccountsSnapshot(accountsFileExists: boolean): DeploymentStateSnaps
     helm: {installedReleases: new Set<string>()},
     keys: {consensusKeysOnDisk: false},
     accounts: {accountsFileExists},
+    cluster: {podMonitorRoleExists: false},
   };
 }
 

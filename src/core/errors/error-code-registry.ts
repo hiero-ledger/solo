@@ -280,6 +280,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   INIT_SYSTEM_FILES_FAILED: 'SOLO-5070',
   CACHE_PROVIDER_NOT_CONFIGURED: 'SOLO-5071',
   POD_TERMINATION_TIMEOUT: 'SOLO-5072',
+  CLUSTER_ROLE_CHECK_FAILED: 'SOLO-5073',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
