@@ -197,8 +197,10 @@ describe('SharedResourceManager', (): void => {
       await manager.installChart(namespace, '', chartVersion, context);
 
       const valueArguments: string[] = chartValueArguments();
+      const postgresNodeSelectorArgument: string = String.raw`postgresql.primary.nodeSelector.solo\.hashgraph\.io/role=database`;
 
-      expect(valueArguments).to.include(String.raw`postgresql.primary.nodeSelector.solo\.hashgraph\.io/role=database`);
+      expect(valueArguments).to.include(postgresNodeSelectorArgument);
+      expect(valueArguments[valueArguments.indexOf(postgresNodeSelectorArgument) - 1]).to.equal('--set-string');
       expect(valueArguments).to.include('postgresql.primary.tolerations[0].value=adhoc-single-day-test');
       expect(valueArguments).to.include('redis.replica.tolerations[0].value=adhoc-performance-test');
     });

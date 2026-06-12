@@ -252,7 +252,7 @@ function toChartValues(schedulingValues: SharedResourceSchedulingValues): HelmCh
 
 function addNodeSelectorChartValues(chartValues: HelmChartValues, path: string, nodeSelector: HelmMapValue): void {
   for (const [key, value] of Object.entries(nodeSelector)) {
-    chartValues.setLiteral(`${path}.${escapeHelmPathSegment(key)}`, value);
+    chartValues.setString(`${path}.${escapeHelmPathSegment(key)}`, value);
   }
 }
 
