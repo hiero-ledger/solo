@@ -20,7 +20,7 @@
 
 cloud:
   minio:
-    enabled: false
+    enabled: true
 
 defaults:
   root:

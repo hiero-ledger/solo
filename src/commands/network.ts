@@ -636,7 +636,12 @@ export class NetworkCommand extends BaseCommand {
       }
     }
 
-    if (!config.minioEnabled) {
+    if (config.minioEnabled && config.storageType === constants.StorageType.MINIO_ONLY) {
+      for (const clusterReference of clusterReferences) {
+        chartValuesMap[clusterReference].set('cloud.minio.enabled', true);
+        chartValuesMap[clusterReference].set('cloud.generateNewSecrets', true);
+      }
+    } else if (!config.minioEnabled) {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', false);
         chartValuesMap[clusterReference].set('cloud.generateNewSecrets', false);
