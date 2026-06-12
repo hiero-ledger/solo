@@ -33,6 +33,7 @@ import {type DefaultHelmClient} from '../../../src/integration/helm/impl/default
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {type CertificateManager} from '../../../src/core/certificate-manager.js';
 import {type PlatformInstaller} from '../../../src/core/platform-installer.js';
+import {type ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
 import fs from 'node:fs';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
@@ -88,6 +89,7 @@ describe('NetworkCommand unit tests', (): void => {
     const profileManagerStub: ProfileManager = sinon.stub() as any;
     const platformInstallerStub: PlatformInstaller = sinon.stub() as any;
     const keyManagerStub: KeyManager = sinon.stub() as any;
+    const clusterCommandTasksStub: ClusterCommandTasks = sinon.stub() as any;
     const depManagerStub: DependencyManager = sinon.stub() as any;
     const helmStub: DefaultHelmClient = sinon.stub() as any;
     let containerOverrides: InstanceOverrides;
@@ -108,6 +110,7 @@ describe('NetworkCommand unit tests', (): void => {
         [InjectTokens.ProfileManager, new ValueContainer(InjectTokens.ProfileManager, profileManagerStub)],
         [InjectTokens.PlatformInstaller, new ValueContainer(InjectTokens.PlatformInstaller, platformInstallerStub)],
         [InjectTokens.KeyManager, new ValueContainer(InjectTokens.KeyManager, keyManagerStub)],
+        [InjectTokens.ClusterCommandTasks, new ValueContainer(InjectTokens.ClusterCommandTasks, clusterCommandTasksStub)],
         [InjectTokens.DependencyManager, new ValueContainer(InjectTokens.DependencyManager, depManagerStub)],
         [InjectTokens.Helm, new ValueContainer(InjectTokens.Helm, helmStub)],
       ]);
@@ -201,6 +204,10 @@ describe('NetworkCommand unit tests', (): void => {
       options.platformInstaller.copyNodeKeys = sinon.stub();
       container.registerInstance(InjectTokens.PlatformInstaller, options.platformInstaller);
 
+      options.clusterCommandTasks = clusterCommandTasksStub;
+      options.clusterCommandTasks.installMinioOperatorChart = sinon.stub().resolves();
+      container.registerInstance(InjectTokens.ClusterCommandTasks, options.clusterCommandTasks);
+
       options.profileManager = container.resolve<ProfileManager>(InjectTokens.ProfileManager);
       options.profileManager.prepareValuesForSoloChart = sinon.stub().resolves(new HelmChartValues());
 
@@ -209,9 +216,21 @@ describe('NetworkCommand unit tests', (): void => {
       container.registerInstance(InjectTokens.CertificateManager, options.certificateManager);
 
       options.chartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
-      options.chartManager.isChartInstalled = sinon.stub().returns(true);
-      options.chartManager.isChartInstalled.onSecondCall().returns(false);
+      options.chartManager.isChartInstalled = sinon
+        .stub()
+        .callsFake(async (_namespace: NamespaceName, releaseName: string): Promise<boolean> => {
+          if (releaseName === constants.MINIO_OPERATOR_RELEASE_NAME) {
+            return false;
+          }
+
+          if (releaseName === constants.SOLO_DEPLOYMENT_CHART) {
+            return true;
+          }
+
+          return false;
+        });
       options.chartManager.upgrade = sinon.stub().returns(true);
+      options.chartManager.install = sinon.stub().returns(true);
       options.chartManager.uninstall = sinon.stub().returns(true);
 
       options.remoteConfig = container.resolve<RemoteConfigRuntimeState>(InjectTokens.RemoteConfigRuntimeState);
