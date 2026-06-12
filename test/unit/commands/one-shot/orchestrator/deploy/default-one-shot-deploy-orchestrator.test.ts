@@ -11,6 +11,10 @@ import {type DeploymentStateSnapshot} from '../../../../../../src/commands/one-s
 import {ComponentTypes} from '../../../../../../src/core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../../../../../src/data/schema/model/remote/deployment-phase.js';
 import * as constants from '../../../../../../src/core/constants.js';
+import {OrchestratorPipeline} from '../../../../../../src/commands/one-shot/orchestrator/orchestrator-pipeline.js';
+import type {
+  OneShotSingleDeployContext
+} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-context.js';
 
 type MockType = any;
 type MockListr = MockType;
@@ -86,6 +90,33 @@ function makeTaskWrapper(promptResult: boolean): MockListr {
   return {
     prompt: promptAdapterStub,
   };
+}
+
+function makeMinimalOrchestrator(): DefaultOneShotDeployOrchestrator {
+  return new DefaultOneShotDeployOrchestrator(
+    {} as MockType,
+    {emit: sinon.stub(), waitFor: sinon.stub()} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {info: sinon.stub()} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+    {} as MockType,
+  );
+}
+
+function buildPipelineTasks(orchestrator: DefaultOneShotDeployOrchestrator): MockType[] {
+  const pipeline: OrchestratorPipeline<OneShotSingleDeployContext> = orchestrator.buildDeployPipeline(
+    {_: []} as MockType,
+    {required: [], optional: []} as MockType,
+    {} as MockType,
+    {} as MockType,
+  );
+  return pipeline.tasks as MockType[];
 }
 
 describe('DefaultOneShotDeployOrchestrator non-Kind context guard', (): void => {
@@ -486,23 +517,6 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
   const CLUSTER_SETUP_TASK_INDEX: number = 9;
   const KEYS_GENERATE_TASK_INDEX: number = 10;
 
-  function makeMinimalOrchestrator(): DefaultOneShotDeployOrchestrator {
-    return new DefaultOneShotDeployOrchestrator(
-      {} as MockType,
-      {emit: sinon.stub(), waitFor: sinon.stub()} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {info: sinon.stub()} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-      {} as MockType,
-    );
-  }
-
   function makeSnapshot(overrides: Partial<DeploymentStateSnapshot> = {}): DeploymentStateSnapshot {
     return {
       localConfig: {deploymentExists: false, clusterRefs: new Set()},
@@ -513,16 +527,6 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       cluster: {podMonitorRoleExists: false},
       ...overrides,
     };
-  }
-
-  function buildPipelineTasks(orchestrator: DefaultOneShotDeployOrchestrator): MockType[] {
-    const pipeline = orchestrator.buildDeployPipeline(
-      {_: []} as MockType,
-      {required: [], optional: []} as MockType,
-      {} as MockType,
-      {} as MockType,
-    );
-    return pipeline.tasks as MockType[];
   }
 
   it('cluster connect: does not skip when snapshot is absent', (): void => {
