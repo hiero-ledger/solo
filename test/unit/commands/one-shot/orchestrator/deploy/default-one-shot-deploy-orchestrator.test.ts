@@ -863,3 +863,43 @@ describe('DefaultOneShotDeployOrchestrator isConsensusDeployStepComplete', (): v
     expect(orchestrator.isConsensusDeployStepComplete(snapshot)).to.be.true;
   });
 });
+
+function makeAccountsSnapshot(accountsFileExists: boolean): DeploymentStateSnapshot {
+  return {
+    localConfig: {deploymentExists: false, clusterRefs: new Set<string>()},
+    remoteConfig: {configMapExists: false, componentPhases: new Map()},
+    helm: {installedReleases: new Set<string>()},
+    keys: {consensusKeysOnDisk: false},
+    accounts: {accountsFileExists},
+  };
+}
+
+function createAccountsSkip(
+  config: OneShotSingleDeployConfigClass,
+  snapshot: DeploymentStateSnapshot | undefined,
+): boolean {
+  const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
+  // @ts-expect-error - to access private method
+  const task: {skip: (context_: MockType) => boolean} = orchestrator.buildCreateAccountsTask(config);
+  return task.skip({deploymentStateSnapshot: snapshot} as MockType);
+}
+
+describe('DefaultOneShotDeployOrchestrator Create Accounts skip guard', (): void => {
+  it('skips when predefined accounts are disabled, regardless of accounts.json', (): void => {
+    expect(createAccountsSkip(makeConfig({predefinedAccounts: false}), makeAccountsSnapshot(false))).to.be.true;
+    expect(createAccountsSkip(makeConfig({predefinedAccounts: false}), makeAccountsSnapshot(true))).to.be.true;
+  });
+
+  it('skips when accounts.json already exists from a prior successful run', (): void => {
+    expect(createAccountsSkip(makeConfig({predefinedAccounts: true}), makeAccountsSnapshot(true))).to.be.true;
+  });
+
+  it('runs when accounts.json is absent', (): void => {
+    expect(createAccountsSkip(makeConfig({predefinedAccounts: true}), makeAccountsSnapshot(false))).to.be.false;
+  });
+
+  it('runs when the snapshot is unavailable', (): void => {
+    const noSnapshot: DeploymentStateSnapshot | undefined = undefined;
+    expect(createAccountsSkip(makeConfig({predefinedAccounts: true}), noSnapshot)).to.be.false;
+  });
+});
