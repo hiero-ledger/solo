@@ -695,10 +695,15 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
 
   const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, externalBlockNodeMap).toJSON();
 
+  const parsedBlockNodesJson: {nodes: unknown[]} = JSON.parse(blockNodesJsonData) as {nodes: unknown[]};
+  if (parsedBlockNodesJson.nodes.length === 0) {
+    throw new SoloErrors.system.blockNodesJsonEmpty(nodeAlias);
+  }
+
   const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
   const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
 
-  fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
+  fs.writeFileSync(blockNodesJsonPath, JSON.stringify(parsedBlockNodesJson, undefined, 2));
 
   // Check if the file exists before copying
   if (!fs.existsSync(blockNodesJsonPath)) {
