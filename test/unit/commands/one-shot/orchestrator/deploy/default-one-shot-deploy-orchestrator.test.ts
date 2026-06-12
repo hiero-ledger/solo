@@ -11,10 +11,8 @@ import {type DeploymentStateSnapshot} from '../../../../../../src/commands/one-s
 import {ComponentTypes} from '../../../../../../src/core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../../../../../src/data/schema/model/remote/deployment-phase.js';
 import * as constants from '../../../../../../src/core/constants.js';
-import {OrchestratorPipeline} from '../../../../../../src/commands/one-shot/orchestrator/orchestrator-pipeline.js';
-import type {
-  OneShotSingleDeployContext
-} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-context.js';
+import {type OrchestratorPipeline} from '../../../../../../src/commands/one-shot/orchestrator/orchestrator-pipeline.js';
+import {type OneShotSingleDeployContext} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-context.js';
 
 type MockType = any;
 type MockListr = MockType;
