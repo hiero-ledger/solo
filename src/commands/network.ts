@@ -1057,11 +1057,9 @@ export class NetworkCommand extends BaseCommand {
 
         return blockNodeMapLength > 0 || externalBlockNodeMapLength > 0;
       });
-    // MinIO is no longer used for Solo deployments. Streams should flow through block nodes instead.
-    // Retain the TSS-era detection only for downstream configuration decisions that depend on block nodes.
-    void tssByDefaultSupported;
-    void blockNodeConfigured;
-    config.minioEnabled = false;
+    // CN >= 0.74 can stream blocks directly to a block node. Without a deployed block node,
+    // keep using record streams via MinIO so mirror/importer and relay still have a source.
+    config.minioEnabled = !(tssByDefaultSupported && blockNodeConfigured);
 
     config.chartValuesMap = await this.prepareHelmChartValuesMap(config);
 

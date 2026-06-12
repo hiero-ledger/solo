@@ -556,6 +556,7 @@ export class ProfileManager {
     const streamMode: string = helpers.resolveBlockStreamModeForConsensusVersion(
       helpers.parseBlockStreamMode(lines.join('\n')),
       this.remoteConfig.configuration.versions.consensusNode,
+      hasDeployedBlockNodes,
     );
     const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
 

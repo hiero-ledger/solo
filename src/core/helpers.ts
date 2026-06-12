@@ -43,12 +43,19 @@ export function getInternalAddress(
     : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
 }
 
-export function getBlockStreamModeForConsensusVersion(consensusNodeVersion?: SemanticVersion<string> | string): string {
+export function getBlockStreamModeForConsensusVersion(
+  consensusNodeVersion: SemanticVersion<string> | string | undefined,
+  blockNodeIntegrationEnabled: boolean,
+): string {
   const version: SemanticVersion<string> = new SemanticVersion<string>(
     consensusNodeVersion?.toString() || versions.HEDERA_PLATFORM_VERSION,
   );
 
   if (version.greaterThanOrEqual(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+    if (!blockNodeIntegrationEnabled) {
+      return 'RECORDS';
+    }
+
     // CN >= v0.74.0 defaults to BLOCKS (pure block-node streaming, no MinIO record streams).
     // BLOCK_STREAM_STREAM_MODE env var overrides this default — used in performance tests as a
     // workaround for SmartContractLoadTest returning INVALID_TRANSACTION_BODY in BLOCKS mode.
@@ -63,15 +70,22 @@ export function getBlockStreamModeForConsensusVersion(consensusNodeVersion?: Sem
 export function resolveBlockStreamModeForConsensusVersion(
   existingStreamMode: string | undefined,
   consensusNodeVersion?: SemanticVersion<string> | string,
+  blockNodeIntegrationEnabled: boolean = false,
 ): string {
-  // Preserve an already block-node-compatible setting during upgrades. This prevents
-  // networks created on older CN versions (for example 0.73 with BOTH) from being
-  // silently flipped to the newer 0.74+ default during later maintenance steps.
-  if (existingStreamMode === 'BOTH' || existingStreamMode === 'BLOCKS') {
+  if (blockNodeIntegrationEnabled) {
+    // Preserve an already block-node-compatible setting during upgrades. This prevents
+    // networks created on older CN versions (for example 0.73 with BOTH) from being
+    // silently flipped to the newer 0.74+ default during later maintenance steps.
+    if (existingStreamMode === 'BOTH' || existingStreamMode === 'BLOCKS') {
+      return existingStreamMode;
+    }
+  } else if (existingStreamMode === 'BOTH' || existingStreamMode === 'RECORDS') {
+    // Without block nodes we must keep using record streams/MinIO. Preserve BOTH for
+    // upgraded pre-0.74 networks and preserve RECORDS for existing record-only networks.
     return existingStreamMode;
   }
 
-  return getBlockStreamModeForConsensusVersion(consensusNodeVersion);
+  return getBlockStreamModeForConsensusVersion(consensusNodeVersion, blockNodeIntegrationEnabled);
 }
 
 export function parseBlockStreamMode(applicationPropertiesText: string): string | undefined {
@@ -284,16 +298,9 @@ export function backupOldPemKeys(
 
   const fileMap: Map<string, string> = new Map<string, string>();
   for (const nodeAlias of nodeAliases) {
-    for (const fileName of [
-      Templates.renderGossipPemPrivateKeyFile(nodeAlias),
-      Templates.renderGossipPemPublicKeyFile(nodeAlias),
-      Templates.renderAgreementPemPrivateKeyFile(nodeAlias),
-      Templates.renderAgreementPemPublicKeyFile(nodeAlias),
-    ]) {
-      const sourcePath: string = PathEx.join(keysDirectory, fileName);
-      const destinationPath: string = PathEx.join(backupDirectory, fileName);
-      fileMap.set(sourcePath, destinationPath);
-    }
+    const sourcePath: string = PathEx.join(keysDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
+    const destinationPath: string = PathEx.join(backupDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
+    fileMap.set(sourcePath, destinationPath);
   }
 
   makeBackup(fileMap, true);
@@ -785,6 +792,7 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
   const blockStreamMode: string = resolveBlockStreamModeForConsensusVersion(
     parseBlockStreamMode(applicationPropertiesData),
     consensusNodeVersion,
+    true,
   );
   let streamModeUpdated: boolean = false;
   for (const line of lines) {
