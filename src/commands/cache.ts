@@ -484,7 +484,10 @@ export class CacheCommand extends BaseCommand {
     return {
       title: 'Pull and cache container images',
       task: async ({config: {imageCacheHandler}}, task): Promise<SoloListr<AnyListrContext>> => {
-        return task.newListr(await imageCacheHandler.pull(), constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+        return task.newListr(
+          await imageCacheHandler.pull(),
+          constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY_COLLAPSABLE,
+        );
       },
     };
   }
@@ -500,7 +503,7 @@ export class CacheCommand extends BaseCommand {
         );
         subTasks.push(...newTasks);
 
-        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY_COLLAPSABLE);
       },
     };
   }

@@ -34,7 +34,7 @@ export function negatedOptionFromFlag(flag: CommandFlag): string {
 /**
  * Helper function to format a command path as a full CLI invocation string
  * @param commandPath - The command path (e.g., 'one-shot falcon deploy')
- * @param args - Optional additional arguments (flags, values, placeholders)
+ * @param arguments_ - Optional additional arguments (flags, values, placeholders)
  * @returns Full CLI string (e.g., 'solo one-shot falcon deploy --values-file ./file.yaml')
  */
 export function soloCommand(commandPath: string, ...arguments_: string[]): string {
@@ -75,6 +75,15 @@ export function argvPushGlobalFlags(argv: string[], cacheDirectory: string = '')
   return argv;
 }
 
+export type InvokedSoloCommand = {
+  title: string;
+  skip: () => boolean;
+  task: (
+    _context: ListrContext,
+    taskListWrapper: TaskListWrapper,
+  ) => Promise<Listr<ListrContext, ListrRendererValue, ListrRendererValue>>;
+};
+
 /**
  * Helper function to invoke a Solo command with proper task integration
  * @param title - Task title to display
@@ -90,14 +99,7 @@ export function invokeSoloCommand(
   callback: () => Promise<string[]> | string[],
   taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
   skipCallback?: () => boolean,
-): {
-  title: string;
-  skip: () => boolean;
-  task: (
-    _context: ListrContext,
-    taskListWrapper: TaskListWrapper,
-  ) => Promise<Listr<ListrContext, ListrRendererValue, ListrRendererValue>>;
-} {
+): InvokedSoloCommand {
   return {
     title,
     skip: skipCallback || ((): boolean => false),

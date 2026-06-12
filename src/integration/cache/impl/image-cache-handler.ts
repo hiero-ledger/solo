@@ -102,9 +102,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
           try {
             await this.engine.loadImageArchiveIntoCluster(item.localPath, target);
           } catch (error) {
-            this.logger.showUser(`Failed to load image archive into cluster: ${name}`);
             this.logger.error(error);
-            console.error(error);
           }
         },
       });
