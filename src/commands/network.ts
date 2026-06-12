@@ -74,6 +74,7 @@ import {Zippy} from '../core/zippy.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 import {NetworkDeployedEvent} from '../core/events/event-types/network-deployed-event.js';
 import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
+import {type ClusterCommandTasks} from './cluster/tasks.js';
 
 export interface NetworkDeployConfigClass {
   isUpgrade: boolean;
@@ -168,6 +169,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.KeyManager) private readonly keyManager: KeyManager,
     @inject(InjectTokens.PlatformInstaller) private readonly platformInstaller: PlatformInstaller,
     @inject(InjectTokens.ProfileManager) private readonly profileManager: ProfileManager,
+    @inject(InjectTokens.ClusterCommandTasks) private readonly clusterCommandTasks: ClusterCommandTasks,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
     @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
@@ -178,6 +180,11 @@ export class NetworkCommand extends BaseCommand {
     this.keyManager = patchInject(keyManager, InjectTokens.KeyManager, this.constructor.name);
     this.platformInstaller = patchInject(platformInstaller, InjectTokens.PlatformInstaller, this.constructor.name);
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
+    this.clusterCommandTasks = patchInject(
+      clusterCommandTasks,
+      InjectTokens.ClusterCommandTasks,
+      this.constructor.name,
+    );
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
   }
@@ -1579,6 +1586,18 @@ export class NetworkCommand extends BaseCommand {
             ];
 
             return task.newListr(tasks, {concurrent: true, rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION});
+          },
+        },
+        {
+          title: 'Install MinIO Operator',
+          task: async ({config}): Promise<void> => {
+            if (!config.minioEnabled || config.storageType !== constants.StorageType.MINIO_ONLY) {
+              return;
+            }
+
+            for (const [, context] of config.clusterRefs) {
+              await this.clusterCommandTasks.installMinioOperatorChart(constants.SOLO_SETUP_NAMESPACE, context);
+            }
           },
         },
         {
