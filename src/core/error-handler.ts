@@ -6,6 +6,9 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {UserBreak} from './errors/user-break.js';
 import {SilentBreak} from './errors/silent-break.js';
+import {KubeErrorTranslator} from './errors/kube-error-translator.js';
+import {CacheErrorTranslator} from './errors/cache-error-translator.js';
+import {HelmErrorTranslator} from './errors/helm-error-translator.js';
 
 @injectable()
 export class ErrorHandler {
@@ -34,7 +37,12 @@ export class ErrorHandler {
   }
 
   private handleError(error: unknown): void {
-    this.logger.showUserError(error);
+    const translated: unknown =
+      KubeErrorTranslator.tryTranslate(error) ??
+      CacheErrorTranslator.tryTranslate(error) ??
+      HelmErrorTranslator.tryTranslate(error) ??
+      error;
+    this.logger.showUserError(translated);
     this.logger.showUser(
       '\n💡 Tip: To collect diagnostic information and help debug this issue, you can run:\n' +
         '   solo deployment diagnostics logs\n' +

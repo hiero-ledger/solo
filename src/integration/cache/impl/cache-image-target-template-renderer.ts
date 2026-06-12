@@ -3,7 +3,8 @@
 import fs from 'node:fs/promises';
 import {parse, stringify} from 'yaml';
 import {PathEx} from '../../../business/utils/path-ex.js';
-import {SoloErrors} from '../../../core/errors/solo-errors.js';
+import {CacheImageTemplateUnknownError} from '../errors/cache-image-template-unknown-error.js';
+import {CacheImageTemplateUndeclaredError} from '../errors/cache-image-template-undeclared-error.js';
 import {type CacheImageTemplateResolver} from '../api/cache-image-template-resolver.js';
 
 interface ImageTargetTemplateEntry {
@@ -49,7 +50,7 @@ export class CacheImageTargetTemplateRenderer {
   private validateTemplates(templates: readonly string[]): void {
     for (const template of templates) {
       if (!this.templateResolver.has(template)) {
-        throw new SoloErrors.validation.cacheImageTemplateUnknown(template);
+        throw new CacheImageTemplateUnknownError(template);
       }
     }
   }
@@ -61,7 +62,7 @@ export class CacheImageTargetTemplateRenderer {
 
     const looksLikeTemplateKey: boolean = /^[A-Z0-9_]+$/.test(rawVersion);
     if (looksLikeTemplateKey) {
-      throw new SoloErrors.internal.cacheImageTemplateUndeclared(rawVersion);
+      throw new CacheImageTemplateUndeclaredError(rawVersion);
     }
 
     return rawVersion;

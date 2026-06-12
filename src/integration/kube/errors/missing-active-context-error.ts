@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {KubeError} from './kube-error.js';
 
-export class MissingActiveContextError extends SoloError {
+export class MissingActiveContextError extends KubeError {
   public static MISSING_ACTIVE_CONTEXT: string =
     'No active kubernetes context found. Please set current kubernetes context.';
 
