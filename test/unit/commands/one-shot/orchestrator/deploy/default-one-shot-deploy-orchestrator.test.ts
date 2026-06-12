@@ -871,6 +871,7 @@ function makeAccountsSnapshot(accountsFileExists: boolean): DeploymentStateSnaps
     helm: {installedReleases: new Set<string>()},
     keys: {consensusKeysOnDisk: false},
     accounts: {accountsFileExists},
+    cluster: {podMonitorRoleExists: false},
   };
 }
 
