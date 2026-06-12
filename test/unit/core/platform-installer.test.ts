@@ -17,65 +17,65 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {getTestCacheDirectory} from '../../test-utility.js';
 
-describe('PackageInstaller', () => {
+describe('PackageInstaller', (): void => {
   let installer: PlatformInstaller;
 
-  before(() => {
+  before((): void => {
     installer = container.resolve(InjectTokens.PlatformInstaller);
   });
 
-  describe('validatePlatformReleaseDir', () => {
-    it('should fail for missing path', () => {
-      expect(() => installer.validatePlatformReleaseDir('')).to.throw(MissingArgumentError);
+  describe('validatePlatformReleaseDir', (): void => {
+    it('should fail for missing path', (): void => {
+      expect((): void => installer.validatePlatformReleaseDir('')).to.throw(MissingArgumentError);
     });
 
-    it('should fail for invalid path', () => {
-      expect(() => installer.validatePlatformReleaseDir('/INVALID')).to.throw(IllegalArgumentError);
+    it('should fail for invalid path', (): void => {
+      expect((): void => installer.validatePlatformReleaseDir('/INVALID')).to.throw(IllegalArgumentError);
     });
 
-    it('should fail if directory does not have data/apps directory', () => {
-      const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-'));
+    it('should fail if directory does not have data/apps directory', (): void => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-'));
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}`, {recursive: true});
-      expect(() => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
+      expect((): void => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
 
-    it('should fail if directory does not have data/libs directory', () => {
-      const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-'));
+    it('should fail if directory does not have data/libs directory', (): void => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-'));
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}`, {recursive: true});
-      expect(() => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
+      expect((): void => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
 
-    it('should fail if data/apps directory has no jar files', () => {
-      const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-'));
+    it('should fail if data/apps directory has no jar files', (): void => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-'));
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}`, {recursive: true});
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}`, {recursive: true});
-      expect(() => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
+      expect((): void => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
 
-    it('should fail if data/lib directory has no jar files', () => {
-      const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-app-'));
+    it('should fail if data/lib directory has no jar files', (): void => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-app-'));
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}`, {recursive: true});
       fs.writeFileSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}/app.jar`, '');
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}`, {recursive: true});
-      expect(() => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
+      expect((): void => installer.validatePlatformReleaseDir(temporaryDirectory)).to.throw(IllegalArgumentError);
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
 
-    it('should succeed with non-empty data/apps and data/libs directory', () => {
-      const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-lib-'));
+    it('should succeed with non-empty data/apps and data/libs directory', (): void => {
+      const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'installer-lib-'));
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}`, {recursive: true});
       fs.writeFileSync(`${temporaryDirectory}/${constants.HEDERA_DATA_APPS_DIR}/app.jar`, '');
       fs.mkdirSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}`, {recursive: true});
       fs.writeFileSync(`${temporaryDirectory}/${constants.HEDERA_DATA_LIB_DIR}/lib-1.jar`, '');
-      expect(() => installer.validatePlatformReleaseDir(temporaryDirectory)).not.to.throw();
+      expect((): void => installer.validatePlatformReleaseDir(temporaryDirectory)).not.to.throw();
       fs.rmSync(temporaryDirectory, {recursive: true});
     });
   });
 
-  describe('extractPlatform', () => {
+  describe('extractPlatform', (): void => {
     let zipPath: string;
     let checksumPath: string;
     const packageVersion: string = 'v0.42.5';
@@ -85,12 +85,12 @@ describe('PackageInstaller', () => {
       [zipPath, checksumPath] = await installer.getPlatformRelease(testCacheDirectory, packageVersion);
     });
 
-    it('should fail for missing pod name', async () => {
+    it('should fail for missing pod name', async (): Promise<void> => {
       await expect(
         installer.fetchPlatform(null as PodReference, packageVersion, zipPath, checksumPath),
       ).to.be.rejectedWith(MissingArgumentError);
     });
-    it('should fail for missing tag', async () => {
+    it('should fail for missing tag', async (): Promise<void> => {
       await expect(
         installer.fetchPlatform(
           PodReference.of(NamespaceName.of('platform-installer-test'), PodName.of('network-node1-0')),
@@ -102,13 +102,13 @@ describe('PackageInstaller', () => {
     });
   });
 
-  describe('copyGossipKeys', () => {
-    it('should fail for missing podName', async () => {
+  describe('copyGossipKeys', (): void => {
+    it('should fail for missing podName', async (): Promise<void> => {
       // @ts-expect-error - TS2554: Expected 3 arguments, but got 2
       await expect(installer.copyGossipKeys('', os.tmpdir())).to.be.rejectedWith(MissingArgumentError);
     });
 
-    it('should fail for missing stagingDir path', async () => {
+    it('should fail for missing stagingDir path', async (): Promise<void> => {
       // @ts-expect-error - TS2554: Expected 3 arguments, but got 2
       await expect(installer.copyGossipKeys('node1', '')).to.be.rejectedWith(MissingArgumentError);
     });
