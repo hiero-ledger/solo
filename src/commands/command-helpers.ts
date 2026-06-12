@@ -75,6 +75,15 @@ export function argvPushGlobalFlags(argv: string[], cacheDirectory: string = '')
   return argv;
 }
 
+export type InvokedSoloCommand = {
+  title: string;
+  skip: () => boolean;
+  task: (
+    _context: ListrContext,
+    taskListWrapper: TaskListWrapper,
+  ) => Promise<Listr<ListrContext, ListrRendererValue, ListrRendererValue>>;
+};
+
 /**
  * Helper function to invoke a Solo command with proper task integration
  * @param title - Task title to display
@@ -90,14 +99,7 @@ export function invokeSoloCommand(
   callback: () => Promise<string[]> | string[],
   taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
   skipCallback?: () => boolean,
-): {
-  title: string;
-  skip: () => boolean;
-  task: (
-    _context: ListrContext,
-    taskListWrapper: TaskListWrapper,
-  ) => Promise<Listr<ListrContext, ListrRendererValue, ListrRendererValue>>;
-} {
+): InvokedSoloCommand {
   return {
     title,
     skip: skipCallback || ((): boolean => false),

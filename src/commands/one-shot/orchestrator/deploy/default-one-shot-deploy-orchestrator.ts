@@ -57,7 +57,7 @@ import {ConsensusCommandDefinition} from '../../../command-definitions/consensus
 import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
-import {invokeSoloCommand} from '../../../command-helpers.js';
+import {InvokedSoloCommand, invokeSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
 import * as constants from '../../../../core/constants.js';
 import * as helpers from '../../../../core/helpers.js';
@@ -399,7 +399,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       }),
       new OrchestratorPipelinePhase('Cluster connect', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const baseTask = invokeSoloCommand(
+          const baseTask: InvokedSoloCommand = invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
             ClusterReferenceCommandDefinition.CONNECT_COMMAND,
             (): string[] => DeployArgvBuilders.buildClusterConnectArgv(getConfig()),
@@ -422,7 +422,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       }),
       new OrchestratorPipelinePhase('Deployment create', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const baseTask = invokeSoloCommand(
+          const baseTask: InvokedSoloCommand = invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
             DeploymentCommandDefinition.CREATE_COMMAND,
             (): string[] => DeployArgvBuilders.buildDeploymentCreateArgv(getConfig()),
@@ -445,7 +445,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       }),
       new OrchestratorPipelinePhase('Deployment attach', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const baseTask = invokeSoloCommand(
+          const baseTask: InvokedSoloCommand = invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
             DeploymentCommandDefinition.ATTACH_COMMAND,
             (): string[] => DeployArgvBuilders.buildDeploymentAttachArgv(getConfig()),
@@ -468,7 +468,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       }),
       new OrchestratorPipelinePhase('Cluster setup', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const baseTask = invokeSoloCommand(
+          const baseTask: InvokedSoloCommand = invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
             ClusterReferenceCommandDefinition.SETUP_COMMAND,
             (): string[] => DeployArgvBuilders.buildClusterSetupArgv(getConfig()),
@@ -491,7 +491,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       }),
       new OrchestratorPipelinePhase('Keys generate', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const baseTask = invokeSoloCommand(
+          const baseTask: InvokedSoloCommand = invokeSoloCommand(
             `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
             KeysCommandDefinition.KEYS_COMMAND,
             (): string[] => DeployArgvBuilders.buildKeysGenerateArgv(getConfig()),

@@ -174,7 +174,7 @@ export class ClusterCommandTasks {
   public getClusterInfo(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Get cluster info',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         const clusterReference: string = context_.config.clusterRef;
         const clusterReferences: FacadeMap<string, StringFacade, string> = this.localConfig.configuration.clusterRefs;
         const deployments: MutableFacadeArray<Deployment, DeploymentSchema> =
