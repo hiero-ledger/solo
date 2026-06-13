@@ -865,20 +865,10 @@ export class MirrorNodeCommand extends BaseCommand {
           MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX,
         );
       },
-      skip: ({config}: MirrorNodeDeployContext): boolean =>
-        config.useExternalDatabase || !config.installSharedResources,
+      skip: ({config}: MirrorNodeDeployContext): boolean => config.useExternalDatabase,
     };
   }
 
-  /**
-   * Installs the mirror chart with all application components disabled in order to create the
-   * `mirror-passwords` secret.  The init script (run by {@link initializeSharedPostgresDatabaseTask})
-   * reads that secret to obtain the DB user passwords, so the secret must exist before init runs.
-   * The importer must not be running during init (it would hold a session that blocks DROP DATABASE),
-   * so we use this lightweight prime install instead of a full chart install.
-   *
-   * Skipped when the secret already exists (upgrade path) or when using an external database.
-   */
   /**
    * Deletes the `<release>-redis` secret so that the subsequent mirror chart install/upgrade
    * re-creates it cleanly.  This is necessary because Kubernetes strategic-merge-patch does not
@@ -899,6 +889,13 @@ export class MirrorNodeCommand extends BaseCommand {
     };
   }
 
+  /**
+   * Installs the mirror chart with all application components disabled in order to create the
+   * `mirror-passwords` secret.  The init script (run by {@link initializeSharedPostgresDatabaseTask})
+   * reads that secret to obtain the DB user passwords, so the secret must exist before init runs.
+   * The importer must not be running during init (it would hold a session that blocks DROP DATABASE),
+   * so we use this lightweight prime install instead of a full chart install.
+   */
   private primePostgresSecretTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prime mirror-node postgres secret',
@@ -948,8 +945,7 @@ export class MirrorNodeCommand extends BaseCommand {
           true,
         );
       },
-      skip: ({config}: MirrorNodeDeployContext): boolean =>
-        config.useExternalDatabase || !config.installSharedResources,
+      skip: ({config}: MirrorNodeDeployContext): boolean => config.useExternalDatabase,
     };
   }
 
