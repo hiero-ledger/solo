@@ -314,7 +314,15 @@ export class BlockNodeCommand extends BaseCommand {
 
     const {state, clusters} = this.remoteConfig.configuration;
 
-    for (const [index, blockNode] of state.blockNodes.entries()) {
+    const currentBlockNodeId: ComponentId =
+      'newBlockNodeComponent' in config ? config.newBlockNodeComponent.metadata.id : config.id;
+    let sourceIndex: number = 0;
+
+    for (const blockNode of state.blockNodes) {
+      if (blockNode.metadata.id === currentBlockNodeId) {
+        continue;
+      }
+
       const cluster: ClusterSchema = clusters.find(({name}): boolean => name === blockNode.metadata.cluster);
 
       const fqdn: string = Templates.renderSvcFullyQualifiedDomainName(
@@ -324,9 +332,10 @@ export class BlockNodeCommand extends BaseCommand {
       );
 
       chartValues
-        .set(`blockNode.sources[${index}].address`, fqdn)
-        .set(`blockNode.sources[${index}].port`, constants.BLOCK_NODE_PORT)
-        .set(`blockNode.sources[${index}].priority`, 1);
+        .set(`blockNode.sources[${sourceIndex}].address`, fqdn)
+        .set(`blockNode.sources[${sourceIndex}].port`, constants.BLOCK_NODE_PORT)
+        .set(`blockNode.sources[${sourceIndex}].priority`, 1);
+      sourceIndex++;
     }
 
     return chartValues;
