@@ -369,6 +369,11 @@ jobs:
             export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
           fi
           echo "USE_RELEASED_VERSION: $USE_RELEASED_VERSION"
+
+          if [ "${{ matrix.example.one-shot-with-block-node }}" != "" ] && [ "${{ matrix.example.one-shot-with-block-node }}" != "null" ]; then
+            export ONE_SHOT_WITH_BLOCK_NODE="${{ matrix.example.one-shot-with-block-node }}"
+            echo "ONE_SHOT_WITH_BLOCK_NODE: ${ONE_SHOT_WITH_BLOCK_NODE}"
+          fi
           
           # Check if Taskfile.yml exists
           if [ ! -f "Taskfile.yml" ]; then

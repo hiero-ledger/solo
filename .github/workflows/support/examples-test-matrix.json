@@ -17,7 +17,8 @@
   {
     "name": "Hardhat with Solo",
     "directory": "hardhat-with-solo",
-    "local-java-build": false
+    "local-java-build": false,
+    "one-shot-with-block-node": false
   },
   {
     "name": "Local Build with Custom Config",
@@ -37,7 +38,8 @@
   {
     "name": "One Shot Falcon",
     "directory": "one-shot-falcon",
-    "local-java-build": false
+    "local-java-build": false,
+    "one-shot-with-block-node": false
   },
   {
     "name": "Rapid Fire",

@@ -150,7 +150,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
   it('should disable record and balance downloaders when block node integration is enabled', (): void => {
     const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
-    const cacheDir: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
+    const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
 
     try {
       (mirrorNodeCommand as any).remoteConfig._remoteConfig = {
@@ -172,7 +172,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
       (mirrorNodeCommand as any).remoteConfig.phase = 'loaded';
 
       const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
-        cacheDir,
+        cacheDir: cacheDirection,
         clusterReference: 'kind-a',
         mirrorNodeVersion: versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
       });
@@ -191,7 +191,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
       expect(values.importer.config.hiero.mirror.importer.downloader.record.enabled).to.equal(false);
       expect(values.importer.config.hiero.mirror.importer.downloader.balance.enabled).to.equal(false);
     } finally {
-      fs.rmSync(cacheDir, {recursive: true, force: true});
+      fs.rmSync(cacheDirection, {recursive: true, force: true});
     }
   });
 });
