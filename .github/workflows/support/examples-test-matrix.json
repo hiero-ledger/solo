@@ -49,6 +49,7 @@
   {
     "name": "Ledger Reset Smoke",
     "directory": "ledger-reset-smoke",
-    "local-java-build": false
+    "local-java-build": false,
+    "block-node-enabled": false
   }
 ]

@@ -374,6 +374,11 @@ jobs:
             export ONE_SHOT_WITH_BLOCK_NODE="${{ matrix.example.one-shot-with-block-node }}"
             echo "ONE_SHOT_WITH_BLOCK_NODE: ${ONE_SHOT_WITH_BLOCK_NODE}"
           fi
+
+          if [ "${{ matrix.example.block-node-enabled }}" != "" ] && [ "${{ matrix.example.block-node-enabled }}" != "null" ]; then
+            export BLOCK_NODE_ENABLED="${{ matrix.example.block-node-enabled }}"
+            echo "BLOCK_NODE_ENABLED: ${BLOCK_NODE_ENABLED}"
+          fi
           
           # Check if Taskfile.yml exists
           if [ ! -f "Taskfile.yml" ]; then
