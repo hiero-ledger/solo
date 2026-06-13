@@ -21,6 +21,21 @@ interface MirrorNodeMemoryOverrideConfig {
 }
 
 interface MirrorNodeCommandInternal {
+  remoteConfig: {
+    _remoteConfig: {
+      clusters: {name: string; dnsBaseDomain: string}[];
+      components: {
+        state: {
+          blockNodes: {metadata: {id: number; cluster: string; namespace: string}}[];
+        };
+      };
+      versions: {
+        consensusNode: {greaterThanOrEqual: () => boolean};
+        blockNodeChart: {greaterThanOrEqual: () => boolean};
+      };
+    };
+    phase: string;
+  };
   addMirrorNodeMemoryOverrides: (
     hasMirrorNodeMemoryImprovements: boolean,
     config: MirrorNodeMemoryOverrideConfig,
@@ -31,6 +46,27 @@ interface MirrorNodeCommandInternal {
     forceBlockNodeIntegration?: boolean;
     mirrorNodeVersion: string;
   }) => HelmChartValues;
+}
+
+interface MirrorNodeIntegrationValues {
+  importer: {
+    env: {
+      SPRING_PROFILES_ACTIVE: string;
+      HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: string;
+    };
+    config: {
+      hiero: {
+        mirror: {
+          importer: {
+            downloader: {
+              record: {enabled: boolean};
+              balance: {enabled: boolean};
+            };
+          };
+        };
+      };
+    };
+  };
 }
 
 describe('MirrorNodeCommand unit tests', (): void => {
@@ -153,7 +189,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
     const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
 
     try {
-      (mirrorNodeCommand as any).remoteConfig._remoteConfig = {
+      mirrorNodeCommandInternal.remoteConfig._remoteConfig = {
         clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
         components: {
           state: {
@@ -169,7 +205,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
           },
         },
       };
-      (mirrorNodeCommand as any).remoteConfig.phase = 'loaded';
+      mirrorNodeCommandInternal.remoteConfig.phase = 'loaded';
 
       const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
         cacheDir: cacheDirection,
@@ -182,7 +218,9 @@ describe('MirrorNodeCommand unit tests', (): void => {
       expect(fileArgumentIndex, 'expected block-node integration values file').to.be.greaterThan(-1);
 
       const valuesFilePath: string = valuesArguments[fileArgumentIndex + 1];
-      const values = yaml.parse(fs.readFileSync(valuesFilePath, 'utf8')) as any;
+      const values: MirrorNodeIntegrationValues = yaml.parse(
+        fs.readFileSync(valuesFilePath, 'utf8'),
+      ) as MirrorNodeIntegrationValues;
 
       expect(values.importer.env.SPRING_PROFILES_ACTIVE).to.equal(constants.SPRING_PROFILES_ACTIVE);
       expect(values.importer.env.HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST).to.equal(

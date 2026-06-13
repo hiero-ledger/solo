@@ -28,6 +28,10 @@ import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 
 const testName: string = 'cluster-test';
 
+interface ClusterReferenceLocalConfig {
+  clusterRefs: Record<string, string>;
+}
+
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
   .withTestSuiteName('Standard Test Suite')
@@ -105,7 +109,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await main(ClusterReferenceTest.soloClusterReferenceConnectArgv(testName, clusterReferenceName, contextName));
 
           const localConfigYaml: string = fs.readFileSync(localConfigPath).toString();
-          const localConfigData: any = yaml.parse(localConfigYaml);
+          const localConfigData: ClusterReferenceLocalConfig = yaml.parse(
+            localConfigYaml,
+          ) as ClusterReferenceLocalConfig;
 
           expect(localConfigData.clusterRefs).to.have.own.property(clusterReferenceName);
           expect(localConfigData.clusterRefs[clusterReferenceName]).to.equal(contextName);

@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {color, type ListrLogger, type ListrRendererValue, PRESET_TIMER} from 'listr2';
+import {
+  color,
+  type ListrLogger,
+  type ListrRendererValue,
+  type LoggerFormat,
+  PRESET_TIMER,
+  type PresetTimer,
+} from 'listr2';
 import path from 'node:path';
 import url from 'node:url';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -330,10 +337,10 @@ export const CHECK_WRAPS_DIRECTORY_BACKOFF_MS: number =
  * Listr related
  * @returns a object that defines the default color options
  */
-export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: any = {
+export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: PresetTimer = {
   ...PRESET_TIMER,
   condition: (duration: number): boolean => duration > 100,
-  format: (duration: number) => {
+  format: (duration: number): LoggerFormat => {
     if (duration > 30_000) {
       return color.red;
     }
@@ -344,12 +351,7 @@ export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: any = {
 
 export const LISTR_DEFAULT_RENDERER_OPTION: {
   collapseSubtasks: boolean;
-  timer: {
-    condition: (duration: number) => boolean;
-    format: (duration: number) => any;
-    field: string | ((arguments_0: number) => string);
-    args?: [number];
-  };
+  timer: PresetTimer;
   logger?: ListrLogger;
   persistentOutput: boolean;
   clearOutput: boolean;

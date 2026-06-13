@@ -228,7 +228,7 @@ describe('NetworkCommand unit tests', (): void => {
 
       options.remoteConfig = container.resolve<RemoteConfigRuntimeState>(InjectTokens.RemoteConfigRuntimeState);
       options.remoteConfig.isLoaded = sinon.stub().returns(true);
-      options.remoteConfig.getConfigMap = sinon.stub().returns(null);
+      options.remoteConfig.getConfigMap = sinon.stub().resolves();
       options.remoteConfig.persist = sinon.stub();
       options.remoteConfig.loadAndValidate = sinon.stub();
       options.remoteConfig.getNamespace = sinon.stub();
@@ -244,7 +244,7 @@ describe('NetworkCommand unit tests', (): void => {
       options.leaseManager = container.resolve<LockManager>(InjectTokens.LockManager);
       options.leaseManager.currentNamespace = sinon.stub().returns(testName);
 
-      GenesisNetworkDataConstructor.initialize = sinon.stub().returns(null);
+      GenesisNetworkDataConstructor.initialize = sinon.stub().resolves();
     });
 
     afterEach((): void => {
@@ -396,7 +396,7 @@ describe('NetworkCommand unit tests', (): void => {
 
         const chartValueArguments: string[] = config.chartValuesMap['cluster'].toArguments();
 
-        const indexOfValueArgumentEndingWith = (suffix: string): number =>
+        const indexOfValueArgumentEndingWith: (suffix: string) => number = (suffix: string): number =>
           chartValueArguments.findIndex((argument: string): boolean => argument.endsWith(suffix));
 
         const soloDeploymentValuesFileIndex: number = indexOfValueArgumentEndingWith(
