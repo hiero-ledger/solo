@@ -17,6 +17,10 @@ import {negatedOptionFromFlag, optionFromFlag} from '../../../../../../src/comma
 import {Flags} from '../../../../../../src/commands/flags.js';
 import {type AnyObject, type ArgvStruct} from '../../../../../../src/types/aliases.js';
 
+afterEach((): void => {
+  delete process.env.ONE_SHOT_WITH_BLOCK_NODE;
+});
+
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {
     deployment: 'test-deployment',
@@ -279,7 +283,8 @@ describe('buildClusterSetupArgv', (): void => {
     expect(argv).to.include('test-cluster');
   });
 
-  it('adds --no-minio when consensus node version is >= 0.74.0', (): void => {
+  it('adds --no-minio when ONE_SHOT_WITH_BLOCK_NODE is enabled', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
     const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
       makeConfig({
         versions: {
@@ -296,7 +301,8 @@ describe('buildClusterSetupArgv', (): void => {
     expect(argv).to.include(negatedOptionFromFlag(Flags.deployMinio));
   });
 
-  it('does not add --no-minio when consensus node version is < 0.74.0', (): void => {
+  it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE is disabled', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'false';
     const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
       makeConfig({
         versions: {
@@ -330,6 +336,7 @@ describe('buildKeysGenerateArgv', (): void => {
 describe('resolveOneShotComponentVersions', (): void => {
   afterEach((): void => {
     sinon.restore();
+    delete process.env.ONE_SHOT_WITH_BLOCK_NODE;
   });
 
   it('returns non-edge defaults when edge is disabled', async (): Promise<void> => {

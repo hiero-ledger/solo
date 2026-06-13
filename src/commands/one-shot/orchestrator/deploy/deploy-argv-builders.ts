@@ -49,15 +49,13 @@ export class DeployArgvBuilders {
   private static readonly BLOCK_NODE_RELEASES_URL: string =
     'https://api.github.com/repos/hiero-ledger/hiero-block-node/releases';
 
-  public static shouldDeployBlockNode(config: OneShotSingleDeployConfigClass): boolean {
-    const blockNodeEnvironmentEnabled: boolean = constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true';
-    const consensusVersion: SemanticVersion<string> = new SemanticVersion<string>(
-      config.versions.consensus || version.HEDERA_PLATFORM_VERSION,
-    );
+  private static isBlockNodeEnvironmentEnabled(): boolean {
+    return (process.env.ONE_SHOT_WITH_BLOCK_NODE || 'false').toLowerCase() === 'true';
+  }
 
-    return (
-      blockNodeEnvironmentEnabled || consensusVersion.greaterThanOrEqual(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)
-    );
+  public static shouldDeployBlockNode(config: OneShotSingleDeployConfigClass): boolean {
+    void config;
+    return this.isBlockNodeEnvironmentEnabled();
   }
 
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
@@ -187,7 +185,7 @@ export class DeployArgvBuilders {
     if (config.networkConfiguration) {
       appendConfigToArgv(argv, config.networkConfiguration);
     }
-    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+    if (this.isBlockNodeEnvironmentEnabled()) {
       argv.push(optionFromFlag(Flags.tssEnabled));
     }
     return argvPushGlobalFlags(argv, config.cacheDir);
