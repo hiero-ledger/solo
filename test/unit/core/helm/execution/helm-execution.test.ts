@@ -4,6 +4,7 @@ import {HelmExecution} from '../../../../../src/integration/helm/execution/helm-
 import {HelmExecutionException} from '../../../../../src/integration/helm/helm-execution-exception.js';
 import {HelmParserException} from '../../../../../src/integration/helm/helm-parser-exception.js';
 import {Repository} from '../../../../../src/integration/helm/model/repository.js';
+import {Release} from '../../../../../src/integration/helm/model/chart/release.js';
 import {Duration} from '../../../../../src/core/time/duration.js';
 import {expect} from 'chai';
 import sinon from 'sinon';
@@ -50,6 +51,42 @@ describe('HelmExecution', (): void => {
     } catch (error) {
       expect(error).to.be.instanceOf(HelmParserException);
     }
+  });
+
+  it('deserializes object output after Helm OCI pull status lines', async (): Promise<void> => {
+    const releaseOutput: string = JSON.stringify({
+      name: 'solo-shared-resources',
+      info: {
+        description: 'Install {complete}',
+        status: 'deployed',
+      },
+      chart: {
+        metadata: {
+          version: '0.63.3',
+        },
+      },
+    });
+
+    const execution: HelmExecution = createNodeExecution(
+      'Pulled: ghcr.io/hashgraph/solo-charts/solo-shared-resources:0.63.3\n' +
+        'Digest: sha256:06f98926e0f2a875b0b1f97c2e3bc99feac2276580d5d4de1a8f3e9efa0a3ae4\n' +
+        releaseOutput,
+    );
+
+    const release: Release = await execution.responseAs(Release);
+
+    expect(release.name).to.equal('solo-shared-resources');
+    expect(release.info.description).to.equal('Install {complete}');
+    expect(release.chart.metadata.version).to.equal('0.63.3');
+  });
+
+  it('deserializes list output after Helm status lines', async (): Promise<void> => {
+    const listOutput: string = JSON.stringify([{name: 'solo', url: 'https://example.com/charts'}]);
+    const execution: HelmExecution = createNodeExecution(`[INFO] Update Complete.\n${listOutput}\nignored suffix`);
+
+    const repositories: Repository[] = await execution.responseAsList(Repository);
+
+    expect(repositories).to.deep.equal([{name: 'solo', url: 'https://example.com/charts'}]);
   });
 
   describe('redactCommand', (): void => {
@@ -134,3 +171,10 @@ describe('HelmExecution', (): void => {
     });
   });
 });
+
+function createNodeExecution(output: string): HelmExecution {
+  return new HelmExecution({
+    commandPathOrName: process.execPath,
+    commandArguments: ['-e', `process.stdout.write(${JSON.stringify(output)});`],
+  });
+}
