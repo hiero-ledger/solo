@@ -5,9 +5,12 @@ import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
 /**
- * @description Thrown when a port number supplied via a CLI flag or configuration
- * value is outside the valid TCP/UDP range (1–65535) or is not an integer. Check
- * the flag that accepts port values in the command you ran and correct the input.
+ * @description Thrown while validating a port value supplied through a CLI flag or
+ * configuration field, when the value does not denote a usable TCP/UDP port: it is not an
+ * integer, or it falls outside the valid range of 1–65535. The error message echoes the
+ * offending value. This is raised before solo tries to bind, forward, or configure the port,
+ * so it reflects bad input (a typo, a non-numeric string, or `0`/a negative/too-large number)
+ * rather than a port that is already in use.
  */
 export class InvalidPortNumberError extends SoloError {
   protected override readonly retryable: boolean = false;

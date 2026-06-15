@@ -5,9 +5,13 @@ import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
 /**
- * @description Thrown when solo cannot locate the local configuration file at its expected
- * path (`~/.solo/local-config.yaml`). This typically happens on first run before
- * `solo init` has been executed, or if the file was manually deleted or moved.
+ * @description Thrown when solo reads its local configuration but no file exists at the
+ * resolved path (`~/.solo/local-config.yaml`, or `$SOLO_HOME/local-config.yaml` when
+ * `SOLO_HOME` is set). The local config records cluster references, deployments, and the
+ * active user context, so most commands load it before doing any work. The file is missing
+ * because `solo init` has not yet run on this machine, because `SOLO_HOME` points at a
+ * different directory than the one the file was created in, or because it was manually moved
+ * or deleted.
  */
 export class LocalConfigNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;

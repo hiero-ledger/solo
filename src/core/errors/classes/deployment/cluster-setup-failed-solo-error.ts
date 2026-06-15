@@ -5,9 +5,12 @@ import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
 /**
- * @description Thrown when `solo cluster-ref config setup` fails to install the
- * required cluster-level Helm charts (Prometheus, MinIO, metrics-server, etc.).
- * Can be caused by Helm failures, image pull errors, or insufficient cluster resources.
+ * @description Thrown when `solo cluster-ref config setup` cannot install the cluster-level
+ * shared infrastructure that deployments depend on — the `solo-cluster-setup` chart and its
+ * components (Prometheus, MinIO, metrics-server, and the cluster role). It wraps the
+ * underlying failure (`cause.message`), which is most often a failed Helm release (bad chart
+ * version or values), an image that cannot be pulled, missing RBAC permissions on the target
+ * cluster, or a cluster that lacks the CPU/memory to schedule the new pods.
  */
 export class ClusterSetupFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;

@@ -5,10 +5,15 @@ import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
 /**
- * @description Thrown when an operation does not complete within its allotted time.
- * Solo uses timeouts when waiting for Kubernetes pods to become Ready, for Hedera
- * SDK calls to complete, or for long-running CLI steps. This error is retryable —
- * the same command can often succeed if the underlying resource eventually stabilises.
+ * @description Thrown when a bounded operation does not finish within the time solo allows
+ * for it. solo guards long-running waits with deadlines — most often while polling for a
+ * Kubernetes pod or service to become Ready, but also for Hedera SDK calls and other
+ * long-running CLI steps — and raises this once the deadline passes without the expected
+ * condition being met. It signals that the operation was still in progress (or stuck), not
+ * that it definitively failed, which is why it is retryable: a resource that is merely slow to
+ * stabilise often succeeds on a later run or with a larger timeout. It is the base error for
+ * more specific timeouts such as `PodTerminationTimeoutSoloError` and
+ * `ClusterApiServerTimeoutSoloError`.
  */
 export class TimeoutSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
