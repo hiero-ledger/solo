@@ -35,7 +35,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
 
   beforeEach(async (): Promise<void> => {
     sourceDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'wraps-test-'));
-    extractedDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+    extractedDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v1.0.0');
 
     // Ensure parent cache directory exists
     if (!fs.existsSync(constants.SOLO_CACHE_DIR)) {
@@ -172,10 +172,10 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
 describe('TssSchema WRAPS defaults', (): void => {
   it('allowedKeyFiles default should contain the expected file names', (): void => {
     const wraps: WrapsSchema = new WrapsSchema(
-      'wraps-v0.2.0',
-      'wraps-v0.2.0',
+      'data/keys/wraps-v1.0.0',
+      'wraps-v1.0.0',
       'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin',
-      'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz',
+      'https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz',
     );
     const tss: TssSchema = new TssSchema(undefined, undefined, undefined, undefined, undefined, wraps);
     const files: string[] = (tss.wraps?.allowedKeyFiles ?? '').split(',');
