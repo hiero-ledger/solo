@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when `solo cluster-ref config setup` fails to install the
+ * required cluster-level Helm charts (Prometheus, MinIO, metrics-server, etc.).
+ * Can be caused by Helm failures, image pull errors, or insufficient cluster resources.
+ */
 export class ClusterSetupFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

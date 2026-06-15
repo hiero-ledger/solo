@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot find a Kubernetes pod for a given consensus
+ * node alias. This is retryable and may occur briefly during node startup before
+ * the pod is scheduled. If it persists, the pod may have failed to start or was
+ * evicted — inspect pod events with `kubectl describe` for the root cause.
+ */
 export class PodNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

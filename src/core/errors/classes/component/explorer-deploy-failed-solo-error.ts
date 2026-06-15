@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the Hiero Explorer Helm chart fails to install or its
+ * pods do not reach a Ready state within the timeout period. Check the Helm release
+ * status and pod events for the underlying cause (image pull failures, resource
+ * limits, or misconfigured values).
+ */
 export class ExplorerDeployFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

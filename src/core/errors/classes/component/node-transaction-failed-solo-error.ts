@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a Hedera SDK transaction sent to a consensus node is
+ * rejected with a non-SUCCESS status code. The transaction type and the raw status
+ * string are included in the error message. Common during node setup, staking
+ * operations, or network upgrades when the node is not yet fully active.
+ */
 export class NodeTransactionFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

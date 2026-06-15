@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when an operation does not complete within its allotted time.
+ * Solo uses timeouts when waiting for Kubernetes pods to become Ready, for Hedera
+ * SDK calls to complete, or for long-running CLI steps. This error is retryable —
+ * the same command can often succeed if the underlying resource eventually stabilises.
+ */
 export class TimeoutSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

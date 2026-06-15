@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a referenced deployment name does not exist in the local
+ * configuration. Usually seen when running deployment commands before creating a
+ * deployment with `solo deployment config create`, or after a deployment is removed.
+ */
 export class DeploymentNotFoundError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
