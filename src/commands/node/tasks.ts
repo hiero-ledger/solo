@@ -410,22 +410,22 @@ export class NodeCommandTasks {
 
       // The local build path points to the `data` directory itself (containing apps/ and lib/).
       // Validate that it contains jar files in each subdirectory to catch incorrect paths early.
-      const applicationsSubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'apps');
-      const librarySubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'lib');
-      if (!fs.existsSync(applicationsSubDirectory) || !fs.existsSync(librarySubDirectory)) {
+      const applicationsSubdirectory: string = PathEx.join(localDataLibraryBuildPath, 'apps');
+      const librarySubdirectory: string = PathEx.join(localDataLibraryBuildPath, 'lib');
+      if (!fs.existsSync(applicationsSubdirectory) || !fs.existsSync(librarySubdirectory)) {
         throw new SoloErrors.validation.localBuildMissingSubdirectories(localDataLibraryBuildPath);
       }
       const applicationsJarFiles: string[] = fs
-        .readdirSync(applicationsSubDirectory)
+        .readdirSync(applicationsSubdirectory)
         .filter((file: string): boolean => file.endsWith('.jar'));
       if (applicationsJarFiles.length === 0) {
-        throw new SoloErrors.validation.localBuildNoJarFiles(applicationsSubDirectory);
+        throw new SoloErrors.validation.localBuildNoJarFiles(applicationsSubdirectory);
       }
       const libraryJarFiles: string[] = fs
-        .readdirSync(librarySubDirectory)
+        .readdirSync(librarySubdirectory)
         .filter((file: string): boolean => file.endsWith('.jar'));
       if (libraryJarFiles.length === 0) {
-        throw new SoloErrors.validation.localBuildNoJarFiles(librarySubDirectory);
+        throw new SoloErrors.validation.localBuildNoJarFiles(librarySubdirectory);
       }
 
       const k8: K8 = this.k8Factory.getK8(context);
@@ -1926,7 +1926,7 @@ export class NodeCommandTasks {
     let adminPublicKeys: string[] = [];
     adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
       ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
-      : (Array.from({length: consensusNodes.length}).fill(constants.GENESIS_PUBLIC_KEY.toString()) as string[]);
+      : Array.from({length: consensusNodes.length}, (): string => constants.GENESIS_PUBLIC_KEY.toString());
     const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
@@ -2983,7 +2983,7 @@ export class NodeCommandTasks {
           textData += gray('Latest block number: ') + yellow(blockNumber) + '\n';
 
           // Get Account balance
-          const accountEvmAddress: string = `0x${newAccount.accountAlias.split('.')[2]}`;
+          const accountEvmAddress: string = `0x${newAccount.accountAlias.split('.', 3)[2]}`;
           const balanceHex: string = await rpc('eth_getBalance', [accountEvmAddress, 'latest']);
           const balance: number = Number.parseInt(balanceHex, 16);
           textData += gray('Account balance: ') + yellow(`${balance} wei`) + '\n';
@@ -4019,8 +4019,9 @@ export class NodeCommandTasks {
           throw new SoloErrors.validation.inputDirectoryNotSpecified();
         }
 
-        // @ts-expect-error - TS2345
-        const contextData: any = JSON.parse(fs.readFileSync(PathEx.joinWithRealPath(inputDirectory, targetFile)));
+        const contextData: any = JSON.parse(
+          fs.readFileSync(PathEx.joinWithRealPath(inputDirectory, targetFile), 'utf8'),
+        );
         parser(context_, contextData);
       },
     };
@@ -4788,7 +4789,7 @@ export class NodeCommandTasks {
           const servicesMainProcess: string = resultLines.find((line: string): boolean =>
             line.includes('com.hedera.node.app.ServicesMain'),
           );
-          pid = servicesMainProcess.trim().split(' ')[0];
+          pid = servicesMainProcess.trim().split(' ', 1)[0];
         } catch (error) {
           throw new SoloErrors.component.nodeJfrExecutionFailed(
             'Failed to get process list',

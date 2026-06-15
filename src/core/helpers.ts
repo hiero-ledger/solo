@@ -257,7 +257,7 @@ export function backupOldPemKeys(
 
 export function getEnvironmentValue(environmentVariableArray: string[], name: string): string {
   const kvPair: string = environmentVariableArray.find((v): boolean => v.startsWith(`${name}=`));
-  return kvPair ? kvPair.split('=')[1] : undefined;
+  return kvPair ? kvPair.split('=', 2)[1] : undefined;
 }
 
 export function parseIpAddressToUint8Array(ipAddress: string): Uint8Array<ArrayBuffer> {

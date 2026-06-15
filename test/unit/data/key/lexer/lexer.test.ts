@@ -48,7 +48,7 @@ function overlappingPathLexer(): {
   expect(subArrayNode.children).to.have.lengthOf(1);
   expect(subArrayNode.isArray()).to.be.true;
 
-  const subArrayIndexNode: LexerInternalNode = subArrayNode.children[0] as LexerInternalNode;
+  const subArrayIndexNode: LexerInternalNode = subArrayNode.children.find(v => v.name === '0') as LexerInternalNode;
   expect(subArrayIndexNode).to.not.be.undefined.and.not.be.null;
   expect(subArrayIndexNode.name).to.equal('0');
   expect(subArrayIndexNode.isArrayIndex()).to.be.true;
@@ -64,47 +64,49 @@ function overlappingPathLexer(): {
   expect(deploymentsNode.children).to.have.lengthOf(1);
   expect(deploymentsNode.isArray()).to.be.true;
 
-  const deploymentsArrayIndexNode: LexerInternalNode = deploymentsNode.children[0] as LexerInternalNode;
+  const deploymentsArrayIndexNode: LexerInternalNode = deploymentsNode.children.find(
+    v => v.name === '0',
+  ) as LexerInternalNode;
   expect(deploymentsArrayIndexNode).to.not.be.undefined.and.not.be.null;
   expect(deploymentsArrayIndexNode.isArrayIndex()).to.be.true;
 
-  const clustersNode = deploymentsArrayIndexNode.children[0] as LexerInternalNode;
+  const clustersNode = deploymentsArrayIndexNode.children.find(v => v.name === 'clusters') as LexerInternalNode;
   expect(clustersNode).to.not.be.undefined.and.not.be.null;
   expect(clustersNode.name).to.equal('clusters');
   expect(clustersNode.isArray()).to.be.true;
   expect(clustersNode.children).to.have.lengthOf(2);
 
-  const clustersArrayIndex0Node = clustersNode.children[0] as LexerLeafNode;
+  const clustersArrayIndex0Node = clustersNode.children.find(v => v.name === '0') as LexerLeafNode;
   expect(clustersArrayIndex0Node).to.not.be.undefined.and.not.be.null;
   expect(clustersArrayIndex0Node.isArrayIndex()).to.be.true;
   expect(clustersArrayIndex0Node.isLeaf()).to.be.true;
   expect(clustersArrayIndex0Node.value).to.be.equal('true');
 
-  const clustersArrayIndex1Node = clustersNode.children[1] as LexerLeafNode;
+  const clustersArrayIndex1Node = clustersNode.children.find(v => v.name === '1') as LexerLeafNode;
   expect(clustersArrayIndex1Node).to.not.be.undefined.and.not.be.null;
   expect(clustersArrayIndex1Node.isArrayIndex()).to.be.true;
   expect(clustersArrayIndex1Node.isLeaf()).to.be.true;
   expect(clustersArrayIndex1Node.value).to.be.equal('false');
 
-  const settingsNode = deploymentsArrayIndexNode.children[1] as LexerInternalNode;
+  const settingsNode = deploymentsArrayIndexNode.children.find(v => v.name === 'settings') as LexerInternalNode;
   expect(settingsNode).to.not.be.undefined.and.not.be.null;
   expect(settingsNode.name).to.equal('settings');
   expect(settingsNode.isArray()).to.be.true;
   expect(settingsNode.children).to.have.lengthOf(1);
 
-  const settingsArrayIndex0Node = settingsNode.children[0] as LexerInternalNode;
+  const settingsArrayIndex0Node = settingsNode.children.find(v => v.name === '0') as LexerInternalNode;
   expect(settingsArrayIndex0Node).to.not.be.undefined.and.not.be.null;
   expect(settingsArrayIndex0Node.name).to.equal('0');
   expect(settingsArrayIndex0Node.isArrayIndex()).to.be.true;
   expect(settingsArrayIndex0Node.children).to.have.lengthOf(2);
 
-  const settingsArrayIndex0Index0Node = settingsArrayIndex0Node.children[0] as LexerLeafNode;
+  const settingsArrayIndex0Index0Node = settingsArrayIndex0Node.children.find(v => v.name === '0') as LexerLeafNode;
   expect(settingsArrayIndex0Index0Node).to.not.be.undefined.and.not.be.null;
   expect(settingsArrayIndex0Index0Node.name).to.equal('0');
   expect(settingsArrayIndex0Index0Node.isLeaf()).to.be.true;
   expect(settingsArrayIndex0Index0Node.value).to.be.equal('bob');
 
-  const settingsArrayIndex0Index1Node = settingsArrayIndex0Node.children[1] as LexerLeafNode;
+  const settingsArrayIndex0Index1Node = settingsArrayIndex0Node.children.find(v => v.name === '1') as LexerLeafNode;
   expect(settingsArrayIndex0Index1Node).to.not.be.undefined.and.not.be.null;
   expect(settingsArrayIndex0Index1Node.name).to.equal('1');
   expect(settingsArrayIndex0Index1Node.isLeaf()).to.be.true;

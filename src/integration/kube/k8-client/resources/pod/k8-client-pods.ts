@@ -92,9 +92,7 @@ export function detectFatalContainerError(pod: V1Pod): string | undefined {
     const waitingState: V1ContainerStateWaiting | undefined = containerStatus.state?.waiting;
     if (waitingState?.reason && FATAL_WAITING_REASONS.has(waitingState.reason)) {
       if (
-        (waitingState.reason === 'ErrImagePull' ||
-          waitingState.reason === 'ImagePullBackOff' ||
-          waitingState.reason === 'ImageInspectError') &&
+        ['ErrImagePull', 'ImagePullBackOff', 'ImageInspectError'].includes(waitingState.reason) &&
         !isNonRecoverableImagePullError(waitingState.message)
       ) {
         continue;

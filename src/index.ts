@@ -71,7 +71,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
       const outputArgument: string = argv[outputFlagIndex];
 
       if (outputArgument.startsWith('--output=')) {
-        outputFormat = outputArgument.split('=')[1] ?? '';
+        outputFormat = outputArgument.split('=', 2)[1] ?? '';
       } else if (outputFlagIndex + 1 < argv.length) {
         outputFormat = argv[outputFlagIndex + 1];
       }

@@ -135,7 +135,7 @@ export class SoloPinoLogger implements SoloLogger {
   }
 
   public setLogBinding(key: string, value: unknown): void {
-    if (value === undefined || value === null || value === '') {
+    if (value === undefined || value === null || (typeof value === 'string' && value.length === 0)) {
       delete this.logBindings[key];
       return;
     }

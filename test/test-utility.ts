@@ -290,7 +290,7 @@ export function endToEndTestSuite(
     containerOverrides,
     deployNetwork,
   }: Cmd & {startNodes?: boolean; deployNetwork?: boolean},
-  testsCallBack: (bootstrapResp: BootstrapResponse) => void = (): void => {},
+  testsCallback: (bootstrapResp: BootstrapResponse) => void = (): void => {},
 ): void {
   const testLogger: SoloLogger = getTestLogger();
   const testNamespace: NamespaceName = getTestNamespace(argv);
@@ -406,7 +406,7 @@ export function endToEndTestSuite(
     });
 
     describe(testName, (): void => {
-      testsCallBack(bootstrapResp);
+      testsCallback(bootstrapResp);
     });
   });
 }

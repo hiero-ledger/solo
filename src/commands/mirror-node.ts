@@ -1919,14 +1919,14 @@ export class MirrorNodeCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .ingressClasses()
               .list();
-            existingIngressClasses.map((ingressClass): void => {
+            for (const ingressClass of existingIngressClasses) {
               if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
-                this.k8Factory
+                await this.k8Factory
                   .getK8(context_.config.clusterContext)
                   .ingressClasses()
                   .delete(constants.MIRROR_INGRESS_CLASS_NAME);
               }
-            });
+            }
           },
         },
         this.disableMirrorNodeComponents(),

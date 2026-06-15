@@ -911,14 +911,14 @@ export class ExplorerCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .ingressClasses()
               .list();
-            existingIngressClasses.map((ingressClass: IngressClass): void => {
+            for (const ingressClass of existingIngressClasses) {
               if (ingressClass.name === context_.config.ingressReleaseName) {
-                this.k8Factory
+                await this.k8Factory
                   .getK8(context_.config.clusterContext)
                   .ingressClasses()
                   .delete(context_.config.ingressReleaseName);
               }
-            });
+            }
           },
         },
         this.disableMirrorNodeExplorerComponents(),

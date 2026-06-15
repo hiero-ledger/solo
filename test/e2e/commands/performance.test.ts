@@ -125,7 +125,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           for (const file of files) {
             const filePath: string = PathEx.join(tartgetDirectory, file);
             const fileContents: string = fs.readFileSync(filePath, 'utf8');
-            const fileName: string = file.split('.')[0];
+            const fileName: string = file.split('.', 1)[0];
             allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
           }
 

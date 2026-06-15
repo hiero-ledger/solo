@@ -686,7 +686,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
         await containerReference.copyFrom(`${HEDERA_HAPI_PATH}/VERSION`, temporaryDirectory);
         const versionFile: string = fs.readFileSync(`${temporaryDirectory}/VERSION`, 'utf8');
 
-        const versionLine: string = versionFile.split('\n')[0].trim();
+        const versionLine: string = versionFile.split('\n', 1)[0].trim();
         expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_TO_VERSION.replace('v', '')}`);
       }
 

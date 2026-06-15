@@ -611,9 +611,9 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (
-      config.storageType === constants.StorageType.GCS_ONLY ||
-      config.storageType === constants.StorageType.AWS_ONLY ||
-      config.storageType === constants.StorageType.AWS_AND_GCS
+      [constants.StorageType.GCS_ONLY, constants.StorageType.AWS_ONLY, constants.StorageType.AWS_AND_GCS].includes(
+        config.storageType,
+      )
     ) {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', false);
@@ -1767,9 +1767,11 @@ export class NetworkCommand extends BaseCommand {
                 },
                 // skip if only cloud storage is/are used
                 skip: ({config: {storageType}}): boolean =>
-                  storageType === constants.StorageType.GCS_ONLY ||
-                  storageType === constants.StorageType.AWS_ONLY ||
-                  storageType === constants.StorageType.AWS_AND_GCS,
+                  [
+                    constants.StorageType.GCS_ONLY,
+                    constants.StorageType.AWS_ONLY,
+                    constants.StorageType.AWS_AND_GCS,
+                  ].includes(storageType),
               },
             ];
 

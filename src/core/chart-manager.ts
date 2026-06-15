@@ -173,7 +173,7 @@ export class ChartManager {
 
     let match: boolean = false;
     for (const chart of charts) {
-      if (chart.split(' ')[0] === chartReleaseName) {
+      if (chart.split(' ', 1)[0] === chartReleaseName) {
         match = true;
         break;
       }

@@ -236,7 +236,7 @@ export class MetricsServerImpl implements MetricsServer {
       PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
     });
     if (results?.length > 0) {
-      return Number.parseInt(results[0].split('m')[0]);
+      return Number.parseInt(results[0].split('m', 1)[0]);
     }
     return 0;
   }

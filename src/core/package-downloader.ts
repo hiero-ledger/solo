@@ -255,7 +255,7 @@ export class PackageDownloader {
           if (!checksumData) {
             throw new SoloErrors.system.checksumReadFailed(checksumFile);
           }
-          checksum = checksumData.split(' ')[0];
+          checksum = checksumData.split(' ', 1)[0];
         } else {
           checksum = checksumDataOrURL;
         }
