@@ -116,12 +116,18 @@ export class CraneDependencyManager extends BaseDependencyManager {
 
   private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
     try {
+      const headers: Record<string, string> = {
+        'User-Agent': constants.SOLO_USER_AGENT_HEADER,
+        Accept: 'application/vnd.github.v3+json',
+      };
+      // GITHUB_TOKEN is injected automatically into every GitHub Actions job,
+      // raising the rate limit from 60 req/hour (unauthenticated) to 1000 req/hour.
+      if (process.env.GITHUB_TOKEN) {
+        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+      }
       const response: Response = await fetch(CRANE_RELEASES_LIST_URL, {
         method: 'GET',
-        headers: {
-          'User-Agent': constants.SOLO_USER_AGENT_HEADER,
-          Accept: 'application/vnd.github.v3+json',
-        },
+        headers,
       });
 
       if (!response.ok) {
