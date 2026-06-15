@@ -609,7 +609,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             asListrTask: (
               getConfig: () => OneShotSingleDeployConfigClass,
             ): SoloListrTask<OneShotSingleDeployContext> => {
-              const skipAndNotify = (): boolean => {
+              const skipAndNotify: () => boolean = (): boolean => {
                 const shouldSkip: boolean =
                   constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
                   this.isComponentInPhaseAtLeast(
