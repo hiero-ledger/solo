@@ -681,6 +681,7 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
   consensusNode: ConsensusNode,
   logger: SoloLogger,
   k8Factory: K8Factory,
+  allowEmpty: boolean = false,
 ): Promise<void> {
   const {
     nodeId,
@@ -696,7 +697,7 @@ export async function createAndCopyBlockNodeJsonFileForConsensusNode(
   const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, externalBlockNodeMap).toJSON();
 
   const parsedBlockNodesJson: {nodes: unknown[]} = JSON.parse(blockNodesJsonData) as {nodes: unknown[]};
-  if (parsedBlockNodesJson.nodes.length === 0) {
+  if (!allowEmpty && parsedBlockNodesJson.nodes.length === 0) {
     throw new SoloErrors.system.blockNodesJsonEmpty(nodeAlias);
   }
 
