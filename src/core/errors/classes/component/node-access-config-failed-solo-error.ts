@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot configure access to a consensus node; the underlying failure is wrapped in
+ * `cause`. This step establishes the connection (such as a port-forward) and credentials needed to reach a
+ * node, so this means that configuration failed — for example the node pod or service was not reachable, or
+ * a required port-forward could not be created.
+ */
 export class NodeAccessConfigFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
