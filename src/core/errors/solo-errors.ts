@@ -274,6 +274,7 @@ import {InitSystemFilesFailedSoloError} from './classes/system/init-system-files
 import {CacheProviderNotConfiguredSoloError} from './classes/system/cache-provider-not-configured-solo-error.js';
 import {PodTerminationTimeoutSoloError} from './classes/system/pod-termination-timeout-solo-error.js';
 import {TimeoutSoloError} from './classes/system/timeout-solo-error.js';
+import {ClusterRoleCheckFailedSoloError} from './classes/system/cluster-role-check-failed-solo-error.js';
 import {LoggerMessageGroupNotFoundError} from './classes/internal/logger-message-group-not-found-error.js';
 import {CommandReturnedFalseError} from './classes/internal/command-returned-false-error.js';
 import {RemoteConfigUnsupportedComponentError} from './classes/internal/remote-config-unsupported-component-error.js';
@@ -781,6 +782,7 @@ export class SoloErrors {
     readonly cacheProviderNotConfigured: typeof CacheProviderNotConfiguredSoloError;
     readonly podTerminationTimeout: typeof PodTerminationTimeoutSoloError;
     readonly timeout: typeof TimeoutSoloError;
+    readonly clusterRoleCheckFailed: typeof ClusterRoleCheckFailedSoloError;
   } = Object.freeze({
     blockNodePodNotFound: BlockNodePodNotFoundSoloError,
     blockNodeNotReady: BlockNodeNotReadySoloError,
@@ -855,6 +857,7 @@ export class SoloErrors {
     cacheProviderNotConfigured: CacheProviderNotConfiguredSoloError,
     podTerminationTimeout: PodTerminationTimeoutSoloError,
     timeout: TimeoutSoloError,
+    clusterRoleCheckFailed: ClusterRoleCheckFailedSoloError,
   });
 
   // 9xxx — Internal: Unexpected bugs, unimplemented paths
