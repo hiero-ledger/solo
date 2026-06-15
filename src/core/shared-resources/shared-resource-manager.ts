@@ -16,6 +16,18 @@ type HelmValuesObject = Record<string, unknown>;
 type HelmMapValue = Record<string, HelmChartValue>;
 type HelmToleration = HelmMapValue;
 
+const ROLE_SCHEDULING_KEY: string = 'solo.hashgraph.io/role';
+const REDIS_ROLE_FALLBACK_PATHS: string[] = [
+  'postgresql.postgresql',
+  'postgresql.primary',
+  'importer',
+  'grpc',
+  'rest',
+  'restjava',
+  'web3',
+  'monitor',
+];
+
 interface SharedResourceSchedulingValues {
   postgresNodeSelector: HelmMapValue;
   postgresTolerations: HelmToleration[];
@@ -176,6 +188,8 @@ function mergeSchedulingValues(target: SharedResourceSchedulingValues, values: H
     Object.assign(target.redisNodeSelector, getMapValue(values, `${path}.nodeSelector`));
     addTolerations(target.redisTolerations, getTolerations(values, `${path}.tolerations`));
   }
+
+  mergeRedisRoleScheduling(target, values);
 }
 
 function getMapValue(values: HelmValuesObject, path: string): HelmMapValue {
@@ -234,6 +248,50 @@ function addTolerations(target: HelmToleration[], tolerations: HelmToleration[])
       existing.add(serialized);
     }
   }
+}
+
+function mergeRedisRoleScheduling(target: SharedResourceSchedulingValues, values: HelmValuesObject): void {
+  if (target.redisNodeSelector[ROLE_SCHEDULING_KEY] === undefined) {
+    const role: HelmChartValue | undefined = findRoleNodeSelector(values);
+    if (role !== undefined) {
+      target.redisNodeSelector[ROLE_SCHEDULING_KEY] = role;
+    }
+  }
+
+  if (!hasTolerationForKey(target.redisTolerations, ROLE_SCHEDULING_KEY)) {
+    const toleration: HelmToleration | undefined = findRoleToleration(values);
+    if (toleration) {
+      addTolerations(target.redisTolerations, [toleration]);
+    }
+  }
+}
+
+function findRoleNodeSelector(values: HelmValuesObject): HelmChartValue | undefined {
+  for (const path of REDIS_ROLE_FALLBACK_PATHS) {
+    const role: HelmChartValue | undefined = getMapValue(values, `${path}.nodeSelector`)[ROLE_SCHEDULING_KEY];
+    if (role !== undefined) {
+      return role;
+    }
+  }
+
+  return undefined;
+}
+
+function findRoleToleration(values: HelmValuesObject): HelmToleration | undefined {
+  for (const path of REDIS_ROLE_FALLBACK_PATHS) {
+    const toleration: HelmToleration | undefined = getTolerations(values, `${path}.tolerations`).find(
+      (candidate: HelmToleration): boolean => candidate.key === ROLE_SCHEDULING_KEY,
+    );
+    if (toleration) {
+      return toleration;
+    }
+  }
+
+  return undefined;
+}
+
+function hasTolerationForKey(tolerations: HelmToleration[], key: string): boolean {
+  return tolerations.some((toleration: HelmToleration): boolean => toleration.key === key);
 }
 
 function toChartValues(schedulingValues: SharedResourceSchedulingValues): HelmChartValues {
