@@ -57,7 +57,6 @@ interface ExplorerDeployConfigClass {
   explorerTlsHostName: string;
   explorerStaticIp: string | '';
   explorerVersion: string;
-  imageTag: Optional<string>;
   componentImage: Optional<string>;
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
@@ -98,7 +97,6 @@ interface ExplorerUpgradeConfigClass {
   explorerTlsHostName: string;
   explorerStaticIp: string | '';
   explorerVersion: string;
-  imageTag: Optional<string>;
   componentImage: Optional<string>;
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
@@ -178,7 +176,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerTlsHostName,
       flags.explorerStaticIp,
       flags.explorerVersion,
-      flags.imageTag,
       flags.componentImage,
       flags.namespace,
       flags.quiet,
@@ -209,7 +206,6 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerTlsHostName,
       flags.explorerStaticIp,
       flags.explorerVersion,
-      flags.imageTag,
       flags.componentImage,
       flags.namespace,
       flags.quiet,
@@ -697,10 +693,6 @@ export class ExplorerCommand extends BaseCommand {
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);
 
-            // Backwards compat: --image-tag maps to --component-image
-            if (!config.componentImage && config.imageTag) {
-              config.componentImage = `${constants.EXPLORER_IMAGE_NAME}:${config.imageTag}`;
-            }
 
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName(config.namespace);
@@ -810,10 +802,6 @@ export class ExplorerCommand extends BaseCommand {
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);
 
-            // Backwards compat: --image-tag maps to --component-image
-            if (!config.componentImage && config.imageTag) {
-              config.componentImage = `${constants.EXPLORER_IMAGE_NAME}:${config.imageTag}`;
-            }
 
             const {id, releaseName, ingressReleaseName, isChartInstalled, isLegacyChartInstalled} =
               await this.inferExplorerData(config.namespace, config.clusterContext);
