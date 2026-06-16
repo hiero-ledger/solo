@@ -693,7 +693,6 @@ export class ExplorerCommand extends BaseCommand {
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);
 
-
             config.releaseName = this.getReleaseName();
             config.ingressReleaseName = this.getIngressReleaseName(config.namespace);
 
@@ -801,7 +800,6 @@ export class ExplorerCommand extends BaseCommand {
 
             config.clusterRef = this.getClusterReference();
             config.clusterContext = this.getClusterContext(config.clusterRef);
-
 
             const {id, releaseName, ingressReleaseName, isChartInstalled, isLegacyChartInstalled} =
               await this.inferExplorerData(config.namespace, config.clusterContext);

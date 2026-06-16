@@ -755,7 +755,7 @@ export class DeploymentCommand extends BaseCommand {
               });
 
             const headers: ImageRow = {component: 'COMPONENT', pod: 'POD', container: 'CONTAINER', image: 'IMAGE'};
-            const colWidth = (key: keyof ImageRow): number =>
+            const colWidth: (key: keyof ImageRow) => number = (key: keyof ImageRow): number =>
               Math.max(headers[key].length, ...rows.map((row: ImageRow): number => row[key].length));
             const widths: Record<'component' | 'pod' | 'container', number> = {
               component: colWidth('component'),
@@ -763,7 +763,7 @@ export class DeploymentCommand extends BaseCommand {
               container: colWidth('container'),
             };
 
-            const formatRow = (row: ImageRow): string =>
+            const formatRow: (row: ImageRow) => string = (row: ImageRow): string =>
               `  ${row.component.padEnd(widths.component)}  ${row.pod.padEnd(widths.pod)}  ${row.container.padEnd(widths.container)}  ${row.image}`;
 
             const separator: string = '-'.repeat(widths.component + widths.pod + widths.container + 40);

@@ -13,7 +13,7 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {type ClusterReferences} from '../../../src/types/index.js';
+import {type ClusterReferences, type Context} from '../../../src/types/index.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
@@ -22,6 +22,7 @@ import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/
 import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
+import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 
 describe('BaseCommand', (): void => {
   let helm: HelmClient;
@@ -47,10 +48,12 @@ describe('BaseCommand', (): void => {
       remoteConfig = container.resolve(InjectTokens.RemoteConfigRuntimeState);
 
       sandbox = sinon.createSandbox();
-      sandbox.stub(K8Client.prototype, 'init').callsFake(() => this);
-      const k8Factory = container.resolve(InjectTokens.K8Factory);
+      sandbox.stub(K8Client.prototype, 'init').callsFake(function (this: K8Client): K8Client {
+        return this;
+      });
+      const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
 
-      // @ts-ignore
+      // @ts-expect-error - allow to create instance of abstract class
       baseCmd = new BaseCommand({
         logger: testLogger,
         helm,
@@ -188,14 +191,14 @@ describe('BaseCommand', (): void => {
       ];
 
       remoteConfig.getConsensusNodes.returns(mockConsensusNodes);
-      remoteConfig.getContexts.returns(mockConsensusNodes.map(node => node.context));
+      remoteConfig.getContexts.returns(mockConsensusNodes.map((node: ConsensusNode): Context => node.context));
       const mockedClusterReferenceMap: ClusterReferences = new Map<string, string>([
         ['cluster', 'context1'],
         ['cluster2', 'context2'],
       ]);
       remoteConfig.getClusterRefs.returns(mockedClusterReferenceMap);
 
-      const k8Factory = sinon.stub();
+      const k8Factory: SinonStub = sinon.stub();
 
       // @ts-expect-error - allow to create instance of abstract class
       baseCmd = new BaseCommand(
@@ -228,14 +231,14 @@ describe('BaseCommand', (): void => {
 
     it('should return contexts', (): void => {
       // @ts-expect-error - TS2445: to access private property
-      const contexts = baseCmd.remoteConfig.getContexts();
+      const contexts: Context[] = baseCmd.remoteConfig.getContexts();
       expect(contexts).to.be.an('array');
       expect(contexts[0]).to.equal('context1');
       expect(contexts[1]).to.equal('context2');
     });
 
     it('should return clusters references', (): void => {
-      const expectedClusterReferences = {cluster: 'context1', cluster2: 'context2'};
+      const expectedClusterReferences: Record<string, string> = {cluster: 'context1', cluster2: 'context2'};
       // @ts-expect-error - TS2445: to access private property
       const clusterReferences: ClusterReferences = baseCmd.remoteConfig.getClusterRefs();
       for (const [clusterReference] of clusterReferences) {
