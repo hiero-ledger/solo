@@ -220,6 +220,7 @@ export default [
       'unicorn/import-style': 'warn', // TODO error
       'unicorn/prefer-optional-catch-binding': 'warn', // TODO error
       'unicorn/no-array-push-push': 'warn', // TODO error
+      'unicorn/no-this-outside-of-class': 'off',
     },
   },
   {
