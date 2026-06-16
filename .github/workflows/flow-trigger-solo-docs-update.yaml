@@ -45,6 +45,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
-          gh workflow run flow-update-docs.yaml \
-            --repo hiero-ledger/solo-docs \
+          gh workflow run flow-update-docs.yaml --repo hiero-ledger/solo-docs
           echo "::notice::Triggered solo-docs update"
