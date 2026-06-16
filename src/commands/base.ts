@@ -193,7 +193,9 @@ export abstract class BaseCommand extends ShellRunner {
   }
 
   protected isLocalImageAvailableInDocker(componentImage: string): boolean {
-    if (!this.isLocalImageReference(componentImage)) return false;
+    if (!this.isLocalImageReference(componentImage)) {
+      return false;
+    }
     const {name, tag} = this.splitImageNameTag(componentImage);
     return checkDockerImageExists(name, tag);
   }
@@ -203,7 +205,10 @@ export abstract class BaseCommand extends ShellRunner {
     this.logger.debug(`Loading '${componentImage}' into Kind cluster '${kindClusterName}'`);
     const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
     const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
-    await kindClient.loadDockerImage(componentImage, LoadDockerImageOptionsBuilder.builder().name(kindClusterName).build());
+    await kindClient.loadDockerImage(
+      componentImage,
+      LoadDockerImageOptionsBuilder.builder().name(kindClusterName).build(),
+    );
   }
 
   protected async throwIfNamespaceIsMissing(context: Context, namespace: NamespaceName): Promise<void> {
