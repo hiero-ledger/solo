@@ -69,6 +69,7 @@ import {NonInteractivePromptSoloError} from './classes/validation/non-interactiv
 import {OutputDirectoryNotSpecifiedSoloError} from './classes/validation/output-directory-not-specified-solo-error.js';
 import {PvcFlagNotEnabledSoloError} from './classes/validation/pvc-flag-not-enabled-solo-error.js';
 import {RealmShardVersionConstraintSoloError} from './classes/validation/realm-shard-version-constraint-solo-error.js';
+import {SoloChartVersionTooLowSoloError} from './classes/validation/solo-chart-version-too-low-solo-error.js';
 import {UpgradeVersionNotFoundSoloError} from './classes/validation/upgrade-version-not-found-solo-error.js';
 import {WrapsKeyPathNotFoundSoloError} from './classes/validation/wraps-key-path-not-found-solo-error.js';
 import {WrapsVersionConstraintSoloError} from './classes/validation/wraps-version-constraint-solo-error.js';
@@ -575,6 +576,7 @@ export class SoloErrors {
     readonly pvcFlagNotEnabled: typeof PvcFlagNotEnabledSoloError;
     readonly nonInteractivePrompt: typeof NonInteractivePromptSoloError;
     readonly realmShardVersionConstraint: typeof RealmShardVersionConstraintSoloError;
+    readonly soloChartVersionTooLow: typeof SoloChartVersionTooLowSoloError;
     readonly wrapsVersionConstraint: typeof WrapsVersionConstraintSoloError;
     readonly stateFilePathNotFound: typeof StateFilePathNotFoundSoloError;
     readonly stateFileNotFound: typeof StateFileNotFoundSoloError;
@@ -652,6 +654,7 @@ export class SoloErrors {
     pvcFlagNotEnabled: PvcFlagNotEnabledSoloError,
     nonInteractivePrompt: NonInteractivePromptSoloError,
     realmShardVersionConstraint: RealmShardVersionConstraintSoloError,
+    soloChartVersionTooLow: SoloChartVersionTooLowSoloError,
     wrapsVersionConstraint: WrapsVersionConstraintSoloError,
     stateFilePathNotFound: StateFilePathNotFoundSoloError,
     stateFileNotFound: StateFileNotFoundSoloError,

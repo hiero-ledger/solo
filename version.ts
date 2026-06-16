@@ -6,6 +6,7 @@ import path from 'node:path';
 import {PathEx} from './src/business/utils/path-ex.js';
 import fs from 'node:fs';
 import * as constants from './src/core/constants.js';
+import {SoloErrors} from './src/core/errors/solo-errors.js';
 import {SemanticVersion} from './src/business/utils/semantic-version.js';
 
 /**
@@ -87,9 +88,42 @@ export const NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72: string = '0.14.0'
 export const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
 export const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
 
+/**
+ * Minimum supported solo-charts version. When this is the empty string the gate is a no-op — used
+ * during the interval between this scaffold landing and a solo-charts release that contains the
+ * security work for #4002 (Debian image switch + `privileged: true` removal). Once such a release
+ * is published, this constant is set to that release tag and {@link SOLO_CHART_VERSION} is bumped
+ * in lockstep. The gate then prevents users from forcing solo to point at an older, vulnerable
+ * chart release.
+ */
+export const MINIMUM_SOLO_CHART_VERSION: string = '';
+
 export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
   const versionTag: SemanticVersion<string> = new SemanticVersion(releaseTag || HEDERA_PLATFORM_VERSION);
   return versionTag.lessThanOrEqual(LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
+}
+
+/**
+ * Asserts the configured solo-charts version is at or above the minimum supported release. When
+ * {@link minimum} is the empty string (its default until #4002 picks a value) the check is skipped,
+ * so this is a no-op during the scaffold phase and a hard gate once the constant is populated.
+ *
+ * @param chartVersion - the version to check.
+ * @param minimum - override the module-level {@link MINIMUM_SOLO_CHART_VERSION}; used by tests.
+ * @throws SoloChartVersionTooLowSoloError when the supplied version is below the minimum.
+ */
+export function assertSoloChartVersionSupported(
+  chartVersion: SemanticVersion<string> | string,
+  minimum: string = MINIMUM_SOLO_CHART_VERSION,
+): void {
+  if (!minimum) {
+    return;
+  }
+  const actual: SemanticVersion<string> =
+    chartVersion instanceof SemanticVersion ? chartVersion : new SemanticVersion(chartVersion);
+  if (actual.lessThan(new SemanticVersion(minimum))) {
+    throw new SoloErrors.validation.soloChartVersionTooLow(actual.toString(), minimum);
+  }
 }
 
 export function getSoloVersion(): Version {

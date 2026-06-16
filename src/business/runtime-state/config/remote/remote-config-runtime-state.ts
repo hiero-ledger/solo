@@ -32,7 +32,7 @@ import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {ComponentStateMetadataSchema} from '../../../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {Templates} from '../../../../core/templates.js';
 import {DeploymentPhase, DEPLOYMENT_PHASE_ORDER} from '../../../../data/schema/model/remote/deployment-phase.js';
-import {getSoloVersion} from '../../../../../version.js';
+import {assertSoloChartVersionSupported, getSoloVersion} from '../../../../../version.js';
 import * as constants from '../../../../core/constants.js';
 import {Flags as flags} from '../../../../commands/flags.js';
 import {promptTheUserForDeployment} from '../../../../core/resolvers.js';
@@ -428,6 +428,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       // Preserve previously recorded chart versions for commands that don't accept chart flags.
       remoteConfig.versions.chart = new SemanticVersion(flags.soloChartVersion.definition.defaultValue as string);
     }
+    // Single chokepoint: every code path that selects a chart version (CLI flag, backfill, restored
+    // remote config) lands here. The gate is a no-op until MINIMUM_SOLO_CHART_VERSION is set.
+    assertSoloChartVersionSupported(remoteConfig.versions.chart);
 
     // set default versions if not set
     const componentTypes: ComponentTypes[] = [
