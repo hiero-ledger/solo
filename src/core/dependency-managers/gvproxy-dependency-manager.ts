@@ -106,13 +106,16 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
    */
   private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
     try {
-      // Make a GET request to GitHub API using fetch
+      const headers: Record<string, string> = {
+        'User-Agent': constants.SOLO_USER_AGENT_HEADER,
+        Accept: 'application/vnd.github.v3+json',
+      };
+      if (process.env.GITHUB_TOKEN) {
+        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+      }
       const response = await fetch(GVPROXY_RELEASES_LIST_URL, {
         method: 'GET',
-        headers: {
-          'User-Agent': constants.SOLO_USER_AGENT_HEADER,
-          Accept: 'application/vnd.github.v3+json', // Explicitly request GitHub API v3 format
-        },
+        headers,
       });
 
       if (!response.ok) {
