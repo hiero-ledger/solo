@@ -550,7 +550,9 @@ export class Flags {
     constName: 'imageTag',
     name: 'image-tag',
     definition: {
-      describe: 'The Docker image tag to override what is in the Helm Chart',
+      describe:
+        '[Deprecated] Use --component-image instead. Overrides the Docker image tag for block-node commands ' +
+        '(e.g. 0.36.0-SNAPSHOT). For local builds, --component-image is preferred as it also auto-loads the image into the kind cluster.',
       defaultValue: '',
       type: 'string',
     },
@@ -561,7 +563,11 @@ export class Flags {
     constName: 'componentImage',
     name: 'component-image',
     definition: {
-      describe: 'Full Docker image reference override (e.g. ghcr.io/org/image:tag, docker.io/library/redis:7, redis:7)',
+      describe:
+        'Docker image override for block-node, mirror-node, relay, and explorer. ' +
+        'Accepts a registry image (e.g. ghcr.io/hiero-ledger/block-node-server:0.36.0) ' +
+        'or a local build image (e.g. block-node-server:0.36.0-SNAPSHOT, hiero-explorer:my-build). ' +
+        'When a local build image is found in Docker, it is automatically loaded into the kind cluster.',
       defaultValue: '',
       type: 'string',
       alias: 'relay-image',

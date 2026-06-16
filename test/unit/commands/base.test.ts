@@ -243,4 +243,58 @@ describe('BaseCommand', (): void => {
       }
     });
   });
+
+  describe('isLocalImageReference', (): void => {
+    before((): void => {
+      resetForTest();
+      // @ts-expect-error - allow to create instance of abstract class
+      baseCmd = new BaseCommand();
+    });
+
+    const localCases: string[] = [
+      'block-node-server:0.36.0-SNAPSHOT',
+      'hiero-explorer:my-build',
+      'hiero-json-rpc-relay:local',
+      'myimage:latest',
+    ];
+
+    const registryCases: string[] = [
+      'ghcr.io/hiero-ledger/block-node-server:0.36.0',
+      'docker.io/library/redis:7',
+      'localhost:5000/myimage:tag',
+      'registry.example.com/org/image:v1',
+    ];
+
+    for (const reference of localCases) {
+      it(`should identify '${reference}' as local`, (): void => {
+        // @ts-expect-error - TS2445: protected method
+        expect(baseCmd.isLocalImageReference(reference)).to.be.true;
+      });
+    }
+
+    for (const reference of registryCases) {
+      it(`should identify '${reference}' as registry`, (): void => {
+        // @ts-expect-error - TS2445: protected method
+        expect(baseCmd.isLocalImageReference(reference)).to.be.false;
+      });
+    }
+  });
+
+  describe('kindClusterNameFromContext', (): void => {
+    before((): void => {
+      resetForTest();
+      // @ts-expect-error - allow to create instance of abstract class
+      baseCmd = new BaseCommand();
+    });
+
+    it('should strip kind- prefix from context', (): void => {
+      // @ts-expect-error - TS2445: protected method
+      expect(baseCmd.kindClusterNameFromContext('kind-solo-cluster')).to.equal('solo-cluster');
+    });
+
+    it('should return context unchanged when no kind- prefix', (): void => {
+      // @ts-expect-error - TS2445: protected method
+      expect(baseCmd.kindClusterNameFromContext('my-cluster')).to.equal('my-cluster');
+    });
+  });
 });

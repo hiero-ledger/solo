@@ -140,6 +140,11 @@ export class DeploymentCommand extends BaseCommand {
     optional: [flags.quiet],
   };
 
+  public static IMAGES_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.clusterRef, flags.quiet],
+  };
+
   public static PORTS_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.clusterRef, flags.quiet, flags.output, flags.cacheDir],
@@ -670,6 +675,80 @@ export class DeploymentCommand extends BaseCommand {
       await tasks.run();
     } catch (error) {
       throw new SoloErrors.deployment.listPortsFailed(error);
+    }
+
+    return true;
+  }
+
+  public async images(argv: ArgvStruct): Promise<boolean> {
+    interface ImagesConfig {
+      quiet: boolean;
+      namespace: NamespaceName;
+      deployment: DeploymentName;
+      context: string;
+    }
+
+    interface ImagesContext {
+      config: ImagesConfig;
+    }
+
+    const tasks: SoloListr<ImagesContext> = this.taskList.newTaskList<ImagesContext>(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_: ImagesContext): Promise<void> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            this.configManager.update(argv);
+
+            const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            const deploymentConfig: Deployment = this.localConfig.configuration.deploymentByName(deployment);
+            if (!deploymentConfig) {
+              throw new SoloErrors.deployment.notFound(`Deployment ${deployment} not found in local config`);
+            }
+            const namespace: NamespaceName = NamespaceName.of(deploymentConfig.namespace);
+            const clusterReference: ClusterReferenceName = this.getClusterReference();
+            const clusterContext: string = this.getClusterContext(clusterReference);
+
+            context_.config = {
+              quiet: this.configManager.getFlag<boolean>(flags.quiet),
+              namespace,
+              deployment,
+              context: clusterContext,
+            };
+          },
+        },
+        {
+          title: 'Collect running images',
+          task: async ({config}: ImagesContext): Promise<void> => {
+            const pods: Pod[] = await this.k8Factory.getK8(config.context).pods().list(config.namespace, []);
+
+            if (pods.length === 0) {
+              this.logger.showUser(chalk.yellow(`No pods found in namespace: ${config.namespace.name}`));
+              return;
+            }
+
+            const rows: string[] = pods
+              .filter((pod: Pod): boolean => Boolean(pod.containerImage))
+              .map((pod: Pod): string => {
+                const release: string = pod.labels?.['app.kubernetes.io/instance'] ?? '<unknown>';
+                const podName: string = pod.podReference?.name?.toString() ?? '<unknown>';
+                const container: string = pod.containerName?.toString() ?? '<unknown>';
+                const image: string = pod.containerImage ?? '<unknown>';
+                return `${release} | pod=${podName} | container=${container} | image=${image}`;
+              });
+
+            this.logger.showList(`Running images in deployment: ${config.deployment}`, rows);
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloErrors.deployment.listFailed(error);
     }
 
     return true;

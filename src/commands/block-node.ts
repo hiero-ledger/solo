@@ -35,7 +35,9 @@ import chalk from 'chalk';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {injectable} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {Templates} from '../core/templates.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
@@ -54,6 +56,7 @@ import {
 import {optionFromFlag} from './command-helpers.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
+import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -69,6 +72,7 @@ interface BlockNodeDeployConfigClass {
   valuesFile: Optional<string>;
   releaseTag: string;
   imageTag: Optional<string>;
+  componentImage: Optional<string>;
   namespace: NamespaceName;
   context: string;
   chartValues: HelmChartValues;
@@ -205,6 +209,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.releaseTag,
       flags.consensusNodeVersion,
       flags.imageTag,
+      flags.componentImage,
       flags.priorityMapping,
     ],
   };
@@ -300,21 +305,38 @@ export class BlockNodeCommand extends BaseCommand {
         .set('ingress.hosts[0].paths[0].pathType', 'ImplementationSpecific');
     }
 
-    if ('imageTag' in config && config.imageTag) {
-      config.imageTag = SemanticVersion.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
-      if (!checkDockerImageExists(constants.BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
-        throw new SoloErrors.validation.blockNodeLocalImageNotFound(config.imageTag);
+    if ('componentImage' in config && config.componentImage) {
+      if (this.isLocalImageReference(config.componentImage)) {
+        const {name: localImageName, tag: rawTag} = this.splitImageNameTag(config.componentImage);
+        const localImageTag: string = SemanticVersion.getValidSemanticVersion(rawTag, false, 'Block node image tag');
+        if (checkDockerImageExists(localImageName, localImageTag)) {
+          // Image found locally — kind-load task will load it; set pullPolicy: Never.
+          chartValues
+            .set('image.repository', localImageName)
+            .set('image.tag', localImageTag)
+            .set('image.pullPolicy', 'Never');
+        } else {
+          // Not in local Docker — plain tag override so K8s can pull from a registry.
+          chartValues.set('image.tag', localImageTag);
+        }
+      } else {
+        const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
+        chartValues
+          .setLiteral('image.registry', parsedReference.registry)
+          .set('image.repository', parsedReference.repository)
+          .set('image.tag', parsedReference.tag);
       }
-      // use local image from docker engine
-      chartValues
-        .set('image.repository', constants.BLOCK_NODE_IMAGE_NAME)
-        .set('image.tag', config.imageTag)
-        .set('image.pullPolicy', 'Never');
     }
 
     const {state, clusters} = this.remoteConfig.configuration;
 
-    for (const [index, blockNode] of state.blockNodes.entries()) {
+    const currentBlockNodeId: ComponentId =
+      'newBlockNodeComponent' in config ? config.newBlockNodeComponent.metadata.id : -1;
+    const otherBlockNodes: BlockNodeStateSchema[] = state.blockNodes.filter(
+      (blockNode): boolean => blockNode.metadata.id !== currentBlockNodeId,
+    );
+
+    for (const [index, blockNode] of otherBlockNodes.entries()) {
       const cluster: ClusterSchema = clusters.find(({name}): boolean => name === blockNode.metadata.cluster);
 
       const fqdn: string = Templates.renderSvcFullyQualifiedDomainName(
@@ -340,6 +362,18 @@ export class BlockNodeCommand extends BaseCommand {
       return chartValues;
     }
     return chartValues.clone().arguments(...extraCommandArguments);
+  }
+
+  private loadImageIntoKindTask(): SoloListrTask<BlockNodeDeployContext> {
+    return {
+      title: 'Load local image into Kind cluster',
+      skip: ({config}: BlockNodeDeployContext): boolean => {
+        return !config.componentImage || !this.isLocalImageAvailableInDocker(config.componentImage);
+      },
+      task: async ({config}: BlockNodeDeployContext): Promise<void> => {
+        await this.kindLoadComponentImage(config.componentImage, config.context);
+      },
+    };
   }
 
   private getReleaseName(): string {
@@ -544,6 +578,15 @@ export class BlockNodeCommand extends BaseCommand {
               'Block node chart version',
             );
 
+            // --image-tag is shorthand: normalize to a full local-image reference so both flags
+            // share the same downstream logic.  Also back-fill imageTag from componentImage when
+            // only componentImage was supplied, so liveness-port and VERSION configmap logic work.
+            if (!config.componentImage && config.imageTag) {
+              config.componentImage = `${constants.BLOCK_NODE_IMAGE_NAME}:${config.imageTag}`;
+            } else if (config.componentImage && !config.imageTag && this.isLocalImageReference(config.componentImage)) {
+              config.imageTag = ImageReference.parseImageReference(config.componentImage).tag;
+            }
+
             config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.imageTag);
 
             await this.persistBlockNodeMessageSizeOverrides(
@@ -577,6 +620,7 @@ export class BlockNodeCommand extends BaseCommand {
             config.chartValues = await this.prepareValuesArgForBlockNode(config);
           },
         },
+        this.loadImageIntoKindTask(),
         {
           title: 'Deploy block node',
           task: async ({config}, task): Promise<void> => {
@@ -599,6 +643,9 @@ export class BlockNodeCommand extends BaseCommand {
               chartVersion,
               chartValues,
               context,
+              false,
+              false,
+              Boolean(blockNodeChartDirectory),
             );
 
             this.remoteConfig.configuration.components.changeComponentPhase(
@@ -932,6 +979,10 @@ export class BlockNodeCommand extends BaseCommand {
                     stepTargetVersion,
                     stepChartValues,
                     context,
+                    false,
+                    false,
+                    false,
+                    Boolean(config.blockNodeChartDirectory),
                   );
                 } catch (error) {
                   if (this.isImmutableStatefulSetError(error)) {
@@ -1288,6 +1339,9 @@ export class BlockNodeCommand extends BaseCommand {
       validatedUpgradeVersion,
       chartValues,
       config.context,
+      false,
+      false,
+      Boolean(config.blockNodeChartDirectory),
     );
   }
 

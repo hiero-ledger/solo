@@ -39,6 +39,10 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {NodeCommandTasks} from './node/tasks.js';
 import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
 import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
+import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
+import {type KindClient} from '../integration/kind/kind-client.js';
+import {LoadDockerImageOptionsBuilder} from '../integration/kind/model/load-docker-image/load-docker-image-options-builder.js';
+import {checkDockerImageExists} from '../core/helpers.js';
 
 export abstract class BaseCommand extends ShellRunner {
   public readonly soloConfig: SoloConfig;
@@ -58,6 +62,7 @@ export abstract class BaseCommand extends ShellRunner {
     @inject(InjectTokens.OneShotState) protected readonly oneShotState?: OneShotState,
     @inject(InjectTokens.NodeCommandTasks) protected readonly nodeCommandTasks?: NodeCommandTasks,
     @inject(InjectTokens.ConfigProvider) private readonly configProvider?: ConfigProvider,
+    @inject(InjectTokens.KindBuilder) protected readonly kindBuilder?: DefaultKindClientBuilder,
   ) {
     super();
 
@@ -74,6 +79,7 @@ export abstract class BaseCommand extends ShellRunner {
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
     this.nodeCommandTasks = patchInject(nodeCommandTasks, InjectTokens.NodeCommandTasks, this.constructor.name);
     this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
+    this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, this.constructor.name);
     this.soloConfig = SoloConfig.getConfig(this.configProvider);
   }
 
@@ -167,6 +173,37 @@ export abstract class BaseCommand extends ShellRunner {
 
   protected getNamespace(task: SoloListrTaskWrapper<AnyListrContext>): Promise<NamespaceName> {
     return resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
+  }
+
+  protected kindClusterNameFromContext(clusterContext: string): string {
+    return clusterContext.startsWith('kind-') ? clusterContext.slice('kind-'.length) : clusterContext;
+  }
+
+  protected isLocalImageReference(imageReference: string): boolean {
+    const withoutTag: string = imageReference.includes(':')
+      ? imageReference.slice(0, imageReference.lastIndexOf(':'))
+      : imageReference;
+    const firstSegment: string = withoutTag.split('/')[0];
+    return !firstSegment.includes('.') && !firstSegment.includes(':') && firstSegment !== 'localhost';
+  }
+
+  protected splitImageNameTag(imageReference: string): {name: string; tag: string} {
+    const colonIndex: number = imageReference.lastIndexOf(':');
+    return {name: imageReference.slice(0, colonIndex), tag: imageReference.slice(colonIndex + 1)};
+  }
+
+  protected isLocalImageAvailableInDocker(componentImage: string): boolean {
+    if (!this.isLocalImageReference(componentImage)) return false;
+    const {name, tag} = this.splitImageNameTag(componentImage);
+    return checkDockerImageExists(name, tag);
+  }
+
+  protected async kindLoadComponentImage(componentImage: string, clusterContext: string): Promise<void> {
+    const kindClusterName: string = this.kindClusterNameFromContext(clusterContext);
+    this.logger.debug(`Loading '${componentImage}' into Kind cluster '${kindClusterName}'`);
+    const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
+    const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+    await kindClient.loadDockerImage(componentImage, LoadDockerImageOptionsBuilder.builder().name(kindClusterName).build());
   }
 
   protected async throwIfNamespaceIsMissing(context: Context, namespace: NamespaceName): Promise<void> {

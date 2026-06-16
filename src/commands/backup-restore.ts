@@ -43,7 +43,6 @@ import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js'
 import {inject} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
 import {KindClient} from '../integration/kind/kind-client.js';
 import {type ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {ShellRunner} from '../core/shell-runner.js';
@@ -60,11 +59,9 @@ import {Container} from '../integration/kube/resources/container/container.js';
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
   public constructor(
-    @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.KubectlInstallationDirectory) private readonly kubectlInstallationDirectory: string,
   ) {
     super();
-    this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, BackupRestoreCommand.name);
     this.kubectlInstallationDirectory = patchInject(
       kubectlInstallationDirectory,
       InjectTokens.KubectlInstallationDirectory,
