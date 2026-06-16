@@ -644,7 +644,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   // Idempotency guard: skip if the consensus node is already deployed or the network Helm release exists.
                   (): boolean => this.isConsensusDeployStepComplete(deploymentStateSnapshot),
                 ),
-            }),
+              // consensus network deploy has a "Copy block-nodes.json" step that reads blockNodeMap.
+              // Gate it on BlockNodeDeployed so block-node add has fully populated blockNodeMap before
+              // consensus network deploy runs.
+            }).withWaitCondition(SoloEventType.BlockNodeDeployed, Duration.ofMinutes(10)),
             OrchestratorPipelinePhase.composite('Setup and start consensus node', [
               new OrchestratorPipelinePhase('Setup consensus node', {
                 asListrTask: (
@@ -663,7 +666,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                         DeploymentPhase.CONFIGURED,
                       ),
                   ),
-              }).withWaitCondition(SoloEventType.BlockNodeDeployed, Duration.ofMinutes(10)),
+              }),
               new OrchestratorPipelinePhase('Start consensus node', {
                 asListrTask: (
                   getConfig: () => OneShotSingleDeployConfigClass,
