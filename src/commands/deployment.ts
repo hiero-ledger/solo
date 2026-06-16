@@ -728,17 +728,54 @@ export class DeploymentCommand extends BaseCommand {
               return;
             }
 
-            const rows: string[] = pods
+            interface ImageRow {
+              component: string;
+              pod: string;
+              container: string;
+              image: string;
+            }
+
+            const rows: ImageRow[] = pods
               .filter((pod: Pod): boolean => Boolean(pod.containerImage))
-              .map((pod: Pod): string => {
-                const release: string = pod.labels?.['app.kubernetes.io/instance'] ?? '<unknown>';
-                const podName: string = pod.podReference?.name?.toString() ?? '<unknown>';
-                const container: string = pod.containerName?.toString() ?? '<unknown>';
-                const image: string = pod.containerImage ?? '<unknown>';
-                return `${release} | pod=${podName} | container=${container} | image=${image}`;
+              .map((pod: Pod): ImageRow => {
+                const podName: string = pod.podReference?.name?.toString() ?? '';
+                const component: string =
+                  pod.labels?.['app.kubernetes.io/instance'] ??
+                  pod.labels?.['app.kubernetes.io/name'] ??
+                  podName
+                    .replace(/-[a-z0-9]{5}$/, '') // strip Deployment pod-id suffix
+                    .replace(/-[a-z0-9]{7,10}$/, '') // strip Deployment replicaset hash
+                    .replace(/-\d+$/, ''); // strip StatefulSet index
+                return {
+                  component: component || '<unknown>',
+                  pod: podName || '<unknown>',
+                  container: pod.containerName?.toString() ?? '<unknown>',
+                  image: pod.containerImage ?? '<unknown>',
+                };
               });
 
-            this.logger.showList(`Running images in deployment: ${config.deployment}`, rows);
+            const headers: ImageRow = {component: 'COMPONENT', pod: 'POD', container: 'CONTAINER', image: 'IMAGE'};
+            const colWidth = (key: keyof ImageRow): number =>
+              Math.max(headers[key].length, ...rows.map((row: ImageRow): number => row[key].length));
+            const widths: Record<'component' | 'pod' | 'container', number> = {
+              component: colWidth('component'),
+              pod: colWidth('pod'),
+              container: colWidth('container'),
+            };
+
+            const formatRow = (row: ImageRow): string =>
+              `  ${row.component.padEnd(widths.component)}  ${row.pod.padEnd(widths.pod)}  ${row.container.padEnd(widths.container)}  ${row.image}`;
+
+            const separator: string = '-'.repeat(widths.component + widths.pod + widths.container + 40);
+
+            this.logger.showUser(chalk.green(`\n *** Running images in deployment: ${config.deployment} ***`));
+            this.logger.showUser(chalk.green(separator));
+            this.logger.showUser(chalk.bold.white(formatRow(headers)));
+            this.logger.showUser(chalk.green(separator));
+            for (const row of rows) {
+              this.logger.showUser(chalk.cyan(formatRow(row)));
+            }
+            this.logger.showUser('');
           },
         },
       ],
