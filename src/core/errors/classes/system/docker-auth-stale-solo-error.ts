@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo detects stale Docker authentication for the GitHub Container Registry (GHCR). solo needs
+ * valid GHCR credentials to pull images, so this means the cached Docker auth is expired or invalid —
+ * re-authenticate to GHCR to refresh it.
+ */
 export class DockerAuthStaleSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

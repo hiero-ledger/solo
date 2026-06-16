@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown during initialization when solo cannot determine which cluster reference to use. solo expects the
+ * active cluster reference to be resolvable at this point, so reaching this indicates an internal
+ * initialization or ordering defect rather than user input, and is treated as an internal Solo error.
+ */
 export class ClusterReferenceUndeterminedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;

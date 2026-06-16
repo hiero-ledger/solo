@@ -4,6 +4,10 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when several clusters are available but none was selected; the message lists them. solo cannot
+ * guess which cluster to use, so it asks you to disambiguate with `--cluster-ref`.
+ */
 export class MultipleClustersFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

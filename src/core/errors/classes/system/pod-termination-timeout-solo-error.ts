@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when pods do not terminate within the allotted time; the message names the namespace and the label
+ * selector being waited on. solo waits for matching pods to disappear during teardown, so this means they
+ * were still present when the deadline passed — for example a pod is stuck terminating or has a finalizer.
+ * It is retryable, since termination often completes shortly after.
+ */
 export class PodTerminationTimeoutSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

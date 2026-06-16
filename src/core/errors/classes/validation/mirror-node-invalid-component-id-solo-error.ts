@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a mirror node component id is not valid; the message includes the value and its runtime type.
+ * solo expects component ids in a specific form, so this means the supplied id is malformed or of the wrong
+ * type.
+ */
 export class MirrorNodeInvalidComponentIdSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

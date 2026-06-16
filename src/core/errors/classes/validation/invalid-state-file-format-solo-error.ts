@@ -4,6 +4,10 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a state file is not a `.zip`; the message names the path. solo expects saved state as a zip
+ * archive, so this means a non-zip file was supplied.
+ */
 export class InvalidStateFileFormatSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

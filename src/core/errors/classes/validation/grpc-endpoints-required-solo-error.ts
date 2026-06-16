@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when `--grpc-endpoints` is required for the chosen endpoint type but was not provided; the message
+ * names the endpoint type. Certain endpoint types need explicit gRPC endpoints, so this means the flag must
+ * be supplied for that type.
+ */
 export class GrpcEndpointsRequiredSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

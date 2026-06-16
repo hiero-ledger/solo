@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot list Kubernetes IngressClasses; the underlying failure is wrapped in `cause`.
+ * solo reads IngressClasses to configure ingress for components, so this means the lookup failed — for
+ * example the cluster API was unreachable or the current user lacks permission.
+ */
 export class IngressClassListFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

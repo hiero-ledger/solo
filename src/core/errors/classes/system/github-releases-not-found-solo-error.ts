@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a GitHub repository reports no releases. solo lists releases to choose a version to download,
+ * so this means the repository returned an empty release list. It is retryable, since a transient API issue
+ * can return empty results that resolve on a later attempt.
+ */
 export class GitHubReleasesNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
