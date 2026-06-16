@@ -666,7 +666,9 @@ export class BlockNodeCommand extends BaseCommand {
 
               await this.k8Factory.getK8(context).configMaps().update(namespace, name, data);
 
-              task.title += ` with local built image (${imageTag})`;
+              if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
+                task.title += ` with local built image (${imageTag})`;
+              }
             }
 
             showVersionBanner(this.logger, releaseName, chartVersion);

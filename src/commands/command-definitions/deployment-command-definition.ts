@@ -185,7 +185,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
             this.deploymentCommand,
             this.deploymentCommand.images,
             DeploymentCommand.IMAGES_FLAGS_LIST,
-            [...constants.BASE_DEPENDENCIES],
+            [constants.KUBECTL],
           ),
         ),
       )

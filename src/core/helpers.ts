@@ -600,13 +600,12 @@ async function throwAfter(duration: Duration, message: string = 'Timeout'): Prom
 export function checkDockerImageExists(imageName: string, imageTag: string): boolean {
   const fullImageName: string = `${imageName}:${imageTag}`;
   try {
-    // Execute the 'docker images' command and filter by the image name
-    // The --format "{{.Repository}}:{{.Tag}}" ensures consistent output
-    // We use grep to filter for the exact image:tag
     const command: string = `docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "^${fullImageName}$"`;
     const output: string = execSync(command, {encoding: 'utf8', stdio: 'pipe'});
     return output.trim() === fullImageName;
   } catch (error) {
+    // grep exits 1 when no lines match — image simply not found, not an error
+    if (error?.status === 1) return false;
     if (!constants.SOLO_SILENT_MODE) {
       console.error(`Error checking Docker image ${fullImageName}:`, error.message);
     }
