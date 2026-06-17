@@ -23,6 +23,7 @@ Solo *already has* substantial state-tracking infrastructure that could power id
 - Detecting **configuration drift** — guards check existence, not whether the deployed thing matches the user's current flags. Deferred to Phase 3.
 - Explicit **resume UX** (`--resume`, `solo one-shot resume`). Phase 1 is implicit: re-running `deploy` is the resume mechanism. A first-class resume command is deferred to Phase 2.
 - Persisting per-step **workflow state** beyond what `ComponentsDataWrapper` already gives us. Deferred to Phase 2.
+- **Component-level rollback** of partial state from a failed step (e.g., uninstalling a half-installed Helm release, removing dangling sub-resources before re-running). Phase 1 relies on sub-command idempotency for safe re-runs; richer rollback semantics are deferred to Phase 2.
 
 ## 4. Existing Infrastructure
 
@@ -160,26 +161,118 @@ Two sites currently throw on existing state. The fix is local to those handlers,
 
 These two changes also make the operations safe to call directly (not just from one-shot), which is a small bonus for scripted workflows.
 
-## 7. Phase 2 Sketch (Non-Binding)
+## 7. Phase 2 Design (Binding)
 
-Persist per-step workflow state to enable real resume UX and observability:
+Persist per-step workflow state to the remote ConfigMap, then use that state to enable component-level rollback on resume, partial-completion handling for batch operations, and an explicit resume UX. This phase begins after Phase 1 has been in production long enough to surface real failure data (~1 month minimum), so the design here is informed by Phase 1's edge cases.
+
+### 7.1 Workflow state schema
 
 ```typescript
+interface WorkflowState {
+  workflowVersion: 1;                              // bumped on every backward-incompatible schema change
+  steps: WorkflowStep[];                           // append-only history; latest record per `id` wins
+}
+
 interface WorkflowStep {
-  id: string;            // 'cluster-connect', 'deployment-create', …
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  startedAt?: string;
-  completedAt?: string;
-  error?: string;
+  id: string;                                      // 'cluster-connect', 'deployment-create', etc.
+  status: 'running' | 'completed' | 'failed';
+  startedAt: string;                               // ISO-8601, UTC
+  completedAt?: string;                            // set when status transitions to completed/failed
+  error?: string;                                  // sanitized error message; no secrets, no PII
+  subItems?: Record<string, 'completed'>;          // for batch ops (§7.5); keyed by stable sub-item id
 }
 ```
 
-Open design questions, all deferred to a Phase 2 RFC:
+Records are written through `RemoteConfigRuntimeState` so callers never reach into the storage layer directly. Reads return the most recent record per `id`; the append-only history is for diagnostics, not lookup.
 
-- Storage: extend the existing remote ConfigMap vs. a dedicated workflow ConfigMap.
-- Schema versioning across Solo upgrades — how do we read a workflow record written by an older Solo?
-- UX: auto-resume on detect vs. prompt vs. explicit `--resume` flag vs. a `solo one-shot resume` command.
-- Partial-completion handling: account creation that finished 18 of 30 accounts, e.g.
+### 7.2 Storage
+
+**Decision:** extend the existing remote ConfigMap (`solo-remote-config`) with a new top-level `workflow` field. Not a dedicated ConfigMap.
+
+Rationale:
+- Phase 1's `DeploymentStateSnapshot` already reads from this ConfigMap; adding workflow state to the same source keeps reads consistent and avoids a second round-trip.
+- A typical one-shot deploy has fewer than 20 steps; the additional payload is small (~2 KB) — well within the 1 MiB ConfigMap limit.
+- One source of truth simplifies backup/restore and migration tooling.
+
+### 7.3 Schema versioning
+
+**Decision:** version field `workflowVersion: number` at the top of the workflow state. Bump on any backward-incompatible change.
+
+Read behavior:
+- **Newer Solo reading older versions:** registered migration in `src/data/schema/migration/impl/remote/` lifts the record to the current schema. Same pattern Phase 1 already uses.
+- **Older Solo reading newer versions:** unknown version → drop the workflow state entirely and treat the deploy as fresh. Safer than silently mis-interpreting fields.
+
+The first release that ships Phase 2 sets `workflowVersion: 1`. Phase 1 deployments without a workflow field are treated as version 0 (no workflow state) — fresh-start behavior on first Phase 2 invocation.
+
+### 7.4 Component-level rollback on resume
+
+When the orchestrator starts a deploy and finds a `WorkflowStep` for the about-to-run step in state `running` or `failed`, it invokes the step's registered rollback handler before running the step. This addresses the "Helm release partially installed" edge case the Phase 1 RFC §9 explicitly does not handle. Per review feedback from @jeromy-cannon on the Phase 1 RFC.
+
+**Decision: per-step granularity** — every orchestrator phase that creates persistent state registers a `rollback()` callback that knows what its step creates. Not per-component (too coarse — a phase like "deploy network" creates multiple components) and not per-sub-resource (too fine — implementation explodes, gain is marginal).
+
+Rollback handlers are best-effort idempotent: each one performs delete-if-exists on the resources its step would have created. Failure of a rollback handler logs at `WARN` and the deploy proceeds — partial cleanup is better than blocking on cleanup.
+
+Initial rollback registry (refined during implementation):
+
+| Step | What gets rolled back |
+|---|---|
+| `cluster-ref setup` | uninstall cluster-setup Helm release |
+| Remote-config component creation | delete the newly-created component entries from the components array |
+| `consensus deploy` | `helm uninstall` the network release |
+| `consensus setup` | revert phase from CONFIGURED to DEPLOYED |
+| `consensus start` | revert phase from STARTED to CONFIGURED |
+| `block add` / `mirror add` / `explorer add` / `relay add` | `helm uninstall` the component's release |
+| `keys consensus generate` | no rollback (idempotent on disk) |
+| Account creation | no rollback (handled by §7.5 partial-completion) |
+
+### 7.5 Partial-completion handling for batch operations
+
+Today's account-creation step is all-or-nothing: it writes `accounts.json` only on full success, so a failure at account 18 of 30 forces the entire batch to re-run.
+
+**Decision:** record each sub-item's completion in the step's `subItems` map. On resume, the step skips sub-items already marked `completed`.
+
+```typescript
+// during account creation:
+const completedAccounts = workflowState.getStep('account-creation')?.subItems ?? {};
+for (const account of accountsToCreate) {
+  if (completedAccounts[account.id] === 'completed') continue;
+  await createAccount(account);
+  await workflowState.recordSubItem('account-creation', account.id, 'completed');
+}
+```
+
+Phase 2 ships this for account creation specifically. Other batch operations (TLS cert provisioning, predefined-account secret rotation) adopt the same pattern when they need it — file as separate issues.
+
+### 7.6 Resume UX
+
+**Decision:** **auto-resume by default**, with a banner log line showing what was found and what will happen. A new `--no-resume` flag forces a fresh start (after rollback of any partial state).
+
+Rationale:
+- Matches Phase 1's implicit-resume philosophy: re-running `deploy` is the resume mechanism. Phase 2 makes it explicit and observable, not a different command.
+- No new subcommand (`solo one-shot resume`) — operators already type `deploy`, no reason to ask them to learn a second command for the recovery path.
+- No prompt — the default operator workflow is non-interactive (CI, scripts); prompting would break that.
+
+The banner emitted on resume:
+
+```
+Resuming deployment 'one-shot' from workflow state:
+  ✓ completed: cluster-connect, deployment-create, keys-generate, consensus-deploy
+  ↺ rolling back: consensus-setup  (failed at 2026-06-17T10:23:14Z: <error>)
+  → will run: consensus-setup, consensus-start, mirror-add, explorer-add, relay-add, accounts
+Pass --no-resume to discard this state and start fresh.
+```
+
+A new read-only command `solo one-shot status` reports the workflow state without running anything — useful for operators inspecting a stuck deploy.
+
+### 7.7 Verification
+
+End-to-end scenarios that gate Phase 2's release:
+
+1. **Crash mid-Helm-install** (kill solo during `consensus deploy`) → on resume, rollback uninstalls the partial release, then the step re-runs cleanly.
+2. **Crash mid-batch** (kill solo at account 15 of 30) → on resume, accounts 1–15 are skipped, accounts 16–30 are created.
+3. **`--no-resume` opt-out** → workflow state is rolled back across all `running`/`failed` steps, fresh deploy proceeds.
+4. **Schema-version mismatch** (deploy with older Solo against state written by newer Solo) → state is discarded with a `WARN`, fresh deploy proceeds.
+5. **`status` reports correctly** for every combination of completed/running/failed step states.
 
 ## 8. Phase 3 Sketch (Non-Binding)
 
@@ -198,7 +291,8 @@ Open questions for a Phase 3 RFC: implicit convergence in `deploy` vs. an explic
 |---|---|
 | Deployment in local config but not in cluster (stale) | `deployment create` already handles this — cleans stale config, proceeds. |
 | Remote config exists but components in wrong phase | Snapshot reads actual phase; phase-gated guards run incomplete steps and skip complete ones. |
-| Helm release exists but pods `CrashLoopBackOff` | Guard sees "installed" → skips. **Not handled** in Phase 1; addressed in Phase 3. |
+| Helm release exists but pods `CrashLoopBackOff` | Guard sees "installed" → skips. **Not handled** in Phase 1; health-aware skip addressed in Phase 3. |
+| Helm release partially installed (CRDs applied, StatefulSet failed) | Guard sees "installed" → skips, but the install is incomplete. **Not handled** in Phase 1 — re-run inherits the partial state. Component-level rollback on resume is a Phase 2 deliverable (§7). |
 | Keys exist but for a different deployment | Safe — keys are stored per-deployment under `${cacheDir}/keys/`. |
 | Accounts partially created (e.g., crashed mid-batch) | All-or-nothing — `accounts.json` is only written on completion, so partial state will re-run the entire batch. Tighter handling deferred to Phase 2. |
 | User changes flags between runs | **Not detected** in Phase 1. Guards check existence, not correctness. Addressed in Phase 3. |
