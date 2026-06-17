@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot copy platform files into a consensus node pod; the message names the source
+ * files, the pod, and the destination directory, and wraps the underlying failure in `cause`. solo copies
+ * platform artifacts into the node container during setup, so this means the copy failed — for example the
+ * pod was not reachable, the destination path was not writable, or the connection dropped mid-copy.
+ */
 export class PlatformFileCopyFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

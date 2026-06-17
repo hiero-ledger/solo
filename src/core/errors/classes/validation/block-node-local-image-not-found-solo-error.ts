@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a local block node image with the given tag does not exist; the message names the tag. solo
+ * expects the referenced local image to be present (for example built or loaded into the cluster), so this
+ * means it is missing — build or load the image, or correct the tag.
+ */
 export class BlockNodeLocalImageNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

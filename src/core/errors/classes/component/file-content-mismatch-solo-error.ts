@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when content read back from the network does not match what solo uploaded. After uploading a file
+ * (for example via the Hedera File Service), solo re-reads it and compares, so this means the round-trip
+ * verification failed — the stored content differs from what was sent, indicating the upload was incomplete
+ * or corrupted.
+ */
 export class FileContentMismatchSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

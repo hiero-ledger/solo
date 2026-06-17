@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when non-zero realm or shard values are used with a network node version that does not support
+ * them; the message names the minimum version. Older platform versions require realm and shard to be `0`,
+ * so this means the values are incompatible with the selected version.
+ */
 export class RealmShardVersionConstraintSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a consensus node's status check returns an empty response. solo queries each node's status
+ * endpoint to determine its state, so an empty reply means the node returned nothing usable — typically
+ * because the node is not yet serving its status endpoint, or the request reached a target that is not
+ * ready.
+ */
 export class NodeStatusEmptyResponseSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

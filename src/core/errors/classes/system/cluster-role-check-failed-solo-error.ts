@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot check whether a Kubernetes ClusterRole exists; the message names the role and
+ * wraps the underlying failure in `cause`. solo queries for ClusterRoles before installing or relying on
+ * them, so this means the lookup failed — for example the Kubernetes API was unreachable or the current
+ * user lacks permission to read ClusterRoles.
+ */
 export class ClusterRoleCheckFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

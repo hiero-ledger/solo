@@ -1850,7 +1850,7 @@ export class NetworkCommand extends BaseCommand {
                 consensusNode.name,
               );
 
-              await rootContainer.copyTo(extractedDirectory, constants.HEDERA_HAPI_PATH);
+              await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
             }
           },
         },

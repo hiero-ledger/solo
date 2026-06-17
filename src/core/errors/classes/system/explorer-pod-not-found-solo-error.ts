@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot find a Hiero Explorer pod. solo locates the explorer pod to operate on it or
+ * check its status, so this is raised when no matching pod exists in the namespace — for example the
+ * explorer failed to start, was removed, or was never deployed.
+ */
 export class ExplorerPodNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

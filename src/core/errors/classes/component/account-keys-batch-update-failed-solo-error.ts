@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a batch key-update over several accounts does not fully succeed; the message reports how many
+ * accounts were not updated. solo updates account keys in bulk during setup and raises this when one or
+ * more of those updates is rejected — typically due to signing or key problems on the affected accounts, or
+ * transient network failures while submitting the batch.
+ */
 export class AccountKeysBatchUpdateFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
