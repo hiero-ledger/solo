@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot list installed Helm charts; the underlying failure is wrapped in `cause`. solo
+ * lists releases to check what is installed, so this means the `helm list` failed — for example the Helm
+ * CLI errored or the cluster API was unreachable.
+ */
 export class HelmChartListFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

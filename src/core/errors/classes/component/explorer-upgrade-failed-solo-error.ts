@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when `solo explorer node upgrade` cannot upgrade the Hiero Explorer; the underlying failure is
+ * wrapped in `cause`. Upgrade re-applies the explorer Helm release at a new chart or version, so this means
+ * the upgrade did not succeed — for example a Helm failure, an image that cannot be pulled, or
+ * misconfigured values.
+ */
 export class ExplorerUpgradeFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

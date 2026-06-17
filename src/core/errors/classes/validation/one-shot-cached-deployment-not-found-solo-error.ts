@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a cached one-shot deployment cannot be found; the message carries a hint about what was
+ * expected. One-shot mode reuses a cached deployment, so this means none matched — for example it was never
+ * created or has been cleared.
+ */
 export class OneShotCachedDeploymentNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

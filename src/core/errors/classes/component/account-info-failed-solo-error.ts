@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot retrieve an account's information from the network via the SDK; the underlying
+ * failure is wrapped in `cause`. It means the account-info query did not return — for example the account
+ * does not exist, the consensus node is unreachable or not yet ACTIVE, or the SDK client is misconfigured.
+ */
 export class AccountInfoFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot store a generated TLS key as a Kubernetes secret; when available the underlying
+ * failure is wrapped in `cause`. solo persists TLS keys in cluster secrets so components can mount them, so
+ * this means the secret could not be created — for example the namespace is missing, a conflicting secret
+ * exists, or the Kubernetes API rejected the request.
+ */
 export class TlsKeySecretCreationFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

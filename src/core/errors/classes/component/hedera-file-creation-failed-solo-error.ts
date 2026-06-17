@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a Hedera File Service create transaction returns a non-success status; the message includes
+ * the network status. solo uses the File Service to store artifacts on the network (such as upgrade files),
+ * so this means the file create was rejected — the specific status code identifies why, for example a payer
+ * or signature problem or an invalid file.
+ */
 export class HederaFileCreationFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

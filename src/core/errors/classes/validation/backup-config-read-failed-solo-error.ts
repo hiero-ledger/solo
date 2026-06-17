@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot read the backup configuration file; the message names the path and wraps the
+ * underlying failure in `cause`. solo reads this file during restore, so this means it could not be read —
+ * for example missing permissions or an I/O error.
+ */
 export class BackupConfigReadFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

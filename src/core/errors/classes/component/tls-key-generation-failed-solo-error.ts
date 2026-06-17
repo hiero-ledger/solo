@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot generate a TLS key; the message includes the underlying error text. solo
+ * generates TLS keys to secure node communication, so this means generation failed — for example the
+ * key-generation tooling errored or a working file could not be written.
+ */
 export class TlsKeyGenerationFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

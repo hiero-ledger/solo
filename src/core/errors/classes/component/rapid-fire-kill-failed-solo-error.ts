@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot stop a running rapid-fire load test; the message names the test class and wraps
+ * the underlying failure in `cause`. This step terminates the load generator, so this means the stop did
+ * not succeed — for example the load-test pod or process could not be reached or signaled.
+ */
 export class RapidFireKillFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

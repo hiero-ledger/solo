@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when `solo mirror node add` cannot deploy the mirror node; the underlying failure is wrapped in
+ * `cause`. Deploy installs the mirror node Helm release (its importer, REST, and database components), so
+ * this means that install did not succeed — for example a Helm failure, an image that cannot be pulled,
+ * misconfigured values, or insufficient cluster resources.
+ */
 export class MirrorNodeDeployFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

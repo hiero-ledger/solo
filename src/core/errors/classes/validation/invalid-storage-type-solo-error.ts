@@ -4,6 +4,10 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a storage type value is invalid; the message includes the offending value. solo accepts a
+ * fixed set of storage types, so this means the supplied value is not one of them.
+ */
 export class InvalidStorageTypeSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
