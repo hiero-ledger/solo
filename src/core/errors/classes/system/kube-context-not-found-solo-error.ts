@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot determine the Kubernetes context for a node; the message names the node alias. By
+ * this point the node context should already be resolvable from configuration, so reaching it indicates an
+ * internal inconsistency and is treated as an internal Solo error.
+ */
 export class KubeContextNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;

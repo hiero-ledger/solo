@@ -4,6 +4,14 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when `solo config ops restore-clusters` cannot recreate the clusters
+ * captured in a backup; the underlying failure is wrapped in `cause`. This step reads the backup
+ * archive and rebuilds the cluster(s) it describes (for example recreating a Kind cluster)
+ * before the rest of a restore can proceed, so the error means that rebuild failed. Common roots
+ * are an invalid or incomplete backup archive, an incorrect input directory, or Docker/Kind not
+ * being available to create the clusters.
+ */
 export class BackupRestoreClustersFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

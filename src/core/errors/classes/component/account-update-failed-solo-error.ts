@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when updating a Hedera account's properties fails; the message names the account. solo submits an
+ * account-update transaction to change account settings, so this means that transaction did not succeed —
+ * for example the account's key did not sign, the requested change was invalid, or the network rejected or
+ * could not be reached.
+ */
 export class AccountUpdateFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

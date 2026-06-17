@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when no jar files are found in a local build subdirectory; the message names the subdirectory.
+ * solo expects the build subdirectories to contain jars, so this means the build is incomplete or the path
+ * is wrong.
+ */
 export class LocalBuildNoJarFilesSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

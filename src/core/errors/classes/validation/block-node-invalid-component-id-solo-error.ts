@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a block node component id is not the expected type or format; the message includes the value
+ * and its runtime type. solo expects component ids in a specific form, so an invalid value passed
+ * internally points to a defect in the calling code and is treated as an internal Solo error.
+ */
 export class BlockNodeInvalidComponentIdSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;

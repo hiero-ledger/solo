@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a freeze-only transaction fails to execute; when available the underlying failure is wrapped
+ * in `cause`. solo submits a freeze-only transaction to pause the network (for example before maintenance),
+ * so this means the transaction was rejected or could not be submitted. It is retryable, since a transient
+ * network or node-readiness problem often clears on a later attempt.
+ */
 export class NodeFreezeTransactionErrorSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

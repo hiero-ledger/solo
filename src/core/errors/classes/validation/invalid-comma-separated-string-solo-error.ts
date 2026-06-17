@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when an input is not a valid comma-separated string; the message includes the offending value.
+ * solo parses comma-separated lists from flags and config, so this means the value could not be parsed as
+ * such — for example stray separators or empty entries.
+ */
 export class InvalidCommaSeparatedStringSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

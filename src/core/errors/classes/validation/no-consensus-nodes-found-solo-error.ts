@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when no consensus nodes are found to operate on. solo derives the node set from the deployment and
+ * `--node-aliases`, so this means neither yielded any nodes — check your deployment or the `--node-aliases`
+ * input.
+ */
 export class NoConsensusNodesFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
