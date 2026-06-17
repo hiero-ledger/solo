@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot parse the backup configuration; the underlying failure is wrapped in `cause`.
+ * solo parses the backup configuration to drive a restore, so this means the content could not be parsed —
+ * for example malformed YAML or an unexpected structure.
+ */
 export class BackupConfigParseFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

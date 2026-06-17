@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a component cannot be found during an operation; the message names the component id, its
+ * type, and the operation attempted. solo expected the component to be present at this point, so its
+ * absence indicates an internal inconsistency and is treated as an internal Solo error.
+ */
 export class ComponentNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;

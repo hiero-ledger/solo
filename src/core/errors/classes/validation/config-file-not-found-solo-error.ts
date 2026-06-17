@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a configuration file referenced by a flag does not exist; the message names the flag and the
+ * absolute and relative paths tried. solo reads the file from the provided path, so this means it is
+ * missing or the path is wrong — for example a typo or a relative path resolved from an unexpected
+ * directory.
+ */
 export class ConfigFileNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

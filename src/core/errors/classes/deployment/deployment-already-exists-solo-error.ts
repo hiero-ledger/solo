@@ -5,6 +5,13 @@ import {ErrorOwnership} from '../../error-ownership.js';
 import {type DeploymentName} from '../../../../types/index.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when `solo deployment config create` is asked to create a deployment
+ * whose name is already present in the local configuration; the message names the conflicting
+ * deployment. Deployment names must be unique because solo keys each deployment's namespace and
+ * cluster references by name, so it refuses to overwrite an existing entry. Choose a different
+ * name, or operate on the existing deployment instead of recreating it.
+ */
 export class DeploymentAlreadyExistsSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

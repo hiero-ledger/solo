@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the number of admin public keys provided does not match the number of consensus nodes; the
+ * message reports both counts. solo expects one DER-encoded ED25519 public key per node, so this means the
+ * supplied comma-separated list is the wrong length — provide exactly one key per node.
+ */
 export class AdminKeysCountMismatchSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

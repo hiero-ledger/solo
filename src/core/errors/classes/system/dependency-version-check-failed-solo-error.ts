@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot determine the installed version of a dependency; the message names the dependency
+ * and, when present, wraps the underlying `cause` (otherwise it notes the tool may not be installed or on
+ * `PATH`). solo checks tool versions to confirm they meet its requirements, so this means the version check
+ * could not run or its output could not be parsed.
+ */
 export class DependencyVersionCheckFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
