@@ -461,7 +461,6 @@ export SOLO_CLUSTER_NAME=solo-e2e
 export SOLO_NAMESPACE=one-shot
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=one-shot
-export MIRROR_NODE_VERSION_PRIOR_TO_UPGRADE=v0.152.0
 export SOLO_LOG_LEVEL=debug
 export PREV_BLOCK_VERSION=v0.32.0
 export PREV_EXPLORER_VERSION=26.0.0
@@ -513,6 +512,25 @@ echo "Consensus Node Version (from): ${FROM_CONSENSUS_NODE_VERSION}"
 echo "Consensus Node Version (to): ${TO_CONSENSUS_NODE_VERSION}"
 
 TEMP_ONE_SHOT_VALUES_FILE="$(mktemp -t falcon-values-migration-XXXX.yaml)"
+# Force mirror importer to use file (record-stream) source for the initial pre-TSS deploy.
+# ONE_SHOT_WITH_BLOCK_NODE=true causes solo to add --force-block-node-integration to mirror,
+# which bypasses the CN version check and activates SPRING_PROFILES_ACTIVE=blocknode.
+# The "blocknode" Spring profile sets block.enabled=true and record.enabled=false.
+# Mirror 0.150.0+ performs mandatory TSS verification on block-node gRPC streams, and
+# CN v0.73.0 blocks have no TSS data, causing the importer to throw and never process blocks.
+# We override both env vars via a values file to neutralise the blocknode profile:
+#   BLOCK_ENABLED=false  → disables block pipeline (overrides profile's block.enabled=true)
+#   RECORD_ENABLED=true  → re-enables record downloader (overrides profile's record.enabled=false)
+# This makes mirror use the traditional record stream path (MinIO) for CN v0.73.0 blocks.
+# The block node is still deployed so that "block node upgrade" in the upgrade step works.
+TEMP_MIRROR_SOURCE_FILE="$(mktemp -t mirror-source-override-XXXX.yaml)"
+cat > "${TEMP_MIRROR_SOURCE_FILE}" <<EOF
+importer:
+  env:
+    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "false"
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "true"
+EOF
+
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 # Generated for migration workflow launch.
 network:
@@ -521,10 +539,14 @@ network:
 
 setup:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
+
+mirrorNode:
+  --values-file: "${TEMP_MIRROR_SOURCE_FILE}"
 EOF
 
 export ONE_SHOT_WITH_BLOCK_NODE=true
-solo one-shot falcon deploy \
+BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
+  solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
   --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"

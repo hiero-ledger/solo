@@ -26,6 +26,7 @@ blockNode:
     MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
     BACKFILL_FETCH_BATCH_SIZE: "5"
     BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+    SERVER_SOCKET_RECEIVE_BUFFER_SIZE_BYTES: "131072"
   persistence:
     archive:
       size: 1Gi
