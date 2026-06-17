@@ -15,6 +15,8 @@ vars:
 tasks:
   deploy:
     desc: Deploy a complete Hiero network using one-shot single deploy
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
     cmds:
       # Install Solo CLI
       - cmd: |
@@ -25,7 +27,7 @@ tasks:
           fi
 
       # Create a Solo Deploymen
-      - cmd: ONE_SHOT_WITH_BLOCK_NODE="${ONE_SHOT_WITH_BLOCK_NODE:-true}" $SOLO_COMMAND one-shot single deploy
+      - cmd: $SOLO_COMMAND one-shot single deploy
 
       - cmd: |
           cd hardhat-example
@@ -35,9 +37,11 @@ tasks:
 
   destroy:
     desc: Destroy the Solo network using one-shot single destroy
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
     cmds:
       # Solo one-shot single destroy
-      - cmd: ONE_SHOT_WITH_BLOCK_NODE="${ONE_SHOT_WITH_BLOCK_NODE:-true}" $SOLO_COMMAND one-shot single destroy
+      - cmd: $SOLO_COMMAND one-shot single destroy
 
   default:
     desc: Run the default deploy task
