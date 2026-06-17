@@ -4,6 +4,16 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo queries Kubernetes for the pod backing a consensus node
+ * alias and the lookup returns no pod; the message names the alias. solo needs the pod to
+ * run commands, copy files, or check status on a node, so this fires when no pod matches the
+ * expected labels in the namespace. Because pod scheduling is asynchronous, it can appear
+ * briefly during startup before the pod exists, which is why it is retryable; if it persists,
+ * the pod failed to schedule or start, was evicted, or the node was never deployed. This is
+ * the base error for the component-specific variants (explorer, relay, mirror-node,
+ * block-node, and Postgres pod-not-found errors).
+ */
 export class PodNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

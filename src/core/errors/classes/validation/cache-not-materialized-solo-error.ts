@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the cache is used before it has been materialized. solo requires the cache to be populated
+ * before it can be read, so this means a read happened too early in the workflow — materialize the cache
+ * first.
+ */
 export class CacheNotMaterializedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

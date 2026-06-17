@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot find the mirror ingress controller pod. solo locates this pod to manage ingress
+ * for the mirror node, so this is raised when no matching pod exists in the namespace — for example it
+ * failed to start or was not deployed.
+ */
 export class MirrorIngressControllerPodNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a Hedera File Service update transaction returns a non-success status; the message includes
+ * the network status. solo updates network-stored files (such as upgrade files) via the File Service, so
+ * this means the update was rejected — the specific status code identifies why.
+ */
 export class HederaFileUpdateFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot create a Kubernetes pod. solo creates helper or workload pods as part of its
+ * operations, so this means the create request did not yield a running pod — for example the API rejected
+ * the spec, scheduling failed, or required resources were unavailable.
+ */
 export class PodCreationFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

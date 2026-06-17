@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the Kubernetes API returns an incorrect or unexpected response. solo expects well-formed
+ * responses from the API, so this means a call returned something it could not interpret — for example a
+ * malformed or partial response, often indicating an API server problem.
+ */
 export class KubernetesApiInvalidResponseSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

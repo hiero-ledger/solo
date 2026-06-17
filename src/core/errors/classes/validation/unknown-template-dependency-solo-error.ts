@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a template references a dependency solo does not know; the message names the dependency.
+ * Templates may only reference declared dependencies, so an unknown one indicates an internal template
+ * defect and is treated as an internal Solo error.
+ */
 export class UnknownTemplateDependencySoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;

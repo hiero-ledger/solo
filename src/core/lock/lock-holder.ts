@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from '../errors/solo-errors.js';
+import {execFileSync} from 'node:child_process';
+import fs from 'node:fs';
 import os from 'node:os';
 import process from 'node:process';
 
@@ -118,8 +120,10 @@ export class LockHolder {
   }
 
   /**
-   * Determines if the process associated with this leaseholder is still alive. This method will return false if the
-   * process is not alive or an error occurs while checking the process status.
+   * Determines if the process associated with this leaseholder is still alive. A suspended process
+   * (SIGSTOP / Ctrl+Z) still has a PID and is reported as alive by this method — use
+   * {@link isProcessSuspended} to detect that case, or {@link isProcessLost} for the combined
+   * "process can no longer renew its lease" check.
    * @returns true if the process is alive; false otherwise.
    */
   public isProcessAlive(): boolean {
@@ -128,6 +132,50 @@ export class LockHolder {
     } catch (error: any) {
       return error.code === 'EPERM';
     }
+  }
+
+  /**
+   * Determines if the process associated with this leaseholder is suspended (kernel "stopped"
+   * state, typically produced by SIGSTOP or a terminal Ctrl+Z). A suspended process keeps its PID
+   * but cannot run, so it cannot renew its Kubernetes lease — treating it as effectively gone is
+   * what lets a fresh invocation reclaim the lock immediately rather than waiting the full lease
+   * duration. Returns false on platforms with no SIGSTOP equivalent (Windows) or when the process
+   * state cannot be determined.
+   *
+   * @returns true if the process exists and is in a suspended/stopped state; false otherwise.
+   */
+  public isProcessSuspended(): boolean {
+    try {
+      if (process.platform === 'linux') {
+        const status: string = fs.readFileSync(`/proc/${this._processId}/status`, 'utf8');
+        // Linux kernel reports state on a line like `State:\tT (stopped)` or `State:\tt (tracing stop)`.
+        return /^State:\s+[Tt]\b/m.test(status);
+      }
+      if (process.platform === 'darwin') {
+        // `ps -o stat= -p <pid>` prints the process state with no header; the first character is
+        // 'T' for a stopped process. We do not pass a shell — args are array-passed to execFile.
+        const stat: string = execFileSync('ps', ['-o', 'stat=', '-p', String(this._processId)], {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+        return stat.startsWith('T');
+      }
+      // No SIGSTOP equivalent on Windows; treat as never suspended.
+      return false;
+    } catch {
+      // If we cannot determine the state, do not aggressively claim suspension.
+      return false;
+    }
+  }
+
+  /**
+   * Returns true when the holder's process can no longer renew its lease — either the PID is gone
+   * or the process is suspended. Callers use this as the "is this lease safe to reclaim?" signal.
+   *
+   * @returns true if the process is dead or suspended; false otherwise.
+   */
+  public isProcessLost(): boolean {
+    return !this.isProcessAlive() || this.isProcessSuspended();
   }
 
   /**

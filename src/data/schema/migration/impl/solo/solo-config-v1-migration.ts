@@ -51,11 +51,11 @@ export class SoloConfigV1Migration implements SchemaMigration {
       readyMaxAttempts: 60,
       readyBackoffSeconds: 3,
       wraps: {
-        artifactsFolderName: 'wraps-v0.2.0',
-        directoryName: 'wraps-v0.2.0',
+        artifactsFolderName: 'data/keys/wraps-v1.0.0',
+        directoryName: 'wraps-v1.0.0',
         allowedKeyFiles: 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin',
         // IMPORTANT: libraryDownloadUrl must be kept consistent with directoryName.
-        libraryDownloadUrl: 'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz',
+        libraryDownloadUrl: 'https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz',
       },
     };
   }
