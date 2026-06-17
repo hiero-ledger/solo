@@ -169,7 +169,7 @@ export class IntervalLock implements Lock {
 
     const otherHolder: LockHolder = LockHolder.fromJson(lease.holderIdentity);
 
-    if (this.heldBySameMachineIdentity(lease) && !otherHolder.isProcessAlive()) {
+    if (this.heldBySameMachineIdentity(lease) && otherHolder.isProcessLost()) {
       try {
         return await this.transferLease(lease);
       } catch (error) {
