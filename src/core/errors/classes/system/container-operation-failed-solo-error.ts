@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when an operation against a container fails; the message names the operation and wraps the
+ * underlying failure in `cause`. solo runs operations such as exec and file copy inside pod containers, so
+ * this means that operation failed — for example the container was not reachable, the command errored, or
+ * the connection dropped.
+ */
 export class ContainerOperationFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

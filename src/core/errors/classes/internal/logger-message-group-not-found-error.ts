@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the logging subsystem is asked for a message group by a `key` that
+ * was never registered. solo groups related log messages under named keys, and this is raised
+ * when code references a group that does not exist — typically a typo in the key or a group
+ * that was renamed or never added. It points to a defect in solo rather than to user input.
+ */
 export class LoggerMessageGroupNotFoundError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;

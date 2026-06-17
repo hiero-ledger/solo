@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when destroying a one-shot deployment fails; the underlying failure is wrapped in `cause`.
+ * One-shot destroy tears down everything a one-shot deploy created, so this means that teardown did not
+ * complete — for example a Helm release or cluster could not be removed, or the cluster API was
+ * unreachable.
+ */
 export class OneShotDestroyFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

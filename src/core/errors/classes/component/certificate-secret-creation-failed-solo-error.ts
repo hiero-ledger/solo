@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot create the TLS certificate secret for a consensus node; the message names the
+ * node alias. solo stores node certificates as Kubernetes secrets so they can be mounted, so this means the
+ * secret could not be created — for example the namespace is missing, a conflicting secret exists, or the
+ * Kubernetes API rejected the request.
+ */
 export class CertificateSecretCreationFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the backup input directory contains no per-cluster directories; the message names the
+ * directory. A valid backup groups data under cluster directories, so this means none were found — the
+ * directory is not a valid backup or is empty.
+ */
 export class BackupNoClusterDirectoriesSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

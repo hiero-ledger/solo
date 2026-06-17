@@ -4,6 +4,11 @@ import {ErrorOwnership} from '../../error-ownership.js';
 import {SoloError} from '../../solo-error.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a state file does not exist or is not a regular file; the message names the path. solo reads
+ * saved state from this file, so this means it is missing or the path points at something that is not a
+ * file.
+ */
 export class StateFileNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

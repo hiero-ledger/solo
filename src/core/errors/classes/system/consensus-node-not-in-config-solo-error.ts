@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo looks up a consensus node by alias but it is not present in the configuration; the
+ * message names the alias. By this point the node should already be known, so reaching it indicates an
+ * internal inconsistency between the requested alias and the loaded configuration, and is treated as an
+ * internal Solo error.
+ */
 export class ConsensusNodeNotInConfigSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;

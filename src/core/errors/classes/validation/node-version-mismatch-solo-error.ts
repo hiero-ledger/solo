@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the consensus node version saved in the remote config differs from the requested version; the
+ * message names both. solo guards against mixing versions, so this means the requested version does not
+ * match what the deployment recorded — align the versions.
+ */
 export class NodeVersionMismatchSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

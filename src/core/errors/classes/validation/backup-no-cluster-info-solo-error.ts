@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the backup configuration file contains no cluster information. solo reads cluster details
+ * from the backup config to restore, so this means that section is missing or empty — indicating an
+ * incomplete or invalid backup config.
+ */
 export class BackupNoClusterInfoSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

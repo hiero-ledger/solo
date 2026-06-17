@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot initialize its system files; the underlying failure is wrapped in `cause`. solo
+ * lays down the files it needs under its home directory during initialization, so this means that step
+ * failed — for example the directory was not writable or a file could not be created.
+ */
 export class InitSystemFilesFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
