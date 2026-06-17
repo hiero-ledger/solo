@@ -12,7 +12,7 @@ import {
 } from '@kubernetes/client-node';
 import {container} from 'tsyringe-neo';
 import {ResourceType} from '../../../resources/resource-type.js';
-import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
+import {KubeApiInvalidResponseError} from '../../../errors/kube-api-invalid-response-error.js';
 import {InjectTokens} from '../../../../../core/dependency-injection/inject-tokens.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
@@ -80,7 +80,7 @@ export class K8ClientIngresses implements Ingresses {
       }
 
       if (!result) {
-        throw new SoloErrors.system.kubernetesApiInvalidResponse();
+        throw new KubeApiInvalidResponseError();
       }
     }
   }

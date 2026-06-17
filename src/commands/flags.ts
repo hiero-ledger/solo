@@ -45,7 +45,11 @@ export class Flags {
           throw new SoloErrors.validation.nonInteractivePrompt(Flags.getFormattedFlagKey(Flags.deployment));
         }
 
-        const promptOptions = {default: defaultValue, message: promptMessage};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const promptOptions: {default: Optional<any>; message: string} = {
+          default: defaultValue,
+          message: promptMessage,
+        };
 
         switch (type) {
           case 'input': {
@@ -753,6 +757,28 @@ export class Flags {
         'Force-apply block-node TSS values overlay when deploying block nodes before consensus deployment sets tssEnabled in remote config.',
       defaultValue: false,
       type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeMessageSizeSoftLimitBytes: CommandFlag = {
+    constName: 'blockNodeMessageSizeSoftLimitBytes',
+    name: 'block-node-message-size-soft-limit-bytes',
+    definition: {
+      describe: 'Soft limit, in bytes, for block node connection message size in block-nodes.json',
+      defaultValue: undefined,
+      type: 'number',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeMessageSizeHardLimitBytes: CommandFlag = {
+    constName: 'blockNodeMessageSizeHardLimitBytes',
+    name: 'block-node-message-size-hard-limit-bytes',
+    definition: {
+      describe: 'Hard limit, in bytes, for block node connection message size in block-nodes.json',
+      defaultValue: undefined,
+      type: 'number',
     },
     prompt: undefined,
   };
@@ -1994,7 +2020,8 @@ export class Flags {
     name: 'rollback',
     definition: {
       describe:
-        'Automatically clean up resources when deploy fails. Use --no-rollback to skip cleanup and keep partial resources for inspection.',
+        'Opt in to automatic cleanup when deploy fails. By default, ' +
+        'failed one-shot deploys keep partial resources so you can inspect the failure and re-run the same command.',
       defaultValue: false,
       type: 'boolean',
       disablePrompt: true,
@@ -2379,7 +2406,7 @@ export class Flags {
       alias: 'u',
     },
     prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
-      const promptForInput = async () => {
+      const promptForInput: () => Promise<string> = async (): Promise<string> => {
         return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
           message: 'Please enter your username. Can only contain letters and numbers:',
         });
@@ -2816,7 +2843,7 @@ export class Flags {
       type: 'number',
     },
     prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: number): Promise<number> {
-      const promptForInput = (): Promise<number> =>
+      const promptForInput: () => Promise<number> = (): Promise<number> =>
         Flags.prompt(
           'number',
           task,
@@ -3228,6 +3255,8 @@ export class Flags {
     Flags.blockNodeChartVersion,
     Flags.blockNodeVersion,
     Flags.blockNodeTssOverlay,
+    Flags.blockNodeMessageSizeSoftLimitBytes,
+    Flags.blockNodeMessageSizeHardLimitBytes,
     Flags.priorityMapping,
     Flags.externalBlockNodeAddress,
     Flags.realm,
@@ -3265,7 +3294,7 @@ export class Flags {
   ];
 
   /** Resets the definition.disablePrompt for all flags */
-  private static resetDisabledPrompts() {
+  private static resetDisabledPrompts(): void {
     for (const f of Flags.allFlags) {
       if (f.definition.disablePrompt) {
         delete f.definition.disablePrompt;
@@ -3273,9 +3302,11 @@ export class Flags {
     }
   }
 
-  public static readonly allFlagsMap = new Map(Flags.allFlags.map(f => [f.name, f]));
+  public static readonly allFlagsMap: Map<string, CommandFlag> = new Map(
+    Flags.allFlags.map((f): [string, CommandFlag] => [f.name, f]),
+  );
 
-  public static readonly nodeConfigFileFlags = new Map(
+  public static readonly nodeConfigFileFlags: Map<string, CommandFlag> = new Map(
     [
       Flags.apiPermissionProperties,
       Flags.applicationEnv,
@@ -3283,10 +3314,14 @@ export class Flags {
       Flags.bootstrapProperties,
       Flags.log4j2Xml,
       Flags.settingTxt,
-    ].map(f => [f.name, f]),
+    ].map((f): [string, CommandFlag] => [f.name, f]),
   );
 
-  public static readonly integerFlags = new Map([Flags.replicaCount].map(f => [f.name, f]));
+  public static readonly integerFlags: Map<string, CommandFlag> = new Map(
+    [Flags.replicaCount, Flags.blockNodeMessageSizeSoftLimitBytes, Flags.blockNodeMessageSizeHardLimitBytes].map(
+      (f): [string, CommandFlag] => [f.name, f],
+    ),
+  );
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],

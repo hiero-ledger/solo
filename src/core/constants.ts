@@ -365,9 +365,20 @@ export const LISTR_DEFAULT_RENDERER_OPTION: {
   formatOutput: 'wrap',
 };
 
+export const LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS: typeof LISTR_DEFAULT_RENDERER_OPTION = {
+  collapseSubtasks: true,
+  timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+  persistentOutput: true,
+  clearOutput: false,
+  collapseErrors: false,
+  showErrorMessage: false,
+  formatOutput: 'wrap',
+};
+
 export const LISTR_DEFAULT_OPTIONS: {
   DEFAULT: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
   WITH_CONCURRENCY: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
+  WITH_CONCURRENCY_COLLAPSABLE: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
 } = {
   DEFAULT: {
     renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
@@ -381,6 +392,14 @@ export const LISTR_DEFAULT_OPTIONS: {
     renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
+    fallbackRendererOptions: {
+      timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+    },
+  },
+  WITH_CONCURRENCY_COLLAPSABLE: {
+    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    concurrent: true,
+    rendererOptions: LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS,
     fallbackRendererOptions: {
       timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
     },
@@ -440,8 +459,11 @@ export const PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_REA
 export const PODS_READY_DELAY: number = +getEnvironmentVariable('PODS_READY_DELAY') || 2000;
 export const RELAY_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('RELAY_PODS_RUNNING_MAX_ATTEMPTS') || 900;
-export const RELAY_PODS_RUNNING_DELAY: number = +getEnvironmentVariable('RELAY_PODS_RUNNING_RUNNING_DELAY') || 1000;
-export const RELAY_PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('RELAY_PODS_READY_MAX_ATTEMPTS') || 100;
+export const RELAY_PODS_RUNNING_DELAY: number =
+  +getEnvironmentVariable('RELAY_PODS_RUNNING_DELAY') ||
+  +getEnvironmentVariable('RELAY_PODS_RUNNING_RUNNING_DELAY') ||
+  1000;
+export const RELAY_PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('RELAY_PODS_READY_MAX_ATTEMPTS') || 900;
 export const RELAY_PODS_READY_DELAY: number = +getEnvironmentVariable('RELAY_PODS_READY_DELAY') || 1000;
 export const BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS') || 900;

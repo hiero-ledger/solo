@@ -134,6 +134,16 @@ jobs:
 
   # ------- Hugo Build and Publish for Version Tag and Main Branch -------
 
+  # Generate CLI help and command output docs artifacts for versioned releases
+  docs-automation:
+    name: Docs Automation
+    if: ${{ needs.setup.outputs.versioned-release == 'true' && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-docs-automation.yaml
+    needs:
+      - setup
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   # Do a Hugo build for the docs site for a version tag
   hugo-docs-build:
     name: Hugo Docs Build
@@ -170,6 +180,7 @@ jobs:
     needs:
       - setup
       - hugo-docs-build-main
+      - docs-automation
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
       attach-docs-enabled: true

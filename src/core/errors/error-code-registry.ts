@@ -280,6 +280,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   INIT_SYSTEM_FILES_FAILED: 'SOLO-5070',
   CACHE_PROVIDER_NOT_CONFIGURED: 'SOLO-5071',
   POD_TERMINATION_TIMEOUT: 'SOLO-5072',
+  CLUSTER_ROLE_CHECK_FAILED: 'SOLO-5073',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
@@ -293,4 +294,5 @@ export const ErrorCodeRegistry: Record<string, string> = {
   REMOTE_CONFIG_DEPLOYMENT_NOT_SET: 'SOLO-9009',
   REMOTE_CONFIG_CONTEXT_UNAVAILABLE: 'SOLO-9010',
   CACHE_IMAGE_TEMPLATE_UNDECLARED: 'SOLO-9011',
+  INJECTED_FAILURE: 'SOLO-9012',
 } as const;

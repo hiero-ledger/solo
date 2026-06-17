@@ -16,6 +16,7 @@ import {RemoteConfigV4Migration} from './remote-config-v4-migration.js';
 import {RemoteConfigV5Migration} from './remote-config-v5-migration.js';
 import {RemoteConfigV6Migration} from './remote-config-v6-migration.js';
 import {RemoteConfigV7Migration} from './remote-config-v7-migration.js';
+import {RemoteConfigV8Migration} from './remote-config-v8-migration.js';
 
 @injectable()
 export class RemoteConfigSchemaDefinition
@@ -47,6 +48,7 @@ export class RemoteConfigSchemaDefinition
       new RemoteConfigV5Migration(),
       new RemoteConfigV6Migration(),
       new RemoteConfigV7Migration(),
+      new RemoteConfigV8Migration(),
     ];
   }
 }

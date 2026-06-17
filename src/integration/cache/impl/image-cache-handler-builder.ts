@@ -4,7 +4,7 @@ import {ImageCacheHandler} from './image-cache-handler.js';
 import {YamlImageTargetProvider} from '../target-providers/yaml-image-target-provider.js';
 import {type CacheTargetProvider} from '../target-providers/cache-target-provider.js';
 import {type ContainerEngineClient} from '../../container-engine/container-engine-client.js';
-import {SoloErrors} from '../../../core/errors/solo-errors.js';
+import {CacheProviderNotConfiguredError} from '../errors/cache-provider-not-configured-error.js';
 
 /**
  * Builder for {@link ImageCacheHandler}.
@@ -72,10 +72,10 @@ export class ImageCacheHandlerBuilder {
    */
   public build(): ImageCacheHandler {
     if (!this._provider) {
-      throw new SoloErrors.system.cacheProviderNotConfigured(this.name, 'provider');
+      throw new CacheProviderNotConfiguredError(this.name, 'provider');
     }
     if (!this._engine) {
-      throw new SoloErrors.system.cacheProviderNotConfigured(this.name, 'engine');
+      throw new CacheProviderNotConfiguredError(this.name, 'engine');
     }
 
     return new ImageCacheHandler(this._engine, this._provider);
