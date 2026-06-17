@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the mirror node database owner credential is absent from the expected secret — specifically
+ * `MIRROR_IMPORTER_DB_OWNER` is not present in the `mirror-passwords` secret. solo reads this secret to
+ * obtain the importer's database owner, so this means the secret exists without the required key, or was
+ * not populated as expected during deployment.
+ */
 export class MirrorPasswordSecretMissingSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

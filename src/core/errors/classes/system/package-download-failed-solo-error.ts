@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot download a package; the message names the URL and wraps the underlying failure in
+ * `cause`. solo downloads packages such as platform builds and tools, so this means the download did not
+ * complete — for example the URL was unreachable, returned an error, or the connection dropped. It is
+ * retryable, since transient network issues often clear on a later attempt.
+ */
 export class PackageDownloadFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

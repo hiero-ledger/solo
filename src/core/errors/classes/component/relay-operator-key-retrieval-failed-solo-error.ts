@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot retrieve the operator key the JSON-RPC relay needs; the underlying failure is
+ * wrapped in `cause`. The relay signs transactions with an operator account key that solo reads (for
+ * example from a secret), so this means that retrieval failed. It is retryable, since a transient cluster
+ * or lookup problem often clears on a later attempt.
+ */
 export class RelayOperatorKeyRetrievalFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

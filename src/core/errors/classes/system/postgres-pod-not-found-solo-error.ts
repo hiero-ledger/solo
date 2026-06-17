@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot find the Postgres pod; the message names the namespace. solo locates the mirror
+ * node Postgres pod to operate on the database, so this is raised when no matching pod exists in the
+ * namespace — for example the database failed to start or was not deployed.
+ */
 export class PostgresPodNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

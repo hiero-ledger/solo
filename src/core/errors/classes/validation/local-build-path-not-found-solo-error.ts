@@ -4,6 +4,10 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a local build path does not exist; the message names it. solo reads platform artifacts from
+ * this path, so this means it is missing or the path is wrong.
+ */
 export class LocalBuildPathNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

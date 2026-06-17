@@ -4,6 +4,14 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown during `solo config ops restore-config` when a particular resource cannot
+ * be imported from a backup; the message names the `resourceType` and wraps the underlying
+ * failure in `cause`. Restore reads each resource from the backup archive and applies it to the
+ * cluster, so this is raised when reading the archive entry or applying it fails — for example
+ * the backup archive is incomplete or corrupt, the resource is invalid, or the Kubernetes API
+ * is unreachable or rejected it.
+ */
 export class BackupImportFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a file solo was asked to parse does not contain valid JSON; the message names the path. solo
+ * parses JSON from user-provided files, so this means the content could not be parsed — for example a
+ * syntax error, a truncated file, or a non-JSON file supplied.
+ */
 export class FileInvalidJsonSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

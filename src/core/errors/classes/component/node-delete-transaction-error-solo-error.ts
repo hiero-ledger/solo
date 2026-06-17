@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the node-delete transaction fails to execute; when available the underlying failure is
+ * wrapped in `cause`. solo submits a node-delete transaction to remove a consensus node from the address
+ * book, so this means the transaction was rejected or could not be submitted — for example the admin key
+ * did not sign, the target node id was invalid, or the network could not be reached.
+ */
 export class NodeDeleteTransactionErrorSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

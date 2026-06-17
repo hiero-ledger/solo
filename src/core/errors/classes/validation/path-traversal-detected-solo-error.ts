@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a resolved path falls outside the allowed base directory; the message names the resolved path
+ * and the base. solo blocks path traversal for safety, so this means the supplied path escaped the
+ * permitted directory — for example `..` segments or an absolute path outside the base.
+ */
 export class PathTraversalDetectedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
