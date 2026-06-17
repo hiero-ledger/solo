@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot find a running block node pod. solo locates the block node pod to run commands or
+ * check its status, so this is raised when no matching pod exists in the namespace. It is retryable because
+ * pod scheduling is asynchronous and the pod may appear shortly; if it persists, the block node failed to
+ * start or was never deployed.
+ */
 export class BlockNodePodNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

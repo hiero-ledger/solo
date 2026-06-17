@@ -4,6 +4,10 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when an operation needs PVCs but the PVCs flag is not enabled. Adding a node requires persistent
+ * storage, so this means PVCs must be enabled first.
+ */
 export class PvcFlagNotEnabledSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

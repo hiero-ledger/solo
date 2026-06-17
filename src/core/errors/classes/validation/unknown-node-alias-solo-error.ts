@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot resolve a node ID from a node alias; the message names the alias. solo maps
+ * aliases to node IDs, so this means the alias is not recognized — for example a typo or an alias not
+ * present in the deployment.
+ */
 export class UnknownNodeAliasSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

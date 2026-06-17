@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot register an external block node with the deployment; the underlying failure is
+ * wrapped in `cause`. Adding an external block node records a block node that runs outside this deployment
+ * so consensus nodes can use it, so this means that registration step failed — for example the provided
+ * endpoint was unreachable or the remote configuration could not be updated.
+ */
 export class BlockNodeAddExternalFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

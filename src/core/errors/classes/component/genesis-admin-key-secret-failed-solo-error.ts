@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot store a genesis account's admin key as a Kubernetes secret; the message names the
+ * account. During genesis setup solo persists admin keys in cluster secrets for later use, so this is
+ * raised when that secret cannot be created — for example the namespace is missing, a conflicting secret
+ * exists, or the Kubernetes API rejected the request.
+ */
 export class GenesisAdminKeySecretFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
