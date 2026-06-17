@@ -67,6 +67,7 @@ import {optionFromFlag} from './command-helpers.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {K8} from '../integration/kube/k8.js';
+import {buildSchedulingChartValues} from '../core/util/helm-scheduling-values.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -437,6 +438,7 @@ export class MirrorNodeCommand extends BaseCommand {
     const chartValues: HelmChartValues = new HelmChartValues();
 
     chartValues.filesFromCommaSeparatedInput(config.valuesFile);
+    chartValues.add(buildSchedulingChartValues(chartValues, 'pinger', 'pinger'));
 
     config.mirrorNodeVersion = SemanticVersion.getValidSemanticVersion(
       config.mirrorNodeVersion,
@@ -988,6 +990,7 @@ export class MirrorNodeCommand extends BaseCommand {
                 const mirrorIngressControllerChartValues: HelmChartValues = new HelmChartValues().file(
                   constants.INGRESS_CONTROLLER_VALUES_FILE,
                 );
+                mirrorIngressControllerChartValues.add(buildSchedulingChartValues(config.chartValues, 'controller'));
                 if (config.mirrorStaticIp !== '') {
                   mirrorIngressControllerChartValues.setLiteral(
                     'controller.service.loadBalancerIP',
