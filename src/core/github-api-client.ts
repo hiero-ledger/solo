@@ -1,0 +1,88 @@
+// SPDX-License-Identifier: Apache-2.0
+
+import * as constants from './constants.js';
+import {SoloErrors} from './errors/solo-errors.js';
+
+const RETRY_MAX_ATTEMPTS: number = 3;
+const RETRY_BASE_DELAY_MS: number = 1000;
+const RETRY_MAX_DELAY_MS: number = 60_000;
+
+export class GitHubApiClient {
+  private constructor() {}
+
+  /**
+   * Builds standard GitHub API request headers, adding an Authorization header
+   * when GITHUB_TOKEN is present in the environment.  The token raises the
+   * unauthenticated rate-limit from 60 req/hour to 5 000 req/hour and
+   * eliminates the shared-IP rate-limit problem on GitHub-hosted runners.
+   */
+  private static buildHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'User-Agent': constants.SOLO_USER_AGENT_HEADER,
+      Accept: 'application/vnd.github.v3+json',
+    };
+    if (process.env.GITHUB_TOKEN) {
+      headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+    }
+    return headers;
+  }
+
+  /**
+   * Derives a retry delay in milliseconds from GitHub's rate-limit response headers.
+   * Priority: Retry-After > X-RateLimit-Reset when exhausted > exponential backoff.
+   */
+  private static computeRetryDelay(response: Response, attempt: number): number {
+    const retryAfterHeader: string | null = response.headers.get('Retry-After');
+    if (retryAfterHeader) {
+      return Math.min(Number.parseInt(retryAfterHeader, 10) * 1000, RETRY_MAX_DELAY_MS);
+    }
+
+    const rateLimitReset: string | null = response.headers.get('X-RateLimit-Reset');
+    const rateLimitRemaining: string | null = response.headers.get('X-RateLimit-Remaining');
+    if (rateLimitReset && rateLimitRemaining === '0') {
+      const resetMs: number = Number.parseInt(rateLimitReset, 10) * 1000 - Date.now();
+      return Math.min(Math.max(resetMs, 0), RETRY_MAX_DELAY_MS);
+    }
+
+    return Math.min(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), RETRY_MAX_DELAY_MS);
+  }
+
+  /**
+   * Makes an authenticated GET request to the GitHub API with automatic retry on
+   * HTTP 403 (rate-limited) and HTTP 429 (too many requests) responses.
+   * Up to three attempts are made with exponential backoff honouring the
+   * Retry-After and X-RateLimit-Reset headers when present.
+   *
+   * @throws SoloError on network failure or a non-retryable HTTP error status.
+   */
+  public static async get(url: string): Promise<Response> {
+    const headers: Record<string, string> = GitHubApiClient.buildHeaders();
+    let lastStatus: number = 0;
+
+    for (let attempt: number = 1; attempt <= RETRY_MAX_ATTEMPTS; attempt++) {
+      let response: Response;
+      try {
+        response = await fetch(url, {method: 'GET', headers});
+      } catch (error) {
+        throw new SoloErrors.system.githubApiRequestFailed(url, error);
+      }
+
+      if (response.ok) {
+        return response;
+      }
+
+      lastStatus = response.status;
+      const isRateLimited: boolean = response.status === 403 || response.status === 429;
+      if (isRateLimited && attempt < RETRY_MAX_ATTEMPTS) {
+        const delayMs: number = GitHubApiClient.computeRetryDelay(response, attempt);
+        await new Promise<void>((resolve: () => void): void => {
+          setTimeout(resolve, delayMs);
+        });
+      } else {
+        break;
+      }
+    }
+
+    throw new SoloErrors.system.githubApiHttpResponseError(url, lastStatus);
+  }
+}
