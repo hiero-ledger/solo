@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot resolve the Kubernetes service for a specific consensus node; the message names
+ * the node alias. solo expects each node to expose a service it can reach, so this is raised when no
+ * matching service is found — typically because the node alias does not correspond to a deployed node, or
+ * the selected deployment or namespace does not contain it.
+ */
 export class NodeServiceNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

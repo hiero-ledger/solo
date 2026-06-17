@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a cache is built before its required provider or engine has been set; the message names the
+ * cache and which piece is missing. solo requires both to be configured before constructing the cache, so
+ * reaching this points to an internal setup or ordering defect rather than user input, and is treated as an
+ * internal Solo error.
+ */
 export class CacheProviderNotConfiguredSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;

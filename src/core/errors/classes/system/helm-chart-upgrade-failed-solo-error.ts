@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot upgrade a Helm chart release; the message names the release and wraps the
+ * underlying failure in `cause`. solo upgrades releases to change chart version or values, so this means
+ * the `helm upgrade` did not succeed — for example a bad chart or values, an image that cannot be pulled,
+ * or a cluster issue.
+ */
 export class HelmChartUpgradeFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

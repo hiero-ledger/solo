@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a consensus node's status check response is missing the expected status line. solo parses the
+ * status output to read the node's current state, so this means the response came back but did not contain
+ * the line solo needs — usually because the node is still starting and has not produced full status output,
+ * or the output format was unexpected.
+ */
 export class NodeStatusMissingLineSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when `--zip-password` is used but the input path is not a `.zip` file. A password only applies to
+ * a zip archive, so this means the supplied input is not a zip — provide a `.zip` file or omit the
+ * password.
+ */
 export class BackupInputMustBeZipSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
