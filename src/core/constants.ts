@@ -458,7 +458,7 @@ export const NETWORK_PROXY_DELAY: number = +getEnvironmentVariable('NETWORK_PROX
 export const PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_READY_MAX_ATTEMPTS') || 300;
 export const PODS_READY_DELAY: number = +getEnvironmentVariable('PODS_READY_DELAY') || 2000;
 export const MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS: number =
-  +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS') || 450;
+  +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS') || 900;
 export const MIRROR_NODE_PINGER_PODS_READY_DELAY: number =
   +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_DELAY') || 2000;
 export const RELAY_PODS_RUNNING_MAX_ATTEMPTS: number =
