@@ -19,6 +19,7 @@ export interface BaseTestOptions {
   readonly createdAccountIds: string[];
   readonly consensusNodesCount: number;
   readonly loadBalancerEnabled: boolean;
+  readonly wrapsEnabled: boolean;
   readonly pinger: boolean;
   readonly realm: number;
   readonly shard: number;
@@ -32,5 +33,6 @@ export interface BaseTestOptions {
   readonly logXml: string;
   readonly settingsTxt: string;
   readonly javaFlightRecorderConfiguration: string;
+  readonly chainId?: number;
   readonly valuesFile?: string;
 }

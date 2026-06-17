@@ -2,7 +2,7 @@
 
 import chalk from 'chalk';
 import {BaseCommand} from './base.js';
-import {SoloError} from '../core/errors/solo-error.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Flags as flags} from './flags.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
@@ -125,13 +125,13 @@ export class FileCommand extends BaseCommand {
       fileId = argv[flags.fileId.name] as string;
       // Validate file ID format
       if (!/^\d+\.\d+\.\d+$/.test(fileId)) {
-        throw new SoloError(`Invalid file ID format: ${fileId}. Expected format: 0.0.150`);
+        throw new SoloErrors.validation.invalidFileIdFormat(fileId);
       }
     }
 
     // Validate file exists
     if (!fs.existsSync(filePath)) {
-      throw new SoloError(`File not found: ${filePath}`);
+      throw new SoloErrors.system.fileNotFound(filePath);
     }
 
     // Read file content
@@ -229,13 +229,13 @@ Troubleshooting:
 • Check if the file requires special permissions beyond genesis key
 • Consider using FileUpdateTransaction with additional authorization in custom code`;
       }
-      throw new SoloError(errorMessage);
+      throw new SoloErrors.component.fileContentVerificationFailed(errorMessage);
     }
 
     // Also verify content matches
     const contentsMatch: boolean = Buffer.from(retrievedContents).equals(Buffer.from(expectedContent));
     if (!contentsMatch) {
-      throw new SoloError('File content verification failed! Retrieved content does not match uploaded content');
+      throw new SoloErrors.component.fileContentMismatch();
     }
 
     this.logger.showUser(chalk.green('✓ File verification successful'));
@@ -291,7 +291,7 @@ Troubleshooting:
       const appendReceipt: any = await appendResponse.getReceipt(client);
 
       if (appendReceipt.status !== Status.Success) {
-        throw new SoloError(`File append (chunk ${chunkIndex}) failed with status: ${appendReceipt.status.toString()}`);
+        throw new SoloErrors.component.hederaFileAppendFailed(chunkIndex, appendReceipt.status.toString());
       }
 
       offset += FileCommand.MAX_CHUNK_SIZE;
@@ -314,7 +314,7 @@ Troubleshooting:
       isSystemFile?: boolean;
     }
 
-    const tasks = new Listr<Context>(
+    const tasks: SoloListr<Context> = new Listr(
       [
         {
           title: 'Initialize configuration',
@@ -386,10 +386,8 @@ Troubleshooting:
             } catch (error: any) {
               const error_ =
                 error.status === Status.FileDeleted || error.status === Status.InvalidFileId
-                  ? new SoloError(
-                      `File ${context_.config.fileId} does not exist. Use 'ledger file create' to create a new file.`,
-                    )
-                  : new SoloError(`Failed to query file info: ${error.message}`, error);
+                  ? new SoloErrors.validation.invalidFileIdFormat(context_.config.fileId)
+                  : new SoloErrors.component.hederaFileCreationFailed(error.message);
               throw error_;
             }
           },
@@ -418,7 +416,7 @@ Troubleshooting:
                     const receipt: any = await txResponse.getReceipt(client);
 
                     if (receipt.status !== Status.Success) {
-                      throw new SoloError(`File creation failed with status: ${receipt.status.toString()}`);
+                      throw new SoloErrors.component.hederaFileCreationFailed(receipt.status.toString());
                     }
 
                     const createdFileId: FileId | null = receipt.fileId;
@@ -440,7 +438,7 @@ Troubleshooting:
                     const updateReceipt: any = await updateResponse.getReceipt(client);
 
                     if (updateReceipt.status !== Status.Success) {
-                      throw new SoloError(`File update failed with status: ${updateReceipt.status.toString()}`);
+                      throw new SoloErrors.component.hederaFileUpdateFailed(updateReceipt.status.toString());
                     }
 
                     this.logger.showUser(chalk.green('✓ File updated successfully'));
@@ -503,9 +501,11 @@ Troubleshooting:
       } else {
         this.logger.showUser(chalk.green('\n✅ File updated successfully!'));
       }
-    } catch (error: any) {
-      const operation: string = isCreate ? 'creation' : 'update';
-      throw new SoloError(`File ${operation} failed: ${error.message}`, error);
+    } catch (error) {
+      const error_ = isCreate
+        ? new SoloErrors.component.hederaFileCreationFailed(error.message)
+        : new SoloErrors.component.hederaFileUpdateFailed(error.message);
+      throw error_;
     }
 
     return true;

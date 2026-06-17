@@ -1,4 +1,4 @@
-baseURL: https://solo.hiero.org/
+baseURL: https://hiero-ledger.github.io/
 title: Solo
 
 menu:
@@ -17,35 +17,6 @@ module:
     - path: github.com/google/docsy
       disable: false
   mounts:
-    - source: build/
-      target: content/docs
-      includeFiles:
-        - README.md
-        - legacy-versions.md
-    - source: build/
-      target: content/development
-      includeFiles: DEV.md
-    - source: build/
-      target: content/examples
-      includeFiles:
-        - address-book.md
-        - consensus-node-jvm-parameters.md
-        - external-database-test.md
-        - hardhat-with-solo.md
-        - ledger-reset-smoke.md
-        - local-build-with-custom-config.md
-        - network-with-domain-names.md
-        - node-create-transaction.md
-        - node-delete-transaction.md
-        - node-update-transaction.md
-        - one-shot-falcon.md
-        - one-shot-local-build.md
-        - rapid-fire.md
-        - state-save-and-restore.md
-        - version-upgrade-test.md
-        - multicluster-backup-restore.md
-    - source: ../../images
-      target: content/docs/readme/images
     - source: content/en
       target: content
       lang: en
@@ -149,7 +120,7 @@ params:
 
   # A link to latest version of the docs. Used in the "version-banner" partial to
   # point people to the main doc site.
-  url_latest_version: https://solo.hiero.org/
+  url_latest_version: https://hiero-ledger.github.io/solo/latest/
 
   # Repository configuration (URLs for in-page links to opening issues and suggesting changes)
   github_repo: https://github.com/hiero-ledger/solo
@@ -244,5 +215,5 @@ params:
   # This menu appears only if you have at least one [params.versions] set.
   version_menu: Releases
   versions:
-    - {version: main, url: /main}
-    - {version: latest, url: /latest}
+    - {version: main, url: /solo/main}
+    - {version: latest, url: /solo/latest}

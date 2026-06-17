@@ -2,7 +2,7 @@
 
 import {ipV4ToBase64, isIpV4Address} from '../../core/helpers.js';
 import {type ConsensusNode} from '../../core/model/consensus-node.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type Service} from '../../integration/kube/resources/service/service.js';
@@ -97,7 +97,7 @@ export class Address {
         const svc: Service = serviceList[0];
 
         if (!svc.metadata.name.startsWith('network-node')) {
-          throw new SoloError(`Service found is not a network node service: ${svc.metadata.name}`);
+          throw new SoloErrors.validation.serviceTypeMismatch(svc.metadata.name);
         }
 
         if (

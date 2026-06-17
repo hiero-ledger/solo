@@ -56,12 +56,12 @@ jobs:
       need-hl-release: ${{ steps.check-hl-release-needed.outputs.need-hl-release || 'false' }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
       - name: Prepare Release
-        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # 1.0.10
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # 1.1.1
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -162,12 +162,12 @@ jobs:
       hl-package-name: ${{ steps.set-hl-package-name.outputs.hl-package-name }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # 1.0.10
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # 1.1.1
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -216,12 +216,12 @@ jobs:
       need-hl-publish: ${{ steps.update-for-dual-publish.outputs.need-hl-publish || 'false' }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # 1.0.10
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # 1.1.1
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -532,12 +532,12 @@ jobs:
     if: ${{ needs.create-github-release.outputs.need-hg-publish == 'true' || needs.create-github-release.outputs.need-hl-publish == 'true' || inputs.dry-run-enabled == true }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@97fa6b78e6801bdd7ea5f4ccaa53b47613b9c7bd # 1.0.10
+        uses: pandaswhocode/initialize-github-job@3be139d343b1a60e1fcfc70f602ee804bbe3495d # 1.1.1
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -613,6 +613,10 @@ jobs:
             fi
           echo "::endgroup::"
 
+  docs-automation:
+    name: Docs Automation
+    uses: ./.github/workflows/zxc-docs-automation.yaml
+
   setup:
     name: Hugo Docs Setup
     runs-on: hiero-solo-linux-medium
@@ -622,7 +626,7 @@ jobs:
       - prepare-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -675,6 +679,7 @@ jobs:
     needs:
       - prepare-release
       - hugo-docs-build-main
+      - docs-automation
     uses: ./.github/workflows/zxc-hugo-publish.yaml
     with:
       docs-build-label: 'v${{ needs.prepare-release.outputs.version }}'

@@ -3,7 +3,7 @@
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {injectable, container} from 'tsyringe-neo';
-import {type ArgvStruct, NodeAlias} from '../types/aliases.js';
+import {type ArgvStruct, NodeAlias, type AnyListrContext} from '../types/aliases.js';
 import {type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
 import yaml from 'yaml';
@@ -11,10 +11,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type Secret} from '../integration/kube/resources/secret/secret.js';
+import {type SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {type K8} from '../integration/kube/k8.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {SoloError} from '../core/errors/solo-error.js';
-import {type Context, type ClusterReferences, type SoloListrTask} from '../types/index.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
+import {type Context, type ClusterReferences, type SoloListrTask, type SoloListr} from '../types/index.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
@@ -50,6 +51,8 @@ import {PathEx} from '../business/utils/path-ex.js';
 import {Chart} from '../integration/helm/model/chart.js';
 import {Repository} from '../integration/helm/model/repository.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
+import {HelmChartValues} from '../integration/helm/model/values.js';
+import {METALLB_CHART_VERSION} from '../../version.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Container} from '../integration/kube/resources/container/container.js';
@@ -194,7 +197,7 @@ export class BackupRestoreCommand extends BaseCommand {
       );
       return totalExportedCount;
     } catch (error) {
-      throw new SoloError(`Failed to export ${resourceType}: ${error.message}`, error);
+      throw new SoloErrors.deployment.backupExportFailed(resourceType, error);
     }
   }
 
@@ -270,7 +273,7 @@ export class BackupRestoreCommand extends BaseCommand {
       ),
     );
 
-    const tasks: Listr<BackupContext, any, any> = new Listr(
+    const tasks: SoloListr<BackupContext> = new Listr(
       [
         {
           title: 'Export ConfigMaps',
@@ -356,6 +359,14 @@ export class BackupRestoreCommand extends BaseCommand {
    * @returns total number of resources imported across all clusters
    */
   private async importResources(inputDirectory: string, resourceType: 'configmaps' | 'secrets'): Promise<number> {
+    interface KubernetesResource {
+      metadata: {
+        name: string;
+        labels?: Record<string, string>;
+      };
+      data?: Record<string, string>;
+      type?: string;
+    }
     try {
       const namespace: NamespaceName = this.remoteConfig.getNamespace();
       const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
@@ -397,12 +408,12 @@ export class BackupRestoreCommand extends BaseCommand {
         for (const file of files) {
           const filePath: string = PathEx.join(contextDirectory, file);
           const yamlContent: string = fs.readFileSync(filePath, 'utf8');
-          const resource: any = yaml.parse(yamlContent);
+          const resource: KubernetesResource = yaml.parse(yamlContent) as KubernetesResource;
 
           try {
             // skip configMap file SOLO_REMOTE_CONFIGMAP_NAME
-            if (resource.metadata.name === constants.SOLO_REMOTE_CONFIGMAP_NAME) {
-              this.logger.showUser(chalk.yellow(`    Skipping ${resourceType} file: ${resource.metadata.name}`));
+            if ((resource.metadata?.name as string) === constants.SOLO_REMOTE_CONFIGMAP_NAME) {
+              this.logger.showUser(chalk.yellow(`    Skipping ${resourceType} file: ${resource.metadata?.name}`));
               continue;
             }
 
@@ -411,20 +422,20 @@ export class BackupRestoreCommand extends BaseCommand {
                   .configMaps()
                   .createOrReplace(
                     namespace,
-                    resource.metadata.name,
-                    resource.metadata.labels || {},
-                    resource.data || {},
+                    resource.metadata?.name as string,
+                    (resource.metadata?.labels || {}) as Record<string, string>,
+                    (resource.data || {}) as Record<string, string>,
                   )
               : k8
                   .secrets()
                   .createOrReplace(
                     namespace,
-                    resource.metadata.name,
-                    resource.type || 'Opaque',
-                    resource.data || {},
-                    resource.metadata.labels || {},
+                    resource.metadata?.name as string,
+                    (resource.type || 'Opaque') as SecretType,
+                    (resource.data || {}) as Record<string, string>,
+                    (resource.metadata?.labels || {}) as Record<string, string>,
                   ));
-            this.logger.showUser(chalk.gray(`    ✓ Imported: ${resource.metadata.name}`));
+            this.logger.showUser(chalk.gray(`    ✓ Imported: ${resource.metadata?.name}`));
             totalImportedCount++;
           } catch (error) {
             this.logger.showUser(chalk.red(`    ✗ Failed to import ${file}: ${error.message}`));
@@ -441,7 +452,7 @@ export class BackupRestoreCommand extends BaseCommand {
       );
       return totalImportedCount;
     } catch (error) {
-      throw new SoloError(`Failed to import ${resourceType}: ${error.message}`, error);
+      throw new SoloErrors.deployment.backupImportFailed(resourceType, error);
     }
   }
 
@@ -491,7 +502,7 @@ export class BackupRestoreCommand extends BaseCommand {
           chalk.red(`  No log files found in context: ${context} (found ${allFiles.length} file(s))`),
         );
         this.logger.showUser(chalk.gray(`    Available files: ${allFiles.join(', ')}`));
-        throw new SoloError(`No log files found to restore in context: ${context}`);
+        throw new SoloErrors.validation.backupNoLogFiles(context);
       }
 
       this.logger.showUser(chalk.white(`  Restoring ${logFiles.length} log file(s) to context: ${context}`));
@@ -504,7 +515,7 @@ export class BackupRestoreCommand extends BaseCommand {
       for (const logFile of logFiles) {
         // Extract pod name from log file by removing the suffix
         const podName: string = logFile.replace(constants.LOG_CONFIG_ZIP_SUFFIX, '');
-        const pod: Pod = pods.find((p: any): boolean => p.podReference.name.name === podName);
+        const pod: Pod | undefined = pods.find((p: Pod): boolean => p.podReference.name.name === podName);
 
         if (!pod) {
           this.logger.showUser(chalk.yellow(`    No matching pod found for log file: ${logFile}`));
@@ -565,16 +576,16 @@ export class BackupRestoreCommand extends BaseCommand {
     interface RestoreContext {
       configMapCount: number;
       secretCount: number;
-      config: any;
+      config: Record<string, unknown>;
     }
 
-    const tasks: Listr<RestoreContext, any, any> = new Listr(
+    const tasks: SoloListr<RestoreContext> = new Listr(
       [
         {
           title: 'Initialize restore configuration',
           task: async (context_, task): Promise<void> => {
             // Build pod references map
-            const podReferences: any = {};
+            const podReferences: Record<string, PodReference> = {};
 
             for (const nodeAlias of nodeAliases) {
               const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
@@ -617,9 +628,10 @@ export class BackupRestoreCommand extends BaseCommand {
               ).task(context_, task);
 
               task.title = 'Freeze network: completed';
-            } catch (error: any) {
+            } catch (error: unknown) {
               // Network is not running or already frozen, which is fine for restore
-              this.logger.info(`Network freeze skipped: ${error.message}`);
+              const errorMessage: string = error instanceof Error ? error.message : String(error);
+              this.logger.info(`Network freeze skipped: ${errorMessage}`);
               task.title = 'Freeze network: skipped (network not running)';
             }
           },
@@ -679,40 +691,40 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Read the remote config from a local YAML file
    */
-  private async readRemoteConfigFile(configFilePath: string): Promise<any> {
+  private async readRemoteConfigFile(configFilePath: string): Promise<Record<string, unknown>> {
     this.logger.showUser(chalk.cyan(`Reading remote config from file: ${configFilePath}`));
 
     try {
       // Check if file exists
       if (!fs.existsSync(configFilePath)) {
-        throw new SoloError(`Config file not found: ${configFilePath}`);
+        throw new SoloErrors.validation.backupConfigNotFound(configFilePath);
       }
 
       // Read file content
       const fileContent: string = fs.readFileSync(configFilePath, 'utf8');
 
       // Parse YAML
-      const configData: any = yaml.parse(fileContent);
+      const configData: Record<string, unknown> | null = yaml.parse(fileContent);
 
       if (!configData) {
-        throw new SoloError('Config file is empty or invalid');
+        throw new SoloErrors.validation.backupConfigInvalid();
       }
 
       this.logger.showUser(chalk.green('✓ Read config file successfully'));
-      return configData;
-    } catch (error: any) {
-      throw new SoloError(`Failed to read config file ${configFilePath}: ${error.message}`, error);
+      return configData as Record<string, unknown>;
+    } catch (error) {
+      throw new SoloErrors.validation.backupConfigReadFailed(configFilePath, error);
     }
   }
 
   /**
    * Parse the config data and instantiate RemoteConfig object
    */
-  private parseRemoteConfig(configData: any): RemoteConfig {
+  private parseRemoteConfig(configData: Record<string, unknown>): RemoteConfig {
     this.logger.showUser(chalk.cyan('Parsing remote configuration...'));
 
     try {
-      let actualConfigData: any = configData;
+      let actualConfigData: Record<string, unknown> = configData;
 
       // Check if this is a ConfigMap wrapper (has apiVersion, kind, data)
       if (configData.kind === 'ConfigMap' && configData.data) {
@@ -720,14 +732,14 @@ export class BackupRestoreCommand extends BaseCommand {
 
         // Extract the remote config from the ConfigMap data field
         const remoteConfigKey: string = 'remote-config-data';
-        const remoteConfigYaml: any = configData.data[remoteConfigKey];
+        const remoteConfigYaml: unknown = (configData.data as Record<string, unknown>)[remoteConfigKey];
 
         if (!remoteConfigYaml) {
-          throw new SoloError(`ConfigMap does not contain '${remoteConfigKey}' key`);
+          throw new SoloErrors.validation.backupConfigMapKeyMissing(remoteConfigKey);
         }
 
         // Parse the YAML string to get the actual config object
-        actualConfigData = yaml.parse(remoteConfigYaml);
+        actualConfigData = yaml.parse(remoteConfigYaml as string);
         this.logger.showUser(chalk.gray('  ✓ Extracted remote config from ConfigMap'));
       }
 
@@ -740,20 +752,20 @@ export class BackupRestoreCommand extends BaseCommand {
       this.logger.showUser(chalk.green('✓ Remote configuration parsed successfully'));
 
       return remoteConfig;
-    } catch (error: any) {
-      throw new SoloError(`Failed to parse remote config: ${error.message}`, error);
+    } catch (error) {
+      throw new SoloErrors.validation.backupConfigParseFailed(error);
     }
   }
 
-  private buildDeploymentTasks(): SoloListrTask<any>[] {
-    const tasks: SoloListrTask<any>[] = [];
+  private buildDeploymentTasks(): SoloListrTask<AnyListrContext>[] {
+    const tasks: SoloListrTask<AnyListrContext>[] = [];
 
     return [
       ...tasks,
       // Keys generation task
       {
         title: 'Generate consensus node keys',
-        skip: (context_: any): boolean =>
+        skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
           return CommandHelpers.subTaskSoloCommand(
@@ -766,9 +778,9 @@ export class BackupRestoreCommand extends BaseCommand {
                 CommandHelpers.optionFromFlag(flags.generateGossipKeys),
                 CommandHelpers.optionFromFlag(flags.generateTlsKeys),
                 CommandHelpers.optionFromFlag(flags.deployment),
-                context_.deployment,
+                context_.deployment as string,
                 CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
-                context_.nodeAliases,
+                context_.nodeAliases as string,
               );
               return CommandHelpers.argvPushGlobalFlags(argv);
             },
@@ -779,7 +791,7 @@ export class BackupRestoreCommand extends BaseCommand {
       // Consensus network deploy task
       {
         title: 'Deploy consensus network',
-        skip: (context_: any): boolean =>
+        skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
           return CommandHelpers.subTaskSoloCommand(
@@ -800,19 +812,19 @@ export class BackupRestoreCommand extends BaseCommand {
                 argv.push(
                   ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
                   CommandHelpers.optionFromFlag(flags.deployment),
-                  context_.deployment,
+                  context_.deployment as string,
                   CommandHelpers.optionFromFlag(flags.persistentVolumeClaims),
                 );
 
                 // Enable load balancer if multiple clusters are detected
-                if (context_.clusters && context_.clusters.length > 1) {
+                if (context_.clusters && Array.isArray(context_.clusters) && context_.clusters.length > 1) {
                   argv.push(CommandHelpers.optionFromFlag(flags.loadBalancerEnabled));
                   this.logger.info(`Multiple clusters detected (${context_.clusters.length}), enabling load balancer`);
                 }
 
                 if (context_.versions?.consensusNode) {
                   argv.push(
-                    CommandHelpers.optionFromFlag(flags.releaseTag),
+                    CommandHelpers.optionFromFlag(flags.consensusNodeVersion),
                     context_.versions.consensusNode.toString(),
                   );
                 }
@@ -831,7 +843,7 @@ export class BackupRestoreCommand extends BaseCommand {
       // Consensus node setup task
       {
         title: 'Setup consensus nodes',
-        skip: (context_: any): boolean =>
+        skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
           return CommandHelpers.subTaskSoloCommand(
@@ -842,12 +854,15 @@ export class BackupRestoreCommand extends BaseCommand {
               argv.push(
                 ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
                 CommandHelpers.optionFromFlag(flags.nodeAliasesUnparsed),
-                context_.nodeAliases,
+                context_.nodeAliases as string,
                 CommandHelpers.optionFromFlag(flags.deployment),
-                context_.deployment,
+                context_.deployment as string,
               );
               if (context_.versions?.consensusNode) {
-                argv.push(CommandHelpers.optionFromFlag(flags.releaseTag), context_.versions.consensusNode.toString());
+                argv.push(
+                  CommandHelpers.optionFromFlag(flags.consensusNodeVersion),
+                  context_.versions.consensusNode.toString(),
+                );
               }
               return CommandHelpers.argvPushGlobalFlags(argv);
             },
@@ -858,7 +873,7 @@ export class BackupRestoreCommand extends BaseCommand {
       // Consensus node start task
       {
         title: 'Start consensus nodes',
-        skip: (context_: any): boolean =>
+        skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
         task: async (context_, taskListWrapper) => {
           return CommandHelpers.subTaskSoloCommand(
@@ -888,14 +903,14 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build block node deployment tasks
    */
-  private buildBlockNodeTasks(): SoloListrTask<any>[] {
+  private buildBlockNodeTasks(): SoloListrTask<AnyListrContext>[] {
     return [
       {
         title: 'Deploy block nodes',
-        skip: (context_: any): boolean =>
+        skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.blockNodes || context_.deploymentState.blockNodes.length === 0,
-        task: async (context_, taskListWrapper): Promise<any> => {
-          const blockNodeTasks: any[] = [];
+        task: async (context_, taskListWrapper) => {
+          const blockNodeTasks: SoloListrTask<AnyListrContext>[] = [];
 
           for (const blockNode of context_.deploymentState.blockNodes) {
             blockNodeTasks.push({
@@ -931,10 +946,7 @@ export class BackupRestoreCommand extends BaseCommand {
                         clusterReference,
                       );
                       if (context_.versions?.blockNodeChart) {
-                        argv.push(
-                          optionFromFlag(flags.blockNodeChartVersion),
-                          context_.versions.blockNodeChart.toString(),
-                        );
+                        argv.push(optionFromFlag(flags.blockNodeVersion), context_.versions.blockNodeChart.toString());
                       }
                     }
                     return CommandHelpers.argvPushGlobalFlags(argv);
@@ -957,14 +969,14 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build mirror node deployment tasks
    */
-  private buildMirrorNodeTasks(): SoloListrTask<any>[] {
+  private buildMirrorNodeTasks(): SoloListrTask<AnyListrContext>[] {
     return [
       {
         title: 'Deploy mirror nodes',
-        skip: (context_: any): boolean =>
+        skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.mirrorNodes || context_.deploymentState.mirrorNodes.length === 0,
-        task: async (context_, taskListWrapper): Promise<any> => {
-          const mirrorNodeTasks: any[] = [];
+        task: async (context_, taskListWrapper) => {
+          const mirrorNodeTasks: SoloListrTask<AnyListrContext>[] = [];
 
           for (const mirrorNode of context_.deploymentState.mirrorNodes) {
             mirrorNodeTasks.push({
@@ -1026,14 +1038,14 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build relay node deployment tasks
    */
-  private buildRelayNodeTasks(): SoloListrTask<any>[] {
+  private buildRelayNodeTasks(): SoloListrTask<AnyListrContext>[] {
     return [
       {
         title: 'Deploy relay nodes',
-        skip: (context_: any): boolean =>
+        skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.relayNodes || context_.deploymentState.relayNodes.length === 0,
-        task: async (context_, taskListWrapper): Promise<any> => {
-          const relayNodeTasks: any[] = [];
+        task: async (context_, taskListWrapper) => {
+          const relayNodeTasks: SoloListrTask<AnyListrContext>[] = [];
 
           for (const relayNode of context_.deploymentState.relayNodes) {
             relayNodeTasks.push({
@@ -1073,10 +1085,7 @@ export class BackupRestoreCommand extends BaseCommand {
                         argv.push(optionFromFlag(flags.clusterRef), clusterReference);
                       }
                       if (context_.versions?.jsonRpcRelayChart) {
-                        argv.push(
-                          optionFromFlag(flags.relayReleaseTag),
-                          context_.versions.jsonRpcRelayChart.toString(),
-                        );
+                        argv.push(optionFromFlag(flags.relayVersion), context_.versions.jsonRpcRelayChart.toString());
                       }
                     }
                     return CommandHelpers.argvPushGlobalFlags(argv);
@@ -1099,14 +1108,14 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build explorer deployment tasks
    */
-  private buildExplorerTasks(): SoloListrTask<any>[] {
+  private buildExplorerTasks(): SoloListrTask<AnyListrContext>[] {
     return [
       {
         title: 'Deploy explorers',
-        skip: (context_: any): boolean =>
+        skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.explorers || context_.deploymentState.explorers.length === 0,
-        task: async (context_, taskListWrapper): Promise<any> => {
-          const explorerTasks: any[] = [];
+        task: async (context_, taskListWrapper) => {
+          const explorerTasks: SoloListrTask<AnyListrContext>[] = [];
 
           for (const explorer of context_.deploymentState.explorers) {
             explorerTasks.push({
@@ -1140,7 +1149,7 @@ export class BackupRestoreCommand extends BaseCommand {
                       argv.push(
                         ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
                         CommandHelpers.optionFromFlag(flags.deployment),
-                        context_.deployment,
+                        context_.deployment as string,
                         optionFromFlag(flags.clusterRef),
                         clusterReference,
                       );
@@ -1168,15 +1177,15 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build scan backup directory task
    */
-  private buildScanBackupDirectoryTask(): SoloListrTask<any> {
+  private buildScanBackupDirectoryTask(): SoloListrTask<Record<string, unknown>> {
     return {
       title: 'Scan backup directory structure',
-      task: async (context_: any): Promise<void> => {
-        const inputDirectory: string = context_.inputDirectory;
+      task: async (context_: Record<string, unknown>): Promise<void> => {
+        const inputDirectory: string = context_.inputDirectory as string;
 
         // Verify input directory exists
         if (!fs.existsSync(inputDirectory)) {
-          throw new SoloError(`Input directory does not exist: ${inputDirectory}`);
+          throw new SoloErrors.validation.backupInputDirectoryNotFound(inputDirectory);
         }
 
         // Read subdirectories
@@ -1186,7 +1195,7 @@ export class BackupRestoreCommand extends BaseCommand {
           .map((entry): string => entry.name);
 
         if (clusterReferenceDirectories.length === 0) {
-          throw new SoloError(`No cluster directories found in: ${inputDirectory}`);
+          throw new SoloErrors.validation.backupNoClusterDirs(inputDirectory);
         }
 
         // Store cluster reference directory names for mapping to kubectl contexts later
@@ -1208,66 +1217,69 @@ export class BackupRestoreCommand extends BaseCommand {
         );
 
         if (!fs.existsSync(configPath)) {
-          throw new SoloError(
-            `solo-remote-config.yaml not found at: ${configPath}. Expected structure: <input-dir>/<cluster-ref>/configmaps/solo-remote-config.yaml`,
-          );
+          throw new SoloErrors.validation.backupClusterValidationFailed(configPath);
         }
 
         this.logger.showUser(chalk.cyan(`Reading configuration from: ${configPath}`));
 
         // Read and parse the config file
-        const configData: any = await this.readRemoteConfigFile(configPath);
+        const configData: Record<string, unknown> = await this.readRemoteConfigFile(configPath);
         context_.remoteConfig = this.parseRemoteConfig(configData);
-        context_.deploymentState = context_.remoteConfig.state;
-        context_.versions = context_.remoteConfig.versions;
+        const remoteConfig = context_.remoteConfig as RemoteConfig;
+        context_.deploymentState = remoteConfig.state;
+        context_.versions = remoteConfig.versions;
 
         // Use clusters from config file (they contain cluster reference names, not kubectl context names)
-        if (!context_.remoteConfig.clusters || context_.remoteConfig.clusters.length === 0) {
-          throw new SoloError('No cluster information found in configuration file');
+        if (!remoteConfig.clusters || remoteConfig.clusters.length === 0) {
+          throw new SoloErrors.validation.backupNoClusterInfo();
         }
 
-        context_.clusters = context_.remoteConfig.clusters;
+        context_.clusters = remoteConfig.clusters;
 
         // Log cluster information from config
-        const clusterNames: string = context_.clusters.map((c: any) => c.name).join(', ');
+        const clusterNames: string = (context_.clusters as Array<{name: string}>)
+          .map((c: {name: string}): string => c.name)
+          .join(', ');
         this.logger.showUser(chalk.cyan(`Clusters from config: ${clusterNames}`));
 
         // Validate: number of cluster directories should match number of clusters in config
-        if (clusterReferenceDirectories.length !== context_.clusters.length) {
+        const clusters = (context_.clusters as Array<{name: string}>) || [];
+        if (clusterReferenceDirectories.length !== clusters.length) {
           this.logger.showUser(
             chalk.yellow(
-              `Warning: Found ${clusterReferenceDirectories.length} cluster directory(ies) but config has ${context_.clusters.length} cluster(s)`,
+              `Warning: Found ${clusterReferenceDirectories.length} cluster directory(ies) but config has ${clusters.length} cluster(s)`,
             ),
           );
         }
 
         // Extract deployment info from config (use first cluster)
-        const clusterInfo: any = context_.remoteConfig.clusters[0];
+        const clusterInfo = clusters[0] as {namespace: string; deployment: string; name: string};
         context_.namespace = NamespaceName.of(clusterInfo.namespace);
         context_.deployment = clusterInfo.deployment as DeploymentName;
         context_.context = clusterInfo.name; // Cluster name is the context
 
         this.logger.showUser(chalk.cyan(`\nDeployment: ${context_.deployment}`));
-        this.logger.showUser(chalk.cyan(`Namespace: ${context_.namespace.name}`));
+        this.logger.showUser(chalk.cyan(`Namespace: ${(context_.namespace as NamespaceName).name}`));
         this.logger.showUser(chalk.cyan(`Context: ${context_.context}`));
 
         // Build node aliases and validate we have components to deploy
-        if (context_.deploymentState!.consensusNodes && context_.deploymentState!.consensusNodes.length > 0) {
-          context_.nodeAliases = context_
-            .deploymentState!.consensusNodes.map((n: any): `node${string}` => `node${n.metadata.id}`)
+        const deploymentState = context_.deploymentState as DeploymentStateSchema;
+        if (deploymentState.consensusNodes && deploymentState.consensusNodes.length > 0) {
+          context_.nodeAliases = deploymentState.consensusNodes
+            .map((n): `node${string}` => `node${n.metadata.id}`)
             .join(',');
-          context_.numConsensusNodes = context_.deploymentState!.consensusNodes.length;
+          context_.numConsensusNodes = deploymentState.consensusNodes.length;
         }
 
         const hasComponents: boolean =
-          (context_.deploymentState!.consensusNodes?.length || 0) > 0 ||
-          (context_.deploymentState!.blockNodes?.length || 0) > 0 ||
-          (context_.deploymentState!.mirrorNodes?.length || 0) > 0 ||
-          (context_.deploymentState!.relayNodes?.length || 0) > 0 ||
-          (context_.deploymentState!.explorers?.length || 0) > 0;
+          (deploymentState.consensusNodes?.length || 0) > 0 ||
+          (deploymentState.blockNodes?.length || 0) > 0 ||
+          (deploymentState.mirrorNodes?.length || 0) > 0 ||
+          (deploymentState.relayNodes?.length || 0) > 0 ||
+          (deploymentState.explorers?.length || 0) > 0;
 
         if (!hasComponents) {
-          throw new SoloError('No components found in deployment state to deploy');
+          throw new SoloErrors.validation.backupNoComponents();
         }
       },
     };
@@ -1285,7 +1297,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
         const inputDirectory: string = argv[flags.inputDir.name] as string;
         if (!inputDirectory) {
-          throw new SoloError('Input directory is required. Use --input-dir flag.');
+          throw new SoloErrors.validation.missingArgument('--input-dir is required');
         }
         context_.inputDirectory = inputDirectory;
 
@@ -1295,7 +1307,7 @@ export class BackupRestoreCommand extends BaseCommand {
           this.logger.showUser(chalk.cyan(`\nLoading component options from: ${optionsFile}`));
 
           if (!fs.existsSync(optionsFile)) {
-            throw new SoloError(`Options file not found: ${optionsFile}`);
+            throw new SoloErrors.validation.backupOptionsFileNotFound(optionsFile);
           }
 
           try {
@@ -1320,7 +1332,7 @@ export class BackupRestoreCommand extends BaseCommand {
               this.logger.showUser(chalk.gray(`  - explorer: ${parsedOptions.explorer.length} options`));
             }
           } catch (error) {
-            throw new SoloError(`Failed to parse options file: ${error.message}`, error);
+            throw new SoloErrors.validation.backupConfigParseFailed(error);
           }
         }
       },
@@ -1335,12 +1347,12 @@ export class BackupRestoreCommand extends BaseCommand {
 
     const zipInputFile: string = this.configManager.getFlag<string>(flags.zipFile);
     if (!zipInputFile) {
-      throw new SoloError('--zip-file is required when using --zip-password.');
+      throw new SoloErrors.validation.backupZipFileRequired();
     }
 
     const inputPath: string = path.resolve(zipInputFile);
     if (!fs.existsSync(inputPath)) {
-      throw new SoloError(`Input path does not exist: ${inputPath}`);
+      throw new SoloErrors.validation.backupInputPathNotFound(inputPath);
     }
 
     const inputStats: fs.Stats = fs.statSync(inputPath);
@@ -1350,7 +1362,7 @@ export class BackupRestoreCommand extends BaseCommand {
     }
 
     if (path.extname(inputPath).toLowerCase() !== '.zip') {
-      throw new SoloError('Input path must be a .zip file when using --zip-password.');
+      throw new SoloErrors.validation.backupInputMustBeZip();
     }
 
     if (!fs.existsSync(targetDirectory)) {
@@ -1399,7 +1411,7 @@ export class BackupRestoreCommand extends BaseCommand {
             if (error.message && error.message.includes('already exists')) {
               this.logger.info('Kind Docker network already exists, continuing...');
             } else {
-              throw new SoloError(`Failed to create Kind Docker network or add MetalLB repo: ${error.message}`, error);
+              throw new SoloErrors.deployment.kindClusterNetworkSetupFailed(error);
             }
           }
         },
@@ -1457,9 +1469,7 @@ export class BackupRestoreCommand extends BaseCommand {
               if (attempt < maxAttempts) {
                 await helpers.sleep(Duration.ofSeconds(2));
               } else {
-                throw new SoloError(
-                  `Cluster '${clusterResponse.context}' failed to become ready after ${maxAttempts * 2} seconds. The API server is not responding. Error: ${error.message}`,
-                );
+                throw new SoloErrors.deployment.clusterApiServerTimeout(clusterResponse.context, maxAttempts, error);
               }
             }
           }
@@ -1481,7 +1491,8 @@ export class BackupRestoreCommand extends BaseCommand {
                 .createNamespace(true)
                 .atomic(true)
                 .waitFor(true)
-                .set(['speaker.frr.enabled=true'])
+                .valueArguments(new HelmChartValues().set('speaker.frr.enabled', true).toArguments())
+                .version(METALLB_CHART_VERSION)
                 .kubeContext(clusterResponse.context)
                 .build(),
             );
@@ -1655,7 +1666,7 @@ export class BackupRestoreCommand extends BaseCommand {
       };
     }
 
-    const tasks: any = new Listr<RestoreClustersContext>(
+    const tasks: SoloListr<RestoreClustersContext> = new Listr(
       [
         this.buildInitializationTask(argv),
         {
@@ -1664,7 +1675,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
             return !zipPassword;
           },
-          task: async (context_: RestoreClustersContext, task): Promise<void> => {
+          task: async (context_, task): Promise<void> => {
             await this.extractEncryptedBackup(context_.inputDirectory, task);
           },
         },
@@ -1673,8 +1684,8 @@ export class BackupRestoreCommand extends BaseCommand {
         ...this.buildKindNetworkTask(),
         {
           title: 'Create individual clusters',
-          task: (context_: any, taskListWrapper: any): any => {
-            const clusterTasks: SoloListrTask<any>[] = this.buildIndividualClusterCreationTasks(
+          task: (context_, taskListWrapper): SoloListr<RestoreClustersContext> => {
+            const clusterTasks: SoloListrTask<AnyListrContext>[] = this.buildIndividualClusterCreationTasks(
               context_,
               metallbConfig,
             );
@@ -1702,13 +1713,13 @@ export class BackupRestoreCommand extends BaseCommand {
           '\nℹ️  Clusters have been created and initialized. Run "solo config ops restore-network" to deploy network components.',
         ),
       );
-    } catch (error: any) {
-      throw new SoloError(`Restore clusters failed: ${error.message}`, error);
+    } catch (error) {
+      throw new SoloErrors.deployment.backupRestoreClustersFailed(error);
     } finally {
       await this.taskList
         .callCloseFunctions()
         .then()
-        .catch((error: any): void => this.logger.error('Error during closing task list:', error));
+        .catch((error): void => this.logger.error('Error during closing task list:', error));
     }
 
     return true;
@@ -1744,15 +1755,19 @@ export class BackupRestoreCommand extends BaseCommand {
       };
     }
 
-    const tasks: any = new Listr<RestoreNetworkContext>(
+    const tasks: SoloListr<RestoreNetworkContext> = new Listr(
       [
         this.buildInitializationTask(argv),
         // Flatten scan backup directory task (to load config and deployment state)
         this.buildScanBackupDirectoryTask(),
         {
           title: 'Initialize cluster configurations',
-          task: (context_: any, taskListWrapper: any): any => {
-            const initTasks: any[] = this.buildClusterInitializationTasks(context_, shard, realm);
+          task: (context_, taskListWrapper): SoloListr<RestoreNetworkContext> => {
+            const initTasks: SoloListrTask<AnyListrContext>[] = this.buildClusterInitializationTasks(
+              context_,
+              shard,
+              realm,
+            );
             return taskListWrapper.newListr(initTasks, {
               concurrent: false,
               rendererOptions: {collapseSubtasks: false},
@@ -1775,13 +1790,13 @@ export class BackupRestoreCommand extends BaseCommand {
       await tasks.run();
       this.logger.showUser(chalk.green('\n✅ Network components deployed successfully!'));
       this.logger.showUser(chalk.cyan('\nℹ️  All network components have been deployed to existing clusters.'));
-    } catch (error: any) {
-      throw new SoloError(`Deploy network failed: ${error.message}`, error);
+    } catch (error) {
+      throw new SoloErrors.deployment.deployNetworkFailed(error);
     } finally {
       await this.taskList
         .callCloseFunctions()
         .then()
-        .catch((error: any): void => this.logger.error('Error during closing task list:', error));
+        .catch((error): void => this.logger.error('Error during closing task list:', error));
     }
 
     return true;

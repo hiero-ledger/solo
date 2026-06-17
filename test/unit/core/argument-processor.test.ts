@@ -7,6 +7,7 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {container} from 'tsyringe-neo';
 import * as constants from '../../../src/core/constants.js';
 import {ArgumentProcessor} from '../../../src/argument-processor.js';
+import {SoloError} from '../../../src/core/errors/solo-error.js';
 
 describe('ArgumentProcessor', (): void => {
   let originalExit: (code?: string | number | null | undefined) => never;
@@ -124,7 +125,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Unknown');
       }
 
@@ -138,7 +139,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Unknown');
       }
 
@@ -152,7 +153,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Unknown');
       }
 
@@ -168,7 +169,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('deployment');
       }
 
@@ -185,7 +186,7 @@ describe('ArgumentProcessor', (): void => {
         await ArgumentProcessor.process(argv);
         expect.fail('Expected SoloError to be thrown');
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Missing required argument: deployment');
       }
 
@@ -211,7 +212,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Unknown');
       }
 
@@ -266,6 +267,23 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('block node add');
       expect(output).to.include('Options:');
       expect(output).to.not.include('Missing required argument');
+      expect(process.exitCode).to.not.equal(1);
+    });
+
+    it('should accept deprecated --release-tag for block node add and still show help', async (): Promise<void> => {
+      const argv: string[] = ['node', 'solo.ts', 'block', 'node', 'add', '--release-tag', 'v0.66.0', '--help'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.include('block node add');
+      expect(output).to.include('--release-tag');
+      expect(output).to.not.include('Unknown arguments');
       expect(process.exitCode).to.not.equal(1);
     });
 
@@ -396,7 +414,7 @@ describe('ArgumentProcessor', (): void => {
         expect.fail('Expected error to be thrown');
       } catch (error: unknown) {
         // Should throw SoloError for missing required arguments
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
         expect((error as Error).message).to.include('Missing required argument');
       }
     });
@@ -424,7 +442,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
       }
 
       // Exit code should be set to error (1) for actual errors
@@ -447,7 +465,7 @@ describe('ArgumentProcessor', (): void => {
       try {
         await ArgumentProcessor.process(argv);
       } catch (error: unknown) {
-        expect((error as Error).constructor.name).to.equal('SoloError');
+        expect(error).to.be.instanceOf(SoloError);
       }
 
       // Exit code should be set to error (1) for unknown arguments

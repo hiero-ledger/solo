@@ -13,8 +13,10 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {SoloError} from '../errors/solo-error.js';
 import {MessageLevel} from './message-level.js';
+import {SOLO_SILENT_MODE} from '../constants.js';
 
 type ChalkColor = typeof chalk.red;
 
@@ -169,7 +171,9 @@ export class SoloPinoLogger implements SoloLogger {
 
   public showUser(message: unknown, ...arguments_: unknown[]): void {
     const formatted: string = util.format(String(message), ...arguments_.map(String));
-    console.log(formatted);
+    if (!constants.SOLO_SILENT_MODE) {
+      console.log(formatted);
+    }
     // Mirror existing behavior: also persist to logs at info level
     this.info(formatted);
   }
@@ -300,11 +304,31 @@ export class SoloPinoLogger implements SoloLogger {
     console.log(chalk.red(`╰${'─'.repeat(interiorWidth + 2)}╯`));
   }
 
+  private buildSilentErrorOutput(error: Error, causeChain: Error[]): Record<string, unknown> {
+    return {
+      level: 'ERROR',
+      message: this.getFormattedCode(error) + error.message,
+      stack: error.stack,
+      causes: causeChain.slice(1).map(
+        (cause: Error): Record<string, unknown> => ({
+          message: this.getFormattedCode(cause) + cause.message,
+          stack: cause.stack,
+        }),
+      ),
+    };
+  }
+
   public showUserError(error: unknown): void {
     const normalizedError: Error = error instanceof Error ? error : new Error(String(error));
     const causeChain: Error[] = this.buildCauseChain(normalizedError);
     const lines: string[] = this.buildContentLines(normalizedError, causeChain);
-    this.renderErrorBox(lines);
+
+    if (constants.SOLO_SILENT_MODE) {
+      console.error(JSON.stringify(this.buildSilentErrorOutput(normalizedError, causeChain), undefined, 2));
+    } else {
+      this.renderErrorBox(lines);
+    }
+
     this.toPino('error', error, []);
   }
 
@@ -342,12 +366,14 @@ export class SoloPinoLogger implements SoloLogger {
   public showJSON(title: string, object: object): void {
     this.showUser(chalk.green(`\n *** ${title} ***`));
     this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
-    console.log(JSON.stringify(object, undefined, 2));
+    if (!SOLO_SILENT_MODE) {
+      console.log(JSON.stringify(object, undefined, 2));
+    }
   }
 
   public getMessageGroup(key: string): string[] {
     if (!this.messageGroupMap.has(key)) {
-      throw new SoloError(`Message group with key "${key}" does not exist.`);
+      throw new SoloErrors.internal.loggerMessageGroupNotFound(key);
     }
     return this.messageGroupMap.get(key);
   }
@@ -363,7 +389,7 @@ export class SoloPinoLogger implements SoloLogger {
 
   public addMessageGroupMessage(key: string, message: string): void {
     if (!this.messageGroupMap.has(key)) {
-      throw new SoloError(`Message group with key "${key}" does not exist.`);
+      throw new SoloErrors.internal.loggerMessageGroupNotFound(key);
     }
     this.messageGroupMap.get(key)!.push(message);
     this.debug(`Added message to group "${key}": ${message}`);

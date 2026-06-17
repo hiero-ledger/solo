@@ -5,7 +5,7 @@ import * as NodeFlags from './flags.js';
 import {type NodeCommandConfigs} from './configs.js';
 import * as constants from '../../core/constants.js';
 import {type LockManager} from '../../core/lock/lock-manager.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type Lock} from '../../core/lock/lock.js';
 import {LeaseWrapper, type NodeCommandTasks} from './tasks.js';
 import {NodeSubcommandType} from '../../core/enumerations.js';
@@ -36,10 +36,10 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {Flags as flags} from '../flags.js';
 import {select as selectPrompt} from '@inquirer/prompts';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
-import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
-import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {getSoloVersion} from '../../../version.js';
+import {type ClusterReachability} from '../util/cluster-reachability.js';
+import {DiagnosticsCollector} from '../util/diagnostics-collector.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
 import {findDeploymentsFromRemoteConfig} from '../util/find-deployments-from-remote-config.js';
 import {GetSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
@@ -102,8 +102,73 @@ export class NodeCommandHandlers extends CommandHandler {
 
   private ensureInteractiveSelectionPrompt(): void {
     if (!process.stdout.isTTY || !process.stdin.isTTY) {
-      throw new SoloError('Cannot prompt for input in non-interactive mode');
+      throw new SoloErrors.validation.nonInteractivePrompt(flags.getFormattedFlagKey(flags.deployment));
     }
+  }
+
+  /**
+   * Loads the local config and returns the deployments that have a non-empty name.
+   * Shared by the cluster-aware ({@link resolveDeploymentForLogs}) and cluster-free
+   * ({@link resolveDeploymentNameWithoutCluster}) deployment resolvers.
+   */
+  private async collectValidLocalDeployments(): Promise<Deployment[]> {
+    await this.localConfig.load();
+    const validDeployments: Deployment[] = [];
+    for (const deployment of this.localConfig.configuration.deployments) {
+      if (deployment?.name && deployment.name.trim().length > 0) {
+        validDeployments.push(deployment);
+      }
+    }
+
+    return validDeployments;
+  }
+
+  /**
+   * Resolves a deployment name using only locally available information (the
+   * deployment flag and local config) without contacting any cluster. Returns an
+   * empty string when no unambiguous deployment can be determined locally.
+   */
+  private async resolveDeploymentNameWithoutCluster(argv: ArgvStruct): Promise<string> {
+    const deploymentFromFlag: string = this.resolveDeploymentFlag(argv);
+    if (deploymentFromFlag && deploymentFromFlag.trim()) {
+      return deploymentFromFlag;
+    }
+
+    const validDeployments: Deployment[] = await this.collectValidLocalDeployments();
+    return validDeployments.length === 1 ? validDeployments[0].name : '';
+  }
+
+  /**
+   * Collects the diagnostics that are available without a cluster connection
+   * (Solo logs and local configuration) and analyzes them. Used as a graceful
+   * fallback for the diagnostics commands when the Kubernetes cluster is not
+   * reachable — either no active context, or a stale context pointing at a
+   * cluster that has been torn down.
+   */
+  private async collectLocalDiagnosticsOnly(argv: ArgvStruct, reason?: string): Promise<boolean> {
+    const outputDirectory: string = this.resolveOutputDirectory(argv, constants.SOLO_LOGS_DIR);
+
+    const reasonSuffix: string = reason ? ` (${reason})` : '';
+    this.logger.showUser(
+      chalk.yellow(
+        `\n⚠  No reachable Kubernetes cluster${reasonSuffix}. Collecting locally available\n` +
+          '   diagnostics only (Solo logs and local configuration). Remote consensus node\n' +
+          '   logs cannot be collected without a cluster connection.',
+      ),
+    );
+
+    await this.commandAction(
+      argv,
+      [
+        DiagnosticsCollector.collectLocalDiagnostics(this.logger, outputDirectory),
+        this.tasks.analyzeCollectedDiagnostics(outputDirectory),
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      'Error collecting local diagnostics',
+    );
+
+    this.logger.showUser(chalk.cyan(`\nLocal diagnostics collected to: ${outputDirectory}`));
+    return true;
   }
 
   /** ******** Task Lists **********/
@@ -282,6 +347,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private upgradeExecuteTasks(): SoloListrTask<NodeUpgradeContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
+      this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.upgradeNodeConfigurationFilesWithChart(),
@@ -669,6 +735,12 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+
+    const reachability: ClusterReachability = await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory);
+    if (!reachability.reachable) {
+      return await this.collectLocalDiagnosticsOnly(argv, reachability.reason);
+    }
+
     if (!argv[flags.deployment.name]) {
       argv[flags.deployment.name] = await this.resolveDeploymentForLogs(argv);
     }
@@ -723,14 +795,7 @@ export class NodeCommandHandlers extends CommandHandler {
       return deploymentFromFlag;
     }
 
-    await this.localConfig.load();
-    const deployments: MutableFacadeArray<Deployment, DeploymentSchema> = this.localConfig.configuration.deployments;
-    const validDeployments: Deployment[] = [];
-    for (const deployment of deployments) {
-      if (deployment?.name && deployment.name.trim().length > 0) {
-        validDeployments.push(deployment);
-      }
-    }
+    const validDeployments: Deployment[] = await this.collectValidLocalDeployments();
 
     if (validDeployments.length === 0) {
       const remoteDeployments: Map<string, RemoteDeploymentInfo> = await findDeploymentsFromRemoteConfig(
@@ -738,9 +803,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.logger,
       );
       if (remoteDeployments.size === 0) {
-        throw new SoloError(
-          `No deployments found in local or remote config. Please provide --${flags.deployment.name} or create a deployment first.`,
-        );
+        throw new SoloErrors.deployment.noDeploymentsFound();
       }
 
       const remoteDeploymentNames: string[] = [...remoteDeployments.keys()];
@@ -753,9 +816,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
       if (this.resolveQuietFlag(argv)) {
         const names: string = remoteDeploymentNames.join(', ');
-        throw new SoloError(
-          `Multiple deployments found in remote config (${names}). Please provide --${flags.deployment.name}.`,
-        );
+        throw new SoloErrors.system.multipleDeploymentsFound('remote', names);
       }
 
       this.ensureInteractiveSelectionPrompt();
@@ -775,9 +836,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
     if (this.resolveQuietFlag(argv)) {
       const deploymentNames: string = validDeployments.map((deployment: Deployment) => deployment.name).join(', ');
-      throw new SoloError(
-        `Multiple deployments found in local config (${deploymentNames}). Please provide --${flags.deployment.name}.`,
-      );
+      throw new SoloErrors.system.multipleDeploymentsFound('local', deploymentNames);
     }
 
     this.ensureInteractiveSelectionPrompt();
@@ -794,6 +853,12 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+
+    const reachability: ClusterReachability = await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory);
+    if (!reachability.reachable) {
+      return await this.collectLocalDiagnosticsOnly(argv, reachability.reason);
+    }
+
     if (!argv[flags.deployment.name]) {
       argv[flags.deployment.name] = await this.resolveDeploymentForLogs(argv);
     }
@@ -843,8 +908,8 @@ export class NodeCommandHandlers extends CommandHandler {
       await this.zippy.zip(outputDirectory, zipFilePath);
       this.logger.showUser(chalk.green('✓ Debug information collected successfully!'));
       this.logger.showUser(chalk.cyan(`  Archive: ${zipFilePath}`));
-    } catch (error: Error | unknown) {
-      throw new SoloError(`Failed to create debug archive: ${(error as Error).message}`, error as Error);
+    } catch (error) {
+      throw new SoloErrors.component.nodeDebugArchiveFailed(error);
     }
 
     return true;
@@ -884,11 +949,19 @@ export class NodeCommandHandlers extends CommandHandler {
    */
   public async report(argv: ArgvStruct): Promise<boolean> {
     argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
-    // Resolve deployment before calling collectDebug() so it's available for the issue title/body
-    const deployment: string = argv[flags.deployment.name]
-      ? String(argv[flags.deployment.name])
-      : await this.resolveDeploymentForLogs(argv);
-    if (!argv[flags.deployment.name]) {
+    // Resolve deployment before calling collectDebug() so it's available for the issue title/body.
+    // Without an active kube context, resolve from local information only so the command still
+    // produces a report (collectDebug() degrades to local-only diagnostics in that case).
+    let deployment: string;
+    if (argv[flags.deployment.name]) {
+      deployment = String(argv[flags.deployment.name]);
+    } else {
+      const reachability: ClusterReachability = await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory);
+      deployment = reachability.reachable
+        ? await this.resolveDeploymentForLogs(argv)
+        : await this.resolveDeploymentNameWithoutCluster(argv);
+    }
+    if (!argv[flags.deployment.name] && deployment) {
       argv[flags.deployment.name] = deployment;
     }
 
@@ -1048,6 +1121,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyNetworkPods(),
         this.tasks.fetchPlatformSoftware('nodeAliases'),
         this.tasks.setupNetworkNodes('nodeAliases', true),
+        this.tasks.updateBlockNodesJson(),
         this.tasks.setupNetworkNodeFolders(),
         this.changeAllNodePhases(DeploymentPhase.CONFIGURED),
       ],
@@ -1256,7 +1330,7 @@ export class NodeCommandHandlers extends CommandHandler {
         Templates.renderComponentIdFromNodeAlias(nodeAlias),
       );
     } catch {
-      throw new SoloError(`${nodeAlias} not found in remote config`);
+      throw new SoloErrors.system.consensusNodeNotInConfig(nodeAlias);
     }
     // TODO: Enable once states have been mapped
     // if (acceptedPhases && !acceptedPhases.includes(nodeComponent.state)) {

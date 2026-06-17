@@ -15,7 +15,8 @@ export class SoloError extends Error {
   protected readonly retryable?: boolean;
   protected readonly ownership?: ErrorOwnership;
 
-  protected static readonly DOC_BASE: string = 'https://solo.hiero.org/docs/errors';
+  protected static readonly DOC_BASE: string = 'https://solo.hiero.org/docs/troubleshooting/errors';
+  public static readonly bugReportUrl: string = 'https://github.com/hiero-ledger/solo/issues';
 
   /**
    * Create a custom error object

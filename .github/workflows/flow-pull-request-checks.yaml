@@ -22,7 +22,7 @@ on:
         description: "Consensus Node Version:"
         type: string
         required: false
-        default: "v0.71.0"
+        default: "v0.74.0"
       skip-unit-and-coverage:
         description: "Skip Unit Tests and Coverage"
         type: boolean
@@ -58,7 +58,7 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
           # allow internal Podman/Kind HTTPS calls between pods/services on the runner (no internet egress)
@@ -66,7 +66,7 @@ jobs:
             **.svc.cluster.local.dns.podman:443
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Read JSON and Set Matrix Output
         id: set_matrix
@@ -165,15 +165,13 @@ jobs:
     secrets:
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
 
-  hugo-docs-build:
-    name: Hugo Docs Build
-    uses: ./.github/workflows/zxc-hugo-build.yaml
+  docs-automation:
+    name: Docs Automation
+    uses: ./.github/workflows/zxc-docs-automation.yaml
     # If it is a workflow dispatch AND we are skipping unit test and coverage, skip Hugo Docs Build job
-    # If it is a PR, check if it's a draft PR. If a draft PR, check if it starts with 'trunk-merge', if true then run Hugo Docs Build job
-    # If it is regular PR, always run Hugo Docs Build job
+    # If it is a PR, check if it's a draft PR. If a draft PR, check if it starts with 'trunk-merge', if true then run Docs Automation job
+    # If it is regular PR, always run Docs Automation job
     if: >
       ${{ (!(github.event_name == 'workflow_dispatch' && github.event.inputs.skip-unit-and-coverage) ||
       (github.event_name == 'pull_request' && (github.event.pull_request.draft == false ||
       startsWith(github.event.pull_request.title, 'trunk-merge')))) && !cancelled() }}
-    with:
-      ref: ${{ github.ref }}

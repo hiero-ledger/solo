@@ -9,6 +9,7 @@ import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {GitHubRelease, GitHubReleaseAsset, ReleaseInfo} from '../../types/index.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 
@@ -69,10 +70,10 @@ export class VfkitDependencyManager extends BaseDependencyManager {
           return match[1];
         }
       } catch (error: any) {
-        throw new SoloError('Failed to check vfkit version', error);
+        throw new SoloErrors.system.dependencyVersionCheckFailed('vfkit', error);
       }
     }
-    throw new SoloError('Failed to check vfkit version');
+    throw new SoloErrors.system.dependencyVersionCheckFailed('vfkit');
   }
 
   /**
@@ -81,24 +82,27 @@ export class VfkitDependencyManager extends BaseDependencyManager {
    */
   private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
     try {
-      // Make a GET request to GitHub API using fetch
+      const headers: Record<string, string> = {
+        'User-Agent': constants.SOLO_USER_AGENT_HEADER,
+        Accept: 'application/vnd.github.v3+json',
+      };
+      if (process.env.GITHUB_TOKEN) {
+        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+      }
       const response = await fetch(VFKIT_RELEASES_LIST_URL, {
-        method: 'GET', // Changed from HEAD to GET to retrieve the body
-        headers: {
-          'User-Agent': constants.SOLO_USER_AGENT_HEADER,
-          Accept: 'application/vnd.github.v3+json', // Explicitly request GitHub API v3 format
-        },
+        method: 'GET',
+        headers,
       });
 
       if (!response.ok) {
-        throw new SoloError(`GitHub API request failed with status ${response.status}`);
+        throw new SoloErrors.system.githubApiHttpResponseError(VFKIT_RELEASES_LIST_URL, response.status);
       }
 
       // Parse the JSON response
       const releases: GitHubRelease[] = await response.json();
 
       if (!releases || releases.length === 0) {
-        throw new SoloError('No releases found');
+        throw new SoloErrors.system.gitHubReleasesNotFound();
       }
 
       // Get the latest release
@@ -112,7 +116,7 @@ export class VfkitDependencyManager extends BaseDependencyManager {
       const matchingAsset: GitHubReleaseAsset = release.assets.find(asset => asset.name.includes(assetName));
 
       if (!matchingAsset) {
-        throw new SoloError(`No matching asset found for ${OperatingSystem.getFormattedPlatform()}-${arch}`);
+        throw new SoloErrors.system.gitHubReleaseAssetNotFound(OperatingSystem.getFormattedPlatform(), arch);
       }
 
       const checksum: string =
@@ -134,7 +138,7 @@ export class VfkitDependencyManager extends BaseDependencyManager {
       if (error instanceof SoloError) {
         throw error;
       }
-      throw new SoloError('Failed to parse GitHub API response', error);
+      throw new SoloErrors.system.githubApiResponseParseFailed(VFKIT_RELEASES_LIST_URL, error);
     }
   }
 

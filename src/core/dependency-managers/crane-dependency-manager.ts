@@ -12,6 +12,7 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import util from 'node:util';
 import fs from 'node:fs';
 import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {GitHubRelease, GitHubReleaseAsset, ReleaseInfo} from '../../types/index.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 
@@ -70,11 +71,11 @@ export class CraneDependencyManager extends BaseDependencyManager {
           }
         }
       } catch (error) {
-        throw new SoloError('Failed to check crane version', error);
+        throw new SoloErrors.system.dependencyVersionCheckFailed('crane', error);
       }
     }
 
-    throw new SoloError('Failed to check crane version');
+    throw new SoloErrors.system.dependencyVersionCheckFailed('crane');
   }
 
   /**
@@ -106,7 +107,7 @@ export class CraneDependencyManager extends BaseDependencyManager {
     } else if (OperatingSystem.isLinux()) {
       platformPattern = 'linux';
     } else {
-      throw new SoloError(`Unsupported platform: ${OperatingSystem.getPlatform()}`);
+      throw new SoloErrors.validation.illegalArgument(`Unsupported platform: ${OperatingSystem.getPlatform()}`);
     }
 
     // Prefer archives; support both tar.gz and zip if upstream ever varies by platform/version.
@@ -115,26 +116,32 @@ export class CraneDependencyManager extends BaseDependencyManager {
 
   private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
     try {
+      const headers: Record<string, string> = {
+        'User-Agent': constants.SOLO_USER_AGENT_HEADER,
+        Accept: 'application/vnd.github.v3+json',
+      };
+      // GITHUB_TOKEN is injected automatically into every GitHub Actions job,
+      // raising the rate limit from 60 req/hour (unauthenticated) to 1000 req/hour.
+      if (process.env.GITHUB_TOKEN) {
+        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+      }
       const response: Response = await fetch(CRANE_RELEASES_LIST_URL, {
         method: 'GET',
-        headers: {
-          'User-Agent': constants.SOLO_USER_AGENT_HEADER,
-          Accept: 'application/vnd.github.v3+json',
-        },
+        headers,
       });
 
       if (!response.ok) {
-        throw new SoloError(`GitHub API request failed with status ${response.status}`);
+        throw new SoloErrors.system.githubApiHttpResponseError(CRANE_RELEASES_LIST_URL, response.status);
       }
 
       const releases: GitHubRelease[] = await response.json();
       if (!releases || releases.length === 0) {
-        throw new SoloError('No releases found');
+        throw new SoloErrors.system.gitHubReleasesNotFound();
       }
 
       const release: GitHubRelease | undefined = releases.find((release_): boolean => release_.tag_name === tagName);
       if (!release) {
-        throw new SoloError(`Release not found for tag ${tagName}`);
+        throw new SoloErrors.system.gitHubReleaseTagNotFound(tagName);
       }
 
       const versionOnly: string = release.tag_name.replace(/^v/, '');
@@ -144,9 +151,7 @@ export class CraneDependencyManager extends BaseDependencyManager {
       );
 
       if (!matchingAsset) {
-        throw new SoloError(
-          `No matching crane asset found for ${OperatingSystem.getFormattedPlatform()}-${this.getArch()}`,
-        );
+        throw new SoloErrors.system.gitHubReleaseAssetNotFound(OperatingSystem.getFormattedPlatform(), this.getArch());
       }
 
       const checksum: string = matchingAsset.digest
@@ -168,7 +173,7 @@ export class CraneDependencyManager extends BaseDependencyManager {
       if (error instanceof SoloError) {
         throw error;
       }
-      throw new SoloError('Failed to parse GitHub API response', error);
+      throw new SoloErrors.system.githubApiResponseParseFailed(CRANE_RELEASES_LIST_URL, error);
     }
   }
 
@@ -206,7 +211,10 @@ export class CraneDependencyManager extends BaseDependencyManager {
     const matchedPath: string | undefined = candidatePaths.find((candidate): boolean => fs.existsSync(candidate));
 
     if (!matchedPath) {
-      throw new SoloError(`Crane executable not found in extracted archive: ${temporaryDirectory}`);
+      throw new SoloErrors.system.dependencyInstallFailed(
+        'crane',
+        new Error(`Crane executable not found in extracted archive: ${temporaryDirectory}`),
+      );
     }
 
     return [matchedPath];

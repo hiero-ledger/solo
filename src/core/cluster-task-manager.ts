@@ -9,7 +9,7 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {PodmanMode, SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
 import {InitContext} from '../commands/init/init-context.js';
 import {AptGetPackageManager} from './package-managers/apt-get-package-manager.js';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import * as constants from './constants.js';
 import {getTemporaryDirectory} from './helpers.js';
 import fs from 'node:fs';
@@ -93,7 +93,10 @@ export class ClusterTaskManager extends ShellRunner {
     return {onSudoGranted, onSudoRequested};
   }
 
-  public rootfullInstallTasks(parentTask: SoloListrTaskWrapper<InitContext>): SoloListrTask<InitContext>[] {
+  public rootfullInstallTasks(
+    parentTask: SoloListrTaskWrapper<InitContext>,
+    useSmallMemoryCluster: boolean,
+  ): SoloListrTask<InitContext>[] {
     return [
       {
         title: 'Install git, iptables...',
@@ -119,7 +122,7 @@ export class ClusterTaskManager extends ShellRunner {
           if (!brewInstalled) {
             this.logger.info('Homebrew not found, installing Homebrew...');
             if (!(await this.brewPackageManager.install())) {
-              throw new SoloError('Failed to install Homebrew');
+              throw new SoloErrors.system.homebrewInstallFailed();
             }
           }
         },
@@ -158,7 +161,7 @@ export class ClusterTaskManager extends ShellRunner {
           await this.sudoRun(
             onSudoRequested,
             onSudoGranted,
-            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" kind create cluster --image "${constants.KIND_NODE_IMAGE}" --config "${constants.KIND_CLUSTER_CONFIG_FILE}"`,
+            `KIND_EXPERIMENTAL_PROVIDER=podman PATH="$PATH:${podmanPath}" kind create cluster --image "${constants.KIND_NODE_IMAGE}" --config "${this.getConfigFilePath(useSmallMemoryCluster)}"`,
             ...sudoRunOptions,
           );
 
@@ -233,11 +236,16 @@ export class ClusterTaskManager extends ShellRunner {
     ];
   }
 
-  public async installationTasks(parentTask: SoloListrTaskWrapper<InitContext>): Promise<SoloListrTask<InitContext>[]> {
+  public async installationTasks(
+    parentTask: SoloListrTaskWrapper<InitContext>,
+    useSmallMemoryCluster: boolean = false,
+  ): Promise<SoloListrTask<InitContext>[]> {
     const skipPodmanTasks: boolean = !(await this.podmanDependencyManager.shouldInstall());
     if (this.podmanDependencyManager.mode === PodmanMode.ROOTFUL) {
       {
-        return skipPodmanTasks ? [this.defaultCreateClusterTask(parentTask)] : this.rootfullInstallTasks(parentTask);
+        return skipPodmanTasks
+          ? [this.defaultCreateClusterTask(parentTask, useSmallMemoryCluster)]
+          : this.rootfullInstallTasks(parentTask, useSmallMemoryCluster);
       }
     } else if (this.podmanDependencyManager.mode === PodmanMode.VIRTUAL_MACHINE) {
       {
@@ -271,7 +279,7 @@ export class ClusterTaskManager extends ShellRunner {
                     ...podmanRunOptions,
                   );
                 } else {
-                  throw new SoloError(`Failed to inspect Podman machine: ${error.message}`);
+                  throw new SoloErrors.system.podmanMachineInspectFailed(error);
                 }
               }
             },
@@ -284,7 +292,7 @@ export class ClusterTaskManager extends ShellRunner {
             },
             skip: (): boolean => skipPodmanTasks,
           } as SoloListrTask<InitContext>,
-          this.defaultCreateClusterTask(parentTask),
+          this.defaultCreateClusterTask(parentTask, useSmallMemoryCluster),
         ];
       }
     }
@@ -292,7 +300,10 @@ export class ClusterTaskManager extends ShellRunner {
     return [];
   }
 
-  private defaultCreateClusterTask(parentTask: SoloListrTaskWrapper<InitContext>): SoloListrTask<InitContext> {
+  private defaultCreateClusterTask(
+    parentTask: SoloListrTaskWrapper<InitContext>,
+    useSmallMemoryCluster: boolean = false,
+  ): SoloListrTask<InitContext> {
     return {
       title: 'Creating local cluster...',
       task: async (): Promise<void> => {
@@ -311,7 +322,7 @@ export class ClusterTaskManager extends ShellRunner {
 
         const clusterCreateOptions: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder()
           .image(constants.KIND_NODE_IMAGE)
-          .config(constants.KIND_CLUSTER_CONFIG_FILE)
+          .config(this.getConfigFilePath(useSmallMemoryCluster))
           .build();
 
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
@@ -324,7 +335,16 @@ export class ClusterTaskManager extends ShellRunner {
     } as SoloListrTask<InitContext>;
   }
 
-  public setupLocalClusterTasks(): SoloListrTask<InitContext>[] {
+  private getConfigFilePath(useSmallMemoryCluster: boolean): string {
+    let kindConfigFilePath: string = constants.KIND_CLUSTER_CONFIG_FILE;
+    if (useSmallMemoryCluster && kindConfigFilePath === constants.DEFAULT_KIND_CLUSTER_CONFIG_FILE) {
+      kindConfigFilePath = path.join(constants.RESOURCES_DIR, 'templates', 'small-memory', 'kind-config.yaml');
+      this.logger.info(`Using small memory cluster configuration: ${kindConfigFilePath}`);
+    }
+    return kindConfigFilePath;
+  }
+
+  public setupLocalClusterTasks(useSmallMemoryCluster: boolean = false): SoloListrTask<InitContext>[] {
     return [
       {
         title: 'Install Kind',
@@ -356,7 +376,7 @@ export class ClusterTaskManager extends ShellRunner {
         title: 'Create default cluster',
         task: async (_context: InitContext, task: SoloListrTaskWrapper<InitContext>): Promise<unknown> => {
           void _context;
-          const subTasks: SoloListrTask<InitContext>[] = await this.installationTasks(task);
+          const subTasks: SoloListrTask<InitContext>[] = await this.installationTasks(task, useSmallMemoryCluster);
           return task.newListr(subTasks, {
             concurrent: false, // should not use concurrent as cluster creation may be called before dependencies are finished installing
             rendererOptions: {

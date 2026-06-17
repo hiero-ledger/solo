@@ -65,6 +65,28 @@ export class BlockNodesJsonWrapper implements ToJSON {
     return JSON.stringify(this.buildBlockNodesJsonStructure());
   }
 
+  /**
+   * Resolves the message-size limit fields written into each block-nodes.json entry. Only emitted when
+   * TSS is enabled. A deployment-wide override persisted in remote config (set via the block node
+   * `--block-node-message-size-*-limit-bytes` flags) takes precedence over the TSS config default.
+   */
+  private resolveMessageSizeFields(): BlockNodeConnectionDataBase {
+    if (!this.tssEnabled) {
+      return {};
+    }
+
+    const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
+
+    return {
+      messageSizeSoftLimitBytes:
+        this.remoteConfig.configuration.state.blockNodeMessageSizeSoftLimitBytes ??
+        soloConfig.tss.messageSizeSoftLimitBytes,
+      messageSizeHardLimitBytes:
+        this.remoteConfig.configuration.state.blockNodeMessageSizeHardLimitBytes ??
+        soloConfig.tss.messageSizeHardLimitBytes,
+    };
+  }
+
   private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
     // Figure out field name for port
     const useLegacyPortName: boolean = this.remoteConfig.configuration.versions.consensusNode.lessThan(
@@ -95,13 +117,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
 
-      const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
-      const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
-        ? {
-            messageSizeSoftLimitBytes: soloConfig.tss.messageSizeSoftLimitBytes,
-            messageSizeHardLimitBytes: soloConfig.tss.messageSizeHardLimitBytes,
-          }
-        : {};
+      const tssMessageSizeFields: BlockNodeConnectionDataBase = this.resolveMessageSizeFields();
 
       blockNodeConnectionData.push(
         useLegacyPortName
@@ -118,13 +134,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
       const address: string = blockNodeComponent.address;
       const port: number = blockNodeComponent.port;
 
-      const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
-      const tssMessageSizeFields: BlockNodeConnectionDataBase = this.tssEnabled
-        ? {
-            messageSizeSoftLimitBytes: soloConfig.tss.messageSizeSoftLimitBytes,
-            messageSizeHardLimitBytes: soloConfig.tss.messageSizeHardLimitBytes,
-          }
-        : {};
+      const tssMessageSizeFields: BlockNodeConnectionDataBase = this.resolveMessageSizeFields();
 
       blockNodeConnectionData.push(
         useLegacyPortName

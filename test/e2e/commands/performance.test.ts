@@ -184,48 +184,49 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: finished ${testName}: destroy`);
         }).timeout(Duration.ofMinutes(8).toMillis());
 
-        it('NftTransferLoadTest', async (): Promise<void> => {
-          logEvent('Starting NftTransferLoadTest');
-          await main(
-            soloRapidFire(
-              testName,
-              'NftTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
-              maxTps,
-            ),
-          );
-        }).timeout(Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier).toMillis());
-
+        // NOTE: NLG 0.14.0 expanded -R (reuse) to cover tokens as well as accounts. It reuses
+        // tokens without filtering by type, so if TokenTransferLoadTest ran first and created
+        // fungible tokens, NftTransferLoadTest with -R would load those fungible tokens as NFTs
+        // and produce 0 TPS (and vice versa). To avoid this cross-contamination, NftTransferLoadTest
+        // does NOT use -R so it always creates its own fresh NFT tokens.
         it('TokenTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting TokenTransferLoadTest');
-          await main(
-            soloRapidFire(
-              testName,
-              'TokenTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
-              maxTps,
-            ),
+          await runLoadTest(
+            'TokenTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
           );
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
+        it('NftTransferLoadTest', async (): Promise<void> => {
+          logEvent('Starting NftTransferLoadTest');
+          await runLoadTest(
+            'NftTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -t ${duration}`,
+          );
+        }).timeout(Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier).toMillis());
+
         it('CryptoTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting CryptoTransferLoadTest');
-          await main(
-            soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-          );
+          await runLoadTest('CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('HCSLoadTest', async (): Promise<void> => {
           logEvent('Starting HCSLoadTest');
-          await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+          await runLoadTest('HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('SmartContractLoadTest', async (): Promise<void> => {
           logEvent('Starting SmartContractLoadTest');
-          await main(
-            soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-          );
-        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+          await runLoadTest('SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
+        }).timeout(Duration.ofSeconds(duration * 6).toMillis());
+
+        async function runLoadTest(performanceTest: string, argumentsString: string): Promise<void> {
+          // rapid-fire enforces the TPS!=0 + "Finished" check internally and throws
+          // on degraded runs (proxy backpressure, NFT-vs-fungible token mismatch, etc.).
+          await main(soloRapidFire(testName, performanceTest, argumentsString, maxTps));
+          // Cool-down lets haproxy drain tunnel sockets before the next test.
+          await sleep(Duration.ofSeconds(30));
+        }
 
         it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
           logEvent('Completed all performance tests');
@@ -306,7 +307,10 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
-  argv.push(optionFromFlag(Flags.deployment), deployment, optionFromFlag(Flags.edgeEnabled));
+  argv.push(optionFromFlag(Flags.deployment), deployment, optionFromFlag(Flags.deployMetricsServer));
+  if (process.env.ONE_SHOT_USE_EDGE === 'true') {
+    argv.push(optionFromFlag(Flags.edgeEnabled));
+  }
   return argv;
 }
 

@@ -8,7 +8,6 @@ set -eo pipefail
 # This uses solo account creation function to repeatedly generate background transactions
 # Then run smart contract test, and also javascript sdk sample test to interact with solo network
 #
-export USE_MIRROR_NODE_LEGACY_RELEASE_NAME="true"
 export PATH=~/.solo/bin:${PATH}
 source .github/workflows/script/helper.sh
 
@@ -46,32 +45,10 @@ function setup_smart_contract_test ()
   cd -
 }
 
-function check_port_forward ()
-{
-  # run background task for few minutes
-  for i in {1..20}
-  do
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - Check port forward i = $i out of 20" >> port-forward.log
-    ps -ef |grep port-forward >> port-forward.log
-    sleep 10
-  done &
-}
-
-function start_background_transactions ()
-{
-  echo "Start background transaction"
-  # generate accounts as background traffic for two minutes
-  # so record stream files can be kept pushing to mirror node
-  cd solo
-  npm run solo-test -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --create-amount 1000 > /dev/null 2>&1 &
-  cd -
-}
 
 function start_contract_test ()
 {
   cd hedera-smart-contracts
-  echo "Wait a few seconds for background transactions to start"
-  sleep 10
   echo "Show current port forward for debugging purpose"
   ps -ef | grep port-forward
   echo "Run smart contract test"
@@ -92,6 +69,79 @@ function start_contract_test ()
   fi
 }
 
+function wait_for_contract_test_accounts ()
+{
+  local relay_url="${1:-http://127.0.0.1:37546}"
+  local mirror_url="${2:-http://127.0.0.1:38081}"
+  local max_attempts="${3:-60}"
+  local sleep_seconds="${4:-5}"
+  local -a contract_test_addresses=()
+  local address=""
+  local attempt=0
+  local ready=0
+  local relay_response=""
+  local mirror_response=""
+  local derived_addresses=""
+  local address_lower=""
+
+  echo "Resolve contract test addresses from generated private keys"
+  derived_addresses=$(
+    cd hedera-smart-contracts && CONTRACT_TEST_KEYS="${CONTRACT_TEST_KEYS}" node - <<'NODE'
+const { Wallet } = require('ethers');
+
+const keys = (process.env.CONTRACT_TEST_KEYS || '')
+  .split(',')
+  .map((key) => key.trim())
+  .filter(Boolean);
+
+for (const key of keys) {
+  console.log(new Wallet(key).address);
+}
+NODE
+  )
+
+  while IFS= read -r address; do
+    [[ -z "${address}" ]] && continue
+    contract_test_addresses+=("${address}")
+  done <<EOF
+${derived_addresses}
+EOF
+
+  if [[ ${#contract_test_addresses[@]} -eq 0 ]]; then
+    echo "Could not derive contract test addresses from CONTRACT_TEST_KEYS"
+    log_and_exit 1
+  fi
+
+  echo "Wait for contract test accounts to become visible through relay and mirror"
+  for address in "${contract_test_addresses[@]}"; do
+    ready=0
+    address_lower=$(printf '%s' "${address}" | tr '[:upper:]' '[:lower:]')
+    for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+      relay_response=$(curl -sS -H 'content-type: application/json' \
+        --data "{\"jsonrpc\":\"2.0\",\"method\":\"eth_getTransactionCount\",\"params\":[\"${address}\",\"latest\"],\"id\":1}" \
+        "${relay_url}" || true)
+      mirror_response=$(curl -sS "${mirror_url}/api/v1/accounts/${address}" || true)
+
+      if echo "${relay_response}" | grep -Eq '"result":"0x[0-9a-fA-F]+"' && \
+        echo "${mirror_response}" | grep -q "\"evm_address\":\"${address_lower}\""; then
+        echo "Account ${address} is ready [attempt=${attempt}/${max_attempts}]"
+        ready=1
+        break
+      fi
+
+      echo "Account ${address} not ready yet [attempt=${attempt}/${max_attempts}]"
+      sleep "${sleep_seconds}"
+    done
+
+    if [[ ${ready} -ne 1 ]]; then
+      echo "Timed out waiting for account ${address} to appear in relay/mirror"
+      echo "Last relay response: ${relay_response}"
+      echo "Last mirror response: ${mirror_response}"
+      log_and_exit 1
+    fi
+  done
+}
+
 function start_sdk_test ()
 {
   realm_num="${1:-0}"
@@ -100,12 +150,16 @@ function start_sdk_test ()
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
-  grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:38081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
-  if [[ $result -ne 0 ]]; then
-    echo "grpcurl command failed with exit code $result"
-    log_and_exit $result
+  if command -v grpcurl >/dev/null 2>&1; then
+    grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:38081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
+    if [[ $result -ne 0 ]]; then
+      echo "grpcurl command failed with exit code $result"
+      log_and_exit $result
+    fi
+    result=0
+  else
+    echo "grpcurl not found, skipping gRPC connectivity test (install grpcurl to enable)"
   fi
-  result=0
   node scripts/create-topic.js || result=$?
   cd -
   if [[ $result -ne 0 ]]; then
@@ -342,7 +396,7 @@ fi
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
-check_port_forward
+wait_for_contract_test_accounts
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"

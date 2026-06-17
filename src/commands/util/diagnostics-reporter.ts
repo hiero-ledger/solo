@@ -7,10 +7,11 @@ import {spawnSync, type SpawnSyncReturns} from 'node:child_process';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {Listr} from 'listr2';
 import {ShellRunner} from '../../core/shell-runner.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import * as constants from '../../core/constants.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
+import {type SoloListr} from '../../types/index.js';
 
 /** Options for building a GitHub issue body from diagnostic information. */
 export type DiagnosticsIssueBodyOptions = {
@@ -70,17 +71,13 @@ export class DiagnosticsReporter {
     // Phase 1: verify CLI + build payload (no interactive prompts — Listr2 owns the terminal here)
     const context: DiagnosticsReportContext = {};
 
-    const prepareTasks: Listr<DiagnosticsReportContext, 'default', 'default'> = new Listr(
+    const prepareTasks: SoloListr<DiagnosticsReportContext> = new Listr(
       [
         {
           title: 'Verify GitHub CLI availability',
           task: async (_context_): Promise<void> => {
             if (!(await DiagnosticsReporter.isGhCliAvailable(logger))) {
-              throw new SoloError(
-                'The GitHub CLI (gh) is required for this command but was not found.\n' +
-                  'Please install it from https://cli.github.com/ and authenticate with: gh auth login\n' +
-                  `Diagnostic logs are available at: ${analysisDirectory}`,
-              );
+              throw new SoloErrors.system.dependencyNotFound('gh (GitHub CLI)');
             }
           },
         },
@@ -137,7 +134,7 @@ export class DiagnosticsReporter {
     }
 
     // Phase 3: create the issue (Listr2 again for progress display)
-    const createTasks: Listr<DiagnosticsReportContext, 'default', 'default'> = new Listr(
+    const createTasks: SoloListr<DiagnosticsReportContext> = new Listr(
       [
         {
           title: 'Create GitHub issue',
@@ -295,6 +292,7 @@ export class DiagnosticsReporter {
    * @param logger       Logger for user-facing output.
    * @param title        Issue title.
    * @param body         Issue body in Markdown.
+   * @param analysisDirectory
    * @param zipFilePath  Optional path to the debug zip archive to mention.
    * @returns The URL of the newly created issue, or an empty string if not found.
    */
@@ -351,7 +349,7 @@ export class DiagnosticsReporter {
 
       return issueUrl;
     } catch (error: Error | unknown) {
-      throw new SoloError(`Failed to create GitHub issue: ${(error as Error).message}`, error as Error);
+      throw new SoloErrors.system.githubApiRequestFailed('https://api.github.com', error as Error);
     } finally {
       fs.rmSync(bodyFilePath, {force: true});
     }

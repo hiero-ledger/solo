@@ -2,7 +2,7 @@
 
 import path from 'node:path';
 import fs from 'node:fs';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 
 export class PathEx {
   /**
@@ -36,7 +36,7 @@ export class PathEx {
     const resolvedPath: string = fs.realpathSync(path.resolve(resolvedBase, ...paths)); // Resolve the user path
 
     if (!resolvedPath.startsWith(resolvedBase + path.sep)) {
-      throw new SoloError(`Path traversal detected: ${resolvedPath} is outside ${resolvedBase}`);
+      throw new SoloErrors.validation.pathTraversalDetected(resolvedPath, resolvedBase);
     }
 
     return resolvedPath;

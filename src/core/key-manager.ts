@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
 import fs from 'node:fs';
 import path from 'node:path';
-import {SoloError} from './errors/solo-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {Templates} from './templates.js';
@@ -80,7 +78,7 @@ export class KeyManager {
    */
   async convertPemToPrivateKey(pemString: string, algo: any, keyUsages: KeyUsage[] = ['sign']): Promise<CryptoKey> {
     if (!algo) {
-      throw new MissingArgumentError('algo is required');
+      throw new SoloErrors.validation.missingArgument('algo is required');
     }
 
     const items: any = x509.PemConverter.decode(pemString);
@@ -102,10 +100,10 @@ export class KeyManager {
    */
   prepareNodeKeyFilePaths(nodeAlias: NodeAlias, keysDirectory: string): PrivateKeyAndCertificateObject {
     if (!nodeAlias) {
-      throw new MissingArgumentError('nodeAlias is required');
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
     }
     if (!keysDirectory) {
-      throw new MissingArgumentError('keysDirectory is required');
+      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
     }
 
     const keyFile: string = PathEx.join(keysDirectory, Templates.renderGossipPemPrivateKeyFile(nodeAlias));
@@ -124,10 +122,10 @@ export class KeyManager {
    */
   prepareTlsKeyFilePaths(nodeAlias: NodeAlias, keysDirectory: string): PrivateKeyAndCertificateObject {
     if (!nodeAlias) {
-      throw new MissingArgumentError('nodeAlias is required');
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
     }
     if (!keysDirectory) {
-      throw new MissingArgumentError('keysDirectory is required');
+      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
     }
 
     const keyFile: string = PathEx.join(keysDirectory, `hedera-${nodeAlias}.key`);
@@ -156,27 +154,27 @@ export class KeyManager {
     keyName: string = '',
   ): Promise<PrivateKeyAndCertificateObject> {
     if (!nodeAlias) {
-      throw new MissingArgumentError('nodeAlias is required');
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
     }
 
     if (!nodeKey || !nodeKey.privateKey) {
-      throw new MissingArgumentError('nodeKey.ed25519PrivateKey is required');
+      throw new SoloErrors.validation.missingArgument('nodeKey.ed25519PrivateKey is required');
     }
 
     if (!nodeKey || !nodeKey.certificateChain) {
-      throw new MissingArgumentError('nodeKey.certificateChain is required');
+      throw new SoloErrors.validation.missingArgument('nodeKey.certificateChain is required');
     }
 
     if (!keysDirectory) {
-      throw new MissingArgumentError('keysDirectory is required');
+      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
     }
 
     if (!nodeKeyFiles || !nodeKeyFiles.privateKeyFile) {
-      throw new MissingArgumentError('nodeKeyFiles.privateKeyFile is required');
+      throw new SoloErrors.validation.missingArgument('nodeKeyFiles.privateKeyFile is required');
     }
 
     if (!nodeKeyFiles || !nodeKeyFiles.certificateFile) {
-      throw new MissingArgumentError('nodeKeyFiles.certificateFile is required');
+      throw new SoloErrors.validation.missingArgument('nodeKeyFiles.certificateFile is required');
     }
 
     const keyPem: any = await this.convertPrivateKeyToPem(nodeKey.privateKey);
@@ -228,23 +226,23 @@ export class KeyManager {
     keyName: string = '',
   ): Promise<NodeKeyObject> {
     if (!nodeAlias) {
-      throw new MissingArgumentError('nodeAlias is required');
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
     }
 
     if (!keysDirectory) {
-      throw new MissingArgumentError('keysDirectory is required');
+      throw new SoloErrors.validation.missingArgument('keysDirectory is required');
     }
 
     if (!algo) {
-      throw new MissingArgumentError('algo is required');
+      throw new SoloErrors.validation.missingArgument('algo is required');
     }
 
     if (!nodeKeyFiles || !nodeKeyFiles.privateKeyFile) {
-      throw new MissingArgumentError('nodeKeyFiles.privateKeyFile is required');
+      throw new SoloErrors.validation.missingArgument('nodeKeyFiles.privateKeyFile is required');
     }
 
     if (!nodeKeyFiles || !nodeKeyFiles.certificateFile) {
-      throw new MissingArgumentError('nodeKeyFiles.certificateFile is required');
+      throw new SoloErrors.validation.missingArgument('nodeKeyFiles.certificateFile is required');
     }
 
     this.logger.debug(`Loading ${keyName}-keys for node: ${nodeAlias}`, {nodeKeyFiles});
@@ -319,7 +317,7 @@ export class KeyManager {
         certificateChain: certChain,
       };
     } catch (error: Error | any) {
-      throw new SoloError(`failed to generate signing key: ${error.message}`, error);
+      throw new SoloErrors.component.signingKeyGenerationFailed(error);
     }
   }
 
@@ -364,10 +362,10 @@ export class KeyManager {
     distinguishedName: x509.Name = new x509.Name(`CN=${nodeAlias}`),
   ): Promise<NodeKeyObject> {
     if (!nodeAlias) {
-      throw new MissingArgumentError('nodeAlias is required');
+      throw new SoloErrors.validation.missingArgument('nodeAlias is required');
     }
     if (!distinguishedName) {
-      throw new MissingArgumentError('distinguishedName is required');
+      throw new SoloErrors.validation.missingArgument('distinguishedName is required');
     }
 
     try {
@@ -408,7 +406,7 @@ export class KeyManager {
         certificateChain: certChain,
       };
     } catch (error: Error | any) {
-      throw new SoloError(`failed to generate gRPC TLS key: ${error.message}`, error);
+      throw new SoloErrors.component.grpcTlsKeyGenerationFailed(error);
     }
   }
 
@@ -441,7 +439,7 @@ export class KeyManager {
   copyNodeKeysToStaging(nodeKey: PrivateKeyAndCertificateObject, destinationDirectory: string): void {
     for (const keyFile of [nodeKey.privateKeyFile, nodeKey.certificateFile]) {
       if (!fs.existsSync(keyFile)) {
-        throw new SoloError(`file (${keyFile}) is missing`);
+        throw new SoloErrors.component.platformKeyFileMissing(keyFile);
       }
 
       const fileName: string = path.basename(keyFile);
@@ -475,7 +473,7 @@ export class KeyManager {
     _allNodeAliases: NodeAliases | null = null,
   ) {
     if (!Array.isArray(nodeAliases) || !nodeAliases.every(nodeAlias => typeof nodeAlias === 'string')) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         'nodeAliases must be an array of strings, nodeAliases = ' + JSON.stringify(nodeAliases),
       );
     }
@@ -516,7 +514,7 @@ export class KeyManager {
   ): SoloListrTask<any>[] {
     // check if nodeAliases is an array of strings
     if (!Array.isArray(nodeAliases) || !nodeAliases.every((nodeAlias): boolean => typeof nodeAlias === 'string')) {
-      throw new SoloError('nodeAliases must be an array of strings');
+      throw new SoloErrors.validation.nodeAliasesMustBeArray();
     }
     const nodeKeyFiles = new Map();
     const subTasks: SoloListrTask<any>[] = [
@@ -550,7 +548,7 @@ export class KeyManager {
     const certPem: string = fs.readFileSync(pemCertFullPath).toString();
     const decodedDers: any = x509.PemConverter.decode(certPem);
     if (!decodedDers || decodedDers.length === 0) {
-      throw new SoloError('unable to load perm key: ' + pemCertFullPath);
+      throw new SoloErrors.component.platformKeyFileMissing(pemCertFullPath);
     }
     return new Uint8Array(decodedDers[0]);
   }
@@ -596,12 +594,10 @@ export class KeyManager {
         .createOrReplace(namespace, caSecretName, SecretType.OPAQUE, data);
 
       if (!isSecretCreated) {
-        throw new SoloError('failed to create secret for explorer TLS certificates');
+        throw new SoloErrors.component.explorerTlsSecretCreationFailed();
       }
     } catch (error: Error | any) {
-      const errorMessage: string =
-        'failed to create secret for explorer TLS certificates, please check if the secret already exists';
-      throw new SoloError(errorMessage, error);
+      throw new SoloErrors.component.explorerTlsSecretCreationFailed(error);
     }
   }
 
@@ -645,7 +641,7 @@ export class KeyManager {
       };
     } catch (error: Error | unknown) {
       const errorMessage: string = error instanceof Error ? error.message : String(error);
-      throw new SoloError(`Error generating TLS keys: ${errorMessage}`);
+      throw new SoloErrors.component.tlsKeyGenerationFailed(errorMessage);
     }
   }
 }

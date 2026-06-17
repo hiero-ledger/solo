@@ -60,7 +60,7 @@ jobs:
       versioned-release: ${{ steps.set-inputs.outputs.versioned_release }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2.19.3
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -134,6 +134,16 @@ jobs:
 
   # ------- Hugo Build and Publish for Version Tag and Main Branch -------
 
+  # Generate CLI help and command output docs artifacts for versioned releases
+  docs-automation:
+    name: Docs Automation
+    if: ${{ needs.setup.outputs.versioned-release == 'true' && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-docs-automation.yaml
+    needs:
+      - setup
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   # Do a Hugo build for the docs site for a version tag
   hugo-docs-build:
     name: Hugo Docs Build
@@ -170,6 +180,7 @@ jobs:
     needs:
       - setup
       - hugo-docs-build-main
+      - docs-automation
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
       attach-docs-enabled: true

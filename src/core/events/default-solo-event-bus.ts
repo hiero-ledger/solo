@@ -9,7 +9,7 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
 import {type SoloEventBus} from './solo-event-bus.js';
 import {Duration} from '../time/duration.js';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 
 @injectable()
 export class DefaultSoloEventBus implements SoloEventBus {
@@ -63,7 +63,9 @@ export class DefaultSoloEventBus implements SoloEventBus {
       const timer: NodeJS.Timeout = setTimeout((): void => {
         this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
         reject(
-          new SoloError(`waitFor timed out after ${timeout.toMillis()}ms waiting for event type: ${String(type)}`),
+          new SoloErrors.system.timeout(
+            `waitFor timed out after ${timeout.toMillis()}ms waiting for event type: ${String(type)}`,
+          ),
         );
       }, timeout.toMillis());
       // Ensure we only resolve once if handler and history check race.
@@ -84,7 +86,12 @@ export class DefaultSoloEventBus implements SoloEventBus {
         } catch (error) {
           clearTimeout(timer);
           this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
-          reject(new SoloError(`Error in waitFor handler predicate for event type: ${String(type)}`, error));
+          reject(
+            new SoloErrors.system.containerOperationFailed(
+              `waitFor handler predicate for event type: ${String(type)}`,
+              error,
+            ),
+          );
         }
       };
 
@@ -109,7 +116,12 @@ export class DefaultSoloEventBus implements SoloEventBus {
           } catch (error) {
             clearTimeout(timer);
             this.emitter.off(type, handler as (...arguments_: unknown[]) => void);
-            reject(new SoloError(`Error in waitFor history check predicate for event type: ${String(type)}`, error));
+            reject(
+              new SoloErrors.system.containerOperationFailed(
+                `waitFor history check predicate for event type: ${String(type)}`,
+                error,
+              ),
+            );
           }
         }
       }

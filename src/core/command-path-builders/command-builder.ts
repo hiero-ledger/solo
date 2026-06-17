@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
 import {type CommandDefinition} from '../../types/index.js';
@@ -13,6 +13,10 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {type TaskList} from '../task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
 import * as constants from '../constants.js';
+
+export const ONE_SHOT_COMMAND: string = 'one-shot';
+export const SINGLE_SUBCOMMAND: string = 'single';
+export const SINGLE_DEPLOY: string = 'deploy';
 
 @injectable()
 export class Subcommand {
@@ -33,12 +37,13 @@ export class Subcommand {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
-  public async installDependencies(): Promise<void> {
+  public async installDependencies(useSmallMemoryCluster: boolean = false): Promise<void> {
     const tasks: any = this.taskList.newTaskList(
       [
         ...this.initCommand.installDependenciesTasks({
           deps: this.dependencies,
           createCluster: this.createCluster,
+          useSmallMemoryCluster,
         }),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -49,7 +54,7 @@ export class Subcommand {
       try {
         await tasks.run();
       } catch (error: Error | any) {
-        throw new SoloError(`Could not install dependencies: ${error.message}`, error);
+        throw new SoloErrors.system.dependencyInstallFailed('dependencies', error);
       }
     }
   }
@@ -115,13 +120,18 @@ export class CommandBuilder {
                       subcommand.commandHandlerClass,
                     );
 
-                    await subcommand.installDependencies();
+                    let useSmallMemoryCluster: boolean = false;
+                    if (commandPath === `${ONE_SHOT_COMMAND} ${SINGLE_SUBCOMMAND} ${SINGLE_DEPLOY}`) {
+                      useSmallMemoryCluster = true;
+                    }
+
+                    await subcommand.installDependencies(useSmallMemoryCluster);
                     const response: boolean = await handlerCallback(argv);
 
                     logger.info(`==== Finished running '${commandPath}'====`);
 
                     if (!response) {
-                      throw new SoloError(`Error running ${commandPath}, expected return value to be true`);
+                      throw new SoloErrors.internal.commandReturnedFalse(commandName, commandPath);
                     }
                   },
                 };
