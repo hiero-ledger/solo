@@ -4,6 +4,10 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when `--zip-password` is used without `--zip-file`. A password applies to a specific zip archive,
+ * so this means the required `--zip-file` was not provided — supply it or omit the password.
+ */
 export class BackupZipFileRequiredSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

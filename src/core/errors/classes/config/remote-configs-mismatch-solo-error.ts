@@ -4,6 +4,15 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a deployment spans multiple clusters and solo finds that the remote
+ * configuration stored in two of them does not agree; the message names the two clusters whose
+ * copies diverged. solo keeps the remote config as a ConfigMap that must be an identical
+ * replica in every cluster of the deployment, so it compares them and raises this when they
+ * differ. The usual cause is a prior write that was applied to one cluster but not the others
+ * (a partial or failed update), a ConfigMap that was edited manually, or clusters that have
+ * otherwise drifted out of sync.
+ */
 export class RemoteConfigsMismatchSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

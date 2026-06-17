@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo fails to create the set of predefined accounts it seeds into a new network; the
+ * underlying failure is wrapped in `cause`. These accounts are created during setup to provide ready-to-use
+ * funded accounts, so this means one of those creations did not succeed — commonly a network rejection, a
+ * signing or key problem, or an unreachable consensus node.
+ */
 export class PredefinedAccountsCreationFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

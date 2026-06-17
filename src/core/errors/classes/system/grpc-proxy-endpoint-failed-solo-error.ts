@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot set the gRPC Web proxy endpoint. solo configures this endpoint so gRPC Web
+ * clients can reach the network, so this means that configuration step failed — for example the target
+ * service or port-forward was not reachable. It is retryable, since a transient connectivity issue often
+ * clears on a later attempt.
+ */
 export class GrpcProxyEndpointFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

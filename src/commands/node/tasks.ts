@@ -3452,7 +3452,7 @@ export class NodeCommandTasks {
             consensusNode.name,
           );
 
-          const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/${wraps.directoryName}`;
+          const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/data/keys/${wraps.directoryName}`;
 
           const attempts: number = CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS;
           let attempt: number = 0;
@@ -3476,7 +3476,7 @@ export class NodeCommandTasks {
             continue;
           }
 
-          await rootContainer.copyTo(extractedDirectory, constants.HEDERA_HAPI_PATH);
+          await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
         }
       },
     };

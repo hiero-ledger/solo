@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a component being added already exists in the remote configuration; the message names the
+ * component id. solo expects to add each component once, so a duplicate id at this point indicates an
+ * internal bookkeeping defect and is treated as an internal Solo error.
+ */
 export class ComponentAlreadyExistsSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;

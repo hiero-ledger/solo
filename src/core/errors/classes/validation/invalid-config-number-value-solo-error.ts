@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a numeric configuration value cannot be parsed; the message names the value and wraps the
+ * underlying failure in `cause`. solo expects a number here, so this means the provided value is not
+ * numeric or is not in the accepted form.
+ */
 export class InvalidConfigNumberValueSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo fails while building the block-nodes configuration; the underlying failure is wrapped in
+ * `cause`. solo generates the configuration that tells consensus nodes how to reach the block nodes, so
+ * this means that generation step failed — for example required connection details could not be resolved.
+ * It is retryable, since a transient resolution problem often clears on a later attempt.
+ */
 export class BlockNodeConfigFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

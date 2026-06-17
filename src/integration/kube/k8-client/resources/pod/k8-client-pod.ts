@@ -3,7 +3,7 @@
 import {type Pod} from '../../../resources/pod/pod.js';
 import {PortUtilities} from '../../../../../business/utils/port-utilities.js';
 import {PodReference} from '../../../resources/pod/pod-reference.js';
-import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
+import {KubeContainerOperationFailedError} from '../../../errors/kube-container-operation-failed-error.js';
 import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {StatusCodes} from 'http-status-codes';
@@ -86,7 +86,7 @@ export class K8ClientPod implements Pod {
         return;
       }
 
-      throw new SoloErrors.system.containerOperationFailed(errorMessage, error);
+      throw new KubeContainerOperationFailedError(errorMessage, error);
     }
   }
 
@@ -151,7 +151,7 @@ export class K8ClientPod implements Pod {
             this.podReference.name.toString(),
           ]);
         } catch (error) {
-          throw new SoloErrors.system.containerOperationFailed('process list for port-forward', error);
+          throw new KubeContainerOperationFailedError('process list for port-forward', error);
         }
 
         // Reuse an existing port-forward when at least one matching process is running.
@@ -307,7 +307,7 @@ export class K8ClientPod implements Pod {
             'Solo destroy command and try your Solo deploy commands again.  If you are unable to run as administrator, ' +
             'you may try rebooting your machine to resolve the issue.';
           this.logger.error(errorMessage, stopError);
-          throw new SoloErrors.system.containerOperationFailed(errorMessage, stopError);
+          throw new KubeContainerOperationFailedError(errorMessage, stopError);
         }
         await new ShellRunner().run('net start winnat');
         this.logger.warn('Restarted WinNAT service to recover from port forwarding failure on Windows');
@@ -316,7 +316,7 @@ export class K8ClientPod implements Pod {
       }
 
       const message: string = `failed to start port-forwarder [${this.podReference.name}:${podPort} -> ${localBindAddress}:${availablePort}]: ${error.message}`;
-      throw new SoloErrors.system.containerOperationFailed(message, error);
+      throw new KubeContainerOperationFailedError(message, error);
     }
   }
 
@@ -350,7 +350,7 @@ export class K8ClientPod implements Pod {
       try {
         matchedProcesses = await this.searchProcessListCommandByStrings(['port-forward', `${port}:`]);
       } catch (error) {
-        throw new SoloErrors.system.containerOperationFailed('process list for port-forward', error);
+        throw new KubeContainerOperationFailedError('process list for port-forward', error);
       }
 
       this.logger.debug(`Found ${matchedProcesses.length} processes matching port-forward and port ${port}`);
@@ -387,7 +387,7 @@ export class K8ClientPod implements Pod {
     } catch (error) {
       const errorMessage: string = `Error stopping port-forward for port ${port}: ${error.message}`;
       this.logger.error(errorMessage);
-      throw new SoloErrors.system.containerOperationFailed(errorMessage, error);
+      throw new KubeContainerOperationFailedError(errorMessage, error);
     }
   }
 

@@ -12,7 +12,7 @@ import {
 } from '@kubernetes/client-node';
 import {Duration} from '../../../../../core/time/duration.js';
 import {type Pvc} from '../../../resources/pvc/pvc.js';
-import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
+import {KubePvcCreationFailedError} from '../../../errors/kube-pvc-creation-failed-error.js';
 import {K8ClientPvc} from './k8-client-pvc.js';
 import {type PvcReference} from '../../../resources/pvc/pvc-reference.js';
 import {KubeApiResponse} from '../../../kube-api-response.js';
@@ -96,7 +96,7 @@ export class K8ClientPvcs implements Pvcs {
     if (result) {
       return new K8ClientPvc(pvcReference);
     } else {
-      throw new SoloErrors.system.pvcCreationFailed();
+      throw new KubePvcCreationFailedError();
     }
   }
 }

@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the node-update transaction fails to execute; when available the underlying failure is
+ * wrapped in `cause`. solo submits a node-update transaction to change a consensus node's address-book
+ * entry (keys or endpoints), so this means the transaction was rejected or could not be submitted — for
+ * example the signing key was wrong, the updated values were invalid, or the network could not be reached.
+ */
 export class NodeUpdateTransactionErrorSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

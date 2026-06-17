@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the gRPC Web TLS certificate and key supplied by the user do not correspond; the message
+ * lists the certificate and key paths. solo pairs each provided certificate with its key for the node's
+ * gRPC Web TLS, so this means the structures do not match — typically a certificate and key from different
+ * pairs, or paths that were swapped or point to the wrong files.
+ */
 export class GrpcWebTlsCertMismatchSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

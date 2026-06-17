@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot remove an external block node from the deployment; the underlying failure is
+ * wrapped in `cause`. Removing an external block node updates the configuration so consensus nodes no
+ * longer use it, so this means that removal step failed — for example the remote configuration could not be
+ * updated.
+ */
 export class BlockNodeDeleteExternalFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

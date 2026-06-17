@@ -367,9 +367,20 @@ export const LISTR_DEFAULT_RENDERER_OPTION: {
   formatOutput: 'wrap',
 };
 
+export const LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS: typeof LISTR_DEFAULT_RENDERER_OPTION = {
+  collapseSubtasks: true,
+  timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+  persistentOutput: true,
+  clearOutput: false,
+  collapseErrors: false,
+  showErrorMessage: false,
+  formatOutput: 'wrap',
+};
+
 export const LISTR_DEFAULT_OPTIONS: {
   DEFAULT: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
   WITH_CONCURRENCY: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
+  WITH_CONCURRENCY_COLLAPSABLE: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
 } = {
   DEFAULT: {
     renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
@@ -383,6 +394,14 @@ export const LISTR_DEFAULT_OPTIONS: {
     renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
+    fallbackRendererOptions: {
+      timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
+    },
+  },
+  WITH_CONCURRENCY_COLLAPSABLE: {
+    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    concurrent: true,
+    rendererOptions: LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS,
     fallbackRendererOptions: {
       timer: LISTR_DEFAULT_RENDERER_TIMER_OPTION,
     },
