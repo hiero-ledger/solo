@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot parse a domain name from the provided data; the message includes the offending
+ * input. solo parses domain names from configuration and flags, so this means the value is not a parseable
+ * domain — for example a malformed or empty value.
+ */
 export class DomainNameParseFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

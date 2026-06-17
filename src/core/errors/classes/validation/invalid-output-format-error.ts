@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when an output format is not one of the allowed values; the message names the offending value and
+ * the allowed set (`json`, `yaml`, `wide`). solo formats command output according to this flag, so this
+ * means an unsupported value was supplied.
+ */
 export class InvalidOutputFormatError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

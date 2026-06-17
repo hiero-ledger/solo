@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when no GitHub release asset matches the running platform and architecture; the message names the
+ * platform and arch. solo selects the release asset built for the current OS and CPU, so this means the
+ * release exists but has no matching asset — for example the platform or architecture is unsupported by
+ * that release.
+ */
 export class GitHubReleaseAssetNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

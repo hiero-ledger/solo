@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot generate a node signing key; the underlying failure is wrapped in `cause`.
+ * Signing keys establish a consensus node identity, so this means generation failed — for example the
+ * key-generation tooling errored or a working file could not be written.
+ */
 export class SigningKeyGenerationFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

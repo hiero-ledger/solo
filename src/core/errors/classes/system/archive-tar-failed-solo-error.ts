@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot create a tar archive from a source path; the message names the source and wraps
+ * the underlying failure in `cause`. solo packages directories into tar archives (for example to bundle
+ * state or logs), so this means the archiving step failed — for example the source path was unreadable, a
+ * file changed during archiving, or the destination could not be written.
+ */
 export class ArchiveTarFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
