@@ -167,6 +167,86 @@ export class HelmExecution {
     return this.errOutput.join('');
   }
 
+  private static parseJsonOutput(output: string): unknown {
+    let lastParseError: unknown;
+
+    for (let index: number = 0; index < output.length; index++) {
+      if (output[index] !== '{' && output[index] !== '[') {
+        continue;
+      }
+
+      try {
+        return JSON.parse(HelmExecution.extractJsonOutput(output, index));
+      } catch (error) {
+        lastParseError = error;
+      }
+    }
+
+    if (lastParseError) {
+      throw lastParseError;
+    }
+
+    return JSON.parse(output);
+  }
+
+  private static extractJsonOutput(output: string, jsonStart: number): string {
+    const stack: string[] = [];
+    let inString: boolean = false;
+    let escaped: boolean = false;
+
+    for (let index: number = jsonStart; index < output.length; index++) {
+      const character: string = output[index];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+
+        if (character === '\\') {
+          escaped = true;
+          continue;
+        }
+
+        if (character === '"') {
+          inString = false;
+        }
+
+        continue;
+      }
+
+      if (character === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (character === '{') {
+        stack.push('}');
+        continue;
+      }
+
+      if (character === '[') {
+        stack.push(']');
+        continue;
+      }
+
+      if (character !== '}' && character !== ']') {
+        continue;
+      }
+
+      const expectedCharacter: string | undefined = stack.pop();
+      if (character !== expectedCharacter) {
+        return output.slice(jsonStart);
+      }
+
+      if (stack.length === 0) {
+        return output.slice(jsonStart, index + 1);
+      }
+    }
+
+    return output.slice(jsonStart);
+  }
+
   /**
    * Gets the response as a parsed object.
    * @param responseClass The class to parse the response into
@@ -212,12 +292,15 @@ export class HelmExecution {
 
     const output: string = this.standardOutput();
     try {
-      const parsed: any = JSON.parse(output);
+      const parsed: any = HelmExecution.parseJsonOutput(output);
       const result: T = new responseClass();
       Object.assign(result, parsed);
       return result;
-    } catch {
-      throw new HelmParserException(HelmExecution.MSG_DESERIALIZATION_ERROR.replace('%s', responseClass.name));
+    } catch (error) {
+      throw new HelmParserException(
+        HelmExecution.MSG_DESERIALIZATION_ERROR.replace('%s', responseClass.name),
+        error as Error,
+      );
     }
   }
 
@@ -263,9 +346,12 @@ export class HelmExecution {
 
     const output: string = this.standardOutput();
     try {
-      return JSON.parse(output) as T[];
-    } catch {
-      throw new HelmParserException(HelmExecution.MSG_LIST_DESERIALIZATION_ERROR.replace('%s', responseClass.name));
+      return HelmExecution.parseJsonOutput(output) as T[];
+    } catch (error) {
+      throw new HelmParserException(
+        HelmExecution.MSG_LIST_DESERIALIZATION_ERROR.replace('%s', responseClass.name),
+        error as Error,
+      );
     }
   }
 
