@@ -4,32 +4,56 @@ import * as fs from 'node:fs';
 import yaml from 'yaml';
 import {HelmChartValues, type HelmChartValue} from '../../integration/helm/model/values.js';
 
-export type HelmValuesObject = Record<string, unknown>;
-export type HelmMapValue = Record<string, HelmChartValue>;
-export type HelmToleration = Record<string, HelmChartValue>;
+type HelmValuesObject = Record<string, unknown>;
+type HelmMapValue = HelmSchedulingValues['nodeSelector'];
+type HelmToleration = HelmSchedulingValues['tolerations'][number];
+
+export interface HelmSchedulingValues {
+  nodeSelector: Record<string, HelmChartValue>;
+  tolerations: Record<string, HelmChartValue>[];
+}
 
 export function buildSchedulingChartValues(
   sourceChartValues: HelmChartValues,
   targetPath: string,
   sourcePath?: string,
 ): HelmChartValues {
-  const nodeSelector: HelmMapValue = {};
-  const tolerations: HelmToleration[] = [];
+  const schedulingValues: HelmSchedulingValues = collectSchedulingValues(
+    sourceChartValues,
+    sourcePath === undefined ? [] : [sourcePath],
+  );
 
-  for (const values of readHelmValuesObjects(sourceChartValues)) {
-    mergeSchedulingValues(nodeSelector, tolerations, values, sourcePath);
-  }
-
-  return toChartValues(targetPath, nodeSelector, tolerations);
+  return toChartValues(targetPath, schedulingValues);
 }
 
-export function readHelmValuesObjects(chartValues: HelmChartValues): HelmValuesObject[] {
+export function collectSchedulingValues(
+  sourceChartValues: HelmChartValues,
+  sourcePaths: string[] = [],
+  includeTopLevel: boolean = true,
+): HelmSchedulingValues {
+  const schedulingValues: HelmSchedulingValues = createSchedulingValues();
+
+  for (const values of readHelmValuesObjects(sourceChartValues)) {
+    mergeSchedulingValues(schedulingValues, values, sourcePaths, includeTopLevel);
+  }
+
+  return schedulingValues;
+}
+
+function createSchedulingValues(): HelmSchedulingValues {
+  return {
+    nodeSelector: {},
+    tolerations: [],
+  };
+}
+
+function readHelmValuesObjects(chartValues: HelmChartValues): HelmValuesObject[] {
   return getValuesFilePaths(chartValues)
     .map((valuesFilePath: string): unknown => yaml.parse(fs.readFileSync(valuesFilePath, 'utf8')))
     .filter(isHelmValuesObject);
 }
 
-export function getValuesFilePaths(chartValues: HelmChartValues): string[] {
+function getValuesFilePaths(chartValues: HelmChartValues): string[] {
   const arguments_: string[] = chartValues.toArguments();
   const valuesFilePaths: string[] = [];
 
@@ -42,22 +66,33 @@ export function getValuesFilePaths(chartValues: HelmChartValues): string[] {
   return valuesFilePaths;
 }
 
-export function mergeSchedulingValues(
-  nodeSelector: HelmMapValue,
-  tolerations: HelmToleration[],
+function mergeSchedulingValues(
+  target: HelmSchedulingValues,
   values: HelmValuesObject,
-  sourcePath?: string,
+  sourcePaths: string[],
+  includeTopLevel: boolean,
 ): void {
-  Object.assign(nodeSelector, getMapValue(values, 'nodeSelector'));
-  addTolerations(tolerations, getTolerations(values, 'tolerations'));
+  if (includeTopLevel) {
+    mergeSchedulingValuesFromPath(target, values, '');
+  }
 
-  if (sourcePath) {
-    Object.assign(nodeSelector, getMapValue(values, `${sourcePath}.nodeSelector`));
-    addTolerations(tolerations, getTolerations(values, `${sourcePath}.tolerations`));
+  for (const sourcePath of sourcePaths) {
+    mergeSchedulingValuesFromPath(target, values, sourcePath);
   }
 }
 
-export function getMapValue(values: HelmValuesObject, path: string): HelmMapValue {
+function mergeSchedulingValuesFromPath(
+  target: HelmSchedulingValues,
+  values: HelmValuesObject,
+  sourcePath: string,
+): void {
+  const pathPrefix: string = sourcePath === '' ? '' : `${sourcePath}.`;
+
+  Object.assign(target.nodeSelector, getMapValue(values, `${pathPrefix}nodeSelector`));
+  addTolerations(target.tolerations, getTolerations(values, `${pathPrefix}tolerations`));
+}
+
+function getMapValue(values: HelmValuesObject, path: string): HelmMapValue {
   const value: unknown = getValueAtPath(values, path);
   if (!isHelmValuesObject(value)) {
     return {};
@@ -70,7 +105,7 @@ export function getMapValue(values: HelmValuesObject, path: string): HelmMapValu
   );
 }
 
-export function getTolerations(values: HelmValuesObject, path: string): HelmToleration[] {
+function getTolerations(values: HelmValuesObject, path: string): HelmToleration[] {
   const value: unknown = getValueAtPath(values, path);
   if (!Array.isArray(value)) {
     return [];
@@ -89,7 +124,7 @@ export function getTolerations(values: HelmValuesObject, path: string): HelmTole
     .filter((toleration: HelmToleration): boolean => Object.keys(toleration).length > 0);
 }
 
-export function getValueAtPath(values: HelmValuesObject, path: string): unknown {
+function getValueAtPath(values: HelmValuesObject, path: string): unknown {
   let currentValue: unknown = values;
 
   for (const segment of path.split('.')) {
@@ -103,7 +138,7 @@ export function getValueAtPath(values: HelmValuesObject, path: string): unknown 
   return currentValue;
 }
 
-export function addTolerations(target: HelmToleration[], tolerations: HelmToleration[]): void {
+function addTolerations(target: HelmToleration[], tolerations: HelmToleration[]): void {
   const existing: Set<string> = new Set(target.map((toleration: HelmToleration): string => JSON.stringify(toleration)));
 
   for (const toleration of tolerations) {
@@ -115,45 +150,41 @@ export function addTolerations(target: HelmToleration[], tolerations: HelmTolera
   }
 }
 
-function toChartValues(targetPath: string, nodeSelector: HelmMapValue, tolerations: HelmToleration[]): HelmChartValues {
+function toChartValues(targetPath: string, schedulingValues: HelmSchedulingValues): HelmChartValues {
   const chartValues: HelmChartValues = new HelmChartValues();
 
-  addNodeSelectorChartValues(chartValues, `${targetPath}.nodeSelector`, nodeSelector);
-  addTolerationChartValues(chartValues, `${targetPath}.tolerations`, tolerations);
+  addSchedulingValues(chartValues, targetPath, schedulingValues);
 
   return chartValues;
 }
 
-export function addNodeSelectorChartValues(
+export function addSchedulingValues(
   chartValues: HelmChartValues,
-  path: string,
-  nodeSelector: HelmMapValue,
+  targetPath: string,
+  schedulingValues: HelmSchedulingValues,
 ): void {
-  for (const [key, value] of Object.entries(nodeSelector)) {
-    chartValues.setString(`${path}.${escapeHelmPathSegment(key)}`, value);
-  }
-}
+  const nodeSelectorPath: string = `${targetPath}.nodeSelector`;
+  const tolerationsPath: string = `${targetPath}.tolerations`;
 
-export function addTolerationChartValues(
-  chartValues: HelmChartValues,
-  path: string,
-  tolerations: HelmToleration[],
-): void {
-  for (const [index, toleration] of tolerations.entries()) {
+  for (const [key, value] of Object.entries(schedulingValues.nodeSelector)) {
+    chartValues.setString(`${nodeSelectorPath}.${escapeHelmPathSegment(key)}`, value);
+  }
+
+  for (const [index, toleration] of schedulingValues.tolerations.entries()) {
     for (const [key, value] of Object.entries(toleration)) {
-      chartValues.setLiteral(`${path}[${index}].${key}`, value);
+      chartValues.setLiteral(`${tolerationsPath}[${index}].${key}`, value);
     }
   }
 }
 
-export function escapeHelmPathSegment(segment: string): string {
+function escapeHelmPathSegment(segment: string): string {
   return segment.replaceAll('.', String.raw`\.`);
 }
 
-export function isHelmValuesObject(value: unknown): value is HelmValuesObject {
+function isHelmValuesObject(value: unknown): value is HelmValuesObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function isHelmChartValue(value: unknown): value is HelmChartValue {
+function isHelmChartValue(value: unknown): value is HelmChartValue {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 }
