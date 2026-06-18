@@ -76,25 +76,6 @@ const NON_RECOVERABLE_IMAGE_PULL_PATTERNS: ReadonlyArray<RegExp> = [
   /invalid reference format/i,
 ];
 /**
- * Patterns that identify a Docker Desktop containerd-socket error inside an
- * ImageInspectError message.  This occurs on macOS when the "Use containerd for
- * pulling and storing images" toggle is enabled in Docker Desktop settings.
- */
-export const CONTAINERD_SOCKET_PATTERNS: ReadonlyArray<RegExp> = [
-  /dial unix.*containerd\.sock.*connection refused/i,
-  /containerd\.sock.*connection refused/i,
-  /transport.*Error while dialing.*containerd/i,
-  /rpc error.*Unavailable.*containerd/i,
-];
-
-export function isContainerdSocketError(message?: string): boolean {
-  if (!message) {
-    return false;
-  }
-  return CONTAINERD_SOCKET_PATTERNS.some((pattern): boolean => pattern.test(message));
-}
-
-/**
  * Inspect a V1Pod's container statuses for non-recoverable error states and return a descriptive
  * error message if one is detected, or undefined if no fatal error is present.
  *
@@ -127,7 +108,7 @@ export function detectFatalContainerError(pod: V1Pod): string | undefined {
           waitingState.reason === 'ImageInspectError') &&
         !isNonRecoverableImagePullError(waitingState.message)
       ) {
-        if (waitingState.reason === 'ImageInspectError' && isContainerdSocketError(waitingState.message)) {
+        if (waitingState.reason === 'ImageInspectError' && K8ClientPods.isContainerdSocketError(waitingState.message)) {
           // Return an actionable message that is tracked by the streak counter with a higher
           // threshold (CONTAINERD_SOCKET_FATAL_THRESHOLD) to tolerate transient startup races.
           const detail: string = waitingState.message ? `: ${waitingState.message}` : '';
@@ -166,7 +147,26 @@ function isNonRecoverableImagePullError(message?: string): boolean {
 }
 
 export class K8ClientPods extends K8ClientBase implements Pods {
+  /**
+   * Patterns that identify a Docker Desktop containerd-socket error inside an
+   * ImageInspectError message.  This occurs on macOS when the "Use containerd for
+   * pulling and storing images" toggle is enabled in Docker Desktop settings.
+   */
+  private static readonly CONTAINERD_SOCKET_PATTERNS: ReadonlyArray<RegExp> = [
+    /dial unix.*containerd\.sock.*connection refused/i,
+    /containerd\.sock.*connection refused/i,
+    /transport.*Error while dialing.*containerd/i,
+    /rpc error.*Unavailable.*containerd/i,
+  ];
+
   private readonly logger: SoloLogger;
+
+  public static isContainerdSocketError(message?: string): boolean {
+    if (!message) {
+      return false;
+    }
+    return K8ClientPods.CONTAINERD_SOCKET_PATTERNS.some((pattern): boolean => pattern.test(message));
+  }
 
   public constructor(
     private readonly kubeClient: CoreV1Api,
@@ -404,11 +404,11 @@ export class K8ClientPods extends K8ClientBase implements Pods {
 
                 // Use a higher threshold for containerd socket errors to tolerate transient
                 // Docker Desktop startup races on macOS before surfacing the actionable hint.
-                const threshold: number = isContainerdSocketError(fatalError)
+                const threshold: number = K8ClientPods.isContainerdSocketError(fatalError)
                   ? CONTAINERD_SOCKET_FATAL_THRESHOLD
                   : FATAL_ERROR_RETRY_THRESHOLD;
 
-                if (nextCount >= FATAL_ERROR_RETRY_THRESHOLD) {
+                if (nextCount >= threshold) {
                   return reject(new KubePodCreationFailedError(fatalError));
                 }
 

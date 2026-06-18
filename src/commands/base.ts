@@ -105,7 +105,7 @@ export abstract class BaseCommand extends ShellRunner {
 
   public abstract close(): Promise<void>;
 
-  private getDockerDesktopSettingsPaths(): string[] {
+  private static getDockerDesktopSettingsPaths(): string[] {
     const home: string = os.homedir();
     const paths: string[] = [
       PathEx.join(home, '.docker', 'settings-store.json'),
@@ -125,12 +125,12 @@ export abstract class BaseCommand extends ShellRunner {
     return paths;
   }
 
-  private checkDockerDesktopContainerdSetting(): DockerDesktopContainerdCheckResult {
+  private static checkDockerDesktopContainerdSetting(): DockerDesktopContainerdCheckResult {
     if (OperatingSystem.isLinux()) {
       return {containerdSnapshotterEnabled: false};
     }
 
-    for (const candidatePath of this.getDockerDesktopSettingsPaths()) {
+    for (const candidatePath of BaseCommand.getDockerDesktopSettingsPaths()) {
       if (!fs.existsSync(candidatePath)) {
         continue;
       }
@@ -173,7 +173,7 @@ export abstract class BaseCommand extends ShellRunner {
     return {
       title: 'Pre-flight: check Docker Desktop containerd setting',
       task: async (): Promise<void> => {
-        const result: DockerDesktopContainerdCheckResult = this.checkDockerDesktopContainerdSetting();
+        const result: DockerDesktopContainerdCheckResult = BaseCommand.checkDockerDesktopContainerdSetting();
         if (result.containerdSnapshotterEnabled && result.warningMessage) {
           this.logger.warn(result.warningMessage);
         }

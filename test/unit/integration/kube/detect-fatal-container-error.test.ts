@@ -2,7 +2,10 @@
 
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
+import sinon, {type SinonStub} from 'sinon';
 import {
+  type CoreV1Api,
+  type KubeConfig,
   V1Pod,
   V1PodStatus,
   V1ContainerStatus,
@@ -14,8 +17,10 @@ import {
 } from '@kubernetes/client-node';
 import {
   detectFatalContainerError,
-  isContainerdSocketError,
+  K8ClientPods,
 } from '../../../../src/integration/kube/k8-client/resources/pod/k8-client-pods.js';
+import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
+import {KubePodCreationFailedError} from '../../../../src/integration/kube/errors/kube-pod-creation-failed-error.js';
 
 function buildPodWithContainerStatus(containerStatus: V1ContainerStatus): V1Pod {
   const pod: V1Pod = new V1Pod();
@@ -164,16 +169,16 @@ describe('detectFatalContainerError', (): void => {
       'dial unix /run/containerd/containerd.sock: connect: connection refused"';
 
     it('isContainerdSocketError returns true for containerd socket message', (): void => {
-      expect(isContainerdSocketError(containerdSocketMessage)).to.be.true;
+      expect(K8ClientPods.isContainerdSocketError(containerdSocketMessage)).to.be.true;
     });
 
     it('isContainerdSocketError returns false for undefined', (): void => {
       // eslint-disable-next-line unicorn/no-useless-undefined
-      expect(isContainerdSocketError(undefined)).to.be.false;
+      expect(K8ClientPods.isContainerdSocketError(undefined)).to.be.false;
     });
 
     it('isContainerdSocketError returns false for an unrelated image pull error', (): void => {
-      expect(isContainerdSocketError('not found')).to.be.false;
+      expect(K8ClientPods.isContainerdSocketError('not found')).to.be.false;
     });
 
     it('detectFatalContainerError returns an actionable message for ImageInspectError with containerd socket', (): void => {
@@ -202,6 +207,29 @@ describe('detectFatalContainerError', (): void => {
       const result: string | undefined = detectFatalContainerError(pod);
       expect(result).to.not.be.undefined;
       expect(result).to.include('non-recoverable');
+    });
+
+    it('waitForRunningPhase waits for the containerd socket threshold before rejecting', async (): Promise<void> => {
+      const pod: V1Pod = buildPodWithContainerStatus(
+        buildWaitingContainerStatus('ImageInspectError', containerdSocketMessage),
+      );
+      pod.status.phase = 'Pending';
+
+      const listNamespacedPodStub: SinonStub = sinon.stub().resolves({items: [pod]});
+      const pods: K8ClientPods = new K8ClientPods(
+        {listNamespacedPod: listNamespacedPodStub} as unknown as CoreV1Api,
+        {} as KubeConfig,
+        '',
+      );
+
+      try {
+        await pods.waitForRunningPhase(NamespaceName.of('test-namespace'), ['app=test'], 5, 0);
+        expect.fail('Expected waitForRunningPhase to reject');
+      } catch (error: Error | unknown) {
+        expect(error).to.be.instanceOf(KubePodCreationFailedError);
+        expect((error as KubePodCreationFailedError).result).to.include('containerd socket error');
+      }
+      expect(listNamespacedPodStub).to.have.callCount(5);
     });
   });
 });
