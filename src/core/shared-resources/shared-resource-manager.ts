@@ -9,7 +9,7 @@ import {type ChartManager} from '../chart-manager.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import * as constants from '../../core/constants.js';
 import {HelmChartValues, type HelmChartValue} from '../../integration/helm/model/values.js';
-import {buildMappedSchedulingChartValues} from '../util/helm-scheduling-values.js';
+import {HelmSchedulingValues} from '../util/helm-scheduling-values.js';
 
 const ROLE_SCHEDULING_KEY: string = 'solo.hashgraph.io/role';
 const POSTGRES_SCHEDULING_SOURCE_PATHS: string[] = ['postgresql.postgresql', 'postgresql.primary'];
@@ -129,7 +129,7 @@ export class SharedResourceManager {
 }
 
 function buildSchedulingChartValues(sourceChartValues: HelmChartValues): HelmChartValues {
-  return buildMappedSchedulingChartValues(sourceChartValues, [
+  return HelmSchedulingValues.buildMappedSchedulingChartValues(sourceChartValues, [
     {
       sourcePaths: POSTGRES_SCHEDULING_SOURCE_PATHS,
       targetPaths: ['postgresql.primary'],

@@ -5,7 +5,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
-import {buildSchedulingChartValues} from '../../../../src/core/util/helm-scheduling-values.js';
+import {HelmSchedulingValues} from '../../../../src/core/util/helm-scheduling-values.js';
 import {HelmChartValues} from '../../../../src/integration/helm/model/values.js';
 
 describe('Helm scheduling values', (): void => {
@@ -44,7 +44,11 @@ pinger:
     );
     const sourceChartValues: HelmChartValues = new HelmChartValues().file(valuesFilePath);
 
-    const pingerChartValues: HelmChartValues = buildSchedulingChartValues(sourceChartValues, 'pinger', 'pinger');
+    const pingerChartValues: HelmChartValues = HelmSchedulingValues.buildSchedulingChartValues(
+      sourceChartValues,
+      'pinger',
+      'pinger',
+    );
 
     const valueArguments: string[] = pingerChartValues.toArguments();
     expect(valueArguments).to.include(String.raw`pinger.nodeSelector.solo\.hashgraph\.io/network-id=7`);
@@ -74,7 +78,10 @@ tolerations:
     );
     const sourceChartValues: HelmChartValues = new HelmChartValues().file(valuesFilePath);
 
-    const ingressControllerChartValues: HelmChartValues = buildSchedulingChartValues(sourceChartValues, 'controller');
+    const ingressControllerChartValues: HelmChartValues = HelmSchedulingValues.buildSchedulingChartValues(
+      sourceChartValues,
+      'controller',
+    );
 
     const valueArguments: string[] = ingressControllerChartValues.toArguments();
     expect(valueArguments).to.include(String.raw`controller.nodeSelector.solo\.hashgraph\.io/network-id=7`);

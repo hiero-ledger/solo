@@ -43,7 +43,7 @@ import {createHash} from 'node:crypto';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {optionFromFlag} from './command-helpers.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
-import {buildSchedulingChartValues} from '../core/util/helm-scheduling-values.js';
+import {HelmSchedulingValues} from '../core/util/helm-scheduling-values.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -433,7 +433,7 @@ export class ExplorerCommand extends BaseCommand {
           config.valuesFile,
         );
         const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues().add(
-          buildSchedulingChartValues(explorerChartValues, 'controller'),
+          HelmSchedulingValues.buildSchedulingChartValues(explorerChartValues, 'controller'),
         );
 
         if (config.explorerStaticIp !== '') {
