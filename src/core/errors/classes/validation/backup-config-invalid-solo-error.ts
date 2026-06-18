@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the backup configuration file is empty or invalid. solo reads this file to drive a backup or
+ * restore, so this means it contained no usable configuration — for example an empty file or content that
+ * does not match the expected format.
+ */
 export class BackupConfigInvalidSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

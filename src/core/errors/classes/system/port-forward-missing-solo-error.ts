@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a configured port-forward is not present; the message names the component, its id, and the
+ * local-to-pod port mapping. solo expects each configured port-forward to be active so the component is
+ * reachable, so this means it is missing — for example it was never established or was dropped. It is
+ * retryable, since re-establishing the port-forward often succeeds.
+ */
 export class PortForwardMissingSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

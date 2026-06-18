@@ -31,7 +31,7 @@ import {
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {ComponentStateMetadataSchema} from '../../../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {Templates} from '../../../../core/templates.js';
-import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
+import {DeploymentPhase, DEPLOYMENT_PHASE_ORDER} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {getSoloVersion} from '../../../../../version.js';
 import * as constants from '../../../../core/constants.js';
 import {Flags as flags} from '../../../../commands/flags.js';
@@ -54,6 +54,7 @@ import {UserIdentitySchema} from '../../../../data/schema/model/common/user-iden
 import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
 import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/component-ids-schema.js';
+import {type BaseStateSchema} from '../../../../data/schema/model/remote/state/base-state-schema.js';
 import * as helpers from '../../../../core/helpers.js';
 import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
 import {MissingRequiredParametersError} from '../../errors/missing-required-parameters-error.js';
@@ -734,5 +735,41 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     this.applyCallbackToVersionField(type, getVersionCallback);
     return version;
+  }
+
+  private static readonly SNAPSHOT_COMPONENT_TYPES: readonly ComponentTypes[] = [
+    ComponentTypes.ConsensusNode,
+    ComponentTypes.BlockNode,
+    ComponentTypes.MirrorNode,
+    ComponentTypes.Explorer,
+    ComponentTypes.RelayNodes,
+  ];
+
+  public getComponentPhasesMap(): Map<ComponentTypes, DeploymentPhase> {
+    if (!this.isLoaded()) {
+      return new Map();
+    }
+    const phaseMap: Map<ComponentTypes, DeploymentPhase> = new Map();
+    for (const componentType of RemoteConfigRuntimeState.SNAPSHOT_COMPONENT_TYPES) {
+      const components: BaseStateSchema[] =
+        this.configuration.components.getComponentByType<BaseStateSchema>(componentType);
+      if (components.length === 0) {
+        continue;
+      }
+      const phases: DeploymentPhase[] = components
+        .map((component: BaseStateSchema): DeploymentPhase | undefined => component.metadata?.phase)
+        .filter((phase: DeploymentPhase | undefined): phase is DeploymentPhase => phase !== undefined);
+      if (phases.length === 0) {
+        continue;
+      }
+      let minimumPhase: DeploymentPhase = phases[0];
+      for (const phase of phases) {
+        if (DEPLOYMENT_PHASE_ORDER[phase] < DEPLOYMENT_PHASE_ORDER[minimumPhase]) {
+          minimumPhase = phase;
+        }
+      }
+      phaseMap.set(componentType, minimumPhase);
+    }
+    return phaseMap;
   }
 }

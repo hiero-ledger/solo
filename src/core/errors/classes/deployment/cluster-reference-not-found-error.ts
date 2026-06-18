@@ -4,6 +4,13 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a command refers to a cluster reference that is not registered in
+ * the local configuration; the message names the missing reference. A cluster reference is the
+ * named link between solo and a kubeconfig context, created with `solo cluster-ref config
+ * connect`, so this is raised when the supplied name was never connected, was misspelled, or was
+ * disconnected. Connect the cluster reference (or correct the name) before retrying.
+ */
 export class ClusterReferenceNotFoundError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

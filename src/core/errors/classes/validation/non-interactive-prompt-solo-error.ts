@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo would need to prompt for input but is running non-interactively. A required value was
+ * not supplied and solo cannot ask for it (for example in CI or with prompts disabled), so provide the
+ * missing value explicitly (such as via the deployment flag).
+ */
 export class NonInteractivePromptSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

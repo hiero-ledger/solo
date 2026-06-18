@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a backup input directory does not contain the expected `solo-remote-config.yaml`; the message
+ * names the path and the expected `<input-dir>/<cluster-ref>/configmaps/solo-remote-config.yaml` structure.
+ * solo validates the backup layout before restoring, so this means the directory is not a valid backup or
+ * the wrong path was given.
+ */
 export class BackupClusterValidationFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

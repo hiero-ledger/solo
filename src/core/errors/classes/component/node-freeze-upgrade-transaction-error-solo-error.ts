@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a freeze-upgrade transaction fails to execute; when available the underlying failure is
+ * wrapped in `cause`. solo submits this transaction to freeze the network in preparation for a software
+ * upgrade, so this means it was rejected or could not be submitted — for example the prepared upgrade was
+ * not staged, the admin key did not sign, or the network could not be reached. It is retryable.
+ */
 export class NodeFreezeUpgradeTransactionErrorSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

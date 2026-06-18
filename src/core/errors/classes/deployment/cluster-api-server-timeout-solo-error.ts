@@ -4,6 +4,15 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a cluster's Kubernetes API server does not become ready within the
+ * allowed number of attempts; the message names the `context` and the `maxAttempts` tried, and
+ * wraps the last failure in `cause`. solo polls the API server before proceeding so it does not
+ * act against a cluster that is still starting, and raises this once polling is exhausted. It is
+ * retryable because a cluster that is merely slow to come up (for example a Kind cluster still
+ * initialising) often becomes ready shortly after; a persistent failure points to a cluster that
+ * is down, unreachable, or pointed at by the wrong context.
+ */
 export class ClusterApiServerTimeoutSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

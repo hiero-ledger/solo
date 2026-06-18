@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot start a rapid-fire load run; the underlying failure is wrapped in `cause`. This
+ * step launches the load generator against the network, so this means startup failed — for example the
+ * load-test workload could not be created or scheduled. It is retryable, since transient cluster issues
+ * often clear on a later attempt.
+ */
 export class RapidFireLoadStartFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when an endpoint is not in the expected `url:port` format; the message includes the offending
+ * value. solo parses endpoints from flags and config, so this means the value is malformed — provide it as
+ * `url:port`.
+ */
 export class InvalidEndpointFormatSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
