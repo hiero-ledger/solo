@@ -8,9 +8,21 @@ type HelmValuesObject = Record<string, unknown>;
 type HelmMapValue = HelmSchedulingValues['nodeSelector'];
 type HelmToleration = HelmSchedulingValues['tolerations'][number];
 
-export interface HelmSchedulingValues {
+interface HelmSchedulingValues {
   nodeSelector: Record<string, HelmChartValue>;
   tolerations: Record<string, HelmChartValue>[];
+}
+
+interface HelmSchedulingValueMapping {
+  targetPaths: string[];
+  sourcePaths?: string[];
+  includeTopLevel?: boolean;
+  fallback?: HelmSchedulingValueFallback;
+}
+
+interface HelmSchedulingValueFallback {
+  key: string;
+  sourcePaths: string[];
 }
 
 export function buildSchedulingChartValues(
@@ -18,22 +30,48 @@ export function buildSchedulingChartValues(
   targetPath: string,
   sourcePath?: string,
 ): HelmChartValues {
-  const schedulingValues: HelmSchedulingValues = collectSchedulingValues(
-    sourceChartValues,
-    sourcePath === undefined ? [] : [sourcePath],
-  );
-
-  return toChartValues(targetPath, schedulingValues);
+  return buildMappedSchedulingChartValues(sourceChartValues, [
+    {
+      sourcePaths: sourcePath === undefined ? [] : [sourcePath],
+      targetPaths: [targetPath],
+    },
+  ]);
 }
 
-export function collectSchedulingValues(
+export function buildMappedSchedulingChartValues(
   sourceChartValues: HelmChartValues,
-  sourcePaths: string[] = [],
-  includeTopLevel: boolean = true,
+  mappings: HelmSchedulingValueMapping[],
+): HelmChartValues {
+  const chartValues: HelmChartValues = new HelmChartValues();
+  const valuesObjects: HelmValuesObject[] = readHelmValuesObjects(sourceChartValues);
+
+  for (const mapping of mappings) {
+    const schedulingValues: HelmSchedulingValues = collectSchedulingValues(
+      valuesObjects,
+      mapping.sourcePaths ?? [],
+      mapping.includeTopLevel ?? true,
+    );
+
+    if (mapping.fallback) {
+      addMissingFallbackScheduling(schedulingValues, valuesObjects, mapping.fallback);
+    }
+
+    for (const targetPath of mapping.targetPaths) {
+      addSchedulingValues(chartValues, targetPath, schedulingValues);
+    }
+  }
+
+  return chartValues;
+}
+
+function collectSchedulingValues(
+  valuesObjects: HelmValuesObject[],
+  sourcePaths: string[],
+  includeTopLevel: boolean,
 ): HelmSchedulingValues {
   const schedulingValues: HelmSchedulingValues = createSchedulingValues();
 
-  for (const values of readHelmValuesObjects(sourceChartValues)) {
+  for (const values of valuesObjects) {
     mergeSchedulingValues(schedulingValues, values, sourcePaths, includeTopLevel);
   }
 
@@ -150,15 +188,41 @@ function addTolerations(target: HelmToleration[], tolerations: HelmToleration[])
   }
 }
 
-function toChartValues(targetPath: string, schedulingValues: HelmSchedulingValues): HelmChartValues {
-  const chartValues: HelmChartValues = new HelmChartValues();
+function addMissingFallbackScheduling(
+  target: HelmSchedulingValues,
+  valuesObjects: HelmValuesObject[],
+  fallback: HelmSchedulingValueFallback,
+): void {
+  for (const sourcePath of fallback.sourcePaths) {
+    const fallbackSchedulingValues: HelmSchedulingValues = collectSchedulingValues(valuesObjects, [sourcePath], false);
 
-  addSchedulingValues(chartValues, targetPath, schedulingValues);
+    if (target.nodeSelector[fallback.key] === undefined) {
+      const selectorValue: HelmChartValue | undefined = fallbackSchedulingValues.nodeSelector[fallback.key];
+      if (selectorValue !== undefined) {
+        target.nodeSelector[fallback.key] = selectorValue;
+      }
+    }
 
-  return chartValues;
+    if (!hasTolerationForKey(target.tolerations, fallback.key)) {
+      const toleration: HelmToleration | undefined = fallbackSchedulingValues.tolerations.find(
+        (candidate: HelmToleration): boolean => candidate.key === fallback.key,
+      );
+      if (toleration) {
+        target.tolerations.push(toleration);
+      }
+    }
+
+    if (target.nodeSelector[fallback.key] !== undefined && hasTolerationForKey(target.tolerations, fallback.key)) {
+      return;
+    }
+  }
 }
 
-export function addSchedulingValues(
+function hasTolerationForKey(tolerations: HelmToleration[], key: string): boolean {
+  return tolerations.some((toleration: HelmToleration): boolean => toleration.key === key);
+}
+
+function addSchedulingValues(
   chartValues: HelmChartValues,
   targetPath: string,
   schedulingValues: HelmSchedulingValues,

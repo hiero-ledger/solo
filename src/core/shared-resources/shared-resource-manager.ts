@@ -9,11 +9,7 @@ import {type ChartManager} from '../chart-manager.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import * as constants from '../../core/constants.js';
 import {HelmChartValues, type HelmChartValue} from '../../integration/helm/model/values.js';
-import {
-  addSchedulingValues,
-  collectSchedulingValues,
-  type HelmSchedulingValues,
-} from '../util/helm-scheduling-values.js';
+import {buildMappedSchedulingChartValues} from '../util/helm-scheduling-values.js';
 
 const ROLE_SCHEDULING_KEY: string = 'solo.hashgraph.io/role';
 const POSTGRES_SCHEDULING_SOURCE_PATHS: string[] = ['postgresql.postgresql', 'postgresql.primary'];
@@ -133,55 +129,18 @@ export class SharedResourceManager {
 }
 
 function buildSchedulingChartValues(sourceChartValues: HelmChartValues): HelmChartValues {
-  const chartValues: HelmChartValues = new HelmChartValues();
-  const postgresSchedulingValues: HelmSchedulingValues = collectSchedulingValues(
-    sourceChartValues,
-    POSTGRES_SCHEDULING_SOURCE_PATHS,
-  );
-  const redisSchedulingValues: HelmSchedulingValues = collectSchedulingValues(
-    sourceChartValues,
-    REDIS_SCHEDULING_SOURCE_PATHS,
-  );
-
-  addMissingRedisRoleScheduling(redisSchedulingValues, sourceChartValues);
-  addSchedulingValues(chartValues, 'postgresql.primary', postgresSchedulingValues);
-
-  for (const redisPath of REDIS_SCHEDULING_TARGET_PATHS) {
-    addSchedulingValues(chartValues, redisPath, redisSchedulingValues);
-  }
-
-  return chartValues;
-}
-
-function addMissingRedisRoleScheduling(target: HelmSchedulingValues, sourceChartValues: HelmChartValues): void {
-  for (const path of REDIS_ROLE_FALLBACK_PATHS) {
-    const fallbackSchedulingValues: HelmSchedulingValues = collectSchedulingValues(sourceChartValues, [path], false);
-
-    if (target.nodeSelector[ROLE_SCHEDULING_KEY] === undefined) {
-      const role: HelmChartValue | undefined = fallbackSchedulingValues.nodeSelector[ROLE_SCHEDULING_KEY];
-      if (role !== undefined) {
-        target.nodeSelector[ROLE_SCHEDULING_KEY] = role;
-      }
-    }
-
-    if (!hasTolerationForKey(target.tolerations, ROLE_SCHEDULING_KEY)) {
-      const toleration: Record<string, HelmChartValue> | undefined = fallbackSchedulingValues.tolerations.find(
-        (candidate: Record<string, HelmChartValue>): boolean => candidate.key === ROLE_SCHEDULING_KEY,
-      );
-      if (toleration) {
-        target.tolerations.push(toleration);
-      }
-    }
-
-    if (
-      target.nodeSelector[ROLE_SCHEDULING_KEY] !== undefined &&
-      hasTolerationForKey(target.tolerations, ROLE_SCHEDULING_KEY)
-    ) {
-      return;
-    }
-  }
-}
-
-function hasTolerationForKey(tolerations: Record<string, HelmChartValue>[], key: string): boolean {
-  return tolerations.some((toleration: Record<string, HelmChartValue>): boolean => toleration.key === key);
+  return buildMappedSchedulingChartValues(sourceChartValues, [
+    {
+      sourcePaths: POSTGRES_SCHEDULING_SOURCE_PATHS,
+      targetPaths: ['postgresql.primary'],
+    },
+    {
+      fallback: {
+        key: ROLE_SCHEDULING_KEY,
+        sourcePaths: REDIS_ROLE_FALLBACK_PATHS,
+      },
+      sourcePaths: REDIS_SCHEDULING_SOURCE_PATHS,
+      targetPaths: REDIS_SCHEDULING_TARGET_PATHS,
+    },
+  ]);
 }
