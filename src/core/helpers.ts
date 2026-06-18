@@ -30,17 +30,6 @@ import {type K8} from '../integration/kube/k8.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
-import {SemanticVersion} from '../business/utils/semantic-version.js';
-
-export function getInternalAddress(
-  releaseVersion: SemanticVersion<string> | string,
-  namespaceName: NamespaceName,
-  nodeAlias: NodeAlias,
-): string {
-  return new SemanticVersion(releaseVersion).greaterThanOrEqual('0.58.5')
-    ? '127.0.0.1'
-    : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
-}
 
 export function sleep(duration: Duration): Promise<void> {
   return new Promise<void>((resolve: (value: PromiseLike<void> | void) => void): void => {

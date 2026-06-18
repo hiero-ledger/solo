@@ -20,18 +20,12 @@ type BlockNodeConnectionDataBase = {
   messageSizeHardLimitBytes?: number;
 };
 
-type BlockNodeConnectionData =
-  | ({
-      address: string;
-      port: number;
-      priority: number;
-    } & BlockNodeConnectionDataBase)
-  | ({
-      address: string;
-      streamingPort: number;
-      servicePort: number;
-      priority: number;
-    } & BlockNodeConnectionDataBase);
+type BlockNodeConnectionData = {
+  address: string;
+  streamingPort: number;
+  servicePort: number;
+  priority: number;
+} & BlockNodeConnectionDataBase;
 
 interface BlockNodesJsonStructure {
   nodes: BlockNodeConnectionData[];
@@ -88,11 +82,6 @@ export class BlockNodesJsonWrapper implements ToJSON {
   }
 
   private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
-    // Figure out field name for port
-    const useLegacyPortName: boolean = this.remoteConfig.configuration.versions.consensusNode.lessThan(
-      versions.MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE,
-    );
-
     const blockNodeConnectionData: BlockNodeConnectionData[] = [];
 
     for (const [id, priority] of this.blockNodeMap) {
@@ -119,11 +108,13 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.resolveMessageSizeFields();
 
-      blockNodeConnectionData.push(
-        useLegacyPortName
-          ? {address, port, priority, ...tssMessageSizeFields}
-          : {address, streamingPort: port, servicePort: port, priority, ...tssMessageSizeFields},
-      );
+      blockNodeConnectionData.push({
+        address,
+        streamingPort: port,
+        servicePort: port,
+        priority,
+        ...tssMessageSizeFields,
+      });
     }
 
     for (const [id, priority] of this.externalBlockNodeMap) {
@@ -136,11 +127,13 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.resolveMessageSizeFields();
 
-      blockNodeConnectionData.push(
-        useLegacyPortName
-          ? {address, port, priority, ...tssMessageSizeFields}
-          : {address, streamingPort: port, servicePort: port, priority, ...tssMessageSizeFields},
-      );
+      blockNodeConnectionData.push({
+        address,
+        streamingPort: port,
+        servicePort: port,
+        priority,
+        ...tssMessageSizeFields,
+      });
     }
 
     return {

@@ -978,18 +978,6 @@ export class NetworkCommand extends BaseCommand {
       config.releaseTag = normalizedReleaseTag;
     }
 
-    const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
-    const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
-
-    const networkNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(config.releaseTag);
-    const minimumVersionForNonZeroRealms: SemanticVersion<string> = new SemanticVersion<string>('0.60.0');
-    if (
-      (realm !== 0 || shard !== 0) &&
-      new SemanticVersion<string>(networkNodeVersion).lessThan(minimumVersionForNonZeroRealms)
-    ) {
-      throw new SoloErrors.validation.realmShardVersionConstraint(minimumVersionForNonZeroRealms.toString());
-    }
-
     if (config.haproxyIps) {
       config.haproxyIpsParsed = Templates.parseNodeAliasToIpMapping(config.haproxyIps);
     }
