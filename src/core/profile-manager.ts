@@ -540,9 +540,9 @@ export class ProfileManager {
       fileText.split('\n'),
     );
 
-    // Without a block node, use FILE_ONLY to prevent the gRPC buffer from filling and stalling record file production.
+    // Without a block node, use FILE to prevent the gRPC buffer from filling and stalling record file production.
     const streamMode: string = hasDeployedBlockNodes ? constants.BLOCK_STREAM_STREAM_MODE : 'RECORDS';
-    const writerMode: string = hasDeployedBlockNodes ? constants.BLOCK_STREAM_WRITER_MODE : 'FILE_ONLY';
+    const writerMode: string = hasDeployedBlockNodes ? constants.BLOCK_STREAM_WRITER_MODE : 'FILE';
 
     let streamModeUpdated: boolean = false;
     let writerModeUpdated: boolean = false;
