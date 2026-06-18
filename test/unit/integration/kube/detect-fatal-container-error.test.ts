@@ -12,7 +12,7 @@ import {
   V1ContainerStateRunning,
   V1ObjectMeta,
 } from '@kubernetes/client-node';
-import {detectFatalContainerError} from '../../../../src/integration/kube/k8-client/resources/pod/k8-client-pods.js';
+import {K8ClientPods} from '../../../../src/integration/kube/k8-client/resources/pod/k8-client-pods.js';
 
 function buildPodWithContainerStatus(containerStatus: V1ContainerStatus): V1Pod {
   const pod: V1Pod = new V1Pod();
@@ -66,7 +66,7 @@ describe('detectFatalContainerError', (): void => {
     pod.metadata = new V1ObjectMeta();
     pod.metadata.name = 'empty-pod';
     pod.status = new V1PodStatus();
-    expect(detectFatalContainerError(pod)).to.be.undefined;
+    expect(K8ClientPods.detectFatalContainerError(pod)).to.be.undefined;
   });
 
   it('should return undefined for a pod with a healthy running container', (): void => {
@@ -81,13 +81,13 @@ describe('detectFatalContainerError', (): void => {
     containerStatus.state = state;
 
     const pod: V1Pod = buildPodWithContainerStatus(containerStatus);
-    expect(detectFatalContainerError(pod)).to.be.undefined;
+    expect(K8ClientPods.detectFatalContainerError(pod)).to.be.undefined;
   });
 
   for (const reason of ['InvalidImageName', 'RegistryUnavailable']) {
     it(`should detect fatal waiting reason: ${reason}`, (): void => {
       const pod: V1Pod = buildPodWithContainerStatus(buildWaitingContainerStatus(reason));
-      const result: string | undefined = detectFatalContainerError(pod);
+      const result: string | undefined = K8ClientPods.detectFatalContainerError(pod);
       expect(result).to.include(reason);
       expect(result).to.include('"test-pod"');
       expect(result).to.include('"test-container"');
@@ -98,7 +98,7 @@ describe('detectFatalContainerError', (): void => {
     it(`should detect fatal waiting reason when message is non-recoverable: ${reason}`, (): void => {
       const message: string = 'failed to pull image "ghcr.io/example/app:1.2.3": not found';
       const pod: V1Pod = buildPodWithContainerStatus(buildWaitingContainerStatus(reason, message));
-      const result: string | undefined = detectFatalContainerError(pod);
+      const result: string | undefined = K8ClientPods.detectFatalContainerError(pod);
       expect(result).to.include(reason);
       expect(result).to.include(message);
       expect(result).to.include('"test-pod"');
@@ -109,32 +109,32 @@ describe('detectFatalContainerError', (): void => {
   it('should include message detail when present for ImagePullBackOff', (): void => {
     const message: string = 'failed to pull image "gcr.io/example/app:0.1.0-SNAPSHOT": not found';
     const pod: V1Pod = buildPodWithContainerStatus(buildWaitingContainerStatus('ImagePullBackOff', message));
-    const result: string | undefined = detectFatalContainerError(pod);
+    const result: string | undefined = K8ClientPods.detectFatalContainerError(pod);
     expect(result).to.include(message);
   });
 
   it('should return undefined for a non-fatal waiting reason (e.g. ContainerCreating)', (): void => {
     const pod: V1Pod = buildPodWithContainerStatus(buildWaitingContainerStatus('ContainerCreating'));
-    expect(detectFatalContainerError(pod)).to.be.undefined;
+    expect(K8ClientPods.detectFatalContainerError(pod)).to.be.undefined;
   });
 
   it('should detect OOMKilled terminated reason', (): void => {
     const pod: V1Pod = buildPodWithContainerStatus(buildTerminatedContainerStatus('OOMKilled', 137));
-    const result: string | undefined = detectFatalContainerError(pod);
+    const result: string | undefined = K8ClientPods.detectFatalContainerError(pod);
     expect(result).to.include('OOMKilled');
     expect(result).to.include('137');
   });
 
   it('should return undefined for a non-fatal terminated reason (e.g. Completed)', (): void => {
     const pod: V1Pod = buildPodWithContainerStatus(buildTerminatedContainerStatus('Completed', 0));
-    expect(detectFatalContainerError(pod)).to.be.undefined;
+    expect(K8ClientPods.detectFatalContainerError(pod)).to.be.undefined;
   });
 
   it('should detect fatal error in init container status', (): void => {
     const pod: V1Pod = buildPodWithInitContainerStatus(
       buildWaitingContainerStatus('ImagePullBackOff', 'manifest unknown'),
     );
-    const result: string | undefined = detectFatalContainerError(pod);
+    const result: string | undefined = K8ClientPods.detectFatalContainerError(pod);
     expect(result).to.include('ImagePullBackOff');
   });
 
@@ -150,7 +150,7 @@ describe('detectFatalContainerError', (): void => {
     containerStatus.state = state;
     pod.status.containerStatuses = [containerStatus];
 
-    const result: string | undefined = detectFatalContainerError(pod);
+    const result: string | undefined = K8ClientPods.detectFatalContainerError(pod);
     expect(result).to.include('<unknown>');
   });
 });

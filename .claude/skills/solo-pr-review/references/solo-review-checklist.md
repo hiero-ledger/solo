@@ -57,8 +57,13 @@ namespacing — `export constants and functions instead`. Reconcile: the Solo co
 class-with-static-methods for **behavior** (resolution, computation, orchestration). Pure data — constants, types,
 simple factories — can stay as exports. When in doubt, follow the directory's existing pattern.
 
+**Enforcement:** the `solo/no-exported-function` ESLint rule flags `export function` and
+`export const fn = () => …` — a hard **error** under `src/integration/**`, a warning elsewhere while
+legacy functions migrate. A diff that adds an exported function in `src/integration/**` will fail CI.
+
 **Prior precedent:** PR #4230 (`resolveStorageClass` exported), PR #3870 (`GetSoloRemoteConfigMapTask` had unnecessary
-constructor).
+constructor), PR #4568 (Copilot-authored `export function detectFatalContainerError` + module-scope helpers in
+`k8-client-pods.ts` — should have been static members of `K8ClientPods`).
 
 ---
 
@@ -371,6 +376,32 @@ was updated. See CLAUDE.md "Environment Variable Documentation" for the SOLO_* n
 
 > Caveat: PR #4363 noted env.md is moving to `solo-docs` — but until that move lands, the in-repo file is still the
 > source of truth.
+
+---
+
+## 20. One exported class/interface per file (§3.5)
+
+**What to look for**
+
+- More than one `export class` / `export interface` in a single file — split each into its own file.
+- A file whose name doesn't match the exported class/interface it contains (kebab-case, all lowercase,
+  e.g. `class KubeValidation` → `kube-validation.ts`).
+- Exported behavior functions colocated in the same file as the class that consumes them — usually a
+  symptom of the §2 violation (they should be `static`/`private static` members of that class).
+
+**How to respond**
+
+- "Each exported class/interface should be in its own file named in kebab-case to match it (§3.5). Split
+  `<name>` into `<kebab-name>.ts`."
+- "These module-scope helpers belong inside `<ClassName>` as `private static` members rather than living
+  alongside it in the same file."
+
+**Rationale (cite §3.5):** one type per file prevents circular dependencies and makes items easy to find.
+
+**Note:** there is no off-the-shelf ESLint rule for this yet (`unicorn/filename-case` enforces kebab-case
+but not the one-type-per-file or name-match halves), so it relies on review. Catch it here.
+
+**Prior precedent:** PR #4568 (exported function + helper colocated in `k8-client-pods.ts`).
 
 ---
 
