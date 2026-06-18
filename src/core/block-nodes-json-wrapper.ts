@@ -5,7 +5,6 @@ import {type PriorityMapping, type ToJSON} from '../types/index.js';
 import * as constants from './constants.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
-import * as versions from '../../version.js';
 import {inject} from 'tsyringe-neo';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -99,12 +98,7 @@ export class BlockNodesJsonWrapper implements ToJSON {
         cluster.dnsBaseDomain,
       );
 
-      // Figure out the block node port
-      const useLegacyPort: boolean = this.remoteConfig.configuration.versions.blockNodeChart.lessThan(
-        versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
-      );
-
-      const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
+      const port: number = constants.BLOCK_NODE_PORT;
 
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.resolveMessageSizeFields();
 

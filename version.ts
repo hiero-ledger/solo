@@ -63,9 +63,6 @@ export const BLOCK_NODE_EDGE_VERSION: string =
 
 // -------------------------------------------------------------------- //
 
-export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemanticVersion<string> =
-  new SemanticVersion('v0.15.0');
-
 export const LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT: string = 'v0.70.0';
 export const MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION: string = '0.152.0';
 export const MINIMUM_MIRROR_NODE_VERSION_FOR_ARM64_WEB3_NATIVE_IMAGE: string = '0.155.0';

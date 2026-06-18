@@ -509,7 +509,7 @@ export class BlockNodeCommand extends BaseCommand {
               'Block node chart version',
             );
 
-            config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.imageTag);
+            config.livenessCheckPort = constants.BLOCK_NODE_PORT;
 
             await this.persistBlockNodeMessageSizeOverrides(
               config.blockNodeMessageSizeSoftLimitBytes,
@@ -1146,27 +1146,6 @@ export class BlockNodeCommand extends BaseCommand {
         }
       },
     };
-  }
-
-  /**
-   * Gives the port used for liveness check based on the chart version and image tag (if set)
-   */
-  private getLivenessCheckPortNumber(
-    chartVersion: string | SemanticVersion<string>,
-    imageTag: Optional<string | SemanticVersion<string>>,
-  ): number {
-    let useLegacyPort: boolean = false;
-
-    chartVersion = typeof chartVersion === 'string' ? new SemanticVersion<string>(chartVersion) : chartVersion;
-    imageTag = typeof imageTag === 'string' && imageTag ? new SemanticVersion<string>(imageTag) : undefined;
-
-    if (chartVersion.lessThan(versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
-      useLegacyPort = true;
-    } else if (imageTag && imageTag.lessThan(versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
-      useLegacyPort = true;
-    }
-
-    return useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
   }
 
   private async updateBlockNodeVersionInRemoteConfig(
