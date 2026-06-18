@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {type AnyYargs, type ArgvStruct} from '../../types/aliases.js';
 import {type SoloLogger} from '../logging/solo-logger.js';
 import {type CommandDefinition} from '../../types/index.js';
@@ -54,7 +54,7 @@ export class Subcommand {
       try {
         await tasks.run();
       } catch (error: Error | any) {
-        throw new SoloError(`Could not install dependencies: ${error.message}`, error);
+        throw new SoloErrors.system.dependencyInstallFailed('dependencies', error);
       }
     }
   }
@@ -131,7 +131,7 @@ export class CommandBuilder {
                     logger.info(`==== Finished running '${commandPath}'====`);
 
                     if (!response) {
-                      throw new SoloError(`Error running ${commandPath}, expected return value to be true`);
+                      throw new SoloErrors.internal.commandReturnedFalse(commandName, commandPath);
                     }
                   },
                 };

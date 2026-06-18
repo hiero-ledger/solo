@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {KubeError} from './kube-error.js';
 
-export class MissingResourceNameError extends SoloError {
+export class MissingResourceNameError extends KubeError {
   public static MISSING_RESOURCE_NAME: string = 'Name is required.';
 
   /**

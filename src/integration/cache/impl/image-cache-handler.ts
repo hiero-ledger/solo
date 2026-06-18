@@ -67,7 +67,9 @@ export class ImageCacheHandler implements CacheOperationHandler {
             try {
               await this.engine.saveImage(image, archivePath);
             } catch (error) {
+              const message: string = error instanceof Error ? error.message : String(error);
               task.title += ' - ' + chalk.red(`failed to SAVE image: ${image}`);
+              this.logger.showUser(`Failed to save image archive: ${image}. ${message}`);
               this.logger.error('Failed to save image archive:', error);
               return;
             }
@@ -100,9 +102,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
           try {
             await this.engine.loadImageArchiveIntoCluster(item.localPath, target);
           } catch (error) {
-            this.logger.showUser(`Failed to load image archive into cluster: ${name}`);
             this.logger.error(error);
-            console.error(error);
           }
         },
       });
@@ -117,6 +117,10 @@ export class ImageCacheHandler implements CacheOperationHandler {
     for (const item of items) {
       await fs.rm(item.localPath, {force: true});
     }
+  }
+
+  public async prune(): Promise<void> {
+    await this.store.clear();
   }
 
   public async healthcheck(): Promise<readonly ArtifactHealthResult[]> {

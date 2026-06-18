@@ -9,7 +9,7 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {PodmanMode, SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
 import {InitContext} from '../commands/init/init-context.js';
 import {AptGetPackageManager} from './package-managers/apt-get-package-manager.js';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import * as constants from './constants.js';
 import {getTemporaryDirectory} from './helpers.js';
 import fs from 'node:fs';
@@ -122,7 +122,7 @@ export class ClusterTaskManager extends ShellRunner {
           if (!brewInstalled) {
             this.logger.info('Homebrew not found, installing Homebrew...');
             if (!(await this.brewPackageManager.install())) {
-              throw new SoloError('Failed to install Homebrew');
+              throw new SoloErrors.system.homebrewInstallFailed();
             }
           }
         },
@@ -279,7 +279,7 @@ export class ClusterTaskManager extends ShellRunner {
                     ...podmanRunOptions,
                   );
                 } else {
-                  throw new SoloError(`Failed to inspect Podman machine: ${error.message}`);
+                  throw new SoloErrors.system.podmanMachineInspectFailed(error);
                 }
               }
             },
@@ -338,7 +338,7 @@ export class ClusterTaskManager extends ShellRunner {
   private getConfigFilePath(useSmallMemoryCluster: boolean): string {
     let kindConfigFilePath: string = constants.KIND_CLUSTER_CONFIG_FILE;
     if (useSmallMemoryCluster && kindConfigFilePath === constants.DEFAULT_KIND_CLUSTER_CONFIG_FILE) {
-      kindConfigFilePath = 'resources/templates/small-memory/kind-config.yaml';
+      kindConfigFilePath = path.join(constants.RESOURCES_DIR, 'templates', 'small-memory', 'kind-config.yaml');
       this.logger.info(`Using small memory cluster configuration: ${kindConfigFilePath}`);
     }
     return kindConfigFilePath;

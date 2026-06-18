@@ -13,7 +13,7 @@ import {type NamespaceName} from '../../../../../types/namespace/namespace-name.
 import {ResourceNotFoundError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {ResourceOperation} from '../../../resources/resource-operation.js';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
+import {KubeApiInvalidResponseError} from '../../../errors/kube-api-invalid-response-error.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {container} from 'tsyringe-neo';
 import {type ConfigMap} from '../../../resources/config-map/config-map.js';
@@ -195,9 +195,7 @@ export class K8ClientConfigMaps implements ConfigMaps {
     if (result) {
       return;
     } else {
-      throw new SoloError(
-        `Failed to patch ConfigMap ${name} in namespace ${namespace}, no config map returned from patch`,
-      );
+      throw new KubeApiInvalidResponseError();
     }
   }
 }

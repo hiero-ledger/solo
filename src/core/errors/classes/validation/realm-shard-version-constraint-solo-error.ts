@@ -3,8 +3,12 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {Flags} from '../../../../commands/flags.js';
 
+/**
+ * @description Thrown when non-zero realm or shard values are used with a network node version that does not support
+ * them; the message names the minimum version. Older platform versions require realm and shard to be `0`,
+ * so this means the values are incompatible with the selected version.
+ */
 export class RealmShardVersionConstraintSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
@@ -14,8 +18,8 @@ export class RealmShardVersionConstraintSoloError extends SoloError {
       message: `The realm and shard values must be 0 when using a network node version older than ${minimumVersion}`,
       code: ErrorCodeRegistry.REALM_SHARD_VERSION_CONSTRAINT,
       troubleshootingSteps:
-        `Use realm=0 and shard=0: solo consensus network deploy ${Flags.getFormattedFlagKey(Flags.realm)} 0 ${Flags.getFormattedFlagKey(Flags.shard)} 0\n` +
-        `Or upgrade to network node >= <minimumVersion>: solo consensus network upgrade ${Flags.getFormattedFlagKey(Flags.upgradeVersion)} <version>`,
+        'Use realm=0 and shard=0: solo consensus network deploy --realm 0 --shard 0\n' +
+        'Or upgrade to network node >= <minimumVersion>: solo consensus network upgrade --upgrade-version <version>',
     });
   }
 }

@@ -35,6 +35,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly clusterCount: number,
     public readonly consensusNodesCount: number,
     public readonly loadBalancerEnabled: boolean,
+    public readonly wrapsEnabled: boolean,
     public readonly pinger: boolean,
     public readonly realm: number = 0,
     public readonly shard: number = 0,
@@ -49,6 +50,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly logXml: string = 'log4j2.xml',
     public readonly settingsTxt: string = 'settings.txt',
     public readonly javaFlightRecorderConfiguration: string = '',
+    public readonly chainId: number = 0,
     public readonly testSuiteCallback: (
       options: BaseTestOptions,
       preDestroy?: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>,
@@ -101,6 +103,7 @@ export class EndToEndTestSuite extends Suite {
       createdAccountIds: this.createdAccountIds,
       consensusNodesCount: this.consensusNodesCount,
       loadBalancerEnabled: this.loadBalancerEnabled,
+      wrapsEnabled: this.wrapsEnabled,
       pinger: this.pinger,
       realm: this.realm,
       shard: this.shard,
@@ -114,6 +117,7 @@ export class EndToEndTestSuite extends Suite {
       logXml: this.logXml,
       settingsTxt: this.settingsTxt,
       javaFlightRecorderConfiguration: this.javaFlightRecorderConfiguration,
+      chainId: this.chainId,
     } as BaseTestOptions;
   }
 

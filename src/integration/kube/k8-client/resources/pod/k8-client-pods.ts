@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {
   type CoreV1Event,
   type CoreV1Api,
@@ -25,7 +24,11 @@ import {type Pod} from '../../../resources/pod/pod.js';
 import {K8ClientPod} from './k8-client-pod.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {K8ClientBase} from '../../k8-client-base.js';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
+import {KubeError} from '../../../errors/kube-error.js';
+import {KubeMissingArgumentError} from '../../../errors/kube-missing-argument-error.js';
+import {KubePodNotFoundError} from '../../../errors/kube-pod-not-found-error.js';
+import {KubePodCreationFailedError} from '../../../errors/kube-pod-creation-failed-error.js';
+import {KubePodTerminationTimeoutError} from '../../../errors/kube-pod-termination-timeout-error.js';
 import * as constants from '../../../../../core/constants.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
 import {container} from 'tsyringe-neo';
@@ -207,7 +210,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     } catch (error: Error | unknown) {
       const errorMessage: string = error instanceof Error ? error.message : String(error);
       this.logger.showUser(`Pod readiness check failed: ${errorMessage}`);
-      throw new SoloError(`Pod with labels [${labels.join(', ')}] not ready [maxAttempts = ${maxAttempts}]`, error);
+      throw new KubePodNotFoundError(`pods:${labels.join(',')}`);
     }
   }
 
@@ -237,7 +240,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       );
       await sleep(Duration.ofMillis(delay));
     }
-    throw new SoloError(`Pod ${podName} not found after ${maxAttempts} attempts`);
+    throw new KubePodNotFoundError(podName);
   }
 
   /**
@@ -260,7 +263,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
     if (!conditionsMap || conditionsMap.size === 0) {
-      throw new SoloErrors.validation.missingArgument('pod conditions are required');
+      throw new KubeMissingArgumentError('pod conditions are required');
     }
 
     return await this.waitForRunningPhase(
@@ -300,7 +303,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     createdAfter?: Date,
     excludeMarkedForDeletion: boolean = false,
   ): Promise<Pod[]> {
-    const phases: string[] = [constants.POD_PHASE_RUNNING];
+    const phases: Set<string> = new Set([constants.POD_PHASE_RUNNING]);
     const labelSelector: string = labels ? labels.join(',') : undefined;
 
     this.logger.info(
@@ -360,7 +363,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                 fatalErrorStreakByPod.set(podName, {count: nextCount, error: fatalError});
 
                 if (nextCount >= FATAL_ERROR_RETRY_THRESHOLD) {
-                  return reject(new SoloError(fatalError));
+                  return reject(new KubePodCreationFailedError(fatalError));
                 }
 
                 this.logger.info(
@@ -381,7 +384,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                 this.kubeConfig,
                 this.kubectlInstallationDirectory,
               );
-              if (phases.includes(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
+              if (phases.has(newestItem.status?.phase) && (!podItemPredicate || podItemPredicate(pod))) {
                 return resolve([pod]);
               }
             }
@@ -393,16 +396,36 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         if (++attempts < maxAttempts) {
           setTimeout((): Promise<void> => check(resolve, reject), delay);
         } else {
-          return reject(
-            new SoloError(
-              `Expected at least 1 pod not found for labels: ${labelSelector}, phases: ${phases.join(',')} [attempts = ${attempts}/${maxAttempts}]`,
-            ),
-          );
+          return reject(new KubePodNotFoundError(`labels:${labelSelector}`));
         }
       };
 
       check(resolve, reject);
     });
+  }
+
+  public async waitForPodsToTerminate(
+    namespace: NamespaceName,
+    labels: string[],
+    maxAttempts: number = constants.PODS_RUNNING_MAX_ATTEMPTS,
+    delay: number = constants.PODS_RUNNING_DELAY,
+  ): Promise<void> {
+    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
+      const pods: Pod[] = await this.list(namespace, labels);
+      if (pods.length === 0) {
+        return;
+      }
+
+      const podNames: string = pods.map((pod: Pod): string => pod.podReference.name.toString()).join(', ');
+      this.logger.debug(
+        `waitForPodsToTerminate [attempt ${attempt}/${maxAttempts}] [namespace=${namespace.name}] [labels=${labels.join(', ')}] [pods=${podNames}]`,
+      );
+      if (attempt < maxAttempts) {
+        await sleep(Duration.ofMillis(delay));
+      }
+    }
+
+    throw new KubePodTerminationTimeoutError(namespace.name, labels);
   }
 
   public async listForAllNamespaces(labels: string[]): Promise<Pod[]> {
@@ -468,7 +491,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     try {
       result = await this.kubeClient.createNamespacedPod({namespace: podReference.namespace.toString(), body: v1Pod});
     } catch (error) {
-      if (error instanceof SoloError) {
+      if (error instanceof KubeError) {
         throw error;
       }
       KubeApiResponse.throwError(
@@ -483,7 +506,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     if (result) {
       return new K8ClientPod(podReference, this, this.kubeClient, this.kubeConfig, this.kubectlInstallationDirectory);
     } else {
-      throw new SoloError('Error creating pod', result);
+      throw new KubePodCreationFailedError(result);
     }
   }
 

@@ -8,7 +8,6 @@ export class CacheImageTemplateValues implements CacheImageTemplateValuesStructu
   public readonly RELAY_VERSION: string;
   public readonly EXPLORER_VERSION: string;
   public readonly MINIO_OPERATOR_VERSION: string;
-  public readonly CONSENSUS_NODE_VERSION: string;
 
   public constructor(
     mirrorNodeVersion: string,
@@ -16,14 +15,12 @@ export class CacheImageTemplateValues implements CacheImageTemplateValuesStructu
     relayVersion: string,
     explorerVersion: string,
     minioOperatorVersion: string,
-    consensusNodeVersion: string,
   ) {
     this.MIRROR_NODE_VERSION = this.removeVPrefix(mirrorNodeVersion);
     this.BLOCK_NODE_VERSION = this.removeVPrefix(blockNodeVersion);
     this.RELAY_VERSION = this.removeVPrefix(relayVersion);
     this.EXPLORER_VERSION = this.removeVPrefix(explorerVersion);
     this.MINIO_OPERATOR_VERSION = this.ensureVPrefix(minioOperatorVersion);
-    this.CONSENSUS_NODE_VERSION = this.removeVPrefix(consensusNodeVersion);
   }
 
   /**

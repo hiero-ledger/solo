@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot create a Kubernetes secret; the message describes the secret and, when available,
+ * wraps the underlying `cause`. solo stores keys and credentials as cluster secrets, so this means the
+ * secret could not be created — for example the namespace is missing, the API rejected the request, or a
+ * transient API error occurred. It is retryable.
+ */
 export class K8sSecretCreateFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

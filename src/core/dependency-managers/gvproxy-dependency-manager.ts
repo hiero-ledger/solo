@@ -9,6 +9,7 @@ import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {GitHubRelease, GitHubReleaseAsset, ReleaseInfo} from '../../types/index.js';
 import fs from 'node:fs';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
@@ -68,10 +69,10 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
           return match[1];
         }
       } catch (error: any) {
-        throw new SoloError('Failed to check gvproxy version', error);
+        throw new SoloErrors.system.dependencyVersionCheckFailed('gvproxy', error);
       }
     }
-    throw new SoloError('Failed to check gvproxy version');
+    throw new SoloErrors.system.dependencyVersionCheckFailed('gvproxy');
   }
 
   /**
@@ -93,7 +94,7 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
     } else if (OperatingSystem.isLinux()) {
       assetName = `gvproxy-linux-${arch}`;
     } else {
-      throw new SoloError(`Unsupported platform: ${OperatingSystem.getPlatform()}`);
+      throw new SoloErrors.validation.illegalArgument(`Unsupported platform: ${OperatingSystem.getPlatform()}`);
     }
 
     return assetName;
@@ -105,24 +106,27 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
    */
   private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
     try {
-      // Make a GET request to GitHub API using fetch
+      const headers: Record<string, string> = {
+        'User-Agent': constants.SOLO_USER_AGENT_HEADER,
+        Accept: 'application/vnd.github.v3+json',
+      };
+      if (process.env.GITHUB_TOKEN) {
+        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
+      }
       const response = await fetch(GVPROXY_RELEASES_LIST_URL, {
         method: 'GET',
-        headers: {
-          'User-Agent': constants.SOLO_USER_AGENT_HEADER,
-          Accept: 'application/vnd.github.v3+json', // Explicitly request GitHub API v3 format
-        },
+        headers,
       });
 
       if (!response.ok) {
-        throw new SoloError(`GitHub API request failed with status ${response.status}`);
+        throw new SoloErrors.system.githubApiHttpResponseError(GVPROXY_RELEASES_LIST_URL, response.status);
       }
 
       // Parse the JSON response
       const releases: GitHubRelease[] = await response.json();
 
       if (!releases || releases.length === 0) {
-        throw new SoloError('No releases found');
+        throw new SoloErrors.system.gitHubReleasesNotFound();
       }
 
       // Get the latest release
@@ -134,7 +138,7 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
       const matchingAsset: GitHubReleaseAsset = release.assets.find(asset => asset.name === assetName);
 
       if (!matchingAsset) {
-        throw new SoloError(`No matching asset found (${assetName})`);
+        throw new SoloErrors.system.gitHubReleaseAssetNotFound(OperatingSystem.getPlatform(), assetName);
       }
 
       // Get the digest from the shasums file
@@ -158,7 +162,7 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
       if (error instanceof SoloError) {
         throw error;
       }
-      throw new SoloError('Failed to parse GitHub API response', error);
+      throw new SoloErrors.system.githubApiResponseParseFailed(GVPROXY_RELEASES_LIST_URL, error);
     }
   }
 

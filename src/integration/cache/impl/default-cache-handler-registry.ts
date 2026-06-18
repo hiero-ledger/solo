@@ -4,6 +4,7 @@ import {type CacheHandlerRegistry} from '../api/cache-handler-registry.js';
 import {type CacheOperationHandler} from '../api/cache-operation-handler.js';
 import {type CacheArtifactEnum} from '../enums/cache-artifact-enum.js';
 import {injectable} from 'tsyringe-neo';
+import {CacheHandlerNotRegisteredError} from '../errors/cache-handler-not-registered-error.js';
 
 @injectable()
 export class DefaultCacheHandlerRegistry implements CacheHandlerRegistry {
@@ -13,7 +14,7 @@ export class DefaultCacheHandlerRegistry implements CacheHandlerRegistry {
     const handler: CacheOperationHandler | undefined = this.handlers.get(type);
 
     if (!handler) {
-      throw new Error(`No handler registered for type: ${type}`);
+      throw new CacheHandlerNotRegisteredError(String(type));
     }
 
     return handler;

@@ -3,8 +3,11 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {Flags} from '../../../../commands/flags.js';
 
+/**
+ * @description Thrown when an operation needs PVCs but the PVCs flag is not enabled. Adding a node requires persistent
+ * storage, so this means PVCs must be enabled first.
+ */
 export class PvcFlagNotEnabledSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
@@ -14,8 +17,8 @@ export class PvcFlagNotEnabledSoloError extends SoloError {
       message: 'PVCs flag is not enabled. Please enable PVCs before adding a node',
       code: ErrorCodeRegistry.PVC_FLAG_NOT_ENABLED,
       troubleshootingSteps:
-        `Redeploy with PVCs enabled: solo consensus network deploy ${Flags.getFormattedFlagKey(Flags.persistentVolumeClaims)} true\n` +
-        `Check the current deployment configuration: solo deployment config info ${Flags.getFormattedFlagKey(Flags.deployment)} <name>\n` +
+        'Redeploy with PVCs enabled: solo consensus network deploy --pvcs true\n' +
+        'Check the current deployment configuration: solo deployment config info --deployment <name>\n' +
         'PVCs are required for node add operations to persist state across pod restarts',
     });
   }

@@ -31,6 +31,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
   public static readonly IMAGE_LIST: string = 'list';
   public static readonly IMAGE_CLEAR: string = 'clear';
   public static readonly IMAGE_STATUS: string = 'status';
+  public static readonly IMAGE_PRUNE: string = 'prune';
 
   public static readonly IMAGE_PULL_COMMAND: string = `${CacheCommandDefinition.COMMAND_NAME} ${CacheCommandDefinition.IMAGE_SUBCOMMAND_NAME} ${CacheCommandDefinition.IMAGE_PULL}`;
 
@@ -47,7 +48,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.pull,
               CacheCommand.PULL_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES, constants.CRANE],
+              [constants.CRANE],
             ),
           )
           .addSubcommand(
@@ -57,7 +58,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.load,
               CacheCommand.LOAD_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES, constants.CRANE],
+              [constants.KIND],
             ),
           )
           .addSubcommand(
@@ -67,7 +68,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.list,
               CacheCommand.LIST_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES],
+              [],
             ),
           )
           .addSubcommand(
@@ -77,7 +78,17 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.clear,
               CacheCommand.CLEAR_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES],
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              CacheCommandDefinition.IMAGE_PRUNE,
+              'Prune the image archives.',
+              this.cacheCommand,
+              this.cacheCommand.prune,
+              CacheCommand.PRUNE_FLAGS_LIST,
+              [],
             ),
           )
           .addSubcommand(
@@ -87,7 +98,7 @@ export class CacheCommandDefinition extends BaseCommandDefinition {
               this.cacheCommand,
               this.cacheCommand.status,
               CacheCommand.STATUS_FLAGS_LIST,
-              [...constants.BASE_DEPENDENCIES],
+              [],
             ),
           ),
       )

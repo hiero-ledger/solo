@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {ShellRunner} from '../core/shell-runner.js';
 import {type LockManager} from '../core/lock/lock-manager.js';
@@ -115,7 +116,7 @@ export abstract class BaseCommand extends ShellRunner {
         this.logger.debug(`OK: setup directory: ${directoryPath}`);
       }
     } catch (error) {
-      throw new SoloError(`failed to create directory: ${error.message}`, error);
+      throw new SoloErrors.system.directoryCreationFailed(error);
     }
 
     return directories;
@@ -142,7 +143,7 @@ export abstract class BaseCommand extends ShellRunner {
         } else if (clusterReferences.size > 1) {
           // Multiple clusters exist - list them in error message
           const clusterList: string = [...clusterReferences.keys()].join(', ');
-          throw new SoloError(`Multiple clusters found (${clusterList}). Please specify --cluster-ref to select one.`);
+          throw new SoloErrors.validation.multipleClustersFound(clusterList);
         }
       }
     } catch (error) {
@@ -170,7 +171,7 @@ export abstract class BaseCommand extends ShellRunner {
 
   protected async throwIfNamespaceIsMissing(context: Context, namespace: NamespaceName): Promise<void> {
     if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
-      throw new SoloError(`namespace ${namespace} does not exist`);
+      throw new SoloErrors.system.namespaceNotFound(namespace.name);
     }
   }
 

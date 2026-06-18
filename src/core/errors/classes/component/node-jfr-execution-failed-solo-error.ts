@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when a Java Flight Recorder (JFR) operation on a consensus node pod fails; the message names the
+ * operation and the pod. solo runs JFR commands inside the node container to capture profiling data, so
+ * this means that command failed — for example the pod was not reachable or the command returned an error.
+ * It is retryable.
+ */
 export class NodeJfrExecutionFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

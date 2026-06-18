@@ -8,7 +8,7 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import {format} from 'node:util';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const KUBECTL_RELEASE_BASE_URL: string = 'https://dl.k8s.io/release';
@@ -76,9 +76,9 @@ export class KubectlDependencyManager extends BaseDependencyManager {
         }
       }
     } catch (error) {
-      throw new SoloError('Failed to check kubectl version', error);
+      throw new SoloErrors.system.dependencyVersionCheckFailed('kubectl', error);
     }
-    throw new SoloError('Failed to get kubectl version');
+    throw new SoloErrors.system.dependencyVersionCheckFailed('kubectl');
   }
 
   protected getDownloadURL(): string {

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
+import {KubeContainerOperationFailedError} from '../../../errors/kube-container-operation-failed-error.js';
+import {KubeContainerInvalidPathError} from '../../../errors/kube-container-invalid-path-error.js';
+import {KubeIllegalArgumentError} from '../../../errors/kube-illegal-argument-error.js';
+import {KubeMissingArgumentError} from '../../../errors/kube-missing-argument-error.js';
 import {container} from 'tsyringe-neo';
 import {type Container} from '../../../resources/container/container.js';
 import {type TDirectoryData} from '../../../t-directory-data.js';
 import {type ContainerReference} from '../../../resources/container/container-reference.js';
-import {SoloError} from '../../../../../core/errors/solo-error.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -59,7 +61,7 @@ export class K8ClientContainer implements Container {
     try {
       await this.pods.waitForPodByReference(this.containerReference.parentReference, maxAttempts, delayMs);
     } catch {
-      throw new SoloErrors.validation.illegalArgument(`Invalid pod ${podName}`);
+      throw new KubeIllegalArgumentError(`Invalid pod ${podName}`);
     }
   }
 
@@ -102,14 +104,19 @@ export class K8ClientContainer implements Container {
       });
 
       childProcess.on('error', (error): void => {
-        reject(new SoloError(`container call: ${callMessage}, failed to start: ${error?.message}`));
+        reject(new KubeContainerOperationFailedError(`container call: ${callMessage}, failed to start`, error));
       });
 
       childProcess.on('close', (code): void => {
         if (code === 0) {
           resolve(stdout || stderr);
         } else {
-          reject(new SoloError(`container call: ${callMessage}, failed with code ${code}: ${stderr || stdout}`));
+          reject(
+            new KubeContainerOperationFailedError(
+              `container call: ${callMessage}, failed with code ${code}`,
+              new Error(stderr || stdout),
+            ),
+          );
         }
       });
     });
@@ -142,15 +149,13 @@ export class K8ClientContainer implements Container {
         await this.execKubectl(arguments_);
 
         if (!fs.existsSync(verifyPath)) {
-          throw new SoloError(`copy failed: missing file at ${verifyPath}`);
+          throw new KubeContainerInvalidPathError('copy verification', verifyPath);
         }
 
         const stat: fs.Stats = fs.statSync(verifyPath);
 
         if (expectedSize !== undefined && stat.size !== expectedSize) {
-          throw new SoloError(
-            `copy verification failed: expected size ${expectedSize} but found ${stat.size} at ${verifyPath}`,
-          );
+          throw new KubeContainerInvalidPathError('copy size verification', verifyPath);
         }
 
         return;
@@ -188,7 +193,7 @@ export class K8ClientContainer implements Container {
     await this.waitForPod();
 
     if (!fs.existsSync(destinationDirectory)) {
-      throw new SoloError(`invalid destination path: ${destinationDirectory}`);
+      throw new KubeContainerInvalidPathError('destination', destinationDirectory);
     }
 
     this.logger.info(
@@ -197,7 +202,7 @@ export class K8ClientContainer implements Container {
 
     let entries: TDirectoryData[] = await this.listDir(sourcePath);
     if (entries.length !== 1) {
-      throw new SoloError(`copyFrom: invalid source path: ${sourcePath}`);
+      throw new KubeContainerInvalidPathError('copyFrom source', sourcePath);
     }
     // handle symbolic link
     if (entries[0].name.includes(' -> ')) {
@@ -206,7 +211,7 @@ export class K8ClientContainer implements Container {
       const redirectSourcePath: string = `${path.dirname(sourcePath)}/${targetSuffix}`;
       entries = await this.listDir(redirectSourcePath);
       if (entries.length !== 1) {
-        throw new SoloError(`copyFrom: invalid source path: ${redirectSourcePath}`);
+        throw new KubeContainerInvalidPathError('copyFrom redirect source', redirectSourcePath);
       }
     }
 
@@ -236,11 +241,11 @@ export class K8ClientContainer implements Container {
     await this.waitForPod();
 
     if (!(await this.hasDir(destinationDirectory))) {
-      throw new SoloError(`invalid destination path: ${destinationDirectory}`);
+      throw new KubeContainerInvalidPathError('destination', destinationDirectory);
     }
 
     if (!fs.existsSync(sourcePath)) {
-      throw new SoloError(`invalid source path: ${sourcePath}`);
+      throw new KubeContainerInvalidPathError('source', sourcePath);
     }
 
     const remoteDestination: string = `${namespace.name}/${podName}:${destinationDirectory}`;
@@ -282,7 +287,7 @@ export class K8ClientContainer implements Container {
         localPathToCopy = PathEx.join(temporaryDirectory, sourceFileName);
 
         if (!fs.existsSync(localPathToCopy)) {
-          throw new SoloError(`filtered source path does not exist: ${localPathToCopy}`);
+          throw new KubeContainerInvalidPathError('filtered source', localPathToCopy);
         }
       }
 
@@ -322,7 +327,7 @@ export class K8ClientContainer implements Container {
     await this.waitForPod();
 
     if (!cmd) {
-      throw new SoloErrors.validation.missingArgument('command cannot be empty');
+      throw new KubeMissingArgumentError('command cannot be empty');
     }
 
     const command: string[] = Array.isArray(cmd) ? cmd : cmd.split(' ');
@@ -352,9 +357,7 @@ export class K8ClientContainer implements Container {
       }
     }
 
-    throw new SoloError(
-      `container call failed after retries: ${podName} -n ${namespace.name} -c ${containerName} -- ${command.join(' ')}`,
-    );
+    throw new KubeContainerOperationFailedError(`exec ${command.join(' ')}`, new Error('failed after retries'));
   }
 
   public async hasDir(destinationPath: string): Promise<boolean> {
@@ -408,10 +411,7 @@ export class K8ClientContainer implements Container {
         }
       }
     } catch (error) {
-      throw new SoloError(
-        `unable to check file in '${this.containerReference.parentReference.name}':${this.containerReference.name}' - ${destinationPath}: ${error.message}`,
-        error,
-      );
+      throw new KubeContainerOperationFailedError(`check file ${destinationPath}`, error);
     }
 
     return false;
@@ -455,10 +455,7 @@ export class K8ClientContainer implements Container {
 
       return items;
     } catch (error) {
-      throw new SoloError(
-        `unable to check path in '${this.containerReference.parentReference.name}':${this.containerReference.name}' - ${destinationPath}: ${error.message}`,
-        error,
-      );
+      throw new KubeContainerOperationFailedError(`list dir ${destinationPath}`, error);
     }
   }
 

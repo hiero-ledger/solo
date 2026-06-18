@@ -154,15 +154,17 @@ tasks:
   test-e2e-performance:
     desc: "Runs E2E Performance tests with coverage and generates reports in coverage/e2e-performance"
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Performance Test\"
-        {{ .reporter_prefix }}='coverage/e2e-performance'
-        {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts'
-        {{ .reporter_options_prefix }}-e2e-performance.xml"
+      - |
+        [ -f testenv.sh ] && . testenv.sh || true
+        {{ .test_prefix }}="Mocha E2E Performance Test" \
+          {{ .reporter_prefix }}='coverage/e2e-performance' \
+          {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts' \
+          {{ .reporter_options_prefix }}-e2e-performance.xml
 
   test-e2e-small-memory-load:
-    desc: "Runs E2E Small Memory Load test — CN v0.73 with NLG v0.14.0 throttle-protected load"
+    desc: "Runs E2E Small Memory Load test — CN v0.74 with NLG v0.14.0 throttle-protected load"
     env:
-      CONSENSUS_NODE_VERSION: v0.73.0-rc.1
+      CONSENSUS_NODE_VERSION: v0.74.0
       NETWORK_LOAD_GENERATOR_CHART_VERSION: "0.14.0"
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Small Memory Load Test\"

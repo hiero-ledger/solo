@@ -7,6 +7,7 @@ import {type SoloEventBus} from '../../../core/events/solo-event-bus.js';
 import {Duration} from '../../../core/time/duration.js';
 import {type OrchestratorStep} from './orchestrator-step.js';
 import {ExecutionMode} from './execution-mode.js';
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 
 type DeploymentEvent = AnySoloEvent & {deployment: string};
 
@@ -61,6 +62,9 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
   }
 
   public asListrTask(getConfig: () => TConfig, eventBus: SoloEventBus): SoloListrTask<TContext> {
+    const shouldInjectFailure: boolean =
+      (process.env.SOLO_FAIL_AFTER_STEP ?? '').replaceAll("'", '').replaceAll('"', '') === this.title;
+
     if (this.subPhases.length > 0) {
       return {
         title: this.title,
@@ -70,23 +74,35 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
             typeof this.executionMode === 'function'
               ? this.executionMode(getConfig) === OrchestratorPipelinePhase.EXECUTION_MODE.CONCURRENT
               : this.executionMode === OrchestratorPipelinePhase.EXECUTION_MODE.CONCURRENT;
-          return task.newListr(
-            this.subPhases.map(
-              (phase: OrchestratorPipelinePhase<TConfig, TContext>): SoloListrTask<TContext> =>
-                phase.asListrTask(getConfig, eventBus),
-            ),
-            {
-              concurrent: isConcurrent,
-              exitOnError: this.exitOnError,
-              ...(this.rendererOptions ? {rendererOptions: this.rendererOptions} : {}),
-            },
+          const subTasks: SoloListrTask<TContext>[] = this.subPhases.map(
+            (phase: OrchestratorPipelinePhase<TConfig, TContext>): SoloListrTask<TContext> =>
+              phase.asListrTask(getConfig, eventBus),
           );
+          if (shouldInjectFailure) {
+            subTasks.push(this.buildFailureInjectionTask());
+          }
+          return task.newListr(subTasks, {
+            concurrent: isConcurrent,
+            exitOnError: this.exitOnError,
+            ...(this.rendererOptions ? {rendererOptions: this.rendererOptions} : {}),
+          });
         },
       };
     }
 
     if (this.waitConditions.length === 0) {
-      return (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(getConfig);
+      const innerTask: SoloListrTask<TContext> = (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(
+        getConfig,
+      );
+      if (!shouldInjectFailure) {
+        return innerTask;
+      }
+      const failureTask: SoloListrTask<TContext> = this.buildFailureInjectionTask();
+      return {
+        ...innerTask,
+        task: (_: TContext, taskWrapper: SoloListrTaskWrapper<TContext>): SoloListr<TContext> =>
+          taskWrapper.newListr([innerTask, failureTask], {exitOnError: true}),
+      };
     }
 
     const innerTask: SoloListrTask<TContext> = (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(
@@ -95,7 +111,7 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
     return {
       title: this.title,
       skip: innerTask.skip,
-      task: async (_: TContext, task: SoloListrTaskWrapper<TContext>): Promise<SoloListr<TContext>> => {
+      task: async (_: TContext, taskWrapper: SoloListrTaskWrapper<TContext>): Promise<SoloListr<TContext>> => {
         for (const {eventType, timeout} of this.waitConditions) {
           await eventBus.waitFor<DeploymentEvent>(
             eventType,
@@ -103,7 +119,21 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
             timeout,
           );
         }
-        return task.newListr([innerTask]);
+        const subTasks: SoloListrTask<TContext>[] = [innerTask];
+        if (shouldInjectFailure) {
+          subTasks.push(this.buildFailureInjectionTask());
+        }
+        return taskWrapper.newListr(subTasks);
+      },
+    };
+  }
+
+  private buildFailureInjectionTask(): SoloListrTask<TContext> {
+    const title: string = this.title;
+    return {
+      title: `[test] fail after '${title}'`,
+      task: (): never => {
+        throw new SoloErrors.internal.injectedFailure(title);
       },
     };
   }

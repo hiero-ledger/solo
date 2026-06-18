@@ -22,17 +22,21 @@ import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../types/i
 import {type Realm, type Shard} from '../../../../types/index.js';
 import {type AccountManager} from '../../../../core/account-manager.js';
 import {type LocalConfigRuntimeState} from '../../../../business/runtime-state/config/local/local-config-runtime-state.js';
+import {type Deployment} from '../../../../business/runtime-state/config/local/deployment.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type SoloLogger} from '../../../../core/logging/solo-logger.js';
 import {type ConfigManager} from '../../../../core/config-manager.js';
 import {type OneShotState} from '../../../../core/one-shot-state.js';
 import {type K8Factory} from '../../../../integration/kube/k8-factory.js';
+import {type HelmClient} from '../../../../integration/helm/helm-client.js';
+import {type ReleaseItem} from '../../../../integration/helm/model/release/release-item.js';
 import {type LockManager} from '../../../../core/lock/lock-manager.js';
 import {type ComponentFactoryApi} from '../../../../core/config/remote/api/component-factory-api.js';
 import {type Lock} from '../../../../core/lock/lock.js';
 import {type OneShotSingleDeployConfigClass} from '../../one-shot-single-deploy-config-class.js';
 import {type OneShotVersionsObject} from '../../one-shot-versions-object.js';
 import {type OneShotSingleDeployContext} from '../../one-shot-single-deploy-context.js';
+import {type DeploymentStateSnapshot} from '../../deployment-state-snapshot.js';
 import {
   type CreatedPredefinedAccount,
   predefinedEcdsaAccountsWithAlias,
@@ -53,14 +57,14 @@ import {ConsensusCommandDefinition} from '../../../command-definitions/consensus
 import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
-import {invokeSoloCommand} from '../../../command-helpers.js';
+import {InvokedSoloCommand, invokeSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
 import * as constants from '../../../../core/constants.js';
 import * as helpers from '../../../../core/helpers.js';
 import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../../../core/helpers.js';
 import {Duration} from '../../../../core/time/duration.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
-import {SoloError} from '../../../../core/errors/solo-error.js';
+import {UserBreak} from '../../../../core/errors/user-break.js';
 import {Templates} from '../../../../core/templates.js';
 import {PathEx} from '../../../../business/utils/path-ex.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
@@ -72,7 +76,7 @@ import {BlockNodeStateSchema} from '../../../../data/schema/model/remote/state/b
 import {MirrorNodeStateSchema} from '../../../../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {ExplorerStateSchema} from '../../../../data/schema/model/remote/state/explorer-state-schema.js';
 import {RelayNodeStateSchema} from '../../../../data/schema/model/remote/state/relay-node-state-schema.js';
-import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
+import {DeploymentPhase, isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../../../../core/config/remote/enumerations/component-types.js';
 import {ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
 import chalk from 'chalk';
@@ -101,6 +105,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.K8Factory) private readonly k8Factory: K8Factory,
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
+    @inject(InjectTokens.Helm) private readonly helm: HelmClient,
   ) {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
@@ -113,6 +118,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
+    this.helm = patchInject(helm, InjectTokens.Helm, this.constructor.name);
   }
 
   public buildDeployPipeline(
@@ -123,6 +129,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
   ): OrchestratorPipeline<OneShotSingleDeployContext> {
     let config: OneShotSingleDeployConfigClass;
     const getConfigGlobal: () => OneShotSingleDeployConfigClass = (): OneShotSingleDeployConfigClass => config;
+
+    let deploymentStateSnapshot: DeploymentStateSnapshot | undefined;
 
     const phases: Array<OrchestratorPipelinePhase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>> = [
       new OrchestratorPipelinePhase('Initialize', {
@@ -255,12 +263,37 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   )
                 : settingsMergedPath;
 
+              const mergedApplicationPropertiesPath: string = PathEx.join(
+                mergedDirectory,
+                constants.APPLICATION_PROPERTIES,
+              );
               config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationProperties)] =
                 this.concatConfigFiles(
                   PathEx.join(defaultsDirectory, constants.APPLICATION_PROPERTIES),
                   PathEx.join(overridesDirectory, constants.APPLICATION_PROPERTIES),
-                  PathEx.join(mergedDirectory, constants.APPLICATION_PROPERTIES),
+                  mergedApplicationPropertiesPath,
                 );
+
+              // Remove the properties that are managed by solo from the template.
+              // They will be populated later when building the staging directory
+              const applicationPropertiesMerged: string = fs.readFileSync(mergedApplicationPropertiesPath, 'utf8');
+              const propertiesLines: string[] = applicationPropertiesMerged.split('\n');
+              const soloManagedKeys: Set<string> = new Set([
+                'hedera.realm',
+                'hedera.shard',
+                'contracts.chainId',
+                'blockStream.streamMode',
+                'blockStream.writerMode',
+              ]);
+              const filteredLines: string[] = propertiesLines.filter((line: string): boolean => {
+                const keyValuePair: string[] = line.split('=');
+                if (keyValuePair && keyValuePair.length === 2) {
+                  return !soloManagedKeys.has(keyValuePair[0]);
+                }
+                return true;
+              });
+
+              fs.writeFileSync(mergedApplicationPropertiesPath, filteredLines.join('\n'));
 
               // For CN >= 0.73.0, use state-on-disk application.env instead of default small-memory
               config.networkConfiguration[flags.getFormattedFlagKey(flags.applicationEnv)] = PathEx.join(
@@ -288,6 +321,16 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
 
             context_.createdAccounts = [];
+          },
+        }),
+      }),
+      new OrchestratorPipelinePhase('Check existing deployment state', {
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
+          title: 'Check existing deployment state',
+          exitOnError: false,
+          task: async (context_: OneShotSingleDeployContext): Promise<void> => {
+            context_.deploymentStateSnapshot = await this.buildDeploymentStateSnapshot(getConfig());
+            deploymentStateSnapshot = context_.deploymentStateSnapshot;
           },
         }),
       }),
@@ -326,7 +369,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               };
               const proceed: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, promptOptions);
               if (!proceed) {
-                throw new SoloError('Aborted by user');
+                throw new UserBreak('Aborted by user');
               }
             }
           },
@@ -355,67 +398,142 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           ),
       }),
       new OrchestratorPipelinePhase('Cluster connect', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const baseTask: InvokedSoloCommand = invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
             ClusterReferenceCommandDefinition.CONNECT_COMMAND,
             (): string[] => DeployArgvBuilders.buildClusterConnectArgv(getConfig()),
             this.taskList,
-          ),
+          );
+          return {
+            ...baseTask,
+            skip: (context_: OneShotSingleDeployContext): boolean => {
+              // Idempotency guard: skip if cluster ref already exists in local config
+              if (context_.deploymentStateSnapshot?.localConfig.clusterRefs.has(context_.config.clusterRef)) {
+                this.logger.info(
+                  `Step '${ClusterReferenceCommandDefinition.CONNECT_COMMAND}' skipped: cluster ref already in local config`,
+                );
+                return true;
+              }
+              return false;
+            },
+          };
+        },
       }),
       new OrchestratorPipelinePhase('Deployment create', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const baseTask: InvokedSoloCommand = invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
             DeploymentCommandDefinition.CREATE_COMMAND,
             (): string[] => DeployArgvBuilders.buildDeploymentCreateArgv(getConfig()),
             this.taskList,
-          ),
+          );
+          return {
+            ...baseTask,
+            skip: (context_: OneShotSingleDeployContext): boolean => {
+              // Idempotency guard: skip if deployment already exists in local config
+              if (context_.deploymentStateSnapshot?.localConfig.deploymentExists) {
+                this.logger.info(
+                  `Step '${DeploymentCommandDefinition.CREATE_COMMAND}' skipped: deployment already exists in local config`,
+                );
+                return true;
+              }
+              return false;
+            },
+          };
+        },
       }),
       new OrchestratorPipelinePhase('Deployment attach', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const baseTask: InvokedSoloCommand = invokeSoloCommand(
             `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
             DeploymentCommandDefinition.ATTACH_COMMAND,
             (): string[] => DeployArgvBuilders.buildDeploymentAttachArgv(getConfig()),
             this.taskList,
-          ),
+          );
+          return {
+            ...baseTask,
+            skip: (context_: OneShotSingleDeployContext): boolean => {
+              // Idempotency guard: skip if remote config already exists in cluster
+              if (context_.deploymentStateSnapshot?.remoteConfig.configMapExists) {
+                this.logger.info(
+                  `Step '${DeploymentCommandDefinition.ATTACH_COMMAND}' skipped: remote config already exists`,
+                );
+                return true;
+              }
+              return false;
+            },
+          };
+        },
       }),
       new OrchestratorPipelinePhase('Cluster setup', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const baseTask: InvokedSoloCommand = invokeSoloCommand(
             `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
             ClusterReferenceCommandDefinition.SETUP_COMMAND,
             (): string[] => DeployArgvBuilders.buildClusterSetupArgv(getConfig()),
             this.taskList,
-          ),
+          );
+          return {
+            ...baseTask,
+            skip: (context_: OneShotSingleDeployContext): boolean => {
+              // Idempotency guard: skip if pod-monitor-role exists in cluster
+              if (context_.deploymentStateSnapshot?.cluster.podMonitorRoleExists) {
+                this.logger.info(
+                  `Step '${ClusterReferenceCommandDefinition.SETUP_COMMAND}' skipped: pod-monitor-role already installed`,
+                );
+                return true;
+              }
+              return false;
+            },
+          };
+        },
       }),
       new OrchestratorPipelinePhase('Keys generate', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
+        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
+          const baseTask: InvokedSoloCommand = invokeSoloCommand(
             `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
             KeysCommandDefinition.KEYS_COMMAND,
             (): string[] => DeployArgvBuilders.buildKeysGenerateArgv(getConfig()),
             this.taskList,
-          ),
+          );
+          return {
+            ...baseTask,
+            skip: (context_: OneShotSingleDeployContext): boolean => {
+              // Idempotency guard: skip if keys already exist in the SOLO_HOME directory
+              if (context_.deploymentStateSnapshot?.keys.consensusKeysOnDisk) {
+                this.logger.info(
+                  `Step '${KeysCommandDefinition.KEYS_COMMAND}' skipped: consensus keys already on disk`,
+                );
+                return true;
+              }
+              return false;
+            },
+          };
+        },
       }),
       new OrchestratorPipelinePhase('Create remote config components', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Create remote config components',
           task: async (): Promise<void> => {
             const deployConfig: OneShotSingleDeployConfigClass = getConfig();
-            if (constants.ONE_SHOT_WITH_BLOCK_NODE === 'true') {
+            if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
               const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
                 deployConfig.clusterRef,
                 deployConfig.namespace,
               );
               blockNode.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(
+
+              const blockNodeAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
                 blockNode,
                 ComponentTypes.BlockNode,
                 false,
                 true,
               );
+
+              if (!blockNodeAdded) {
+                this.logger.info(`Block node with id: ${blockNode.metadata.id} already exists, skipping creation`);
+              }
             }
 
             if (deployConfig.deployExplorer) {
@@ -424,12 +542,17 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 deployConfig.namespace,
               );
               explorer.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(
+
+              const explorerAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
                 explorer,
                 ComponentTypes.Explorer,
                 false,
                 true,
               );
+
+              if (!explorerAdded) {
+                this.logger.info(`Explorer with id: ${explorer.metadata.id} already exists, skipping creation`);
+              }
             }
 
             if (deployConfig.deployMirrorNode) {
@@ -438,12 +561,17 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 deployConfig.namespace,
               );
               mirrorNode.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(
+
+              const mirrorNodeAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
                 mirrorNode,
                 ComponentTypes.MirrorNode,
                 false,
                 true,
               );
+
+              if (!mirrorNodeAdded) {
+                this.logger.info(`Mirror node with id ${mirrorNode.metadata.id} already exists, skipping creation`);
+              }
             }
 
             if (deployConfig.deployRelay) {
@@ -457,7 +585,16 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 nodeIds,
               );
               relay.metadata.phase = DeploymentPhase.REQUESTED;
-              this.remoteConfig.configuration.components.addNewComponent(relay, ComponentTypes.RelayNodes, false, true);
+              const relayAdded: boolean = this.remoteConfig.configuration.components.addNewComponent(
+                relay,
+                ComponentTypes.RelayNodes,
+                false,
+                true,
+              );
+
+              if (!relayAdded) {
+                this.logger.info(`Relay node with id: ${relay.metadata.id} already exists, skipping creation`);
+              }
             }
 
             await this.remoteConfig.persist();
@@ -474,7 +611,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 BlockCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
                 this.taskList,
-                (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
+                (): boolean =>
+                  constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+                  this.isComponentInPhaseAtLeast(
+                    deploymentStateSnapshot,
+                    ComponentTypes.BlockNode,
+                    DeploymentPhase.DEPLOYED,
+                  ),
               ),
           }),
           OrchestratorPipelinePhase.composite('Deploy network node', [
@@ -487,6 +630,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   ConsensusCommandDefinition.DEPLOY_COMMAND,
                   (): string[] => DeployArgvBuilders.buildConsensusDeployArgv(getConfig()),
                   this.taskList,
+                  // Idempotency guard: skip if the consensus node is already deployed or the network Helm release exists.
+                  (): boolean => this.isConsensusDeployStepComplete(deploymentStateSnapshot),
                 ),
             }),
             OrchestratorPipelinePhase.composite('Setup and start consensus node', [
@@ -499,6 +644,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                     ConsensusCommandDefinition.SETUP_COMMAND,
                     (): string[] => DeployArgvBuilders.buildConsensusSetupArgv(getConfig()),
                     this.taskList,
+                    // Idempotency guard: skip if the consensus node is already configured (setup already ran).
+                    (): boolean =>
+                      this.isComponentInPhaseAtLeast(
+                        deploymentStateSnapshot,
+                        ComponentTypes.ConsensusNode,
+                        DeploymentPhase.CONFIGURED,
+                      ),
                   ),
               }),
               new OrchestratorPipelinePhase('Start consensus node', {
@@ -510,6 +662,13 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                     ConsensusCommandDefinition.START_COMMAND,
                     (): string[] => DeployArgvBuilders.buildConsensusStartArgv(getConfig()),
                     this.taskList,
+                    // Idempotency guard: skip if the consensus node is already started.
+                    (): boolean =>
+                      this.isComponentInPhaseAtLeast(
+                        deploymentStateSnapshot,
+                        ComponentTypes.ConsensusNode,
+                        DeploymentPhase.STARTED,
+                      ),
                   ),
               }),
               new OrchestratorPipelinePhase('Create accounts', {
@@ -526,7 +685,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 MirrorCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig().deployMirrorNode,
+                // Feature-flag short-circuit takes precedence; otherwise skip if already deployed (idempotency guard).
+                (): boolean =>
+                  !getConfig().deployMirrorNode ||
+                  this.isComponentInPhaseAtLeast(
+                    deploymentStateSnapshot,
+                    ComponentTypes.MirrorNode,
+                    DeploymentPhase.DEPLOYED,
+                  ),
               ),
           }),
           new OrchestratorPipelinePhase('Deploy explorer', {
@@ -536,7 +702,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 ExplorerCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildExplorerArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig().deployExplorer && !getConfig().minimalSetup,
+                // Feature-flag short-circuit takes precedence; otherwise skip if already deployed (idempotency guard).
+                (): boolean =>
+                  (!getConfig().deployExplorer && !getConfig().minimalSetup) ||
+                  this.isComponentInPhaseAtLeast(
+                    deploymentStateSnapshot,
+                    ComponentTypes.Explorer,
+                    DeploymentPhase.DEPLOYED,
+                  ),
               ),
           }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
           new OrchestratorPipelinePhase('Deploy JSON-RPC Relay', {
@@ -546,7 +719,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 RelayCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildRelayArgv(getConfig()),
                 this.taskList,
-                (): boolean => !getConfig().deployRelay && !getConfig().minimalSetup,
+                // Feature-flag short-circuit takes precedence; otherwise skip if already deployed (idempotency guard).
+                (): boolean =>
+                  (!getConfig().deployRelay && !getConfig().minimalSetup) ||
+                  this.isComponentInPhaseAtLeast(
+                    deploymentStateSnapshot,
+                    ComponentTypes.RelayNodes,
+                    DeploymentPhase.DEPLOYED,
+                  ),
               ),
           })
             .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
@@ -589,7 +769,11 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
   private buildCreateAccountsTask(config: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> {
     return {
       title: 'Create Accounts',
-      skip: (): boolean => config.predefinedAccounts === false,
+      // Skip when predefined accounts are disabled, or (idempotency guard) when accounts.json
+      // already exists from a prior successful run. The file is written only on full success of
+      // this step (in the Finish phase), so its presence is an all-or-nothing completion signal.
+      skip: (context_: OneShotSingleDeployContext): boolean =>
+        config.predefinedAccounts === false || context_.deploymentStateSnapshot?.accounts.accountsFileExists === true,
       task: async (
         _: OneShotSingleDeployContext,
         task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
@@ -693,6 +877,103 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${deploymentName}`);
   }
 
+  /**
+   * Idempotency guard shared by the optional-component `add` steps and the consensus-node steps.
+   * Returns true when the component's recorded phase is at or beyond {@link minimumPhase},
+   * indicating the corresponding step already completed in a prior run and should be skipped on
+   * re-run. Returns false when the snapshot is unavailable or the component has no recorded phase
+   * (treat as not yet at that phase).
+   */
+  private isComponentInPhaseAtLeast(
+    snapshot: DeploymentStateSnapshot | undefined,
+    componentType: ComponentTypes,
+    minimumPhase: DeploymentPhase,
+  ): boolean {
+    const phase: DeploymentPhase | undefined = snapshot?.remoteConfig.componentPhases.get(componentType);
+    if (phase === undefined) {
+      return false;
+    }
+    return isDeploymentPhaseAtLeast(phase, minimumPhase);
+  }
+
+  /**
+   * Idempotency guard for the `consensus deploy` step. Returns true when the consensus node is
+   * already at or beyond {@link DeploymentPhase.DEPLOYED}, or when the network Helm release
+   * ({@link constants.SOLO_DEPLOYMENT_CHART}) is already installed — either signal means the
+   * deploy step ran in a prior attempt and should be skipped on re-run.
+   */
+  private isConsensusDeployStepComplete(snapshot: DeploymentStateSnapshot | undefined): boolean {
+    if (this.isComponentInPhaseAtLeast(snapshot, ComponentTypes.ConsensusNode, DeploymentPhase.DEPLOYED)) {
+      return true;
+    }
+    return snapshot?.helm.installedReleases.has(constants.SOLO_DEPLOYMENT_CHART) ?? false;
+  }
+
+  private async buildDeploymentStateSnapshot(
+    deployConfig: OneShotSingleDeployConfigClass,
+  ): Promise<DeploymentStateSnapshot> {
+    let deploymentExists: boolean = false;
+    let clusterReferences: Set<string> = new Set();
+    try {
+      await this.localConfig.load();
+      if (this.localConfig.isLoaded) {
+        deploymentExists = this.localConfig.configuration.deployments.some(
+          (deployment: Deployment): boolean => deployment.name === deployConfig.deployment,
+        );
+        clusterReferences = new Set(this.localConfig.configuration.clusterRefs.keys());
+      }
+    } catch {
+      this.logger.info('Local config unavailable during snapshot, treating as fresh deploy');
+    }
+
+    let configMapExists: boolean = false;
+    let componentPhases: Map<ComponentTypes, DeploymentPhase> = new Map();
+    try {
+      await this.remoteConfig.load(deployConfig.namespace, deployConfig.context);
+      configMapExists = true;
+      componentPhases = this.remoteConfig.getComponentPhasesMap();
+    } catch {
+      this.logger.info('Remote config unavailable during snapshot, treating as fresh deploy');
+    }
+
+    let installedReleases: Set<string> = new Set();
+    try {
+      const releases: ReleaseItem[] = await this.helm.listReleases(
+        false,
+        deployConfig.namespace.name,
+        deployConfig.context,
+      );
+      installedReleases = new Set(releases.map((release: ReleaseItem): string => release.name));
+    } catch {
+      this.logger.info('Helm releases unavailable during snapshot, treating as fresh deploy');
+    }
+
+    const consensusKeysOnDisk: boolean = fs.existsSync(PathEx.join(deployConfig.cacheDir, 'keys'));
+
+    const accountsFileExists: boolean = fs.existsSync(
+      PathEx.join(this.getOneShotOutputDirectory(deployConfig.deployment), 'accounts.json'),
+    );
+
+    let podMonitorRoleExists: boolean = false;
+    try {
+      podMonitorRoleExists = await this.k8Factory
+        .getK8(deployConfig.context)
+        .rbac()
+        .clusterRoleExists(constants.POD_MONITOR_ROLE);
+    } catch {
+      this.logger.info('ClusterRole check unavailable during snapshot, treating as fresh deploy');
+    }
+
+    return {
+      localConfig: {deploymentExists, clusterRefs: clusterReferences},
+      remoteConfig: {configMapExists, componentPhases},
+      helm: {installedReleases},
+      keys: {consensusKeysOnDisk},
+      accounts: {accountsFileExists},
+      cluster: {podMonitorRoleExists},
+    };
+  }
+
   private showOneShotUserNotes(context_: OneShotSingleDeployContext, outputFile?: string): void {
     const messageGroupKey: string = 'one-shot-user-notes';
     const title: string = 'One Shot User Notes';
@@ -731,6 +1012,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     const data: string[] = [
       `Solo Chart Version: ${config.versions.soloChart}`,
       `Consensus Node Version: ${config.versions.consensus}`,
+      `Block Node Version: ${config.versions.blockNode}`,
       `Mirror Node Version: ${config.versions.mirror}`,
       `Explorer Version: ${config.versions.explorer}`,
       `JSON RPC Relay Version: ${config.versions.relay}`,
@@ -919,7 +1201,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     });
 
     if (!proceed) {
-      throw new SoloError('Aborted by user');
+      throw new UserBreak('Aborted by user');
     }
   }
 

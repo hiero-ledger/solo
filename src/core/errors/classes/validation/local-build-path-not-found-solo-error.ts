@@ -3,8 +3,11 @@
 import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
-import {Flags} from '../../../../commands/flags.js';
 
+/**
+ * @description Thrown when a local build path does not exist; the message names it. solo reads platform artifacts from
+ * this path, so this means it is missing or the path is wrong.
+ */
 export class LocalBuildPathNotFoundSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;
@@ -15,7 +18,7 @@ export class LocalBuildPathNotFoundSoloError extends SoloError {
       code: ErrorCodeRegistry.LOCAL_BUILD_PATH_NOT_FOUND,
       troubleshootingSteps:
         'Verify the path exists: ls -la <localBuildPath>\n' +
-        `Set the correct path: solo consensus node setup ${Flags.getFormattedFlagKey(Flags.localBuildPath)} <path>\n` +
+        'Set the correct path: solo consensus node setup --local-build-path <path>\n' +
         'Build the platform locally and point to the data/ directory output',
     });
   }

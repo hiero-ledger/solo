@@ -6,7 +6,6 @@ import * as helpers from '../helpers.js';
 import {type PackageDownloader} from '../package-downloader.js';
 import {Templates} from '../templates.js';
 import {ShellRunner} from '../shell-runner.js';
-import {SoloError} from '../errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 import path from 'node:path';
@@ -97,6 +96,15 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Get the executable to run
    */
   public async getExecutable(): Promise<string> {
+    if (this.isInstalledLocally()) {
+      return this.localExecutableWithPath;
+    }
+
+    const globalExecutablePath: false | string = this.getGlobalExecutableWithPath();
+    if (globalExecutablePath) {
+      return globalExecutablePath;
+    }
+
     return this.executableName;
   }
 
@@ -242,7 +250,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
    */
   public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
     if (this.installationDirectory === temporaryDirectory) {
-      throw new SoloError('Installation directory cannot be the same as temporary directory');
+      throw new SoloErrors.system.dependencyInstallDirectoryConflict();
     }
     if (!(await this.shouldInstall())) {
       this.logger.debug(`Skipping installation of ${this.executableName}`);
@@ -301,7 +309,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
         fs.chmodSync(localExecutable, 0o755);
       }
     } catch (error) {
-      throw new SoloError(`Failed to install ${this.executableName}: ${error.message}`);
+      throw new SoloErrors.system.dependencyInstallFailed(this.executableName, error);
     }
 
     this.logger.showUser(

@@ -7,6 +7,7 @@ import {OrchestratorPipelinePhase} from '../../../../../src/commands/one-shot/or
 import {type OrchestratorStep} from '../../../../../src/commands/one-shot/orchestrator/orchestrator-step.js';
 import {type SoloEventBus} from '../../../../../src/core/events/solo-event-bus.js';
 import {SoloEventType} from '../../../../../src/core/events/event-types/solo-event.js';
+import {InjectedFailureSoloError} from '../../../../../src/core/errors/classes/internal/injected-failure-solo-error.js';
 import {Duration} from '../../../../../src/core/time/duration.js';
 import {type SoloListrTask, type SoloListrTaskWrapper} from '../../../../../src/types/index.js';
 import {type AnyObject} from '../../../../../src/types/aliases.js';
@@ -318,6 +319,147 @@ describe('Phase', (): void => {
       const getConfigArgument: () => SimpleConfig = skipStub.firstCall.args[0] as () => SimpleConfig;
       expect(getConfigArgument()).to.equal(config);
       expect(skipResult).to.be.true;
+    });
+  });
+
+  describe('asListrTask — SOLO_FAIL_AFTER_STEP injection', (): void => {
+    afterEach((): void => {
+      delete process.env.SOLO_FAIL_AFTER_STEP;
+    });
+
+    describe('simple path (no wait conditions)', (): void => {
+      it('returns step task directly when SOLO_FAIL_AFTER_STEP does not match phase title', (): void => {
+        process.env.SOLO_FAIL_AFTER_STEP = 'other phase';
+        const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+          'test phase',
+          stepStub,
+        );
+        const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
+        expect(task).to.equal(stepTaskStub);
+      });
+
+      it('wraps step task with newListr when SOLO_FAIL_AFTER_STEP matches phase title', (): void => {
+        process.env.SOLO_FAIL_AFTER_STEP = 'test phase';
+        const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+          'test phase',
+          stepStub,
+        );
+        const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
+        expect(task).to.not.equal(stepTaskStub);
+        expect(task).to.have.property('task').that.is.a('function');
+        const newListrStub: SinonStub = sinon.stub().returns([]);
+        const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
+          task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;
+        taskFunction({}, {newListr: newListrStub} as unknown as SoloListrTaskWrapper<SimpleContext>);
+        expect(newListrStub.calledOnce).to.be.true;
+        const subTasks: unknown[] = newListrStub.firstCall.args[0] as unknown[];
+        expect(subTasks).to.have.length(2);
+        expect(subTasks[0]).to.equal(stepTaskStub);
+      });
+
+      it('failure check task throws InjectedFailureSoloError with phase title when executed', (): void => {
+        process.env.SOLO_FAIL_AFTER_STEP = 'test phase';
+        const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+          'test phase',
+          stepStub,
+        );
+        const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
+        const newListrStub: SinonStub = sinon.stub().returns([]);
+        const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
+          task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;
+        taskFunction({}, {newListr: newListrStub} as unknown as SoloListrTaskWrapper<SimpleContext>);
+        const subTasks: SoloListrTask<SimpleContext>[] = newListrStub.firstCall
+          .args[0] as SoloListrTask<SimpleContext>[];
+        const failureTask: SoloListrTask<SimpleContext> = subTasks[1];
+        expect((): void => {
+          (failureTask.task as () => void)();
+        }).to.throw(InjectedFailureSoloError, "[TEST] Injected failure after step 'test phase'");
+      });
+    });
+
+    describe('wait condition path', (): void => {
+      it('adds failure check as second newListr item when SOLO_FAIL_AFTER_STEP matches', async (): Promise<void> => {
+        process.env.SOLO_FAIL_AFTER_STEP = 'test phase';
+        const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+          'test phase',
+          stepStub,
+        ).withWaitCondition(SoloEventType.MirrorNodeDeployed);
+        const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
+        const newListrStub: SinonStub = sinon.stub().returns([]);
+        const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown> =
+          task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown>;
+        await taskFunction({}, {newListr: newListrStub} as unknown as SoloListrTaskWrapper<SimpleContext>);
+        const subTasks: unknown[] = newListrStub.firstCall.args[0] as unknown[];
+        expect(subTasks).to.have.length(2);
+        expect(subTasks[0]).to.equal(stepTaskStub);
+      });
+
+      it('does not add failure check when SOLO_FAIL_AFTER_STEP does not match', async (): Promise<void> => {
+        process.env.SOLO_FAIL_AFTER_STEP = 'other phase';
+        const phase: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = new OrchestratorPipelinePhase(
+          'test phase',
+          stepStub,
+        ).withWaitCondition(SoloEventType.MirrorNodeDeployed);
+        const task: SoloListrTask<SimpleContext> = phase.asListrTask((): SimpleConfig => config, eventBusStub);
+        const newListrStub: SinonStub = sinon.stub().returns([]);
+        const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown> =
+          task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => Promise<unknown>;
+        await taskFunction({}, {newListr: newListrStub} as unknown as SoloListrTaskWrapper<SimpleContext>);
+        const subTasks: unknown[] = newListrStub.firstCall.args[0] as unknown[];
+        expect(subTasks).to.have.length(1);
+        expect(subTasks[0]).to.equal(stepTaskStub);
+      });
+    });
+
+    describe('composite path', (): void => {
+      it('adds failure check as final sub-phase when SOLO_FAIL_AFTER_STEP matches composite title', (): void => {
+        process.env.SOLO_FAIL_AFTER_STEP = 'parent';
+        const childStepStubA: OrchestratorStep<SimpleConfig, SimpleContext> = {
+          asListrTask: sinon.stub().returns({title: 'child-a'}),
+        } as OrchestratorStep<SimpleConfig, SimpleContext>;
+        const childStepStubB: OrchestratorStep<SimpleConfig, SimpleContext> = {
+          asListrTask: sinon.stub().returns({title: 'child-b'}),
+        } as OrchestratorStep<SimpleConfig, SimpleContext>;
+        const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
+          'parent',
+          [
+            new OrchestratorPipelinePhase('child a', childStepStubA),
+            new OrchestratorPipelinePhase('child b', childStepStubB),
+          ],
+        );
+        const task: SoloListrTask<SimpleContext> = composite.asListrTask((): SimpleConfig => config, eventBusStub);
+        const newListrStub: SinonStub = sinon.stub().returns([]);
+        const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
+          task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;
+        taskFunction({}, {newListr: newListrStub} as unknown as SoloListrTaskWrapper<SimpleContext>);
+        const subTasks: SoloListrTask<SimpleContext>[] = newListrStub.firstCall
+          .args[0] as SoloListrTask<SimpleContext>[];
+        expect(subTasks).to.have.length(3);
+        expect(subTasks[0]).to.deep.equal({title: 'child-a'});
+        expect(subTasks[1]).to.deep.equal({title: 'child-b'});
+        expect(subTasks[2]).to.have.property('title', "[test] fail after 'parent'");
+        expect((): void => {
+          (subTasks[2].task as () => void)();
+        }).to.throw(InjectedFailureSoloError, "[TEST] Injected failure after step 'parent'");
+      });
+
+      it('does not add failure check when SOLO_FAIL_AFTER_STEP does not match composite title', (): void => {
+        process.env.SOLO_FAIL_AFTER_STEP = 'other';
+        const childStepStubA: OrchestratorStep<SimpleConfig, SimpleContext> = {
+          asListrTask: sinon.stub().returns({title: 'child-a'}),
+        } as OrchestratorStep<SimpleConfig, SimpleContext>;
+        const composite: OrchestratorPipelinePhase<SimpleConfig, SimpleContext> = OrchestratorPipelinePhase.composite(
+          'parent',
+          [new OrchestratorPipelinePhase('child a', childStepStubA)],
+        );
+        const task: SoloListrTask<SimpleContext> = composite.asListrTask((): SimpleConfig => config, eventBusStub);
+        const newListrStub: SinonStub = sinon.stub().returns([]);
+        const taskFunction: (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown =
+          task.task as (context: SimpleContext, wrapper: SoloListrTaskWrapper<SimpleContext>) => unknown;
+        taskFunction({}, {newListr: newListrStub} as unknown as SoloListrTaskWrapper<SimpleContext>);
+        const subTasks: unknown[] = newListrStub.firstCall.args[0] as unknown[];
+        expect(subTasks).to.have.length(1);
+      });
     });
   });
 });

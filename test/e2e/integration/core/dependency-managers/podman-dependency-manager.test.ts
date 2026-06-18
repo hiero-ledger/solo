@@ -317,7 +317,8 @@ describe('PodmanDependencyManager', (): void => {
         await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error) {
-        expect(error.message).to.include('GitHub API request failed with status 404');
+        expect(error.message).to.include('GitHub API request');
+        expect(error.message).to.include('returned HTTP 404');
       }
     });
 
@@ -341,7 +342,7 @@ describe('PodmanDependencyManager', (): void => {
         await podmanDependencyManager.fetchReleaseInfo(MOCK_RELEASE_TAG);
         expect.fail('Should have thrown an error');
       } catch (error) {
-        expect(error.message).to.include('No matching asset found for');
+        expect(error.message).to.include('No matching GitHub release asset found');
       }
     });
   });
@@ -409,7 +410,7 @@ describe('PodmanDependencyManager', (): void => {
         expect(await podmanDependencyManager.install(getTestCacheDirectory())).to.be.true;
 
         // Should return global path since it meets requirements
-        expect(await podmanDependencyManager.getExecutable()).to.equal(constants.PODMAN);
+        expect(await podmanDependencyManager.getExecutable()).to.equal(fakeGlobalPodmanPath);
       } finally {
         process.env.PATH = originalPath;
       }
@@ -439,7 +440,9 @@ describe('PodmanDependencyManager', (): void => {
 
         expect(await podmanDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(fs.existsSync(PathEx.join(temporaryDirectory, 'podman'))).to.be.ok;
-        expect(await podmanDependencyManager.getExecutable()).to.equal(constants.PODMAN);
+        expect(await podmanDependencyManager.getExecutable()).to.equal(
+          PathEx.join(temporaryDirectory, constants.PODMAN),
+        );
       } finally {
         process.env.PATH = originalPath;
       }

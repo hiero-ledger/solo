@@ -5,8 +5,7 @@ import {type AnyListrContext, type ArgvStruct, type ConfigBuilder} from '../../t
 import * as constants from '../../core/constants.js';
 import chalk from 'chalk';
 import {ListrLock} from '../../core/lock/listr-lock.js';
-import {ErrorMessages} from '../../core/error-messages.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type Context, type ReleaseNameData, type SoloListr, type SoloListrTask} from '../../types/index.js';
@@ -36,6 +35,8 @@ import {type OneShotState} from '../../core/one-shot-state.js';
 import * as versions from '../../../version.js';
 import {findMinioOperator} from '../../core/helpers.js';
 import {K8} from '../../integration/kube/k8.js';
+import {HelmChartValues} from '../../integration/helm/model/values.js';
+import {Flags} from '../flags.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -100,7 +101,11 @@ export class ClusterCommandTasks {
           await this.k8Factory.getK8(context).namespaces().list();
         } catch {
           task.title = `${task.title} - ${chalk.red('Cluster connection failed')}`;
-          throw new SoloError(ErrorMessages.INVALID_CONTEXT_FOR_CLUSTER_DETAILED(context, clusterRef));
+          throw new SoloErrors.deployment.contextNotFoundForCluster(
+            clusterRef,
+            Flags.getFormattedFlagKey(Flags.clusterRef),
+            Flags.getFormattedFlagKey(Flags.context),
+          );
         }
       },
     };
@@ -169,7 +174,7 @@ export class ClusterCommandTasks {
   public getClusterInfo(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Get cluster info',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         const clusterReference: string = context_.config.clusterRef;
         const clusterReferences: FacadeMap<string, StringFacade, string> = this.localConfig.configuration.clusterRefs;
         const deployments: MutableFacadeArray<Deployment, DeploymentSchema> =
@@ -227,7 +232,7 @@ export class ClusterCommandTasks {
             constants.MINIO_OPERATOR_CHART,
             constants.MINIO_OPERATOR_CHART,
             versions.MINIO_OPERATOR_VERSION,
-            '--set operator.replicaCount=1',
+            new HelmChartValues().set('operator.replicaCount', 1),
             context,
           );
 
@@ -239,7 +244,7 @@ export class ClusterCommandTasks {
           } catch (uninstallError) {
             this.logger.showUserError(uninstallError);
           }
-          throw new SoloError('Error installing MinIO Operator chart', error);
+          throw new SoloErrors.deployment.minioInstallFailed(error);
         }
       },
       skip: ({config: {deployMinio}}): boolean => !deployMinio,
@@ -268,7 +273,7 @@ export class ClusterCommandTasks {
               constants.PROMETHEUS_STACK_CHART,
               constants.PROMETHEUS_STACK_CHART,
               versions.PROMETHEUS_STACK_VERSION,
-              '',
+              new HelmChartValues(),
               context_.config.context,
             );
             this.logger.showUser('✅ Prometheus Stack chart installed successfully');
@@ -283,7 +288,7 @@ export class ClusterCommandTasks {
             } catch (uninstallError) {
               this.logger.showUserError(uninstallError);
             }
-            throw new SoloError('Error installing Prometheus Stack chart', error);
+            throw new SoloErrors.deployment.prometheusInstallFailed(error);
           }
         }
       },
@@ -313,7 +318,7 @@ export class ClusterCommandTasks {
             constants.METRICS_SERVER_CHART,
             constants.METRICS_SERVER_CHART,
             versions.METRICS_SERVER_VERSION,
-            constants.METRICS_SERVER_INSTALL_ARGS,
+            new HelmChartValues().setLiteral('args[0]', '--kubelet-insecure-tls'),
             context,
           );
           this.logger.showUser('metrics-server chart installed successfully');
@@ -328,7 +333,7 @@ export class ClusterCommandTasks {
           } catch (uninstallError) {
             this.logger.showUserError(uninstallError);
           }
-          throw new SoloError('Error installing metrics-server chart', error);
+          throw new SoloErrors.deployment.metricsServerInstallFailed(error);
         }
       },
       skip: ({config: {deployMetricsServer}}): boolean => !deployMetricsServer,
@@ -341,38 +346,44 @@ export class ClusterCommandTasks {
       task: async (context_: ClusterReferenceSetupContext): Promise<void> => {
         const k8: K8 = this.k8Factory.getK8(context_.config.context);
 
+        // Check if ClusterRole already exists using Kubernetes JavaScript API
+        let podMonitorRoleExists: boolean = false;
         try {
-          // Check if ClusterRole already exists using Kubernetes JavaScript API
-          await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
+          podMonitorRoleExists = await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
+        } catch (error) {
+          throw new SoloErrors.system.clusterRoleCheckFailed(constants.POD_MONITOR_ROLE, error as Error);
+        }
+        if (podMonitorRoleExists) {
           this.logger.showUser(
             `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
           );
-        } catch {
-          // ClusterRole doesn't exist, create it
-          try {
-            await k8.rbac().createClusterRole(
-              constants.POD_MONITOR_ROLE,
-              [
-                {
-                  apiGroups: [''],
-                  resources: ['pods', 'services', 'clusterroles', 'pods/log', 'secrets'],
-                  verbs: ['get', 'list'],
-                },
-                {
-                  apiGroups: [''],
-                  resources: ['pods/exec'],
-                  verbs: ['create'],
-                },
-              ],
-              {'solo.hedera.com/type': 'cluster-role'},
-            );
-            this.logger.showUser(
-              `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
-            );
-          } catch (installError) {
-            this.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
-            throw new SoloError('Error installing pod-monitor-role ClusterRole', installError);
-          }
+          return;
+        }
+
+        // ClusterRole doesn't exist, create it
+        try {
+          await k8.rbac().createClusterRole(
+            constants.POD_MONITOR_ROLE,
+            [
+              {
+                apiGroups: [''],
+                resources: ['pods', 'services', 'clusterroles', 'pods/log', 'secrets'],
+                verbs: ['get', 'list'],
+              },
+              {
+                apiGroups: [''],
+                resources: ['pods/exec'],
+                verbs: ['create'],
+              },
+            ],
+            {'solo.hedera.com/type': 'cluster-role'},
+          );
+          this.logger.showUser(
+            `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
+          );
+        } catch (installError) {
+          this.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
+          throw new SoloErrors.deployment.clusterRoleInstallFailed(installError);
         }
       },
     };
