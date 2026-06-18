@@ -237,7 +237,7 @@ export class ExplorerCommand extends BaseCommand {
 
     chartValues.setLiteral(
       'proxyPass./api',
-      `http://${constants.MIRROR_INGRESS_CONTROLLER}-${config.mirrorNamespace}.${config.mirrorNamespace}.svc.cluster.local`,
+      Templates.renderMirrorNodeRestServiceUrl(config.mirrorNodeReleaseName, config.mirrorNamespace),
     );
 
     if (config.domainName) {

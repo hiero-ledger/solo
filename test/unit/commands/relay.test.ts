@@ -38,6 +38,7 @@ const createRelayConfig: (overrides?: Record<string, unknown>) => Record<string,
   releaseName: 'relay-1',
   [flags.deployment.constName]: 'deployment',
   [flags.mirrorNamespace.constName]: 'solo-e2e',
+  mirrorNodeReleaseName: 'mirror-1',
   ...overrides,
 });
 
@@ -67,6 +68,26 @@ describe('RelayCommand unit tests', (): void => {
 
     expect(valueArguments).to.include('relay.image.tag=0.77.0');
     expect(valueArguments).to.include('ws.image.tag=0.77.0');
+  });
+
+  it('should use direct mirror node services for REST and web3 URLs', async (): Promise<void> => {
+    const relayCommandInternal: RelayCommandInternal = relayCommand as unknown as RelayCommandInternal;
+
+    sinon.stub(relayCommandInternal, 'prepareNetworkJsonString').resolves('{"127.0.0.1:50211":"0.0.3"}');
+
+    const valueArguments: string[] = await prepareRelayValueArguments(
+      relayCommandInternal,
+      createRelayConfig({
+        [flags.mirrorNamespace.constName]: 'mirror-ns',
+        mirrorNodeReleaseName: 'mirror-1',
+      }),
+    );
+
+    expect(valueArguments).to.include('relay.config.MIRROR_NODE_URL=http://mirror-1-rest.mirror-ns.svc.cluster.local');
+    expect(valueArguments).to.include(
+      'relay.config.MIRROR_NODE_URL_WEB3=http://mirror-1-web3.mirror-ns.svc.cluster.local',
+    );
+    expect(valueArguments).to.include('ws.config.MIRROR_NODE_URL=http://mirror-1-rest.mirror-ns.svc.cluster.local');
   });
 
   it('should accept full relay image reference and set relay/ws image registry repository and tag', async (): Promise<void> => {
