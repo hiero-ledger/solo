@@ -2,12 +2,13 @@
 
 import * as constants from './constants.js';
 import {SoloErrors} from './errors/solo-errors.js';
-
-const RETRY_MAX_ATTEMPTS: number = 3;
-const RETRY_BASE_DELAY_MS: number = 1000;
-const RETRY_MAX_DELAY_MS: number = 60_000;
+import {Duration} from './time/duration.js';
 
 export class GitHubApiClient {
+  private static readonly RETRY_MAX_ATTEMPTS: number = 3;
+  private static readonly RETRY_BASE_DELAY: Duration = Duration.ofSeconds(1);
+  private static readonly RETRY_MAX_DELAY: Duration = Duration.ofMinutes(1);
+
   private constructor() {}
 
   /**
@@ -32,19 +33,21 @@ export class GitHubApiClient {
    * Priority: Retry-After > X-RateLimit-Reset when exhausted > exponential backoff.
    */
   private static computeRetryDelay(response: Response, attempt: number): number {
+    const maxDelayMs: number = GitHubApiClient.RETRY_MAX_DELAY.toMillis();
+
     const retryAfterHeader: string | null = response.headers.get('Retry-After');
     if (retryAfterHeader) {
-      return Math.min(Number.parseInt(retryAfterHeader, 10) * 1000, RETRY_MAX_DELAY_MS);
+      return Math.min(Number.parseInt(retryAfterHeader, 10) * 1000, maxDelayMs);
     }
 
     const rateLimitReset: string | null = response.headers.get('X-RateLimit-Reset');
     const rateLimitRemaining: string | null = response.headers.get('X-RateLimit-Remaining');
     if (rateLimitReset && rateLimitRemaining === '0') {
       const resetMs: number = Number.parseInt(rateLimitReset, 10) * 1000 - Date.now();
-      return Math.min(Math.max(resetMs, 0), RETRY_MAX_DELAY_MS);
+      return Math.min(Math.max(resetMs, 0), maxDelayMs);
     }
 
-    return Math.min(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1), RETRY_MAX_DELAY_MS);
+    return Math.min(GitHubApiClient.RETRY_BASE_DELAY.toMillis() * 2 ** (attempt - 1), maxDelayMs);
   }
 
   /**
@@ -59,7 +62,7 @@ export class GitHubApiClient {
     const headers: Record<string, string> = GitHubApiClient.buildHeaders();
     let lastStatus: number = 0;
 
-    for (let attempt: number = 1; attempt <= RETRY_MAX_ATTEMPTS; attempt++) {
+    for (let attempt: number = 1; attempt <= GitHubApiClient.RETRY_MAX_ATTEMPTS; attempt++) {
       let response: Response;
       try {
         response = await fetch(url, {method: 'GET', headers});
@@ -73,7 +76,7 @@ export class GitHubApiClient {
 
       lastStatus = response.status;
       const isRateLimited: boolean = response.status === 403 || response.status === 429;
-      if (isRateLimited && attempt < RETRY_MAX_ATTEMPTS) {
+      if (isRateLimited && attempt < GitHubApiClient.RETRY_MAX_ATTEMPTS) {
         const delayMs: number = GitHubApiClient.computeRetryDelay(response, attempt);
         await new Promise<void>((resolve: () => void): void => {
           setTimeout(resolve, delayMs);
