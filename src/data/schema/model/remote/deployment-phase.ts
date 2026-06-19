@@ -54,11 +54,3 @@ export const DEPLOYMENT_PHASE_ORDER: Readonly<Record<DeploymentPhase, number>> =
   [DeploymentPhase.STOPPED]: 4,
   [DeploymentPhase.FROZEN]: 5,
 };
-
-/**
- * Returns true when {@link phase} is at or beyond {@link minimumPhase} in the deployment
- * progression defined by {@link DEPLOYMENT_PHASE_ORDER}.
- */
-export function isDeploymentPhaseAtLeast(phase: DeploymentPhase, minimumPhase: DeploymentPhase): boolean {
-  return DEPLOYMENT_PHASE_ORDER[phase] >= DEPLOYMENT_PHASE_ORDER[minimumPhase];
-}

@@ -162,4 +162,6 @@ export interface Pods {
    * @returns describe-like output string
    */
   readDescribe(podReference: PodReference): Promise<string>;
+
+  detectFatalContainerError(pod: Pod): string | undefined;
 }
