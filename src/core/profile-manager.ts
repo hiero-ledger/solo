@@ -243,6 +243,16 @@ export class ProfileManager {
           // that the user did not explicitly override.
           fs.cpSync(applicationPropertiesPath, destinationPath, {force: true});
           await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
+
+          // Re-apply Solo-required settings so merged user values cannot override
+          // critical deployment behavior (realm/shard/chainId/block-node settings).
+          await this.updateApplicationPropertiesWithRealmAndShard(
+            destinationPath,
+            this.localConfig.configuration.realmForDeployment(deploymentName),
+            this.localConfig.configuration.shardForDeployment(deploymentName),
+          );
+          await this.updateApplicationPropertiesForBlockNode(destinationPath);
+          await this.updateApplicationPropertiesWithChainId(destinationPath, resolvedStagingOptions.chainId);
         }
       } else {
         fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
@@ -543,7 +553,11 @@ export class ProfileManager {
       fileText.split('\n'),
     );
 
-    const streamMode: string = constants.BLOCK_STREAM_STREAM_MODE;
+    const streamMode: string = helpers.resolveBlockStreamModeForConsensusVersion(
+      helpers.parseBlockStreamMode(lines.join('\n')),
+      this.remoteConfig.configuration.versions.consensusNode,
+      hasDeployedBlockNodes,
+    );
     const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
 
     let streamModeUpdated: boolean = false;
@@ -717,8 +731,11 @@ export class ProfileManager {
         return undefined;
       }
 
-      const pod: Pod = pods[0];
-      const podReference: PodReference = pod.podReference;
+      const pod: Pod | undefined = pods.find((candidate: Pod): boolean => Boolean(candidate?.podReference)) ?? pods[0];
+      const podReference: PodReference | null | undefined = pod?.podReference;
+      if (!podReference) {
+        return undefined;
+      }
 
       // Get container reference
       const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);

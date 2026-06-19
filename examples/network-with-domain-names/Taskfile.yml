@@ -78,6 +78,8 @@ tasks:
           $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment {{ .DEPLOYMENT }} \
           --node-aliases {{ .NODE_IDENTIFIERS }}
 
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }}
+
       # Solo network deploy with domain name
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
