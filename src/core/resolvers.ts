@@ -10,57 +10,70 @@ import {SoloErrors} from './errors/solo-errors.js';
 import {type AnyListrContext} from '../types/aliases.js';
 import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 
-export async function resolveNamespaceFromDeployment(
-  localConfig: LocalConfigRuntimeState,
-  configManager: ConfigManager,
-  task?: SoloListrTaskWrapper<AnyListrContext>,
-): Promise<NamespaceName> {
-  const deploymentName: DeploymentName = await promptTheUserForDeployment(configManager, task);
-  try {
-    return NamespaceName.of(localConfig.configuration.deploymentByName(deploymentName).namespace);
-  } catch {
-    const namespaceFromFlag = configManager.getFlag<NamespaceName | string | undefined>(flags.namespace);
-    if (namespaceFromFlag) {
-      return typeof namespaceFromFlag === 'string' ? NamespaceName.of(namespaceFromFlag) : namespaceFromFlag;
+export class Resolvers {
+  public static async resolveNamespaceFromDeployment(
+    localConfig: LocalConfigRuntimeState,
+    configManager: ConfigManager,
+    task?: SoloListrTaskWrapper<AnyListrContext>,
+  ): Promise<NamespaceName> {
+    const deploymentName: DeploymentName = await promptTheUserForDeployment(configManager, task);
+    try {
+      return NamespaceName.of(localConfig.configuration.deploymentByName(deploymentName).namespace);
+    } catch {
+      const namespaceFromFlag = configManager.getFlag<NamespaceName | string | undefined>(flags.namespace);
+      if (namespaceFromFlag) {
+        return typeof namespaceFromFlag === 'string' ? NamespaceName.of(namespaceFromFlag) : namespaceFromFlag;
+      }
+      throw new SoloErrors.deployment.notFound(
+        `Deployment ${deploymentName} not found in local config and no --namespace provided`,
+      );
     }
-    throw new SoloErrors.deployment.notFound(
-      `Deployment ${deploymentName} not found in local config and no --namespace provided`,
-    );
-  }
-}
-
-export async function promptTheUserForDeployment(
-  configManager: ConfigManager,
-  task?: SoloListrTaskWrapper<AnyListrContext>,
-): Promise<DeploymentName> {
-  if (configManager.getFlag(flags.deployment)) {
-    return configManager.getFlag<DeploymentName>(flags.deployment);
   }
 
-  if (task) {
-    await configManager.executePrompt(task, [flags.deployment]);
-  } else {
-    const isQuiet = configManager.getFlag<boolean>(flags.quiet);
-    const isForced = configManager.getFlag<boolean>(flags.force);
+  public static async promptTheUserForDeployment(
+    configManager: ConfigManager,
+    task?: SoloListrTaskWrapper<AnyListrContext>,
+  ): Promise<DeploymentName> {
+    if (configManager.getFlag(flags.deployment)) {
+      return configManager.getFlag<DeploymentName>(flags.deployment);
+    }
 
-    // if the quiet or forced flag is passed don't prompt the user
-    if (isQuiet === true || isForced === true) {
+    if (task) {
+      await configManager.executePrompt(task, [flags.deployment]);
+    } else {
+      const isQuiet = configManager.getFlag<boolean>(flags.quiet);
+      const isForced = configManager.getFlag<boolean>(flags.force);
+
+      // if the quiet or forced flag is passed don't prompt the user
+      if (isQuiet === true || isForced === true) {
+        throw new SoloErrors.validation.missingArgument('deployment is required');
+      }
+
+      const answer = await inputPrompt({
+        message: 'Enter the name of the deployment:',
+        validate: (value: string) => !!value,
+      });
+
+      configManager.setFlag(flags.deployment, answer);
+    }
+
+    const deploymentName = configManager.getFlag<DeploymentName>(flags.deployment);
+
+    if (!deploymentName) {
       throw new SoloErrors.validation.missingArgument('deployment is required');
     }
 
-    const answer = await inputPrompt({
-      message: 'Enter the name of the deployment:',
-      validate: (value: string) => !!value,
-    });
-
-    configManager.setFlag(flags.deployment, answer);
+    return deploymentName;
   }
-
-  const deploymentName = configManager.getFlag<DeploymentName>(flags.deployment);
-
-  if (!deploymentName) {
-    throw new SoloErrors.validation.missingArgument('deployment is required');
-  }
-
-  return deploymentName;
 }
+
+export const resolveNamespaceFromDeployment: (
+  localConfig: LocalConfigRuntimeState,
+  configManager: ConfigManager,
+  task?: SoloListrTaskWrapper<AnyListrContext>,
+) => Promise<NamespaceName> = Resolvers.resolveNamespaceFromDeployment;
+
+export const promptTheUserForDeployment: (
+  configManager: ConfigManager,
+  task?: SoloListrTaskWrapper<AnyListrContext>,
+) => Promise<DeploymentName> = Resolvers.promptTheUserForDeployment;
