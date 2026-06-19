@@ -779,3 +779,21 @@ export class Helpers {
     await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
   }
 }
+
+export const getInternalAddress: typeof Helpers.getInternalAddress = Helpers.getInternalAddress;
+export const sleep: typeof Helpers.sleep = Helpers.sleep;
+export const parseNodeAliases: typeof Helpers.parseNodeAliases = Helpers.parseNodeAliases;
+export const splitFlagInput: typeof Helpers.splitFlagInput = Helpers.splitFlagInput;
+export const parseGossipFqdnRestricted: typeof Helpers.parseGossipFqdnRestricted = Helpers.parseGossipFqdnRestricted;
+export const readGossipFqdnRestrictedFromFile: typeof Helpers.readGossipFqdnRestrictedFromFile =
+  Helpers.readGossipFqdnRestrictedFromFile;
+export const resolveGossipFqdnRestricted: typeof Helpers.resolveGossipFqdnRestricted =
+  Helpers.resolveGossipFqdnRestricted;
+export const cloneArray: typeof Helpers.cloneArray = Helpers.cloneArray;
+export const getTemporaryDirectory: typeof Helpers.getTemporaryDirectory = Helpers.getTemporaryDirectory;
+export const createBackupDirectory: typeof Helpers.createBackupDirectory = Helpers.createBackupDirectory;
+export const makeBackup: typeof Helpers.makeBackup = Helpers.makeBackup;
+export const backupOldTlsKeys: typeof Helpers.backupOldTlsKeys = Helpers.backupOldTlsKeys;
+export const backupOldPemKeys: typeof Helpers.backupOldPemKeys = Helpers.backupOldPemKeys;
+export const getEnvironmentValue: typeof Helpers.getEnvironmentValue = Helpers.getEnvironmentValue;
+export const parseIpAddressToUint8Array: typeof Helpers.parseIpAddressToUint8Array = Helpers.parseIpAddressToUint8Array;
