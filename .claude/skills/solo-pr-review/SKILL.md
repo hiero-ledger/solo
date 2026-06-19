@@ -236,7 +236,10 @@ one-click apply.
 - Block on personal style preferences when a linter or formatter already enforces (or doesn't enforce) the choice.
 - Repeat the same comment on every occurrence — leave one comment with "applies in N other places" and list them.
 - Demand renames or refactors in files the PR didn't otherwise touch.
-- Treat exported functions as automatically wrong if the codebase already uses them in that module — flag as Major and
-  link the style-guide section, but acknowledge if there's a local pattern.
+- Wave through an exported **function** just because the module already has others. `export function …`
+  or `export const fn = () => …` at module scope is a Major finding every time — cite §10.3.1 and the
+  `solo/no-exported-function` lint rule (a hard **error** under `src/integration/**`, a warning elsewhere).
+  The "local pattern" leniency applies **only** to exported **constants, types, and simple factories**
+  (pure data), which §3.4.5 explicitly permits — never to behavior functions.
 - Post findings as standalone PR comments (`gh pr comment`), issue comments, or one-off review
   comments outside the pending review — every comment must ride along with the single review.

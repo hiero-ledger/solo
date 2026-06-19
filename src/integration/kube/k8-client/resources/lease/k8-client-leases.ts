@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  type CoordinationV1Api,
-  V1Lease,
-  V1LeaseSpec,
-  V1MicroTime,
-  V1ObjectMeta,
-  type V1Status,
-} from '@kubernetes/client-node';
+import {type CoordinationV1Api, V1Lease, V1LeaseSpec, V1MicroTime, V1ObjectMeta} from '@kubernetes/client-node';
 import {type Leases} from '../../../resources/lease/leases.js';
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
@@ -59,15 +52,12 @@ export class K8ClientLeases implements Leases {
     return K8ClientLease.fromV1Lease(result);
   }
 
-  public async delete(namespace: NamespaceName, name: string): Promise<V1Status> {
-    let result: V1Lease;
+  public async delete(namespace: NamespaceName, name: string): Promise<void> {
     try {
-      result = await this.coordinationApiClient.deleteNamespacedLease({name, namespace: namespace.name});
+      await this.coordinationApiClient.deleteNamespacedLease({name, namespace: namespace.name});
     } catch (error) {
       KubeApiResponse.throwError(error, ResourceOperation.DELETE, ResourceType.LEASE, namespace, name);
     }
-
-    return result;
   }
 
   public async read(namespace: NamespaceName, leaseName: string, timesCalled: number = 0): Promise<Lease> {
