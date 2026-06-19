@@ -19,7 +19,7 @@ import {type Context, type ClusterReferences, type SoloListrTask, type SoloListr
 import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
-import * as helpers from '../core/helpers.js';
+import {Helpers} from '../core/helpers.js';
 import {Duration} from '../core/time/duration.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
@@ -225,7 +225,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
     for (const consensusNode of consensusNodes) {
-      const context: Context = helpers.extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
+      const context: Context = Helpers.extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
       const k8: K8 = this.k8Factory.getK8(context);
       this.logger.info(
         `Waiting for pod of node ${consensusNode.name} in namespace ${namespace.toString()} (context: ${context})`,
@@ -325,7 +325,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const node of consensusNodes) {
               const nodeAlias: NodeAlias = node.name;
-              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+              const context: Context = Helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
               const clusterReference: string = node.cluster; // Get cluster ref from node metadata
               const statesDirectory: string = PathEx.join(outputDirectory, 'states', clusterReference);
               await networkNodes.getStatesFromPod(namespace, nodeAlias, context, statesDirectory);
@@ -551,7 +551,7 @@ export class BackupRestoreCommand extends BaseCommand {
         await container.copyTo(logFilePath, `${constants.HEDERA_HAPI_PATH}`);
 
         // Wait for file to sync to the file system
-        await helpers.sleep(Duration.ofSeconds(2));
+        await Helpers.sleep(Duration.ofSeconds(2));
 
         // Unzip the log file
         this.logger.showUser(chalk.gray(`    Extracting log file in pod: ${podName}`));
@@ -607,7 +607,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const podReferences: Record<string, PodReference> = {};
 
             for (const nodeAlias of nodeAliases) {
-              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
+              const context: Context = Helpers.extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
               const k8: K8 = this.k8Factory.getK8(context);
               const pods: Pod[] = await k8
                 .pods()
@@ -1486,7 +1486,7 @@ export class BackupRestoreCommand extends BaseCommand {
             } catch (error: any) {
               attempt++;
               if (attempt < maxAttempts) {
-                await helpers.sleep(Duration.ofSeconds(2));
+                await Helpers.sleep(Duration.ofSeconds(2));
               } else {
                 throw new SoloErrors.deployment.clusterApiServerTimeout(clusterResponse.context, maxAttempts, error);
               }

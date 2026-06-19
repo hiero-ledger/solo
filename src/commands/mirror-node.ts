@@ -10,8 +10,7 @@ import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import * as helpers from '../core/helpers.js';
-import {showVersionBanner} from '../core/helpers.js';
+import {Helpers} from '../core/helpers.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -631,7 +630,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
     this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
 
-    showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
+    Helpers.showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
 
     if (commandType === MirrorNodeCommandType.ADD) {
       this.remoteConfig.configuration.components.changeComponentPhase(
@@ -1016,7 +1015,7 @@ export class MirrorNodeCommand extends BaseCommand {
                   true,
                 );
                 await this.adoptMirrorIngressControllerRbacOwnership(config);
-                showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
+                Helpers.showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
               },
               skip: (context_): boolean => !context_.config.enableIngress,
             },
@@ -1273,7 +1272,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
-              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
+              const pingerRecipientAccountId: string = Helpers.entityId(shard, realm, 98);
               config.chartValues.setLiteral(
                 `monitor.config.${chartNamespace}.mirror.monitor.operator.accountId`,
                 operatorId,
@@ -1557,7 +1556,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
-              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
+              const pingerRecipientAccountId: string = Helpers.entityId(shard, realm, 98);
               config.chartValues.setLiteral(
                 `monitor.config.${chartNamespace}.mirror.monitor.operator.accountId`,
                 operatorId,

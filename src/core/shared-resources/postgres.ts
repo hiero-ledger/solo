@@ -22,7 +22,7 @@ import {PassThrough, pipeline} from 'node:stream';
 import {promisify} from 'node:util';
 import {SoloErrors} from '../errors/solo-errors.js';
 import * as Base64 from 'js-base64';
-import {sleep} from '../helpers.js';
+import {Helpers} from '../helpers.js';
 import {Duration} from '../time/duration.js';
 import {type Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Pods} from '../../integration/kube/resources/pod/pods.js';
@@ -274,7 +274,7 @@ export class PostgresSharedResource {
         if (attempt >= maxAttempts) {
           throw new SoloErrors.component.postgresInitScriptFailed(attempt, error);
         }
-        await sleep(Duration.ofSeconds(backoff * attempt)); // wait before retrying
+        await Helpers.sleep(Duration.ofSeconds(backoff * attempt)); // wait before retrying
       }
     }
   }

@@ -5,7 +5,7 @@ import {type CoreV1Api, type V1Namespace, type V1NamespaceList} from '@kubernete
 import {type ObjectMeta} from '../../../resources/object-meta.js';
 import {KubeApiInvalidResponseError} from '../../../errors/kube-api-invalid-response-error.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
-import {sleep} from '../../../../../core/helpers.js';
+import {Helpers} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 
 export class K8ClientNamespaces implements Namespaces {
@@ -42,7 +42,7 @@ export class K8ClientNamespaces implements Namespaces {
           const response: V1Namespace = await this.kubeClient.readNamespace({name: namespace.name});
 
           if (response?.metadata?.deletionTimestamp) {
-            await sleep(Duration.ofSeconds(1));
+            await Helpers.sleep(Duration.ofSeconds(1));
           } else {
             namespaceExists = false;
           }

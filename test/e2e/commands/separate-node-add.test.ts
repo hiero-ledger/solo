@@ -27,7 +27,7 @@ import {
   type TransactionReceipt,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
-import {sleep} from '../../../src/core/helpers.js';
+import {Helpers} from '../../../src/core/helpers.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SOLO_LOGS_DIR} from '../../../src/core/constants.js';
 import {ConsensusNodeTest} from './tests/consensus-node-test.js';
@@ -164,7 +164,7 @@ export function testSeparateNodeAdd(
       // create more transactions to save more round of states
       await main(LedgerTest.soloLedgerAccountCreateArgv(argv.getArg<string>(flags.deployment)));
 
-      await sleep(Duration.ofSeconds(1));
+      await Helpers.sleep(Duration.ofSeconds(1));
 
       await main(LedgerTest.soloLedgerAccountCreateArgv(argv.getArg<string>(flags.deployment)));
 

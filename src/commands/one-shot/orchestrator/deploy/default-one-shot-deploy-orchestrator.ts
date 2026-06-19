@@ -60,8 +60,7 @@ import {KeysCommandDefinition} from '../../../command-definitions/keys-command-d
 import {CommandHelpers, type InvokedSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
 import * as constants from '../../../../core/constants.js';
-import * as helpers from '../../../../core/helpers.js';
-import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../../../core/helpers.js';
+import {Helpers} from '../../../../core/helpers.js';
 import {Duration} from '../../../../core/time/duration.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
 import {UserBreak} from '../../../../core/errors/user-break.js';
@@ -87,6 +86,8 @@ import {DeployArgvBuilders} from './deploy-argv-builders.js';
 import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DISK} from '../../../../../version.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
+
+const createDirectoryIfNotExists: typeof Helpers.createDirectoryIfNotExists = Helpers.createDirectoryIfNotExists;
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 const invokeSoloCommand: (
@@ -365,7 +366,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               .configMaps()
               .listForAllNamespaces(Templates.renderConfigMapRemoteConfigLabels());
             if (existingRemoteConfigs.length > 0) {
-              const existingDeploymentsTable: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);
+              const existingDeploymentsTable: string[] = Helpers.remoteConfigsToDeploymentsTable(existingRemoteConfigs);
               const promptOptions: {default: boolean; message: string} = {
                 default: false,
                 message:
@@ -801,7 +802,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
         try {
           const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
-            TopicId.fromString(entityId(realm, shard, 1001)),
+            TopicId.fromString(Helpers.entityId(realm, shard, 1001)),
           );
           await entity1001Query.execute(client);
         } catch (topicCheckError) {
@@ -830,7 +831,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 context_: OneShotSingleDeployContext,
                 subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
               ): Promise<void> => {
-                await helpers.sleep(Duration.ofMillis(100 * currentIndex));
+                await Helpers.sleep(Duration.ofMillis(100 * currentIndex));
 
                 const createdAccount: {
                   accountId: string;
@@ -1082,7 +1083,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       const shard: Shard = this.localConfig.configuration.shardForDeployment(context.config.deployment);
       const operatorAccountData: SystemAccount = {
         name: 'Operator',
-        accountId: entityId(shard, realm, 2),
+        accountId: Helpers.entityId(shard, realm, 2),
         publicKey: constants.GENESIS_PUBLIC_KEY,
       };
 

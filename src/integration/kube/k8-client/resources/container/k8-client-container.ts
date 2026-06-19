@@ -21,7 +21,7 @@ import {InjectTokens} from '../../../../../core/dependency-injection/inject-toke
 import {type NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {type TarCreateFilter} from '../../../../../types/aliases.js';
 import {type Context} from '../../../../../types/index.js';
-import {sleep} from '../../../../../core/helpers.js';
+import {Helpers} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import type Stream from 'node:stream';
 import * as constants from '../../../../../core/constants.js';
@@ -165,7 +165,7 @@ export class K8ClientContainer implements Container {
         }
 
         // backoff between retries
-        await sleep(Duration.ofMillis(attempt * constants.CONTAINER_COPY_BACKOFF_MS));
+        await Helpers.sleep(Duration.ofMillis(attempt * constants.CONTAINER_COPY_BACKOFF_MS));
       }
     }
   }
@@ -353,7 +353,7 @@ export class K8ClientContainer implements Container {
           throw error;
         }
 
-        await sleep(Duration.ofMillis(1000));
+        await Helpers.sleep(Duration.ofMillis(1000));
       }
     }
 

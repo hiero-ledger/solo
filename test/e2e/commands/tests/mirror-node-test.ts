@@ -11,7 +11,7 @@ import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type K8} from '../../../../src/integration/kube/k8.js';
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
-import {sleep} from '../../../../src/core/helpers.js';
+import {Helpers} from '../../../../src/core/helpers.js';
 import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
@@ -117,7 +117,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       .pods()
       .readByReference(mirrorIngressPod!.podReference)
       .portForward(MIRROR_NODE_PORT, 80, true);
-    await sleep(Duration.ofSeconds(2));
+    await Helpers.sleep(Duration.ofSeconds(2));
     return portForwarder;
   }
 
@@ -183,7 +183,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         });
 
         request.end(); // make the request
-        await sleep(Duration.ofSeconds(2));
+        await Helpers.sleep(Duration.ofSeconds(2));
       }
 
       for (const accountId of createdAccountIds) {
@@ -222,10 +222,10 @@ export class MirrorNodeTest extends BaseCommandTest {
           });
 
           request.end(); // make the request
-          await sleep(Duration.ofSeconds(2));
+          await Helpers.sleep(Duration.ofSeconds(2));
         }
 
-        await sleep(Duration.ofSeconds(1));
+        await Helpers.sleep(Duration.ofSeconds(1));
       }
     } finally {
       if (createdPortForwarder) {
@@ -261,7 +261,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       const firstResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const firstData: any = await firstResponse.json();
-      await sleep(Duration.ofSeconds(15));
+      await Helpers.sleep(Duration.ofSeconds(15));
       const secondResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const secondData: any = await secondResponse.json();
@@ -387,7 +387,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         for (let attempt: number = 0; firstBlockNumber < 0 && attempt < maxAttempts; attempt++) {
           firstBlockNumber = await getLatestIngestedBlockNumber(portForwarder, testLogger);
           if (firstBlockNumber < 0) {
-            await sleep(Duration.ofSeconds(2));
+            await Helpers.sleep(Duration.ofSeconds(2));
           }
         }
         expect(firstBlockNumber, 'expected the mirror node to ingest at least one block').to.be.greaterThanOrEqual(0);
@@ -395,7 +395,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         // Give the network time to produce more blocks, then confirm the ingested block number advanced.
         let secondBlockNumber: number = firstBlockNumber;
         for (let attempt: number = 0; secondBlockNumber <= firstBlockNumber && attempt < maxAttempts; attempt++) {
-          await sleep(Duration.ofSeconds(2));
+          await Helpers.sleep(Duration.ofSeconds(2));
           secondBlockNumber = await getLatestIngestedBlockNumber(portForwarder, testLogger);
         }
 

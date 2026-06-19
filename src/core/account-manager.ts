@@ -42,7 +42,7 @@ import {
 } from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type NodeId, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {entityId, resolveGossipFqdnRestricted, sleep} from './helpers.js';
+import {Helpers} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -282,7 +282,7 @@ export class AccountManager {
       );
 
       const selectedNodeServicesMap: NodeServiceMapping = this.selectNodeServices(networkNodeServicesMap, selection);
-      const nodeClient = await this._getNodeClient(
+      const nodeClient: Client = await this._getNodeClient(
         namespace,
         selectedNodeServicesMap,
         treasuryAccountInfo.accountId,
@@ -374,7 +374,7 @@ export class AccountManager {
 
       // scheduleNetworkUpdate is set to false, because the ports 50212/50211 are hardcoded in JS SDK that will not work
       // when running locally or in a pipeline
-      const nodeClient = Client.fromConfig({network: nodes, scheduleNetworkUpdate: false});
+      const nodeClient: Client = Client.fromConfig({network: nodes, scheduleNetworkUpdate: false});
       nodeClient.setOperator(operatorId, operatorKey);
       nodeClient.setLogger(new Logger(LogLevel.Trace, PathEx.join(constants.SOLO_LOGS_DIR, 'hashgraph-sdk.log')));
       nodeClient.setMaxAttempts(constants.NODE_CLIENT_MAX_ATTEMPTS as number);
@@ -478,7 +478,7 @@ export class AccountManager {
         } catch (error) {
           this.logger.error(`failed to sdk ping network node: ${Object.keys(object)[0]}, ${error.message}`);
           currentRetry++;
-          await sleep(Duration.ofMillis(sleepInterval));
+          await Helpers.sleep(Duration.ofMillis(sleepInterval));
         }
       }
     } catch (error) {
@@ -524,7 +524,7 @@ export class AccountManager {
       for (const context of new Set(clusterReferences.values())) {
         gossipFqdnRestrictedByContext.set(
           context,
-          await resolveGossipFqdnRestricted({
+          await Helpers.resolveGossipFqdnRestricted({
             k8: this.k8Factory.getK8(context),
             namespace,
             cacheDir: constants.SOLO_CACHE_DIR,
@@ -987,7 +987,7 @@ export class AccountManager {
       const realm: Long = transactionReceipt.accountId!.realm;
       const shard: Long = transactionReceipt.accountId!.shard;
       const accountInfoQueryResult: AccountInfo = await this.accountInfoQuery(accountId);
-      accountInfo.accountAlias = entityId(shard, realm, accountInfoQueryResult.contractAccountId);
+      accountInfo.accountAlias = Helpers.entityId(shard, realm, accountInfoQueryResult.contractAccountId);
     }
 
     try {
@@ -1067,7 +1067,7 @@ export class AccountManager {
   ): Promise<string> {
     // fetch AddressBook
     await this.loadNodeClient(namespace, clusterReferences, deployment, forcePortForward);
-    const client = this._nodeClient;
+    const client: Client = this._nodeClient;
 
     if (operatorId && operatorKey) {
       client.setOperator(operatorId, operatorKey);
@@ -1097,7 +1097,7 @@ export class AccountManager {
             `Address book query returned INVALID_NODE_ACCOUNT (attempt ${attempt + 1}/${maxAttempts}), retrying in ${retryDelayMs}ms`,
           );
           lastError = error;
-          await sleep(Duration.ofMillis(retryDelayMs));
+          await Helpers.sleep(Duration.ofMillis(retryDelayMs));
         } else {
           throw error;
         }
@@ -1115,10 +1115,10 @@ export class AccountManager {
     forcePortForward?: boolean,
   ): Promise<string> {
     await this.loadNodeClient(namespace, clusterReferences, deployment, forcePortForward);
-    const client = this._nodeClient;
+    const client: Client = this._nodeClient;
     const realm: number | Long = this.localConfig.configuration.realmForDeployment(deployment);
     const shard: number | Long = this.localConfig.configuration.shardForDeployment(deployment);
-    const fileId: FileId = FileId.fromString(entityId(shard, realm, fileNumber));
+    const fileId: FileId = FileId.fromString(Helpers.entityId(shard, realm, fileNumber));
     const queryFees: FileContentsQuery = new FileContentsQuery().setFileId(fileId);
     return Buffer.from(await queryFees.execute(client)).toString('hex');
   }
@@ -1222,7 +1222,7 @@ export class AccountManager {
   public getAccountIdByNumber(deployment: DeploymentName, number: number | Long): AccountId {
     const realm: number | Long = this.localConfig.configuration.realmForDeployment(deployment);
     const shard: number | Long = this.localConfig.configuration.shardForDeployment(deployment);
-    return AccountId.fromString(entityId(shard, realm, number));
+    return AccountId.fromString(Helpers.entityId(shard, realm, number));
   }
 
   public getOperatorAccountId(deployment: DeploymentName): AccountId {
@@ -1254,7 +1254,7 @@ export class AccountManager {
     const firstAccountId: AccountId = this.getStartAccountId(deploymentName);
 
     for (const nodeAlias of nodeAliases) {
-      const nodeAccount: string = entityId(
+      const nodeAccount: string = Helpers.entityId(
         shard,
         realm,
         Long.fromNumber(Templates.nodeIdFromNodeAlias(nodeAlias)).add(firstAccountId.num),

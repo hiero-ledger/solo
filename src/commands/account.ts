@@ -7,8 +7,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
-import * as helpers from '../core/helpers.js';
-import {entityId} from '../core/helpers.js';
+import {Helpers} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {
   AccountId,
@@ -317,7 +316,7 @@ export class AccountCommand extends BaseCommand {
               clusterRef: clusterReference,
               contextName,
               namespace: await this.resolveNamespaceFromDeployment(task),
-              nodeAliases: helpers.parseNodeAliases(
+              nodeAliases: Helpers.parseNodeAliases(
                 this.configManager.getFlag(flags.nodeAliasesUnparsed),
                 this.remoteConfig.getConsensusNodes(),
                 this.configManager,
@@ -378,8 +377,8 @@ export class AccountCommand extends BaseCommand {
                     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
                     for (const currentSet of context_.accountsBatchedSet) {
-                      const accountStart: string = entityId(shard, realm, currentSet[0]);
-                      const accountEnd: string = entityId(shard, realm, currentSet.at(-1));
+                      const accountStart: string = Helpers.entityId(shard, realm, currentSet[0]);
+                      const accountEnd: string = Helpers.entityId(shard, realm, currentSet.at(-1));
                       const rangeString: string =
                         accountStart === accountEnd
                           ? `${chalk.yellow(accountStart)}`
@@ -539,7 +538,7 @@ export class AccountCommand extends BaseCommand {
               this.configManager,
               task,
             );
-            const nodeAliases: NodeAliases = helpers.parseNodeAliases(
+            const nodeAliases: NodeAliases = Helpers.parseNodeAliases(
               this.configManager.getFlag(flags.nodeAliasesUnparsed),
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
@@ -1313,7 +1312,7 @@ export class AccountCommand extends BaseCommand {
               subTasks.push({
                 title: `Creating Account ${index}`,
                 task: async (context_: Context, subTask: SoloListrTaskWrapper<Context>): Promise<void> => {
-                  await helpers.sleep(Duration.ofMillis(100 * index));
+                  await Helpers.sleep(Duration.ofMillis(100 * index));
                   const balance: Hbar = account.balance ?? Hbar.from(0, HbarUnit.Hbar);
                   const createdAccount: {
                     accountId: string;
@@ -1398,7 +1397,7 @@ export class AccountCommand extends BaseCommand {
     const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
     const operatorAccountData: SystemAccount = {
       name: 'Operator',
-      accountId: entityId(shard, realm, 2),
+      accountId: Helpers.entityId(shard, realm, 2),
       publicKey: constants.GENESIS_PUBLIC_KEY,
     };
 

@@ -19,7 +19,7 @@ import {BaseCommandTest} from './tests/base-command-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
-import {sleep} from '../../../src/core/helpers.js';
+import {Helpers} from '../../../src/core/helpers.js';
 import {Flags} from '../../../src/commands/flags.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
@@ -59,7 +59,7 @@ let peakMemoryInMebibytes: number = 0;
 // When the workflow cancels this step (e.g. due to a new commit superseding the PR),
 // go-task forwards SIGTERM to this process' process group before SIGKILL reaches task.
 // Without this handler, mocha's graceful shutdown waits for the currently-running
-// `await sleep(...)` to resolve AND for the setInterval to drain — which can take
+// `await Helpers.sleep(...)` to resolve AND for the setInterval to drain — which can take
 // minutes. Force-exit immediately so the runner can move on without waiting.
 process.on('SIGTERM', (): void => {
   clearInterval(metricsInterval);
@@ -225,7 +225,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // on degraded runs (proxy backpressure, NFT-vs-fungible token mismatch, etc.).
           await main(soloRapidFire(testName, performanceTest, argumentsString, maxTps));
           // Cool-down lets haproxy drain tunnel sockets before the next test.
-          await sleep(Duration.ofSeconds(30));
+          await Helpers.sleep(Duration.ofSeconds(30));
         }
 
         it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
@@ -246,7 +246,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
               console.log(
                 `${testName}: sleeping for metrics collection, ${index + 1} of ${sleepTimeInMinutes} minutes`,
               );
-              await sleep(Duration.ofMinutes(1));
+              await Helpers.sleep(Duration.ofMinutes(1));
             }
           }
 

@@ -33,7 +33,7 @@ import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 import {CommandFlags} from '../types/flag-types.js';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type FacadeArray} from '../business/runtime-state/collection/facade-array.js';
-import {remoteConfigsToDeploymentsTable} from '../core/helpers.js';
+import {Helpers} from '../core/helpers.js';
 import {MessageLevel} from '../core/logging/message-level.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
@@ -973,7 +973,7 @@ export class DeploymentCommand extends BaseCommand {
     if (existingRemoteConfigs.length > 0) {
       const messageGroupName: string = 'existing-deployments';
       this.logger.addMessageGroup(messageGroupName, '⚠️ Warning: Existing solo deployment detected in cluster.');
-      const existingDeploymentsRows: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);
+      const existingDeploymentsRows: string[] = Helpers.remoteConfigsToDeploymentsTable(existingRemoteConfigs);
       for (const row of existingDeploymentsRows) {
         this.logger.addMessageGroupMessage(messageGroupName, row);
       }

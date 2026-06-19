@@ -13,7 +13,7 @@ import {type ConfigMap} from '../../../src/integration/kube/resources/config-map
 import {type K8} from '../../../src/integration/kube/k8.js';
 import yaml from 'yaml';
 
-import * as helpers from '../../../src/core/helpers.js';
+import {Helpers} from '../../../src/core/helpers.js';
 import * as constants from '../../../src/core/constants.js';
 import {helmValuesHelper} from '../../../src/core/helm-values-helper.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
@@ -56,7 +56,7 @@ describe('Helpers', (): void => {
     {input: 'node1', output: ['node1']},
     {input: 'node1,node3', output: ['node1', 'node3']},
   ]).it('should parse node aliases for input', ({input, output}: {input: string; output: string[]}): void => {
-    expect(helpers.parseNodeAliases(input)).to.deep.equal(output);
+    expect(Helpers.parseNodeAliases(input)).to.deep.equal(output);
   });
 
   each([
@@ -64,7 +64,7 @@ describe('Helpers', (): void => {
     {input: [1, 2, 3], output: [1, 2, 3]},
     {input: ['a', '2', '3'], output: ['a', '2', '3']},
   ]).it('should clone array for input', ({input, output}: {input: number[]; output: number[]}): void => {
-    const clonedArray: number[] = helpers.cloneArray(input);
+    const clonedArray: number[] = Helpers.cloneArray(input);
     expect(clonedArray).to.deep.equal(output);
     expect(clonedArray).not.to.equal(input); // ensure cloning creates a new array
   });
@@ -83,7 +83,7 @@ describe('Helpers', (): void => {
 
   it('Should ipv4ToByteArray convert IPv4 address to string', (): void => {
     const ipV4Address: string = '192.168.0.1';
-    const byteString: string = helpers.ipV4ToBase64(ipV4Address);
+    const byteString: string = Helpers.ipV4ToBase64(ipV4Address);
     expect(byteString).to.equal('wKgAAQ==');
   });
 
@@ -232,7 +232,7 @@ describe('Helpers', (): void => {
         },
       ];
 
-      const rows: string[] = helpers.remoteConfigsToDeploymentsTable(remoteConfigs);
+      const rows: string[] = Helpers.remoteConfigsToDeploymentsTable(remoteConfigs);
 
       expect(rows).to.deep.equal(['Namespace : deployment', 'default : deployment-a']);
     });
@@ -248,7 +248,7 @@ describe('Helpers', (): void => {
         },
       ];
 
-      const rows: string[] = helpers.remoteConfigsToDeploymentsTable(remoteConfigs);
+      const rows: string[] = Helpers.remoteConfigsToDeploymentsTable(remoteConfigs);
 
       expect(rows).to.deep.equal(['Namespace : deployment']);
     });
@@ -257,22 +257,22 @@ describe('Helpers', (): void => {
   describe('parseGossipFqdnRestricted', (): void => {
     it('parses true value', (): void => {
       const content: string = 'nodes.gossipFqdnRestricted=true';
-      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+      expect(Helpers.parseGossipFqdnRestricted(content)).to.equal(true);
     });
 
     it('parses false value', (): void => {
       const content: string = 'nodes.gossipFqdnRestricted=false';
-      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(false);
+      expect(Helpers.parseGossipFqdnRestricted(content)).to.equal(false);
     });
 
     it('handles whitespace around equals sign', (): void => {
       const content: string = 'nodes.gossipFqdnRestricted  =  true';
-      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+      expect(Helpers.parseGossipFqdnRestricted(content)).to.equal(true);
     });
 
     it('handles leading and trailing whitespace in value', (): void => {
       const content: string = 'nodes.gossipFqdnRestricted = false ';
-      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(false);
+      expect(Helpers.parseGossipFqdnRestricted(content)).to.equal(false);
     });
 
     it('handles property in middle of file', (): void => {
@@ -282,30 +282,30 @@ some.other.property=value
 nodes.gossipFqdnRestricted=true
 another.property=123
 `;
-      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+      expect(Helpers.parseGossipFqdnRestricted(content)).to.equal(true);
     });
 
     it('is case-sensitive for true value', (): void => {
       // The regex only matches lowercase "true" or "false"
-      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=TRUE')).to.be.undefined;
-      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=True')).to.be.undefined;
-      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=true')).to.equal(true);
+      expect(Helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=TRUE')).to.be.undefined;
+      expect(Helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=True')).to.be.undefined;
+      expect(Helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=true')).to.equal(true);
     });
 
     it('is case-sensitive for false value', (): void => {
       // The regex only matches lowercase "true" or "false"
-      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=FALSE')).to.be.undefined;
-      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=False')).to.be.undefined;
-      expect(helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=false')).to.equal(false);
+      expect(Helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=FALSE')).to.be.undefined;
+      expect(Helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=False')).to.be.undefined;
+      expect(Helpers.parseGossipFqdnRestricted('nodes.gossipFqdnRestricted=false')).to.equal(false);
     });
 
     it('returns undefined for missing property', (): void => {
       const content: string = 'some.other.property=value\nanother.property=123';
-      expect(helpers.parseGossipFqdnRestricted(content)).to.be.undefined;
+      expect(Helpers.parseGossipFqdnRestricted(content)).to.be.undefined;
     });
 
     it('returns undefined for empty string', (): void => {
-      expect(helpers.parseGossipFqdnRestricted('')).to.be.undefined;
+      expect(Helpers.parseGossipFqdnRestricted('')).to.be.undefined;
     });
 
     it('does not match similar property names', (): void => {
@@ -316,7 +316,7 @@ another.property=123
         'myNodes.gossipFqdnRestricted=true', // Different prefix
       ];
       for (const content of testCases) {
-        expect(helpers.parseGossipFqdnRestricted(content)).to.be.undefined;
+        expect(Helpers.parseGossipFqdnRestricted(content)).to.be.undefined;
       }
     });
 
@@ -327,13 +327,13 @@ another.property=123
         'nodes.gossipFqdnRestricted=FALSE_VALUE',
       ];
       for (const content of testCases) {
-        expect(helpers.parseGossipFqdnRestricted(content)).to.be.undefined;
+        expect(Helpers.parseGossipFqdnRestricted(content)).to.be.undefined;
       }
     });
 
     it('matches property at beginning of file', (): void => {
       const content: string = 'nodes.gossipFqdnRestricted=true\nother.property=value';
-      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+      expect(Helpers.parseGossipFqdnRestricted(content)).to.equal(true);
     });
 
     it('handles comments and other content', (): void => {
@@ -342,14 +342,14 @@ another.property=123
 nodes.gossipFqdnRestricted=true
 # Another comment`;
       // Should match the non-commented line
-      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+      expect(Helpers.parseGossipFqdnRestricted(content)).to.equal(true);
     });
 
     it('matches first occurrence only (multiline)', (): void => {
       const content: string = `nodes.gossipFqdnRestricted=true
 nodes.gossipFqdnRestricted=false`;
       // Should return the first match
-      expect(helpers.parseGossipFqdnRestricted(content)).to.equal(true);
+      expect(Helpers.parseGossipFqdnRestricted(content)).to.equal(true);
     });
   });
 
@@ -360,13 +360,13 @@ nodes.gossipFqdnRestricted=false`;
 
     it('returns undefined for non-existent file', (): void => {
       sinon.stub(fs, 'existsSync').returns(false);
-      expect(helpers.readGossipFqdnRestrictedFromFile('/path/to/non/existent/file')).to.be.undefined;
+      expect(Helpers.readGossipFqdnRestrictedFromFile('/path/to/non/existent/file')).to.be.undefined;
     });
 
     it('reads and parses true value from file', (): void => {
       const existsSyncStub: SinonStub = sinon.stub(fs, 'existsSync').returns(true);
       const readFileSyncStub: SinonStub = sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true');
-      expect(helpers.readGossipFqdnRestrictedFromFile('/path/to/file')).to.equal(true);
+      expect(Helpers.readGossipFqdnRestrictedFromFile('/path/to/file')).to.equal(true);
       expect(existsSyncStub.called).to.be.true;
       expect(readFileSyncStub.called).to.be.true;
     });
@@ -374,13 +374,13 @@ nodes.gossipFqdnRestricted=false`;
     it('reads and parses false value from file', (): void => {
       sinon.stub(fs, 'existsSync').returns(true);
       sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=false\nother.property=value');
-      expect(helpers.readGossipFqdnRestrictedFromFile('/path/to/file')).to.equal(false);
+      expect(Helpers.readGossipFqdnRestrictedFromFile('/path/to/file')).to.equal(false);
     });
 
     it('returns undefined when file exists but property is missing', (): void => {
       sinon.stub(fs, 'existsSync').returns(true);
       sinon.stub(fs, 'readFileSync').returns('some.other.property=value');
-      expect(helpers.readGossipFqdnRestrictedFromFile('/path/to/file')).to.be.undefined;
+      expect(Helpers.readGossipFqdnRestrictedFromFile('/path/to/file')).to.be.undefined;
     });
   });
 
@@ -399,7 +399,7 @@ nodes.gossipFqdnRestricted=false`;
           }),
         }),
       };
-      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+      const result: boolean = await Helpers.resolveGossipFqdnRestricted({
         k8: mockK8 as unknown as K8,
         namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
@@ -424,7 +424,7 @@ nodes.gossipFqdnRestricted=false`;
       });
       sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true');
 
-      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+      const result: boolean = await Helpers.resolveGossipFqdnRestricted({
         k8: mockK8 as unknown as K8,
         namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
@@ -450,7 +450,7 @@ nodes.gossipFqdnRestricted=false`;
       });
       sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=false');
 
-      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+      const result: boolean = await Helpers.resolveGossipFqdnRestricted({
         k8: mockK8 as unknown as K8,
         namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
@@ -473,7 +473,7 @@ nodes.gossipFqdnRestricted=false`;
       });
       sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true');
 
-      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+      const result: boolean = await Helpers.resolveGossipFqdnRestricted({
         k8: mockK8 as unknown as K8,
         namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
@@ -492,7 +492,7 @@ nodes.gossipFqdnRestricted=false`;
 
       sinon.stub(fs, 'existsSync').returns(false);
 
-      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+      const result: boolean = await Helpers.resolveGossipFqdnRestricted({
         k8: mockK8 as unknown as K8,
         namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
@@ -505,7 +505,7 @@ nodes.gossipFqdnRestricted=false`;
     it('handles missing K8s client gracefully', async (): Promise<void> => {
       sinon.stub(fs, 'existsSync').returns(false);
 
-      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+      const result: boolean = await Helpers.resolveGossipFqdnRestricted({
         stagingDir: '/staging',
         cacheDir: '/cache',
         resourcesDir: '/resources',
@@ -524,7 +524,7 @@ nodes.gossipFqdnRestricted=false`;
 
       sinon.stub(fs, 'existsSync').returns(false);
 
-      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+      const result: boolean = await Helpers.resolveGossipFqdnRestricted({
         k8: mockK8 as unknown as K8,
         // No namespace provided
         stagingDir: '/staging',
@@ -548,7 +548,7 @@ nodes.gossipFqdnRestricted=false`;
       sinon.stub(fs, 'existsSync').returns(true);
       sinon.stub(fs, 'readFileSync').returns('nodes.gossipFqdnRestricted=true'); // Staging/cache/repo have true
 
-      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+      const result: boolean = await Helpers.resolveGossipFqdnRestricted({
         k8: mockK8 as unknown as K8,
         namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',
@@ -575,7 +575,7 @@ nodes.gossipFqdnRestricted=false`;
         return 'nodes.gossipFqdnRestricted=true'; // Cache/repo have valid value
       });
 
-      const result: boolean = await helpers.resolveGossipFqdnRestricted({
+      const result: boolean = await Helpers.resolveGossipFqdnRestricted({
         k8: mockK8 as unknown as K8,
         namespace: NamespaceName.of('solo'),
         stagingDir: '/staging',

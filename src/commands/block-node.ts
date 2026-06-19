@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr} from 'listr2';
-import * as helpers from '../core/helpers.js';
-import {
-  checkDockerImageExists,
-  createAndCopyBlockNodeJsonFileForConsensusNode,
-  showVersionBanner,
-  sleep,
-} from '../core/helpers.js';
+import {Helpers} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
@@ -302,7 +296,7 @@ export class BlockNodeCommand extends BaseCommand {
 
     if ('imageTag' in config && config.imageTag) {
       config.imageTag = SemanticVersion.getValidSemanticVersion(config.imageTag, false, 'Block node image tag');
-      if (!checkDockerImageExists(constants.BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
+      if (!Helpers.checkDockerImageExists(constants.BLOCK_NODE_IMAGE_NAME, config.imageTag)) {
         throw new SoloErrors.validation.blockNodeLocalImageNotFound(config.imageTag);
       }
       // use local image from docker engine
@@ -386,7 +380,7 @@ export class BlockNodeCommand extends BaseCommand {
           .filter((node): boolean => nodeAliases.includes(node.name));
 
         for (const node of filteredConsensusNodes) {
-          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await Helpers.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
         }
       },
     };
@@ -403,7 +397,7 @@ export class BlockNodeCommand extends BaseCommand {
           .filter((node): boolean => nodeAliases.includes(node.name));
 
         for (const node of filteredConsensusNodes) {
-          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await Helpers.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
         }
       },
     };
@@ -622,7 +616,7 @@ export class BlockNodeCommand extends BaseCommand {
               task.title += ` with local built image (${imageTag})`;
             }
 
-            showVersionBanner(this.logger, releaseName, chartVersion);
+            Helpers.showVersionBanner(this.logger, releaseName, chartVersion);
 
             await this.updateBlockNodeVersionInRemoteConfig(config);
           },
@@ -954,7 +948,7 @@ export class BlockNodeCommand extends BaseCommand {
               await this.remoteConfig.persist();
             }
 
-            showVersionBanner(this.logger, constants.BLOCK_NODE_CHART, config.upgradeVersion);
+            Helpers.showVersionBanner(this.logger, constants.BLOCK_NODE_CHART, config.upgradeVersion);
 
             await this.updateBlockNodeVersionInRemoteConfig(config);
           },
@@ -1177,7 +1171,7 @@ export class BlockNodeCommand extends BaseCommand {
       skip: (): boolean => this.remoteConfig.configuration.state.ledgerPhase === LedgerPhase.UNINITIALIZED,
       task: async (): Promise<void> => {
         for (const node of this.remoteConfig.getConsensusNodes()) {
-          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await Helpers.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
         }
       },
     };
@@ -1425,7 +1419,7 @@ export class BlockNodeCommand extends BaseCommand {
 
         while (attempt < maxAttempts) {
           try {
-            const response: string = await helpers.withTimeout(
+            const response: string = await Helpers.withTimeout(
               this.k8Factory
                 .getK8(config.context)
                 .containers()
@@ -1448,7 +1442,7 @@ export class BlockNodeCommand extends BaseCommand {
           }
 
           attempt++;
-          await sleep(Duration.ofSeconds(constants.BLOCK_NODE_ACTIVE_DELAY));
+          await Helpers.sleep(Duration.ofSeconds(constants.BLOCK_NODE_ACTIVE_DELAY));
           displayHealthcheckCallback(attempt, maxAttempts);
         }
 

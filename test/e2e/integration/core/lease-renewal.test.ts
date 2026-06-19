@@ -5,7 +5,7 @@ import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {expect} from 'chai';
 import {IntervalLock} from '../../../../src/core/lock/interval-lock.js';
 import {LockHolder} from '../../../../src/core/lock/lock-holder.js';
-import {sleep} from '../../../../src/core/helpers.js';
+import {Helpers} from '../../../../src/core/helpers.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
@@ -25,7 +25,7 @@ describe('LeaseRenewalService', async () => {
     this.timeout(defaultTimeout);
     if (await k8Factory.default().namespaces().has(testNamespace)) {
       await k8Factory.default().namespaces().delete(testNamespace);
-      await sleep(Duration.ofSeconds(5));
+      await Helpers.sleep(Duration.ofSeconds(5));
     }
 
     await k8Factory.default().namespaces().create(testNamespace);
@@ -65,7 +65,7 @@ describe('LeaseRenewalService', async () => {
     const acquireTime = new Date(remoteObject?.acquireTime).valueOf();
     expect(acquireTime).to.be.greaterThan(0);
 
-    await sleep(Duration.ofSeconds(lease.durationSeconds));
+    await Helpers.sleep(Duration.ofSeconds(lease.durationSeconds));
     // @ts-expect-error - accessing private method for testing
     remoteObject = await lease.retrieveLease();
     expect(remoteObject).to.not.be.null;
@@ -101,7 +101,7 @@ describe('LeaseRenewalService', async () => {
     const acquireTime = new Date(remoteObject?.acquireTime).valueOf();
     expect(acquireTime).to.be.greaterThan(0);
 
-    await sleep(Duration.ofSeconds(lease.durationSeconds));
+    await Helpers.sleep(Duration.ofSeconds(lease.durationSeconds));
     // @ts-expect-error - accessing private method for testing
     remoteObject = await lease.retrieveLease();
     expect(remoteObject).to.not.be.null;

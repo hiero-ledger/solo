@@ -25,8 +25,7 @@ import {Duration} from '../../../src/core/time/duration.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import * as helpers from '../../../src/core/helpers.js';
-import {entityId} from '../../../src/core/helpers.js';
+import {Helpers} from '../../../src/core/helpers.js';
 import {Templates} from '../../../src/core/templates.js';
 import * as Base64 from 'js-base64';
 import {Argv} from '../../helpers/argv-wrapper.js';
@@ -137,7 +136,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         });
 
         it('Node admin key should have been updated, not equal to genesis key', async () => {
-          const nodeAliases = helpers.parseNodeAliases(
+          const nodeAliases = Helpers.parseNodeAliases(
             argv.getArg<string>(flags.nodeAliasesUnparsed),
             bootstrapResp.opts.remoteConfig.getConsensusNodes(),
             bootstrapResp.opts.configManager,
@@ -158,7 +157,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
             it(`account ${index} should not have genesis key`, async () => {
               expect(accountManager._nodeClient).not.to.be.undefined;
 
-              const accountId = entityId(shard, realm, index);
+              const accountId = Helpers.entityId(shard, realm, index);
               testLogger.info(`Fetching account keys: accountId ${accountId}`);
               const keys = await accountManager.getAccountKeys(accountId);
               testLogger.info(`Fetched account keys: accountId ${accountId}`);

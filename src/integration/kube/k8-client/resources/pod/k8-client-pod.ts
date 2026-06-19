@@ -4,7 +4,7 @@ import {type Pod} from '../../../resources/pod/pod.js';
 import {PortUtilities} from '../../../../../business/utils/port-utilities.js';
 import {PodReference} from '../../../resources/pod/pod-reference.js';
 import {KubeContainerOperationFailedError} from '../../../errors/kube-container-operation-failed-error.js';
-import {sleep} from '../../../../../core/helpers.js';
+import {Helpers} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {StatusCodes} from 'http-status-codes';
 import {type SoloLogger} from '../../../../../core/logging/solo-logger.js';
@@ -75,7 +75,7 @@ export class K8ClientPod implements Pod {
         const pod: Pod = await this.pods.read(this.podReference);
 
         if (pod?.deletionTimestamp) {
-          await sleep(Duration.ofSeconds(1));
+          await Helpers.sleep(Duration.ofSeconds(1));
         } else {
           podExists = false;
         }
@@ -313,7 +313,7 @@ export class K8ClientPod implements Pod {
         }
         await new ShellRunner().run('net start winnat');
         this.logger.warn('Restarted WinNAT service to recover from port forwarding failure on Windows');
-        await sleep(Duration.ofSeconds(5)); // wait a bit for the service to restart before retrying
+        await Helpers.sleep(Duration.ofSeconds(5)); // wait a bit for the service to restart before retrying
         return await this.portForward(localPort, podPort, reuse, persist, externalAddress, true);
       }
 

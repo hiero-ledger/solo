@@ -14,7 +14,7 @@ import {type InitCommand} from '../src/commands/init/init.js';
 import {type NetworkCommand} from '../src/commands/network.js';
 import {type NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';
-import {sleep} from '../src/core/helpers.js';
+import {Helpers} from '../src/core/helpers.js';
 import {
   type AccountBalance,
   AccountBalanceQuery,
@@ -348,7 +348,7 @@ export function endToEndTestSuite(
 
           while (await k8Factory.default().namespaces().has(namespace)) {
             testLogger.debug(`Namespace ${namespace} still exist. Waiting...`);
-            await sleep(Duration.ofSeconds(2));
+            await Helpers.sleep(Duration.ofSeconds(2));
           }
         }
 
@@ -435,7 +435,7 @@ export async function queryBalance(
     .execute(accountManager._nodeClient);
 
   expect(balance.hbars).to.not.be.null;
-  await sleep(Duration.ofSeconds(1));
+  await Helpers.sleep(Duration.ofSeconds(1));
 }
 
 export function balanceQueryShouldSucceed(

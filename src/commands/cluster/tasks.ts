@@ -33,7 +33,7 @@ import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type OneShotState} from '../../core/one-shot-state.js';
 import * as versions from '../../../version.js';
-import {findMinioOperator} from '../../core/helpers.js';
+import {Helpers} from '../../core/helpers.js';
 import {K8} from '../../integration/kube/k8.js';
 import {HelmChartValues} from '../../integration/helm/model/values.js';
 import {Flags} from '../flags.js';
@@ -61,7 +61,7 @@ export class ClusterCommandTasks {
   }
 
   public findMinioOperator(context: Context): Promise<ReleaseNameData> {
-    return findMinioOperator(context, this.k8Factory);
+    return Helpers.findMinioOperator(context, this.k8Factory);
   }
 
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {

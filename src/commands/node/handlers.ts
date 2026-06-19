@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import * as helpers from '../../core/helpers.js';
+import {Helpers} from '../../core/helpers.js';
 import * as NodeFlags from './flags.js';
 import {type NodeCommandConfigs} from './configs.js';
 import * as constants from '../../core/constants.js';
@@ -45,6 +45,8 @@ import {findDeploymentsFromRemoteConfig} from '../util/find-deployments-from-rem
 import {GetSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
 import {type RemoteDeploymentInfo} from '../util/remote-deployment-info.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
+
+const addFlagsToArgv: typeof Helpers.addFlagsToArgv = Helpers.addFlagsToArgv;
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {
@@ -364,7 +366,7 @@ export class NodeCommandHandlers extends CommandHandler {
   /** ******** Handlers **********/
 
   public async prepareUpgrade(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.PREPARE_UPGRADE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.PREPARE_UPGRADE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -386,7 +388,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async freezeUpgrade(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.PREPARE_UPGRADE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.PREPARE_UPGRADE_FLAGS);
 
     await this.commandAction(
       argv,
@@ -404,7 +406,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async update(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.UPDATE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -424,7 +426,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async updatePrepare(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_PREPARE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.UPDATE_PREPARE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -444,7 +446,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async updateSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
     const leaseWrapper: LeaseWrapper = {lease: undefined};
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_SUBMIT_TRANSACTIONS_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.UPDATE_SUBMIT_TRANSACTIONS_FLAGS);
 
     await this.commandAction(
       argv,
@@ -464,7 +466,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async updateExecute(argv: ArgvStruct): Promise<boolean> {
     const leaseWrapper: LeaseWrapper = {lease: undefined};
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.UPDATE_EXECUTE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.UPDATE_EXECUTE_FLAGS);
 
     await this.commandAction(
       argv,
@@ -489,7 +491,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgradePrepare(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_PREPARE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.UPGRADE_PREPARE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
     await this.commandAction(
       argv,
@@ -507,7 +509,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgradeSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
     const leaseWrapper: LeaseWrapper = {lease: undefined};
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_SUBMIT_TRANSACTIONS_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.UPGRADE_SUBMIT_TRANSACTIONS_FLAGS);
 
     await this.commandAction(
       argv,
@@ -527,7 +529,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgradeExecute(argv: ArgvStruct): Promise<boolean> {
     const leaseWrapper: LeaseWrapper = {lease: undefined};
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
     await this.commandAction(
       argv,
       [
@@ -551,7 +553,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async upgrade(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
     await this.commandAction(
       argv,
@@ -570,7 +572,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.DESTROY_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
     await this.commandAction(
       argv,
@@ -589,7 +591,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async destroyPrepare(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_PREPARE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.DESTROY_PREPARE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -608,7 +610,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async destroySubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_SUBMIT_TRANSACTIONS_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.DESTROY_SUBMIT_TRANSACTIONS_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -628,7 +630,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async destroyExecute(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DESTROY_EXECUTE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.DESTROY_EXECUTE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -648,7 +650,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async add(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.ADD_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -668,7 +670,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async addPrepare(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_PREPARE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.ADD_PREPARE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -676,7 +678,7 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
         ...this.addPrepareTasks(argv, leaseWrapper.lease),
-        this.tasks.saveContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, helpers.addSaveContextParser),
+        this.tasks.saveContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, Helpers.addSaveContextParser),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'Error in preparing node',
@@ -687,7 +689,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async addSubmitTransactions(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_SUBMIT_TRANSACTIONS_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.ADD_SUBMIT_TRANSACTIONS_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -695,7 +697,7 @@ export class NodeCommandHandlers extends CommandHandler {
       [
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
         this.tasks.initialize(argv, this.configs.addConfigBuilder.bind(this.configs), leaseWrapper.lease),
-        this.tasks.loadContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, helpers.addLoadContextParser),
+        this.tasks.loadContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, Helpers.addLoadContextParser),
         ...this.addSubmitTransactionsTasks(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -707,7 +709,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async addExecute(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.ADD_EXECUTE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.ADD_EXECUTE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -722,7 +724,7 @@ export class NodeCommandHandlers extends CommandHandler {
           false,
         ),
         this.tasks.identifyExistingNodes(),
-        this.tasks.loadContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, helpers.addLoadContextParser),
+        this.tasks.loadContextData(argv, NodeCommandHandlers.ADD_CONTEXT_FILE, Helpers.addLoadContextParser),
         ...this.addExecuteTasks(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -734,7 +736,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async logs(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.LOGS_FLAGS);
 
     const reachability: ClusterReachability = await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory);
     if (!reachability.reachable) {
@@ -774,7 +776,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async analyze(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.ANALYZE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.ANALYZE_FLAGS);
 
     this.nodeConfigManager.update(argv);
     const inputDirectory: string = this.nodeConfigManager.getFlag<string>(flags.inputDir) || '';
@@ -852,7 +854,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async all(argv: ArgvStruct, excludeSensitiveData: boolean = false): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    argv = addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
 
     const reachability: ClusterReachability = await DiagnosticsCollector.isKubeClusterReachable(this.k8Factory);
     if (!reachability.reachable) {
@@ -916,7 +918,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async connections(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
+    argv = addFlagsToArgv(argv, NodeFlags.DIAGNOSTICS_CONNECTIONS);
 
     await this.commandAction(
       argv,
@@ -948,7 +950,7 @@ export class NodeCommandHandlers extends CommandHandler {
    *
    */
   public async report(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.REPORT_FLAGS);
     // Resolve deployment before calling collectDebug() so it's available for the issue title/body.
     // Without an active kube context, resolve from local information only so the command still
     // produces a report (collectDebug() degrades to local-only diagnostics in that case).
@@ -980,7 +982,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async states(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.STATES_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.STATES_FLAGS);
 
     await this.commandAction(
       argv,
@@ -996,7 +998,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async refresh(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.REFRESH_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.REFRESH_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -1025,7 +1027,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async keys(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.KEYS_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.KEYS_FLAGS);
 
     await this.commandAction(
       argv,
@@ -1045,7 +1047,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async stop(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.STOP_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.STOP_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -1069,7 +1071,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async start(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.START_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.START_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -1107,7 +1109,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async setup(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.SETUP_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.SETUP_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -1135,7 +1137,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async freeze(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.FREEZE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.FREEZE_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -1164,7 +1166,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async restart(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.RESTART_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.RESTART_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
@@ -1348,7 +1350,7 @@ export class NodeCommandHandlers extends CommandHandler {
   }
 
   public async collectJavaFlightRecorderLogs(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, NodeFlags.COLLECT_JFR_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.COLLECT_JFR_FLAGS);
     const leaseWrapper: LeaseWrapper = {lease: undefined};
 
     await this.commandAction(
