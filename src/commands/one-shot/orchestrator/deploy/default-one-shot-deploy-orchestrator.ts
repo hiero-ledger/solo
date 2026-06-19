@@ -51,6 +51,7 @@ import {OrchestratorPipelinePhase} from '../orchestrator-pipeline-phase.js';
 import {type ExecutionMode} from '../execution-mode.js';
 import {BlockCommandDefinition} from '../../../command-definitions/block-command-definition.js';
 import {MirrorCommandDefinition} from '../../../command-definitions/mirror-command-definition.js';
+import {MirrorNodeCommand} from '../../../mirror-node.js';
 import {ExplorerCommandDefinition} from '../../../command-definitions/explorer-command-definition.js';
 import {RelayCommandDefinition} from '../../../command-definitions/relay-command-definition.js';
 import {ConsensusCommandDefinition} from '../../../command-definitions/consensus-command-definition.js';
@@ -106,6 +107,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
     @inject(InjectTokens.Helm) private readonly helm: HelmClient,
+    @inject(InjectTokens.MirrorNodeCommand) private readonly mirrorNodeCommand: MirrorNodeCommand,
   ) {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
@@ -119,6 +121,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
     this.helm = patchInject(helm, InjectTokens.Helm, this.constructor.name);
+    this.mirrorNodeCommand = patchInject(mirrorNodeCommand, InjectTokens.MirrorNodeCommand, this.constructor.name);
   }
 
   public buildDeployPipeline(
@@ -695,6 +698,24 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   ),
               ),
           }),
+          new OrchestratorPipelinePhase('Enable mirror node pinger', {
+            asListrTask: (
+              getConfig: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> => ({
+              title: 'Enable mirror node pinger',
+              skip: (): boolean => !getConfig().parallelDeploy || !getConfig().deployMirrorNode,
+              task: async (): Promise<void> => {
+                const deployConfig: OneShotSingleDeployConfigClass = getConfig();
+                await this.mirrorNodeCommand.enablePinger(
+                  deployConfig.namespace,
+                  deployConfig.context,
+                  deployConfig.deployment,
+                );
+              },
+            }),
+          })
+            .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
+            .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(10)),
           new OrchestratorPipelinePhase('Deploy explorer', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
@@ -728,9 +749,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                     DeploymentPhase.DEPLOYED,
                   ),
               ),
-          })
-            .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
-            .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(10)),
+          }).withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10)),
         ],
         (getConfig: () => OneShotSingleDeployConfigClass): ExecutionMode =>
           getConfig().parallelDeploy
