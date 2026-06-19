@@ -137,7 +137,7 @@ function extractTroubleshootingSteps(source: string): string[] {
 
   // Collect all string parts in source order (single-quoted or template literal)
   const parts: string[] = [];
-  for (const match of withBugUrl.matchAll(/'((?:[^'\\]|\\.)*)'|`((?:[^`\\]|\\.|\$\{[^}]+\})*)`/g)) {
+  for (const match of withBugUrl.matchAll(/'((?:[^'\\]|\\.)*)'|`((?:[^`\\]|\\.)*)`/g)) {
     if (match[1] !== undefined) {
       // Single-quoted string — use as-is
       parts.push(match[1]);
