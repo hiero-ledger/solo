@@ -8,7 +8,6 @@ env:
       else
         echo "npm run solo --"
       fi
-  ONE_SHOT_WITH_BLOCK_NODE: "true"
 
 vars:
   DEPLOYMENT: "falcon-deployment"
@@ -25,6 +24,8 @@ vars:
 tasks:
   deploy:
     desc: Deploy a complete Hiero network using one-shot falcon deploy
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
     cmds:
       # if using released version of Solo, make sure to run from solo project root directory
       - cmd: |
@@ -54,6 +55,8 @@ tasks:
 
   deploy-minimal:
     desc: Deploy with consensus and mirror node only (without explorer and relay)
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
     cmds:
       # Solo one-shot falcon deploy with disabled components
       - cmd: |
@@ -69,6 +72,8 @@ tasks:
 
   deploy-consensus-only:
     desc: Deploy consensus nodes only (without mirror, explorer, and relay)
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
     cmds:
       # Solo one-shot falcon deploy with only consensus nodes
       - cmd: |
@@ -167,6 +172,8 @@ tasks:
 
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
     cmds:
       # Solo one-shot falcon destroy
       - cmd: $SOLO_COMMAND one-shot falcon destroy

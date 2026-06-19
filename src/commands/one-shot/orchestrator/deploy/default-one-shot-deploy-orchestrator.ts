@@ -517,7 +517,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           title: 'Create remote config components',
           task: async (): Promise<void> => {
             const deployConfig: OneShotSingleDeployConfigClass = getConfig();
-            if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+            if (DeployArgvBuilders.shouldDeployBlockNode(deployConfig)) {
               const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
                 deployConfig.clusterRef,
                 deployConfig.namespace,
@@ -612,7 +612,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
                 this.taskList,
                 (): boolean =>
-                  constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+                  !DeployArgvBuilders.shouldDeployBlockNode(getConfig()) ||
                   this.isComponentInPhaseAtLeast(
                     deploymentStateSnapshot,
                     ComponentTypes.BlockNode,

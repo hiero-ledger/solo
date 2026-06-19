@@ -19,6 +19,7 @@ import {SOLO_CREATED_BY_LABEL, SOLO_CREATED_BY_VALUE} from '../../core/constants
 
 export class K8Helper {
   private k8: K8;
+  private static readonly TERMINAL_POD_PHASES: ReadonlySet<string> = new Set(['Succeeded', 'Failed']);
 
   public constructor(context: Context, @inject(InjectTokens.K8Factory) k8Factory?: K8Factory) {
     k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
@@ -35,7 +36,7 @@ export class K8Helper {
     return await this.k8
       .pods()
       .list(namespace, Templates.renderNodeLabelsFromNodeAlias(nodeAlias))
-      .then((pods): Pod => pods[0]);
+      .then((pods): Pod => this.selectPodWithReference(pods));
   }
 
   public async getConsensusNodePodReference(namespace: NamespaceName, nodeAlias: NodeAlias): Promise<PodReference> {
@@ -46,7 +47,25 @@ export class K8Helper {
     return this.k8
       .pods()
       .list(namespace, Templates.renderBlockNodeLabels(id))
-      .then((pods: Pod[]): Pod => pods[0]);
+      .then((pods: Pod[]): Pod => this.selectPodWithReference(pods));
+  }
+
+  private selectPodWithReference(pods: Pod[]): Pod {
+    const pod: Pod | undefined =
+      pods.find(
+        (candidate: Pod): boolean =>
+          Boolean(candidate?.podReference) &&
+          !candidate?.deletionTimestamp &&
+          !K8Helper.TERMINAL_POD_PHASES.has(candidate?.phase ?? ''),
+      ) ??
+      pods.find((candidate: Pod): boolean => Boolean(candidate?.podReference) && !candidate?.deletionTimestamp) ??
+      pods.find((candidate: Pod): boolean => Boolean(candidate?.podReference)) ??
+      pods[0];
+
+    if (!pod?.podReference) {
+      throw new Error('No pod with a valid pod reference found');
+    }
+    return pod;
   }
 
   public async isNamespaceOwnedBySolo(namespace: NamespaceName): Promise<boolean> {
