@@ -41,7 +41,7 @@ import {getSoloVersion} from '../../../version.js';
 import {type ClusterReachability} from '../util/cluster-reachability.js';
 import {DiagnosticsCollector} from '../util/diagnostics-collector.js';
 import {DiagnosticsReporter} from '../util/diagnostics-reporter.js';
-import {findDeploymentsFromRemoteConfig} from '../util/find-deployments-from-remote-config.js';
+import {findDeploymentsFromRemoteConfig} from '../util/remote-config-helper.js';
 import {GetSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
 import {type RemoteDeploymentInfo} from '../util/remote-deployment-info.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
