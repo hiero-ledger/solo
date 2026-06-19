@@ -535,14 +535,16 @@ export class ProfileManager {
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
     const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.components.state.blockNodes;
     const hasDeployedBlockNodes: boolean = blockNodes.length > 0;
+    if (!hasDeployedBlockNodes) {
+      return;
+    }
 
     const lines: string[] = await readFile(applicationPropertiesPath, 'utf8').then((fileText): string[] =>
       fileText.split('\n'),
     );
 
-    // Without a block node, use FILE to prevent the gRPC buffer from filling and stalling record file production.
-    const streamMode: string = hasDeployedBlockNodes ? constants.BLOCK_STREAM_STREAM_MODE : 'RECORDS';
-    const writerMode: string = hasDeployedBlockNodes ? constants.BLOCK_STREAM_WRITER_MODE : 'FILE';
+    const streamMode: string = constants.BLOCK_STREAM_STREAM_MODE;
+    const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
 
     let streamModeUpdated: boolean = false;
     let writerModeUpdated: boolean = false;
