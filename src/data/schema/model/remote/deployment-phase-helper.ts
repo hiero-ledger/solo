@@ -12,5 +12,5 @@ export class DeploymentPhaseHelper {
   }
 }
 
-export const isDeploymentPhaseAtLeast: (phase: DeploymentPhase, minimumPhase: DeploymentPhase) => boolean =
+export const isDeploymentPhaseAtLeast: typeof DeploymentPhaseHelper.isDeploymentPhaseAtLeast =
   DeploymentPhaseHelper.isDeploymentPhaseAtLeast;
