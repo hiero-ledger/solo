@@ -67,13 +67,8 @@ export class Resolvers {
   }
 }
 
-export const resolveNamespaceFromDeployment: (
-  localConfig: LocalConfigRuntimeState,
-  configManager: ConfigManager,
-  task?: SoloListrTaskWrapper<AnyListrContext>,
-) => Promise<NamespaceName> = Resolvers.resolveNamespaceFromDeployment;
+export const resolveNamespaceFromDeployment: typeof Resolvers.resolveNamespaceFromDeployment =
+  Resolvers.resolveNamespaceFromDeployment;
 
-export const promptTheUserForDeployment: (
-  configManager: ConfigManager,
-  task?: SoloListrTaskWrapper<AnyListrContext>,
-) => Promise<DeploymentName> = Resolvers.promptTheUserForDeployment;
+export const promptTheUserForDeployment: typeof Resolvers.promptTheUserForDeployment =
+  Resolvers.promptTheUserForDeployment;
