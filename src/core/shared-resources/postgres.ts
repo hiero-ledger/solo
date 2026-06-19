@@ -278,8 +278,10 @@ export class PostgresSharedResource {
       }
     }
   }
+
+  public static getMirrorNodeReleaseTag(version: string): string {
+    return new SemanticVersion<string>(version).toPrefixedString();
+  }
 }
 
-export function getMirrorNodeReleaseTag(version: string): string {
-  return new SemanticVersion<string>(version).toPrefixedString();
-}
+export const getMirrorNodeReleaseTag: (version: string) => string = PostgresSharedResource.getMirrorNodeReleaseTag;
