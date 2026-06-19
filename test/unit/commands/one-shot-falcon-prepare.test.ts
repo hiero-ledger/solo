@@ -10,7 +10,7 @@ import {type CommandFlag} from '../../../src/types/flag-types.js';
 import {CommandHelpers} from '../../../src/commands/command-helpers.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 
-const optionFromFlag: (flag: CommandFlag) => string = CommandHelpers.optionFromFlag;
+const optionFromFlag: typeof CommandHelpers.optionFromFlag = CommandHelpers.optionFromFlag;
 
 function createDefaultConfig(overrides: Partial<FalconPrepareConfig> = {}): FalconPrepareConfig {
   return {

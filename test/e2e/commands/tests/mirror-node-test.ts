@@ -36,6 +36,8 @@ import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-r
 import {MIRROR_NODE_PORT} from '../../../../src/core/constants.js';
 import {PortUtilities} from '../../../../src/business/utils/port-utilities.js';
 
+const sleep: typeof Helpers.sleep = Helpers.sleep;
+
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
     testName: string,
@@ -117,7 +119,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       .pods()
       .readByReference(mirrorIngressPod!.podReference)
       .portForward(MIRROR_NODE_PORT, 80, true);
-    await Helpers.sleep(Duration.ofSeconds(2));
+    await sleep(Duration.ofSeconds(2));
     return portForwarder;
   }
 
@@ -183,7 +185,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         });
 
         request.end(); // make the request
-        await Helpers.sleep(Duration.ofSeconds(2));
+        await sleep(Duration.ofSeconds(2));
       }
 
       for (const accountId of createdAccountIds) {
@@ -222,10 +224,10 @@ export class MirrorNodeTest extends BaseCommandTest {
           });
 
           request.end(); // make the request
-          await Helpers.sleep(Duration.ofSeconds(2));
+          await sleep(Duration.ofSeconds(2));
         }
 
-        await Helpers.sleep(Duration.ofSeconds(1));
+        await sleep(Duration.ofSeconds(1));
       }
     } finally {
       if (createdPortForwarder) {
@@ -261,7 +263,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       const firstResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const firstData: any = await firstResponse.json();
-      await Helpers.sleep(Duration.ofSeconds(15));
+      await sleep(Duration.ofSeconds(15));
       const secondResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const secondData: any = await secondResponse.json();
@@ -387,7 +389,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         for (let attempt: number = 0; firstBlockNumber < 0 && attempt < maxAttempts; attempt++) {
           firstBlockNumber = await getLatestIngestedBlockNumber(portForwarder, testLogger);
           if (firstBlockNumber < 0) {
-            await Helpers.sleep(Duration.ofSeconds(2));
+            await sleep(Duration.ofSeconds(2));
           }
         }
         expect(firstBlockNumber, 'expected the mirror node to ingest at least one block').to.be.greaterThanOrEqual(0);
@@ -395,7 +397,7 @@ export class MirrorNodeTest extends BaseCommandTest {
         // Give the network time to produce more blocks, then confirm the ingested block number advanced.
         let secondBlockNumber: number = firstBlockNumber;
         for (let attempt: number = 0; secondBlockNumber <= firstBlockNumber && attempt < maxAttempts; attempt++) {
-          await Helpers.sleep(Duration.ofSeconds(2));
+          await sleep(Duration.ofSeconds(2));
           secondBlockNumber = await getLatestIngestedBlockNumber(portForwarder, testLogger);
         }
 
