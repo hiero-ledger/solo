@@ -27,9 +27,5 @@ export class UpgradeVersionGuard {
   }
 }
 
-export const assertUpgradeVersionNotOlder: (
-  componentName: string,
-  targetVersion: string,
-  currentVersion: SemanticVersion<string> | undefined | null,
-  flagHint: string,
-) => void = UpgradeVersionGuard.assertUpgradeVersionNotOlder;
+export const assertUpgradeVersionNotOlder: typeof UpgradeVersionGuard.assertUpgradeVersionNotOlder =
+  UpgradeVersionGuard.assertUpgradeVersionNotOlder;
