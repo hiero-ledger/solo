@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when no JAR files are found in the expected directory inside a node container; the message names
+ * the node alias and the directory. The platform software should have been copied to the node before
+ * starting it, so their absence indicates an internal ordering or setup defect and is treated as an
+ * internal Solo error.
+ */
 export class NodeJarFilesNotInContainerSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Solo;

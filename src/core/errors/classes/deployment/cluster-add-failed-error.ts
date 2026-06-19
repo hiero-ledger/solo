@@ -4,6 +4,14 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when attaching a cluster to a deployment fails; the underlying failure is
+ * wrapped in `cause`. Attaching binds a registered cluster reference (and its kubeconfig
+ * context) to the deployment so components can be placed there, so this is raised when that step
+ * cannot complete — commonly because the cluster reference has not been created/connected yet,
+ * the kubeconfig context does not exist, or the cluster is unreachable. It is retryable, since a
+ * transient connectivity issue often clears once the reference and context are valid.
+ */
 export class ClusterAddFailedError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

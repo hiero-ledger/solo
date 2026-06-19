@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when the current consensus node version is below the minimum required to deploy a block node; the
+ * message names the current and minimum versions. Block node deployment requires a sufficiently new
+ * platform, so this means the deployed version is too old — upgrade the consensus node version first.
+ */
 export class BlockNodePlatformVersionTooLowSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot stop a rapid-fire load run; the underlying failure is wrapped in `cause`. This
+ * step halts the running load generator, so this means the stop did not succeed — for example the workload
+ * could not be reached or removed.
+ */
 export class RapidFireLoadStopFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

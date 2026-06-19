@@ -4,6 +4,10 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when an input directory is required but `--input-dir` was not set. solo reads context data from
+ * this directory, so this means the flag must be provided.
+ */
 export class InputDirectoryNotSpecifiedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.User;

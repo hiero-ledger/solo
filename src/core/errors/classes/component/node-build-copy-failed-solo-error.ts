@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot copy a local build into a consensus node; the underlying failure is wrapped in
+ * `cause`. When running with a local platform build, solo copies the build artifacts into the node pod, so
+ * this means that copy failed — for example the pod was not reachable, the destination path was not
+ * writable, or the connection dropped mid-copy. It is retryable.
+ */
 export class NodeBuildCopyFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

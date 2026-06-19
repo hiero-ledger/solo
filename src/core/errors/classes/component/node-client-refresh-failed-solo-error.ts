@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot refresh the Hedera SDK client's view of the network; the underlying failure is
+ * wrapped in `cause`. solo refreshes the client when the network's nodes or endpoints change, so this means
+ * re-resolving the connection details failed — for example node services could not be retrieved or the new
+ * endpoints were unreachable.
+ */
 export class NodeClientRefreshFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

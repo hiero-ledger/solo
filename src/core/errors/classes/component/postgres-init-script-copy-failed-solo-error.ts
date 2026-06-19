@@ -4,6 +4,12 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot copy the mirror node Postgres initialization script into its container; the
+ * message names the namespace and wraps the underlying failure in `cause`. solo copies this script into the
+ * database container before running it, so this means the copy failed — for example the target container or
+ * pod was not reachable, or the destination was not writable.
+ */
 export class PostgresInitScriptCopyFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

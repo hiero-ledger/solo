@@ -4,6 +4,11 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
+/**
+ * @description Thrown when solo cannot extract a tar archive; the message names the archive and wraps the underlying
+ * failure in `cause`. solo unpacks tar archives it downloads or restores, so this means extraction failed —
+ * for example the archive is corrupt or truncated, or the destination directory could not be written.
+ */
 export class ArchiveUntarFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = false;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
