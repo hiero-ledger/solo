@@ -51,7 +51,19 @@ import {execSync} from 'node:child_process';
 import find from 'find-process';
 import type FindConfig from 'find-process';
 import type ProcessInfo from 'find-process';
-import {Helpers} from '../../core/helpers.js';
+import {
+  createAndCopyBlockNodeJsonFileForConsensusNode,
+  entityId,
+  extractContextFromConsensusNodes,
+  getInternalAddress,
+  parseNodeAliases,
+  prepareEndpoints,
+  renameAndCopyFile,
+  resolveGossipFqdnRestricted,
+  showVersionBanner,
+  sleep,
+  splitFlagInput,
+} from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
 import * as versions from '../../../version.js';
@@ -173,10 +185,6 @@ import {Listr} from 'listr2';
 import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
 import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 
-const extractContextFromConsensusNodes: typeof Helpers.extractContextFromConsensusNodes =
-  Helpers.extractContextFromConsensusNodes;
-const sleep: typeof Helpers.sleep = Helpers.sleep;
-
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
   return !(path.includes('data/keys') || path.includes('data/config'));
 };
@@ -234,7 +242,7 @@ export class NodeCommandTasks {
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
     const realm: Realm = this.localConfig.configuration.realmForDeployment(deploymentName);
     const shard: Shard = this.localConfig.configuration.shardForDeployment(deploymentName);
-    return FileId.fromString(Helpers.entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
+    return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
   private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion?: string): Promise<string> {
@@ -1613,7 +1621,7 @@ export class NodeCommandTasks {
         task,
       ): Promise<SoloListr<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext>> => {
         if (!config.nodeAliases || config.nodeAliases.length === 0) {
-          config.nodeAliases = Helpers.parseNodeAliases(
+          config.nodeAliases = parseNodeAliases(
             config.nodeAliasesUnparsed,
             this.remoteConfig.getConsensusNodes(),
             this.configManager,
@@ -1909,7 +1917,7 @@ export class NodeCommandTasks {
 
     let adminPublicKeys: string[] = [];
     adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
-      ? Helpers.splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
+      ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
       : (Array.from({length: consensusNodes.length}).fill(constants.GENESIS_PUBLIC_KEY.toString()) as string[]);
     const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
@@ -2283,7 +2291,7 @@ export class NodeCommandTasks {
           const stakeAmountConfig: string | undefined = (context_.config as AnyObject).stakeAmount as
             | string
             | undefined;
-          const stakeAmountParsed: string[] = stakeAmountConfig ? Helpers.splitFlagInput(stakeAmountConfig) : [];
+          const stakeAmountParsed: string[] = stakeAmountConfig ? splitFlagInput(stakeAmountConfig) : [];
           let nodeIndex: number = 0;
           for (const nodeAlias of context_.config.nodeAliases) {
             const accountId: string = accountMap.get(nodeAlias);
@@ -2603,12 +2611,7 @@ export class NodeCommandTasks {
                     true,
                   );
 
-                  Helpers.showVersionBanner(
-                    this.logger,
-                    constants.SOLO_DEPLOYMENT_CHART,
-                    config.soloChartVersion,
-                    'Upgraded',
-                  );
+                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
                 }),
               );
             },
@@ -3161,7 +3164,7 @@ export class NodeCommandTasks {
 
         let endpoints: string[] = [];
         if (config.gossipEndpoints) {
-          endpoints = Helpers.splitFlagInput(config.gossipEndpoints);
+          endpoints = splitFlagInput(config.gossipEndpoints);
         } else {
           const context: string = extractContextFromConsensusNodes(
             config.consensusNodes[0].name,
@@ -3190,12 +3193,12 @@ export class NodeCommandTasks {
           );
 
           endpoints = [
-            `${Helpers.getInternalAddress(config.releaseTag, config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
+            `${getInternalAddress(config.releaseTag, config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
             `${externalEndpointAddress.formattedAddress()}`,
           ];
         }
 
-        context_.gossipEndpoints = Helpers.prepareEndpoints(
+        context_.gossipEndpoints = prepareEndpoints(
           config.endpointType,
           endpoints,
           constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
@@ -3205,7 +3208,7 @@ export class NodeCommandTasks {
   }
 
   private async getGossipFqdnRestricted(config: NodeAddConfigClass, k8: K8): Promise<boolean> {
-    return await Helpers.resolveGossipFqdnRestricted({
+    return await resolveGossipFqdnRestricted({
       k8,
       namespace: config.namespace,
       stagingDir: config.stagingDir,
@@ -3237,7 +3240,7 @@ export class NodeCommandTasks {
         let endpoints: string[] = [];
 
         if (config.grpcEndpoints) {
-          endpoints = Helpers.splitFlagInput(config.grpcEndpoints);
+          endpoints = splitFlagInput(config.grpcEndpoints);
         } else {
           if (config.endpointType !== constants.ENDPOINT_TYPE_FQDN) {
             throw new SoloErrors.validation.grpcEndpointsRequired(constants.ENDPOINT_TYPE_IP);
@@ -3248,7 +3251,7 @@ export class NodeCommandTasks {
           ];
         }
 
-        context_.grpcServiceEndpoints = Helpers.prepareEndpoints(
+        context_.grpcServiceEndpoints = prepareEndpoints(
           config.endpointType,
           endpoints,
           constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
@@ -3286,8 +3289,8 @@ export class NodeCommandTasks {
 
           const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
           const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
-          Helpers.renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir);
-          Helpers.renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir);
+          renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir);
+          renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir);
         }
 
         if (config.gossipPublicKey && config.gossipPrivateKey) {
@@ -3297,8 +3300,8 @@ export class NodeCommandTasks {
 
           const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
           const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
-          Helpers.renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir);
-          Helpers.renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir);
+          renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir);
+          renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir);
         }
 
         if (config.newAccountNumber) {
@@ -3687,12 +3690,7 @@ export class NodeCommandTasks {
               context,
               true,
             );
-            Helpers.showVersionBanner(
-              this.logger,
-              constants.SOLO_DEPLOYMENT_CHART,
-              config.soloChartVersion,
-              'Upgraded',
-            );
+            showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
         );
       },
@@ -4516,7 +4514,7 @@ export class NodeCommandTasks {
         this.remoteConfig.configuration.state.externalBlockNodes.length === 0,
       task: async (): Promise<void> => {
         for (const node of this.remoteConfig.getConsensusNodes()) {
-          await Helpers.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
         }
       },
     };

@@ -21,5 +21,4 @@ export class ContainerHelper {
   }
 }
 
-export const patchInject: <T>(parameterValue: T, registryToken: symbol, callingClassName: string) => T =
-  ContainerHelper.patchInject;
+export const patchInject: typeof ContainerHelper.patchInject = ContainerHelper.patchInject;

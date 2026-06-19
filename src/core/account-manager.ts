@@ -42,7 +42,7 @@ import {
 } from '../types/index.js';
 import {type NodeAlias, type NodeAliases, type NodeId, type SdkNetworkEndpoint} from '../types/aliases.js';
 import {type PodName} from '../integration/kube/resources/pod/pod-name.js';
-import {Helpers} from './helpers.js';
+import {entityId, resolveGossipFqdnRestricted, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -478,7 +478,7 @@ export class AccountManager {
         } catch (error) {
           this.logger.error(`failed to sdk ping network node: ${Object.keys(object)[0]}, ${error.message}`);
           currentRetry++;
-          await Helpers.sleep(Duration.ofMillis(sleepInterval));
+          await sleep(Duration.ofMillis(sleepInterval));
         }
       }
     } catch (error) {
@@ -524,7 +524,7 @@ export class AccountManager {
       for (const context of new Set(clusterReferences.values())) {
         gossipFqdnRestrictedByContext.set(
           context,
-          await Helpers.resolveGossipFqdnRestricted({
+          await resolveGossipFqdnRestricted({
             k8: this.k8Factory.getK8(context),
             namespace,
             cacheDir: constants.SOLO_CACHE_DIR,
@@ -987,7 +987,7 @@ export class AccountManager {
       const realm: Long = transactionReceipt.accountId!.realm;
       const shard: Long = transactionReceipt.accountId!.shard;
       const accountInfoQueryResult: AccountInfo = await this.accountInfoQuery(accountId);
-      accountInfo.accountAlias = Helpers.entityId(shard, realm, accountInfoQueryResult.contractAccountId);
+      accountInfo.accountAlias = entityId(shard, realm, accountInfoQueryResult.contractAccountId);
     }
 
     try {
@@ -1097,7 +1097,7 @@ export class AccountManager {
             `Address book query returned INVALID_NODE_ACCOUNT (attempt ${attempt + 1}/${maxAttempts}), retrying in ${retryDelayMs}ms`,
           );
           lastError = error;
-          await Helpers.sleep(Duration.ofMillis(retryDelayMs));
+          await sleep(Duration.ofMillis(retryDelayMs));
         } else {
           throw error;
         }
@@ -1118,7 +1118,7 @@ export class AccountManager {
     const client: Client = this._nodeClient;
     const realm: number | Long = this.localConfig.configuration.realmForDeployment(deployment);
     const shard: number | Long = this.localConfig.configuration.shardForDeployment(deployment);
-    const fileId: FileId = FileId.fromString(Helpers.entityId(shard, realm, fileNumber));
+    const fileId: FileId = FileId.fromString(entityId(shard, realm, fileNumber));
     const queryFees: FileContentsQuery = new FileContentsQuery().setFileId(fileId);
     return Buffer.from(await queryFees.execute(client)).toString('hex');
   }
@@ -1222,7 +1222,7 @@ export class AccountManager {
   public getAccountIdByNumber(deployment: DeploymentName, number: number | Long): AccountId {
     const realm: number | Long = this.localConfig.configuration.realmForDeployment(deployment);
     const shard: number | Long = this.localConfig.configuration.shardForDeployment(deployment);
-    return AccountId.fromString(Helpers.entityId(shard, realm, number));
+    return AccountId.fromString(entityId(shard, realm, number));
   }
 
   public getOperatorAccountId(deployment: DeploymentName): AccountId {
@@ -1254,7 +1254,7 @@ export class AccountManager {
     const firstAccountId: AccountId = this.getStartAccountId(deploymentName);
 
     for (const nodeAlias of nodeAliases) {
-      const nodeAccount: string = Helpers.entityId(
+      const nodeAccount: string = entityId(
         shard,
         realm,
         Long.fromNumber(Templates.nodeIdFromNodeAlias(nodeAlias)).add(firstAccountId.num),

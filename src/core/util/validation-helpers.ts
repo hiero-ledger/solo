@@ -9,7 +9,4 @@ export class ValidationHelpers {
   }
 }
 
-export const isValidEnum: <E extends Record<string, string | number>>(
-  value: unknown,
-  enumeration: E,
-) => value is E[keyof E] = ValidationHelpers.isValidEnum;
+export const isValidEnum: typeof ValidationHelpers.isValidEnum = ValidationHelpers.isValidEnum;

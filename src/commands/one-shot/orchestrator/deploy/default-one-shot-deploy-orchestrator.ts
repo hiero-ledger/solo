@@ -57,10 +57,15 @@ import {ConsensusCommandDefinition} from '../../../command-definitions/consensus
 import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
-import {CommandHelpers, type InvokedSoloCommand} from '../../../command-helpers.js';
+import {type InvokedSoloCommand, invokeSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
 import * as constants from '../../../../core/constants.js';
-import {Helpers} from '../../../../core/helpers.js';
+import {
+  createDirectoryIfNotExists,
+  entityId,
+  remoteConfigsToDeploymentsTable,
+  sleep,
+} from '../../../../core/helpers.js';
 import {Duration} from '../../../../core/time/duration.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
 import {UserBreak} from '../../../../core/errors/user-break.js';
@@ -88,10 +93,7 @@ import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DIS
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
 import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase-helper.js';
 
-const createDirectoryIfNotExists: typeof Helpers.createDirectoryIfNotExists = Helpers.createDirectoryIfNotExists;
-
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
-const invokeSoloCommand: typeof CommandHelpers.invokeSoloCommand = CommandHelpers.invokeSoloCommand;
 
 @injectable()
 export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrator {
@@ -361,7 +363,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               .configMaps()
               .listForAllNamespaces(Templates.renderConfigMapRemoteConfigLabels());
             if (existingRemoteConfigs.length > 0) {
-              const existingDeploymentsTable: string[] = Helpers.remoteConfigsToDeploymentsTable(existingRemoteConfigs);
+              const existingDeploymentsTable: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);
               const promptOptions: {default: boolean; message: string} = {
                 default: false,
                 message:
@@ -797,7 +799,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
         try {
           const entity1001Query: TopicInfoQuery = new TopicInfoQuery().setTopicId(
-            TopicId.fromString(Helpers.entityId(realm, shard, 1001)),
+            TopicId.fromString(entityId(realm, shard, 1001)),
           );
           await entity1001Query.execute(client);
         } catch (topicCheckError) {
@@ -826,7 +828,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 context_: OneShotSingleDeployContext,
                 subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
               ): Promise<void> => {
-                await Helpers.sleep(Duration.ofMillis(100 * currentIndex));
+                await sleep(Duration.ofMillis(100 * currentIndex));
 
                 const createdAccount: {
                   accountId: string;
@@ -1078,7 +1080,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       const shard: Shard = this.localConfig.configuration.shardForDeployment(context.config.deployment);
       const operatorAccountData: SystemAccount = {
         name: 'Operator',
-        accountId: Helpers.entityId(shard, realm, 2),
+        accountId: entityId(shard, realm, 2),
         publicKey: constants.GENESIS_PUBLIC_KEY,
       };
 

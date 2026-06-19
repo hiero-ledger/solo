@@ -10,7 +10,7 @@ import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import {Helpers} from '../core/helpers.js';
+import {entityId, showVersionBanner} from '../core/helpers.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -62,7 +62,7 @@ import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-deployed-event.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
-import {CommandHelpers} from './command-helpers.js';
+import {optionFromFlag} from './command-helpers.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {K8} from '../integration/kube/k8.js';
@@ -398,7 +398,7 @@ export class MirrorNodeCommand extends BaseCommand {
     if (config.forceBlockNodeIntegration || !constants.DISABLE_IMPORTER_SPRING_PROFILES) {
       if (config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
         this.logger.showUser(
-          `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${CommandHelpers.optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
+          `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
         );
       }
       data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
@@ -630,7 +630,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
     this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
 
-    Helpers.showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
+    showVersionBanner(this.logger, constants.MIRROR_NODE_RELEASE_NAME, config.mirrorNodeVersion);
 
     if (commandType === MirrorNodeCommandType.ADD) {
       this.remoteConfig.configuration.components.changeComponentPhase(
@@ -1015,7 +1015,7 @@ export class MirrorNodeCommand extends BaseCommand {
                   true,
                 );
                 await this.adoptMirrorIngressControllerRbacOwnership(config);
-                Helpers.showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
+                showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
               },
               skip: (context_): boolean => !context_.config.enableIngress,
             },
@@ -1272,7 +1272,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
-              const pingerRecipientAccountId: string = Helpers.entityId(shard, realm, 98);
+              const pingerRecipientAccountId: string = entityId(shard, realm, 98);
               config.chartValues.setLiteral(
                 `monitor.config.${chartNamespace}.mirror.monitor.operator.accountId`,
                 operatorId,
@@ -1491,7 +1491,7 @@ export class MirrorNodeCommand extends BaseCommand {
               'Mirror node',
               config.mirrorNodeVersion,
               this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode),
-              CommandHelpers.optionFromFlag(flags.mirrorNodeVersion),
+              optionFromFlag(flags.mirrorNodeVersion),
             );
 
             context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
@@ -1556,7 +1556,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
-              const pingerRecipientAccountId: string = Helpers.entityId(shard, realm, 98);
+              const pingerRecipientAccountId: string = entityId(shard, realm, 98);
               config.chartValues.setLiteral(
                 `monitor.config.${chartNamespace}.mirror.monitor.operator.accountId`,
                 operatorId,

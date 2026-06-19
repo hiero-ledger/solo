@@ -6,12 +6,12 @@ import {describe, it} from 'mocha';
 import {assertUpgradeVersionNotOlder} from '../../../src/core/upgrade-version-guard.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
-import {CommandHelpers} from '../../../src/commands/command-helpers.js';
+import {optionFromFlag} from '../../../src/commands/command-helpers.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 
 describe('assertUpgradeVersionNotOlder', (): void => {
   const componentName: string = 'Test component';
-  const flagHint: string = CommandHelpers.optionFromFlag(flags.upgradeVersion);
+  const flagHint: string = optionFromFlag(flags.upgradeVersion);
 
   it('should skip check when currentVersion is undefined', (): void => {
     expect((): void => {

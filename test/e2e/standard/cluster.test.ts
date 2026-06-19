@@ -6,7 +6,7 @@ import {expect} from 'chai';
 
 import {getTestCacheDirectory} from '../../test-utility.js';
 import * as constants from '../../../src/core/constants.js';
-import {Helpers} from '../../../src/core/helpers.js';
+import {sleep} from '../../../src/core/helpers.js';
 import {Duration} from '../../../src/core/time/duration.js';
 import * as fs from 'node:fs';
 import * as yaml from 'yaml';
@@ -78,7 +78,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           ClusterReferenceTest.setup(options);
 
           do {
-            await Helpers.sleep(Duration.ofSeconds(5));
+            await sleep(Duration.ofSeconds(5));
           } while (
             !(await chartManager.isChartInstalled(
               constants.SOLO_SETUP_NAMESPACE,
@@ -88,7 +88,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         });
 
         // give a few ticks so that connections can close
-        afterEach(async (): Promise<void> => await Helpers.sleep(Duration.ofMillis(20)));
+        afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(20)));
 
         it('should cleanup existing deployment', async (): Promise<void> => {
           if (

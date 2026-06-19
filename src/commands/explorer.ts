@@ -10,7 +10,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
-import {Helpers} from '../core/helpers.js';
+import {showVersionBanner, sleep} from '../core/helpers.js';
 import {
   type ClusterReferenceName,
   type ComponentId,
@@ -41,7 +41,7 @@ import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-st
 import {K8} from '../integration/kube/k8.js';
 import {createHash} from 'node:crypto';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
-import {CommandHelpers} from './command-helpers.js';
+import {optionFromFlag} from './command-helpers.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface ExplorerDeployConfigClass {
@@ -332,7 +332,7 @@ export class ExplorerCommand extends BaseCommand {
             commandType === ExplorerCommandType.ADD,
             true,
           );
-          Helpers.showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion);
+          showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion);
         }
 
         // wait cert-manager to be ready to proceed, otherwise may get error of "failed calling webhook"
@@ -348,7 +348,7 @@ export class ExplorerCommand extends BaseCommand {
 
         // sleep for a few seconds to allow cert-manager to be ready
         if (commandType === ExplorerCommandType.UPGRADE) {
-          await Helpers.sleep(Duration.ofSeconds(10));
+          await sleep(Duration.ofSeconds(10));
         }
 
         await this.chartManager.upgrade(
@@ -363,7 +363,7 @@ export class ExplorerCommand extends BaseCommand {
           commandType === ExplorerCommandType.ADD,
           true,
         );
-        Helpers.showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion, 'Upgraded');
+        showVersionBanner(this.logger, constants.SOLO_CERT_MANAGER_CHART, soloChartVersion, 'Upgraded');
       },
     };
   }
@@ -418,7 +418,7 @@ export class ExplorerCommand extends BaseCommand {
           await this.remoteConfig.persist();
         }
 
-        Helpers.showVersionBanner(this.logger, config.releaseName, config.explorerVersion);
+        showVersionBanner(this.logger, config.releaseName, config.explorerVersion);
       },
     };
   }
@@ -455,7 +455,7 @@ export class ExplorerCommand extends BaseCommand {
           true,
         );
 
-        Helpers.showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
+        showVersionBanner(this.logger, config.ingressReleaseName, INGRESS_CONTROLLER_VERSION);
 
         const k8: K8 = this.k8Factory.getK8(config.clusterContext);
 
@@ -791,7 +791,7 @@ export class ExplorerCommand extends BaseCommand {
               'Explorer',
               config.explorerVersion,
               this.remoteConfig.getComponentVersion(ComponentTypes.Explorer),
-              CommandHelpers.optionFromFlag(flags.explorerVersion),
+              optionFromFlag(flags.explorerVersion),
             );
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);

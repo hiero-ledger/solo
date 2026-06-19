@@ -11,7 +11,13 @@ import {Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
 import {DEFAULT_SOLO_NAMESPACE_LABELS, getEnvironmentVariable} from '../core/constants.js';
 import {Templates} from '../core/templates.js';
-import {Helpers} from '../core/helpers.js';
+import {
+  createAndCopyBlockNodeJsonFileForConsensusNode,
+  parseNodeAliases,
+  resolveValidJsonFilePath,
+  showVersionBanner,
+  sleep,
+} from '../core/helpers.js';
 import {helmValuesHelper} from '../core/helm-values-helper.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {type PerNodeIdentity} from '../types/helm-values.js';
@@ -1001,7 +1007,7 @@ export class NetworkCommand extends BaseCommand {
     config.stagingDir = Templates.renderStagingDir(config.cacheDir, config.releaseTag);
     config.stagingKeysDir = PathEx.join(config.stagingDir, 'keys');
 
-    config.resolvedThrottlesFile = Helpers.resolveValidJsonFilePath(
+    config.resolvedThrottlesFile = resolveValidJsonFilePath(
       config.genesisThrottlesFile,
       flags.genesisThrottlesFile.definition.defaultValue as string,
     );
@@ -1009,11 +1015,7 @@ export class NetworkCommand extends BaseCommand {
     config.consensusNodes = this.remoteConfig.getConsensusNodes();
     config.contexts = this.remoteConfig.getContexts();
     config.clusterRefs = this.remoteConfig.getClusterRefs();
-    config.nodeAliases = Helpers.parseNodeAliases(
-      config.nodeAliasesUnparsed,
-      config.consensusNodes,
-      this.configManager,
-    );
+    config.nodeAliases = parseNodeAliases(config.nodeAliasesUnparsed, config.consensusNodes, this.configManager);
     argv[flags.nodeAliasesUnparsed.name] = config.nodeAliases.join(',');
 
     config.blockNodeComponents = this.getBlockNodes();
@@ -1338,7 +1340,7 @@ export class NetworkCommand extends BaseCommand {
 
       this.eventBus.emit(new NetworkDeployedEvent(deployment));
 
-      Helpers.showVersionBanner(
+      showVersionBanner(
         this.logger,
         constants.PROMETHEUS_OPERATOR_CRDS_CHART,
         versions.PROMETHEUS_OPERATOR_CRDS_VERSION,
@@ -1577,7 +1579,7 @@ export class NetworkCommand extends BaseCommand {
                 false,
                 true,
               );
-              Helpers.showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
+              showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
           },
         },
@@ -1627,7 +1629,7 @@ export class NetworkCommand extends BaseCommand {
                     }
 
                     attempts++;
-                    await Helpers.sleep(Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS));
+                    await sleep(Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS));
                   }
                   throw new SoloErrors.system.loadBalancerNotFound();
                 },
@@ -1671,7 +1673,7 @@ export class NetworkCommand extends BaseCommand {
                     false,
                     true,
                   );
-                  Helpers.showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, soloChartVersion, 'Upgraded');
+                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, soloChartVersion, 'Upgraded');
 
                   // TODO: Remove this code now that we have made the config dynamic and can update it without redeploying
                   const k8: K8 = this.k8Factory.getK8(clusterRefs.get(clusterReference));
@@ -1858,11 +1860,7 @@ export class NetworkCommand extends BaseCommand {
           task: async ({config: {consensusNodes}}): Promise<void> => {
             try {
               for (const consensusNode of consensusNodes) {
-                await Helpers.createAndCopyBlockNodeJsonFileForConsensusNode(
-                  consensusNode,
-                  this.logger,
-                  this.k8Factory,
-                );
+                await createAndCopyBlockNodeJsonFileForConsensusNode(consensusNode, this.logger, this.k8Factory);
               }
             } catch (error) {
               throw new SoloErrors.component.blockNodeConfigFailed(error);

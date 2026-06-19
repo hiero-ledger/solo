@@ -10,7 +10,7 @@ import {K8ClientLease} from './k8-client-lease.js';
 import {type Lease} from '../../../resources/lease/lease.js';
 import {ResourceReadError} from '../../../errors/resource-operation-errors.js';
 import {ResourceType} from '../../../resources/resource-type.js';
-import {Helpers} from '../../../../../core/helpers.js';
+import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import {getReasonPhrase, StatusCodes} from 'http-status-codes';
 import {KubeApiResponse} from '../../../kube-api-response.js';
@@ -70,7 +70,7 @@ export class K8ClientLeases implements Leases {
         this.logger.debug(
           `Retrying readNamespacedLease(${leaseName}, ${namespace}) in 5 seconds because of ${getReasonPhrase(StatusCodes.INTERNAL_SERVER_ERROR)}`,
         );
-        await Helpers.sleep(Duration.ofSeconds(5));
+        await sleep(Duration.ofSeconds(5));
         try {
           return await this.read(namespace, leaseName, timesCalled + 1);
         } catch (error) {

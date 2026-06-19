@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type ClusterCommandTasks} from './tasks.js';
-import {Helpers} from '../../core/helpers.js';
+import {addFlagsToArgv} from '../../core/helpers.js';
 import * as constants from '../../core/constants.js';
 import * as ContextFlags from './flags.js';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
@@ -12,8 +12,6 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {type ClusterCommandConfigs} from './configs.js';
 import {type ArgvStruct} from '../../types/aliases.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
-
-const addFlagsToArgv: typeof Helpers.addFlagsToArgv = Helpers.addFlagsToArgv;
 
 @injectable()
 export class ClusterCommandHandlers extends CommandHandler {

@@ -4,7 +4,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {injectable, container} from 'tsyringe-neo';
 import {type ArgvStruct, NodeAlias, type AnyListrContext} from '../types/aliases.js';
-import {CommandFlag, type CommandFlags} from '../types/flag-types.js';
+import {type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
 import yaml from 'yaml';
 import fs from 'node:fs';
@@ -16,10 +16,10 @@ import {type K8} from '../integration/kube/k8.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {type Context, type ClusterReferences, type SoloListrTask, type SoloListr} from '../types/index.js';
-import {Listr, ListrContext, ListrRendererValue} from 'listr2';
+import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
-import {Helpers} from '../core/helpers.js';
+import {extractContextFromConsensusNodes, sleep} from '../core/helpers.js';
 import {Duration} from '../core/time/duration.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
@@ -37,7 +37,7 @@ import {ExplorerCommandDefinition} from './command-definitions/explorer-command-
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 import {ClusterReferenceCommandDefinition} from './command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
-import {CommandHelpers, InvokedSoloCommand} from './command-helpers.js';
+import {CommandHelpers, invokeSoloCommand, optionFromFlag, subTaskSoloCommand} from './command-helpers.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {inject} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -55,26 +55,6 @@ import {METALLB_CHART_VERSION} from '../../version.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Container} from '../integration/kube/resources/container/container.js';
-import {TaskList} from '../core/task-list/task-list.js';
-import {TaskListWrapper} from '../core/task-list/task-list-wrapper.js';
-
-const optionFromFlag: (flag: CommandFlag) => string = CommandHelpers.optionFromFlag;
-const invokeSoloCommand: (
-  title: string,
-  commandName: string,
-  callback: () => Promise<string[]> | string[],
-  taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
-  skipCallback?: () => boolean,
-) => InvokedSoloCommand = CommandHelpers.invokeSoloCommand;
-const subTaskSoloCommand: (
-  commandName: string,
-  taskListWrapper: TaskListWrapper,
-  callback: () => Promise<string[]> | string[],
-  taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
-) => Promise<
-  | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
-  | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
-> = CommandHelpers.subTaskSoloCommand;
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
@@ -225,7 +205,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
     for (const consensusNode of consensusNodes) {
-      const context: Context = Helpers.extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
+      const context: Context = extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
       const k8: K8 = this.k8Factory.getK8(context);
       this.logger.info(
         `Waiting for pod of node ${consensusNode.name} in namespace ${namespace.toString()} (context: ${context})`,
@@ -325,7 +305,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const node of consensusNodes) {
               const nodeAlias: NodeAlias = node.name;
-              const context: Context = Helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+              const context: Context = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
               const clusterReference: string = node.cluster; // Get cluster ref from node metadata
               const statesDirectory: string = PathEx.join(outputDirectory, 'states', clusterReference);
               await networkNodes.getStatesFromPod(namespace, nodeAlias, context, statesDirectory);
@@ -551,7 +531,7 @@ export class BackupRestoreCommand extends BaseCommand {
         await container.copyTo(logFilePath, `${constants.HEDERA_HAPI_PATH}`);
 
         // Wait for file to sync to the file system
-        await Helpers.sleep(Duration.ofSeconds(2));
+        await sleep(Duration.ofSeconds(2));
 
         // Unzip the log file
         this.logger.showUser(chalk.gray(`    Extracting log file in pod: ${podName}`));
@@ -607,7 +587,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const podReferences: Record<string, PodReference> = {};
 
             for (const nodeAlias of nodeAliases) {
-              const context: Context = Helpers.extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
+              const context: Context = extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
               const k8: K8 = this.k8Factory.getK8(context);
               const pods: Pod[] = await k8
                 .pods()
@@ -1486,7 +1466,7 @@ export class BackupRestoreCommand extends BaseCommand {
             } catch (error: any) {
               attempt++;
               if (attempt < maxAttempts) {
-                await Helpers.sleep(Duration.ofSeconds(2));
+                await sleep(Duration.ofSeconds(2));
               } else {
                 throw new SoloErrors.deployment.clusterApiServerTimeout(clusterResponse.context, maxAttempts, error);
               }

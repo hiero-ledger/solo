@@ -31,3 +31,7 @@ export class KubeValidation {
     return KubeValidation.isDns1123Object(value);
   }
 }
+
+export const isDns1123Label: typeof KubeValidation.isDns1123Label = KubeValidation.isDns1123Label;
+export const isDns1123Object: typeof KubeValidation.isDns1123Object = KubeValidation.isDns1123Object;
+export const isDns1123Resource: typeof KubeValidation.isDns1123Resource = KubeValidation.isDns1123Resource;

@@ -11,7 +11,7 @@ import {InitContext} from '../commands/init/init-context.js';
 import {AptGetPackageManager} from './package-managers/apt-get-package-manager.js';
 import {SoloErrors} from './errors/solo-errors.js';
 import * as constants from './constants.js';
-import {Helpers} from './helpers.js';
+import {getTemporaryDirectory} from './helpers.js';
 import fs from 'node:fs';
 import * as yaml from 'yaml';
 import {type AnyObject} from '../types/aliases.js';
@@ -167,7 +167,7 @@ export class ClusterTaskManager extends ShellRunner {
 
           // Merge kubeconfig data from root user into normal user's kubeconfig
           const user: string[] = await this.run('whoami');
-          const temporaryDirectory: string = Helpers.getTemporaryDirectory();
+          const temporaryDirectory: string = getTemporaryDirectory();
 
           await this.sudoRun(
             onSudoRequested,

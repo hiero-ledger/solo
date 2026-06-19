@@ -11,7 +11,7 @@ import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type K8} from '../../../../src/integration/kube/k8.js';
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
-import {Helpers} from '../../../../src/core/helpers.js';
+import {sleep} from '../../../../src/core/helpers.js';
 import http from 'node:http';
 import {expect} from 'chai';
 import {container} from 'tsyringe-neo';
@@ -35,8 +35,6 @@ import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.j
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {MIRROR_NODE_PORT} from '../../../../src/core/constants.js';
 import {PortUtilities} from '../../../../src/business/utils/port-utilities.js';
-
-const sleep: typeof Helpers.sleep = Helpers.sleep;
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(

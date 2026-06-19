@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Helpers} from '../../core/helpers.js';
+import {ipV4ToBase64, isIpV4Address} from '../../core/helpers.js';
 import {type ConsensusNode} from '../../core/model/consensus-node.js';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type K8} from '../../integration/kube/k8.js';
@@ -20,9 +20,9 @@ export class Address {
     this.port = port;
     this.fqdnOrIpAddress = fqdnOrIpAddress;
     if (this.fqdnOrIpAddress) {
-      if (Helpers.isIpV4Address(fqdnOrIpAddress)) {
+      if (isIpV4Address(fqdnOrIpAddress)) {
         this.ipAddressV4 = fqdnOrIpAddress;
-        this.ipAddressV4Base64 = Helpers.ipV4ToBase64(fqdnOrIpAddress);
+        this.ipAddressV4Base64 = ipV4ToBase64(fqdnOrIpAddress);
         return;
       } else {
         this.domainName = fqdnOrIpAddress;
@@ -39,7 +39,7 @@ export class Address {
     this.ipAddressV4Base64 = ipAddressV4Base64;
 
     if (this.ipAddressV4 && !this.ipAddressV4Base64) {
-      this.ipAddressV4Base64 = Helpers.ipV4ToBase64(this.ipAddressV4);
+      this.ipAddressV4Base64 = ipV4ToBase64(this.ipAddressV4);
     }
 
     if (this.ipAddressV4Base64 && !this.ipAddressV4) {

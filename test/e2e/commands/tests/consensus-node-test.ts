@@ -44,7 +44,7 @@ import {type BaseTestOptions} from './base-test-options.js';
 import {KeysTest} from './keys-test.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
-import {Helpers} from '../../../../src/core/helpers.js';
+import {sleep} from '../../../../src/core/helpers.js';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 
 import {it} from 'mocha';
@@ -838,7 +838,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
     await main(soloConsensusNodeRefreshArgv(options));
 
-    await Helpers.sleep(Duration.ofSeconds(15)); // sleep to wait for node to finish starting
+    await sleep(Duration.ofSeconds(15)); // sleep to wait for node to finish starting
   }
 
   private static async verifyPodShouldBeRunning(
@@ -921,7 +921,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
         .killPod();
 
       testLogger.showUser('Sleeping for 20 seconds');
-      await Helpers.sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
+      await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
       await verifyPodShouldBeRunning(namespace, nodeAlias, context);
       // With autostart enabled (0.44.0+), killing a pod causes the platform to
@@ -929,7 +929,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       // Stop it explicitly so we can do a controlled Solo-managed refresh below.
       await main(soloConsensusNodeStopArgv(options, nodeAlias));
 
-      await Helpers.sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
+      await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
       await refresh(options);
 
@@ -953,7 +953,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     it(`${testName}: perform PEM stop`, async (): Promise<void> => {
       await main(soloConsensusNodeStopArgv(options, nodeAlias));
 
-      await Helpers.sleep(Duration.ofSeconds(30)); // give time for node to stop and update its logs
+      await sleep(Duration.ofSeconds(30)); // give time for node to stop and update its logs
 
       // Only check the stopped node's status on its own cluster context.
       // With N >= 3 nodes the remaining nodes retain quorum and stay ACTIVE.
@@ -968,7 +968,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
       await main(soloNodeStartArgv(testName, deployment, consensusNodesCount, undefined, false));
       testLogger.showUser('Sleeping for 20 seconds');
-      await Helpers.sleep(Duration.ofSeconds(20));
+      await sleep(Duration.ofSeconds(20));
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 

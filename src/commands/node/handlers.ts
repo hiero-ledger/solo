@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {Helpers} from '../../core/helpers.js';
+import {addFlagsToArgv, Helpers} from '../../core/helpers.js';
 import * as NodeFlags from './flags.js';
 import {type NodeCommandConfigs} from './configs.js';
 import * as constants from '../../core/constants.js';
@@ -45,8 +45,6 @@ import {findDeploymentsFromRemoteConfig} from '../util/remote-config-helper.js';
 import {GetSoloRemoteConfigMapTask} from '../util/get-solo-remote-config-map-task.js';
 import {type RemoteDeploymentInfo} from '../util/remote-deployment-info.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
-
-const addFlagsToArgv: typeof Helpers.addFlagsToArgv = Helpers.addFlagsToArgv;
 
 @injectable()
 export class NodeCommandHandlers extends CommandHandler {

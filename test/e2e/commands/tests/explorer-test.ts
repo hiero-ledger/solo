@@ -11,7 +11,7 @@ import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type K8} from '../../../../src/integration/kube/k8.js';
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
-import {Helpers} from '../../../../src/core/helpers.js';
+import {sleep} from '../../../../src/core/helpers.js';
 import {type PackageDownloader} from '../../../../src/core/package-downloader.js';
 import http from 'node:http';
 import {expect} from 'chai';
@@ -77,7 +77,7 @@ export class ExplorerTest extends BaseCommandTest {
     const explorerPods: Pod[] = await k8.pods().list(namespace, Templates.renderExplorerLabels(1));
     expect(explorerPods).to.have.lengthOf(1);
     try {
-      await Helpers.sleep(Duration.ofSeconds(2));
+      await sleep(Duration.ofSeconds(2));
       const queryUrl: string = 'http://127.0.0.1:38080/api/v1/accounts?limit=15&order=desc';
       const packageDownloader: PackageDownloader = container.resolve<PackageDownloader>(InjectTokens.PackageDownloader);
       expect(await packageDownloader.urlExists(queryUrl), 'the hedera explorer Accounts URL should exist').to.be.true;
@@ -116,7 +116,7 @@ export class ExplorerTest extends BaseCommandTest {
         });
 
         request.end(); // make the request
-        await Helpers.sleep(Duration.ofSeconds(2));
+        await sleep(Duration.ofSeconds(2));
       }
     } catch (error) {
       testLogger.debug(`problem with request: ${error.message}`, error);

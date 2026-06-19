@@ -16,7 +16,7 @@ import {type NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js
 import {HEDERA_HAPI_PATH} from '../../../../src/core/constants.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {K8Helper} from '../../../../src/business/utils/k8-helper.js';
-import {Helpers} from '../../../../src/core/helpers.js';
+import {sleep} from '../../../../src/core/helpers.js';
 import {OperatingSystem} from '../../../../src/business/utils/operating-system.js';
 
 export class BlockNodeTest extends BaseCommandTest {
@@ -214,7 +214,7 @@ export class BlockNodeTest extends BaseCommandTest {
       const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
 
       // Sleep to allow the port-forward to be established before attempting to connect
-      await Helpers.sleep(Duration.ofSeconds(5));
+      await sleep(Duration.ofSeconds(5));
 
       const commandOptions: ExecOptionsWithStringEncoding = {
         cwd: './test/data',

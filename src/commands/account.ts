@@ -7,7 +7,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
-import {Helpers} from '../core/helpers.js';
+import {entityId, parseNodeAliases, sleep} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {
   AccountId,
@@ -59,7 +59,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
-import {CommandHelpers} from './command-helpers.js';
+import {CommandHelpers, invokeSoloCommand} from './command-helpers.js';
 import {NodeCommandTasks} from './node/tasks.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
@@ -316,7 +316,7 @@ export class AccountCommand extends BaseCommand {
               clusterRef: clusterReference,
               contextName,
               namespace: await this.resolveNamespaceFromDeployment(task),
-              nodeAliases: Helpers.parseNodeAliases(
+              nodeAliases: parseNodeAliases(
                 this.configManager.getFlag(flags.nodeAliasesUnparsed),
                 this.remoteConfig.getConsensusNodes(),
                 this.configManager,
@@ -377,8 +377,8 @@ export class AccountCommand extends BaseCommand {
                     const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
 
                     for (const currentSet of context_.accountsBatchedSet) {
-                      const accountStart: string = Helpers.entityId(shard, realm, currentSet[0]);
-                      const accountEnd: string = Helpers.entityId(shard, realm, currentSet.at(-1));
+                      const accountStart: string = entityId(shard, realm, currentSet[0]);
+                      const accountEnd: string = entityId(shard, realm, currentSet.at(-1));
                       const rangeString: string =
                         accountStart === accountEnd
                           ? `${chalk.yellow(accountStart)}`
@@ -538,7 +538,7 @@ export class AccountCommand extends BaseCommand {
               this.configManager,
               task,
             );
-            const nodeAliases: NodeAliases = Helpers.parseNodeAliases(
+            const nodeAliases: NodeAliases = parseNodeAliases(
               this.configManager.getFlag(flags.nodeAliasesUnparsed),
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
@@ -567,7 +567,7 @@ export class AccountCommand extends BaseCommand {
             | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
             | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
           > =>
-            CommandHelpers.invokeSoloCommand(
+            invokeSoloCommand(
               'Stop consensus nodes',
               `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_STOP}`,
               (): string[] => {
@@ -1006,7 +1006,7 @@ export class AccountCommand extends BaseCommand {
                     if (!nodeAliases || nodeAliases.length === 0) {
                       throw new SoloErrors.validation.noConsensusNodesFound();
                     }
-                    return CommandHelpers.invokeSoloCommand(
+                    return invokeSoloCommand(
                       'Start consensus nodes',
                       ConsensusCommandDefinition.START_COMMAND,
                       (): string[] => {
@@ -1312,7 +1312,7 @@ export class AccountCommand extends BaseCommand {
               subTasks.push({
                 title: `Creating Account ${index}`,
                 task: async (context_: Context, subTask: SoloListrTaskWrapper<Context>): Promise<void> => {
-                  await Helpers.sleep(Duration.ofMillis(100 * index));
+                  await sleep(Duration.ofMillis(100 * index));
                   const balance: Hbar = account.balance ?? Hbar.from(0, HbarUnit.Hbar);
                   const createdAccount: {
                     accountId: string;
@@ -1397,7 +1397,7 @@ export class AccountCommand extends BaseCommand {
     const shard: Shard = this.localConfig.configuration.shardForDeployment(deployment);
     const operatorAccountData: SystemAccount = {
       name: 'Operator',
-      accountId: Helpers.entityId(shard, realm, 2),
+      accountId: entityId(shard, realm, 2),
       publicKey: constants.GENESIS_PUBLIC_KEY,
     };
 

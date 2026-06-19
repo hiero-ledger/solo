@@ -2,7 +2,7 @@
 
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
-import {Helpers} from '../core/helpers.js';
+import {parseNodeAliases, showVersionBanner, sleep} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
@@ -45,7 +45,7 @@ import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
-import {CommandHelpers} from './command-helpers.js';
+import {optionFromFlag} from './command-helpers.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface RelayDestroyConfigClass {
@@ -445,11 +445,11 @@ export class RelayCommand extends BaseCommand {
           commandType === RelayCommandType.ADD,
         );
 
-        Helpers.showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
+        showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
 
         // wait for the pod to destroy in case it was an upgrade
         if (commandType === RelayCommandType.UPGRADE) {
-          await Helpers.sleep(Duration.ofSeconds(40));
+          await sleep(Duration.ofSeconds(40));
 
           // update relay version in remote config after successful upgrade
           this.remoteConfig.updateComponentVersion(
@@ -618,7 +618,7 @@ export class RelayCommand extends BaseCommand {
 
             config.namespace = await this.getNamespace(task);
 
-            config.nodeAliases = Helpers.parseNodeAliases(
+            config.nodeAliases = parseNodeAliases(
               config.nodeAliasesUnparsed,
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
@@ -736,7 +736,7 @@ export class RelayCommand extends BaseCommand {
 
             config.namespace = await this.getNamespace(task);
 
-            config.nodeAliases = Helpers.parseNodeAliases(
+            config.nodeAliases = parseNodeAliases(
               config.nodeAliasesUnparsed,
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
@@ -769,7 +769,7 @@ export class RelayCommand extends BaseCommand {
               'Relay',
               config.relayReleaseTag,
               this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
-              CommandHelpers.optionFromFlag(flags.relayVersion),
+              optionFromFlag(flags.relayVersion),
             );
 
             if (!this.oneShotState.isActive()) {
@@ -971,7 +971,7 @@ export class RelayCommand extends BaseCommand {
   private async inferRelayData(namespace: NamespaceName, context: Context): Promise<InferredData> {
     const id: ComponentId = this.inferRelayId();
 
-    const nodeAliases: NodeAliases = Helpers.parseNodeAliases(
+    const nodeAliases: NodeAliases = parseNodeAliases(
       this.configManager.getFlag(flags.nodeAliasesUnparsed),
       this.remoteConfig.getConsensusNodes(),
       this.configManager,

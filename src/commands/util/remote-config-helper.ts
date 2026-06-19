@@ -81,7 +81,5 @@ export class RemoteConfigHelper {
   }
 }
 
-export const findDeploymentsFromRemoteConfig: (
-  k8Factory: K8Factory,
-  logger: SoloLogger,
-) => Promise<Map<string, RemoteDeploymentInfo>> = RemoteConfigHelper.findDeploymentsFromRemoteConfig;
+export const findDeploymentsFromRemoteConfig: typeof RemoteConfigHelper.findDeploymentsFromRemoteConfig =
+  RemoteConfigHelper.findDeploymentsFromRemoteConfig;

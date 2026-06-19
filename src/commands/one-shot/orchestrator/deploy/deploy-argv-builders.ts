@@ -12,7 +12,7 @@ import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cl
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
 import {Flags} from '../../../flags.js';
-import {CommandHelpers} from '../../../command-helpers.js';
+import {appendConfigToArgv, argvPushGlobalFlags, newArgv, optionFromFlag} from '../../../command-helpers.js';
 import * as constants from '../../../../core/constants.js';
 import * as version from '../../../../../version.js';
 import {type AnyObject, type ArgvStruct} from '../../../../types/aliases.js';
@@ -25,10 +25,6 @@ import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 const MIRROR_NODE_ID: number = 1;
 const GITHUB_RELEASES_PER_PAGE: number = 100;
 
-const appendConfigToArgv: typeof CommandHelpers.appendConfigToArgv = CommandHelpers.appendConfigToArgv;
-const argvPushGlobalFlags: typeof CommandHelpers.argvPushGlobalFlags = CommandHelpers.argvPushGlobalFlags;
-const newArgv: typeof CommandHelpers.newArgv = CommandHelpers.newArgv;
-const optionFromFlag: typeof CommandHelpers.optionFromFlag = CommandHelpers.optionFromFlag;
 interface GitHubReleaseWithMetadata {
   tag_name: string;
   draft?: boolean;

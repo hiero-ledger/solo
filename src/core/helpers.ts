@@ -85,7 +85,7 @@ export class Helpers {
     consensusNodes?: ConsensusNode[],
     configManager?: ConfigManager,
   ): NodeAliases {
-    let nodeAliases: NodeAlias[] = Helpers.splitFlagInput(input, ',') as NodeAliases;
+    let nodeAliases: NodeAlias[] = splitFlagInput(input, ',') as NodeAliases;
     if (nodeAliases.length === 0) {
       nodeAliases = consensusNodes?.map((node: {name: string}): NodeAlias => {
         return node.name as NodeAlias;
@@ -127,7 +127,7 @@ export class Helpers {
       return undefined;
     }
     const applicationPropertiesContent: string = fs.readFileSync(filePath, 'utf8');
-    return Helpers.parseGossipFqdnRestricted(applicationPropertiesContent);
+    return parseGossipFqdnRestricted(applicationPropertiesContent);
   }
 
   public static async resolveGossipFqdnRestricted(options: ResolveGossipFqdnRestrictedOptions): Promise<boolean> {
@@ -141,7 +141,7 @@ export class Helpers {
           .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
         const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
         if (configMapProperties) {
-          const parsed: boolean | undefined = Helpers.parseGossipFqdnRestricted(configMapProperties);
+          const parsed: boolean | undefined = parseGossipFqdnRestricted(configMapProperties);
           if (parsed !== undefined) {
             return parsed;
           }
@@ -154,7 +154,7 @@ export class Helpers {
     // 2. Explicit application.properties path.
     if (applicationPropertiesPath) {
       const parsedFromApplicationPropertiesPath: boolean | undefined =
-        Helpers.readGossipFqdnRestrictedFromFile(applicationPropertiesPath);
+        readGossipFqdnRestrictedFromFile(applicationPropertiesPath);
       if (parsedFromApplicationPropertiesPath !== undefined) {
         return parsedFromApplicationPropertiesPath;
       }
@@ -163,7 +163,7 @@ export class Helpers {
     // 3. Staged application.properties
     if (stagingDir) {
       const stagedPath: string = PathEx.join(stagingDir, 'templates', constants.APPLICATION_PROPERTIES);
-      const parsedFromStaging: boolean | undefined = Helpers.readGossipFqdnRestrictedFromFile(stagedPath);
+      const parsedFromStaging: boolean | undefined = readGossipFqdnRestrictedFromFile(stagedPath);
       if (parsedFromStaging !== undefined) {
         return parsedFromStaging;
       }
@@ -172,7 +172,7 @@ export class Helpers {
     // 4. Cache template
     if (cacheDir) {
       const cachePath: string = PathEx.join(cacheDir, 'templates', constants.APPLICATION_PROPERTIES);
-      const parsedFromCache: boolean | undefined = Helpers.readGossipFqdnRestrictedFromFile(cachePath);
+      const parsedFromCache: boolean | undefined = readGossipFqdnRestrictedFromFile(cachePath);
       if (parsedFromCache !== undefined) {
         return parsedFromCache;
       }
@@ -181,7 +181,7 @@ export class Helpers {
     // 5. Repo template
     if (resourcesDir) {
       const repoPath: string = PathEx.join(resourcesDir, 'templates', constants.APPLICATION_PROPERTIES);
-      const parsedFromRepo: boolean | undefined = Helpers.readGossipFqdnRestrictedFromFile(repoPath);
+      const parsedFromRepo: boolean | undefined = readGossipFqdnRestrictedFromFile(repoPath);
       if (parsedFromRepo !== undefined) {
         return parsedFromRepo;
       }
@@ -244,11 +244,7 @@ export class Helpers {
     currentDate: Date = new Date(),
     directoryPrefix: string = 'tls',
   ): string {
-    const backupDirectory: string = Helpers.createBackupDirectory(
-      keysDirectory,
-      `unused-${directoryPrefix}`,
-      currentDate,
-    );
+    const backupDirectory: string = createBackupDirectory(keysDirectory, `unused-${directoryPrefix}`, currentDate);
 
     const fileMap: Map<string, string> = new Map<string, string>();
     for (const nodeAlias of nodeAliases) {
@@ -257,7 +253,7 @@ export class Helpers {
       fileMap.set(sourcePath, destinationPath);
     }
 
-    Helpers.makeBackup(fileMap, true);
+    makeBackup(fileMap, true);
 
     return backupDirectory;
   }
@@ -268,11 +264,7 @@ export class Helpers {
     currentDate: Date = new Date(),
     directoryPrefix: string = 'gossip-pem',
   ): string {
-    const backupDirectory: string = Helpers.createBackupDirectory(
-      keysDirectory,
-      `unused-${directoryPrefix}`,
-      currentDate,
-    );
+    const backupDirectory: string = createBackupDirectory(keysDirectory, `unused-${directoryPrefix}`, currentDate);
 
     const fileMap: Map<string, string> = new Map<string, string>();
     for (const nodeAlias of nodeAliases) {
@@ -281,7 +273,7 @@ export class Helpers {
       fileMap.set(sourcePath, destinationPath);
     }
 
-    Helpers.makeBackup(fileMap, true);
+    makeBackup(fileMap, true);
 
     return backupDirectory;
   }
@@ -367,12 +359,12 @@ export class Helpers {
     context_.signingCertDer = new Uint8Array(
       contextData.signingCertDer.split(',').map((value: string): number => Number.parseInt(value, 10)),
     );
-    context_.gossipEndpoints = Helpers.prepareEndpoints(
+    context_.gossipEndpoints = prepareEndpoints(
       context_.config.endpointType,
       contextData.gossipEndpoints,
       constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
     );
-    context_.grpcServiceEndpoints = Helpers.prepareEndpoints(
+    context_.grpcServiceEndpoints = prepareEndpoints(
       context_.config.endpointType,
       contextData.grpcServiceEndpoints,
       constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
@@ -419,7 +411,7 @@ export class Helpers {
         returnValue.push(
           new ServiceEndpoint({
             port: +port,
-            ipAddressV4: Helpers.parseIpAddressToUint8Array(url),
+            ipAddressV4: parseIpAddressToUint8Array(url),
           }),
         );
       } else {
@@ -452,7 +444,7 @@ export class Helpers {
   public static resolveValidJsonFilePath(filePath: string, defaultPath?: string): string {
     if (!filePath) {
       if (defaultPath) {
-        return Helpers.resolveValidJsonFilePath(defaultPath);
+        return resolveValidJsonFilePath(defaultPath);
       }
 
       return '';
@@ -462,7 +454,7 @@ export class Helpers {
 
     if (!fs.existsSync(resolvedFilePath)) {
       if (defaultPath) {
-        return Helpers.resolveValidJsonFilePath(defaultPath);
+        return resolveValidJsonFilePath(defaultPath);
       }
 
       throw new SoloErrors.system.fileNotFound(filePath);
@@ -471,7 +463,7 @@ export class Helpers {
     // If the file is empty (or size cannot be determined) then fallback on the default values
     const throttleInfo: Stats = fs.statSync(resolvedFilePath);
     if (throttleInfo.size === 0 && defaultPath) {
-      return Helpers.resolveValidJsonFilePath(defaultPath);
+      return resolveValidJsonFilePath(defaultPath);
     } else if (throttleInfo.size === 0) {
       throw new SoloErrors.system.fileEmpty(filePath);
     }
@@ -483,7 +475,7 @@ export class Helpers {
     } catch {
       // Fallback to the default values if an error occurs due to invalid JSON data or unable to read the file size
       if (defaultPath) {
-        return Helpers.resolveValidJsonFilePath(defaultPath);
+        return resolveValidJsonFilePath(defaultPath);
       }
 
       throw new SoloErrors.system.fileInvalidJson(filePath);
@@ -596,7 +588,7 @@ export class Helpers {
   }
 
   private static async throwAfter(duration: Duration, message: string = 'Timeout'): Promise<never> {
-    await Helpers.sleep(duration);
+    await sleep(duration);
     throw new SoloErrors.system.timeout(message);
   }
 
@@ -797,3 +789,24 @@ export const backupOldTlsKeys: typeof Helpers.backupOldTlsKeys = Helpers.backupO
 export const backupOldPemKeys: typeof Helpers.backupOldPemKeys = Helpers.backupOldPemKeys;
 export const getEnvironmentValue: typeof Helpers.getEnvironmentValue = Helpers.getEnvironmentValue;
 export const parseIpAddressToUint8Array: typeof Helpers.parseIpAddressToUint8Array = Helpers.parseIpAddressToUint8Array;
+export const renameAndCopyFile: typeof Helpers.renameAndCopyFile = Helpers.renameAndCopyFile;
+export const addSaveContextParser: typeof Helpers.addSaveContextParser = Helpers.addSaveContextParser;
+export const addLoadContextParser: typeof Helpers.addLoadContextParser = Helpers.addLoadContextParser;
+export const prepareEndpoints: typeof Helpers.prepareEndpoints = Helpers.prepareEndpoints;
+export const addFlagsToArgv: typeof Helpers.addFlagsToArgv = Helpers.addFlagsToArgv;
+export const resolveValidJsonFilePath: typeof Helpers.resolveValidJsonFilePath = Helpers.resolveValidJsonFilePath;
+export const extractContextFromConsensusNodes: typeof Helpers.extractContextFromConsensusNodes =
+  Helpers.extractContextFromConsensusNodes;
+export const checkNamespace: typeof Helpers.checkNamespace = Helpers.checkNamespace;
+export const showVersionBanner: typeof Helpers.showVersionBanner = Helpers.showVersionBanner;
+export const isIpV4Address: typeof Helpers.isIpV4Address = Helpers.isIpV4Address;
+export const ipV4ToBase64: typeof Helpers.ipV4ToBase64 = Helpers.ipV4ToBase64;
+export const entityId: typeof Helpers.entityId = Helpers.entityId;
+export const withTimeout: typeof Helpers.withTimeout = Helpers.withTimeout;
+export const checkDockerImageExists: typeof Helpers.checkDockerImageExists = Helpers.checkDockerImageExists;
+export const createDirectoryIfNotExists: typeof Helpers.createDirectoryIfNotExists = Helpers.createDirectoryIfNotExists;
+export const findMinioOperator: typeof Helpers.findMinioOperator = Helpers.findMinioOperator;
+export const remoteConfigsToDeploymentsTable: typeof Helpers.remoteConfigsToDeploymentsTable =
+  Helpers.remoteConfigsToDeploymentsTable;
+export const createAndCopyBlockNodeJsonFileForConsensusNode: typeof Helpers.createAndCopyBlockNodeJsonFileForConsensusNode =
+  Helpers.createAndCopyBlockNodeJsonFileForConsensusNode;

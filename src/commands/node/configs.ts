@@ -4,7 +4,7 @@ import {Templates} from '../../core/templates.js';
 import * as constants from '../../core/constants.js';
 import {AccountId, PrivateKey} from '@hiero-ledger/sdk';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
-import {Helpers} from '../../core/helpers.js';
+import {checkNamespace, parseNodeAliases} from '../../core/helpers.js';
 import fs from 'node:fs';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import {Flags as flags} from '../flags.js';
@@ -56,11 +56,9 @@ import {type NodeConnectionsConfigClass} from './config-interfaces/node-connecti
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
-import {CommandHelpers} from '../command-helpers.js';
+import {optionFromFlag} from '../command-helpers.js';
 import {type AccountIdWithKeyPairObject, type ComponentData, type Context} from '../../types/index.js';
 import {type K8} from '../../integration/kube/k8.js';
-
-const parseNodeAliases: typeof Helpers.parseNodeAliases = Helpers.parseNodeAliases;
 
 const PREPARE_UPGRADE_CONFIGS_NAME: string = 'prepareUpgradeConfig';
 const ADD_CONFIGS_NAME: string = 'addConfigs';
@@ -197,7 +195,7 @@ export class NodeCommandConfigs {
         'Consensus node',
         context_.config.upgradeVersion,
         this.remoteConfig.configuration.versions.consensusNode,
-        CommandHelpers.optionFromFlag(flags.upgradeVersion),
+        optionFromFlag(flags.upgradeVersion),
       );
     }
 
@@ -555,7 +553,7 @@ export class NodeCommandConfigs {
       contexts: this.remoteConfig.getContexts(),
     } as NodeStopConfigClass;
 
-    await Helpers.checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
+    await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
     return context_.config;
   }
 
@@ -571,7 +569,7 @@ export class NodeCommandConfigs {
       contexts: this.remoteConfig.getContexts(),
     } as NodeFreezeConfigClass;
 
-    await Helpers.checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
+    await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
 
     const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(context_.config.deployment);
     const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
@@ -625,7 +623,7 @@ export class NodeCommandConfigs {
       contexts: this.remoteConfig.getContexts(),
     } as NodeRestartConfigClass;
 
-    await Helpers.checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
+    await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
 
     return context_.config;
   }
@@ -643,7 +641,7 @@ export class NodeCommandConfigs {
       nodeAlias: this.configManager.getFlag(flags.nodeAlias),
     } as NodeCollectJfrLogsConfigClass;
 
-    await Helpers.checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
+    await checkNamespace(context_.config.consensusNodes, this.k8Factory, context_.config.namespace);
 
     return context_.config;
   }

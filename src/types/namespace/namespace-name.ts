@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {KubeValidation} from '../../integration/kube/kube-validation.js';
+import {isDns1123Label} from '../../integration/kube/kube-validation.js';
 import {NamespaceNameInvalidError} from '../../integration/kube/errors/namespace-name-invalid-error.js';
 
 /**
@@ -37,7 +37,7 @@ export class NamespaceName {
    * @throws NamespaceNameInvalidError if the namespace name is invalid.
    */
   private isValid(): boolean {
-    return KubeValidation.isDns1123Label(this.name);
+    return isDns1123Label(this.name);
   }
 
   /**

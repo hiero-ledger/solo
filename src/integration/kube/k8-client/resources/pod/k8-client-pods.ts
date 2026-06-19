@@ -37,7 +37,7 @@ import {ResourceOperation} from '../../../resources/resource-operation.js';
 import {ResourceType} from '../../../resources/resource-type.js';
 import {type PodMetricsItem} from '../../../resources/pod/pod-metrics-item.js';
 import yaml from 'yaml';
-import {Helpers} from '../../../../../core/helpers.js';
+import {sleep} from '../../../../../core/helpers.js';
 
 export class K8ClientPods extends K8ClientBase implements Pods {
   /**
@@ -229,7 +229,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
       this.logger.debug(
         `waitForPodByReference: pod ${podName} not yet visible in API, attempt ${attempt}/${maxAttempts}`,
       );
-      await Helpers.sleep(Duration.ofMillis(delay));
+      await sleep(Duration.ofMillis(delay));
     }
     throw new KubePodNotFoundError(podName);
   }
@@ -419,7 +419,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         `waitForPodsToTerminate [attempt ${attempt}/${maxAttempts}] [namespace=${namespace.name}] [labels=${labels.join(', ')}] [pods=${podNames}]`,
       );
       if (attempt < maxAttempts) {
-        await Helpers.sleep(Duration.ofMillis(delay));
+        await sleep(Duration.ofMillis(delay));
       }
     }
 

@@ -13,7 +13,7 @@ import {Flags as flags, Flags} from '../../../../src/commands/flags.js';
 import {type BaseTestOptions} from './base-test-options.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {it} from 'mocha';
-import {Helpers} from '../../../../src/core/helpers.js';
+import {sleep} from '../../../../src/core/helpers.js';
 import * as constants from '../../../../src/core/constants.js';
 import {type ChartManager} from '../../../../src/core/chart-manager.js';
 
@@ -165,7 +165,7 @@ export class NetworkTest extends BaseCommandTest {
             break;
           }
 
-          await Helpers.sleep(Duration.ofSeconds(3));
+          await sleep(Duration.ofSeconds(3));
         }
       }
 

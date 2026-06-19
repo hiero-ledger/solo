@@ -5,7 +5,7 @@ import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {expect} from 'chai';
 import {IntervalLock} from '../../../../src/core/lock/interval-lock.js';
 import {LockHolder} from '../../../../src/core/lock/lock-holder.js';
-import {Helpers} from '../../../../src/core/helpers.js';
+import {sleep} from '../../../../src/core/helpers.js';
 import {NoopLeaseRenewalService} from './noop-lease-renewal-service.test.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
@@ -25,7 +25,7 @@ describe('Lease', async (): Promise<void> => {
     this.timeout(defaultTimeout);
     if (await k8Factory.default().namespaces().has(testNamespace)) {
       await k8Factory.default().namespaces().delete(testNamespace);
-      await Helpers.sleep(Duration.ofSeconds(5));
+      await sleep(Duration.ofSeconds(5));
     }
 
     await k8Factory.default().namespaces().create(testNamespace);
@@ -109,7 +109,7 @@ describe('Lease', async (): Promise<void> => {
       expect(await lease.isAcquired()).to.be.true;
       expect(await lease.isExpired()).to.be.false;
 
-      await Helpers.sleep(Duration.ofSeconds(lease.durationSeconds).plusSeconds(1));
+      await sleep(Duration.ofSeconds(lease.durationSeconds).plusSeconds(1));
       expect(await lease.isAcquired()).to.be.false;
       expect(await lease.isExpired()).to.be.true;
 
@@ -131,7 +131,7 @@ describe('Lease', async (): Promise<void> => {
       await lease.acquire();
       expect(await lease.isAcquired()).to.be.true;
 
-      await Helpers.sleep(Duration.ofSeconds(lease.durationSeconds).plusSeconds(1));
+      await sleep(Duration.ofSeconds(lease.durationSeconds).plusSeconds(1));
       expect(await lease.isAcquired()).to.be.false;
       expect(await lease.isExpired()).to.be.true;
 
@@ -216,7 +216,7 @@ describe('Lease', async (): Promise<void> => {
       expect(await lease.isAcquired()).to.be.true;
       expect(await lease.isExpired()).to.be.false;
 
-      await Helpers.sleep(Duration.ofSeconds(lease.durationSeconds).plusSeconds(1));
+      await sleep(Duration.ofSeconds(lease.durationSeconds).plusSeconds(1));
       expect(await lease.isAcquired()).to.be.false;
       expect(await lease.isExpired()).to.be.true;
 
@@ -239,7 +239,7 @@ describe('Lease', async (): Promise<void> => {
       expect(await lease.isAcquired()).to.be.true;
       expect(await lease.isExpired()).to.be.false;
 
-      await Helpers.sleep(Duration.ofSeconds(lease.durationSeconds).plusSeconds(1));
+      await sleep(Duration.ofSeconds(lease.durationSeconds).plusSeconds(1));
       expect(await lease.isAcquired()).to.be.false;
       expect(await lease.isExpired()).to.be.true;
 

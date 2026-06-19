@@ -6,7 +6,7 @@ import {HEDERA_HAPI_PATH, LOG_CONFIG_ZIP_SUFFIX, ROOT_CONTAINER, SOLO_LOGS_DIR} 
 import fs from 'node:fs';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import * as constants from './constants.js';
-import {Helpers} from './helpers.js';
+import {sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type SoloLogger} from './logging/solo-logger.js';
@@ -97,7 +97,7 @@ export class NetworkNodes {
 
       await container.copyTo(sourcePath, `${HEDERA_HAPI_PATH}`);
 
-      await Helpers.sleep(Duration.ofSeconds(3)); // wait for the script to sync to the file system
+      await sleep(Duration.ofSeconds(3)); // wait for the script to sync to the file system
 
       await container.execContainer([
         'bash',
@@ -177,7 +177,7 @@ export class NetworkNodes {
           '-c',
           `(cd ${HEDERA_HAPI_PATH}/data/saved && zip -rX ${zipFileName} . && sync && test -f ${zipFileName})`,
         ]);
-      await Helpers.sleep(Duration.ofSeconds(1));
+      await sleep(Duration.ofSeconds(1));
       await k8.containers().readByRef(containerReference).copyFrom(`${zipFileName}`, targetDirectory);
     } catch (error: Error | unknown) {
       this.logger.error(`failed to download state from pod ${podReference.name}`, error);

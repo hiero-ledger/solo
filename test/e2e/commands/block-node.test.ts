@@ -20,7 +20,7 @@ import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {BlockNodeTest} from './tests/block-node-test.js';
 import {MirrorNodeTest} from './tests/mirror-node-test.js';
-import {Helpers} from '../../../src/core/helpers.js';
+import {sleep} from '../../../src/core/helpers.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 
 const testName: string = 'block-node-test';
@@ -71,7 +71,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: finished resetting containers for each test`);
         });
 
-        afterEach(async (): Promise<void> => await Helpers.sleep(Duration.ofMillis(5)));
+        afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(5)));
 
         InitTest.init(options);
         ClusterReferenceTest.connect(options);

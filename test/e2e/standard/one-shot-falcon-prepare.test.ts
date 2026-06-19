@@ -9,7 +9,7 @@ import yaml from 'yaml';
 
 import {main} from '../../../src/index.js';
 import {Flags} from '../../../src/commands/flags.js';
-import {CommandHelpers} from '../../../src/commands/command-helpers.js';
+import {optionFromFlag} from '../../../src/commands/command-helpers.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {SOLO_CACHE_DIR} from '../../../src/core/constants.js';
@@ -31,12 +31,12 @@ function buildBasePrepareArgv(): string[] {
     OneShotCommandDefinition.COMMAND_NAME,
     OneShotCommandDefinition.FALCON_SUBCOMMAND_NAME,
     OneShotCommandDefinition.FALCON_PREPARE,
-    CommandHelpers.optionFromFlag(Flags.quiet),
+    optionFromFlag(Flags.quiet),
   ];
 }
 
 function buildPrepareArgv(outputPath: string): string[] {
-  return [...buildBasePrepareArgv(), CommandHelpers.optionFromFlag(Flags.outputValuesFile), outputPath];
+  return [...buildBasePrepareArgv(), optionFromFlag(Flags.outputValuesFile), outputPath];
 }
 
 describe('One Shot Falcon Prepare E2E', (): void => {
@@ -74,7 +74,7 @@ describe('One Shot Falcon Prepare E2E', (): void => {
     }
   });
 
-  it(`respects an absolute ${CommandHelpers.optionFromFlag(Flags.outputValuesFile)} path`, async (): Promise<void> => {
+  it(`respects an absolute ${optionFromFlag(Flags.outputValuesFile)} path`, async (): Promise<void> => {
     const outputPath: string = PathEx.resolve(trackOutputPath('absolute'));
     expect(path.isAbsolute(outputPath), 'test path must be absolute').to.equal(true);
 

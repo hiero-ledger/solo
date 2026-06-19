@@ -4,7 +4,7 @@ import {SoloErrors} from '../errors/solo-errors.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {LockHolder} from './lock-holder.js';
 import {DEFAULT_LEASE_DURATION, DEFAULT_SOLO_NAMESPACE_LABELS} from '../constants.js';
-import {Helpers} from '../helpers.js';
+import {sleep} from '../helpers.js';
 import {Duration} from '../time/duration.js';
 import {type Lock, type LockRenewalService} from './lock.js';
 import {StatusCodes} from 'http-status-codes';
@@ -281,7 +281,7 @@ export class IntervalLock implements Lock {
       if (!immediate) {
         // Needed to ensure any pending renewals are truly cancelled before proceeding to delete the LeaseService.
         // This is required because clearInterval() is not guaranteed to abort any pending interval.
-        await Helpers.sleep(this.renewalService.calculateRenewalDelay(this));
+        await sleep(this.renewalService.calculateRenewalDelay(this));
       }
     }
 
