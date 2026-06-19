@@ -75,7 +75,7 @@ import {BlockNodeStateSchema} from '../../../../data/schema/model/remote/state/b
 import {MirrorNodeStateSchema} from '../../../../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {ExplorerStateSchema} from '../../../../data/schema/model/remote/state/explorer-state-schema.js';
 import {RelayNodeStateSchema} from '../../../../data/schema/model/remote/state/relay-node-state-schema.js';
-import {DeploymentPhase, isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase.js';
+import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../../../../core/config/remote/enumerations/component-types.js';
 import {ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
 import chalk from 'chalk';
@@ -86,6 +86,7 @@ import {DeployArgvBuilders} from './deploy-argv-builders.js';
 import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DISK} from '../../../../../version.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
+import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase-helper.js';
 
 const createDirectoryIfNotExists: typeof Helpers.createDirectoryIfNotExists = Helpers.createDirectoryIfNotExists;
 
