@@ -91,13 +91,7 @@ import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/dep
 const createDirectoryIfNotExists: typeof Helpers.createDirectoryIfNotExists = Helpers.createDirectoryIfNotExists;
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
-const invokeSoloCommand: (
-  title: string,
-  commandName: string,
-  callback: () => Promise<string[]> | string[],
-  taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
-  skipCallback?: () => boolean,
-) => InvokedSoloCommand = CommandHelpers.invokeSoloCommand;
+const invokeSoloCommand: typeof CommandHelpers.invokeSoloCommand = CommandHelpers.invokeSoloCommand;
 
 @injectable()
 export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrator {
