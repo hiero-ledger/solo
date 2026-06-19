@@ -405,6 +405,33 @@ but not the one-type-per-file or name-match halves), so it relies on review. Cat
 
 ---
 
+## 21. No @kubernetes/client-node types outside src/integration/kube
+
+**What to look for**
+
+- `import ... from '@kubernetes/client-node'` anywhere outside `src/integration/kube/**`.
+- A public method or interface signature that uses `V1Pod`, `V1ContainerStatus`, `CoreV1Api`, or any
+  other `@kubernetes/client-node` type — even if the file itself is inside `src/integration/kube`.
+- A `Pods` / `Pod` interface method whose parameter or return type is a K8s library type.
+
+**How to respond**
+
+- "the `@kubernetes/client-node` types must stay within `src/integration/kube`. Use the Solo domain
+  types (`Pod`, `ContainerStatus`, etc.) instead — see the `no-restricted-imports` ESLint rule added
+  with this change."
+- "the interface signature leaks a K8s library type. Add the information you need to the `Pod` (or
+  appropriate domain) interface and populate it in `K8ClientPod.fromV1Pod`."
+
+**Enforcement:** the `no-restricted-imports` ESLint rule in `eslint.config.mjs` flags any import of
+`@kubernetes/client-node` in files outside `src/integration/kube` as a hard **error**. This rule was
+added alongside the `ContainerStatus` domain type that made `detectFatalContainerError` K8s-free.
+
+**Prior precedent:** PR #4568 (`pods.ts` interface had `detectFatalContainerError(pod: V1Pod)` — V1Pod
+leaked through the public interface boundary; fixed by adding `ContainerStatus` to the `Pod` domain type
+and changing the signature to `detectFatalContainerError(pod: Pod)`).
+
+---
+
 ## Quick decision aids
 
 **"Should this be a class with statics or a module of functions?"**

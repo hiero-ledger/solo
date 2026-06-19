@@ -285,4 +285,20 @@ export default [
       'solo/no-exported-function': 'error',
     },
   },
+  {
+    // @kubernetes/client-node types must not leak outside src/integration/kube.
+    // Use Solo domain types (Pod, ContainerStatus, etc.) in all other layers.
+    files: ['**/*.ts'],
+    ignores: ['src/integration/kube/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          name: '@kubernetes/client-node',
+          message:
+            '@kubernetes/client-node types must stay within src/integration/kube — use the Solo domain types (Pod, ContainerStatus, etc.) instead.',
+        },
+      ],
+    },
+  },
 ];
