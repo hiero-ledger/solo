@@ -282,7 +282,7 @@ export class AccountManager {
       );
 
       const selectedNodeServicesMap: NodeServiceMapping = this.selectNodeServices(networkNodeServicesMap, selection);
-      const nodeClient = await this._getNodeClient(
+      const nodeClient: Client = await this._getNodeClient(
         namespace,
         selectedNodeServicesMap,
         treasuryAccountInfo.accountId,
@@ -374,7 +374,7 @@ export class AccountManager {
 
       // scheduleNetworkUpdate is set to false, because the ports 50212/50211 are hardcoded in JS SDK that will not work
       // when running locally or in a pipeline
-      const nodeClient = Client.fromConfig({network: nodes, scheduleNetworkUpdate: false});
+      const nodeClient: Client = Client.fromConfig({network: nodes, scheduleNetworkUpdate: false});
       nodeClient.setOperator(operatorId, operatorKey);
       nodeClient.setLogger(new Logger(LogLevel.Trace, PathEx.join(constants.SOLO_LOGS_DIR, 'hashgraph-sdk.log')));
       nodeClient.setMaxAttempts(constants.NODE_CLIENT_MAX_ATTEMPTS as number);
@@ -1067,7 +1067,7 @@ export class AccountManager {
   ): Promise<string> {
     // fetch AddressBook
     await this.loadNodeClient(namespace, clusterReferences, deployment, forcePortForward);
-    const client = this._nodeClient;
+    const client: Client = this._nodeClient;
 
     if (operatorId && operatorKey) {
       client.setOperator(operatorId, operatorKey);
@@ -1115,7 +1115,7 @@ export class AccountManager {
     forcePortForward?: boolean,
   ): Promise<string> {
     await this.loadNodeClient(namespace, clusterReferences, deployment, forcePortForward);
-    const client = this._nodeClient;
+    const client: Client = this._nodeClient;
     const realm: number | Long = this.localConfig.configuration.realmForDeployment(deployment);
     const shard: number | Long = this.localConfig.configuration.shardForDeployment(deployment);
     const fileId: FileId = FileId.fromString(entityId(shard, realm, fileNumber));

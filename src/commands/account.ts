@@ -7,8 +7,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {Listr, type ListrContext, type ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
-import * as helpers from '../core/helpers.js';
-import {entityId} from '../core/helpers.js';
+import {entityId, parseNodeAliases, sleep} from '../core/helpers.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {
   AccountId,
@@ -60,8 +59,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
-import * as CommandHelpers from './command-helpers.js';
-import {invokeSoloCommand} from './command-helpers.js';
+import {CommandHelpers, invokeSoloCommand} from './command-helpers.js';
 import {NodeCommandTasks} from './node/tasks.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
@@ -318,7 +316,7 @@ export class AccountCommand extends BaseCommand {
               clusterRef: clusterReference,
               contextName,
               namespace: await this.resolveNamespaceFromDeployment(task),
-              nodeAliases: helpers.parseNodeAliases(
+              nodeAliases: parseNodeAliases(
                 this.configManager.getFlag(flags.nodeAliasesUnparsed),
                 this.remoteConfig.getConsensusNodes(),
                 this.configManager,
@@ -540,7 +538,7 @@ export class AccountCommand extends BaseCommand {
               this.configManager,
               task,
             );
-            const nodeAliases: NodeAliases = helpers.parseNodeAliases(
+            const nodeAliases: NodeAliases = parseNodeAliases(
               this.configManager.getFlag(flags.nodeAliasesUnparsed),
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
@@ -1314,7 +1312,7 @@ export class AccountCommand extends BaseCommand {
               subTasks.push({
                 title: `Creating Account ${index}`,
                 task: async (context_: Context, subTask: SoloListrTaskWrapper<Context>): Promise<void> => {
-                  await helpers.sleep(Duration.ofMillis(100 * index));
+                  await sleep(Duration.ofMillis(100 * index));
                   const balance: Hbar = account.balance ?? Hbar.from(0, HbarUnit.Hbar);
                   const createdAccount: {
                     accountId: string;

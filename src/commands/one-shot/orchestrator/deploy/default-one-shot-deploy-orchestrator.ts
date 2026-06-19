@@ -58,11 +58,15 @@ import {ConsensusCommandDefinition} from '../../../command-definitions/consensus
 import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
-import {InvokedSoloCommand, invokeSoloCommand} from '../../../command-helpers.js';
+import {type InvokedSoloCommand, invokeSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
 import * as constants from '../../../../core/constants.js';
-import * as helpers from '../../../../core/helpers.js';
-import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../../../core/helpers.js';
+import {
+  createDirectoryIfNotExists,
+  entityId,
+  remoteConfigsToDeploymentsTable,
+  sleep,
+} from '../../../../core/helpers.js';
 import {Duration} from '../../../../core/time/duration.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
 import {UserBreak} from '../../../../core/errors/user-break.js';
@@ -77,7 +81,7 @@ import {BlockNodeStateSchema} from '../../../../data/schema/model/remote/state/b
 import {MirrorNodeStateSchema} from '../../../../data/schema/model/remote/state/mirror-node-state-schema.js';
 import {ExplorerStateSchema} from '../../../../data/schema/model/remote/state/explorer-state-schema.js';
 import {RelayNodeStateSchema} from '../../../../data/schema/model/remote/state/relay-node-state-schema.js';
-import {DeploymentPhase, isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase.js';
+import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../../../../core/config/remote/enumerations/component-types.js';
 import {ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
 import chalk from 'chalk';
@@ -88,6 +92,7 @@ import {DeployArgvBuilders} from './deploy-argv-builders.js';
 import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DISK} from '../../../../../version.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
+import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase-helper.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
@@ -842,7 +847,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 context_: OneShotSingleDeployContext,
                 subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
               ): Promise<void> => {
-                await helpers.sleep(Duration.ofMillis(100 * currentIndex));
+                await sleep(Duration.ofMillis(100 * currentIndex));
 
                 const createdAccount: {
                   accountId: string;

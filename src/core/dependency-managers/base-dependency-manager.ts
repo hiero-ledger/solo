@@ -2,7 +2,7 @@
 
 import {SoloErrors} from '../errors/solo-errors.js';
 import fs from 'node:fs';
-import * as helpers from '../helpers.js';
+import {Helpers} from '../helpers.js';
 import {type PackageDownloader} from '../package-downloader.js';
 import {Templates} from '../templates.js';
 import {ShellRunner} from '../shell-runner.js';
@@ -248,7 +248,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
   /**
    * Install the tool
    */
-  public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
+  public async install(temporaryDirectory: string = Helpers.getTemporaryDirectory()): Promise<boolean> {
     if (this.installationDirectory === temporaryDirectory) {
       throw new SoloErrors.system.dependencyInstallDirectoryConflict();
     }
