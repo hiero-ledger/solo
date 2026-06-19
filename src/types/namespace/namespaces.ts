@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type NamespaceName} from './namespace-name.js';
-import {type V1Namespace} from '@kubernetes/client-node';
+import {type ObjectMeta} from '../../integration/kube/resources/object-meta.js';
 
 export interface Namespaces {
   /**
@@ -20,9 +20,9 @@ export interface Namespaces {
   /**
    * Get a namespace
    * @param namespace - the name of the namespace
-   * @returns the Kubernetes namespace object
+   * @returns metadata for the namespace
    */
-  get(namespace: NamespaceName): Promise<V1Namespace>;
+  get(namespace: NamespaceName): Promise<ObjectMeta>;
 
   /**
    * List all namespaces

@@ -55,7 +55,7 @@ import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
 import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/component-ids-schema.js';
 import {type BaseStateSchema} from '../../../../data/schema/model/remote/state/base-state-schema.js';
-import * as helpers from '../../../../core/helpers.js';
+import {Helpers} from '../../../../core/helpers.js';
 import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
 import {MissingRequiredParametersError} from '../../errors/missing-required-parameters-error.js';
 import {SemanticVersion} from '../../../utils/semantic-version.js';
@@ -658,7 +658,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string> {
-    return helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
+    return Helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
   }
 
   public updateComponentVersion(type: ComponentTypes, version: SemanticVersion<string>): void {
