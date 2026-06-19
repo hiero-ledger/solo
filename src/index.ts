@@ -22,6 +22,7 @@ if (!process.stdout.isTTY) {
   chalk.level = 0;
 }
 
+// eslint-disable-next-line solo/no-exported-function
 export async function main(argv: string[], context?: {logger: SoloLogger}): Promise<any> {
   try {
     const developerMode: boolean = argv.includes('--dev');
