@@ -207,3 +207,12 @@ export class CommandHelpers {
     }
   }
 }
+
+export const optionFromFlag: typeof CommandHelpers.optionFromFlag = CommandHelpers.optionFromFlag;
+export const negatedOptionFromFlag: typeof CommandHelpers.negatedOptionFromFlag = CommandHelpers.negatedOptionFromFlag;
+export const soloCommand: typeof CommandHelpers.soloCommand = CommandHelpers.soloCommand;
+export const newArgv: typeof CommandHelpers.newArgv = CommandHelpers.newArgv;
+export const argvPushGlobalFlags: typeof CommandHelpers.argvPushGlobalFlags = CommandHelpers.argvPushGlobalFlags;
+export const invokeSoloCommand: typeof CommandHelpers.invokeSoloCommand = CommandHelpers.invokeSoloCommand;
+export const subTaskSoloCommand: typeof CommandHelpers.subTaskSoloCommand = CommandHelpers.subTaskSoloCommand;
+export const appendConfigToArgv: typeof CommandHelpers.appendConfigToArgv = CommandHelpers.appendConfigToArgv;
