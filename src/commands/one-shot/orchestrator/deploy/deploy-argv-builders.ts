@@ -12,7 +12,7 @@ import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cl
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
 import {Flags} from '../../../flags.js';
-import {appendConfigToArgv, argvPushGlobalFlags, newArgv, optionFromFlag} from '../../../command-helpers.js';
+import {CommandHelpers} from '../../../command-helpers.js';
 import * as constants from '../../../../core/constants.js';
 import * as version from '../../../../../version.js';
 import {type AnyObject, type ArgvStruct} from '../../../../types/aliases.js';
@@ -21,10 +21,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
+import {type CommandFlag} from '../../../../types/flag-types.js';
 
 const MIRROR_NODE_ID: number = 1;
 const GITHUB_RELEASES_PER_PAGE: number = 100;
 
+const appendConfigToArgv: (argv: string[], config: AnyObject) => void = CommandHelpers.appendConfigToArgv;
+const argvPushGlobalFlags: (argv: string[], cacheDirectory?: string) => string[] = CommandHelpers.argvPushGlobalFlags;
+const newArgv: () => string[] = CommandHelpers.newArgv;
+const optionFromFlag: (flag: CommandFlag) => string = CommandHelpers.optionFromFlag;
 interface GitHubReleaseWithMetadata {
   tag_name: string;
   draft?: boolean;

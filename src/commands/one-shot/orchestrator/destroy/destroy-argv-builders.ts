@@ -9,7 +9,12 @@ import {ConsensusCommandDefinition} from '../../../command-definitions/consensus
 import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {Flags} from '../../../flags.js';
-import {argvPushGlobalFlags, newArgv, optionFromFlag} from '../../../command-helpers.js';
+import {CommandHelpers} from '../../../command-helpers.js';
+import {type CommandFlag} from '../../../../types/flag-types.js';
+
+const argvPushGlobalFlags: (argv: string[], cacheDirectory?: string) => string[] = CommandHelpers.argvPushGlobalFlags;
+const newArgv: () => string[] = CommandHelpers.newArgv;
+const optionFromFlag: (flag: CommandFlag) => string = CommandHelpers.optionFromFlag;
 
 export class DestroyArgvBuilders {
   public static buildDestroyExplorerArgv(config: OneShotSingleDestroyConfigClass): string[] {

@@ -57,7 +57,7 @@ import {ConsensusCommandDefinition} from '../../../command-definitions/consensus
 import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
-import {InvokedSoloCommand, invokeSoloCommand} from '../../../command-helpers.js';
+import {CommandHelpers, type InvokedSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
 import * as constants from '../../../../core/constants.js';
 import * as helpers from '../../../../core/helpers.js';
@@ -89,6 +89,13 @@ import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DIS
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
+const invokeSoloCommand: (
+  title: string,
+  commandName: string,
+  callback: () => Promise<string[]> | string[],
+  taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+  skipCallback?: () => boolean,
+) => InvokedSoloCommand = CommandHelpers.invokeSoloCommand;
 
 @injectable()
 export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrator {

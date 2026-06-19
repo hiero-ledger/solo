@@ -13,9 +13,12 @@ import {ClusterReferenceCommandDefinition} from '../../../../../../src/commands/
 import {DeploymentCommandDefinition} from '../../../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../../../../src/commands/command-definitions/keys-command-definition.js';
 import {DeployArgvBuilders} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-argv-builders.js';
-import {optionFromFlag} from '../../../../../../src/commands/command-helpers.js';
+import {CommandHelpers} from '../../../../../../src/commands/command-helpers.js';
 import {Flags} from '../../../../../../src/commands/flags.js';
 import {type AnyObject, type ArgvStruct} from '../../../../../../src/types/aliases.js';
+import {type CommandFlag} from '../../../../../../src/types/flag-types.js';
+
+const optionFromFlag: (flag: CommandFlag) => string = CommandHelpers.optionFromFlag;
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {

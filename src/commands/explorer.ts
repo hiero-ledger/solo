@@ -41,7 +41,7 @@ import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-st
 import {K8} from '../integration/kube/k8.js';
 import {createHash} from 'node:crypto';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
-import {optionFromFlag} from './command-helpers.js';
+import {CommandHelpers} from './command-helpers.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface ExplorerDeployConfigClass {
@@ -791,7 +791,7 @@ export class ExplorerCommand extends BaseCommand {
               'Explorer',
               config.explorerVersion,
               this.remoteConfig.getComponentVersion(ComponentTypes.Explorer),
-              optionFromFlag(flags.explorerVersion),
+              CommandHelpers.optionFromFlag(flags.explorerVersion),
             );
 
             await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);

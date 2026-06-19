@@ -4,7 +4,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {injectable, container} from 'tsyringe-neo';
 import {type ArgvStruct, NodeAlias, type AnyListrContext} from '../types/aliases.js';
-import {type CommandFlags} from '../types/flag-types.js';
+import {CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
 import yaml from 'yaml';
 import fs from 'node:fs';
@@ -16,7 +16,7 @@ import {type K8} from '../integration/kube/k8.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {type Context, type ClusterReferences, type SoloListrTask, type SoloListr} from '../types/index.js';
-import {Listr} from 'listr2';
+import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
 import * as helpers from '../core/helpers.js';
@@ -37,8 +37,7 @@ import {ExplorerCommandDefinition} from './command-definitions/explorer-command-
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 import {ClusterReferenceCommandDefinition} from './command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
-import * as CommandHelpers from './command-helpers.js';
-import {optionFromFlag, subTaskSoloCommand, invokeSoloCommand} from './command-helpers.js';
+import {CommandHelpers, InvokedSoloCommand} from './command-helpers.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {inject} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -56,6 +55,26 @@ import {METALLB_CHART_VERSION} from '../../version.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Container} from '../integration/kube/resources/container/container.js';
+import {TaskList} from '../core/task-list/task-list.js';
+import {TaskListWrapper} from '../core/task-list/task-list-wrapper.js';
+
+const optionFromFlag: (flag: CommandFlag) => string = CommandHelpers.optionFromFlag;
+const invokeSoloCommand: (
+  title: string,
+  commandName: string,
+  callback: () => Promise<string[]> | string[],
+  taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+  skipCallback?: () => boolean,
+) => InvokedSoloCommand = CommandHelpers.invokeSoloCommand;
+const subTaskSoloCommand: (
+  commandName: string,
+  taskListWrapper: TaskListWrapper,
+  callback: () => Promise<string[]> | string[],
+  taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+) => Promise<
+  | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
+  | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
+> = CommandHelpers.subTaskSoloCommand;
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {

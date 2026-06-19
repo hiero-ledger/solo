@@ -51,7 +51,7 @@ import {
   ComponentUpgradeMigrationRules,
   type ComponentUpgradeMigrationStep,
 } from './migrations/component-upgrade-rules.js';
-import {optionFromFlag} from './command-helpers.js';
+import {CommandHelpers} from './command-helpers.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 
@@ -859,7 +859,7 @@ export class BlockNodeCommand extends BaseCommand {
               'Block node',
               config.upgradeVersion,
               this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode),
-              optionFromFlag(flags.upgradeVersion),
+              CommandHelpers.optionFromFlag(flags.upgradeVersion),
             );
 
             if (!this.oneShotState.isActive()) {

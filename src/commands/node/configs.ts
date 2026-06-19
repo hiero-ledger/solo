@@ -57,7 +57,7 @@ import {type NodeConnectionsConfigClass} from './config-interfaces/node-connecti
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
-import {optionFromFlag} from '../command-helpers.js';
+import {CommandHelpers} from '../command-helpers.js';
 import {type AccountIdWithKeyPairObject, type ComponentData, type Context} from '../../types/index.js';
 import {type K8} from '../../integration/kube/k8.js';
 
@@ -196,7 +196,7 @@ export class NodeCommandConfigs {
         'Consensus node',
         context_.config.upgradeVersion,
         this.remoteConfig.configuration.versions.consensusNode,
-        optionFromFlag(flags.upgradeVersion),
+        CommandHelpers.optionFromFlag(flags.upgradeVersion),
       );
     }
 

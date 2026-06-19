@@ -60,8 +60,7 @@ import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type K8} from '../integration/kube/k8.js';
-import * as CommandHelpers from './command-helpers.js';
-import {invokeSoloCommand} from './command-helpers.js';
+import {CommandHelpers} from './command-helpers.js';
 import {NodeCommandTasks} from './node/tasks.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {ConsensusCommandDefinition} from './command-definitions/consensus-command-definition.js';
@@ -569,7 +568,7 @@ export class AccountCommand extends BaseCommand {
             | Listr<ListrContext, ListrRendererValue, ListrRendererValue>
             | Listr<ListrContext, ListrRendererValue, ListrRendererValue>[]
           > =>
-            invokeSoloCommand(
+            CommandHelpers.invokeSoloCommand(
               'Stop consensus nodes',
               `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_STOP}`,
               (): string[] => {
@@ -1008,7 +1007,7 @@ export class AccountCommand extends BaseCommand {
                     if (!nodeAliases || nodeAliases.length === 0) {
                       throw new SoloErrors.validation.noConsensusNodesFound();
                     }
-                    return invokeSoloCommand(
+                    return CommandHelpers.invokeSoloCommand(
                       'Start consensus nodes',
                       ConsensusCommandDefinition.START_COMMAND,
                       (): string[] => {

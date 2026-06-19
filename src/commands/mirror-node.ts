@@ -63,7 +63,7 @@ import {PostgresSharedResource} from '../core/shared-resources/postgres.js';
 import {SharedResourceManager} from '../core/shared-resources/shared-resource-manager.js';
 import {MirrorNodeDeployedEvent} from '../core/events/event-types/mirror-node-deployed-event.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
-import {optionFromFlag} from './command-helpers.js';
+import {CommandHelpers} from './command-helpers.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {K8} from '../integration/kube/k8.js';
@@ -399,7 +399,7 @@ export class MirrorNodeCommand extends BaseCommand {
     if (config.forceBlockNodeIntegration || !constants.DISABLE_IMPORTER_SPRING_PROFILES) {
       if (config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
         this.logger.showUser(
-          `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
+          `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${CommandHelpers.optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
         );
       }
       data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
@@ -1492,7 +1492,7 @@ export class MirrorNodeCommand extends BaseCommand {
               'Mirror node',
               config.mirrorNodeVersion,
               this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode),
-              optionFromFlag(flags.mirrorNodeVersion),
+              CommandHelpers.optionFromFlag(flags.mirrorNodeVersion),
             );
 
             context_.config.soloChartVersion = SemanticVersion.getValidSemanticVersion(

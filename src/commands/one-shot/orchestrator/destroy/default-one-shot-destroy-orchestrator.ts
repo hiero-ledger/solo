@@ -30,7 +30,7 @@ import {MirrorCommandDefinition} from '../../../command-definitions/mirror-comma
 import {ConsensusCommandDefinition} from '../../../command-definitions/consensus-command-definition.js';
 import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
-import {invokeSoloCommand} from '../../../command-helpers.js';
+import {CommandHelpers, InvokedSoloCommand} from '../../../command-helpers.js';
 import {Flags as flags} from '../../../flags.js';
 import * as constants from '../../../../core/constants.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
@@ -46,6 +46,13 @@ import {MutableFacadeArray} from '../../../../business/runtime-state/collection/
 import {DeploymentSchema} from '../../../../data/schema/model/local/deployment-schema.js';
 
 const SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
+const invokeSoloCommand: (
+  title: string,
+  commandName: string,
+  callback: () => Promise<string[]> | string[],
+  taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
+  skipCallback?: () => boolean,
+) => InvokedSoloCommand = CommandHelpers.invokeSoloCommand;
 
 @injectable()
 export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestrator {

@@ -46,7 +46,7 @@ import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
-import {optionFromFlag} from './command-helpers.js';
+import {CommandHelpers} from './command-helpers.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface RelayDestroyConfigClass {
@@ -770,7 +770,7 @@ export class RelayCommand extends BaseCommand {
               'Relay',
               config.relayReleaseTag,
               this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
-              optionFromFlag(flags.relayVersion),
+              CommandHelpers.optionFromFlag(flags.relayVersion),
             );
 
             if (!this.oneShotState.isActive()) {
