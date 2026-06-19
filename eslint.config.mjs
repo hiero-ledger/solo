@@ -274,14 +274,6 @@ export default [
     files: ['src/**/*.ts'],
     plugins: {solo: soloLocalPlugin},
     rules: {
-      'solo/no-exported-function': 'warn', // TODO error once existing exported functions are migrated
-    },
-  },
-  {
-    // The integration layer is held to the stricter bar: exported functions are a hard error here.
-    files: ['src/integration/**/*.ts'],
-    plugins: {solo: soloLocalPlugin},
-    rules: {
       'solo/no-exported-function': 'error',
     },
   },
