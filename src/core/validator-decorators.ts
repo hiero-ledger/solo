@@ -54,47 +54,7 @@ export class ValidatorDecorators {
       });
     };
   }
-
-  public static isClusterReferences(
-    validationOptions?: ValidationOptions,
-  ): (object: any, propertyName: string) => void {
-    return function (object: any, propertyName: string): void {
-      registerDecorator({
-        name: 'IsClusterRefs',
-        target: object.constructor,
-        propertyName: propertyName,
-        constraints: [],
-        options: {
-          ...validationOptions,
-        },
-        validator: {
-          validate(value: any, _arguments: ValidationArguments): boolean {
-            if (!isObject(value)) {
-              return false;
-            }
-            if (Object.keys(value).length === 0) {
-              return true;
-            }
-
-            // TODO expand the validation. Check if the context exists in the local kube config
-            //  and that it can actually establish a connection to the cluster
-            for (const clusterName in value) {
-              const contextName: any = value[clusterName];
-              if (typeof clusterName !== 'string' || typeof contextName !== 'string') {
-                return false;
-              }
-            }
-            return true;
-          },
-        },
-      });
-    };
-  }
 }
 
-export const isObject: (theObject: object) => boolean = ValidatorDecorators.isObject;
-export const IsDeployments: (validationOptions?: ValidationOptions) => (object: any, propertyName: string) => void =
-  ValidatorDecorators.isDeployments;
-export const IsClusterReferences: (
-  validationOptions?: ValidationOptions,
-) => (object: any, propertyName: string) => void = ValidatorDecorators.isClusterReferences;
+export const isObject: typeof ValidatorDecorators.isObject = ValidatorDecorators.isObject;
+export const IsDeployments: typeof ValidatorDecorators.isDeployments = ValidatorDecorators.isDeployments;
