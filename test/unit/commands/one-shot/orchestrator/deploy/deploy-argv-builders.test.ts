@@ -13,9 +13,13 @@ import {ClusterReferenceCommandDefinition} from '../../../../../../src/commands/
 import {DeploymentCommandDefinition} from '../../../../../../src/commands/command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../../../../src/commands/command-definitions/keys-command-definition.js';
 import {DeployArgvBuilders} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-argv-builders.js';
-import {optionFromFlag} from '../../../../../../src/commands/command-helpers.js';
+import {negatedOptionFromFlag, optionFromFlag} from '../../../../../../src/commands/command-helpers.js';
 import {Flags} from '../../../../../../src/commands/flags.js';
 import {type AnyObject, type ArgvStruct} from '../../../../../../src/types/aliases.js';
+
+afterEach((): void => {
+  delete process.env.ONE_SHOT_WITH_BLOCK_NODE;
+});
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {
@@ -278,6 +282,42 @@ describe('buildClusterSetupArgv', (): void => {
     expect(argv).to.include(optionFromFlag(Flags.clusterRef));
     expect(argv).to.include('test-cluster');
   });
+
+  it('adds --no-minio when ONE_SHOT_WITH_BLOCK_NODE is enabled', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
+    const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
+      makeConfig({
+        versions: {
+          explorer: '2.5.0',
+          soloChart: '0.0.0',
+          consensus: 'v0.74.0',
+          mirror: '0.0.0',
+          relay: '0.0.0',
+          blockNode: '0.0.0',
+        },
+      }),
+    );
+
+    expect(argv).to.include(negatedOptionFromFlag(Flags.deployMinio));
+  });
+
+  it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE is disabled', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'false';
+    const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
+      makeConfig({
+        versions: {
+          explorer: '2.5.0',
+          soloChart: '0.0.0',
+          consensus: 'v0.73.9',
+          mirror: '0.0.0',
+          relay: '0.0.0',
+          blockNode: '0.0.0',
+        },
+      }),
+    );
+
+    expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
+  });
 });
 
 describe('buildKeysGenerateArgv', (): void => {
@@ -296,6 +336,7 @@ describe('buildKeysGenerateArgv', (): void => {
 describe('resolveOneShotComponentVersions', (): void => {
   afterEach((): void => {
     sinon.restore();
+    delete process.env.ONE_SHOT_WITH_BLOCK_NODE;
   });
 
   it('returns non-edge defaults when edge is disabled', async (): Promise<void> => {

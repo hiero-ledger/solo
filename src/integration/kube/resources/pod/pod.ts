@@ -56,6 +56,11 @@ export interface Pod {
   readonly deletionTimestamp?: Date;
 
   /**
+   * The current Kubernetes phase of the pod (for example Running, Succeeded, Failed)
+   */
+  readonly phase?: string;
+
+  /**
    * Get a pod by name and namespace, will check every 1 second until the pod is no longer found.
    * Can throw a SoloError if there is an error while deleting the pod.
    */

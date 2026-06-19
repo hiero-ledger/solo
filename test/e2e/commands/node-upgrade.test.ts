@@ -29,7 +29,7 @@ const testName: string = 'node-upgrade-test';
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
-  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withTestSuiteName('Node Upgrade Test Suite')
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
