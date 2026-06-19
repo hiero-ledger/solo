@@ -59,6 +59,7 @@ import {
   parseNodeAliases,
   prepareEndpoints,
   renameAndCopyFile,
+  parseIpAddressToUint8Array,
   resolveGossipFqdnRestricted,
   showVersionBanner,
   sleep,
@@ -1852,7 +1853,7 @@ export class NodeCommandTasks {
             networkNodeService.nodeServiceLoadBalancerIp || networkNodeService.nodeServiceClusterIp;
           const grpcServiceEndpoint: ServiceEndpoint = new ServiceEndpoint({
             port: networkNodeService.nodeServiceGrpcPort,
-            ipAddressV4: helpers.parseIpAddressToUint8Array(grpcIpAddress),
+            ipAddressV4: parseIpAddressToUint8Array(grpcIpAddress),
           });
 
           let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
