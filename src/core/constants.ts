@@ -136,9 +136,6 @@ export const MIRROR_NODE_CHART_URL: string =
 export const MIRROR_NODE_CHART: string = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME: string = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
-// Version boundary for mirror node upgrade behavior
-// Versions <= v0.143.0 require skipping reuseValues to avoid RegularExpression rules conflicts
-export const MIRROR_NODE_VERSION_BOUNDARY: string = 'v0.143.0';
 export const PROMETHEUS_STACK_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
