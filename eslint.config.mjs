@@ -11,6 +11,44 @@ import tsdoc from 'eslint-plugin-tsdoc';
 import unusedImports from 'eslint-plugin-unused-imports';
 import eslintPluginUnicorn from 'eslint-plugin-unicorn';
 
+// Local rules enforcing Solo conventions that no off-the-shelf plugin covers.
+// See docs/contributing/typescript-code-style.md §3.4.5 and §10.3.1.
+const soloLocalPlugin = {
+  rules: {
+    // Behavior (resolvers, orchestrators, computations) must be grouped on a class as static
+    // methods rather than exported as free functions. Pure data (constants, types, simple
+    // factories) may still be exported — this rule only targets functions.
+    'no-exported-function': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description: 'Disallow exported functions — group behavior on a class with static methods (§10.3.1).',
+        },
+        schema: [],
+        messages: {
+          noExportedFunction:
+            'No exported functions — group behavior on a class with static methods. ' +
+            'See docs/contributing/typescript-code-style.md §10.3.1. ' +
+            'Pure data (constants, types) may be exported; helpers used by one class become private static members.',
+        },
+      },
+      create(context) {
+        return {
+          'ExportNamedDeclaration > FunctionDeclaration'(node) {
+            context.report({node, messageId: 'noExportedFunction'});
+          },
+          'ExportNamedDeclaration > VariableDeclaration > VariableDeclarator'(node) {
+            const initializerType = node.init?.type;
+            if (initializerType === 'ArrowFunctionExpression' || initializerType === 'FunctionExpression') {
+              context.report({node, messageId: 'noExportedFunction'});
+            }
+          },
+        };
+      },
+    },
+  },
+};
+
 export default [
   eslintJs.configs.recommended,
   nodePlugin.configs['flat/recommended'],
@@ -228,6 +266,31 @@ export default [
     rules: {
       'no-invalid-this': ['error', {}],
       '@typescript-eslint/no-unused-expressions': 'error',
+    },
+  },
+  {
+    // No exported functions in source code — see §10.3.1. Warned repo-wide while existing
+    // exported functions are migrated incrementally.
+    files: ['src/**/*.ts'],
+    plugins: {solo: soloLocalPlugin},
+    rules: {
+      'solo/no-exported-function': 'error',
+    },
+  },
+  {
+    // @kubernetes/client-node types must not leak outside src/integration/kube.
+    // Use Solo domain types (Pod, ContainerStatus, etc.) in all other layers.
+    files: ['**/*.ts'],
+    ignores: ['src/integration/kube/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          name: '@kubernetes/client-node',
+          message:
+            '@kubernetes/client-node types must stay within src/integration/kube — use the Solo domain types (Pod, ContainerStatus, etc.) instead.',
+        },
+      ],
     },
   },
 ];

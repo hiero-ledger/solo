@@ -22,10 +22,6 @@ import {
   HEDERA_HAPI_PATH,
   HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
 } from '../../core/constants.js';
-
-const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-  return !(path.includes('data/keys') || path.includes('data/config'));
-};
 import {Templates} from '../../core/templates.js';
 import {
   AccountBalance,
@@ -55,13 +51,15 @@ import {execSync} from 'node:child_process';
 import find from 'find-process';
 import type FindConfig from 'find-process';
 import type ProcessInfo from 'find-process';
-import * as helpers from '../../core/helpers.js';
 import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
   extractContextFromConsensusNodes,
+  getInternalAddress,
+  parseNodeAliases,
   prepareEndpoints,
   renameAndCopyFile,
+  resolveGossipFqdnRestricted,
   showVersionBanner,
   sleep,
   splitFlagInput,
@@ -180,13 +178,16 @@ import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templat
 import {type ConfigProvider} from '../../data/configuration/api/config-provider.js';
 import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.js';
 import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
-
 import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
 import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
 import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {Listr} from 'listr2';
 import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
 import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
+
+const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
+  return !(path.includes('data/keys') || path.includes('data/config'));
+};
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -399,7 +400,7 @@ export class NodeCommandTasks {
 
     for (const nodeAlias of nodeAliases) {
       const podReference: PodReference = podReferences[nodeAlias];
-      const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+      const context: string = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
       localDataLibraryBuildPath = buildPathMap.has(nodeAlias)
         ? buildPathMap.get(nodeAlias)
         : defaultDataLibraryBuildPath;
@@ -492,7 +493,7 @@ export class NodeCommandTasks {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
     const [zipPath, checksumPath] = await platformInstaller.getPlatformRelease(stagingDirectory, releaseTag);
     for (const nodeAlias of nodeAliases) {
-      const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+      const context: string = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
       const podReference: PodReference = podReferences[nodeAlias];
       subTasks.push({
         title: `Update node: ${chalk.yellow(nodeAlias)} [ platformVersion = ${releaseTag}, context = ${context} ]`,
@@ -537,10 +538,7 @@ export class NodeCommandTasks {
         const isDebugNode: boolean = debugNodeAlias === nodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
         const reminder: string = isDebugNode ? 'Please attach JVM debugger now.' : '';
         const title: string = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
-        const context: string = helpers.extractContextFromConsensusNodes(
-          nodeAlias,
-          this.remoteConfig.getConsensusNodes(),
-        );
+        const context: string = extractContextFromConsensusNodes(nodeAlias, this.remoteConfig.getConsensusNodes());
 
         return {
           title,
@@ -594,7 +592,7 @@ export class NodeCommandTasks {
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
     if (typeof context !== 'string' || context.trim().length === 0) {
-      context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+      context = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
     }
 
     let attempt: number = 0;
@@ -725,7 +723,7 @@ export class NodeCommandTasks {
       subTasks.push({
         title: `Check proxy for node: ${chalk.yellow(nodeAlias)}`,
         task: async (context_): Promise<void> => {
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+          const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           const k8: K8 = this.k8Factory.getK8(context);
           await k8
             .pods()
@@ -895,7 +893,7 @@ export class NodeCommandTasks {
           const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
           const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-          const context: string = helpers.extractContextFromConsensusNodes(
+          const context: string = extractContextFromConsensusNodes(
             (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
             context_.config.consensusNodes,
           );
@@ -928,7 +926,7 @@ export class NodeCommandTasks {
         const config: NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass = context_.config;
         if ((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias) {
           try {
-            const context: string = helpers.extractContextFromConsensusNodes(
+            const context: string = extractContextFromConsensusNodes(
               (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
               context_.config.consensusNodes,
             );
@@ -1141,7 +1139,7 @@ export class NodeCommandTasks {
         const podReference: PodReference = PodReference.of(namespace, nodeFullyQualifiedPodName);
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-        const context: Context = helpers.extractContextFromConsensusNodes(targetNodeAlias, consensusNodes);
+        const context: Context = extractContextFromConsensusNodes(targetNodeAlias, consensusNodes);
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
@@ -1197,7 +1195,7 @@ export class NodeCommandTasks {
         const {consensusNodes, namespace, stagingDir, nodeAliases}: NodeUpgradeConfigClass = context_.config;
 
         const nodeAlias: NodeAlias = nodeAliases[0];
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+        const context: string = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
 
         const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
 
@@ -1246,7 +1244,7 @@ export class NodeCommandTasks {
         title: `Check network pod: ${chalk.yellow(nodeAlias)}`,
         task: async ({config}): Promise<void> => {
           try {
-            const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+            const context: Context = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
 
             config.podRefs[nodeAlias] = await this.checkNetworkNodePod(
               config.namespace,
@@ -1377,10 +1375,7 @@ export class NodeCommandTasks {
         const sourceNodeId: NodeId = config.consensusNodes[0].nodeId;
 
         for (const nodeAlias of context_.config.nodeAliases) {
-          const kubeContext: Optional<string> = helpers.extractContextFromConsensusNodes(
-            nodeAlias,
-            config.consensusNodes,
-          );
+          const kubeContext: Optional<string> = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
           if (!kubeContext) {
             throw new SoloErrors.system.kubeContextNotFound(nodeAlias);
@@ -1626,7 +1621,7 @@ export class NodeCommandTasks {
         task,
       ): Promise<SoloListr<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext>> => {
         if (!config.nodeAliases || config.nodeAliases.length === 0) {
-          config.nodeAliases = helpers.parseNodeAliases(
+          config.nodeAliases = parseNodeAliases(
             config.nodeAliasesUnparsed,
             this.remoteConfig.getConsensusNodes(),
             this.configManager,
@@ -1648,7 +1643,7 @@ export class NodeCommandTasks {
           [];
 
         for (const nodeAlias of config[nodeAliasesProperty]) {
-          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const context: Context = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
           subTasks.push({
             title: `Node: ${chalk.yellow(nodeAlias)}`,
@@ -1672,10 +1667,7 @@ export class NodeCommandTasks {
       },
       task: async (context_): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
-          const context: string = helpers.extractContextFromConsensusNodes(
-            consensusNode.name,
-            context_.config.consensusNodes,
-          );
+          const context: string = extractContextFromConsensusNodes(consensusNode.name, context_.config.consensusNodes);
           const podReference: PodReference = await this.k8Factory
             .getK8(context)
             .pods()
@@ -2012,7 +2004,7 @@ export class NodeCommandTasks {
           subTasks.push({
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
-              const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
               const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
               await this.k8Factory
                 .getK8(context)
@@ -2082,7 +2074,7 @@ export class NodeCommandTasks {
       task: async ({config}): Promise<void> => {
         const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+        const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
         if (config.debugNodeAlias) {
           const pod: Pod = await new K8Helper(context).getConsensusNodePod(config.namespace, nodeAlias);
@@ -2365,7 +2357,7 @@ export class NodeCommandTasks {
               podReference,
               constants.ROOT_CONTAINER,
             );
-            const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+            const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
@@ -2405,7 +2397,7 @@ export class NodeCommandTasks {
         for (const nodeAlias of config.nodeAliases) {
           const podReference: PodReference = config.podRefs[nodeAlias];
           const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+          const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
           subTasks.push({
             title: `Node: ${chalk.yellow(nodeAlias)}`,
@@ -3044,7 +3036,7 @@ export class NodeCommandTasks {
       title: 'Get node states',
       task: async (context_): Promise<void> => {
         for (const nodeAlias of context_.config.nodeAliases) {
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+          const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           await container
             .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
             .getStatesFromPod(context_.config.namespace, nodeAlias, context);
@@ -3174,7 +3166,7 @@ export class NodeCommandTasks {
         if (config.gossipEndpoints) {
           endpoints = splitFlagInput(config.gossipEndpoints);
         } else {
-          const context: string = helpers.extractContextFromConsensusNodes(
+          const context: string = extractContextFromConsensusNodes(
             config.consensusNodes[0].name,
             context_.config.consensusNodes,
           );
@@ -3201,7 +3193,7 @@ export class NodeCommandTasks {
           );
 
           endpoints = [
-            `${helpers.getInternalAddress(config.releaseTag, config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
+            `${getInternalAddress(config.releaseTag, config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
             `${externalEndpointAddress.formattedAddress()}`,
           ];
         }
@@ -3216,7 +3208,7 @@ export class NodeCommandTasks {
   }
 
   private async getGossipFqdnRestricted(config: NodeAddConfigClass, k8: K8): Promise<boolean> {
-    return await helpers.resolveGossipFqdnRestricted({
+    return await resolveGossipFqdnRestricted({
       k8,
       namespace: config.namespace,
       stagingDir: config.stagingDir,
@@ -3352,7 +3344,7 @@ export class NodeCommandTasks {
 
         // If admin key was updated, save the new key to k8s secret
         if (config.newAdminKey) {
-          const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+          const context: string = extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
           const data: {privateKey: string; publicKey: string} = {
             privateKey: Base64.encode(parsedNewKey.toString()),
             publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
@@ -4154,7 +4146,7 @@ export class NodeCommandTasks {
         const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext>[] = [];
 
         for (const nodeAlias of config.allNodeAliases) {
-          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const context: Context = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
           subTasks.push({
             title: `Check Node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
@@ -4234,7 +4226,7 @@ export class NodeCommandTasks {
         const savedStateDirectory: string = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
         const savedStatePath: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/${nodeId}/123/${savedStateDirectory}`;
 
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+        const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
         const k8: K8 = this.k8Factory.getK8(context);
 
         const container: Container = k8.containers().readByRef(containerReference);
@@ -4304,7 +4296,7 @@ export class NodeCommandTasks {
 
         // Delete admin key secret from k8s after successful node deletion
         try {
-          const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+          const context: string = extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
           await this.k8Factory
             .getK8(context)
             .secrets()
@@ -4353,7 +4345,7 @@ export class NodeCommandTasks {
         // Save admin key to k8s secret after successful node creation
         // nodeAlias was set in determineNewNodeAccountNumber step
         const nodeAlias: NodeAlias = config.nodeAlias;
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+        const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
         const data: {privateKey: string; publicKey: string} = {
           privateKey: Base64.encode(context_.adminKey.toString()),
           publicKey: Base64.encode(context_.adminKey.publicKey.toString()),
@@ -4778,7 +4770,7 @@ export class NodeCommandTasks {
         const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
         const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const context: Context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+        const context: Context = extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
         let pid: string;
