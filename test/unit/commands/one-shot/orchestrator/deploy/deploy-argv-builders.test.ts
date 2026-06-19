@@ -16,9 +16,8 @@ import {DeployArgvBuilders} from '../../../../../../src/commands/one-shot/orches
 import {CommandHelpers} from '../../../../../../src/commands/command-helpers.js';
 import {Flags} from '../../../../../../src/commands/flags.js';
 import {type AnyObject, type ArgvStruct} from '../../../../../../src/types/aliases.js';
-import {type CommandFlag} from '../../../../../../src/types/flag-types.js';
 
-const optionFromFlag: (flag: CommandFlag) => string = CommandHelpers.optionFromFlag;
+const optionFromFlag: typeof CommandHelpers.optionFromFlag = CommandHelpers.optionFromFlag;
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
   return {
