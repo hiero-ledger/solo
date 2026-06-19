@@ -2,19 +2,23 @@
 
 import {container} from 'tsyringe-neo';
 
-/**
- * code to patch inject bug with tsyringe: https://github.com/risen228/tsyringe-neo/issues/5
- * @param parameterValue - the value that should have been injected as a parameter in the constructor
- * @param registryToken - the token to resolve from the container
- * @param callingClassName - the name of the class that is calling this function
- */
-export function patchInject<T>(parameterValue: T, registryToken: symbol, callingClassName: string): T {
-  if (registryToken === undefined || registryToken === null) {
-    throw new Error(`registryToken is undefined or null, callingClassName: ${callingClassName}`);
-  }
-  if (parameterValue === undefined || parameterValue === null) {
-    return container.resolve(registryToken);
-  }
+export class ContainerHelper {
+  /**
+   * code to patch inject bug with tsyringe: https://github.com/risen228/tsyringe-neo/issues/5
+   * @param parameterValue - the value that should have been injected as a parameter in the constructor
+   * @param registryToken - the token to resolve from the container
+   * @param callingClassName - the name of the class that is calling this function
+   */
+  public static patchInject<T>(parameterValue: T, registryToken: symbol, callingClassName: string): T {
+    if (registryToken === undefined || registryToken === null) {
+      throw new Error(`registryToken is undefined or null, callingClassName: ${callingClassName}`);
+    }
+    if (parameterValue === undefined || parameterValue === null) {
+      return container.resolve(registryToken);
+    }
 
-  return parameterValue;
+    return parameterValue;
+  }
 }
+
+export const patchInject: typeof ContainerHelper.patchInject = ContainerHelper.patchInject;

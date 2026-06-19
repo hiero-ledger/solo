@@ -4,8 +4,7 @@ import {Templates} from '../../core/templates.js';
 import * as constants from '../../core/constants.js';
 import {AccountId, PrivateKey} from '@hiero-ledger/sdk';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
-import * as helpers from '../../core/helpers.js';
-import {checkNamespace} from '../../core/helpers.js';
+import {checkNamespace, parseNodeAliases} from '../../core/helpers.js';
 import fs from 'node:fs';
 import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
 import {Flags as flags} from '../flags.js';
@@ -165,7 +164,7 @@ export class NodeCommandConfigs {
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.curDate = new Date();
     context_.config.existingNodeAliases = [];
-    context_.config.nodeAliases = helpers.parseNodeAliases(
+    context_.config.nodeAliases = parseNodeAliases(
       context_.config.nodeAliasesUnparsed,
       this.remoteConfig.getConsensusNodes(),
       this.configManager,
@@ -428,7 +427,7 @@ export class NodeCommandConfigs {
   ): Promise<NodeLogsConfigClass> {
     context_.config = {
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
-      nodeAliases: helpers.parseNodeAliases(
+      nodeAliases: parseNodeAliases(
         this.configManager.getFlag(flags.nodeAliasesUnparsed),
         this.remoteConfig.getConsensusNodes(),
         this.configManager,
@@ -468,7 +467,7 @@ export class NodeCommandConfigs {
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
     context_.config = {
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
-      nodeAliases: helpers.parseNodeAliases(
+      nodeAliases: parseNodeAliases(
         this.configManager.getFlag(flags.nodeAliasesUnparsed),
         consensusNodes,
         this.configManager,
@@ -496,7 +495,7 @@ export class NodeCommandConfigs {
     ]) as NodeRefreshConfigClass;
 
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-    context_.config.nodeAliases = helpers.parseNodeAliases(
+    context_.config.nodeAliases = parseNodeAliases(
       context_.config.nodeAliasesUnparsed,
       this.remoteConfig.getConsensusNodes(),
       this.configManager,
@@ -521,7 +520,7 @@ export class NodeCommandConfigs {
     ]) as NodeKeysConfigClass;
 
     context_.config.curDate = new Date();
-    context_.config.nodeAliases = helpers.parseNodeAliases(
+    context_.config.nodeAliases = parseNodeAliases(
       context_.config.nodeAliasesUnparsed,
       this.remoteConfig.getConsensusNodes(),
       this.configManager,
@@ -543,7 +542,7 @@ export class NodeCommandConfigs {
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
     context_.config = {
       namespace: await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task),
-      nodeAliases: helpers.parseNodeAliases(
+      nodeAliases: parseNodeAliases(
         this.configManager.getFlag(flags.nodeAliasesUnparsed),
         consensusNodes,
         this.configManager,
@@ -603,7 +602,7 @@ export class NodeCommandConfigs {
       }
     }
 
-    context_.config.nodeAliases = helpers.parseNodeAliases(
+    context_.config.nodeAliases = parseNodeAliases(
       context_.config.nodeAliasesUnparsed,
       context_.config.consensusNodes,
       this.configManager,
@@ -678,7 +677,7 @@ export class NodeCommandConfigs {
 
     context_.config.namespace = await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
     context_.config.consensusNodes = this.remoteConfig.getConsensusNodes();
-    context_.config.nodeAliases = helpers.parseNodeAliases(
+    context_.config.nodeAliases = parseNodeAliases(
       context_.config.nodeAliasesUnparsed,
       context_.config.consensusNodes,
       this.configManager,
