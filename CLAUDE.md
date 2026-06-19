@@ -127,6 +127,12 @@ Key rules enforced as ESLint **errors** (not warnings):
   callbacks in tests) must have an explicit type annotation. See §6.1 and §6.1.1 of the style guide.
 - **One class/interface per file** — Each exported class or interface must be in its own file, named
   in kebab-case to match the class/interface name. See §3.5 of the style guide.
+- **No exported functions** — Behavior (resolvers, orchestrators, computations) is grouped on a class
+  as `static` methods; do **not** `export function`/`export const fn = () => …` at module scope. Pure
+  data (constants, types, simple factories) may be exported. A helper used by only one class becomes a
+  `private static` member of that class. Enforced by the `solo/no-exported-function` lint rule (an
+  **error** in `src/integration/**`, a warning elsewhere while legacy functions are migrated). See
+  §3.4.5 and §10.3.1–§10.3.2 of the style guide.
 
 Run `task format` to auto-fix formatting and lint issues before committing. Note that
 `task format` fixes Prettier and some ESLint issues automatically, but **abbreviation violations

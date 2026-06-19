@@ -27,6 +27,8 @@ import {ContainerName} from '../../../resources/container/container-name.js';
 import {PodName} from '../../../resources/pod/pod-name.js';
 import {K8ClientPodCondition} from './k8-client-pod-condition.js';
 import {type PodCondition} from '../../../resources/pod/pod-condition.js';
+import {K8ClientContainerStatus} from './k8-client-container-status.js';
+import {type ContainerStatus} from '../../../resources/pod/container-status.js';
 import {ShellRunner} from '../../../../../core/shell-runner.js';
 import chalk from 'chalk';
 import http from 'node:http';
@@ -55,6 +57,7 @@ export class K8ClientPod implements Pod {
     public readonly podIp?: string,
     public readonly creationTimestamp?: Date,
     public readonly deletionTimestamp?: Date,
+    public readonly allContainerStatuses?: ContainerStatus[],
   ) {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
@@ -429,6 +432,11 @@ export class K8ClientPod implements Pod {
       return undefined;
     }
 
+    const allContainerStatuses: K8ClientContainerStatus[] = [
+      ...(v1Pod.status?.initContainerStatuses ?? []),
+      ...(v1Pod.status?.containerStatuses ?? []),
+    ].map((status): K8ClientContainerStatus => K8ClientContainerStatus.from(status));
+
     return new K8ClientPod(
       PodReference.of(NamespaceName.of(v1Pod.metadata?.namespace), PodName.of(v1Pod.metadata?.name)),
       pods,
@@ -446,6 +454,7 @@ export class K8ClientPod implements Pod {
       v1Pod.status?.podIP,
       v1Pod.metadata?.creationTimestamp ? new Date(v1Pod.metadata.creationTimestamp) : undefined,
       v1Pod.metadata.deletionTimestamp ? new Date(v1Pod.metadata.deletionTimestamp) : undefined,
+      allContainerStatuses,
     );
   }
 }
