@@ -30,7 +30,6 @@ import {type K8} from '../integration/kube/k8.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
-import {SemanticVersion} from '../business/utils/semantic-version.js';
 
 export interface ResolveGossipFqdnRestrictedOptions {
   k8?: K8;
@@ -64,16 +63,6 @@ type AddLoadContextData = {
 };
 
 export class Helpers {
-  public static getInternalAddress(
-    releaseVersion: SemanticVersion<string> | string,
-    namespaceName: NamespaceName,
-    nodeAlias: NodeAlias,
-  ): string {
-    return new SemanticVersion(releaseVersion).greaterThanOrEqual('0.58.5')
-      ? '127.0.0.1'
-      : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
-  }
-
   public static sleep(duration: Duration): Promise<void> {
     return new Promise<void>((resolve: (value: PromiseLike<void> | void) => void): void => {
       setTimeout(resolve, duration.toMillis());
@@ -772,7 +761,6 @@ export class Helpers {
   }
 }
 
-export const getInternalAddress: typeof Helpers.getInternalAddress = Helpers.getInternalAddress;
 export const sleep: typeof Helpers.sleep = Helpers.sleep;
 export const parseNodeAliases: typeof Helpers.parseNodeAliases = Helpers.parseNodeAliases;
 export const splitFlagInput: typeof Helpers.splitFlagInput = Helpers.splitFlagInput;
