@@ -5,8 +5,8 @@ import {expect} from 'chai';
 import {
   DeploymentPhase,
   DEPLOYMENT_PHASE_ORDER,
-  isDeploymentPhaseAtLeast,
 } from '../../../../../../src/data/schema/model/remote/deployment-phase.js';
+import {isDeploymentPhaseAtLeast} from '../../../../../../src/data/schema/model/remote/deployment-phase-helper.js';
 
 describe('deployment-phase', (): void => {
   describe('DEPLOYMENT_PHASE_ORDER', (): void => {

@@ -2,6 +2,7 @@
 
 import {type Namespaces} from '../../../../../types/namespace/namespaces.js';
 import {type CoreV1Api, type V1Namespace, type V1NamespaceList} from '@kubernetes/client-node';
+import {type ObjectMeta} from '../../../resources/object-meta.js';
 import {KubeApiInvalidResponseError} from '../../../errors/kube-api-invalid-response-error.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 import {sleep} from '../../../../../core/helpers.js';
@@ -22,8 +23,14 @@ export class K8ClientNamespaces implements Namespaces {
     return true;
   }
 
-  public async get(namespace: NamespaceName): Promise<V1Namespace> {
-    return await this.kubeClient.readNamespace({name: namespace.name});
+  public async get(namespace: NamespaceName): Promise<ObjectMeta> {
+    const response: V1Namespace = await this.kubeClient.readNamespace({name: namespace.name});
+    return {
+      name: response.metadata?.name ?? namespace.name,
+      labels: response.metadata?.labels,
+      annotations: response.metadata?.annotations,
+      uid: response.metadata?.uid,
+    };
   }
 
   public async delete(namespace: NamespaceName): Promise<boolean> {

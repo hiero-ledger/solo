@@ -13,6 +13,7 @@ import {type ListrBaseClassOptions} from 'listr2';
 
 export const SOLO_SILENT_MODE: boolean = getEnvironmentVariable('SOLO_SILENT_MODE') === 'true' || false;
 
+// eslint-disable-next-line solo/no-exported-function
 export function getEnvironmentVariable(name: string): string | undefined {
   if (process.env[name] && process.env[name].trim() !== '') {
     if (!(process.env.SOLO_SILENT_MODE === 'true')) {
