@@ -55,7 +55,6 @@ import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
   extractContextFromConsensusNodes,
-  getInternalAddress,
   parseNodeAliases,
   prepareEndpoints,
   renameAndCopyFile,
