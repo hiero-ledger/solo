@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type ClusterCommandTasks} from './tasks.js';
-import * as helpers from '../../core/helpers.js';
+import {addFlagsToArgv} from '../../core/helpers.js';
 import * as constants from '../../core/constants.js';
 import * as ContextFlags from './flags.js';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
@@ -33,7 +33,7 @@ export class ClusterCommandHandlers extends CommandHandler {
    * - Add new 'cluster-ref => context' mapping in the local config.
    */
   public async connect(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, ContextFlags.CONNECT_FLAGS);
+    argv = addFlagsToArgv(argv, ContextFlags.CONNECT_FLAGS);
 
     await this.commandAction(
       argv,
@@ -53,7 +53,7 @@ export class ClusterCommandHandlers extends CommandHandler {
   }
 
   public async disconnect(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, ContextFlags.DEFAULT_FLAGS);
+    argv = addFlagsToArgv(argv, ContextFlags.DEFAULT_FLAGS);
 
     try {
       await this.commandAction(
@@ -75,7 +75,7 @@ export class ClusterCommandHandlers extends CommandHandler {
   }
 
   public async list(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, ContextFlags.NO_FLAGS);
+    argv = addFlagsToArgv(argv, ContextFlags.NO_FLAGS);
 
     await this.commandAction(
       argv,
@@ -89,7 +89,7 @@ export class ClusterCommandHandlers extends CommandHandler {
   }
 
   public async info(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, ContextFlags.DEFAULT_FLAGS);
+    argv = addFlagsToArgv(argv, ContextFlags.DEFAULT_FLAGS);
 
     await this.commandAction(
       argv,
@@ -106,7 +106,7 @@ export class ClusterCommandHandlers extends CommandHandler {
   }
 
   public async setup(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, ContextFlags.SETUP_FLAGS);
+    argv = addFlagsToArgv(argv, ContextFlags.SETUP_FLAGS);
 
     try {
       await this.commandAction(
@@ -128,7 +128,7 @@ export class ClusterCommandHandlers extends CommandHandler {
   }
 
   public async reset(argv: ArgvStruct): Promise<boolean> {
-    argv = helpers.addFlagsToArgv(argv, ContextFlags.RESET_FLAGS);
+    argv = addFlagsToArgv(argv, ContextFlags.RESET_FLAGS);
 
     try {
       await this.commandAction(
