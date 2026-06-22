@@ -73,6 +73,10 @@ images:
 
   # ---
 
+  - name: docker.io/bitnami/postgresql
+    version: latest
+    source: docker.io
+
   - name: docker.io/bitnamilegacy/postgresql-repmgr
     version: 17.6.0-debian-12-r2
     source: docker.io
