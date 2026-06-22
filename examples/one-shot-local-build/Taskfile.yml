@@ -101,11 +101,11 @@ tasks:
     desc: Run helm dependency build for all local chart directories
     vars:
       # Stable cache directory: chart tarballs are saved here and restored on the next run.
-      # In CI the workflow caches this path with actions/cache, keyed by version.ts hash,
-      # so Docker Hub OCI pulls (registry-1.docker.io/bitnamicharts) are skipped entirely
-      # after the first successful build — avoiding Docker Hub anonymous rate-limit 429s.
-      # helm dependency build skips re-downloading when charts/*.tgz already exist and
-      # match Chart.lock, so pre-populating from the cache is sufficient.
+      # In CI the workflow caches this path with actions/cache, keyed by version.ts hash.
+      # When the cache is hit, we restore tarballs and SKIP helm dependency build entirely —
+      # helm dep build for OCI repos (registry-1.docker.io/bitnamicharts) contacts Docker Hub
+      # even when the tarball already exists in charts/, hitting anonymous rate-limit 429s.
+      # Skipping is safe because: same version.ts hash → same chart versions → same tarballs.
       HELM_CHART_CACHE: "${HOME}/.solo/helm-chart-cache"
     cmds:
       # Block node chart: <charts>/block-node-server
@@ -114,13 +114,14 @@ tasks:
           CACHE_DIR="{{.HELM_CHART_CACHE}}/block-node-server"
           if [ -d "$CHART_PATH" ]; then
             if [ -d "$CACHE_DIR" ] && ls "$CACHE_DIR"/*.tgz >/dev/null 2>&1; then
-              echo "Restoring cached helm tarballs for block-node-server..."
+              echo "Restoring cached helm tarballs for block-node-server (skipping helm dep build)..."
               mkdir -p "$CHART_PATH/charts"
               cp "$CACHE_DIR"/*.tgz "$CHART_PATH/charts/"
+            else
+              echo "Running helm dependency build in $CHART_PATH..."
+              helm dependency build "$CHART_PATH"
+              mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
             fi
-            echo "Running helm dependency build in $CHART_PATH..."
-            helm dependency build "$CHART_PATH"
-            mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
           else
             echo "Skipping: $CHART_PATH not found"
           fi
@@ -131,13 +132,14 @@ tasks:
           CACHE_DIR="{{.HELM_CHART_CACHE}}/hedera-mirror"
           if [ -d "$CHART_PATH" ]; then
             if [ -d "$CACHE_DIR" ] && ls "$CACHE_DIR"/*.tgz >/dev/null 2>&1; then
-              echo "Restoring cached helm tarballs for hedera-mirror..."
+              echo "Restoring cached helm tarballs for hedera-mirror (skipping helm dep build)..."
               mkdir -p "$CHART_PATH/charts"
               cp "$CACHE_DIR"/*.tgz "$CHART_PATH/charts/"
+            else
+              echo "Running helm dependency build in $CHART_PATH..."
+              helm dependency build "$CHART_PATH"
+              mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
             fi
-            echo "Running helm dependency build in $CHART_PATH..."
-            helm dependency build "$CHART_PATH"
-            mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
           else
             echo "Skipping: $CHART_PATH not found"
           fi
@@ -148,13 +150,14 @@ tasks:
           CACHE_DIR="{{.HELM_CHART_CACHE}}/hedera-json-rpc"
           if [ -d "$CHART_PATH" ]; then
             if [ -d "$CACHE_DIR" ] && ls "$CACHE_DIR"/*.tgz >/dev/null 2>&1; then
-              echo "Restoring cached helm tarballs for hedera-json-rpc..."
+              echo "Restoring cached helm tarballs for hedera-json-rpc (skipping helm dep build)..."
               mkdir -p "$CHART_PATH/charts"
               cp "$CACHE_DIR"/*.tgz "$CHART_PATH/charts/"
+            else
+              echo "Running helm dependency build in $CHART_PATH..."
+              helm dependency build "$CHART_PATH"
+              mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
             fi
-            echo "Running helm dependency build in $CHART_PATH..."
-            helm dependency build "$CHART_PATH"
-            mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
           else
             echo "Skipping: $CHART_PATH not found"
           fi
@@ -165,13 +168,14 @@ tasks:
           CACHE_DIR="{{.HELM_CHART_CACHE}}/hiero-mirror-node-explorer"
           if [ -d "$CHART_PATH" ]; then
             if [ -d "$CACHE_DIR" ] && ls "$CACHE_DIR"/*.tgz >/dev/null 2>&1; then
-              echo "Restoring cached helm tarballs for hiero-mirror-node-explorer..."
+              echo "Restoring cached helm tarballs for hiero-mirror-node-explorer (skipping helm dep build)..."
               mkdir -p "$CHART_PATH/charts"
               cp "$CACHE_DIR"/*.tgz "$CHART_PATH/charts/"
+            else
+              echo "Running helm dependency build in $CHART_PATH..."
+              helm dependency build "$CHART_PATH"
+              mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
             fi
-            echo "Running helm dependency build in $CHART_PATH..."
-            helm dependency build "$CHART_PATH"
-            mkdir -p "$CACHE_DIR" && cp "$CHART_PATH/charts"/*.tgz "$CACHE_DIR/" 2>/dev/null || true
           else
             echo "Skipping: $CHART_PATH not found"
           fi

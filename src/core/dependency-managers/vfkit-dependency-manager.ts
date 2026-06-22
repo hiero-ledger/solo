@@ -11,6 +11,7 @@ import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
 import {SoloErrors} from '../errors/solo-errors.js';
 import {GitHubRelease, GitHubReleaseAsset, ReleaseInfo} from '../../types/index.js';
+import {GitHubApiClient} from '../github-api-client.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const VFKIT_RELEASES_LIST_URL: string = 'https://api.github.com/repos/crc-org/vfkit/releases';
@@ -82,23 +83,7 @@ export class VfkitDependencyManager extends BaseDependencyManager {
    */
   private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
     try {
-      const headers: Record<string, string> = {
-        'User-Agent': constants.SOLO_USER_AGENT_HEADER,
-        Accept: 'application/vnd.github.v3+json',
-      };
-      if (process.env.GITHUB_TOKEN) {
-        headers['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
-      }
-      const response = await fetch(VFKIT_RELEASES_LIST_URL, {
-        method: 'GET',
-        headers,
-      });
-
-      if (!response.ok) {
-        throw new SoloErrors.system.githubApiHttpResponseError(VFKIT_RELEASES_LIST_URL, response.status);
-      }
-
-      // Parse the JSON response
+      const response: Response = await GitHubApiClient.get(VFKIT_RELEASES_LIST_URL);
       const releases: GitHubRelease[] = await response.json();
 
       if (!releases || releases.length === 0) {
