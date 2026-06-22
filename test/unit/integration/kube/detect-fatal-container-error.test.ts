@@ -1,27 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import {describe, it} from 'mocha';
-import sinon, {type SinonStub} from 'sinon';
-import {
-  type CoreV1Api,
-  type KubeConfig,
-  V1Pod,
-  V1PodStatus,
-  V1ContainerStatus,
-  V1ContainerState,
-  V1ContainerStateWaiting,
-  V1ContainerStateTerminated,
-  V1ContainerStateRunning,
-  V1ObjectMeta,
-} from '@kubernetes/client-node';
-import {
-  detectFatalContainerError,
-  K8ClientPods,
-} from '../../../../src/integration/kube/k8-client/resources/pod/k8-client-pods.js';
-import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
-import {KubePodCreationFailedError} from '../../../../src/integration/kube/errors/kube-pod-creation-failed-error.js';
 import {before, describe, it} from 'mocha';
+import sinon, {type SinonStub} from 'sinon';
+import {KubePodCreationFailedError} from '../../../../src/integration/kube/errors/kube-pod-creation-failed-error.js';
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import {type ContainerStatus} from '../../../../src/integration/kube/resources/pod/container-status.js';
 import {K8ClientPods} from '../../../../src/integration/kube/k8-client/resources/pod/k8-client-pods.js';
@@ -29,6 +11,31 @@ import {resetForTest} from '../../../test-container.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
+
+interface RawContainerStatusFixture {
+  readonly name: string;
+  readonly state: {
+    readonly waiting?: {
+      readonly reason: string;
+      readonly message?: string;
+    };
+  };
+}
+
+interface RawPodFixture {
+  readonly metadata: {
+    readonly name: string;
+    readonly namespace: string;
+    readonly creationTimestamp: Date;
+  };
+  readonly spec: {
+    readonly containers: {readonly name: string}[];
+  };
+  readonly status: {
+    phase?: string;
+    readonly containerStatuses: RawContainerStatusFixture[];
+  };
+}
 
 function buildPod(containerStatuses: ContainerStatus[], podName: string = 'test-pod'): Pod {
   return {
@@ -59,14 +66,41 @@ function buildTerminated(containerName: string, reason: string, exitCode: number
   return {name: containerName, terminatedReason: reason, terminatedExitCode: exitCode};
 }
 
+function buildRawPodWithContainerStatus(containerStatus: RawContainerStatusFixture): RawPodFixture {
+  return {
+    metadata: {
+      name: 'test-pod',
+      namespace: 'default',
+      creationTimestamp: new Date(),
+    },
+    spec: {
+      containers: [{name: 'test-container'}],
+    },
+    status: {
+      containerStatuses: [containerStatus],
+    },
+  };
+}
+
+function buildWaitingRawContainerStatus(reason: string, message?: string): RawContainerStatusFixture {
+  return {
+    name: 'test-container',
+    state: {
+      waiting: {
+        reason,
+        message,
+      },
+    },
+  };
+}
+
 describe('detectFatalContainerError', (): void => {
   let podsClient: K8ClientPods;
 
   before((): void => {
     resetForTest();
     // detectFatalContainerError does not use the K8s client or config; pass undefined for test setup.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    podsClient = new K8ClientPods(undefined as any, undefined as any, '');
+    podsClient = new K8ClientPods(undefined as never, undefined as never, '');
   });
 
   it('should return undefined for a pod with no container statuses', (): void => {
@@ -161,10 +195,8 @@ describe('detectFatalContainerError', (): void => {
     });
 
     it('detectFatalContainerError returns an actionable message for ImageInspectError with containerd socket', (): void => {
-      const pod: V1Pod = buildPodWithContainerStatus(
-        buildWaitingContainerStatus('ImageInspectError', containerdSocketMessage),
-      );
-      const result: string | undefined = detectFatalContainerError(pod);
+      const pod: Pod = buildPod([buildWaiting('test-container', 'ImageInspectError', containerdSocketMessage)]);
+      const result: string | undefined = podsClient.detectFatalContainerError(pod);
       expect(result).to.not.be.undefined;
       expect(result).to.include('containerd socket error');
       expect(result).to.include('Docker Desktop');
@@ -173,33 +205,25 @@ describe('detectFatalContainerError', (): void => {
     });
 
     it('detectFatalContainerError returns undefined for ImageInspectError with a non-containerd transient message', (): void => {
-      const pod: V1Pod = buildPodWithContainerStatus(
-        buildWaitingContainerStatus('ImageInspectError', 'Some transient network hiccup'),
-      );
-      expect(detectFatalContainerError(pod)).to.be.undefined;
+      const pod: Pod = buildPod([buildWaiting('test-container', 'ImageInspectError', 'Some transient network hiccup')]);
+      expect(podsClient.detectFatalContainerError(pod)).to.be.undefined;
     });
 
     it('detectFatalContainerError still treats ImageInspectError + "not found" as non-recoverable', (): void => {
-      const pod: V1Pod = buildPodWithContainerStatus(
-        buildWaitingContainerStatus('ImageInspectError', 'image not found in registry'),
-      );
-      const result: string | undefined = detectFatalContainerError(pod);
+      const pod: Pod = buildPod([buildWaiting('test-container', 'ImageInspectError', 'image not found in registry')]);
+      const result: string | undefined = podsClient.detectFatalContainerError(pod);
       expect(result).to.not.be.undefined;
       expect(result).to.include('non-recoverable');
     });
 
     it('waitForRunningPhase waits for the containerd socket threshold before rejecting', async (): Promise<void> => {
-      const pod: V1Pod = buildPodWithContainerStatus(
-        buildWaitingContainerStatus('ImageInspectError', containerdSocketMessage),
+      const pod: RawPodFixture = buildRawPodWithContainerStatus(
+        buildWaitingRawContainerStatus('ImageInspectError', containerdSocketMessage),
       );
       pod.status.phase = 'Pending';
 
       const listNamespacedPodStub: SinonStub = sinon.stub().resolves({items: [pod]});
-      const pods: K8ClientPods = new K8ClientPods(
-        {listNamespacedPod: listNamespacedPodStub} as unknown as CoreV1Api,
-        {} as KubeConfig,
-        '',
-      );
+      const pods: K8ClientPods = new K8ClientPods({listNamespacedPod: listNamespacedPodStub} as never, {} as never, '');
 
       try {
         await pods.waitForRunningPhase(NamespaceName.of('test-namespace'), ['app=test'], 5, 0);
