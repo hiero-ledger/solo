@@ -10,8 +10,7 @@ import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
-import * as helpers from '../core/helpers.js';
-import {showVersionBanner} from '../core/helpers.js';
+import {entityId, showVersionBanner} from '../core/helpers.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
@@ -1143,19 +1142,25 @@ export class MirrorNodeCommand extends BaseCommand {
           }: {
             title: string;
             labels: string[];
-          }): SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => ({
-            title,
-            task: async (): Promise<Pod[]> =>
-              await this.k8Factory
-                .getK8(context_.config.clusterContext)
-                .pods()
-                .waitForReadyStatus(
-                  context_.config.namespace,
-                  labels,
-                  constants.PODS_READY_MAX_ATTEMPTS,
-                  constants.PODS_READY_DELAY,
-                ),
-          }),
+          }): SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => {
+            // The pinger is the last component to become ready because it depends on the
+            // consensus network processing transactions and the mirror REST API ingesting
+            // them.  On Windows/WSL2 this can take significantly longer than the default.
+            const isPinger: boolean = labels.includes('app.kubernetes.io/component=pinger');
+            return {
+              title,
+              task: async (): Promise<Pod[]> =>
+                await this.k8Factory
+                  .getK8(context_.config.clusterContext)
+                  .pods()
+                  .waitForReadyStatus(
+                    context_.config.namespace,
+                    labels,
+                    isPinger ? constants.MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS : constants.PODS_READY_MAX_ATTEMPTS,
+                    isPinger ? constants.MIRROR_NODE_PINGER_PODS_READY_DELAY : constants.PODS_READY_DELAY,
+                  ),
+            };
+          },
         );
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
@@ -1305,7 +1310,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
-              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
+              const pingerRecipientAccountId: string = entityId(shard, realm, 98);
               config.chartValues.setLiteral(
                 `monitor.config.${chartNamespace}.mirror.monitor.operator.accountId`,
                 operatorId,
@@ -1589,7 +1594,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
-              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
+              const pingerRecipientAccountId: string = entityId(shard, realm, 98);
               config.chartValues.setLiteral(
                 `monitor.config.${chartNamespace}.mirror.monitor.operator.accountId`,
                 operatorId,

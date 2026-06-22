@@ -25,8 +25,7 @@ import {Duration} from '../../../src/core/time/duration.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import * as helpers from '../../../src/core/helpers.js';
-import {entityId} from '../../../src/core/helpers.js';
+import {entityId, Helpers} from '../../../src/core/helpers.js';
 import {Templates} from '../../../src/core/templates.js';
 import * as Base64 from 'js-base64';
 import {Argv} from '../../helpers/argv-wrapper.js';
@@ -137,7 +136,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, bootstrapResp
         });
 
         it('Node admin key should have been updated, not equal to genesis key', async () => {
-          const nodeAliases = helpers.parseNodeAliases(
+          const nodeAliases = Helpers.parseNodeAliases(
             argv.getArg<string>(flags.nodeAliasesUnparsed),
             bootstrapResp.opts.remoteConfig.getConsensusNodes(),
             bootstrapResp.opts.configManager,

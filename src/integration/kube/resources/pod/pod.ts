@@ -3,6 +3,7 @@
 import {type PodReference} from './pod-reference.js';
 import {type ContainerName} from '../container/container-name.js';
 import {type PodCondition} from './pod-condition.js';
+import {type ContainerStatus} from './container-status.js';
 
 export interface Pod {
   /**
@@ -59,6 +60,12 @@ export interface Pod {
    * The current Kubernetes phase of the pod (for example Running, Succeeded, Failed)
    */
   readonly phase?: string;
+
+  /**
+   * All container statuses for the pod (init containers first, then regular containers).
+   * Used to inspect non-recoverable error states without exposing @kubernetes/client-node types.
+   */
+  readonly allContainerStatuses?: ContainerStatus[];
 
   /**
    * Get a pod by name and namespace, will check every 1 second until the pod is no longer found.

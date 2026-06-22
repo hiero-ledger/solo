@@ -11,7 +11,7 @@ import {Flags as flags} from '../commands/flags.js';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {type ConfigManager} from './config-manager.js';
-import * as helpers from './helpers.js';
+import {Helpers} from './helpers.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, type DirectoryPath, type NodeAlias, type NodeAliases, type Path} from '../types/aliases.js';
 import {type Optional} from '../types/index.js';
@@ -856,7 +856,7 @@ export class ProfileManager {
 
       let nodeSeq: number = 0;
       for (const consensusNode of consensusNodes) {
-        const internalIP: string = helpers.getInternalAddress(
+        const internalIP: string = Helpers.getInternalAddress(
           releaseVersion,
           NamespaceName.of(consensusNode.namespace),
           consensusNode.name as NodeAlias,
@@ -903,7 +903,7 @@ export class ProfileManager {
     applicationPropertiesPath: string,
   ): Promise<boolean> {
     const firstNode: ConsensusNode | undefined = consensusNodes[0];
-    return await helpers.resolveGossipFqdnRestricted({
+    return await Helpers.resolveGossipFqdnRestricted({
       k8: firstNode ? this.k8Factory.getK8(firstNode.context) : undefined,
       namespace: firstNode ? NamespaceName.of(firstNode.namespace) : undefined,
       applicationPropertiesPath,

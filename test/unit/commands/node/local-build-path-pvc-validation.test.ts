@@ -9,7 +9,7 @@ import path from 'node:path';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import * as constants from '../../../../src/core/constants.js';
-import * as helpers from '../../../../src/core/helpers.js';
+import {Helpers} from '../../../../src/core/helpers.js';
 
 function createNodeCommandTasksWithPvcData(persistentVolumeClaimsByContext: Record<string, string[]>): {
   tasks: NodeCommandTasks;
@@ -39,7 +39,7 @@ function invokeParseGossipFqdnRestricted(
   _nodeCommandTasks: NodeCommandTasks,
   applicationPropertiesText: string,
 ): boolean | undefined {
-  return helpers.parseGossipFqdnRestricted(applicationPropertiesText);
+  return Helpers.parseGossipFqdnRestricted(applicationPropertiesText);
 }
 
 function invokeValidateNodePvcsForLocalBuildPath(

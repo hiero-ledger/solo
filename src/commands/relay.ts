@@ -2,8 +2,7 @@
 
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
-import * as helpers from '../core/helpers.js';
-import {showVersionBanner} from '../core/helpers.js';
+import {parseNodeAliases, showVersionBanner, sleep} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
@@ -455,7 +454,7 @@ export class RelayCommand extends BaseCommand {
 
         // wait for the pod to destroy in case it was an upgrade
         if (commandType === RelayCommandType.UPGRADE) {
-          await helpers.sleep(Duration.ofSeconds(40));
+          await sleep(Duration.ofSeconds(40));
 
           // update relay version in remote config after successful upgrade
           this.remoteConfig.updateComponentVersion(
@@ -624,7 +623,7 @@ export class RelayCommand extends BaseCommand {
 
             config.namespace = await this.getNamespace(task);
 
-            config.nodeAliases = helpers.parseNodeAliases(
+            config.nodeAliases = parseNodeAliases(
               config.nodeAliasesUnparsed,
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
@@ -742,7 +741,7 @@ export class RelayCommand extends BaseCommand {
 
             config.namespace = await this.getNamespace(task);
 
-            config.nodeAliases = helpers.parseNodeAliases(
+            config.nodeAliases = parseNodeAliases(
               config.nodeAliasesUnparsed,
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
@@ -977,7 +976,7 @@ export class RelayCommand extends BaseCommand {
   private async inferRelayData(namespace: NamespaceName, context: Context): Promise<InferredData> {
     const id: ComponentId = this.inferRelayId();
 
-    const nodeAliases: NodeAliases = helpers.parseNodeAliases(
+    const nodeAliases: NodeAliases = parseNodeAliases(
       this.configManager.getFlag(flags.nodeAliasesUnparsed),
       this.remoteConfig.getConsensusNodes(),
       this.configManager,
