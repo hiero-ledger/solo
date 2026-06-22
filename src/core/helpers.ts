@@ -611,7 +611,7 @@ export class Helpers {
       // grep exits 1 when no lines match — image simply not found, not an error
       if (error?.status === 1) {
         return false;
-      }      
+      }
       if (!constants.SOLO_SILENT_MODE) {
         console.error(`Error checking Docker image ${fullImageName}:`, error.message);
       }
