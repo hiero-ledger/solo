@@ -734,8 +734,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   ),
               ),
           })
-            .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
-            .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(10)),
+            .withWaitCondition(
+              SoloEventType.MirrorNodeDeployed,
+              Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
+            )
+            .withWaitCondition(
+              SoloEventType.NodesStarted,
+              Duration.ofMinutes(constants.NODES_STARTED_EVENT_TIMEOUT_MINUTES),
+            ),
         ],
         (getConfig: () => OneShotSingleDeployConfigClass): ExecutionMode =>
           getConfig().parallelDeploy
