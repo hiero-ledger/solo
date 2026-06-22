@@ -1110,19 +1110,25 @@ export class MirrorNodeCommand extends BaseCommand {
           }: {
             title: string;
             labels: string[];
-          }): SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => ({
-            title,
-            task: async (): Promise<Pod[]> =>
-              await this.k8Factory
-                .getK8(context_.config.clusterContext)
-                .pods()
-                .waitForReadyStatus(
-                  context_.config.namespace,
-                  labels,
-                  constants.PODS_READY_MAX_ATTEMPTS,
-                  constants.PODS_READY_DELAY,
-                ),
-          }),
+          }): SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => {
+            // The pinger is the last component to become ready because it depends on the
+            // consensus network processing transactions and the mirror REST API ingesting
+            // them.  On Windows/WSL2 this can take significantly longer than the default.
+            const isPinger: boolean = labels.includes('app.kubernetes.io/component=pinger');
+            return {
+              title,
+              task: async (): Promise<Pod[]> =>
+                await this.k8Factory
+                  .getK8(context_.config.clusterContext)
+                  .pods()
+                  .waitForReadyStatus(
+                    context_.config.namespace,
+                    labels,
+                    isPinger ? constants.MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS : constants.PODS_READY_MAX_ATTEMPTS,
+                    isPinger ? constants.MIRROR_NODE_PINGER_PODS_READY_DELAY : constants.PODS_READY_DELAY,
+                  ),
+            };
+          },
         );
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);

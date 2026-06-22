@@ -458,6 +458,10 @@ export const NETWORK_PROXY_MAX_ATTEMPTS: number = +getEnvironmentVariable('NETWO
 export const NETWORK_PROXY_DELAY: number = +getEnvironmentVariable('NETWORK_PROXY_DELAY') || 2000;
 export const PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_READY_MAX_ATTEMPTS') || 300;
 export const PODS_READY_DELAY: number = +getEnvironmentVariable('PODS_READY_DELAY') || 2000;
+export const MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS') || 900;
+export const MIRROR_NODE_PINGER_PODS_READY_DELAY: number =
+  +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_DELAY') || 2000;
 export const RELAY_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('RELAY_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const RELAY_PODS_RUNNING_DELAY: number =
@@ -504,6 +508,11 @@ export const NETWORK_DESTROY_WAIT_TIMEOUT: number = +getEnvironmentVariable('NET
 
 export const DEFAULT_LOCAL_CONFIG_FILE: string = 'local-config.yaml';
 export const NODE_OVERRIDE_FILE: string = 'node-overrides.yaml';
+
+export const NODES_STARTED_EVENT_TIMEOUT_MINUTES: number =
+  +getEnvironmentVariable('NODES_STARTED_EVENT_TIMEOUT_MINUTES') || 30;
+export const MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES: number =
+  +getEnvironmentVariable('MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES') || 10;
 export const IGNORED_NODE_ACCOUNT_ID: string = '0.0.0';
 
 export const UPLOADER_SECRET_NAME: string = 'uploader-mirror-secrets';

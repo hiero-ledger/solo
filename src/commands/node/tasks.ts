@@ -59,6 +59,7 @@ import {
   parseNodeAliases,
   prepareEndpoints,
   renameAndCopyFile,
+  parseIpAddressToUint8Array,
   resolveGossipFqdnRestricted,
   showVersionBanner,
   sleep,
@@ -1847,9 +1848,18 @@ export class NodeCommandTasks {
               .setPort(grpcProxyPort);
           }
 
+          // Publish a routable IP for the gRPC endpoint so pinger avoids the bootstrap FQDN, which hangs on Windows Kind.
+          const grpcIpAddress: string =
+            networkNodeService.nodeServiceLoadBalancerIp || networkNodeService.nodeServiceClusterIp;
+          const grpcServiceEndpoint: ServiceEndpoint = new ServiceEndpoint({
+            port: networkNodeService.nodeServiceGrpcPort,
+            ipAddressV4: parseIpAddressToUint8Array(grpcIpAddress),
+          });
+
           let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
             .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
             .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
+            .setServiceEndpoints([grpcServiceEndpoint])
             .freezeWith(nodeClient);
 
           if (adminKey) {
