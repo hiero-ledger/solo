@@ -42,13 +42,10 @@ export class Resolvers {
       return configManager.getFlag<DeploymentName>(flags.deployment);
     }
 
-      if (task) {
-        await configManager.executePrompt(task, [flags.deployment]);
-      } else {
-        const isQuiet = configManager.getFlag<boolean>(flags.quiet);
-        const isForced = configManager.getFlag<boolean>(flags.force);
     // Prefer presenting the deployments found in local config as a selectable list.
-    const deploymentChoices: {name: string; value: string}[] = localConfig ? buildDeploymentChoices(localConfig) : [];
+    const deploymentChoices: {name: string; value: string}[] = localConfig
+      ? Resolvers.buildDeploymentChoices(localConfig)
+      : [];
 
     if (deploymentChoices.length > 0) {
       // A single deployment can be selected automatically without prompting.
@@ -96,6 +93,26 @@ export class Resolvers {
     }
 
     return deploymentName;
+  }
+
+  /**
+   * Builds the list of deployment choices from local config, labelling each with its namespace and clusters.
+   */
+  private static buildDeploymentChoices(localConfig: LocalConfigRuntimeState): {name: string; value: string}[] {
+    const deployments: Deployment[] = [];
+    if (localConfig.configuration.deployments) {
+      for (const deployment of localConfig.configuration.deployments) {
+        deployments.push(deployment);
+      }
+    }
+
+    return deployments.map((deployment: Deployment): {name: string; value: string} => {
+      const clusterNames: string[] = deployment.clusters.map((cluster: StringFacade): string => cluster.toString());
+      return {
+        name: `${deployment.name} (ns: ${deployment.namespace}, clusters: ${clusterNames.join(', ') || 'unknown'})`,
+        value: deployment.name,
+      };
+    });
   }
 }
 
