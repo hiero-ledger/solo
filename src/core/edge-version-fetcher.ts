@@ -3,6 +3,7 @@
 import * as constants from './constants.js';
 import {type GitHubRelease} from '../types/index.js';
 import {SoloErrors} from './errors/solo-errors.js';
+import {GitHubApiClient} from './github-api-client.js';
 import {type EdgeVersionsObject} from './edge-versions-object.js';
 
 const GITHUB_RELEASES_LATEST_URL: string = 'https://api.github.com/repos/{owner}/{repo}/releases/latest';
@@ -47,22 +48,7 @@ export class EdgeVersionFetcher {
   public static async fetchLatestStableGitHubRelease(owner: string, repository: string): Promise<string> {
     const url: string = GITHUB_RELEASES_LATEST_URL.replace('{owner}', owner).replace('{repo}', repository);
 
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'User-Agent': constants.SOLO_USER_AGENT_HEADER,
-          Accept: 'application/vnd.github.v3+json',
-        },
-      });
-    } catch (error) {
-      throw new SoloErrors.system.githubApiRequestFailed(url, error);
-    }
-
-    if (!response.ok) {
-      throw new SoloErrors.system.githubApiHttpResponseError(url, response.status);
-    }
+    const response: Response = await GitHubApiClient.get(url);
 
     let release: GitHubRelease;
     try {
