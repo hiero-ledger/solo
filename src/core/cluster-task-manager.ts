@@ -338,10 +338,56 @@ export class ClusterTaskManager extends ShellRunner {
   private getConfigFilePath(useSmallMemoryCluster: boolean): string {
     let kindConfigFilePath: string = constants.KIND_CLUSTER_CONFIG_FILE;
     if (useSmallMemoryCluster && kindConfigFilePath === constants.DEFAULT_KIND_CLUSTER_CONFIG_FILE) {
-      kindConfigFilePath = path.join(constants.RESOURCES_DIR, 'templates', 'small-memory', 'kind-config.yaml');
+      kindConfigFilePath = this.renderSmallMemoryClusterConfig();
       this.logger.info(`Using small memory cluster configuration: ${kindConfigFilePath}`);
     }
     return kindConfigFilePath;
+  }
+
+  /**
+   * Stages the small-memory Kind configuration and its patches directory under the Solo cache
+   * directory (`~/.solo/cache`) and rewrites the patches `hostPath` to an absolute path.
+   *
+   * The bundled `kind-config.yaml` mounts the patches directory with a relative `hostPath`, which
+   * Kind resolves against the process working directory. Under a Homebrew install that can resolve
+   * to `/opt/homebrew/Cellar/...`, a path Docker Desktop does not share by default, so the bind
+   * mount is denied; when it resolves elsewhere the (non-existent) directory is silently mounted
+   * empty and the patches are never applied. Mounting from `~/.solo/cache`, which lives under the
+   * user home directory that Docker Desktop shares by default, makes the mount deterministic and
+   * ensures the patches are actually present inside the cluster.
+   *
+   * @returns the absolute path to the rendered small-memory Kind configuration file.
+   */
+  private renderSmallMemoryClusterConfig(): string {
+    const sourceConfigFilePath: string = path.join(
+      constants.RESOURCES_DIR,
+      'templates',
+      'small-memory',
+      'kind-config.yaml',
+    );
+    const sourcePatchesDirectory: string = path.join(constants.RESOURCES_DIR, 'templates', 'small-memory', 'patches');
+
+    const stagedDirectory: string = path.join(constants.SOLO_CACHE_DIR, 'templates', 'small-memory');
+    const stagedPatchesDirectory: string = path.join(stagedDirectory, 'patches');
+    const stagedConfigFilePath: string = path.join(stagedDirectory, 'kind-config.yaml');
+
+    fs.mkdirSync(stagedDirectory, {recursive: true});
+    fs.cpSync(sourcePatchesDirectory, stagedPatchesDirectory, {recursive: true, force: true});
+
+    const kindConfig: Record<string, AnyObject> = yaml.parse(fs.readFileSync(sourceConfigFilePath, 'utf8')) as Record<
+      string,
+      AnyObject
+    >;
+    for (const node of (kindConfig.nodes ?? []) as AnyObject[]) {
+      for (const extraMount of (node.extraMounts ?? []) as AnyObject[]) {
+        if (extraMount.containerPath === '/patches') {
+          extraMount.hostPath = stagedPatchesDirectory;
+        }
+      }
+    }
+
+    fs.writeFileSync(stagedConfigFilePath, yaml.stringify(kindConfig), 'utf8');
+    return stagedConfigFilePath;
   }
 
   public setupLocalClusterTasks(useSmallMemoryCluster: boolean = false): SoloListrTask<InitContext>[] {
