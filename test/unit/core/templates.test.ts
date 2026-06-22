@@ -48,6 +48,9 @@ describe('core/templates', (): void => {
   });
 
   it('should render mirror node service URLs', (): void => {
+    expect(Templates.renderMirrorNodeIngressControllerUrl('solo')).to.equal(
+      'http://mirror-ingress-controller-solo.solo.svc.cluster.local',
+    );
     expect(Templates.renderMirrorNodeRestServiceUrl('mirror-1', 'solo')).to.equal(
       'http://mirror-1-rest.solo.svc.cluster.local',
     );

@@ -250,7 +250,7 @@ export class RelayCommand extends BaseCommand {
     mirrorNamespace,
     mirrorNodeReleaseName,
   }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<HelmChartValues> {
-    const mirrorNodeUrl: string = Templates.renderMirrorNodeRestServiceUrl(mirrorNodeReleaseName, mirrorNamespace);
+    const mirrorNodeUrl: string = Templates.renderMirrorNodeIngressControllerUrl(mirrorNamespace);
     const mirrorNodeWeb3Url: string = Templates.renderMirrorNodeWeb3ServiceUrl(mirrorNodeReleaseName, mirrorNamespace);
 
     const chartValues: HelmChartValues = new HelmChartValues()
