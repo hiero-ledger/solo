@@ -76,7 +76,6 @@ describe('ImageCacheHandler pull', (): void => {
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
-      getAvailableResources: async (): Promise<undefined> => undefined,
     };
 
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
@@ -99,7 +98,6 @@ describe('ImageCacheHandler pull', (): void => {
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
-      getAvailableResources: async (): Promise<undefined> => undefined,
     };
 
     const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);

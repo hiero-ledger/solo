@@ -4,7 +4,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {inject, injectable} from 'tsyringe-neo';
 import {ContainerEngineClient} from './container-engine-client.js';
-import {type ContainerEngineResources} from './container-engine-resources.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {KindClient} from '../kind/kind-client.js';
@@ -105,28 +104,5 @@ export class DockerClient implements ContainerEngineClient {
       .map((line): string => line.trim())
       .filter((line): boolean => line.length > 0)
       .filter((line): boolean => !line.startsWith('import-'));
-  }
-
-  public async getAvailableResources(): Promise<ContainerEngineResources | undefined> {
-    try {
-      // useShell=false so the '{{json .}}' format argument is not split on its space by the shell.
-      const output: string[] = await this.shellRunner.run(
-        'docker',
-        ['info', '--format', '{{json .}}'],
-        false,
-        false,
-        {},
-        undefined,
-        false,
-      );
-      const info: {MemTotal?: number; NCPU?: number} = JSON.parse(output.join('').trim());
-      if (typeof info.MemTotal !== 'number' || typeof info.NCPU !== 'number') {
-        return undefined;
-      }
-      return {memoryBytes: info.MemTotal, cpuCount: info.NCPU};
-    } catch (error) {
-      this.logger.debug('Unable to read docker engine resources', error);
-      return undefined;
-    }
   }
 }

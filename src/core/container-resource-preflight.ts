@@ -2,7 +2,7 @@
 
 import chalk from 'chalk';
 import * as constants from './constants.js';
-import {type ContainerEngineClient} from '../integration/container-engine/container-engine-client.js';
+import {type ContainerEngineResourceInspector} from '../integration/container-engine/container-engine-resource-inspector.js';
 import {type ContainerEngineResources} from '../integration/container-engine/container-engine-resources.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 
@@ -16,10 +16,13 @@ import {type SoloLogger} from './logging/solo-logger.js';
 export class ContainerResourcePreflight {
   private static readonly BYTES_PER_GIBIBYTE: number = 1024 * 1024 * 1024;
 
-  public static async warnIfInsufficient(client: ContainerEngineClient, logger: SoloLogger): Promise<void> {
+  public static async warnIfInsufficient(
+    inspector: ContainerEngineResourceInspector,
+    logger: SoloLogger,
+  ): Promise<void> {
     let resources: ContainerEngineResources | undefined;
     try {
-      resources = await client.getAvailableResources();
+      resources = await inspector.getAvailableResources();
     } catch {
       return; // Best-effort: never block the run on a detection failure.
     }

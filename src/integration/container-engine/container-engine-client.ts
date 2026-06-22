@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type ContainerEngineResources} from './container-engine-resources.js';
-
 /**
  * Abstraction over local container engine operations.
  *
@@ -38,10 +36,4 @@ export interface ContainerEngineClient {
    * Lists all images loaded into the local container engine.
    */
   listLoadedImagesInCluster(clusterName: string): Promise<readonly string[]>;
-
-  /**
-   * Returns the host resources (memory and CPU) available to the container engine,
-   * or undefined when they cannot be determined.
-   */
-  getAvailableResources(): Promise<ContainerEngineResources | undefined>;
 }
