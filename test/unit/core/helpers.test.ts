@@ -14,6 +14,7 @@ import {type K8} from '../../../src/integration/kube/k8.js';
 import yaml from 'yaml';
 
 import {
+  Helpers,
   ipV4ToBase64,
   cloneArray,
   parseNodeAliases,
@@ -97,35 +98,35 @@ describe('Helpers', (): void => {
 
   describe('resolveBlockStreamModeForConsensusVersion', (): void => {
     it('defaults to BOTH for pre-0.74 consensus versions when no existing mode is present', (): void => {
-      expect(helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.73.0')).to.equal('BOTH');
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.73.0')).to.equal('BOTH');
     });
 
     it('defaults to RECORDS for 0.74+ consensus versions when no block node is deployed', (): void => {
-      expect(helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.74.0')).to.equal('RECORDS');
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.74.0')).to.equal('RECORDS');
     });
 
     it('defaults to BLOCKS for 0.74+ consensus versions when a block node is deployed', (): void => {
-      expect(helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.74.0', true)).to.equal('BLOCKS');
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.74.0', true)).to.equal('BLOCKS');
     });
 
     it('preserves BOTH during upgrades to 0.74+ when a block node is deployed', (): void => {
-      expect(helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.74.0', true)).to.equal('BOTH');
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.74.0', true)).to.equal('BOTH');
     });
 
     it('preserves BOTH during upgrades to 0.74+ when no block node is deployed', (): void => {
-      expect(helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.74.0')).to.equal('BOTH');
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.74.0')).to.equal('BOTH');
     });
 
     it('preserves BLOCKS during later maintenance operations when block node integration is active', (): void => {
-      expect(helpers.resolveBlockStreamModeForConsensusVersion('BLOCKS', 'v0.74.0', true)).to.equal('BLOCKS');
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BLOCKS', 'v0.74.0', true)).to.equal('BLOCKS');
     });
 
     it('does not preserve RECORDS when block node integration is active', (): void => {
-      expect(helpers.resolveBlockStreamModeForConsensusVersion('RECORDS', 'v0.74.0', true)).to.equal('BLOCKS');
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('RECORDS', 'v0.74.0', true)).to.equal('BLOCKS');
     });
 
     it('does not preserve BLOCKS when block node integration is inactive', (): void => {
-      expect(helpers.resolveBlockStreamModeForConsensusVersion('BLOCKS', 'v0.74.0')).to.equal('RECORDS');
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BLOCKS', 'v0.74.0')).to.equal('RECORDS');
     });
   });
 
