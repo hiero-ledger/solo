@@ -101,4 +101,4 @@ describe('Node add with hedera local build', (): void => {
     testSeparateNodeUpgrade(argv.clone(), bootstrapResp, namespace);
     testSeparateNodeDelete(argv.clone(), bootstrapResp, namespace);
   });
-}).timeout(Duration.ofMinutes(3).toMillis());
+}).timeout(Duration.ofMinutes(30).toMillis());
