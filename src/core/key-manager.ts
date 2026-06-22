@@ -7,7 +7,7 @@ import path from 'node:path';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {Templates} from './templates.js';
-import * as helpers from './helpers.js';
+import {Helpers} from './helpers.js';
 import chalk from 'chalk';
 import {type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {type NodeKeyObject, type PrivateKeyAndCertificateObject, type SoloListrTask} from '../types/index.js';
@@ -480,7 +480,7 @@ export class KeyManager {
     const subTasks: SoloListrTask<any>[] = [
       {
         title: 'Backup old files',
-        task: (): string => helpers.backupOldPemKeys(nodeAliases, keysDirectory, currentDate),
+        task: (): string => Helpers.backupOldPemKeys(nodeAliases, keysDirectory, currentDate),
       },
     ];
 
@@ -520,7 +520,7 @@ export class KeyManager {
     const subTasks: SoloListrTask<any>[] = [
       {
         title: 'Backup old files',
-        task: (): string => helpers.backupOldTlsKeys(nodeAliases, keysDirectory, currentDate),
+        task: (): string => Helpers.backupOldTlsKeys(nodeAliases, keysDirectory, currentDate),
       },
     ];
 

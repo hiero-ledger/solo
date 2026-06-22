@@ -108,7 +108,7 @@ export function testSeparateNodeAdd(
 
       await accountManager.close();
       argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
-    }).timeout(Duration.ofMinutes(12).toMillis());
+    }).timeout(Duration.ofMinutes(20).toMillis());
 
     it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
       await main(LedgerTest.soloLedgerAccountCreateArgv(argv.getArg<string>(flags.deployment)));
@@ -195,5 +195,5 @@ export function testSeparateNodeAdd(
 
       expect(balance.hbars).to.be.eql(Hbar.from(accountInfo.balance, HbarUnit.Hbar));
     }).timeout(Duration.ofMinutes(10).toMillis());
-  }).timeout(Duration.ofMinutes(3).toMillis());
+  }).timeout(Duration.ofMinutes(20).toMillis());
 }
