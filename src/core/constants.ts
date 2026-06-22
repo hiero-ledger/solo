@@ -72,6 +72,10 @@ export const SKIP_NODE_PING: boolean = Boolean(getEnvironmentVariable('SKIP_NODE
 export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS: number = +getEnvironmentVariable('SOLO_LEASE_ACQUIRE_ATTEMPTS') || 10;
 export const DEFAULT_LEASE_DURATION: number = +getEnvironmentVariable('SOLO_LEASE_DURATION') || 20;
 
+// Recommended minimum container-engine (Docker/Podman) resources; used by the pre-flight resource check.
+export const MINIMUM_RECOMMENDED_MEMORY_BYTES: number = 12 * 1024 * 1024 * 1024;
+export const MINIMUM_RECOMMENDED_CPU_CORES: number = 6;
+
 export const SOLO_USER_AGENT_HEADER: string = 'Solo-User-Agent';
 // --------------- Hedera network and node related constants --------------------------------------------------------------------
 export const HEDERA_CHAIN_ID: string = getEnvironmentVariable('SOLO_CHAIN_ID') || '298';

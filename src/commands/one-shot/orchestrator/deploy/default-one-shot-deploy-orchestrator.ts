@@ -29,6 +29,8 @@ import {type ConfigManager} from '../../../../core/config-manager.js';
 import {type OneShotState} from '../../../../core/one-shot-state.js';
 import {type K8Factory} from '../../../../integration/kube/k8-factory.js';
 import {type HelmClient} from '../../../../integration/helm/helm-client.js';
+import {type ContainerEngineClient} from '../../../../integration/container-engine/container-engine-client.js';
+import {ContainerResourcePreflight} from '../../../../core/container-resource-preflight.js';
 import {type ReleaseItem} from '../../../../integration/helm/model/release/release-item.js';
 import {type LockManager} from '../../../../core/lock/lock-manager.js';
 import {type ComponentFactoryApi} from '../../../../core/config/remote/api/component-factory-api.js';
@@ -111,6 +113,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
     @inject(InjectTokens.Helm) private readonly helm: HelmClient,
+    @inject(InjectTokens.ContainerEngineClient) private readonly containerEngineClient: ContainerEngineClient,
   ) {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
@@ -124,6 +127,11 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
     this.helm = patchInject(helm, InjectTokens.Helm, this.constructor.name);
+    this.containerEngineClient = patchInject(
+      containerEngineClient,
+      InjectTokens.ContainerEngineClient,
+      this.constructor.name,
+    );
   }
 
   public buildDeployPipeline(
@@ -147,6 +155,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           ): Promise<void> => {
             this.configManager.update(argv);
             this.oneShotState.activate();
+
+            // Warn if the local container engine reports fewer resources than recommended
+            await ContainerResourcePreflight.warnIfInsufficient(this.containerEngineClient, this.logger);
 
             const edgeEnabled: boolean = this.configManager.getFlag(flags.edgeEnabled);
             const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(

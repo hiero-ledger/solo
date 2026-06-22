@@ -37,6 +37,7 @@ function makeOrchestrator(
     {} as MockType,
     {} as MockType,
     overrides.helm ?? ({} as MockType),
+    {} as MockType,
   );
 }
 
@@ -98,6 +99,7 @@ function makeMinimalOrchestrator(): DefaultOneShotDeployOrchestrator {
     {} as MockType,
     {} as MockType,
     {info: sinon.stub()} as MockType,
+    {} as MockType,
     {} as MockType,
     {} as MockType,
     {} as MockType,
@@ -279,6 +281,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
     );
 
     // @ts-expect-error - to access private method
@@ -317,6 +320,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
     );
 
     // @ts-expect-error - to access private method
@@ -373,6 +377,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
     );
 
     // @ts-expect-error - to access private method
@@ -418,6 +423,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
     );
 
     // @ts-expect-error - to access private method
@@ -462,6 +468,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
     );
 
     // @ts-expect-error - to access private method
@@ -499,6 +506,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
     );
 
     // @ts-expect-error - to access private method
