@@ -13,9 +13,6 @@ import {
   type V1PodList,
   V1PodSpec,
   V1Probe,
-  type V1ContainerStatus,
-  type V1ContainerStateWaiting,
-  type V1ContainerStateTerminated,
 } from '@kubernetes/client-node';
 import {type Pods} from '../../../resources/pod/pods.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
@@ -42,16 +39,17 @@ import {type PodMetricsItem} from '../../../resources/pod/pod-metrics-item.js';
 import yaml from 'yaml';
 import {sleep} from '../../../../../core/helpers.js';
 
-/**
- * Waiting reasons for container states that are non-recoverable (image unavailable in registry).
- */
-const FATAL_WAITING_REASONS: ReadonlySet<string> = new Set([
-  'ImagePullBackOff',
-  'ErrImagePull',
-  'InvalidImageName',
-  'ImageInspectError',
-  'RegistryUnavailable',
-]);
+export class K8ClientPods extends K8ClientBase implements Pods {
+  /**
+   * Waiting reasons for container states that are non-recoverable (image unavailable in registry).
+   */
+  private static readonly FATAL_WAITING_REASONS: ReadonlySet<string> = new Set([
+    'ImagePullBackOff',
+    'ErrImagePull',
+    'InvalidImageName',
+    'ImageInspectError',
+    'RegistryUnavailable',
+  ]);
 
 /**
  * Terminated reasons for container states that are non-recoverable (e.g. out-of-memory kill).
@@ -175,6 +173,56 @@ export class K8ClientPods extends K8ClientBase implements Pods {
   ) {
     super();
     this.logger = container.resolve(InjectTokens.SoloLogger);
+  }
+
+  /**
+   * Inspect a Pod's container statuses for non-recoverable error states and return a descriptive
+   * error message if one is detected, or undefined if no fatal error is present.
+   *
+   * Covered states:
+   * - Waiting: ImagePullBackOff, ErrImagePull, InvalidImageName, ImageInspectError,
+   *            RegistryUnavailable (image unavailable in registry)
+   * - Terminated: OOMKilled (container killed due to out-of-memory)
+   */
+  public detectFatalContainerError(pod: Pod): string | undefined {
+    const podName: string = pod.podReference?.name?.toString() ?? '<unknown>';
+
+    for (const containerStatus of pod.allContainerStatuses ?? []) {
+      if (containerStatus.waitingReason && K8ClientPods.FATAL_WAITING_REASONS.has(containerStatus.waitingReason)) {
+        if (
+          (containerStatus.waitingReason === 'ErrImagePull' ||
+            containerStatus.waitingReason === 'ImagePullBackOff' ||
+            containerStatus.waitingReason === 'ImageInspectError') &&
+          !K8ClientPods.isNonRecoverableImagePullError(containerStatus.waitingMessage)
+        ) {
+          continue;
+        }
+        const detail: string = containerStatus.waitingMessage ? `: ${containerStatus.waitingMessage}` : '';
+        return (
+          `Pod "${podName}" container "${containerStatus.name}" is in a non-recoverable state: ` +
+          `${containerStatus.waitingReason}${detail}`
+        );
+      }
+
+      if (
+        containerStatus.terminatedReason &&
+        K8ClientPods.FATAL_TERMINATED_REASONS.has(containerStatus.terminatedReason)
+      ) {
+        return (
+          `Pod "${podName}" container "${containerStatus.name}" was terminated due to: ` +
+          `${containerStatus.terminatedReason} (exit code ${containerStatus.terminatedExitCode ?? 'unknown'})`
+        );
+      }
+    }
+
+    return undefined;
+  }
+
+  private static isNonRecoverableImagePullError(message?: string): boolean {
+    if (!message) {
+      return false;
+    }
+    return K8ClientPods.NON_RECOVERABLE_IMAGE_PULL_PATTERNS.some((pattern): boolean => pattern.test(message));
   }
 
   public readByReference(podReference: PodReference | null): Pod {
@@ -395,8 +443,15 @@ export class K8ClientPods extends K8ClientBase implements Pods {
               : createdAfterEligibleItems;
             // Allow transient startup states to recover; only fail after repeated fatal detections.
             for (const item of eligibleItems) {
-              const fatalError: string | undefined = detectFatalContainerError(item);
-              const podName: string = item.metadata?.name ?? '<unknown>';
+              const pod: Pod = K8ClientPod.fromV1Pod(
+                item,
+                this,
+                this.kubeClient,
+                this.kubeConfig,
+                this.kubectlInstallationDirectory,
+              );
+              const fatalError: string | undefined = this.detectFatalContainerError(pod);
+              const podName: string = pod.podReference?.name?.toString() ?? '<unknown>';
               if (fatalError) {
                 const previous: {count: number; error: string} | undefined = fatalErrorStreakByPod.get(podName);
                 const nextCount: number = previous?.error === fatalError ? previous.count + 1 : 1;
