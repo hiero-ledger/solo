@@ -324,9 +324,9 @@ export class BlockNodeCommand extends BaseCommand {
       );
 
       chartValues
-        .set(`blockNode.sources[${index}].address`, fqdn)
-        .set(`blockNode.sources[${index}].port`, constants.BLOCK_NODE_PORT)
-        .set(`blockNode.sources[${index}].priority`, 1);
+        .set(`blockNode.backfill.sources[${index}].address`, fqdn)
+        .set(`blockNode.backfill.sources[${index}].port`, constants.BLOCK_NODE_PORT)
+        .set(`blockNode.backfill.sources[${index}].priority`, 1);
     }
 
     return chartValues;

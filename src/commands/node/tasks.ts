@@ -3759,12 +3759,12 @@ export class NodeCommandTasks {
         if (clusterReference === flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(chartValuesMap)) {
             for (const file of files) {
-              this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+              this.addUserValuesFile(chartValuesMap, valueFilePathsMap, clusterReference_, file);
             }
           }
         } else {
           for (const file of files) {
-            this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+            this.addUserValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
           }
         }
       }
@@ -3791,6 +3791,18 @@ export class NodeCommandTasks {
     chartValuesMap[clusterReference] ??= new HelmChartValues();
     valueFilePathsMap[clusterReference] ??= [];
     chartValuesMap[clusterReference].file(file);
+    valueFilePathsMap[clusterReference].push(file);
+  }
+
+  private addUserValuesFile(
+    chartValuesMap: Record<string, HelmChartValues>,
+    valueFilePathsMap: Record<string, string[]>,
+    clusterReference: string,
+    file: string,
+  ): void {
+    chartValuesMap[clusterReference] ??= new HelmChartValues();
+    valueFilePathsMap[clusterReference] ??= [];
+    chartValuesMap[clusterReference].userFile(file);
     valueFilePathsMap[clusterReference].push(file);
   }
 
