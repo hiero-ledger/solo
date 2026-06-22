@@ -283,3 +283,6 @@ export class PostgresSharedResource {
     return new SemanticVersion<string>(version).toPrefixedString();
   }
 }
+
+export const getMirrorNodeReleaseTag: typeof PostgresSharedResource.getMirrorNodeReleaseTag =
+  PostgresSharedResource.getMirrorNodeReleaseTag;
