@@ -348,14 +348,6 @@ export class ClusterTaskManager extends ShellRunner {
    * Stages the small-memory Kind configuration and its patches directory under the Solo cache
    * directory (`~/.solo/cache`) and rewrites the patches `hostPath` to an absolute path.
    *
-   * The bundled `kind-config.yaml` mounts the patches directory with a relative `hostPath`, which
-   * Kind resolves against the process working directory. Under a Homebrew install that can resolve
-   * to `/opt/homebrew/Cellar/...`, a path Docker Desktop does not share by default, so the bind
-   * mount is denied; when it resolves elsewhere the (non-existent) directory is silently mounted
-   * empty and the patches are never applied. Mounting from `~/.solo/cache`, which lives under the
-   * user home directory that Docker Desktop shares by default, makes the mount deterministic and
-   * ensures the patches are actually present inside the cluster.
-   *
    * @returns the absolute path to the rendered small-memory Kind configuration file.
    */
   private renderSmallMemoryClusterConfig(): string {
