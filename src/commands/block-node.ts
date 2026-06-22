@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr} from 'listr2';
-import * as helpers from '../core/helpers.js';
 import {
   checkDockerImageExists,
   createAndCopyBlockNodeJsonFileForConsensusNode,
   showVersionBanner,
   sleep,
+  withTimeout,
 } from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {BaseCommand} from './base.js';
@@ -1440,7 +1440,7 @@ export class BlockNodeCommand extends BaseCommand {
 
         while (attempt < maxAttempts) {
           try {
-            const response: string = await helpers.withTimeout(
+            const response: string = await withTimeout(
               this.k8Factory
                 .getK8(config.context)
                 .containers()

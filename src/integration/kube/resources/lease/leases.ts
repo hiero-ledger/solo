@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type V1Status} from '@kubernetes/client-node';
 import {type NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {type Lease} from './lease.js';
 
@@ -19,9 +18,8 @@ export interface Leases {
    * Delete a lease
    * @param namespace - the namespace of the lease
    * @param name - the name of the lease
-   * @returns the status of the deletion
    */
-  delete(namespace: NamespaceName, name: string): Promise<V1Status>;
+  delete(namespace: NamespaceName, name: string): Promise<void>;
 
   /**
    * Returns the lease with the specified name
