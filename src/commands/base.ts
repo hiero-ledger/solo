@@ -12,6 +12,7 @@ import {type HelmClient} from '../integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import * as constants from '../core/constants.js';
 import fs from 'node:fs';
+import os from 'node:os';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
@@ -19,6 +20,7 @@ import {
   type Context,
   NamespaceNameAsString,
   Optional,
+  type SoloListrTask,
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Flags as flags, Flags} from './flags.js';
@@ -39,6 +41,14 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {NodeCommandTasks} from './node/tasks.js';
 import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
 import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
+import {PathEx} from '../business/utils/path-ex.js';
+import {OperatingSystem} from '../business/utils/operating-system.js';
+
+interface DockerDesktopContainerdCheckResult {
+  readonly containerdSnapshotterEnabled: boolean;
+  readonly settingsFilePath?: string;
+  readonly warningMessage?: string;
+}
 
 export abstract class BaseCommand extends ShellRunner {
   public readonly soloConfig: SoloConfig;
@@ -94,6 +104,82 @@ export abstract class BaseCommand extends ShellRunner {
   }
 
   public abstract close(): Promise<void>;
+
+  private static getDockerDesktopSettingsPaths(): string[] {
+    const home: string = os.homedir();
+    const paths: string[] = [
+      PathEx.join(home, '.docker', 'settings-store.json'),
+      PathEx.join(home, '.docker', 'settings.json'),
+    ];
+
+    if (OperatingSystem.isWin32()) {
+      const appData: string = process.env['APPDATA'] ?? PathEx.join(home, 'AppData', 'Roaming');
+      paths.unshift(
+        PathEx.join(appData, 'Docker', 'settings-store.json'),
+        PathEx.join(appData, 'Docker', 'settings.json'),
+      );
+    } else if (OperatingSystem.isDarwin()) {
+      paths.push(PathEx.join(home, 'Library', 'Group Containers', 'group.com.docker', 'settings.json'));
+    }
+
+    return paths;
+  }
+
+  private static checkDockerDesktopContainerdSetting(): DockerDesktopContainerdCheckResult {
+    if (OperatingSystem.isLinux()) {
+      return {containerdSnapshotterEnabled: false};
+    }
+
+    for (const candidatePath of BaseCommand.getDockerDesktopSettingsPaths()) {
+      if (!fs.existsSync(candidatePath)) {
+        continue;
+      }
+
+      let settings: Record<string, unknown>;
+      try {
+        settings = JSON.parse(fs.readFileSync(candidatePath, 'utf8')) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+
+      if (settings['useContainerdSnapshotter'] === true) {
+        return {
+          containerdSnapshotterEnabled: true,
+          settingsFilePath: candidatePath,
+          warningMessage:
+            'Docker Desktop "Use containerd for pulling and storing images" is enabled. ' +
+            'This setting can cause Kubernetes pods to fail with an ImageInspectError pointing ' +
+            'at /run/containerd/containerd.sock. ' +
+            'To avoid relay and other component deployment failures: ' +
+            'open Docker Desktop > Settings > General > uncheck ' +
+            '"Use containerd for pulling and storing images" > Apply & Restart.',
+        };
+      }
+
+      return {containerdSnapshotterEnabled: false, settingsFilePath: candidatePath};
+    }
+
+    return {containerdSnapshotterEnabled: false};
+  }
+
+  /**
+   * Returns a Listr task that checks whether Docker Desktop's
+   * "Use containerd for pulling and storing images" setting is enabled and emits a
+   * warning when it is. This check is relevant for any Solo command that deploys pods,
+   * since the containerd snapshotter setting can cause ImageInspectError failures.
+   * The task is non-blocking - it warns only and does not halt the command.
+   */
+  protected dockerDesktopPreflightTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Pre-flight: check Docker Desktop containerd setting',
+      task: async (): Promise<void> => {
+        const result: DockerDesktopContainerdCheckResult = BaseCommand.checkDockerDesktopContainerdSetting();
+        if (result.containerdSnapshotterEnabled && result.warningMessage) {
+          this.logger.warn(result.warningMessage);
+        }
+      },
+    };
+  }
 
   /**
    * Setup home directories
