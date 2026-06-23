@@ -95,6 +95,34 @@ describe('buildBlockNodeArgv', (): void => {
     expect(argv).to.not.include('releaseTag');
     expect(argv).to.not.include('--releaseTag');
   });
+
+  it('defaults block node consensus-node-version to the resolved one-shot consensus version', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(
+      makeConfig({versions: {...makeConfig().versions, consensus: 'v0.73.0'}}),
+    );
+
+    const consensusNodeVersionIndex: number = argv.indexOf(optionFromFlag(Flags.consensusNodeVersion));
+    expect(consensusNodeVersionIndex).to.be.greaterThan(-1);
+    expect(argv[consensusNodeVersionIndex + 1]).to.equal('v0.73.0');
+  });
+
+  it('does not add block node TSS overlay for pre-TSS consensus versions', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
+    const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(
+      makeConfig({versions: {...makeConfig().versions, consensus: 'v0.73.0'}}),
+    );
+
+    expect(argv).to.not.include(optionFromFlag(Flags.blockNodeTssOverlay));
+  });
+
+  it('adds block node TSS overlay for TSS-supported consensus versions', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
+    const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(
+      makeConfig({versions: {...makeConfig().versions, consensus: 'v0.74.0'}}),
+    );
+
+    expect(argv).to.include(optionFromFlag(Flags.blockNodeTssOverlay));
+  });
 });
 
 describe('buildMirrorNodeArgv', (): void => {
@@ -240,6 +268,24 @@ describe('buildConsensusDeployArgv', (): void => {
     }
     expect(argv).to.include(optionFromFlag(Flags.deployment));
     expect(argv).to.include('test-deployment');
+  });
+
+  it('does not add --tss-enabled for pre-TSS one-shot block-node deployments', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
+    const argv: string[] = DeployArgvBuilders.buildConsensusDeployArgv(
+      makeConfig({versions: {...makeConfig().versions, consensus: 'v0.73.0'}}),
+    );
+
+    expect(argv).to.not.include(optionFromFlag(Flags.tssEnabled));
+  });
+
+  it('adds --tss-enabled for TSS-supported one-shot block-node deployments', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
+    const argv: string[] = DeployArgvBuilders.buildConsensusDeployArgv(
+      makeConfig({versions: {...makeConfig().versions, consensus: 'v0.74.0'}}),
+    );
+
+    expect(argv).to.include(optionFromFlag(Flags.tssEnabled));
   });
 });
 
