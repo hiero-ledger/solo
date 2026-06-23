@@ -338,22 +338,12 @@ export class MirrorNodeCommand extends BaseCommand {
       this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
       shouldConfigureMirrorNodeToPullFromBlockNode = true;
     } else {
-      const isConsensusNodeVersionSupported: boolean =
+      // Block node integration requires a consensus node new enough to support TSS. The block node chart
+      // and mirror node are always recent enough within the supported version window.
+      shouldConfigureMirrorNodeToPullFromBlockNode =
         this.remoteConfig.configuration.versions.consensusNode.greaterThanOrEqual(
           versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
         );
-
-      const isBlockNodeChartVersionSupported: boolean =
-        this.remoteConfig.configuration.versions.blockNodeChart.greaterThanOrEqual(
-          versions.MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
-        );
-
-      const isMirrorNodeVersionSupported: boolean = new SemanticVersion<string>(
-        config.mirrorNodeVersion,
-      ).greaterThanOrEqual(versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION);
-
-      shouldConfigureMirrorNodeToPullFromBlockNode =
-        isConsensusNodeVersionSupported && isBlockNodeChartVersionSupported && isMirrorNodeVersionSupported;
     }
 
     if (!shouldConfigureMirrorNodeToPullFromBlockNode) {
@@ -624,15 +614,12 @@ export class MirrorNodeCommand extends BaseCommand {
     {config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext,
     commandType: MirrorNodeCommandType,
   ): Promise<void> {
-    // Determine if we should reuse values based on the currently deployed version from remote config
-    // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
-    // to avoid RegularExpression rules from old version causing relay node request failures
+    // Determine if we should reuse values based on the currently deployed version from remote config.
+    // Reuse values on upgrades (a current version exists); skip on first install.
     const currentVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
       ComponentTypes.MirrorNode,
     );
-    let shouldReuseValues: boolean = currentVersion
-      ? currentVersion.greaterThan(constants.MIRROR_NODE_VERSION_BOUNDARY)
-      : false; // If no current version (first install), don't reuse values
+    let shouldReuseValues: boolean = currentVersion !== null;
 
     // Don't reuse values when crossing the shared-resources/memory-improvements boundary
     // (upgrading from < v0.152.0 → >= v0.152.0).  Versions before this boundary used an
