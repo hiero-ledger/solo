@@ -154,11 +154,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
               BlockCommandDefinition.DESTROY_COMMAND,
               (): string[] => DestroyArgvBuilders.buildDestroyBlockNodeArgv(getConfig()),
               this.taskList,
-              (): boolean =>
-                getConfig().skipAll ||
-                !getConfig().deployment ||
-                constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
-                getConfig().hasBlockNodes === false,
+              (): boolean => getConfig().skipAll || !getConfig().deployment || getConfig().hasBlockNodes === false,
             ),
         },
         undefined,
