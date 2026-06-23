@@ -336,9 +336,10 @@ describe('buildClusterSetupArgv', (): void => {
     );
 
     expect(argv).to.include(negatedOptionFromFlag(Flags.deployMinio));
+    expect(argv).to.not.include(optionFromFlag(Flags.deployMinio));
   });
 
-  it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE uses a pre-TSS CN version', (): void => {
+  it('adds --minio when ONE_SHOT_WITH_BLOCK_NODE uses a pre-TSS CN version', (): void => {
     process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
     const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
       makeConfig({
@@ -354,13 +355,15 @@ describe('buildClusterSetupArgv', (): void => {
     );
 
     expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
+    expect(argv).to.include(optionFromFlag(Flags.deployMinio));
   });
 
-  it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE has no resolved CN version', (): void => {
+  it('adds --minio when ONE_SHOT_WITH_BLOCK_NODE has no resolved CN version', (): void => {
     process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
     const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(makeConfig());
 
     expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
+    expect(argv).to.include(optionFromFlag(Flags.deployMinio));
   });
 
   it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE is disabled', (): void => {
@@ -379,6 +382,7 @@ describe('buildClusterSetupArgv', (): void => {
     );
 
     expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
+    expect(argv).to.not.include(optionFromFlag(Flags.deployMinio));
   });
 });
 

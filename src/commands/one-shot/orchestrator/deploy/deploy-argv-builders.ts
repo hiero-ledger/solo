@@ -313,6 +313,8 @@ export class DeployArgvBuilders {
 
     if (this.shouldSkipMinioForBlockNode(config)) {
       argv.push(negatedOptionFromFlag(Flags.deployMinio));
+    } else if (this.shouldDeployBlockNode(config)) {
+      argv.push(optionFromFlag(Flags.deployMinio));
     }
 
     return argvPushGlobalFlags(argv);
