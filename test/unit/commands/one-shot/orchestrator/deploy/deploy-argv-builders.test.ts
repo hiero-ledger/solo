@@ -4,6 +4,7 @@ import {describe, it, afterEach} from 'mocha';
 import {expect} from 'chai';
 import sinon from 'sinon';
 import {ConsensusCommandDefinition} from '../../../../../../src/commands/command-definitions/consensus-command-definition.js';
+import {MirrorCommandDefinition} from '../../../../../../src/commands/command-definitions/mirror-command-definition.js';
 import * as constants from '../../../../../../src/core/constants.js';
 import * as version from '../../../../../../version.js';
 import {NamespaceName} from '../../../../../../src/types/namespace/namespace-name.js';
@@ -28,6 +29,7 @@ function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): On
     deployRelay: true,
     minimalSetup: false,
     predefinedAccounts: false,
+    pinger: true,
     versions: {explorer: '2.5.0', soloChart: '', consensus: '', mirror: '', relay: '', blockNode: ''},
     blockNodeConfiguration: {},
     mirrorNodeConfiguration: {},
@@ -102,6 +104,16 @@ describe('buildMirrorNodeArgv', (): void => {
     expect(argv).to.include(optionFromFlag(Flags.enableIngress));
   });
 
+  it('can omit pinger from initial mirror deployment', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildMirrorNodeArgv(makeConfig(), false);
+    expect(argv).to.not.include(optionFromFlag(Flags.pinger));
+  });
+
+  it('omits pinger when pinger is disabled in config', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildMirrorNodeArgv(makeConfig({pinger: false}));
+    expect(argv).to.not.include(optionFromFlag(Flags.pinger));
+  });
+
   it('includes the parallel-deploy flag', (): void => {
     const argv: string[] = DeployArgvBuilders.buildMirrorNodeArgv(makeConfig({parallelDeploy: true}));
     expect(argv).to.include(optionFromFlag(Flags.parallelDeploy));
@@ -131,6 +143,31 @@ describe('buildMirrorNodeArgv', (): void => {
     const mirrorNodeConfiguration: Record<string, string> = {[valuesFileFlagName]: originalFile};
     DeployArgvBuilders.buildMirrorNodeArgv(makeConfig({mirrorNodeConfiguration}));
     expect(mirrorNodeConfiguration[valuesFileFlagName]).to.equal(originalFile);
+  });
+});
+
+describe('buildMirrorNodePingerUpgradeArgv', (): void => {
+  it('builds a mirror node upgrade command with pinger enabled', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildMirrorNodePingerUpgradeArgv(makeConfig());
+    for (const commandToken of MirrorCommandDefinition.UPGRADE_COMMAND.split(' ')) {
+      expect(argv).to.include(commandToken);
+    }
+    expect(argv).to.include(optionFromFlag(Flags.deployment));
+    expect(argv).to.include('test-deployment');
+    expect(argv).to.include(optionFromFlag(Flags.clusterRef));
+    expect(argv).to.include('test-cluster');
+    expect(argv).to.include(optionFromFlag(Flags.pinger));
+    expect(argv).to.include(optionFromFlag(Flags.enableIngress));
+  });
+
+  it('preserves mirror values file handling for the delayed pinger upgrade', (): void => {
+    const existingFile: string = '/path/to/custom.yaml';
+    const valuesFileFlagName: string = optionFromFlag(Flags.valuesFile);
+    const mirrorNodeConfiguration: Record<string, string> = {[valuesFileFlagName]: existingFile};
+    const argv: string[] = DeployArgvBuilders.buildMirrorNodePingerUpgradeArgv(makeConfig({mirrorNodeConfiguration}));
+    const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
+    expect(valueIndex).to.be.greaterThan(-1);
+    expect(argv[valueIndex + 1]).to.equal(`${existingFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`);
   });
 });
 
