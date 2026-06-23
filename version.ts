@@ -63,22 +63,11 @@ export const BLOCK_NODE_EDGE_VERSION: string =
 
 // -------------------------------------------------------------------- //
 
-export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
-export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemanticVersion<string> =
-  new SemanticVersion('v0.15.0');
-
-export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.64.0';
-export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS: string = 'v0.62.0';
-
-// pre-release specified to allow all other pre-releases
-export const MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE: string = '0.69.0';
 export const LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT: string = 'v0.70.0';
 export const MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION: string = '0.152.0';
 export const MINIMUM_MIRROR_NODE_VERSION_FOR_ARM64_WEB3_NATIVE_IMAGE: string = '0.155.0';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS: string = 'v0.74.0-0';
-export const MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.29.0-0';
-export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.150.0-0';
 export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_PINGER_ENV_VARS_UPDATE: string = '0.153.0-0';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR: string = 'v0.72.0-0';

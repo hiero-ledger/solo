@@ -24,7 +24,6 @@ import {
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import * as versions from '../../version.js';
-import {MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT} from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -514,25 +513,6 @@ export class BlockNodeCommand extends BaseCommand {
 
             context_.config = config;
 
-            // check if block node version compatible with current hedera platform version
-            let consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
-            if (consensusNodeVersion === '0.0.0') {
-              // if is possible block node deployed before consensus node, then use release tag as fallback
-              consensusNodeVersion = config.releaseTag;
-            }
-
-            const currentVersion: SemanticVersion<string> = new SemanticVersion(consensusNodeVersion);
-            const minimumVersion: SemanticVersion<string> = new SemanticVersion(
-              versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE,
-            );
-
-            if (currentVersion.lessThan(minimumVersion)) {
-              throw new SoloErrors.validation.blockNodePlatformVersionTooLow(
-                consensusNodeVersion,
-                versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE,
-              );
-            }
-
             config.namespace = await this.getNamespace(task);
             config.clusterRef = this.getClusterReference();
             config.context = this.getClusterContext(config.clusterRef);
@@ -542,28 +522,13 @@ export class BlockNodeCommand extends BaseCommand {
               this.remoteConfig.getConsensusNodes(),
             );
 
-            const currentBlockNodeVersion: SemanticVersion<string> = new SemanticVersion(config.chartVersion);
-            const consensusNodeSemanticVersion: SemanticVersion<string> = new SemanticVersion(consensusNodeVersion);
-            if (
-              consensusNodeSemanticVersion.lessThan(
-                new SemanticVersion(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE),
-              ) &&
-              currentBlockNodeVersion.greaterThanOrEqual(MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)
-            ) {
-              throw new SoloErrors.validation.blockNodeLivenessPortVersionIncompatible(
-                consensusNodeVersion,
-                versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE,
-                MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT.toString(),
-              );
-            }
-
             config.chartVersion = SemanticVersion.getValidSemanticVersion(
               config.chartVersion,
               false,
               'Block node chart version',
             );
 
-            config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.imageTag);
+            config.livenessCheckPort = constants.BLOCK_NODE_PORT;
 
             await this.persistBlockNodeMessageSizeOverrides(
               config.blockNodeMessageSizeSoftLimitBytes,
@@ -1205,27 +1170,6 @@ export class BlockNodeCommand extends BaseCommand {
         }
       },
     };
-  }
-
-  /**
-   * Gives the port used for liveness check based on the chart version and image tag (if set)
-   */
-  private getLivenessCheckPortNumber(
-    chartVersion: string | SemanticVersion<string>,
-    imageTag: Optional<string | SemanticVersion<string>>,
-  ): number {
-    let useLegacyPort: boolean = false;
-
-    chartVersion = typeof chartVersion === 'string' ? new SemanticVersion<string>(chartVersion) : chartVersion;
-    imageTag = typeof imageTag === 'string' && imageTag ? new SemanticVersion<string>(imageTag) : undefined;
-
-    if (chartVersion.lessThan(versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
-      useLegacyPort = true;
-    } else if (imageTag && imageTag.lessThan(versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT)) {
-      useLegacyPort = true;
-    }
-
-    return useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
   }
 
   private async updateBlockNodeVersionInRemoteConfig(
