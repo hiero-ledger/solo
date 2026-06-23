@@ -522,7 +522,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           title: 'Create remote config components',
           task: async (): Promise<void> => {
             const deployConfig: OneShotSingleDeployConfigClass = getConfig();
-            if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+            if (DeployArgvBuilders.shouldDeployBlockNode(deployConfig)) {
               const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
                 deployConfig.clusterRef,
                 deployConfig.namespace,
@@ -617,7 +617,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
                 this.taskList,
                 (): boolean =>
-                  constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+                  !DeployArgvBuilders.shouldDeployBlockNode(getConfig()) ||
                   this.isComponentInPhaseAtLeast(
                     deploymentStateSnapshot,
                     ComponentTypes.BlockNode,
@@ -688,7 +688,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               invokeSoloCommand(
                 `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
                 MirrorCommandDefinition.ADD_COMMAND,
-                (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig()),
+                (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig(), false),
                 this.taskList,
                 // Feature-flag short-circuit takes precedence; otherwise skip if already deployed (idempotency guard).
                 (): boolean =>
@@ -700,6 +700,24 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   ),
               ),
           }),
+          new OrchestratorPipelinePhase('Enable mirror pinger', {
+            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+              invokeSoloCommand(
+                `solo ${MirrorCommandDefinition.UPGRADE_COMMAND}`,
+                MirrorCommandDefinition.UPGRADE_COMMAND,
+                (): string[] => DeployArgvBuilders.buildMirrorNodePingerUpgradeArgv(getConfig()),
+                this.taskList,
+                (): boolean => !getConfig().deployMirrorNode || !getConfig().pinger,
+              ),
+          })
+            .withWaitCondition(
+              SoloEventType.MirrorNodeDeployed,
+              Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
+            )
+            .withWaitCondition(
+              SoloEventType.NodesStarted,
+              Duration.ofMinutes(constants.NODES_STARTED_EVENT_TIMEOUT_MINUTES),
+            ),
           new OrchestratorPipelinePhase('Deploy explorer', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
@@ -781,10 +799,21 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     return {
       title: 'Create Accounts',
       // Skip when predefined accounts are disabled, or (idempotency guard) when accounts.json
-      // already exists from a prior successful run. The file is written only on full success of
-      // this step (in the Finish phase), so its presence is an all-or-nothing completion signal.
-      skip: (context_: OneShotSingleDeployContext): boolean =>
-        config.predefinedAccounts === false || context_.deploymentStateSnapshot?.accounts.accountsFileExists === true,
+      // already exists from a prior successful run and when the consensus node was already started.
+      // The file is written only on full success of this step (in the Finish phase), so its presence
+      // is an all-or-nothing completion signal. If the consensus node was not started during the execution
+      // of the current command, then we can assume that the network state is empty, so we cannot assume
+      // that the accounts already exist.
+      skip: (context_: OneShotSingleDeployContext): boolean => {
+        const consensusNodeWasStarted: boolean = this.isComponentInPhaseAtLeast(
+          context_.deploymentStateSnapshot,
+          ComponentTypes.ConsensusNode,
+          DeploymentPhase.STARTED,
+        );
+        const accountsFileExists: boolean =
+          config.predefinedAccounts === false || context_.deploymentStateSnapshot?.accounts.accountsFileExists === true;
+        return consensusNodeWasStarted && accountsFileExists;
+      },
       task: async (
         _: OneShotSingleDeployContext,
         task: SoloListrTaskWrapper<OneShotSingleDeployContext>,

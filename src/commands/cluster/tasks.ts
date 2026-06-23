@@ -64,6 +64,37 @@ export class ClusterCommandTasks {
     return findMinioOperator(context, this.k8Factory);
   }
 
+  public async installMinioOperatorChart(clusterSetupNamespace: NamespaceName, context: Context): Promise<void> {
+    const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
+
+    if (isMinioInstalled) {
+      this.logger.showUser(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
+      return;
+    }
+
+    try {
+      await this.chartManager.install(
+        clusterSetupNamespace,
+        constants.MINIO_OPERATOR_RELEASE_NAME,
+        constants.MINIO_OPERATOR_CHART,
+        constants.MINIO_OPERATOR_CHART,
+        versions.MINIO_OPERATOR_VERSION,
+        new HelmChartValues().set('operator.replicaCount', 1),
+        context,
+      );
+
+      this.logger.showUser(`✅ MinIO Operator chart installed successfully on context ${context}`);
+    } catch (error) {
+      this.logger.debug('Error installing MinIO Operator chart', error);
+      try {
+        await this.chartManager.uninstall(clusterSetupNamespace, constants.MINIO_OPERATOR_RELEASE_NAME, context);
+      } catch (uninstallError) {
+        this.logger.showUserError(uninstallError);
+      }
+      throw new SoloErrors.deployment.minioInstallFailed(error);
+    }
+  }
+
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {
     return {
       title: 'Associate a context with a cluster reference: ',
@@ -218,34 +249,7 @@ export class ClusterCommandTasks {
     return {
       title: 'Install MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
-        const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
-
-        if (isMinioInstalled) {
-          this.logger.showUser(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
-          return;
-        }
-
-        try {
-          await this.chartManager.install(
-            clusterSetupNamespace,
-            constants.MINIO_OPERATOR_RELEASE_NAME,
-            constants.MINIO_OPERATOR_CHART,
-            constants.MINIO_OPERATOR_CHART,
-            versions.MINIO_OPERATOR_VERSION,
-            new HelmChartValues().set('operator.replicaCount', 1),
-            context,
-          );
-
-          this.logger.showUser(`✅ MinIO Operator chart installed successfully on context ${context}`);
-        } catch (error) {
-          this.logger.debug('Error installing MinIO Operator chart', error);
-          try {
-            await this.chartManager.uninstall(clusterSetupNamespace, constants.MINIO_OPERATOR_RELEASE_NAME, context);
-          } catch (uninstallError) {
-            this.logger.showUserError(uninstallError);
-          }
-          throw new SoloErrors.deployment.minioInstallFailed(error);
-        }
+        await this.installMinioOperatorChart(clusterSetupNamespace, context);
       },
       skip: ({config: {deployMinio}}): boolean => !deployMinio,
     };
