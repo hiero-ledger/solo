@@ -404,10 +404,42 @@ export class MirrorNodeCommand extends BaseCommand {
     const mirrorNodeBlockNodeValues: {
       importer: {
         env: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number>;
+        config: {
+          [key: string]: {
+            mirror: {
+              importer: {
+                downloader: {
+                  balance: {
+                    enabled: boolean;
+                  };
+                  record: {
+                    enabled: boolean;
+                  };
+                };
+              };
+            };
+          };
+        };
       };
     } = {
       importer: {
         env: data,
+        config: {
+          [MirrorNodeCommand.MIRROR_CHART_NAMESPACE]: {
+            mirror: {
+              importer: {
+                downloader: {
+                  balance: {
+                    enabled: false,
+                  },
+                  record: {
+                    enabled: false,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     };
 
