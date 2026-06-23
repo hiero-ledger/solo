@@ -404,21 +404,10 @@ export class MirrorNodeCommand extends BaseCommand {
       data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
     }
 
-    const useEndpointProperties: boolean = new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
-      versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
-    );
-
     for (const [index, node] of blockNodeFqdnList.entries()) {
-      if (useEndpointProperties) {
-        data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_ENDPOINTS_0_HOST`] = node.host;
-        if (node.port !== constants.BLOCK_NODE_PORT) {
-          data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_ENDPOINTS_0_PORT`] = node.port;
-        }
-      } else {
-        data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_HOST`] = node.host;
-        if (node.port !== constants.BLOCK_NODE_PORT) {
-          data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_PORT`] = node.port;
-        }
+      data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_HOST`] = node.host;
+      if (node.port !== constants.BLOCK_NODE_PORT) {
+        data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_PORT`] = node.port;
       }
     }
 
@@ -650,21 +639,6 @@ export class MirrorNodeCommand extends BaseCommand {
       currentVersion.lessThan(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION) &&
       new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
         versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION,
-      )
-    ) {
-      shouldReuseValues = false;
-    }
-
-    // Don't reuse values when crossing the block-node endpoint properties boundary
-    // (upgrading from < v0.157.0 -> >= v0.157.0). Older releases can persist
-    // HIERO_MIRROR_IMPORTER_BLOCK_NODES_*_HOST via --reuse-values, but v0.157.0 expects
-    // HIERO_MIRROR_IMPORTER_BLOCK_NODES_*_ENDPOINTS_* instead.
-    if (
-      shouldReuseValues &&
-      currentVersion !== null &&
-      currentVersion.lessThan(versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS) &&
-      new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
-        versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
       )
     ) {
       shouldReuseValues = false;

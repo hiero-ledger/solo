@@ -183,7 +183,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(valuesArguments).to.include(`web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`);
   });
 
-  it('should use endpoint block node importer properties for mirror node 0.157.0 and above', (): void => {
+  it('should use block node importer host properties for mirror node 0.157.0', (): void => {
     const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
     const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-mirror-node-'));
@@ -207,8 +207,8 @@ describe('MirrorNodeCommand unit tests', (): void => {
     const valuesFilePath: string = chartValues.toArguments()[1];
     const valuesFileContents: string = fs.readFileSync(valuesFilePath, 'utf8');
 
-    expect(valuesFileContents).to.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST');
-    expect(valuesFileContents).to.not.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST:');
+    expect(valuesFileContents).to.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST');
+    expect(valuesFileContents).to.not.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST');
 
     fs.rmSync(temporaryDirectory, {recursive: true, force: true});
   });
