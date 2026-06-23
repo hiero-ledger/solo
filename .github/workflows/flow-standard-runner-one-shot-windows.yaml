@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: 'Windows One-Shot Deploy and Destroy'
+name: "Windows One-Shot Deploy and Destroy"
 # Compatibility gate: verifies that Solo one-shot deploy continues to work on native Windows.
 # Solo runs natively in PowerShell on a standard GitHub-hosted Windows runner.
 # Docker runs inside WSL2 (replicating how Docker Desktop works for Windows users) and is
@@ -32,7 +32,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -132,7 +131,8 @@ jobs:
           wsl-version: 2
           use-cache: false
           set-as-default: true
-          additional-packages: apt-transport-https
+          additional-packages:
+            apt-transport-https
             ca-certificates
             curl
             software-properties-common
@@ -240,14 +240,6 @@ jobs:
         run: |
           $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
           npm run solo -- init --dev
-
-      - name: Restore Solo Image Cache
-        id: solo-image-cache
-        if: ${{ !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
-        with:
-          operation: restore
-          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: One-Shot Single Deploy
         shell: pwsh
