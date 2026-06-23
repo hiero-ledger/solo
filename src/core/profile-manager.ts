@@ -190,7 +190,6 @@ export class ProfileManager {
         accountMap,
         consensusNodes,
         stagingDirectory,
-        resolvedStagingOptions.releaseTag,
         resolvedStagingOptions.appName,
         resolvedStagingOptions.chainId,
         gossipFqdnRestricted,
@@ -809,7 +808,6 @@ export class ProfileManager {
    * @param nodeAccountMap - the map of node aliases to account IDs
    * @param consensusNodes - the list of consensus nodes
    * @param destinationPath
-   * @param releaseTagOverride - release tag override
    * @param [appName] - the app name (default: HederaNode.jar)
    * @param [chainId] - chain ID (298 for local network)
    * @returns the config.txt file path
@@ -818,18 +816,12 @@ export class ProfileManager {
     nodeAccountMap: Map<NodeAlias, string>,
     consensusNodes: ConsensusNode[],
     destinationPath: string,
-    releaseTagOverride: string,
     appName: string = constants.HEDERA_APP_NAME,
     chainId: string = constants.HEDERA_CHAIN_ID,
     gossipFqdnRestricted: boolean = true,
   ): Promise<string> {
-    let releaseTag: string = releaseTagOverride;
     if (!nodeAccountMap || nodeAccountMap.size === 0) {
       throw new SoloErrors.validation.missingArgument('nodeAccountMap the map of node IDs to account IDs is required');
-    }
-
-    if (!releaseTag) {
-      releaseTag = versions.HEDERA_PLATFORM_VERSION;
     }
 
     if (!fs.existsSync(destinationPath)) {
@@ -849,18 +841,12 @@ export class ProfileManager {
     const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
     const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
-    const releaseVersion: SemanticVersion<string> = new SemanticVersion(releaseTag);
-
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
 
       let nodeSeq: number = 0;
       for (const consensusNode of consensusNodes) {
-        const internalIP: string = Helpers.getInternalAddress(
-          releaseVersion,
-          NamespaceName.of(consensusNode.namespace),
-          consensusNode.name as NodeAlias,
-        );
+        const internalIP: string = constants.LOCAL_HOST;
 
         // First try to extract endpoint from saved state (migration scenario)
         let address: Address | undefined = await this.extractSavedEndpoint(consensusNode, nodeSeq);
@@ -882,11 +868,6 @@ export class ProfileManager {
         );
 
         nodeSeq += 1;
-      }
-
-      // TODO: remove once we no longer need less than v0.56
-      if (releaseVersion.minor >= 41 && releaseVersion.minor < 56) {
-        configLines.push(`nextNodeId, ${nodeSeq}`);
       }
 
       fs.writeFileSync(configFilePath, configLines.join('\n'));
