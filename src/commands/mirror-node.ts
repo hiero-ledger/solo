@@ -404,10 +404,21 @@ export class MirrorNodeCommand extends BaseCommand {
       data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
     }
 
+    const useEndpointProperties: boolean = new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
+      versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
+    );
+
     for (const [index, node] of blockNodeFqdnList.entries()) {
-      data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_HOST`] = node.host;
-      if (node.port !== constants.BLOCK_NODE_PORT) {
-        data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_PORT`] = node.port;
+      if (useEndpointProperties) {
+        data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_ENDPOINTS_0_HOST`] = node.host;
+        if (node.port !== constants.BLOCK_NODE_PORT) {
+          data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_ENDPOINTS_0_PORT`] = node.port;
+        }
+      } else {
+        data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_HOST`] = node.host;
+        if (node.port !== constants.BLOCK_NODE_PORT) {
+          data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_PORT`] = node.port;
+        }
       }
     }
 
