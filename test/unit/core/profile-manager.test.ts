@@ -475,8 +475,9 @@ describe('ProfileManager', (): void => {
 
       expect(stagedApplicationProperties).to.contain('solo.default.only=value');
       expect(stagedApplicationProperties).to.contain('user.custom.only=true');
-      expect(stagedApplicationProperties).to.contain('contracts.chainId=999');
-      expect(yamlRoot.hedera.configMaps.applicationProperties).to.contain('contracts.chainId=999');
+      expect(stagedApplicationProperties).to.contain('contracts.chainId=296');
+      expect(stagedApplicationProperties).not.to.contain('contracts.chainId=999');
+      expect(yamlRoot.hedera.configMaps.applicationProperties).to.contain('contracts.chainId=296');
     });
 
     it('prepareStagingDirectory should overwrite when custom application.properties enables overwrite marker', async (): Promise<void> => {
