@@ -93,10 +93,6 @@ export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean 
 }
 
 export function getSoloVersion(): Version {
-  if (process.env.npm_package_version) {
-    return process.env.npm_package_version;
-  }
-
   const __filename: string = fileURLToPath(import.meta.url);
   const __dirname: string = path.dirname(__filename);
 
