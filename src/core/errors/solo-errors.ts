@@ -68,7 +68,6 @@ import {NodeVersionMismatchSoloError} from './classes/validation/node-version-mi
 import {NonInteractivePromptSoloError} from './classes/validation/non-interactive-prompt-solo-error.js';
 import {OutputDirectoryNotSpecifiedSoloError} from './classes/validation/output-directory-not-specified-solo-error.js';
 import {PvcFlagNotEnabledSoloError} from './classes/validation/pvc-flag-not-enabled-solo-error.js';
-import {RealmShardVersionConstraintSoloError} from './classes/validation/realm-shard-version-constraint-solo-error.js';
 import {UpgradeVersionNotFoundSoloError} from './classes/validation/upgrade-version-not-found-solo-error.js';
 import {WrapsKeyPathNotFoundSoloError} from './classes/validation/wraps-key-path-not-found-solo-error.js';
 import {WrapsVersionConstraintSoloError} from './classes/validation/wraps-version-constraint-solo-error.js';
@@ -127,9 +126,7 @@ import {MirrorIngressControllerPodNotFoundSoloError} from './classes/system/mirr
 import {MirrorNodeNotInRemoteConfigSoloError} from './classes/system/mirror-node-not-in-remote-config-solo-error.js';
 import {ClusterNotFoundInRemoteConfigSoloError} from './classes/system/cluster-not-found-in-remote-config-solo-error.js';
 import {BlockNodeInvalidComponentIdSoloError} from './classes/validation/block-node-invalid-component-id-solo-error.js';
-import {BlockNodeLivenessPortVersionIncompatibleSoloError} from './classes/validation/block-node-liveness-port-version-incompatible-solo-error.js';
 import {BlockNodeLocalImageNotFoundSoloError} from './classes/validation/block-node-local-image-not-found-solo-error.js';
-import {BlockNodePlatformVersionTooLowSoloError} from './classes/validation/block-node-platform-version-too-low-solo-error.js';
 import {ExplorerInvalidComponentIdSoloError} from './classes/validation/explorer-invalid-component-id-solo-error.js';
 import {RelayInvalidComponentIdSoloError} from './classes/validation/relay-invalid-component-id-solo-error.js';
 import {OneShotCachedDeploymentNotFoundSoloError} from './classes/validation/one-shot-cached-deployment-not-found-solo-error.js';
@@ -554,8 +551,6 @@ export class SoloErrors {
   public static readonly validation: {
     readonly blockNodeLocalImageNotFound: typeof BlockNodeLocalImageNotFoundSoloError;
     readonly blockNodeInvalidComponentId: typeof BlockNodeInvalidComponentIdSoloError;
-    readonly blockNodePlatformVersionTooLow: typeof BlockNodePlatformVersionTooLowSoloError;
-    readonly blockNodeLivenessPortVersionIncompatible: typeof BlockNodeLivenessPortVersionIncompatibleSoloError;
     readonly consensusNodeCountRequired: typeof ConsensusNodeCountRequiredError;
     readonly illegalArgument: typeof IllegalArgumentError;
     readonly invalidOutputFormat: typeof InvalidOutputFormatError;
@@ -574,7 +569,6 @@ export class SoloErrors {
     readonly upgradeVersionNotFound: typeof UpgradeVersionNotFoundSoloError;
     readonly pvcFlagNotEnabled: typeof PvcFlagNotEnabledSoloError;
     readonly nonInteractivePrompt: typeof NonInteractivePromptSoloError;
-    readonly realmShardVersionConstraint: typeof RealmShardVersionConstraintSoloError;
     readonly wrapsVersionConstraint: typeof WrapsVersionConstraintSoloError;
     readonly stateFilePathNotFound: typeof StateFilePathNotFoundSoloError;
     readonly stateFileNotFound: typeof StateFileNotFoundSoloError;
@@ -631,8 +625,6 @@ export class SoloErrors {
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
-    blockNodePlatformVersionTooLow: BlockNodePlatformVersionTooLowSoloError,
-    blockNodeLivenessPortVersionIncompatible: BlockNodeLivenessPortVersionIncompatibleSoloError,
     consensusNodeCountRequired: ConsensusNodeCountRequiredError,
     illegalArgument: IllegalArgumentError,
     invalidOutputFormat: InvalidOutputFormatError,
@@ -651,7 +643,6 @@ export class SoloErrors {
     upgradeVersionNotFound: UpgradeVersionNotFoundSoloError,
     pvcFlagNotEnabled: PvcFlagNotEnabledSoloError,
     nonInteractivePrompt: NonInteractivePromptSoloError,
-    realmShardVersionConstraint: RealmShardVersionConstraintSoloError,
     wrapsVersionConstraint: WrapsVersionConstraintSoloError,
     stateFilePathNotFound: StateFilePathNotFoundSoloError,
     stateFileNotFound: StateFileNotFoundSoloError,
