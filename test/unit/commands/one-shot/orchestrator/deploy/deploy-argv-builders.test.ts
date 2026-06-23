@@ -356,6 +356,13 @@ describe('buildClusterSetupArgv', (): void => {
     expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
   });
 
+  it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE has no resolved CN version', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
+    const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(makeConfig());
+
+    expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
+  });
+
   it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE is disabled', (): void => {
     process.env.ONE_SHOT_WITH_BLOCK_NODE = 'false';
     const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
