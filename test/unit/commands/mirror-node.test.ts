@@ -12,8 +12,6 @@ import * as constants from '../../../src/core/constants.js';
 import * as versions from '../../../version.js';
 import {resetForTest} from '../../test-container.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import yaml from 'yaml';
 
@@ -25,19 +23,18 @@ interface MirrorNodeMemoryOverrideConfig {
 
 interface MirrorNodeCommandInternal {
   remoteConfig: {
-    _remoteConfig: {
+    configuration: {
       clusters: {name: string; dnsBaseDomain: string}[];
       components: {
         state: {
           blockNodes: {metadata: {id: number; cluster: string; namespace: string}}[];
         };
       };
-      versions: {
+      versions?: {
         consensusNode: {greaterThanOrEqual: () => boolean};
         blockNodeChart: {greaterThanOrEqual: () => boolean};
       };
     };
-    phase: string;
   };
   addMirrorNodeMemoryOverrides: (
     hasMirrorNodeMemoryImprovements: boolean,
@@ -49,7 +46,6 @@ interface MirrorNodeCommandInternal {
     forceBlockNodeIntegration?: boolean;
     mirrorNodeVersion: string;
   }) => HelmChartValues;
-  remoteConfig: Record<string, unknown>;
 }
 
 interface MirrorNodeIntegrationValues {
@@ -253,7 +249,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
     const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
 
     try {
-      mirrorNodeCommandInternal.remoteConfig._remoteConfig = {
+      mirrorNodeCommandInternal.remoteConfig.configuration = {
         clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
         components: {
           state: {
@@ -269,7 +265,6 @@ describe('MirrorNodeCommand unit tests', (): void => {
           },
         },
       };
-      mirrorNodeCommandInternal.remoteConfig.phase = 'loaded';
 
       const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
         cacheDir: cacheDirection,
