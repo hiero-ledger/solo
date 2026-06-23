@@ -40,8 +40,11 @@ export class KindExecution {
    * @param environmentVariables The environment variables to set
    */
   public constructor(command: string[], environmentVariables: Record<string, string>) {
-    this.process = spawn(command.join(' '), {
-      shell: true,
+    // Execute with an explicit argument array and shell:false to avoid shell injection.
+    // command[0] is the kind executable; the remainder are its arguments.
+    const [executable, ...commandArguments]: string[] = command;
+    this.process = spawn(executable, commandArguments, {
+      shell: false,
       env: {...process.env, ...environmentVariables},
     });
   }
