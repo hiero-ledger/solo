@@ -525,7 +525,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           title: 'Create remote config components',
           task: async (): Promise<void> => {
             const deployConfig: OneShotSingleDeployConfigClass = getConfig();
-            if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+            if (DeployArgvBuilders.shouldDeployBlockNode(deployConfig)) {
               const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
                 deployConfig.clusterRef,
                 deployConfig.namespace,
@@ -620,7 +620,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
                 this.taskList,
                 (): boolean =>
-                  constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+                  !DeployArgvBuilders.shouldDeployBlockNode(getConfig()) ||
                   this.isComponentInPhaseAtLeast(
                     deploymentStateSnapshot,
                     ComponentTypes.BlockNode,
@@ -691,7 +691,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               invokeSoloCommand(
                 `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
                 MirrorCommandDefinition.ADD_COMMAND,
-                (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig()),
+                (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig(), false),
                 this.taskList,
                 // Feature-flag short-circuit takes precedence; otherwise skip if already deployed (idempotency guard).
                 (): boolean =>
@@ -703,24 +703,20 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   ),
               ),
           }),
-          new OrchestratorPipelinePhase('Enable mirror node pinger', {
-            asListrTask: (
-              getConfig: () => OneShotSingleDeployConfigClass,
-            ): SoloListrTask<OneShotSingleDeployContext> => ({
-              title: 'Enable mirror node pinger',
-              skip: (): boolean => !getConfig().parallelDeploy || !getConfig().deployMirrorNode,
-              task: async (): Promise<void> => {
-                const deployConfig: OneShotSingleDeployConfigClass = getConfig();
-                await this.mirrorNodeCommand.enablePinger(
-                  deployConfig.namespace,
-                  deployConfig.context,
-                  deployConfig.deployment,
-                );
-              },
-            }),
+          new OrchestratorPipelinePhase('Enable mirror pinger', {
+            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+              invokeSoloCommand(
+                `solo ${MirrorCommandDefinition.UPGRADE_COMMAND}`,
+                MirrorCommandDefinition.UPGRADE_COMMAND,
+                (): string[] => DeployArgvBuilders.buildMirrorNodePingerUpgradeArgv(getConfig()),
+                this.taskList,
+                (): boolean => !getConfig().deployMirrorNode || !getConfig().pinger,
+              ),
           })
-            .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofMinutes(10))
-            .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(10)),
+            .withWaitCondition(
+              SoloEventType.MirrorNodeDeployed,
+              Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
+            ),
           new OrchestratorPipelinePhase('Deploy explorer', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
