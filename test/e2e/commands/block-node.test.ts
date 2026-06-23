@@ -27,7 +27,7 @@ const testName: string = 'block-node-test';
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
-  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withTestSuiteName('Block Node Test Suite')
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)

@@ -67,6 +67,7 @@ function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): On
     quiet: false,
     rollback: true,
     parallelDeploy: false,
+    pinger: true,
     externalAddress: '',
     edgeEnabled: false,
     versions: {
