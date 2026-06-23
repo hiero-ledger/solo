@@ -335,7 +335,7 @@ export class BlockNodeCommand extends BaseCommand {
       (blockNode): boolean => blockNode.metadata.id !== currentBlockNodeId,
     );
 
-    for (const [index, blockNode] of otherBlockNodes.entries()) {
+    for (const blockNode of otherBlockNodes) {
       const cluster: ClusterSchema = clusters.find(({name}): boolean => name === blockNode.metadata.cluster);
 
       const fqdn: string = Templates.renderSvcFullyQualifiedDomainName(
