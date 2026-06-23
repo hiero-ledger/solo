@@ -623,6 +623,21 @@ export class MirrorNodeCommand extends BaseCommand {
       shouldReuseValues = false;
     }
 
+    // Don't reuse values when crossing the block-node endpoint properties boundary
+    // (upgrading from < v0.157.0 -> >= v0.157.0). Older releases can persist
+    // HIERO_MIRROR_IMPORTER_BLOCK_NODES_*_HOST via --reuse-values, but v0.157.0 expects
+    // HIERO_MIRROR_IMPORTER_BLOCK_NODES_*_ENDPOINTS_* instead.
+    if (
+      shouldReuseValues &&
+      currentVersion !== null &&
+      currentVersion.lessThan(versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS) &&
+      new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
+        versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
+      )
+    ) {
+      shouldReuseValues = false;
+    }
+
     if (commandType === MirrorNodeCommandType.ADD) {
       shouldReuseValues = false;
     }
