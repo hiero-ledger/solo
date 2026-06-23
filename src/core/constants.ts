@@ -190,6 +190,11 @@ export const BLOCK_NODE_CHART: string = getEnvironmentVariable('BLOCK_NODE_CHART
 export const BLOCK_NODE_RELEASE_NAME: string = 'block-node';
 export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of(BLOCK_NODE_CHART);
 
+// In-pod JFR disk-repository path `solo block node collect-jfr` reads from; mirrors the consensus node's
+// ${HEDERA_HAPI_PATH}/output convention. The overlay's repository path is kept in sync with this constant by
+// block-node-values.test.ts.
+export const BLOCK_NODE_JFR_REPOSITORY_DIRECTORY: string = '/opt/hiero/block-node/output/jfr';
+
 export const NETWORK_LOAD_GENERATOR_CHART: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_RELEASE_NAME: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_CHART_URL: string =
