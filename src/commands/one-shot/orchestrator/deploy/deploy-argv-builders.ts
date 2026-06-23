@@ -65,7 +65,7 @@ export class DeployArgvBuilders {
 
     const consensusVersion: string | undefined = SemanticVersion.normalizeToken(config.versions.consensus);
     if (!consensusVersion) {
-      return true;
+      return false;
     }
 
     return new SemanticVersion<string>(consensusVersion).greaterThanOrEqual(
