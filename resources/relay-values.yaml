@@ -24,10 +24,10 @@ relay:
   resources:
     requests:
       cpu: 0
-      memory: 0
+      memory: 350Mi
     limits:
       cpu: 500m
-      memory: 250Mi
+      memory: 350Mi
 ws:
   config:
     WORKERS_POOL_ENABLED: false
