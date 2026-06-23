@@ -523,7 +523,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           title: 'Create remote config components',
           task: async (): Promise<void> => {
             const deployConfig: OneShotSingleDeployConfigClass = getConfig();
-            if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+            if (DeployArgvBuilders.shouldDeployBlockNode(deployConfig)) {
               const blockNode: BlockNodeStateSchema = this.componentFactory.createNewBlockNodeComponent(
                 deployConfig.clusterRef,
                 deployConfig.namespace,
@@ -813,10 +813,21 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     return {
       title: 'Create Accounts',
       // Skip when predefined accounts are disabled, or (idempotency guard) when accounts.json
-      // already exists from a prior successful run. The file is written only on full success of
-      // this step (in the Finish phase), so its presence is an all-or-nothing completion signal.
-      skip: (context_: OneShotSingleDeployContext): boolean =>
-        config.predefinedAccounts === false || context_.deploymentStateSnapshot?.accounts.accountsFileExists === true,
+      // already exists from a prior successful run and when the consensus node was already started.
+      // The file is written only on full success of this step (in the Finish phase), so its presence
+      // is an all-or-nothing completion signal. If the consensus node was not started during the execution
+      // of the current command, then we can assume that the network state is empty, so we cannot assume
+      // that the accounts already exist.
+      skip: (context_: OneShotSingleDeployContext): boolean => {
+        const consensusNodeWasStarted: boolean = this.isComponentInPhaseAtLeast(
+          context_.deploymentStateSnapshot,
+          ComponentTypes.ConsensusNode,
+          DeploymentPhase.STARTED,
+        );
+        const accountsFileExists: boolean =
+          config.predefinedAccounts === false || context_.deploymentStateSnapshot?.accounts.accountsFileExists === true;
+        return consensusNodeWasStarted && accountsFileExists;
+      },
       task: async (
         _: OneShotSingleDeployContext,
         task: SoloListrTaskWrapper<OneShotSingleDeployContext>,

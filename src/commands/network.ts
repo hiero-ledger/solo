@@ -139,6 +139,7 @@ export interface NetworkDeployConfigClass {
   wrapsEnabled: boolean;
   wrapsKeyPath: string;
   tssEnabled: boolean;
+  minioEnabled: boolean;
 }
 
 interface NetworkDeployContext {
@@ -394,9 +395,18 @@ export class NetworkCommand extends BaseCommand {
   private async prepareStorageSecrets(config: NetworkDeployConfigClass): Promise<void> {
     try {
       if (config.storageType !== constants.StorageType.MINIO_ONLY) {
-        const minioAccessKey: string = uuidv4();
-        const minioSecretKey: string = uuidv4();
-        await this.prepareMinioSecrets(config, minioAccessKey, minioSecretKey);
+        if (config.minioEnabled) {
+          const minioAccessKey: string = uuidv4();
+          const minioSecretKey: string = uuidv4();
+          await this.prepareMinioSecrets(config, minioAccessKey, minioSecretKey);
+        } else {
+          this.logger.debug(`Skipping MinIO secret preparation for consensus node ${config.releaseTag}`);
+        }
+
+        await this.prepareStreamUploaderSecrets(config);
+      } else if (!config.minioEnabled) {
+        // Mirror importer references this secret even in block-node mode.
+        // Create it explicitly when MinIO is disabled for CN >= 0.74.x.
         await this.prepareStreamUploaderSecrets(config);
       }
 
@@ -623,6 +633,21 @@ export class NetworkCommand extends BaseCommand {
     if (config.storageType !== constants.StorageType.MINIO_ONLY) {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.generateNewSecrets', false);
+      }
+    }
+
+    if (config.minioEnabled && config.storageType === constants.StorageType.MINIO_ONLY) {
+      for (const clusterReference of clusterReferences) {
+        chartValuesMap[clusterReference].set('cloud.minio.enabled', true);
+        chartValuesMap[clusterReference].set('cloud.generateNewSecrets', true);
+      }
+    } else if (!config.minioEnabled) {
+      for (const clusterReference of clusterReferences) {
+        chartValuesMap[clusterReference].set('cloud.minio.enabled', false);
+        chartValuesMap[clusterReference].set('cloud.generateNewSecrets', false);
+        chartValuesMap[clusterReference].set('defaults.sidecars.recordStreamUploader.enabled', false);
+        chartValuesMap[clusterReference].set('defaults.sidecars.eventStreamUploader.enabled', false);
+        chartValuesMap[clusterReference].set('defaults.sidecars.blockstreamUploader.enabled', false);
       }
     }
 
@@ -1026,6 +1051,20 @@ export class NetworkCommand extends BaseCommand {
 
     config.singleUseServiceMonitor = config.serviceMonitor;
     config.singleUsePodLog = config.podLog;
+    const tssByDefaultSupported: boolean = networkNodeVersion.greaterThanOrEqual(
+      versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+    );
+    const blockNodeConfigured: boolean =
+      config.blockNodeComponents.length > 0 ||
+      config.consensusNodes.some((consensusNode): boolean => {
+        const blockNodeMapLength: number = consensusNode.blockNodeMap?.length ?? 0;
+        const externalBlockNodeMapLength: number = consensusNode.externalBlockNodeMap?.length ?? 0;
+
+        return blockNodeMapLength > 0 || externalBlockNodeMapLength > 0;
+      });
+    // CN >= 0.74 can stream blocks directly to a block node. Without a deployed block node,
+    // keep using record streams via MinIO so mirror/importer and relay still have a source.
+    config.minioEnabled = !(tssByDefaultSupported && blockNodeConfigured);
 
     config.chartValuesMap = await this.prepareHelmChartValuesMap(config);
 
@@ -1766,7 +1805,8 @@ export class NetworkCommand extends BaseCommand {
                   }
                 },
                 // skip if only cloud storage is/are used
-                skip: ({config: {storageType}}): boolean =>
+                skip: ({config: {storageType, minioEnabled}}): boolean =>
+                  !minioEnabled ||
                   storageType === constants.StorageType.GCS_ONLY ||
                   storageType === constants.StorageType.AWS_ONLY ||
                   storageType === constants.StorageType.AWS_AND_GCS,
@@ -1860,7 +1900,13 @@ export class NetworkCommand extends BaseCommand {
           task: async ({config: {consensusNodes}}): Promise<void> => {
             try {
               for (const consensusNode of consensusNodes) {
-                await createAndCopyBlockNodeJsonFileForConsensusNode(consensusNode, this.logger, this.k8Factory);
+                await createAndCopyBlockNodeJsonFileForConsensusNode(
+                  consensusNode,
+                  this.logger,
+                  this.k8Factory,
+                  false,
+                  this.remoteConfig.configuration.versions.consensusNode,
+                );
               }
             } catch (error) {
               throw new SoloErrors.component.blockNodeConfigFailed(error);

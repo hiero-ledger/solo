@@ -57,6 +57,11 @@ export interface Pod {
   readonly deletionTimestamp?: Date;
 
   /**
+   * The current Kubernetes phase of the pod (for example Running, Succeeded, Failed)
+   */
+  readonly phase?: string;
+
+  /**
    * All container statuses for the pod (init containers first, then regular containers).
    * Used to inspect non-recoverable error states without exposing @kubernetes/client-node types.
    */

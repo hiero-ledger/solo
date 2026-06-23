@@ -4524,7 +4524,13 @@ export class NodeCommandTasks {
         this.remoteConfig.configuration.state.externalBlockNodes.length === 0,
       task: async (): Promise<void> => {
         for (const node of this.remoteConfig.getConsensusNodes()) {
-          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await createAndCopyBlockNodeJsonFileForConsensusNode(
+            node,
+            this.logger,
+            this.k8Factory,
+            false,
+            this.remoteConfig.configuration.versions.consensusNode,
+          );
         }
       },
     };

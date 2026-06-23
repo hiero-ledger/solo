@@ -319,7 +319,15 @@ export class BlockNodeCommand extends BaseCommand {
 
     const {state, clusters} = this.remoteConfig.configuration;
 
-    for (const [index, blockNode] of state.blockNodes.entries()) {
+    const currentBlockNodeId: ComponentId =
+      'newBlockNodeComponent' in config ? config.newBlockNodeComponent.metadata.id : config.id;
+    let sourceIndex: number = 0;
+
+    for (const blockNode of state.blockNodes) {
+      if (blockNode.metadata.id === currentBlockNodeId) {
+        continue;
+      }
+
       const cluster: ClusterSchema = clusters.find(({name}): boolean => name === blockNode.metadata.cluster);
 
       const fqdn: string = Templates.renderSvcFullyQualifiedDomainName(
@@ -329,9 +337,10 @@ export class BlockNodeCommand extends BaseCommand {
       );
 
       chartValues
-        .set(`blockNode.sources[${index}].address`, fqdn)
-        .set(`blockNode.sources[${index}].port`, constants.BLOCK_NODE_PORT)
-        .set(`blockNode.sources[${index}].priority`, 1);
+        .set(`blockNode.sources[${sourceIndex}].address`, fqdn)
+        .set(`blockNode.sources[${sourceIndex}].port`, constants.BLOCK_NODE_PORT)
+        .set(`blockNode.sources[${sourceIndex}].priority`, 1);
+      sourceIndex++;
     }
 
     return chartValues;
@@ -391,7 +400,13 @@ export class BlockNodeCommand extends BaseCommand {
           .filter((node): boolean => nodeAliases.includes(node.name));
 
         for (const node of filteredConsensusNodes) {
-          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await createAndCopyBlockNodeJsonFileForConsensusNode(
+            node,
+            this.logger,
+            this.k8Factory,
+            false,
+            this.remoteConfig.configuration.versions.consensusNode,
+          );
         }
       },
     };
@@ -408,7 +423,13 @@ export class BlockNodeCommand extends BaseCommand {
           .filter((node): boolean => nodeAliases.includes(node.name));
 
         for (const node of filteredConsensusNodes) {
-          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await createAndCopyBlockNodeJsonFileForConsensusNode(
+            node,
+            this.logger,
+            this.k8Factory,
+            false,
+            this.remoteConfig.configuration.versions.consensusNode,
+          );
         }
       },
     };
@@ -1192,7 +1213,13 @@ export class BlockNodeCommand extends BaseCommand {
       skip: (): boolean => this.remoteConfig.configuration.state.ledgerPhase === LedgerPhase.UNINITIALIZED,
       task: async (): Promise<void> => {
         for (const node of this.remoteConfig.getConsensusNodes()) {
-          await createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory, true);
+          await createAndCopyBlockNodeJsonFileForConsensusNode(
+            node,
+            this.logger,
+            this.k8Factory,
+            true,
+            this.remoteConfig.configuration.versions.consensusNode,
+          );
         }
       },
     };
