@@ -562,7 +562,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.imageTag = ImageReference.parseImageReference(config.componentImage).tag;
             }
 
-            config.livenessCheckPort = this.getLivenessCheckPortNumber(config.chartVersion, config.imageTag);
+            config.livenessCheckPort = constants.BLOCK_NODE_PORT;
 
             await this.persistBlockNodeMessageSizeOverrides(
               config.blockNodeMessageSizeSoftLimitBytes,
