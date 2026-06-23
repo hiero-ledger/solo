@@ -27,7 +27,7 @@ relay:
       memory: 350Mi
     limits:
       cpu: 500m
-      memory: 350Mi
+      memory: 700Mi
 ws:
   config:
     WORKERS_POOL_ENABLED: false
