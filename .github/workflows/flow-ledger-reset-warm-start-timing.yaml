@@ -14,30 +14,30 @@
 # limitations under the License.
 ##
 
-name: 'Ledger Reset Warm Start Timing Test'
+name: "Ledger Reset Warm Start Timing Test"
 
 on:
   workflow_dispatch:
     inputs:
       use-released-solo:
-        description: 'Use latest released Solo CLI (true) or build from source (false)'
+        description: "Use latest released Solo CLI (true) or build from source (false)"
         type: boolean
         required: false
         default: false
       cycles:
-        description: 'Number of warm-start reset cycles to run'
+        description: "Number of warm-start reset cycles to run"
         type: number
         required: false
         default: 3
   workflow_call:
     inputs:
       use-released-solo:
-        description: 'Use latest released Solo CLI (true) or build from source (false)'
+        description: "Use latest released Solo CLI (true) or build from source (false)"
         type: boolean
         required: false
         default: false
       cycles:
-        description: 'Number of warm-start reset cycles to run'
+        description: "Number of warm-start reset cycles to run"
         type: number
         required: false
         default: 3
@@ -48,7 +48,6 @@ defaults:
 
 permissions:
   contents: read
-  actions: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -113,14 +112,6 @@ jobs:
         run: |
           ${{ steps.solo-cmd.outputs.cmd }} init --dev
           export PATH=~/.solo/bin:${PATH}
-
-      - name: Restore Solo Image Cache
-        id: solo-image-cache
-        if: ${{ !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
-        with:
-          operation: restore
-          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Resolve Versions
         id: versions
@@ -232,7 +223,7 @@ jobs:
             echo "::warning::Runner appears slow (calibration=${BASELINE}s). Timing results may be unreliable."
           fi
 
-      - name: 'Cold/Warm Cycles (${{ inputs.cycles || 3 }} iterations)'
+      - name: "Cold/Warm Cycles (${{ inputs.cycles || 3 }} iterations)"
         id: timing-cycles
         timeout-minutes: 360
         env:
@@ -301,13 +292,6 @@ jobs:
 
           echo "==== Cold median: $(( COLD_MEDIAN / 60 ))m $(( COLD_MEDIAN % 60 ))s ===="
           echo "==== Warm median: $(( WARM_MEDIAN / 60 ))m $(( WARM_MEDIAN % 60 ))s ===="
-
-      - name: Save Solo Image Cache
-        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
-        with:
-          operation: save
-          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Timing Summary
         id: timing-summary
@@ -459,3 +443,4 @@ jobs:
           path: ~/.solo/logs/*
           overwrite: true
           if-no-files-found: warn
+

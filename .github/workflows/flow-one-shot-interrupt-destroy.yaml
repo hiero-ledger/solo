@@ -14,30 +14,30 @@
 # limitations under the License.
 ##
 
-name: 'One Shot Interrupt Destroy'
+name: "One Shot Interrupt Destroy"
 
 on:
   workflow_dispatch:
     inputs:
       node-version:
-        description: 'NodeJS Version:'
+        description: "NodeJS Version:"
         type: string
         required: false
-        default: '22'
+        default: "22"
       released-or-latest:
-        description: 'Use released or latest version'
+        description: "Use released or latest version"
         type: boolean
         required: false
         default: false
   workflow_call:
     inputs:
       node-version:
-        description: 'NodeJS Version:'
+        description: "NodeJS Version:"
         type: string
         required: false
-        default: '22'
+        default: "22"
       released-or-latest:
-        description: 'Use released or latest version'
+        description: "Use released or latest version"
         type: boolean
         required: false
         default: false
@@ -48,7 +48,7 @@ defaults:
 
 permissions:
   contents: read
-  actions: write
+  actions: read
 
 jobs:
   test-one-shot-interrupt-destroy:
@@ -92,14 +92,6 @@ jobs:
       - name: Build Application
         run: task build:compile
 
-      - name: Restore Solo Image Cache
-        id: solo-image-cache
-        if: ${{ !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
-        with:
-          operation: restore
-          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
-
       - name: Run Interrupt Workflow Script
         timeout-minutes: 60
         env:
@@ -113,13 +105,6 @@ jobs:
           fi
           export INTERRUPT_SECONDS="${{ matrix.interrupt_seconds }}"
           node .github/workflows/script/one-shot-interrupt-destroy.mjs
-
-      - name: Save Solo Image Cache
-        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
-        with:
-          operation: save
-          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Cleanup Deployment
         if: always()
