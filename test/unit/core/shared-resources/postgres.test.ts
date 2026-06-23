@@ -184,9 +184,7 @@ describe('PostgresSharedResource', (): void => {
       expect(writtenContent).to.include('export IMPORTER_PASSWORD=importerpass');
       expect(writtenContent).to.include('export REST_PASSWORD=restpass');
       expect(writtenContent).to.include('export REST_USERNAME=mirror_rest');
-      expect(writtenContent).to.include(
-        "create user :restUsername with login password :'restPassword' in role readonly",
-      );
+      expect(writtenContent).to.not.include('create user :restUsername');
       expect(writtenContent).to.not.include('export CREATE_MIRROR_API_USER=true');
       expect(writtenContent).to.include('export REST_JAVA_PASSWORD=restjavapass');
       expect(writtenContent).to.include('export ROSETTA_PASSWORD=rosettapass');
