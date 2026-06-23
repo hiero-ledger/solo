@@ -249,19 +249,21 @@ describe('MirrorNodeCommand unit tests', (): void => {
     const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
 
     try {
-      mirrorNodeCommandInternal.remoteConfig.configuration = {
-        clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
-        components: {
-          state: {
-            blockNodes: [{metadata: {id: 1, cluster: 'kind-a', namespace: 'solo'}}],
+      mirrorNodeCommandInternal.remoteConfig = {
+        configuration: {
+          clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
+          components: {
+            state: {
+              blockNodes: [{metadata: {id: 1, cluster: 'kind-a', namespace: 'solo'}}],
+            },
           },
-        },
-        versions: {
-          consensusNode: {
-            greaterThanOrEqual: (): boolean => true,
-          },
-          blockNodeChart: {
-            greaterThanOrEqual: (): boolean => true,
+          versions: {
+            consensusNode: {
+              greaterThanOrEqual: (): boolean => true,
+            },
+            blockNodeChart: {
+              greaterThanOrEqual: (): boolean => true,
+            },
           },
         },
       };
