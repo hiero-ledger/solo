@@ -3,6 +3,8 @@
 import {expect} from 'chai';
 import {before, describe, it} from 'mocha';
 import path from 'node:path';
+import fs from 'node:fs';
+import * as yaml from 'yaml';
 import {ClusterTaskManager} from '../../../src/core/cluster-task-manager.js';
 import * as constants from '../../../src/core/constants.js';
 import {resetForTest} from '../../test-container.js';
@@ -51,12 +53,30 @@ describe('ClusterTaskManager', (): void => {
     expect(getConfigFilePath(manager, false)).to.equal(constants.KIND_CLUSTER_CONFIG_FILE);
   });
 
-  it('should resolve small-memory kind config to an absolute path', (): void => {
+  it('should stage small-memory kind config under the shared cache directory with an absolute patches hostPath', (): void => {
     const manager: ClusterTaskManager = createClusterTaskManager();
     const configPath: string = getConfigFilePath(manager, true);
 
+    // The rendered config must live under SOLO_CACHE_DIR (~/.solo/cache), a path Docker Desktop
+    // shares by default, rather than the install directory (e.g. /opt/homebrew/Cellar).
+    const expectedStagedDirectory: string = path.join(constants.SOLO_CACHE_DIR, 'templates', 'small-memory');
     expect(path.isAbsolute(configPath)).to.equal(true);
-    expect(configPath).to.equal(path.join(constants.RESOURCES_DIR, 'templates', 'small-memory', 'kind-config.yaml'));
-    expect(configPath).to.not.equal('resources/templates/small-memory/kind-config.yaml');
+    expect(configPath).to.equal(path.join(expectedStagedDirectory, 'kind-config.yaml'));
+    expect(fs.existsSync(configPath)).to.equal(true);
+
+    // The patches directory must be staged alongside the rendered config.
+    const expectedPatchesDirectory: string = path.join(expectedStagedDirectory, 'patches');
+    expect(fs.existsSync(expectedPatchesDirectory)).to.equal(true);
+
+    // The patches mount must be rewritten to the absolute staged path (not the bundled relative one).
+    const renderedConfig: {nodes?: {extraMounts?: {hostPath?: string; containerPath?: string}[]}[]} = yaml.parse(
+      fs.readFileSync(configPath, 'utf8'),
+    );
+    const patchesMount: {hostPath?: string; containerPath?: string} | undefined = renderedConfig.nodes
+      ?.flatMap((node): {hostPath?: string; containerPath?: string}[] => node.extraMounts ?? [])
+      .find((mount): boolean => mount.containerPath === '/patches');
+    expect(patchesMount, 'patches mount should be present').to.not.equal(undefined);
+    expect(patchesMount?.hostPath).to.equal(expectedPatchesDirectory);
+    expect(path.isAbsolute(patchesMount?.hostPath ?? '')).to.equal(true);
   });
 });
