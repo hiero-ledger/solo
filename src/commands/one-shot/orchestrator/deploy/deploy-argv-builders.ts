@@ -12,7 +12,13 @@ import {ClusterReferenceCommandDefinition} from '../../../command-definitions/cl
 import {DeploymentCommandDefinition} from '../../../command-definitions/deployment-command-definition.js';
 import {KeysCommandDefinition} from '../../../command-definitions/keys-command-definition.js';
 import {Flags} from '../../../flags.js';
-import {appendConfigToArgv, argvPushGlobalFlags, newArgv, optionFromFlag} from '../../../command-helpers.js';
+import {
+  appendConfigToArgv,
+  argvPushGlobalFlags,
+  negatedOptionFromFlag,
+  newArgv,
+  optionFromFlag,
+} from '../../../command-helpers.js';
 import * as constants from '../../../../core/constants.js';
 import * as version from '../../../../../version.js';
 import {type AnyObject, type ArgvStruct} from '../../../../types/aliases.js';
@@ -43,10 +49,19 @@ export class DeployArgvBuilders {
   private static readonly BLOCK_NODE_RELEASES_URL: string =
     'https://api.github.com/repos/hiero-ledger/hiero-block-node/releases';
 
+  private static isBlockNodeEnvironmentEnabled(): boolean {
+    return (process.env.ONE_SHOT_WITH_BLOCK_NODE || 'false').toLowerCase() === 'true';
+  }
+
+  public static shouldDeployBlockNode(config: OneShotSingleDeployConfigClass): boolean {
+    void config;
+    return this.isBlockNodeEnvironmentEnabled();
+  }
+
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
     const argv: string[] = newArgv();
     argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), optionFromFlag(Flags.deployment), config.deployment);
-    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+    if (this.shouldDeployBlockNode(config)) {
       argv.push(optionFromFlag(Flags.blockNodeTssOverlay));
     }
 
@@ -100,7 +115,7 @@ export class DeployArgvBuilders {
     if (deployPinger && config.pinger) {
       argv.push(optionFromFlag(Flags.pinger));
     }
-    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+    if (this.shouldDeployBlockNode(config)) {
       argv.push(optionFromFlag(Flags.forceBlockNodeIntegration));
     }
     // Append HikariCP limits file without mutating the shared config object.
@@ -201,7 +216,7 @@ export class DeployArgvBuilders {
     if (config.networkConfiguration) {
       appendConfigToArgv(argv, config.networkConfiguration);
     }
-    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+    if (this.isBlockNodeEnvironmentEnabled()) {
       argv.push(optionFromFlag(Flags.tssEnabled));
     }
     return argvPushGlobalFlags(argv, config.cacheDir);
@@ -280,6 +295,11 @@ export class DeployArgvBuilders {
     if (config.deployMetricsServer) {
       argv.push(optionFromFlag(Flags.deployMetricsServer));
     }
+
+    if (this.shouldDeployBlockNode(config)) {
+      argv.push(negatedOptionFromFlag(Flags.deployMinio));
+    }
+
     return argvPushGlobalFlags(argv);
   }
 

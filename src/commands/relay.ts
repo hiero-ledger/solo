@@ -361,8 +361,13 @@ export class RelayCommand extends BaseCommand {
     );
     for (const nodeAlias of nodeAliases) {
       const haProxyClusterIp: string = networkNodeServicesMap.get(nodeAlias).haProxyClusterIp;
+      const haProxyLoadBalancerIp: string | undefined = networkNodeServicesMap.get(nodeAlias).haProxyLoadBalancerIp;
       const haProxyGrpcPort: string | number = networkNodeServicesMap.get(nodeAlias).haProxyGrpcPort;
-      const networkKey: string = `${haProxyClusterIp}:${haProxyGrpcPort}`;
+      // In multi-cluster deployments the relay may run in a different cluster than some consensus nodes.
+      // ClusterIP addresses are only routable within their own cluster, so prefer the load balancer IP
+      // when one is available and fall back to ClusterIP otherwise.
+      const host: string = haProxyLoadBalancerIp || haProxyClusterIp;
+      const networkKey: string = `${host}:${haProxyGrpcPort}`;
       networkIds[networkKey] = accountMap.get(nodeAlias);
     }
 
