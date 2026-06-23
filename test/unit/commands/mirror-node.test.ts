@@ -271,7 +271,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
       const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
         cacheDir: cacheDirection,
         clusterReference: 'kind-a',
-        mirrorNodeVersion: versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
+        mirrorNodeVersion: versions.MIRROR_NODE_VERSION,
       });
 
       const valuesArguments: string[] = chartValues.toArguments();
