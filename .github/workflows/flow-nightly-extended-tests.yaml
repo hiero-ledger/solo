@@ -17,7 +17,7 @@
 # Night test checks some non critical functions or features not captured by PR tests
 # or Example tests, such as JVM Debugger
 
-name: "Nightly Extended Tests"
+name: 'Nightly Extended Tests'
 
 on:
   schedule:
@@ -26,10 +26,10 @@ on:
   workflow_dispatch:
     inputs:
       node-version:
-        description: "NodeJS Version:"
+        description: 'NodeJS Version:'
         type: string
         required: false
-        default: "22"
+        default: '22'
 
 defaults:
   run:
@@ -99,12 +99,12 @@ jobs:
         run: |
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
-          
+
           # Read script-only test array for matrix runner.
           JSON_CONTENT=$(jq -c '.tests | map(select(.type == "script"))' .github/workflows/support/extended-test-matrix.json)
-          
+
           echo "JSON_CONTENT: $JSON_CONTENT"
-          
+
           # Set workflow outputs.
           echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
 
@@ -157,7 +157,7 @@ jobs:
         uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          version: "v1.31.4"
+          version: 'v1.31.4'
 
       - name: Setup Kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
@@ -169,6 +169,14 @@ jobs:
           kubectl_version: v1.31.4
           verbosity: 3
           wait: 120s
+
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Run Test (${{ matrix.test.name }})
         timeout-minutes: ${{ matrix.test.timeout_minutes }}
@@ -182,7 +190,7 @@ jobs:
           echo "Description: ${{ matrix.test.description }}"
           echo "Type: ${{ matrix.test.type }}"
           echo "Path: ${{ matrix.test.path }}"
-          
+
           echo "Executing script: ${{ matrix.test.path }}"
           if [ -f "${{ matrix.test.path }}" ]; then
             chmod +x "${{ matrix.test.path }}"
@@ -191,6 +199,13 @@ jobs:
             echo "Error: Script file not found at ${{ matrix.test.path }}"
             exit 1
           fi
+
+      - name: Save Solo Image Cache
+        if: ${{ steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Cleanup Kind Clusters
         if: ${{ always() }}

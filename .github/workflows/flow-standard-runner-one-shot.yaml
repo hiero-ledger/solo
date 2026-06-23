@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Standard Runner One-Shot Deploy and Destroy"
+name: 'Standard Runner One-Shot Deploy and Destroy'
 # The purpose of this workflow is to verify that Solo can successfully deploy a network
 # using the one-shot single deploy command on a standard GitHub-hosted ubuntu runner.
 # This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.
@@ -33,6 +33,7 @@ defaults:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -73,6 +74,14 @@ jobs:
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
+
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: One-Shot Single Deploy
         timeout-minutes: 70

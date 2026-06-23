@@ -14,30 +14,30 @@
 # limitations under the License.
 ##
 
-name: "Performance Test Solo Deployment"
+name: 'Performance Test Solo Deployment'
 
 on:
   workflow_dispatch:
     inputs:
       cn-edge-version:
-        description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)"
+        description: 'Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)'
         type: string
         required: false
-        default: ""
+        default: ''
       use-edge:
-        description: "Enable --edge flag for the one-shot deploy"
+        description: 'Enable --edge flag for the one-shot deploy'
         type: boolean
         required: false
         default: false
   workflow_call:
     inputs:
       cn-edge-version:
-        description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)"
+        description: 'Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)'
         type: string
         required: false
-        default: ""
+        default: ''
       use-edge:
-        description: "Enable --edge flag for the one-shot deploy"
+        description: 'Enable --edge flag for the one-shot deploy'
         type: boolean
         required: false
         default: false
@@ -62,7 +62,7 @@ defaults:
 permissions:
   contents: read
   pull-requests: write
-  actions: read
+  actions: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -133,6 +133,14 @@ jobs:
       - name: Compile Project
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
+
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Run E2E Tests
         id: run-e2e-tests
@@ -257,6 +265,13 @@ jobs:
             exit "${TASK_RC}"
           fi
 
+      - name: Save Solo Image Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
       - name: Log Metrics
         id: log-metrics
         if: ${{ !cancelled() }}
@@ -337,8 +352,8 @@ jobs:
         if: ${{ !cancelled() && !failure() && steps.log-metrics.outputs.json_log != '{}' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
-          LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
-          JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
+          LOG_FILE: '${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md'
+          JSON_INPUT: '${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}'
         run: |
           echo "## Log Metrics - Performance Test" >> $LOG_FILE
           echo "" >> $LOG_FILE
