@@ -62,7 +62,7 @@ tasks:
       - cmd: kubectl config set-context {{ .CONTEXT }}
 
       # Solo cluster-ref config setup
-      - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev
+      - cmd: $SOLO_COMMAND cluster-ref config setup --quiet-mode --dev --minio false
 
       # Solo cluster-ref config connect
       - cmd: $SOLO_COMMAND cluster-ref config connect --cluster-ref {{ .CLUSTER_REF }} --context {{ .CONTEXT }}
@@ -75,6 +75,9 @@ tasks:
 
       # Solo node keys
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
+
+      # Solo block node add
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
       # Solo network deploy
       - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
