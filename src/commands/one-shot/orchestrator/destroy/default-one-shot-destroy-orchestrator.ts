@@ -44,6 +44,8 @@ import {DestroyArgvBuilders} from './destroy-argv-builders.js';
 import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {MutableFacadeArray} from '../../../../business/runtime-state/collection/mutable-facade-array.js';
 import {DeploymentSchema} from '../../../../data/schema/model/local/deployment-schema.js';
+import {PathEx} from '../../../../business/utils/path-ex.js';
+import fs from 'node:fs';
 
 const SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
 
@@ -152,11 +154,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
               BlockCommandDefinition.DESTROY_COMMAND,
               (): string[] => DestroyArgvBuilders.buildDestroyBlockNodeArgv(getConfig()),
               this.taskList,
-              (): boolean =>
-                getConfig().skipAll ||
-                !getConfig().deployment ||
-                constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
-                getConfig().hasBlockNodes === false,
+              (): boolean => getConfig().skipAll || !getConfig().deployment || getConfig().hasBlockNodes === false,
             ),
         },
         undefined,
@@ -396,6 +394,19 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
         {collapseSubtasks: false},
         (getConfig: () => OneShotSingleDestroyConfigClass): boolean => getConfig().skipAll,
       ),
+      new OrchestratorPipelinePhase('Remove output directory', {
+        asListrTask: (
+          getConfig: () => OneShotSingleDestroyConfigClass,
+        ): SoloListrTask<OneShotSingleDestroyContext> => ({
+          title: 'Remove output directory',
+          task: async (): Promise<void> => {
+            const outputDirectory: string = this.getOneShotOutputDirectory(getConfig().deployment);
+            this.logger.info(`Removing one-shot output directory: ${outputDirectory}`);
+            fs.rmSync(outputDirectory, {recursive: true, force: true});
+          },
+          skip: (): boolean => !getConfig().deployment,
+        }),
+      }),
     ];
 
     return new OrchestratorPipeline<OneShotSingleDestroyContext>(
@@ -406,6 +417,10 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
       ),
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDestroyContext>,
     );
+  }
+
+  private getOneShotOutputDirectory(deploymentName: string): string {
+    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${deploymentName}`);
   }
 
   private async loadRemoteConfigOrWarn(argv: ArgvStruct): Promise<boolean> {

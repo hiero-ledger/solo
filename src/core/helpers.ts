@@ -31,6 +31,7 @@ import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import * as versions from '../../version.js';
 
 export interface ResolveGossipFqdnRestrictedOptions {
   k8?: K8;
@@ -72,6 +73,58 @@ export class Helpers {
     return new SemanticVersion(releaseVersion).greaterThanOrEqual('0.58.5')
       ? '127.0.0.1'
       : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
+  }
+
+  public static getBlockStreamModeForConsensusVersion(
+    consensusNodeVersion: SemanticVersion<string> | string | undefined,
+    blockNodeIntegrationEnabled: boolean,
+  ): string {
+    const version: SemanticVersion<string> = new SemanticVersion<string>(
+      consensusNodeVersion?.toString() || versions.HEDERA_PLATFORM_VERSION,
+    );
+
+    if (version.greaterThanOrEqual(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+      if (!blockNodeIntegrationEnabled) {
+        return 'RECORDS';
+      }
+
+      // CN >= v0.74.0 defaults to BLOCKS (pure block-node streaming, no MinIO record streams).
+      // BLOCK_STREAM_STREAM_MODE env var overrides this default — used in performance tests as a
+      // workaround for SmartContractLoadTest returning INVALID_TRANSACTION_BODY in BLOCKS mode.
+      // TODO: remove the override from flow-performance-test.yaml once
+      //   https://github.com/hiero-ledger/hiero-consensus-node/issues/25883 is resolved.
+      return constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
+    }
+
+    return constants.BLOCK_STREAM_STREAM_MODE;
+  }
+
+  public static resolveBlockStreamModeForConsensusVersion(
+    existingStreamMode: string | undefined,
+    consensusNodeVersion?: SemanticVersion<string> | string,
+    blockNodeIntegrationEnabled: boolean = false,
+  ): string {
+    if (blockNodeIntegrationEnabled) {
+      // Preserve an already block-node-compatible setting during upgrades. This prevents
+      // networks created on older CN versions (for example 0.73 with BOTH) from being
+      // silently flipped to the newer 0.74+ default during later maintenance steps.
+      if (existingStreamMode === 'BOTH' || existingStreamMode === 'BLOCKS') {
+        return existingStreamMode;
+      }
+    } else if (existingStreamMode === 'BOTH' || existingStreamMode === 'RECORDS') {
+      // Without block nodes we must keep using record streams/MinIO. Preserve BOTH for
+      // upgraded pre-0.74 networks and preserve RECORDS for existing record-only networks.
+      return existingStreamMode;
+    }
+
+    return Helpers.getBlockStreamModeForConsensusVersion(consensusNodeVersion, blockNodeIntegrationEnabled);
+  }
+
+  public static parseBlockStreamMode(applicationPropertiesText: string): string | undefined {
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      /^\s*blockStream\.streamMode\s*=\s*(\S+)\s*$/m,
+    );
+    return match?.[1];
   }
 
   public static sleep(duration: Duration): Promise<void> {
@@ -686,6 +739,7 @@ export class Helpers {
     consensusNode: ConsensusNode,
     logger: SoloLogger,
     k8Factory: K8Factory,
+    consensusNodeVersion?: SemanticVersion<string> | string,
   ): Promise<void> {
     const {
       nodeId,
@@ -713,6 +767,10 @@ export class Helpers {
 
     const k8: K8 = k8Factory.getK8(context);
 
+    await k8
+      .pods()
+      .waitForReadyStatus(namespace, Templates.renderNodeLabelsFromNodeAlias(nodeAlias), 120, 1000, undefined, true);
+
     const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
 
     await container.execContainer('pwd');
@@ -736,26 +794,34 @@ export class Helpers {
 
     const lines: string[] = applicationPropertiesData.split('\n');
 
-    // Remove line to enable overriding below.
+    const blockStreamMode: string = Helpers.resolveBlockStreamModeForConsensusVersion(
+      Helpers.parseBlockStreamMode(applicationPropertiesData),
+      consensusNodeVersion,
+      true,
+    );
+    let streamModeUpdated: boolean = false;
     for (const line of lines) {
-      if (line === 'blockStream.streamMode=RECORDS') {
-        lines.splice(lines.indexOf(line), 1);
+      if (line.startsWith('blockStream.streamMode=')) {
+        lines[lines.indexOf(line)] = `blockStream.streamMode=${blockStreamMode}`;
+        streamModeUpdated = true;
+        break;
       }
     }
 
-    // Switch to block streaming.
-
-    if (!lines.some((line): boolean => line.startsWith('blockStream.streamMode='))) {
-      lines.push(`blockStream.streamMode=${constants.BLOCK_STREAM_STREAM_MODE}`);
+    if (!streamModeUpdated) {
+      lines.push(`blockStream.streamMode=${blockStreamMode}`);
     }
 
     if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
 
-    await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
-      [constants.APPLICATION_PROPERTIES]: lines.join('\n'),
-    });
+    const updatedApplicationPropertiesData: string = lines.join('\n');
+    if (updatedApplicationPropertiesData !== applicationPropertiesData) {
+      await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
+        [constants.APPLICATION_PROPERTIES]: updatedApplicationPropertiesData,
+      });
+    }
 
     const configName: string = `network-${nodeAlias}-data-config-cm`;
     const configMapExists: boolean = await k8.configMaps().exists(namespace, configName);
@@ -771,8 +837,10 @@ export class Helpers {
       constants.APPLICATION_PROPERTIES,
     );
 
-    fs.writeFileSync(updatedApplicationPropertiesFilePath, lines.join('\n'));
-    await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+    if (updatedApplicationPropertiesData !== applicationPropertiesData) {
+      fs.writeFileSync(updatedApplicationPropertiesFilePath, updatedApplicationPropertiesData);
+      await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+    }
   }
 }
 
