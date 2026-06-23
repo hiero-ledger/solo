@@ -2,7 +2,11 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 
-describe("SimpleStorage", function () {
+const soloNetworkTimeout: number = 120_000;
+
+describe("SimpleStorage", function (this: Mocha.Suite): void {
+  this.timeout(soloNetworkTimeout);
+
   it("deploys with initial value", async function () {
     const { ethers } = await network.connect();
     const SimpleStorage = await ethers.getContractFactory("SimpleStorage");
