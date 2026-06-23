@@ -28,9 +28,13 @@ import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 
 const testName: string = 'cluster-test';
 
+interface ClusterReferenceLocalConfig {
+  clusterRefs: Record<string, string>;
+}
+
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
-  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withTestSuiteName('Standard Test Suite')
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
@@ -76,15 +80,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await k8Factory.default().namespaces().delete(namespace);
 
           ClusterReferenceTest.setup(options);
-
-          do {
-            await sleep(Duration.ofSeconds(5));
-          } while (
-            !(await chartManager.isChartInstalled(
-              constants.SOLO_SETUP_NAMESPACE,
-              constants.MINIO_OPERATOR_RELEASE_NAME,
-            ))
-          );
         });
 
         // give a few ticks so that connections can close
@@ -114,7 +109,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await main(ClusterReferenceTest.soloClusterReferenceConnectArgv(testName, clusterReferenceName, contextName));
 
           const localConfigYaml: string = fs.readFileSync(localConfigPath).toString();
-          const localConfigData: any = yaml.parse(localConfigYaml);
+          const localConfigData: ClusterReferenceLocalConfig = yaml.parse(
+            localConfigYaml,
+          ) as ClusterReferenceLocalConfig;
 
           expect(localConfigData.clusterRefs).to.have.own.property(clusterReferenceName);
           expect(localConfigData.clusterRefs[clusterReferenceName]).to.equal(contextName);
