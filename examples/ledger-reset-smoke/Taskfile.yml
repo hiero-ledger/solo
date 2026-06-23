@@ -14,6 +14,7 @@ vars:
   SOLO_NAMESPACE: "{{default \"solo-ledger-reset\" .SOLO_NAMESPACE}}"
   SOLO_CLUSTER_SETUP_NAMESPACE: "{{default \"solo-setup\" .SOLO_CLUSTER_SETUP_NAMESPACE}}"
   SOLO_DEPLOYMENT: "{{default \"solo-ledger-reset\" .SOLO_DEPLOYMENT}}"
+  BLOCK_NODE_ENABLED: "{{default \"false\" .BLOCK_NODE_ENABLED}}"
   NODE_ALIASES: "{{default \"node1,node2\" .NODE_ALIASES}}"
   EXPECTED_BALANCE_1: "{{default \"10000\" .EXPECTED_BALANCE_1}}"
   EXPECTED_BALANCE_2: "{{default \"20000\" .EXPECTED_BALANCE_2}}"
@@ -55,7 +56,11 @@ tasks:
           $SOLO_COMMAND cluster-ref config setup -s "{{.SOLO_CLUSTER_SETUP_NAMESPACE}}"
 
       - cmd: |
-          $SOLO_COMMAND block node add --deployment "{{.SOLO_DEPLOYMENT}}"
+          if [ "{{.BLOCK_NODE_ENABLED}}" = "true" ]; then
+            $SOLO_COMMAND block node add --deployment "{{.SOLO_DEPLOYMENT}}"
+          else
+            echo "Skipping block node deployment because BLOCK_NODE_ENABLED={{.BLOCK_NODE_ENABLED}}"
+          fi
           $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --deployment "{{.SOLO_DEPLOYMENT}}" -i "{{.NODE_ALIASES}}"
           $SOLO_COMMAND consensus network deploy --deployment "{{.SOLO_DEPLOYMENT}}" -i "{{.NODE_ALIASES}}" --pvcs
           $SOLO_COMMAND consensus node setup --deployment "{{.SOLO_DEPLOYMENT}}" -i "{{.NODE_ALIASES}}"
