@@ -702,7 +702,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               invokeSoloCommand(
                 `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
                 MirrorCommandDefinition.ADD_COMMAND,
-                (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig()),
+                (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig(), false),
                 this.taskList,
                 // Feature-flag short-circuit takes precedence; otherwise skip if already deployed (idempotency guard).
                 (): boolean =>
@@ -714,6 +714,24 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   ),
               ),
           }),
+          new OrchestratorPipelinePhase('Enable mirror pinger', {
+            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+              invokeSoloCommand(
+                `solo ${MirrorCommandDefinition.UPGRADE_COMMAND}`,
+                MirrorCommandDefinition.UPGRADE_COMMAND,
+                (): string[] => DeployArgvBuilders.buildMirrorNodePingerUpgradeArgv(getConfig()),
+                this.taskList,
+                (): boolean => !getConfig().deployMirrorNode || !getConfig().pinger,
+              ),
+          })
+            .withWaitCondition(
+              SoloEventType.MirrorNodeDeployed,
+              Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
+            )
+            .withWaitCondition(
+              SoloEventType.NodesStarted,
+              Duration.ofMinutes(constants.NODES_STARTED_EVENT_TIMEOUT_MINUTES),
+            ),
           new OrchestratorPipelinePhase('Deploy explorer', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
