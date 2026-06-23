@@ -320,7 +320,7 @@ describe('buildClusterSetupArgv', (): void => {
     expect(argv).to.include('test-cluster');
   });
 
-  it('adds --no-minio when ONE_SHOT_WITH_BLOCK_NODE is enabled', (): void => {
+  it('adds --no-minio when ONE_SHOT_WITH_BLOCK_NODE is enabled for a TSS-supported CN version', (): void => {
     process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
     const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
       makeConfig({
@@ -336,6 +336,24 @@ describe('buildClusterSetupArgv', (): void => {
     );
 
     expect(argv).to.include(negatedOptionFromFlag(Flags.deployMinio));
+  });
+
+  it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE uses a pre-TSS CN version', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
+    const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
+      makeConfig({
+        versions: {
+          explorer: '2.5.0',
+          soloChart: '0.0.0',
+          consensus: 'v0.73.0',
+          mirror: '0.0.0',
+          relay: '0.0.0',
+          blockNode: '0.0.0',
+        },
+      }),
+    );
+
+    expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
   });
 
   it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE is disabled', (): void => {

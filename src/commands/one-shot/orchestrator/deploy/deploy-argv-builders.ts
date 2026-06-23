@@ -58,6 +58,21 @@ export class DeployArgvBuilders {
     return this.isBlockNodeEnvironmentEnabled();
   }
 
+  private static shouldSkipMinioForBlockNode(config: OneShotSingleDeployConfigClass): boolean {
+    if (!this.shouldDeployBlockNode(config)) {
+      return false;
+    }
+
+    const consensusVersion: string | undefined = SemanticVersion.normalizeToken(config.versions.consensus);
+    if (!consensusVersion) {
+      return true;
+    }
+
+    return new SemanticVersion<string>(consensusVersion).greaterThanOrEqual(
+      version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+    );
+  }
+
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
     const argv: string[] = newArgv();
     argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), optionFromFlag(Flags.deployment), config.deployment);
@@ -296,7 +311,7 @@ export class DeployArgvBuilders {
       argv.push(optionFromFlag(Flags.deployMetricsServer));
     }
 
-    if (this.shouldDeployBlockNode(config)) {
+    if (this.shouldSkipMinioForBlockNode(config)) {
       argv.push(negatedOptionFromFlag(Flags.deployMinio));
     }
 
