@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Test Migration Process"
+name: 'Test Migration Process'
 
 on:
   workflow_dispatch:
@@ -54,7 +54,7 @@ defaults:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -88,7 +88,7 @@ jobs:
         uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          version: "v3.12.3" # helm version
+          version: 'v3.12.3' # helm version
 
       - name: Setup Kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
@@ -137,13 +137,21 @@ jobs:
             echo "from_solo_version=${FROM_INPUT}" >> $GITHUB_OUTPUT
             echo "to_consensus_node_version=${TO_CN_INPUT}" >> $GITHUB_OUTPUT
 
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
       - name: Launch Network with Prior Release ${{ steps.get-version.outputs.from_solo_version }}
         timeout-minutes: 60
         run: |
           export PATH=~/.solo/bin:${PATH}
           echo "Configure APT to use main Ubuntu archive (disable mirror rotation)..."
           sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
-          
+
           echo "Install yq..."
           YQ_VERSION="v4.44.1"
           YQ_BINARY="yq_linux_amd64"
@@ -151,7 +159,7 @@ jobs:
           sudo chmod +x /tmp/yq
           sudo mv /tmp/yq /usr/local/bin/yq
           yq --version
-          
+
           npm install
           task build:compile
 
@@ -184,6 +192,13 @@ jobs:
             echo "Failed to launch network with release version ${{ steps.get-version.outputs.from_solo_version }}"
             exit $RC
           fi
+
+      - name: Save Solo Image Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Collect Deployment Diagnostics Logs
         if: ${{ !cancelled() && always() }}
