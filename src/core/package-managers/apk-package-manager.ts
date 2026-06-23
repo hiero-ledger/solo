@@ -4,27 +4,27 @@ import {injectable} from 'tsyringe-neo';
 import {LinuxPackageManager} from './linux-package-manager.js';
 
 /**
- * Package manager for Debian-based distributions that ship apt-get (Debian, Ubuntu, Mint, ...).
+ * Package manager for Alpine Linux, which ships apk.
  */
 @injectable()
-export class AptGetPackageManager extends LinuxPackageManager {
+export class ApkPackageManager extends LinuxPackageManager {
   protected installCommand(dependencies: string[]): string {
-    return `apt-get install -y ${dependencies.join(' ')}`;
+    return `apk add ${dependencies.join(' ')}`;
   }
 
   protected uninstallCommand(dependencies: string[]): string {
-    return `apt-get remove -y ${dependencies.join(' ')}`;
+    return `apk del ${dependencies.join(' ')}`;
   }
 
   protected updateCommand(): string {
-    return 'apt-get update';
+    return 'apk update';
   }
 
   protected upgradeCommand(dependencies: string[]): string {
-    return `apt-get upgrade -y ${dependencies.join(' ')}`;
+    return `apk upgrade ${dependencies.join(' ')}`;
   }
 
   protected versionCommand(): string {
-    return 'apt-get --version';
+    return 'apk --version';
   }
 }

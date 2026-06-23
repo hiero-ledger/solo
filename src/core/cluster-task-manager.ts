@@ -3,12 +3,11 @@
 import {inject, injectable} from 'tsyringe-neo';
 import {ShellRunner} from './shell-runner.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
-import {BrewPackageManager} from './package-managers/brew-package-manager.js';
 import {OsPackageManager} from './package-managers/os-package-manager.js';
+import {type PackageManager} from './package-managers/package-manager.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {PodmanMode, SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
 import {InitContext} from '../commands/init/init-context.js';
-import {AptGetPackageManager} from './package-managers/apt-get-package-manager.js';
 import {SoloErrors} from './errors/solo-errors.js';
 import * as constants from './constants.js';
 import {getTemporaryDirectory} from './helpers.js';
@@ -35,7 +34,6 @@ import {type ContainerEngineClient} from '../integration/container-engine/contai
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
   public constructor(
-    @inject(InjectTokens.BrewPackageManager) protected readonly brewPackageManager: BrewPackageManager,
     @inject(InjectTokens.OsPackageManager) protected readonly osPackageManager: OsPackageManager,
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.PodmanDependencyManager) protected readonly podmanDependencyManager: PodmanDependencyManager,
@@ -49,7 +47,6 @@ export class ClusterTaskManager extends ShellRunner {
   ) {
     super();
 
-    this.brewPackageManager = patchInject(brewPackageManager, InjectTokens.BrewPackageManager, ClusterTaskManager.name);
     this.osPackageManager = patchInject(osPackageManager, InjectTokens.OsPackageManager, ClusterTaskManager.name);
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, ClusterTaskManager.name);
     this.podmanDependencyManager = patchInject(
@@ -106,24 +103,11 @@ export class ClusterTaskManager extends ShellRunner {
           } catch {
             this.logger.info('Git not found, installing git...');
             const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);
-            const osPackageManager: AptGetPackageManager =
-              this.osPackageManager.getPackageManager() as AptGetPackageManager;
-            osPackageManager.setOnSudoGranted(onSudoGranted);
-            osPackageManager.setOnSudoRequested(onSudoRequested);
-            await osPackageManager.update();
-            await osPackageManager.installPackages(['git', 'iptables']);
-          }
-        },
-      },
-      {
-        title: 'Install brew...',
-        task: async (): Promise<void> => {
-          const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
-          if (!brewInstalled) {
-            this.logger.info('Homebrew not found, installing Homebrew...');
-            if (!(await this.brewPackageManager.install())) {
-              throw new SoloErrors.system.homebrewInstallFailed();
-            }
+            const packageManager: PackageManager = this.osPackageManager.getPackageManager();
+            packageManager.setOnSudoGranted(onSudoGranted);
+            packageManager.setOnSudoRequested(onSudoRequested);
+            await packageManager.update();
+            await packageManager.installPackages(['git', 'iptables']);
           }
         },
       },
@@ -135,9 +119,13 @@ export class ClusterTaskManager extends ShellRunner {
             this.logger.info(`Podman already installed: ${podmanVersion}`);
           } catch {
             this.logger.info('Podman not found, installing Podman...');
-            await this.brewPackageManager.installPackages(['podman']);
-            const brewBin: string[] = await this.run('which podman');
-            process.env.PATH = `${process.env.PATH}:${brewBin.join('').replace('/podman', '')}`;
+            const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);
+            const packageManager: PackageManager = this.osPackageManager.getPackageManager();
+            packageManager.setOnSudoGranted(onSudoGranted);
+            packageManager.setOnSudoRequested(onSudoRequested);
+            await packageManager.installPackages(['podman']);
+            const podmanPath: string[] = await this.run('which podman');
+            process.env.PATH = `${process.env.PATH}:${podmanPath.join('').replace('/podman', '')}`;
           }
         },
       } as SoloListrTask<InitContext>,

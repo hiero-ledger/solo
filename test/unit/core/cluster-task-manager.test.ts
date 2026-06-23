@@ -6,7 +6,6 @@ import path from 'node:path';
 import {ClusterTaskManager} from '../../../src/core/cluster-task-manager.js';
 import * as constants from '../../../src/core/constants.js';
 import {resetForTest} from '../../test-container.js';
-import {type BrewPackageManager} from '../../../src/core/package-managers/brew-package-manager.js';
 import {type OsPackageManager} from '../../../src/core/package-managers/os-package-manager.js';
 import {type DefaultKindClientBuilder} from '../../../src/integration/kind/impl/default-kind-client-builder.js';
 import {type DependencyManager} from '../../../src/core/dependency-managers/dependency-manager.js';
@@ -26,7 +25,6 @@ function getConfigFilePath(manager: ClusterTaskManager, useSmallMemoryCluster: b
 
 function createClusterTaskManager(): ClusterTaskManager {
   return new ClusterTaskManager(
-    {} as unknown as BrewPackageManager,
     {} as unknown as OsPackageManager,
     {} as unknown as DefaultKindClientBuilder,
     {} as unknown as PodmanDependencyManager,

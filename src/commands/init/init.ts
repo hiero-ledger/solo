@@ -15,8 +15,6 @@ import {Listr, ListrRendererValue} from 'listr2';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {type DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
-import {BrewPackageManager} from '../../core/package-managers/brew-package-manager.js';
-import {OsPackageManager} from '../../core/package-managers/os-package-manager.js';
 import {ClusterTaskManager} from '../../core/cluster-task-manager.js';
 
 /**
@@ -31,14 +29,10 @@ export class InitCommand extends BaseCommand {
   public constructor(
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.PodmanInstallationDirectory) protected readonly podmanInstallationDirectory: string,
-    @inject(InjectTokens.BrewPackageManager) protected readonly brewPackageManager: BrewPackageManager,
-    @inject(InjectTokens.OsPackageManager) protected readonly osPackageManager: OsPackageManager,
     @inject(InjectTokens.ClusterTaskManager) protected readonly clusterTaskManager: ClusterTaskManager,
   ) {
     super();
     this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, InitCommand.name);
-    this.brewPackageManager = patchInject(brewPackageManager, InjectTokens.BrewPackageManager, InitCommand.name);
-    this.osPackageManager = patchInject(osPackageManager, InjectTokens.OsPackageManager, InitCommand.name);
     this.clusterTaskManager = patchInject(clusterTaskManager, InjectTokens.ClusterTaskManager, InitCommand.name);
     this.podmanInstallationDirectory = patchInject(
       podmanInstallationDirectory,

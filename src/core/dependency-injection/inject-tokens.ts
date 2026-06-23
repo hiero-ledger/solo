@@ -73,6 +73,10 @@ export class InjectTokens {
   public static OsPackageManager: symbol = Symbol.for('OsPackageManager');
   public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
   public static AptGetPackageManager: symbol = Symbol.for('AptGetPackageManager');
+  public static DnfPackageManager: symbol = Symbol.for('DnfPackageManager');
+  public static ZypperPackageManager: symbol = Symbol.for('ZypperPackageManager');
+  public static PacmanPackageManager: symbol = Symbol.for('PacmanPackageManager');
+  public static ApkPackageManager: symbol = Symbol.for('ApkPackageManager');
   public static ClusterTaskManager: symbol = Symbol.for('ClusterTaskManager');
   public static GitClient: symbol = Symbol.for('GitClient');
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
