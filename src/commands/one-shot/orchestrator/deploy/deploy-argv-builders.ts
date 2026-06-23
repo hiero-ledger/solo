@@ -100,7 +100,7 @@ export class DeployArgvBuilders {
     return argvPushGlobalFlags(argv);
   }
 
-  public static buildMirrorNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
+  public static buildMirrorNodeArgv(config: OneShotSingleDeployConfigClass, deployPinger: boolean = true): string[] {
     const argv: string[] = newArgv();
     argv.push(
       ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
@@ -108,15 +108,46 @@ export class DeployArgvBuilders {
       config.deployment,
       optionFromFlag(Flags.clusterRef),
       config.clusterRef,
-      optionFromFlag(Flags.pinger),
       optionFromFlag(Flags.enableIngress),
       optionFromFlag(Flags.parallelDeploy),
       config.parallelDeploy.toString(),
     );
+    if (deployPinger && config.pinger) {
+      argv.push(optionFromFlag(Flags.pinger));
+    }
     if (this.shouldDeployBlockNode(config)) {
       argv.push(optionFromFlag(Flags.forceBlockNodeIntegration));
     }
     // Append HikariCP limits file without mutating the shared config object.
+    const mirrorExistingValuesFile: string =
+      config.mirrorNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
+    const mirrorLocalConfig: AnyObject = {
+      [optionFromFlag(Flags.mirrorNodeVersion)]: config.versions.mirror,
+      [optionFromFlag(Flags.soloChartVersion)]: config.versions.soloChart,
+      [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
+      ...config.mirrorNodeConfiguration,
+      [Flags.getFormattedFlagKey(Flags.valuesFile)]: mirrorExistingValuesFile
+        ? `${mirrorExistingValuesFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`
+        : constants.MIRROR_NODE_HIKARI_LIMITS_FILE,
+    };
+    appendConfigToArgv(argv, mirrorLocalConfig);
+    return argvPushGlobalFlags(argv, config.cacheDir);
+  }
+
+  public static buildMirrorNodePingerUpgradeArgv(config: OneShotSingleDeployConfigClass): string[] {
+    const argv: string[] = newArgv();
+    argv.push(
+      ...MirrorCommandDefinition.UPGRADE_COMMAND.split(' '),
+      optionFromFlag(Flags.deployment),
+      config.deployment,
+      optionFromFlag(Flags.clusterRef),
+      config.clusterRef,
+      optionFromFlag(Flags.pinger),
+      optionFromFlag(Flags.enableIngress),
+    );
+    if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
+      argv.push(optionFromFlag(Flags.forceBlockNodeIntegration));
+    }
     const mirrorExistingValuesFile: string =
       config.mirrorNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     const mirrorLocalConfig: AnyObject = {
