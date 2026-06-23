@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: "Test Examples"
+name: 'Test Examples'
 
 on:
   schedule:
@@ -25,17 +25,17 @@ on:
   workflow_dispatch:
     inputs:
       node-version:
-        description: "NodeJS Version:"
+        description: 'NodeJS Version:'
         type: string
         required: false
-        default: "22"
+        default: '22'
       consensus-node-version:
-        description: "Consensus node release tag to use"
+        description: 'Consensus node release tag to use'
         type: string
         required: false
-        default: ""
+        default: ''
       released-or-latest:
-        description: "Use released or latest version"
+        description: 'Use released or latest version'
         type: boolean
         required: false
         default: false
@@ -43,26 +43,26 @@ on:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
         required: false
-        default: ""
+        default: ''
       use-release-example-zip:
-        description: "Download example zip from latest release and run from extracted directory."
+        description: 'Download example zip from latest release and run from extracted directory.'
         type: boolean
         required: false
         default: false
   workflow_call:
     inputs:
       node-version:
-        description: "NodeJS Version:"
+        description: 'NodeJS Version:'
         type: string
         required: false
-        default: "22"
+        default: '22'
       consensus-node-version:
-        description: "Consensus node release tag to use"
+        description: 'Consensus node release tag to use'
         type: string
         required: false
-        default: ""
+        default: ''
       released-or-latest:
-        description: "Use released or latest version"
+        description: 'Use released or latest version'
         type: boolean
         required: false
         default: false
@@ -70,9 +70,9 @@ on:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
         required: false
-        default: ""
+        default: ''
       use-release-example-zip:
-        description: "Download example zip from latest release and run from extracted directory."
+        description: 'Download example zip from latest release and run from extracted directory.'
         type: boolean
         required: false
         default: false
@@ -85,7 +85,7 @@ defaults:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -125,7 +125,7 @@ jobs:
             echo "Using concatenated matrix from standard + trunkio files."
             SOURCE_MATRIX_JSON=$(jq -c -s 'add' "${TRUNK_MATRIX_FILE}" "${STANDARD_MATRIX_FILE}")
           fi
-          
+
           if [ -n "$EXAMPLE_DIR" ]; then
             # Filter to specific example
             echo "Filtering matrix for example directory: $EXAMPLE_DIR"
@@ -142,9 +142,9 @@ jobs:
             echo "Using all examples from selected matrix source"
             JSON_CONTENT=$(echo "${SOURCE_MATRIX_JSON}" | jq -c .)
           fi
-          
+
           echo "Generated matrix: $JSON_CONTENT"
-          
+
           # Set the output variable 'matrix' with the JSON content
           echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
 
@@ -263,6 +263,14 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
       - name: Cache Helm chart tarballs
         # helm dependency build pulls OCI chart tarballs (e.g. bitnamicharts/redis)
         # directly from registry-1.docker.io on the runner host — the Kind containerd
@@ -360,7 +368,7 @@ jobs:
           echo "Running example: ${{ matrix.example.name }}"
           echo "Resolved example source: ${{ steps.prepare_example.outputs.display_dir }}"
           echo "Current directory: $(pwd)"
-          
+
           # Export environment variables for Taskfile.
           # Release ZIP examples are not executed from the Solo repo checkout, so they must use released Solo CLI.
           if [ "${{ inputs.use-release-example-zip || 'false' }}" = "true" ]; then
@@ -379,13 +387,13 @@ jobs:
             export BLOCK_NODE_ENABLED="${{ matrix.example.block-node-enabled }}"
             echo "BLOCK_NODE_ENABLED: ${BLOCK_NODE_ENABLED}"
           fi
-          
+
           # Check if Taskfile.yml exists
           if [ ! -f "Taskfile.yml" ]; then
             echo "Warning: No Taskfile.yml found in ${{ matrix.example.directory }}"
             exit 1
           fi
-          
+
           # Run the task in the background and trap SIGTERM/SIGINT so that a workflow
           # cancellation (e.g. triggered by a new commit on this PR) terminates the
           # test immediately rather than waiting up to 45 minutes for it to finish
@@ -442,6 +450,13 @@ jobs:
 
           echo "Task completed successfully"
 
+      - name: Save Solo Image Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
       - name: Send Slack Notification on Failure
         if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'schedule' && !cancelled() && failure() }}
         uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2.4.0
@@ -456,7 +471,7 @@ jobs:
             *Directory:* `${{ steps.prepare_example.outputs.display_dir }}`
             *Branch:* `${{ github.ref_name }}`
             *Commit:* ${{ github.sha }}
-            
+
             :link: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Job Logs>
           SLACK_FOOTER: ${{ github.workflow }}
 
