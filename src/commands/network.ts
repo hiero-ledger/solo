@@ -1039,6 +1039,7 @@ export class NetworkCommand extends BaseCommand {
 
     config.singleUseServiceMonitor = config.serviceMonitor;
     config.singleUsePodLog = config.podLog;
+    const networkNodeVersion: SemanticVersion<string> = new SemanticVersion(config.releaseTag);
     const tssByDefaultSupported: boolean = networkNodeVersion.greaterThanOrEqual(
       versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
     );
