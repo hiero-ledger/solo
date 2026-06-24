@@ -616,7 +616,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             ): SoloListrTask<OneShotSingleDeployContext> => {
               const skipAndNotify: () => boolean = (): boolean => {
                 const shouldSkip: boolean =
-                  constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
+                  !DeployArgvBuilders.shouldDeployBlockNode(getConfig()) ||
                   this.isComponentInPhaseAtLeast(
                     deploymentStateSnapshot,
                     ComponentTypes.BlockNode,
