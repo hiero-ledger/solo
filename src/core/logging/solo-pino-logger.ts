@@ -387,17 +387,15 @@ export class SoloPinoLogger implements SoloLogger {
   }
 
   public showList(title: string, items: string[] = []): boolean {
-    this.showUser(chalk.green(`\n *** ${title} ***`));
-    this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
     if (items.length > 0) {
+      this.showUser(chalk.green(`\n *** ${title} ***`));
+      this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
       for (const name of items) {
         this.showUser(chalk.cyan(` - ${name}`));
       }
-    } else {
-      this.showUser(chalk.blue('[ None ]'));
+      this.showUser('\n');
     }
 
-    this.showUser('\n');
     return true;
   }
 

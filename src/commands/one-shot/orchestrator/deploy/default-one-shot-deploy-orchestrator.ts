@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {inject, injectable} from 'tsyringe-neo';
-import {
-  type Listr,
-  type ListrBaseClassOptions,
-  type ListrContext,
-  type ListrRendererValue,
-  ListrDefaultRendererLogLevels,
-  Spinner,
-} from 'listr2';
+import {type Listr, type ListrBaseClassOptions, type ListrContext, type ListrRendererValue} from 'listr2';
 import {
   AccountId,
   type Client,
@@ -99,6 +92,7 @@ import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DISK} from '../../../../../version.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
 import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase-helper.js';
+import {SpinnerListrOptions} from '../../../../core/spinner-listr-options.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
@@ -829,26 +823,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfigGlobal, this.eventBus),
       ),
       parallel
-        ? this.buildSpinnerPipelineOptions()
+        ? (SpinnerListrOptions.build() as ListrBaseClassOptions<OneShotSingleDeployContext>)
         : (constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDeployContext>),
     );
-  }
-
-  /**
-   * Pipeline renderer options that animate running collapsed tasks with a spinner.
-   */
-  private buildSpinnerPipelineOptions(): ListrBaseClassOptions<OneShotSingleDeployContext> {
-    const spinner: Spinner = new Spinner();
-    return {
-      ...constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
-      rendererOptions: {
-        ...constants.LISTR_DEFAULT_RENDERER_OPTION,
-        spinner,
-        icon: {
-          [ListrDefaultRendererLogLevels.PENDING]: (): string => spinner.fetch(),
-        },
-      },
-    } as ListrBaseClassOptions<OneShotSingleDeployContext>;
   }
 
   private buildCreateAccountsTask(config: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> {

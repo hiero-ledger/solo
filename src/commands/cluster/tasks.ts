@@ -68,7 +68,7 @@ export class ClusterCommandTasks {
     const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
 
     if (isMinioInstalled) {
-      this.logger.showUser(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
+      this.logger.showUserUnlessOneShot(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
       return;
     }
 
@@ -83,7 +83,7 @@ export class ClusterCommandTasks {
         context,
       );
 
-      this.logger.showUser(`✅ MinIO Operator chart installed successfully on context ${context}`);
+      this.logger.showUserUnlessOneShot(`✅ MinIO Operator chart installed successfully on context ${context}`);
     } catch (error) {
       this.logger.debug('Error installing MinIO Operator chart', error);
       try {
@@ -149,7 +149,9 @@ export class ClusterCommandTasks {
         task.title += clusterRef;
 
         if (this.localConfig.configuration.clusterRefs.get(clusterRef)) {
-          this.logger.showUser(chalk.yellow(`Cluster ref ${clusterRef} already exists inside local config`));
+          this.logger.showUserUnlessOneShot(
+            chalk.yellow(`Cluster ref ${clusterRef} already exists inside local config`),
+          );
         }
       },
     };
@@ -240,7 +242,7 @@ export class ClusterCommandTasks {
                 .join('\n')
             : '\n  - None';
 
-        this.logger.showUser(task.output);
+        this.logger.showUserUnlessOneShot(task.output);
       },
     };
   }
@@ -268,7 +270,7 @@ export class ClusterCommandTasks {
         );
 
         if (isPrometheusInstalled) {
-          this.logger.showUser('⏭️  Prometheus Stack chart already installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  Prometheus Stack chart already installed, skipping');
         } else {
           try {
             await this.chartManager.install(
@@ -280,7 +282,7 @@ export class ClusterCommandTasks {
               new HelmChartValues(),
               context_.config.context,
             );
-            this.logger.showUser('✅ Prometheus Stack chart installed successfully');
+            this.logger.showUserUnlessOneShot('✅ Prometheus Stack chart installed successfully');
           } catch (error) {
             this.logger.debug('Error installing Prometheus Stack chart', error);
             try {
@@ -311,7 +313,7 @@ export class ClusterCommandTasks {
         );
 
         if (isMetricsServerInstalled) {
-          this.logger.showUser('⏭️  metrics-server chart already installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  metrics-server chart already installed, skipping');
           return;
         }
 
@@ -325,7 +327,7 @@ export class ClusterCommandTasks {
             new HelmChartValues().setLiteral('args[0]', '--kubelet-insecure-tls'),
             context,
           );
-          this.logger.showUser('metrics-server chart installed successfully');
+          this.logger.showUserUnlessOneShot('metrics-server chart installed successfully');
         } catch (error) {
           this.logger.debug('Error installing metrics-server chart', error);
           try {
@@ -358,7 +360,7 @@ export class ClusterCommandTasks {
           throw new SoloErrors.system.clusterRoleCheckFailed(constants.POD_MONITOR_ROLE, error as Error);
         }
         if (podMonitorRoleExists) {
-          this.logger.showUser(
+          this.logger.showUserUnlessOneShot(
             `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
           );
           return;
@@ -382,7 +384,7 @@ export class ClusterCommandTasks {
             ],
             {'solo.hedera.com/type': 'cluster-role'},
           );
-          this.logger.showUser(
+          this.logger.showUserUnlessOneShot(
             `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
           );
         } catch (installError) {
@@ -403,10 +405,10 @@ export class ClusterCommandTasks {
 
           // ClusterRole exists, delete it
           await this.k8Factory.getK8(context).rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
-          this.logger.showUser('✅ ClusterRole pod-monitor-role uninstalled successfully');
+          this.logger.showUserUnlessOneShot('✅ ClusterRole pod-monitor-role uninstalled successfully');
         } catch {
           // ClusterRole doesn't exist, skip
-          this.logger.showUser('⏭️  ClusterRole pod-monitor-role not found, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  ClusterRole pod-monitor-role not found, skipping');
         }
       },
     };
@@ -467,9 +469,9 @@ export class ClusterCommandTasks {
         if (isMinioInstalled) {
           await this.chartManager.uninstall(namespace, releaseName, context);
 
-          this.logger.showUser('✅ MinIO Operator chart uninstalled successfully');
+          this.logger.showUserUnlessOneShot('✅ MinIO Operator chart uninstalled successfully');
         } else {
-          this.logger.showUser('⏭️  MinIO Operator chart not installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  MinIO Operator chart not installed, skipping');
         }
       },
     };
@@ -487,9 +489,9 @@ export class ClusterCommandTasks {
 
         if (isPrometheusInstalled) {
           await this.chartManager.uninstall(clusterSetupNamespace, constants.PROMETHEUS_RELEASE_NAME, context);
-          this.logger.showUser('✅ Prometheus Stack chart uninstalled successfully');
+          this.logger.showUserUnlessOneShot('✅ Prometheus Stack chart uninstalled successfully');
         } else {
-          this.logger.showUser('⏭️  Prometheus Stack chart not installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  Prometheus Stack chart not installed, skipping');
         }
       },
     };
@@ -511,9 +513,9 @@ export class ClusterCommandTasks {
             constants.METRICS_SERVER_RELEASE_NAME,
             context,
           );
-          this.logger.showUser('Metrics-server chart uninstalled successfully');
+          this.logger.showUserUnlessOneShot('Metrics-server chart uninstalled successfully');
         } else {
-          this.logger.showUser('Metrics-server chart not installed, skipping');
+          this.logger.showUserUnlessOneShot('Metrics-server chart not installed, skipping');
         }
       },
     };
