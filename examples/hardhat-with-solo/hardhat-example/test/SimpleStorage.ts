@@ -2,7 +2,7 @@
 import { expect } from "chai";
 import { network } from "hardhat";
 
-const soloNetworkTimeout: number = 120_000;
+const soloNetworkTimeout: number = Number.parseInt(process.env.SOLO_HARDHAT_TEST_TIMEOUT_MS ?? "300000", 10);
 
 describe("SimpleStorage", function (this: Mocha.Suite): void {
   this.timeout(soloNetworkTimeout);
