@@ -567,29 +567,6 @@ importer:
     HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "${SOURCE_MIRROR_BLOCK_ENABLED}"
     HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "${SOURCE_MIRROR_RECORD_ENABLED}"
     HIERO_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
-  resources:
-    requests:
-      memory: 256Mi
-    limits:
-      memory: 512Mi
-grpc:
-  resources:
-    requests:
-      memory: 256Mi
-    limits:
-      memory: 512Mi
-rest:
-  resources:
-    requests:
-      memory: 256Mi
-    limits:
-      memory: 512Mi
-restjava:
-  resources:
-    requests:
-      memory: 256Mi
-    limits:
-      memory: 512Mi
 EOF
 
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
