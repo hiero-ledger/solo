@@ -3,6 +3,8 @@
 import * as fs from 'node:fs';
 import yaml from 'yaml';
 import {HelmChartValues, type HelmChartValue} from '../../integration/helm/model/values.js';
+import {type HelmSchedulingValueFallback} from './helm-scheduling-value-fallback.js';
+import {type HelmSchedulingValueMapping} from './helm-scheduling-value-mapping.js';
 
 type HelmValuesObject = Record<string, unknown>;
 type HelmMapValue = SchedulingValues['nodeSelector'];
@@ -11,18 +13,6 @@ type HelmToleration = SchedulingValues['tolerations'][number];
 interface SchedulingValues {
   nodeSelector: Record<string, HelmChartValue>;
   tolerations: Record<string, HelmChartValue>[];
-}
-
-interface HelmSchedulingValueMapping {
-  targetPaths: string[];
-  sourcePaths?: string[];
-  includeTopLevel?: boolean;
-  fallback?: HelmSchedulingValueFallback;
-}
-
-interface HelmSchedulingValueFallback {
-  key: string;
-  sourcePaths: string[];
 }
 
 export class HelmSchedulingValues {

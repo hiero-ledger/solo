@@ -11,23 +11,23 @@ import * as constants from '../../core/constants.js';
 import {HelmChartValues, type HelmChartValue} from '../../integration/helm/model/values.js';
 import {HelmSchedulingValues} from '../util/helm-scheduling-values.js';
 
-const ROLE_SCHEDULING_KEY: string = 'solo.hashgraph.io/role';
-const POSTGRES_SCHEDULING_SOURCE_PATHS: string[] = ['postgresql.postgresql', 'postgresql.primary'];
-const REDIS_SCHEDULING_SOURCE_PATHS: string[] = ['redis', 'redis.master', 'redis.replica'];
-const REDIS_SCHEDULING_TARGET_PATHS: string[] = ['redis.master', 'redis.replica'];
-const REDIS_ROLE_FALLBACK_PATHS: string[] = [
-  'postgresql.postgresql',
-  'postgresql.primary',
-  'importer',
-  'grpc',
-  'rest',
-  'restjava',
-  'web3',
-  'monitor',
-];
-
 @injectable()
 export class SharedResourceManager {
+  private static readonly ROLE_SCHEDULING_KEY: string = 'solo.hashgraph.io/role';
+  private static readonly POSTGRES_SCHEDULING_SOURCE_PATHS: string[] = ['postgresql.postgresql', 'postgresql.primary'];
+  private static readonly REDIS_SCHEDULING_SOURCE_PATHS: string[] = ['redis', 'redis.master', 'redis.replica'];
+  private static readonly REDIS_SCHEDULING_TARGET_PATHS: string[] = ['redis.master', 'redis.replica'];
+  private static readonly REDIS_ROLE_FALLBACK_PATHS: string[] = [
+    'postgresql.postgresql',
+    'postgresql.primary',
+    'importer',
+    'grpc',
+    'rest',
+    'restjava',
+    'web3',
+    'monitor',
+  ];
+
   private postgresEnabled: boolean = false;
   private redisEnabled: boolean = false;
   private additionalChartValues: HelmChartValues = new HelmChartValues();
@@ -47,7 +47,7 @@ export class SharedResourceManager {
   }
 
   public setSchedulingChartValues(sourceChartValues: HelmChartValues): void {
-    this.additionalChartValues.add(buildSchedulingChartValues(sourceChartValues));
+    this.additionalChartValues.add(SharedResourceManager.buildSchedulingChartValues(sourceChartValues));
   }
 
   public enablePostgres(): void {
@@ -126,21 +126,21 @@ export class SharedResourceManager {
 
     return true;
   }
-}
 
-function buildSchedulingChartValues(sourceChartValues: HelmChartValues): HelmChartValues {
-  return HelmSchedulingValues.buildMappedSchedulingChartValues(sourceChartValues, [
-    {
-      sourcePaths: POSTGRES_SCHEDULING_SOURCE_PATHS,
-      targetPaths: ['postgresql.primary'],
-    },
-    {
-      fallback: {
-        key: ROLE_SCHEDULING_KEY,
-        sourcePaths: REDIS_ROLE_FALLBACK_PATHS,
+  private static buildSchedulingChartValues(sourceChartValues: HelmChartValues): HelmChartValues {
+    return HelmSchedulingValues.buildMappedSchedulingChartValues(sourceChartValues, [
+      {
+        sourcePaths: SharedResourceManager.POSTGRES_SCHEDULING_SOURCE_PATHS,
+        targetPaths: ['postgresql.primary'],
       },
-      sourcePaths: REDIS_SCHEDULING_SOURCE_PATHS,
-      targetPaths: REDIS_SCHEDULING_TARGET_PATHS,
-    },
-  ]);
+      {
+        fallback: {
+          key: SharedResourceManager.ROLE_SCHEDULING_KEY,
+          sourcePaths: SharedResourceManager.REDIS_ROLE_FALLBACK_PATHS,
+        },
+        sourcePaths: SharedResourceManager.REDIS_SCHEDULING_SOURCE_PATHS,
+        targetPaths: SharedResourceManager.REDIS_SCHEDULING_TARGET_PATHS,
+      },
+    ]);
+  }
 }
