@@ -550,8 +550,7 @@ export class Flags {
     constName: 'imageTag',
     name: 'image-tag',
     definition: {
-      describe:
-        '[Deprecated] Use --component-image instead. Overrides the Docker image tag (e.g. 0.36.0-SNAPSHOT).',
+      describe: '[Deprecated] Use --component-image instead. Overrides the Docker image tag (e.g. 0.36.0-SNAPSHOT).',
       defaultValue: '',
       type: 'string',
     },
