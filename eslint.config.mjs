@@ -278,6 +278,34 @@ export default [
     },
   },
   {
+    // Enforce getEnvironmentVariable() over process.env[...] bracket notation in src/.
+    // Bracket-notation reads bypass the utility and the env.md documentation requirement.
+    // See CLAUDE.md "Environment Variable Access".
+    // constants.ts is excluded because it defines getEnvironmentVariable() and legitimately
+    // accesses process.env[name] internally.
+    files: ['src/**/*.ts'],
+    ignores: ['src/core/constants.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        // Re-state the global import-type check here because this block overrides
+        // no-restricted-syntax for src/ files; @typescript-eslint/consistent-type-imports
+        // already enforces the same thing at error level, so this is belt-and-suspenders.
+        {
+          selector: "ImportDeclaration[importKind='type'] ImportSpecifier",
+          message: "Use `import {type X} from 'path';` instead of `import type {X} from 'path';`.",
+        },
+        {
+          selector:
+            'MemberExpression[computed=true][object.type="MemberExpression"][object.object.name="process"][object.property.name="env"]',
+          message:
+            'Use getEnvironmentVariable() from src/core/constants.ts instead of process.env[...]. ' +
+            'Bracket-notation access bypasses the project utility and the env.md documentation requirement (see CLAUDE.md).',
+        },
+      ],
+    },
+  },
+  {
     // @kubernetes/client-node types must not leak outside src/integration/kube.
     // Use Solo domain types (Pod, ContainerStatus, etc.) in all other layers.
     files: ['**/*.ts'],

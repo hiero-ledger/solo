@@ -140,6 +140,65 @@ and missing type annotations must be fixed manually** — they appear as errors 
 
 ## Repository Gotchas
 
+### Environment Variable Access — Always Use `getEnvironmentVariable()`
+
+In `src/**/*.ts`, always read environment variables through `getEnvironmentVariable()` (exported from
+`src/core/constants.ts`). **Never** use `process.env['VAR_NAME']` or `process.env[variable]`
+(bracket notation) to read env vars — this is enforced as an ESLint **error** for all `src/` files
+except `src/core/constants.ts` itself.
+
+```typescript
+// wrong — bypasses the utility and env.md tracking
+const mirror: string = process.env['KIND_DOCKER_REGISTRY_MIRRORS'];
+
+// correct
+import {getEnvironmentVariable} from '../core/constants.js';
+const mirror: string = getEnvironmentVariable('KIND_DOCKER_REGISTRY_MIRRORS');
+```
+
+Property-access reads for OS-level variables (`process.env.PATH`, `process.env.HOME`) and spreading
+the environment for subprocess invocation (`{...process.env}`) are fine and are not covered by this
+rule. The restriction targets application-level env var reads that must be tracked in `env.md`.
+
+Adding `getEnvironmentVariable()` calls also triggers the documentation requirement in CLAUDE.md
+"Environment Variable Documentation".
+
+### Catch Blocks — Comment Required When Swallowing Errors
+
+When a `catch` block does not re-throw (returns a default, returns `undefined`, or no-ops), it
+**must** include a comment explaining why the error is intentionally swallowed. §4.9 of the
+TypeScript style guide bans empty or unexplained catch blocks.
+
+```typescript
+// wrong — silent swallow with no explanation
+} catch {
+  return [];
+}
+
+// correct
+} catch {
+  // best-effort: fall back to empty list when kind-config is absent or unparseable
+  return [];
+}
+```
+
+This applies even when the catch body contains statements — the comment documents the *intent*,
+not just the code.
+
+### Shell Scripts in `.github/` — SPDX Header Required
+
+All shell scripts under `.github/workflows/script/` must include a SPDX license identifier on the
+line immediately after the shebang:
+
+```bash
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+```
+
+The ESLint `headers/header-format` rule enforces this for TypeScript files but does not cover shell
+scripts — it must be applied manually. Any PR that adds or significantly modifies a `.sh` file in
+`.github/` should add the header if it is missing.
+
 ### Adding CLI Flags
 
 When adding a new `CommandFlag` in `src/commands/flags.ts`:
