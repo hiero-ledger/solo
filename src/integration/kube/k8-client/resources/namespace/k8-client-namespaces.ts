@@ -33,9 +33,13 @@ export class K8ClientNamespaces implements Namespaces {
     };
   }
 
-  public async delete(namespace: NamespaceName): Promise<boolean> {
+  public async delete(namespace: NamespaceName, gracePeriodSeconds?: number): Promise<boolean> {
     try {
-      await this.kubeClient.deleteNamespace({name: namespace.name});
+      await this.kubeClient.deleteNamespace(
+        gracePeriodSeconds === undefined
+          ? {name: namespace.name}
+          : {name: namespace.name, gracePeriodSeconds, propagationPolicy: 'Background'},
+      );
       try {
         let namespaceExists: boolean = true;
         while (namespaceExists) {
