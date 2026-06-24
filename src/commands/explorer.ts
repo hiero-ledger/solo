@@ -373,18 +373,6 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
-  private loadExplorerImageIntoKindTask(): SoloListrTask<AnyListrContext> {
-    return {
-      title: 'Load local image into Kind cluster',
-      skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => {
-        return !config.componentImage || !this.isLocalImageAvailableInDocker(config.componentImage);
-      },
-      task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
-      },
-    };
-  }
-
   private installExplorerTask(commandType: ExplorerCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Install explorer',
@@ -735,7 +723,6 @@ export class ExplorerCommand extends BaseCommand {
         this.loadRemoteConfigTask(argv),
         this.addExplorerComponents(),
         this.installCertManagerTask(ExplorerCommandType.ADD),
-        this.loadExplorerImageIntoKindTask(),
         this.installExplorerTask(ExplorerCommandType.ADD),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
@@ -847,7 +834,6 @@ export class ExplorerCommand extends BaseCommand {
         },
         this.loadRemoteConfigTask(argv),
         this.installCertManagerTask(ExplorerCommandType.UPGRADE),
-        this.loadExplorerImageIntoKindTask(),
         this.installExplorerTask(ExplorerCommandType.UPGRADE),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
