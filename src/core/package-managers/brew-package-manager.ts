@@ -80,10 +80,9 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
       const [, key, rawValue]: string[] = match;
       // brew emits values such as "/home/linuxbrew/.linuxbrew/bin${PATH+:$PATH}"; expand those to the
       // current PATH so the resulting value is correct without a shell performing the expansion.
-      const expandedValue: string = rawValue
-        .replaceAll(/\$\{PATH\+:\$PATH\}/g, currentPath ? `${path.delimiter}${currentPath}` : '')
+      process.env[key] = rawValue
+        .replaceAll('${PATH+:$PATH}', currentPath ? `${path.delimiter}${currentPath}` : '')
         .replaceAll('$PATH', currentPath);
-      process.env[key] = expandedValue;
     }
   }
 }
