@@ -324,6 +324,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
             config.deployExplorer = config.deployExplorer === undefined ? true : config.deployExplorer;
             config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
+            config.pinger = config.pinger === undefined ? true : config.pinger;
 
             context_.createdAccounts = [];
           },

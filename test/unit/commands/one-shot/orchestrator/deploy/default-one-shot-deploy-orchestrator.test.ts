@@ -13,6 +13,8 @@ import {DeploymentPhase} from '../../../../../../src/data/schema/model/remote/de
 import * as constants from '../../../../../../src/core/constants.js';
 import {type OrchestratorPipeline} from '../../../../../../src/commands/one-shot/orchestrator/orchestrator-pipeline.js';
 import {type OneShotSingleDeployContext} from '../../../../../../src/commands/one-shot/one-shot-single-deploy-context.js';
+import {DeployArgvBuilders} from '../../../../../../src/commands/one-shot/orchestrator/deploy/deploy-argv-builders.js';
+import {type OneShotVersionsObject} from '../../../../../../src/commands/one-shot/one-shot-versions-object.js';
 
 type MockType = any;
 type MockListr = MockType;
@@ -119,6 +121,74 @@ function buildPipelineTasks(orchestrator: DefaultOneShotDeployOrchestrator): Moc
 }
 
 describe('DefaultOneShotDeployOrchestrator non-Kind context guard', (): void => {
+  afterEach((): void => {
+    sinon.restore();
+  });
+
+  describe('Initialize', (): void => {
+    it('defaults pinger to true for one-shot deploy when the flag is omitted', async (): Promise<void> => {
+      const versions: OneShotVersionsObject = {
+        soloChart: '0.59.0',
+        consensus: 'v0.71.0',
+        mirror: '0.156.0',
+        explorer: '24.0.0',
+        relay: '0.77.0',
+        blockNode: '0.35.0',
+      };
+      const config: OneShotSingleDeployConfigClass = makeConfig({
+        pinger: undefined as unknown as boolean,
+      });
+      const configManagerMock: MockType = {
+        update: sinon.stub(),
+        getFlag: sinon.stub().returns(false),
+        setFlag: sinon.stub(),
+        executePrompt: sinon.stub().resolves(),
+        getConfig: sinon.stub().returns(config),
+      };
+      const loggerMock: MockType = {
+        addLogBindings: sinon.stub(),
+      };
+      const oneShotStateMock: MockType = {
+        activate: sinon.stub(),
+      };
+      const k8FactoryMock: MockType = {
+        default: sinon.stub().returns({
+          contexts: sinon.stub().returns({
+            readCurrent: sinon.stub().returns('kind-solo'),
+          }),
+        }),
+      };
+      const orchestrator: DefaultOneShotDeployOrchestrator = new DefaultOneShotDeployOrchestrator(
+        {} as MockType,
+        {} as MockType,
+        {} as MockType,
+        {} as MockType,
+        {} as MockType,
+        loggerMock,
+        configManagerMock,
+        oneShotStateMock,
+        k8FactoryMock,
+        {} as MockType,
+        {} as MockType,
+        {} as MockType,
+      );
+      sinon.stub(DeployArgvBuilders, 'resolveOneShotComponentVersions').resolves(versions);
+      const configReference: {value?: OneShotSingleDeployConfigClass} = {};
+      const pipeline: OrchestratorPipeline<OneShotSingleDeployContext> = orchestrator.buildDeployPipeline(
+        {_: []} as MockType,
+        {required: [], optional: []} as MockType,
+        {} as MockType,
+        configReference,
+      );
+      const context_: OneShotSingleDeployContext = {} as OneShotSingleDeployContext;
+
+      await pipeline.tasks[0].task(context_, {} as MockType);
+
+      expect(context_.config.pinger).to.be.true;
+      expect(configReference.value?.pinger).to.be.true;
+    });
+  });
+
   describe('isKindContext', (): void => {
     it('returns true when the context is a Kind context', (): void => {
       const orchestrator: DefaultOneShotDeployOrchestrator = makeOrchestrator();
