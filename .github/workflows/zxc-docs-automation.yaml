@@ -152,7 +152,7 @@ jobs:
         id: solo-cli-help
         run: |
           cd docs/site
-          SOLO_CI=true task build:cli:help
+          SOLO_CI=true task build:docs:content
 
       # Upload the built site to artifacts
       - name: Upload Artifact

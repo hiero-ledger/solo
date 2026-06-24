@@ -5,7 +5,6 @@ import {type PriorityMapping, type ToJSON} from '../types/index.js';
 import * as constants from './constants.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
-import * as versions from '../../version.js';
 import {inject} from 'tsyringe-neo';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {patchInject} from './dependency-injection/container-helper.js';
@@ -20,18 +19,12 @@ type BlockNodeConnectionDataBase = {
   messageSizeHardLimitBytes?: number;
 };
 
-type BlockNodeConnectionData =
-  | ({
-      address: string;
-      port: number;
-      priority: number;
-    } & BlockNodeConnectionDataBase)
-  | ({
-      address: string;
-      streamingPort: number;
-      servicePort: number;
-      priority: number;
-    } & BlockNodeConnectionDataBase);
+type BlockNodeConnectionData = {
+  address: string;
+  streamingPort: number;
+  servicePort: number;
+  priority: number;
+} & BlockNodeConnectionDataBase;
 
 interface BlockNodesJsonStructure {
   nodes: BlockNodeConnectionData[];
@@ -88,11 +81,6 @@ export class BlockNodesJsonWrapper implements ToJSON {
   }
 
   private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
-    // Figure out field name for port
-    const useLegacyPortName: boolean = this.remoteConfig.configuration.versions.consensusNode.lessThan(
-      versions.MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE,
-    );
-
     const blockNodeConnectionData: BlockNodeConnectionData[] = [];
 
     for (const [id, priority] of this.blockNodeMap) {
@@ -110,20 +98,17 @@ export class BlockNodesJsonWrapper implements ToJSON {
         cluster.dnsBaseDomain,
       );
 
-      // Figure out the block node port
-      const useLegacyPort: boolean = this.remoteConfig.configuration.versions.blockNodeChart.lessThan(
-        versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
-      );
-
-      const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
+      const port: number = constants.BLOCK_NODE_PORT;
 
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.resolveMessageSizeFields();
 
-      blockNodeConnectionData.push(
-        useLegacyPortName
-          ? {address, port, priority, ...tssMessageSizeFields}
-          : {address, streamingPort: port, servicePort: port, priority, ...tssMessageSizeFields},
-      );
+      blockNodeConnectionData.push({
+        address,
+        streamingPort: port,
+        servicePort: port,
+        priority,
+        ...tssMessageSizeFields,
+      });
     }
 
     for (const [id, priority] of this.externalBlockNodeMap) {
@@ -136,11 +121,13 @@ export class BlockNodesJsonWrapper implements ToJSON {
 
       const tssMessageSizeFields: BlockNodeConnectionDataBase = this.resolveMessageSizeFields();
 
-      blockNodeConnectionData.push(
-        useLegacyPortName
-          ? {address, port, priority, ...tssMessageSizeFields}
-          : {address, streamingPort: port, servicePort: port, priority, ...tssMessageSizeFields},
-      );
+      blockNodeConnectionData.push({
+        address,
+        streamingPort: port,
+        servicePort: port,
+        priority,
+        ...tssMessageSizeFields,
+      });
     }
 
     return {

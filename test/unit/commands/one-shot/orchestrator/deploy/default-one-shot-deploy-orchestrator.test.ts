@@ -879,10 +879,16 @@ describe('DefaultOneShotDeployOrchestrator isConsensusDeployStepComplete', (): v
   });
 });
 
-function makeAccountsSnapshot(accountsFileExists: boolean): DeploymentStateSnapshot {
+function makeAccountsSnapshot(
+  accountsFileExists: boolean,
+  consensusNodeStarted: boolean = true,
+): DeploymentStateSnapshot {
+  const componentPhases: Map<ComponentTypes, DeploymentPhase> = consensusNodeStarted
+    ? new Map([[ComponentTypes.ConsensusNode, DeploymentPhase.STARTED]])
+    : new Map();
   return {
     localConfig: {deploymentExists: false, clusterRefs: new Set<string>()},
-    remoteConfig: {configMapExists: false, componentPhases: new Map()},
+    remoteConfig: {configMapExists: false, componentPhases},
     helm: {installedReleases: new Set<string>()},
     keys: {consensusKeysOnDisk: false},
     accounts: {accountsFileExists},
@@ -917,5 +923,10 @@ describe('DefaultOneShotDeployOrchestrator Create Accounts skip guard', (): void
   it('runs when the snapshot is unavailable', (): void => {
     const noSnapshot: DeploymentStateSnapshot | undefined = undefined;
     expect(createAccountsSkip(makeConfig({predefinedAccounts: true}), noSnapshot)).to.be.false;
+  });
+
+  it('runs when the consensus node was not started (empty network), even if accounts.json exists', (): void => {
+    expect(createAccountsSkip(makeConfig({predefinedAccounts: true}), makeAccountsSnapshot(true, false))).to.be.false;
+    expect(createAccountsSkip(makeConfig({predefinedAccounts: false}), makeAccountsSnapshot(false, false))).to.be.false;
   });
 });
