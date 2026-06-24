@@ -13,6 +13,7 @@ import {type ConfigMap} from '../../../src/integration/kube/resources/config-map
 import {type K8} from '../../../src/integration/kube/k8.js';
 import yaml from 'yaml';
 import {container} from 'tsyringe-neo';
+import {resetTestContainer} from '../../test-container.js';
 
 import {
   Helpers,
@@ -637,7 +638,10 @@ nodes.gossipFqdnRestricted=false`;
 
 describe('createAndCopyBlockNodeJsonFileForConsensusNode', (): void => {
   beforeEach((): void => {
-    container.clearInstances();
+    // Use the project's standard test-container reset so all baseline tokens
+    // (LogLevel, DevelopmentMode, SoloLogger, etc.) are registered before our mocks.
+    // Direct container.clearInstances() wipes those tokens and breaks subsequent tests.
+    resetTestContainer();
     // Provide a minimal RemoteConfigRuntimeState so BlockNodesJsonWrapper can construct
     // without a live cluster. The state has no block nodes, which exercises the empty-nodes guard.
     container.registerInstance(InjectTokens.RemoteConfigRuntimeState, {
@@ -658,7 +662,6 @@ describe('createAndCopyBlockNodeJsonFileForConsensusNode', (): void => {
   });
 
   afterEach((): void => {
-    container.clearInstances();
     sinon.restore();
   });
 
