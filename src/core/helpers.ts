@@ -65,16 +65,6 @@ type AddLoadContextData = {
 };
 
 export class Helpers {
-  public static getInternalAddress(
-    releaseVersion: SemanticVersion<string> | string,
-    namespaceName: NamespaceName,
-    nodeAlias: NodeAlias,
-  ): string {
-    return new SemanticVersion(releaseVersion).greaterThanOrEqual('0.58.5')
-      ? '127.0.0.1'
-      : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
-  }
-
   public static getBlockStreamModeForConsensusVersion(
     consensusNodeVersion: SemanticVersion<string> | string | undefined,
     blockNodeIntegrationEnabled: boolean,
@@ -846,7 +836,6 @@ export class Helpers {
   }
 }
 
-export const getInternalAddress: typeof Helpers.getInternalAddress = Helpers.getInternalAddress;
 export const sleep: typeof Helpers.sleep = Helpers.sleep;
 export const parseNodeAliases: typeof Helpers.parseNodeAliases = Helpers.parseNodeAliases;
 export const splitFlagInput: typeof Helpers.splitFlagInput = Helpers.splitFlagInput;
