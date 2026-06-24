@@ -33,6 +33,7 @@ export class KindExecution {
   private output: string[] = [];
   private errOutput: string[] = [];
   private exitCodeValue: number | null = null;
+  private spawnError: Error | undefined;
 
   /**
    * Creates a new KindExecution instance.
@@ -45,6 +46,11 @@ export class KindExecution {
       shell: false,
       env: {...process.env, ...environmentVariables},
     });
+    // With shell:false a missing/invalid executable surfaces as an async 'error' event; capture it so it
+    // is never an unhandled exception and can be surfaced by waitFor()/waitForTimeout().
+    this.process.on('error', (error: Error): void => {
+      this.spawnError = error;
+    });
   }
 
   /**
@@ -53,6 +59,15 @@ export class KindExecution {
    */
   private async waitFor(): Promise<void> {
     return new Promise((resolve, reject) => {
+      const rejectWithSpawnError: (error: Error) => void = (error: Error): void => {
+        reject(new KindExecutionException(1, `Failed to start process: ${error.message}`, '', error.message));
+      };
+      if (this.spawnError) {
+        rejectWithSpawnError(this.spawnError);
+        return;
+      }
+      this.process.on('error', rejectWithSpawnError);
+
       // const output: string[] = [];
       this.process.stdout.on('data', (d): void => {
         const items: string[] = d.toString().split(/\r?\n/);
@@ -101,6 +116,11 @@ export class KindExecution {
     });
 
     const successPromise: Promise<boolean> = new Promise((resolve): void => {
+      if (this.spawnError) {
+        resolve(false);
+        return;
+      }
+      this.process.on('error', (): void => resolve(false));
       this.process.on('close', (code): void => {
         resolve(code === 0);
       });

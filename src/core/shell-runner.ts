@@ -183,6 +183,23 @@ export class ShellRunner {
 
         resolve(output);
       });
+
+      // With shell:false a missing/invalid executable surfaces as an 'error' event (e.g. ENOENT) rather
+      // than a non-zero exit, so it must be handled here to reject instead of throwing uncaught.
+      child.on('error', (error: Error): void => {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+        if (idleTimeoutHandle) {
+          clearTimeout(idleTimeoutHandle);
+        }
+        if (timedOut) {
+          return; // already rejected by timeout handler
+        }
+        error.stack = callStack;
+        this.logger.error(`Error executing: '${cmd}'`, {error: {message: error.message, stack: error.stack}});
+        reject(error);
+      });
     });
   }
 
