@@ -551,8 +551,7 @@ export class Flags {
     name: 'image-tag',
     definition: {
       describe:
-        '[Deprecated] Use --component-image instead. Overrides the Docker image tag for block-node commands ' +
-        '(e.g. 0.36.0-SNAPSHOT). For local builds, --component-image is preferred as it also auto-loads the image into the kind cluster.',
+        '[Deprecated] Use --component-image instead. Overrides the Docker image tag (e.g. 0.36.0-SNAPSHOT).',
       defaultValue: '',
       type: 'string',
     },
@@ -564,10 +563,9 @@ export class Flags {
     name: 'component-image',
     definition: {
       describe:
-        'Docker image override for block-node, mirror-node, relay, and explorer. ' +
-        'Accepts a registry image (e.g. ghcr.io/hiero-ledger/block-node-server:0.36.0) ' +
-        'or a local build image (e.g. block-node-server:0.36.0-SNAPSHOT, hiero-explorer:my-build). ' +
-        'When a local build image is found in Docker, it is automatically loaded into the kind cluster.',
+        'Docker image override. Accepts a registry reference (e.g. ghcr.io/hiero-ledger/block-node-server:0.36.0) ' +
+        'or a local reference (e.g. block-node-server:0.36.0-SNAPSHOT). ' +
+        'Local images found in Docker are automatically loaded into the Kind cluster.',
       defaultValue: '',
       type: 'string',
       alias: 'relay-image',

@@ -79,6 +79,24 @@ interface PortEntry {
   podPort: number;
 }
 
+interface ImagesConfig {
+  quiet: boolean;
+  namespace: NamespaceName;
+  deployment: DeploymentName;
+  context: string;
+}
+
+interface ImagesContext {
+  config: ImagesConfig;
+}
+
+interface ImageRow {
+  component: string;
+  pod: string;
+  container: string;
+  image: string;
+}
+
 function collectPortEntries(components: BaseStateSchema[]): PortEntry[] {
   const entries: PortEntry[] = [];
 
@@ -681,17 +699,6 @@ export class DeploymentCommand extends BaseCommand {
   }
 
   public async images(argv: ArgvStruct): Promise<boolean> {
-    interface ImagesConfig {
-      quiet: boolean;
-      namespace: NamespaceName;
-      deployment: DeploymentName;
-      context: string;
-    }
-
-    interface ImagesContext {
-      config: ImagesConfig;
-    }
-
     const tasks: SoloListr<ImagesContext> = this.taskList.newTaskList<ImagesContext>(
       [
         {
@@ -726,13 +733,6 @@ export class DeploymentCommand extends BaseCommand {
             if (pods.length === 0) {
               this.logger.showUser(chalk.yellow(`No pods found in namespace: ${config.namespace.name}`));
               return;
-            }
-
-            interface ImageRow {
-              component: string;
-              pod: string;
-              container: string;
-              image: string;
             }
 
             const rows: ImageRow[] = pods

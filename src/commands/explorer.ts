@@ -373,6 +373,18 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
+  private loadExplorerImageIntoKindTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Load local image into Kind cluster',
+      skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => {
+        return !config.componentImage || !this.isLocalImageAvailableInDocker(config.componentImage);
+      },
+      task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
+        await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
+      },
+    };
+  }
+
   private installExplorerTask(commandType: ExplorerCommandType): SoloListrTask<AnyListrContext> {
     return {
       title: 'Install explorer',
@@ -397,14 +409,12 @@ export class ExplorerCommand extends BaseCommand {
           const {tag: localImageTag} = this.splitImageNameTag(config.componentImage);
 
           if (this.isLocalImageAvailableInDocker(config.componentImage)) {
-            // Local image found: kind-load it and tell Kubernetes not to pull.
             const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
             explorerChartValues
               .setLiteral('image.registry', parsedReference.registry)
               .setLiteral('image.repository', parsedReference.repository)
               .set('image.tag', parsedReference.tag)
               .setLiteral('image.pullPolicy', 'Never');
-            await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
           } else if (this.isLocalImageReference(config.componentImage)) {
             // Local-looking ref but not in Docker — plain tag override, K8s will pull from registry.
             explorerChartValues.set('image.tag', localImageTag);
@@ -725,6 +735,7 @@ export class ExplorerCommand extends BaseCommand {
         this.loadRemoteConfigTask(argv),
         this.addExplorerComponents(),
         this.installCertManagerTask(ExplorerCommandType.ADD),
+        this.loadExplorerImageIntoKindTask(),
         this.installExplorerTask(ExplorerCommandType.ADD),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
@@ -836,6 +847,7 @@ export class ExplorerCommand extends BaseCommand {
         },
         this.loadRemoteConfigTask(argv),
         this.installCertManagerTask(ExplorerCommandType.UPGRADE),
+        this.loadExplorerImageIntoKindTask(),
         this.installExplorerTask(ExplorerCommandType.UPGRADE),
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),

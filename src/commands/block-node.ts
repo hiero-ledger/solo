@@ -293,7 +293,7 @@ export class BlockNodeCommand extends BaseCommand {
 
     chartValues.set('nameOverride', config.releaseName);
 
-    // Only handle domainName and imageTag for deploy config (not upgrade config)
+    // Only handle domainName for deploy config (not upgrade config)
     if ('domainName' in config && config.domainName) {
       chartValues
         .set('ingress.enabled', true)
@@ -553,13 +553,10 @@ export class BlockNodeCommand extends BaseCommand {
               'Block node chart version',
             );
 
-            // --image-tag is shorthand: normalize to a full local-image reference so both flags
-            // share the same downstream logic.  Also back-fill imageTag from componentImage when
-            // only componentImage was supplied, so liveness-port and VERSION configmap logic work.
+            // --image-tag is kept for backwards compatibility; normalize it to componentImage
+            // so downstream chart-values and kind-load logic has a single code path.
             if (!config.componentImage && config.imageTag) {
               config.componentImage = `${constants.BLOCK_NODE_IMAGE_NAME}:${config.imageTag}`;
-            } else if (config.componentImage && !config.imageTag && this.isLocalImageReference(config.componentImage)) {
-              config.imageTag = ImageReference.parseImageReference(config.componentImage).tag;
             }
 
             config.livenessCheckPort = constants.BLOCK_NODE_PORT;
@@ -605,7 +602,7 @@ export class BlockNodeCommand extends BaseCommand {
               releaseName,
               chartVersion,
               chartValues,
-              imageTag,
+              componentImage,
               blockNodeChartDirectory,
               newBlockNodeComponent,
             } = config;
@@ -631,19 +628,17 @@ export class BlockNodeCommand extends BaseCommand {
 
             await this.remoteConfig.persist();
 
-            if (imageTag) {
+            if (componentImage && this.isLocalImageAvailableInDocker(componentImage)) {
               // update config map with new VERSION info since
               // it will be used as a critical environment variable by block node
+              const localImageTag: string = this.splitImageNameTag(componentImage).tag;
               const blockNodeId: ComponentId = newBlockNodeComponent.metadata.id;
 
               const name: string = `block-node-${blockNodeId}-config`;
-              const data: Record<string, string> = {VERSION: imageTag};
+              const data: Record<string, string> = {VERSION: localImageTag};
 
               await this.k8Factory.getK8(context).configMaps().update(namespace, name, data);
-
-              if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
-                task.title += ` with local built image (${imageTag})`;
-              }
+              task.title += ` with local built image (${localImageTag})`;
             }
 
             showVersionBanner(this.logger, releaseName, chartVersion);
@@ -1220,7 +1215,7 @@ export class BlockNodeCommand extends BaseCommand {
     config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
   ): Promise<void> {
     let blockNodeVersion: SemanticVersion<string>;
-    let imageTag: SemanticVersion<string> | undefined;
+    let componentImageVersion: SemanticVersion<string> | undefined;
 
     if (config.hasOwnProperty('upgradeVersion') && (config as BlockNodeUpgradeConfigClass).upgradeVersion) {
       const version: string = (config as BlockNodeUpgradeConfigClass).upgradeVersion;
@@ -1232,13 +1227,16 @@ export class BlockNodeCommand extends BaseCommand {
       blockNodeVersion = typeof version === 'string' ? new SemanticVersion<string>(version) : version;
     }
 
-    if (config.hasOwnProperty('imageTag') && (config as BlockNodeDeployConfigClass).imageTag) {
-      const tag: string = (config as BlockNodeDeployConfigClass).imageTag;
-      imageTag = typeof tag === 'string' ? new SemanticVersion<string>(tag) : tag;
+    const deployConfig: BlockNodeDeployConfigClass = config as BlockNodeDeployConfigClass;
+    if (deployConfig.componentImage && this.isLocalImageReference(deployConfig.componentImage)) {
+      const tag: string = this.splitImageNameTag(deployConfig.componentImage).tag;
+      componentImageVersion = new SemanticVersion<string>(tag);
     }
 
     const finalVersion: SemanticVersion<string> =
-      imageTag && blockNodeVersion.lessThan(imageTag) ? imageTag : blockNodeVersion;
+      componentImageVersion && blockNodeVersion.lessThan(componentImageVersion)
+        ? componentImageVersion
+        : blockNodeVersion;
     this.remoteConfig.updateComponentVersion(ComponentTypes.BlockNode, finalVersion);
 
     await this.remoteConfig.persist();

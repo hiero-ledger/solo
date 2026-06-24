@@ -275,6 +275,9 @@ export abstract class BaseCommand extends ShellRunner {
 
   protected splitImageNameTag(imageReference: string): {name: string; tag: string} {
     const colonIndex: number = imageReference.lastIndexOf(':');
+    if (colonIndex === -1) {
+      throw new SoloErrors.validation.illegalArgument(`Image reference must include a tag (e.g. name:tag): '${imageReference}'`);
+    }
     return {name: imageReference.slice(0, colonIndex), tag: imageReference.slice(colonIndex + 1)};
   }
 
