@@ -138,6 +138,21 @@ Run `task format` to auto-fix formatting and lint issues before committing. Note
 `task format` fixes Prettier and some ESLint issues automatically, but **abbreviation violations
 and missing type annotations must be fixed manually** — they appear as errors in the lint output.
 
+### Dead Code Removal
+
+When modifying any file, remove code that is no longer reachable or referenced as a result of your
+changes. This includes methods, functions, classes, imports, constants, and type aliases that
+nothing calls or imports after the edit. Do not leave orphaned code "just in case" — if it is
+needed later it can be recovered from git history.
+
+### Enhance Before Creating
+
+Before introducing a new method, function, or class to satisfy a requirement, check whether an
+existing one can be extended or generalised to cover the new case. Prefer augmenting an existing
+abstraction over adding a parallel one that increases the maintenance surface. A new abstraction is
+justified only when the existing one cannot cleanly accommodate the change without becoming
+misleading or overloaded.
+
 ## Repository Gotchas
 
 ### Environment Variable Access — Always Use `getEnvironmentVariable()`

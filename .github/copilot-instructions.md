@@ -77,5 +77,14 @@ authoritative rules and rationale. The conventions below are the ones violated m
 - **CLI flag descriptions stay generic** — a flag belongs to the whole CLI, so its description must
   not reference a single command or component. (§10.3.3)
 
+- **Remove dead code after every change.** When your edit makes a method, function, class, import,
+  constant, or type alias unreachable or unreferenced, delete it in the same change. Do not leave
+  orphaned code "for later" — git history preserves it if it is ever needed again.
+
+- **Enhance existing abstractions before creating new ones.** Before adding a new method, function,
+  or class, check whether an existing one can be extended or generalised to cover the new case.
+  Only introduce a new abstraction when the existing one cannot cleanly accommodate the change
+  without becoming misleading or overloaded.
+
 When unsure, follow the existing pattern in the directory you are editing and defer to
 `docs/contributing/typescript-code-style.md`.
