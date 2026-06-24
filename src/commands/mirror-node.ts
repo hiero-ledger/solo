@@ -1155,6 +1155,56 @@ export class MirrorNodeCommand extends BaseCommand {
     };
   }
 
+  /**
+   * Enables the mirror node pinger on an already-deployed mirror node via a lightweight
+   * reuse-values helm upgrade: only `pinger.enabled` is flipped on, so the pinger.env.* values
+   * baked in during the initial install are preserved. Used by the one-shot orchestrator to
+   * defer the pinger until {@link SoloEventType.NodesStarted}, so it does not race the consensus
+   * node start during a parallel deploy (which crashes the pinger's SDK client against a network
+   * that is not yet serving transactions). The pinger pod is awaited until ready.
+   */
+  public async enablePinger(namespace: NamespaceName, context: Context, deployment: DeploymentName): Promise<void> {
+    await this.remoteConfig.load(namespace, context);
+
+    const mirrorNodeVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
+      ComponentTypes.MirrorNode,
+    );
+
+    if (
+      !mirrorNodeVersion ||
+      mirrorNodeVersion.lessThan(new SemanticVersion<string>(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION))
+    ) {
+      this.logger.info(`Mirror node version predates the Go pinger for deployment ${deployment}; nothing to enable`);
+      return;
+    }
+
+    const {releaseName} = await this.inferDestroyData(namespace, context);
+
+    this.logger.info(`Enabling mirror node pinger on release ${releaseName} for deployment ${deployment}`);
+
+    await this.chartManager.upgrade(
+      namespace,
+      releaseName,
+      constants.MIRROR_NODE_CHART,
+      constants.MIRROR_NODE_RELEASE_NAME,
+      mirrorNodeVersion?.toString() ?? '',
+      new HelmChartValues().set('pinger.enabled', true),
+      context,
+      true, // reuse existing values so the deferred pinger configuration is retained
+      true,
+    );
+
+    await this.k8Factory
+      .getK8(context)
+      .pods()
+      .waitForReadyStatus(
+        namespace,
+        ['app.kubernetes.io/component=pinger', `app.kubernetes.io/instance=${releaseName}`],
+        constants.PODS_READY_MAX_ATTEMPTS,
+        constants.PODS_READY_DELAY,
+      );
+  }
+
   private enablePortForwardingTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for mirror ingress controller',
@@ -1293,6 +1343,14 @@ export class MirrorNodeCommand extends BaseCommand {
                   `monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps`,
                   constants.MIRROR_NODE_PINGER_TPS,
                 );
+              } else if (this.oneShotState.isActive() && config.parallelDeploy) {
+                // One-shot parallel deploy: install the mirror node with the pinger fully
+                // configured but disabled, then enable it from the orchestrator once
+                // SoloEventType.NodesStarted fires (see enablePinger()). Bringing the pinger up
+                // concurrently with the consensus node start races its SDK client against a
+                // network that is not yet serving transactions and crashes it once. Standalone
+                // mirror deploys and sequential one-shot deploys deploy the pinger normally.
+                config.chartValues.set('pinger.enabled', false);
               }
 
               const operatorId: string =
