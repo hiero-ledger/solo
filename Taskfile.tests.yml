@@ -150,6 +150,13 @@ tasks:
         {{ .reporter_prefix }}='coverage/e2e-one-shot-single-minimal'
         {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts'
         {{ .reporter_options_prefix }}-e2e-one-shot-single-minimal.xml"
+  test-e2e-one-shot-idempotency:
+    desc: "Runs E2E One Shot Idempotency re-run scenario tests with coverage and generates reports in coverage/e2e-one-shot-idempotency"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E One Shot - Idempotency\"
+        {{ .reporter_prefix }}='coverage/e2e-one-shot-idempotency'
+        {{ .mocha_bin }} 'test/e2e/commands/one-shot-idempotency.test.ts'
+        {{ .reporter_options_prefix }}-e2e-one-shot-idempotency.xml"
 
   test-e2e-performance:
     desc: "Runs E2E Performance tests with coverage and generates reports in coverage/e2e-performance"
