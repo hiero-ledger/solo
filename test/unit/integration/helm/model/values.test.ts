@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import path from 'node:path';
+
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import {HelmChartValues} from '../../../../../src/integration/helm/model/values.js';
@@ -90,10 +92,12 @@ describe('HelmChartValues', (): void => {
         .file('/solo/defaults.yaml')
         .filesFromCommaSeparatedInput('/user/a.yaml,/user/b.yaml');
 
+      // filesFromCommaSeparatedInput calls PathEx.resolve (= path.resolve) on each path.
+      // Match against the resolved form so the assertion holds on Windows too.
       const arguments_: string[] = values.toArguments();
       const soloIndex: number = arguments_.indexOf('/solo/defaults.yaml');
-      const userAIndex: number = arguments_.indexOf('/user/a.yaml');
-      const userBIndex: number = arguments_.indexOf('/user/b.yaml');
+      const userAIndex: number = arguments_.indexOf(path.resolve('/user/a.yaml'));
+      const userBIndex: number = arguments_.indexOf(path.resolve('/user/b.yaml'));
 
       expect(userAIndex).to.be.greaterThan(soloIndex);
       expect(userBIndex).to.be.greaterThan(soloIndex);
@@ -102,9 +106,10 @@ describe('HelmChartValues', (): void => {
     it('trims whitespace around commas', (): void => {
       const values: HelmChartValues = new HelmChartValues().filesFromCommaSeparatedInput(' /a.yaml , /b.yaml ');
 
+      // PathEx.resolve normalizes the path; compare against the resolved form for cross-platform safety.
       const arguments_: string[] = values.toArguments();
-      expect(arguments_).to.include('/a.yaml');
-      expect(arguments_).to.include('/b.yaml');
+      expect(arguments_).to.include(path.resolve('/a.yaml'));
+      expect(arguments_).to.include(path.resolve('/b.yaml'));
     });
 
     it('is a no-op for undefined input', (): void => {
