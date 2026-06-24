@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
+import fs from 'node:fs';
+import os from 'node:os';
 
 import {type DependencyManager} from '../../../src/core/dependency-managers/index.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
@@ -13,15 +15,26 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {type ClusterReferences} from '../../../src/types/index.js';
+import {type ClusterReferences, type SoloListrTask} from '../../../src/types/index.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {type NodeAlias} from '../../../src/types/aliases.js';
+import {type AnyListrContext, type NodeAlias} from '../../../src/types/aliases.js';
 import {type HelmClient} from '../../../src/integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
+import {OperatingSystem} from '../../../src/business/utils/operating-system.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
+
+class TestBaseCommand extends BaseCommand {
+  public async close(): Promise<void> {}
+
+  public async runDockerDesktopPreflightTask(): Promise<void> {
+    const task: SoloListrTask<AnyListrContext> = this.dockerDesktopPreflightTask();
+    await (task.task as () => Promise<void>)();
+  }
+}
 
 describe('BaseCommand', (): void => {
   let helm: HelmClient;
@@ -241,6 +254,93 @@ describe('BaseCommand', (): void => {
       for (const [clusterReference] of clusterReferences) {
         expect(clusterReferences.get(clusterReference)).to.equal(expectedClusterReferences[clusterReference]);
       }
+    });
+  });
+
+  describe('dockerDesktopPreflightTask', (): void => {
+    let command: TestBaseCommand;
+    let temporaryDirectory: string;
+    let warnStub: SinonStub;
+
+    beforeEach((): void => {
+      resetForTest();
+      sandbox = sinon.createSandbox();
+      temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-docker-desktop-test-'));
+      command = new TestBaseCommand();
+      warnStub = sandbox.stub();
+      command.logger = {warn: warnStub} as unknown as SoloLogger;
+    });
+
+    afterEach((): void => {
+      sandbox.restore();
+      if (fs.existsSync(temporaryDirectory)) {
+        fs.rmSync(temporaryDirectory, {recursive: true});
+      }
+    });
+
+    it('does not warn when running on Linux', async (): Promise<void> => {
+      sandbox.stub(OperatingSystem, 'isLinux').returns(true);
+
+      await command.runDockerDesktopPreflightTask();
+
+      expect(warnStub).to.not.have.been.called;
+    });
+
+    it('does not warn when no Docker Desktop settings file exists', async (): Promise<void> => {
+      sandbox.stub(OperatingSystem, 'isLinux').returns(false);
+      sandbox.stub(os, 'homedir').returns(PathEx.join(temporaryDirectory, 'nonexistent'));
+
+      await command.runDockerDesktopPreflightTask();
+
+      expect(warnStub).to.not.have.been.called;
+    });
+
+    it('does not warn when useContainerdSnapshotter is false', async (): Promise<void> => {
+      sandbox.stub(OperatingSystem, 'isLinux').returns(false);
+      const dockerDirectory: string = PathEx.join(temporaryDirectory, '.docker');
+      fs.mkdirSync(dockerDirectory, {recursive: true});
+      fs.writeFileSync(
+        PathEx.join(dockerDirectory, 'settings-store.json'),
+        JSON.stringify({useContainerdSnapshotter: false}),
+      );
+      sandbox.stub(os, 'homedir').returns(temporaryDirectory);
+
+      await command.runDockerDesktopPreflightTask();
+
+      expect(warnStub).to.not.have.been.called;
+    });
+
+    it('warns when useContainerdSnapshotter is true', async (): Promise<void> => {
+      sandbox.stub(OperatingSystem, 'isLinux').returns(false);
+      const dockerDirectory: string = PathEx.join(temporaryDirectory, '.docker');
+      fs.mkdirSync(dockerDirectory, {recursive: true});
+      fs.writeFileSync(
+        PathEx.join(dockerDirectory, 'settings-store.json'),
+        JSON.stringify({useContainerdSnapshotter: true}),
+      );
+      sandbox.stub(os, 'homedir').returns(temporaryDirectory);
+
+      await command.runDockerDesktopPreflightTask();
+
+      expect(warnStub).to.have.been.calledOnce;
+      expect(warnStub.firstCall.args[0]).to.include('Docker Desktop');
+      expect(warnStub.firstCall.args[0]).to.include('containerd');
+    });
+
+    it('skips invalid JSON and continues checking settings files', async (): Promise<void> => {
+      sandbox.stub(OperatingSystem, 'isLinux').returns(false);
+      const dockerDirectory: string = PathEx.join(temporaryDirectory, '.docker');
+      fs.mkdirSync(dockerDirectory, {recursive: true});
+      fs.writeFileSync(PathEx.join(dockerDirectory, 'settings-store.json'), '{not valid json}');
+      fs.writeFileSync(
+        PathEx.join(dockerDirectory, 'settings.json'),
+        JSON.stringify({useContainerdSnapshotter: false}),
+      );
+      sandbox.stub(os, 'homedir').returns(temporaryDirectory);
+
+      await command.runDockerDesktopPreflightTask();
+
+      expect(warnStub).to.not.have.been.called;
     });
   });
 });
