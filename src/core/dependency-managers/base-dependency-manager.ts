@@ -257,8 +257,6 @@ export abstract class BaseDependencyManager extends ShellRunner {
       return true;
     }
 
-    await this.preInstall();
-
     // Check if it is already installed locally
     if (await this.isInstalledLocallyAndMeetsRequirements()) {
       const localVersion: string = await this.getVersion(this.localExecutableWithPath).catch((): string =>
@@ -278,6 +276,8 @@ export abstract class BaseDependencyManager extends ShellRunner {
       this.logger.showUser(`Compatible ${this.executableName} v${globalVersion} found at ${this.globalExecutablePath}`);
       return true;
     }
+
+    await this.preInstall();
 
     // If not installed, download and install
     this.logger.showUser(
