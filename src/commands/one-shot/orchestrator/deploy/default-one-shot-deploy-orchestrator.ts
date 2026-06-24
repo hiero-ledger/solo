@@ -539,6 +539,15 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               if (!blockNodeAdded) {
                 this.logger.info(`Block node with id: ${blockNode.metadata.id} already exists, skipping creation`);
               }
+
+              for (const consensusNode of this.remoteConfig.configuration.state.consensusNodes) {
+                const hasBlockNodeMapping: boolean = consensusNode.blockNodeMap.some(
+                  ([blockNodeId]): boolean => blockNodeId === blockNode.metadata.id,
+                );
+                if (!hasBlockNodeMapping) {
+                  consensusNode.blockNodeMap.push([blockNode.metadata.id, 1]);
+                }
+              }
             }
 
             if (deployConfig.deployExplorer) {

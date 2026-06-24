@@ -19,6 +19,7 @@ import {
   type Context,
   type DeploymentName,
   type Optional,
+  type PriorityMapping,
   type SoloListr,
   type SoloListrTask,
   type SoloListrTaskWrapper,
@@ -375,7 +376,14 @@ export class BlockNodeCommand extends BaseCommand {
         )) {
           const priority: number = priorityMapping[Templates.renderNodeAliasFromNumber(node.metadata.id)];
 
-          node.blockNodeMap.push([newBlockNodeComponent.metadata.id, priority]);
+          const existingMapping: PriorityMapping = node.blockNodeMap.find(
+            ([blockNodeId]): boolean => blockNodeId === newBlockNodeComponent.metadata.id,
+          );
+          if (existingMapping) {
+            existingMapping[1] = priority;
+          } else {
+            node.blockNodeMap.push([newBlockNodeComponent.metadata.id, priority]);
+          }
         }
 
         await this.remoteConfig.persist();
