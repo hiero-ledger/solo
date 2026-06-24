@@ -4,7 +4,7 @@ import 'sinon-chai';
 
 import {expect} from 'chai';
 import sinon, {type SinonStub} from 'sinon';
-import {describe, it} from 'mocha';
+import {afterEach, beforeEach, describe, it} from 'mocha';
 import {ImageCacheHandler} from '../../../../src/integration/cache/impl/image-cache-handler.js';
 import {StaticCacheTargetProvider} from '../../../../src/integration/cache/target-providers/static-cache-target-provider.js';
 import {CacheArtifactEnum} from '../../../../src/integration/cache/enums/cache-artifact-enum.js';
@@ -16,6 +16,11 @@ import {type SoloListrTask} from '../../../../src/types/index.js';
 import {type AnyListrContext} from '../../../../src/types/aliases.js';
 
 describe('ImageCacheHandler pull', (): void => {
+  const mirrorRegistryEnvironmentVariable: string = 'KIND_DOCKER_REGISTRY_MIRRORS';
+  const defaultMirrorRegistry: string = 'hub.mirror.docker.lat.ope.eng.hashgraph.io';
+  const configuredMirrorRegistry: string = 'custom.registry.example.com';
+  let previousMirrorRegistry: string | undefined;
+
   const target: {
     type: CacheArtifactEnum;
     name: string;
@@ -67,8 +72,49 @@ describe('ImageCacheHandler pull', (): void => {
     flush: (callback: (error?: Error) => void): void => callback(),
   };
 
-  it('should continue without registering cached result when saveImage fails', async (): Promise<void> => {
-    const saveImageStub: SinonStub = sinon.stub().rejects(new Error('rate limited'));
+  beforeEach((): void => {
+    previousMirrorRegistry = process.env[mirrorRegistryEnvironmentVariable];
+    process.env[mirrorRegistryEnvironmentVariable] = configuredMirrorRegistry;
+  });
+
+  afterEach((): void => {
+    if (previousMirrorRegistry === undefined) {
+      delete process.env[mirrorRegistryEnvironmentVariable];
+    } else {
+      process.env[mirrorRegistryEnvironmentVariable] = previousMirrorRegistry;
+    }
+  });
+
+  it('should fail when saveImage fails due to rate limiting', async (): Promise<void> => {
+    const rateLimitCause: Error = new Error('TOOMANYREQUESTS: You have reached your unauthenticated pull rate limit.');
+    const rateLimitError: Error = new Error('crane pull failed', {cause: rateLimitCause});
+    const saveImageStub: SinonStub = sinon.stub().rejects(rateLimitError);
+    const engine: ContainerEngineClient = {
+      pullImage: async (): Promise<void> => undefined,
+      saveImage: saveImageStub,
+      loadImage: async (): Promise<void> => undefined,
+      loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
+      removeImage: async (): Promise<void> => undefined,
+      listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+    };
+
+    const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
+    const handler: ImageCacheHandler = new ImageCacheHandler(engine, provider, store, inspector, logger);
+
+    const subtasks: readonly SoloListrTask<AnyListrContext>[] = await handler.pull();
+    const context: {config: {results: unknown[]}} = {config: {results: []}};
+
+    await expect(subtasks[0].task(context as never, {title: 'task'} as never)).to.be.rejectedWith('crane pull failed');
+
+    expect(saveImageStub).to.have.been.calledThrice;
+    expect(saveImageStub.firstCall.args[0]).to.equal(`${configuredMirrorRegistry}/library/busybox:1.36.1`);
+    expect(saveImageStub.secondCall.args[0]).to.equal('docker.io/library/busybox:1.36.1');
+    expect(saveImageStub.thirdCall.args[0]).to.equal('registry-1.docker.io/library/busybox:1.36.1');
+    expect(context.config.results).to.have.lengthOf(0);
+  });
+
+  it('should continue without registering cached result when saveImage fails without rate limiting', async (): Promise<void> => {
+    const saveImageStub: SinonStub = sinon.stub().rejects(new Error('temporary network failure'));
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
       saveImage: saveImageStub,
@@ -86,14 +132,17 @@ describe('ImageCacheHandler pull', (): void => {
 
     await subtasks[0].task(context as never, {title: 'task'} as never);
 
-    expect(saveImageStub).to.have.been.calledOnce;
+    expect(saveImageStub).to.have.been.calledThrice;
     expect(context.config.results).to.have.lengthOf(0);
   });
 
-  it('should register cached result when saveImage succeeds', async (): Promise<void> => {
+  it('should use the Hashgraph mirror by default when no mirror override is set', async (): Promise<void> => {
+    delete process.env[mirrorRegistryEnvironmentVariable];
+
+    const saveImageStub: SinonStub = sinon.stub().resolves();
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
-      saveImage: async (): Promise<void> => undefined,
+      saveImage: saveImageStub,
       loadImage: async (): Promise<void> => undefined,
       loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
@@ -108,6 +157,36 @@ describe('ImageCacheHandler pull', (): void => {
 
     await subtasks[0].task(context as never, {title: 'task'} as never);
 
+    expect(saveImageStub).to.have.been.calledOnceWithExactly(
+      `${defaultMirrorRegistry}/library/busybox:1.36.1`,
+      '/tmp/busybox.tar',
+    );
+    expect(context.config.results).to.have.lengthOf(1);
+  });
+
+  it('should register cached result when saveImage succeeds', async (): Promise<void> => {
+    const saveImageStub: SinonStub = sinon.stub().resolves();
+    const engine: ContainerEngineClient = {
+      pullImage: async (): Promise<void> => undefined,
+      saveImage: saveImageStub,
+      loadImage: async (): Promise<void> => undefined,
+      loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
+      removeImage: async (): Promise<void> => undefined,
+      listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+    };
+
+    const provider: StaticCacheTargetProvider = new StaticCacheTargetProvider([target]);
+    const handler: ImageCacheHandler = new ImageCacheHandler(engine, provider, store, inspector, logger);
+
+    const subtasks: readonly SoloListrTask<AnyListrContext>[] = await handler.pull();
+    const context: {config: {results: unknown[]}} = {config: {results: []}};
+
+    await subtasks[0].task(context as never, {title: 'task'} as never);
+
+    expect(saveImageStub).to.have.been.calledOnceWithExactly(
+      `${configuredMirrorRegistry}/library/busybox:1.36.1`,
+      '/tmp/busybox.tar',
+    );
     expect(context.config.results).to.have.lengthOf(1);
   });
 });
