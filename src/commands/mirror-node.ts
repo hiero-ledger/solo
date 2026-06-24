@@ -202,6 +202,7 @@ enum MirrorNodeCommandType {
 export class MirrorNodeCommand extends BaseCommand {
   private static readonly MIRROR_ENVIRONMENT_VARIABLE_PREFIX: string = 'HIERO';
   private static readonly MIRROR_CHART_NAMESPACE: string = 'hiero';
+  private static readonly MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS: string = '0.157.0-0';
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
@@ -394,10 +395,18 @@ export class MirrorNodeCommand extends BaseCommand {
       data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
     }
 
+    const usesBlockNodeEndpoints: boolean = new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
+      MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
+    );
+
     for (const [index, node] of blockNodeFqdnList.entries()) {
-      data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_HOST`] = node.host;
+      const blockNodeVariablePrefix: string = usesBlockNodeEndpoints
+        ? `HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_ENDPOINTS_0`
+        : `HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}`;
+
+      data[`${blockNodeVariablePrefix}_HOST`] = node.host;
       if (node.port !== constants.BLOCK_NODE_PORT) {
-        data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_PORT`] = node.port;
+        data[`${blockNodeVariablePrefix}_PORT`] = node.port;
       }
     }
 

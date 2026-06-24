@@ -52,7 +52,8 @@ interface MirrorNodeIntegrationValues {
   importer: {
     env: {
       SPRING_PROFILES_ACTIVE: string;
-      HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: string;
+      HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST?: string;
+      HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST?: string;
     };
     config: {
       hiero: {
@@ -183,7 +184,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(valuesArguments).to.include(`web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`);
   });
 
-  it('should use block node importer host properties for mirror node 0.157.0', (): void => {
+  it('should use block node importer endpoint properties for mirror node 0.157.0', (): void => {
     const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
     const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-mirror-node-'));
@@ -207,8 +208,8 @@ describe('MirrorNodeCommand unit tests', (): void => {
     const valuesFilePath: string = chartValues.toArguments()[1];
     const valuesFileContents: string = fs.readFileSync(valuesFilePath, 'utf8');
 
-    expect(valuesFileContents).to.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST');
-    expect(valuesFileContents).to.not.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST');
+    expect(valuesFileContents).to.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST');
+    expect(valuesFileContents).to.not.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST:');
 
     fs.rmSync(temporaryDirectory, {recursive: true, force: true});
   });
@@ -284,7 +285,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
       ) as MirrorNodeIntegrationValues;
 
       expect(values.importer.env.SPRING_PROFILES_ACTIVE).to.equal(constants.SPRING_PROFILES_ACTIVE);
-      expect(values.importer.env.HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST).to.equal(
+      expect(values.importer.env.HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST).to.equal(
         'block-node-1.solo.svc.cluster.local',
       );
       expect(values.importer.config.hiero.mirror.importer.downloader.record.enabled).to.equal(false);
