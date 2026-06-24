@@ -29,6 +29,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
   private static readonly DOCKER_HUB_REGISTRY: string = 'docker.io';
   private static readonly DOCKER_HUB_DIRECT_REGISTRY: string = 'registry-1.docker.io';
   private static readonly KIND_DOCKER_REGISTRY_MIRRORS_ENVIRONMENT_VARIABLE: string = 'KIND_DOCKER_REGISTRY_MIRRORS';
+  private static readonly DEFAULT_DOCKER_HUB_MIRROR_REGISTRY: string = 'hub.mirror.docker.lat.ope.eng.hashgraph.io';
   private static readonly RATE_LIMIT_ERROR_PATTERN: RegExp =
     /toomanyrequests|too many requests|rate limit|429 Too Many Requests/i;
 
@@ -80,13 +81,16 @@ export class ImageCacheHandler implements CacheOperationHandler {
             try {
               await this.saveImage(image, archivePath);
             } catch (error) {
-              const message: string = error instanceof Error ? error.message : String(error);
+              const message: string = ImageCacheHandler.getErrorMessage(error);
+              if (ImageCacheHandler.isRateLimitError(error)) {
+                task.title += ' - ' + chalk.red(`Docker Hub rate limit reached for image: ${image}`);
+                this.logger.showUser(`Docker Hub rate limit reached for image: ${image}. ${message}`);
+                this.logger.error('Docker Hub rate limit reached:', error);
+                throw error;
+              }
               task.title += ' - ' + chalk.red(`failed to SAVE image: ${image}`);
               this.logger.showUser(`Failed to save image archive: ${image}. ${message}`);
               this.logger.error('Failed to save image archive:', error);
-              if (ImageCacheHandler.isRateLimitError(error)) {
-                throw error;
-              }
               return;
             }
           }
@@ -211,7 +215,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
         if (ImageCacheHandler.isRateLimitError(error)) {
           rateLimitError = error;
         }
-        const message: string = error instanceof Error ? error.message : String(error);
+        const message: string = ImageCacheHandler.getErrorMessage(error);
         this.logger.warn(`Failed to save image archive candidate ${imageCandidate}: ${message}`);
       }
     }
@@ -259,7 +263,8 @@ export class ImageCacheHandler implements CacheOperationHandler {
         ? mirrorRegistriesFromEnvironment.split(',')
         : await ImageCacheHandler.resolveDockerHubMirrorRegistriesFromKindConfig();
 
-    return ImageCacheHandler.normalizeMirrorRegistries(registries);
+    const normalized: readonly string[] = ImageCacheHandler.normalizeMirrorRegistries(registries);
+    return normalized.length > 0 ? normalized : [ImageCacheHandler.DEFAULT_DOCKER_HUB_MIRROR_REGISTRY];
   }
 
   private static async resolveDockerHubMirrorRegistriesFromKindConfig(): Promise<readonly string[]> {
