@@ -214,6 +214,25 @@ The ESLint `headers/header-format` rule enforces this for TypeScript files but d
 scripts — it must be applied manually. Any PR that adds or significantly modifies a `.sh` file in
 `.github/` should add the header if it is missing.
 
+### CLI Architecture Documentation
+
+`docs/design/architecture/system/presentation_layer_cli_architecture.md` is the authoritative
+reference for the CLI's command/subcommand structure. It must stay in sync with the source.
+
+**Trigger:** any edit to a file in `src/commands/command-definitions/` that adds, removes, renames,
+or reorders a command, subcommand (command group), or operation (leaf subcommand).
+
+**What to update:**
+
+- **"Final Vision" table** — each row is `<group> | <resource> | <operations>`. Reflect any
+  command name, subcommand name, or operation list change here.
+- **"Example Commands" block** — update or add example invocations when the command surface changes.
+- **"Resources by Group" and "Operations by Resource" sections** — add, remove, or rename the
+  matching heading and table rows.
+- **Table of Contents** — update anchor links to match any renamed headings.
+
+The documentation update must be included in the same commit as the code change.
+
 ### Adding CLI Flags
 
 When adding a new `CommandFlag` in `src/commands/flags.ts`:

@@ -86,5 +86,17 @@ authoritative rules and rationale. The conventions below are the ones violated m
   Only introduce a new abstraction when the existing one cannot cleanly accommodate the change
   without becoming misleading or overloaded.
 
+- **Keep CLI architecture docs in sync with command-definition changes.**
+  `docs/design/architecture/system/presentation_layer_cli_architecture.md` is the authoritative
+  reference for the command/subcommand surface. Whenever a file in
+  `src/commands/command-definitions/` is edited to add, remove, rename, or reorder a command
+  group (subcommand) or leaf operation, update the following sections of that document in the
+  **same commit**:
+  - **"Final Vision" table** — each row is `<group> | <resource> | <operations>`.
+  - **"Example Commands" block** — add/update example invocations when the CLI surface changes.
+  - **"Resources by Group" and "Operations by Resource" sections** — add, remove, or rename
+    matching headings and table rows.
+  - **Table of Contents** — fix anchor links for any renamed headings.
+
 When unsure, follow the existing pattern in the directory you are editing and defer to
 `docs/contributing/typescript-code-style.md`.
