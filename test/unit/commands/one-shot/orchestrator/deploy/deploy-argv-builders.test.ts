@@ -95,34 +95,6 @@ describe('buildBlockNodeArgv', (): void => {
     expect(argv).to.not.include('releaseTag');
     expect(argv).to.not.include('--releaseTag');
   });
-
-  it('defaults block node consensus-node-version to the resolved one-shot consensus version', (): void => {
-    const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(
-      makeConfig({versions: {...makeConfig().versions, consensus: 'v0.73.0'}}),
-    );
-
-    const consensusNodeVersionIndex: number = argv.indexOf(optionFromFlag(Flags.consensusNodeVersion));
-    expect(consensusNodeVersionIndex).to.be.greaterThan(-1);
-    expect(argv[consensusNodeVersionIndex + 1]).to.equal('v0.73.0');
-  });
-
-  it('does not add block node TSS overlay for pre-TSS consensus versions', (): void => {
-    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
-    const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(
-      makeConfig({versions: {...makeConfig().versions, consensus: 'v0.73.0'}}),
-    );
-
-    expect(argv).to.not.include(optionFromFlag(Flags.blockNodeTssOverlay));
-  });
-
-  it('adds block node TSS overlay for TSS-supported consensus versions', (): void => {
-    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
-    const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(
-      makeConfig({versions: {...makeConfig().versions, consensus: 'v0.74.0'}}),
-    );
-
-    expect(argv).to.include(optionFromFlag(Flags.blockNodeTssOverlay));
-  });
 });
 
 describe('buildMirrorNodeArgv', (): void => {
@@ -269,24 +241,6 @@ describe('buildConsensusDeployArgv', (): void => {
     expect(argv).to.include(optionFromFlag(Flags.deployment));
     expect(argv).to.include('test-deployment');
   });
-
-  it('does not add --tss-enabled for pre-TSS one-shot block-node deployments', (): void => {
-    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
-    const argv: string[] = DeployArgvBuilders.buildConsensusDeployArgv(
-      makeConfig({versions: {...makeConfig().versions, consensus: 'v0.73.0'}}),
-    );
-
-    expect(argv).to.not.include(optionFromFlag(Flags.tssEnabled));
-  });
-
-  it('adds --tss-enabled for TSS-supported one-shot block-node deployments', (): void => {
-    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
-    const argv: string[] = DeployArgvBuilders.buildConsensusDeployArgv(
-      makeConfig({versions: {...makeConfig().versions, consensus: 'v0.74.0'}}),
-    );
-
-    expect(argv).to.include(optionFromFlag(Flags.tssEnabled));
-  });
 });
 
 describe('buildConsensusSetupArgv', (): void => {
@@ -366,7 +320,7 @@ describe('buildClusterSetupArgv', (): void => {
     expect(argv).to.include('test-cluster');
   });
 
-  it('adds --no-minio when ONE_SHOT_WITH_BLOCK_NODE is enabled for a TSS-supported CN version', (): void => {
+  it('adds --no-minio when ONE_SHOT_WITH_BLOCK_NODE is enabled', (): void => {
     process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
     const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
       makeConfig({
@@ -382,34 +336,6 @@ describe('buildClusterSetupArgv', (): void => {
     );
 
     expect(argv).to.include(negatedOptionFromFlag(Flags.deployMinio));
-    expect(argv).to.not.include(optionFromFlag(Flags.deployMinio));
-  });
-
-  it('adds --minio when ONE_SHOT_WITH_BLOCK_NODE uses a pre-TSS CN version', (): void => {
-    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
-    const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
-      makeConfig({
-        versions: {
-          explorer: '2.5.0',
-          soloChart: '0.0.0',
-          consensus: 'v0.73.0',
-          mirror: '0.0.0',
-          relay: '0.0.0',
-          blockNode: '0.0.0',
-        },
-      }),
-    );
-
-    expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
-    expect(argv).to.include(optionFromFlag(Flags.deployMinio));
-  });
-
-  it('adds --minio when ONE_SHOT_WITH_BLOCK_NODE has no resolved CN version', (): void => {
-    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
-    const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(makeConfig());
-
-    expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
-    expect(argv).to.include(optionFromFlag(Flags.deployMinio));
   });
 
   it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE is disabled', (): void => {
@@ -428,7 +354,6 @@ describe('buildClusterSetupArgv', (): void => {
     );
 
     expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
-    expect(argv).to.not.include(optionFromFlag(Flags.deployMinio));
   });
 });
 

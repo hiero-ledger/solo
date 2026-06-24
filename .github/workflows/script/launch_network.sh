@@ -536,12 +536,12 @@ cp resources/templates/application.properties "${TEMP_SOURCE_APPLICATION_PROPERT
 
 if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   SOURCE_BLOCK_STREAM_MODE="BLOCKS"
-  SOURCE_MINIO_SETUP_FLAG="--no-minio"
+  SOURCE_MINIO_ENABLED="false"
   SOURCE_MIRROR_BLOCK_ENABLED="true"
   SOURCE_MIRROR_RECORD_ENABLED="false"
 else
   SOURCE_BLOCK_STREAM_MODE="BOTH"
-  SOURCE_MINIO_SETUP_FLAG="--minio"
+  SOURCE_MINIO_ENABLED="true"
   SOURCE_MIRROR_BLOCK_ENABLED="false"
   SOURCE_MIRROR_RECORD_ENABLED="true"
 fi
@@ -601,6 +601,7 @@ network:
 
 setup:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
+  --minio: "${SOURCE_MINIO_ENABLED}"
 
 blockNode:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
@@ -611,12 +612,10 @@ EOF
 
 export ONE_SHOT_WITH_BLOCK_NODE=true
 # The source deploy uses released Solo, so set stream/minio behavior with generated
-# files and setup flags rather than relying on local source changes.
+# values rather than relying on local source changes.
 export BLOCK_STREAM_STREAM_MODE="${SOURCE_BLOCK_STREAM_MODE}"
 echo "Initial source block stream mode: ${SOURCE_BLOCK_STREAM_MODE}"
-echo "Initial source MinIO setup flag: ${SOURCE_MINIO_SETUP_FLAG}"
-solo cluster-ref config connect --cluster-ref "${SOLO_DEPLOYMENT}" --context "kind-${SOLO_CLUSTER_NAME}"
-solo cluster-ref config setup --cluster-ref "${SOLO_DEPLOYMENT}" "${SOURCE_MINIO_SETUP_FLAG}"
+echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
 
 BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   solo one-shot falcon deploy \

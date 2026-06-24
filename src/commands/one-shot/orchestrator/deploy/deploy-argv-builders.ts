@@ -58,25 +58,10 @@ export class DeployArgvBuilders {
     return this.isBlockNodeEnvironmentEnabled();
   }
 
-  private static isTssSupportedConsensusVersion(config: OneShotSingleDeployConfigClass): boolean {
-    const consensusVersion: string | undefined = SemanticVersion.normalizeToken(config.versions.consensus);
-    if (!consensusVersion) {
-      return false;
-    }
-
-    return new SemanticVersion<string>(consensusVersion).greaterThanOrEqual(
-      version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
-    );
-  }
-
-  private static shouldSkipMinioForBlockNode(config: OneShotSingleDeployConfigClass): boolean {
-    return this.shouldDeployBlockNode(config) && this.isTssSupportedConsensusVersion(config);
-  }
-
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
     const argv: string[] = newArgv();
     argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), optionFromFlag(Flags.deployment), config.deployment);
-    if (this.shouldDeployBlockNode(config) && this.isTssSupportedConsensusVersion(config)) {
+    if (this.shouldDeployBlockNode(config)) {
       argv.push(optionFromFlag(Flags.blockNodeTssOverlay));
     }
 
@@ -89,8 +74,7 @@ export class DeployArgvBuilders {
       blockNodeConfiguration.releaseTag ??
       blockNodeConfiguration.consensusNodeVersion ??
       blockNodeConfiguration['consensus-node-version'] ??
-      blockNodeConfiguration['--releaseTag'] ??
-      config.versions.consensus;
+      blockNodeConfiguration['--releaseTag'];
     if (blockNodeConfiguration[consensusNodeVersionFlag] === undefined && consensusVersionOverride !== undefined) {
       blockNodeConfiguration[consensusNodeVersionFlag] = consensusVersionOverride;
     }
@@ -232,7 +216,7 @@ export class DeployArgvBuilders {
     if (config.networkConfiguration) {
       appendConfigToArgv(argv, config.networkConfiguration);
     }
-    if (this.isBlockNodeEnvironmentEnabled() && this.isTssSupportedConsensusVersion(config)) {
+    if (this.isBlockNodeEnvironmentEnabled()) {
       argv.push(optionFromFlag(Flags.tssEnabled));
     }
     return argvPushGlobalFlags(argv, config.cacheDir);
@@ -312,10 +296,8 @@ export class DeployArgvBuilders {
       argv.push(optionFromFlag(Flags.deployMetricsServer));
     }
 
-    if (this.shouldSkipMinioForBlockNode(config)) {
+    if (this.shouldDeployBlockNode(config)) {
       argv.push(negatedOptionFromFlag(Flags.deployMinio));
-    } else if (this.shouldDeployBlockNode(config)) {
-      argv.push(optionFromFlag(Flags.deployMinio));
     }
 
     return argvPushGlobalFlags(argv);
