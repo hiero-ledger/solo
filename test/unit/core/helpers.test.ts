@@ -668,7 +668,7 @@ describe('createAndCopyBlockNodeJsonFileForConsensusNode', (): void => {
   it('throws BlockNodesJsonEmptySoloError when blockNodeMap is empty and allowEmpty is false', async (): Promise<void> => {
     const node: ConsensusNode = makeConsensusNode('node1' as NodeAlias, 1);
     await expect(
-      createAndCopyBlockNodeJsonFileForConsensusNode(node, null as never, null as never, false),
+      createAndCopyBlockNodeJsonFileForConsensusNode(node, undefined as never, undefined as never, false),
     ).to.be.rejectedWith(SoloErrors.system.blockNodesJsonEmpty);
   });
 
@@ -681,7 +681,7 @@ describe('createAndCopyBlockNodeJsonFileForConsensusNode', (): void => {
     const stubLogger: {warn: () => void} = {warn: sinon.stub()};
     // With allowEmpty=true the guard is skipped; existsSync returns false so the
     // function returns early without touching K8, meaning no error is thrown.
-    await expect(createAndCopyBlockNodeJsonFileForConsensusNode(node, stubLogger as never, null as never, true)).to.not
-      .be.rejected;
+    await expect(createAndCopyBlockNodeJsonFileForConsensusNode(node, stubLogger as never, undefined as never, true)).to
+      .not.be.rejected;
   });
 });
