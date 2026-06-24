@@ -67,6 +67,30 @@ is_tss_supported_consensus_version() {
   [[ "$(printf '%s\n' "${minimum_tss_version}" "${consensus_version}" | sort -V | head -n 1)" == "${minimum_tss_version}" ]]
 }
 
+install_minio_operator_for_source_deploy() {
+  local context="kind-${SOLO_CLUSTER_NAME}"
+  local namespace="solo-setup"
+  local release_name="operator"
+  local chart_repo_name="operator"
+  local chart_url="${MINIO_OPERATOR_CHART_URL:-https://operator.min.io/}"
+  local chart_version="${MINIO_OPERATOR_VERSION:-7.1.1}"
+
+  echo "Installing MinIO operator ${chart_version} for released Solo source deploy"
+  helm repo add "${chart_repo_name}" "${chart_url}" --force-update
+  helm repo update "${chart_repo_name}"
+  helm upgrade --install "${release_name}" "${chart_repo_name}/operator" \
+    --create-namespace \
+    --namespace "${namespace}" \
+    --kube-context "${context}" \
+    --version "${chart_version}" \
+    --set operator.replicaCount=1 \
+    --wait \
+    --timeout 5m
+  kubectl wait --for=condition=Established crd/tenants.minio.min.io \
+    --context "${context}" \
+    --timeout=2m
+}
+
 # Function to save current service ClusterIPs
 save_cluster_ips() {
   local namespace="${1}"
@@ -578,7 +602,6 @@ network:
 
 setup:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
-  --minio: "${SOURCE_MINIO_ENABLED}"
 
 blockNode:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
@@ -593,6 +616,10 @@ export ONE_SHOT_WITH_BLOCK_NODE=true
 export BLOCK_STREAM_STREAM_MODE="${SOURCE_BLOCK_STREAM_MODE}"
 echo "Initial source block stream mode: ${SOURCE_BLOCK_STREAM_MODE}"
 echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
+
+if [[ "${SOURCE_MINIO_ENABLED}" == "true" ]]; then
+  install_minio_operator_for_source_deploy
+fi
 
 BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   solo one-shot falcon deploy \
