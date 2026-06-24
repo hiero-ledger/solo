@@ -23,7 +23,9 @@ authoritative rules and rationale. The conventions below are the ones violated m
   ```
 
 - **One exported class/interface per file**, with the file named in kebab-case matching the
-  class/interface name (e.g. `class KubeValidation` → `kube-validation.ts`). (§3.5)
+  class/interface name (e.g. `class KubeValidation` → `kube-validation.ts`,
+  `interface FooBarOptions` → `foo-bar-options.ts`). (§3.5; enforced by `solo/exported-interface-in-own-file`
+  lint rule for interfaces — a warning today, escalating to error once legacy barrel files are split)
 - **`import type`** — use the inline form `import {type Foo} from '...'`, never `import type {Foo}`.
 - **Explicit types** on every variable declaration and every callback (including `it()`/`describe()`
   callbacks in tests). (§6.1)
