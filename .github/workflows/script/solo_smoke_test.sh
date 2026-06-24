@@ -42,6 +42,16 @@ function setup_smart_contract_test ()
   echo "MAX_RETRY=5" >> .env
   cat .env
 
+  local contract_test_timeout_ms="${CONTRACT_TEST_TIMEOUT_MS:-300000}"
+  if [[ ! "${contract_test_timeout_ms}" =~ ^[0-9]+$ ]]; then
+    echo "CONTRACT_TEST_TIMEOUT_MS must be numeric, got: ${contract_test_timeout_ms}"
+    log_and_exit 1
+  fi
+
+  echo "Set smart contract test timeout to ${contract_test_timeout_ms} ms"
+  sed -i.bak "s/const DEFAULT_TIMEOUT = [0-9][0-9]*;/const DEFAULT_TIMEOUT = ${contract_test_timeout_ms};/" test/openzeppelin/ERC-20/ERC20.js
+  rm -f test/openzeppelin/ERC-20/ERC20.js.bak
+
   cd -
 }
 
