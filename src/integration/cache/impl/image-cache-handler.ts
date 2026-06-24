@@ -255,8 +255,9 @@ export class ImageCacheHandler implements CacheOperationHandler {
   }
 
   private static async resolveDockerHubMirrorRegistries(): Promise<readonly string[]> {
-    const mirrorRegistriesFromEnvironment: string | undefined =
-      constants.getEnvironmentVariable(ImageCacheHandler.KIND_DOCKER_REGISTRY_MIRRORS_ENVIRONMENT_VARIABLE);
+    const mirrorRegistriesFromEnvironment: string | undefined = constants.getEnvironmentVariable(
+      ImageCacheHandler.KIND_DOCKER_REGISTRY_MIRRORS_ENVIRONMENT_VARIABLE,
+    );
 
     const registries: readonly string[] =
       mirrorRegistriesFromEnvironment && mirrorRegistriesFromEnvironment.trim().length > 0
