@@ -291,6 +291,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
 
       return registries;
     } catch {
+      // best-effort: fall back to empty list when kind-config.yaml is absent or unparseable
       return [];
     }
   }
