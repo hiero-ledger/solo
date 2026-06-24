@@ -70,8 +70,10 @@ export interface Pod {
   /**
    * Get a pod by name and namespace, will check every 1 second until the pod is no longer found.
    * Can throw a SoloError if there is an error while deleting the pod.
+   * @param gracePeriodSeconds - the termination grace period in seconds; defaults to 1. Pass 0 to
+   *   force immediate termination (e.g. during destroy, where graceful shutdown is unnecessary).
    */
-  killPod(): Promise<void>;
+  killPod(gracePeriodSeconds?: number): Promise<void>;
 
   /**
    * Port forward a port from a pod to localhost
