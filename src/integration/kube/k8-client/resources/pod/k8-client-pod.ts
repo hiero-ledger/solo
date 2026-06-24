@@ -254,7 +254,7 @@ export class K8ClientPod implements Pod {
         // WSL2 has issues with kubectl port-forward when binding to localhost, binding to all interfaces will trigger
         // a permission prompt which if hidden behind the terminal can cause the port-forward command to fail.
         if (!isWindows) {
-          cmdArguments.push(localBindAddress, '&');
+          cmdArguments.push(localBindAddress);
         }
       } else {
         cmd = constants.KUBECTL;
@@ -280,9 +280,6 @@ export class K8ClientPod implements Pod {
         }
       }
 
-      // Don't use shell on Windows when doing persist mode to avoid argument parsing issues
-      const useShell: boolean = isWindows && persist ? false : true;
-
       await new ShellRunner().run(
         cmd,
         cmdArguments,
@@ -292,7 +289,7 @@ export class K8ClientPod implements Pod {
           PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
         },
         undefined,
-        useShell,
+        false,
       );
 
       return availablePort;
@@ -302,7 +299,7 @@ export class K8ClientPod implements Pod {
         // Restarting the WinNAT service can resolve the issue, and then we can retry starting the port forwarder.
         // Example: listen EACCES: permission denied 127.0.0.1:50211
         try {
-          await new ShellRunner().run('net stop winnat');
+          await new ShellRunner().run('net', ['stop', 'winnat']);
         } catch (stopError) {
           const errorMessage: string =
             `Failed to stop WinNAT service: ${stopError.message}. Please open an administrator level terminal on Windows` +
@@ -312,7 +309,7 @@ export class K8ClientPod implements Pod {
           this.logger.error(errorMessage, stopError);
           throw new KubeContainerOperationFailedError(errorMessage, stopError);
         }
-        await new ShellRunner().run('net start winnat');
+        await new ShellRunner().run('net', ['start', 'winnat']);
         this.logger.warn('Restarted WinNAT service to recover from port forwarding failure on Windows');
         await sleep(Duration.ofSeconds(5)); // wait a bit for the service to restart before retrying
         return await this.portForward(localPort, podPort, reuse, persist, externalAddress, true);

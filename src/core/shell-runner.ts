@@ -36,8 +36,9 @@ export class ShellRunner {
     detached: boolean = false,
     environmentVariablesToAppend: Record<string, string> = {},
     timeoutMs?: number,
-    useShell: boolean = true,
+    useShell: boolean = false,
     idleTimeoutMs?: number,
+    workingDirectory?: string,
   ): Promise<string[]> {
     const redactedArguments: string[] = ShellRunner.redactArguments(arguments_);
     const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${redactedArguments.join(' ')}`;
@@ -49,6 +50,7 @@ export class ShellRunner {
         env: {...process.env, ...environmentVariablesToAppend},
         shell: useShell,
         detached,
+        cwd: workingDirectory,
         stdio: detached && !OperatingSystem.isWin32() ? 'ignore' : undefined,
       });
 
@@ -195,7 +197,7 @@ export class ShellRunner {
   ): Promise<string[]> {
     // Use Promise.race to handle sudo whoami and timeout
     let whoamiResolved: boolean = false;
-    const whoamiPromise: Promise<string[]> = this.run('sudo whoami').then(async (result): Promise<string[]> => {
+    const whoamiPromise: Promise<string[]> = this.run('sudo', ['whoami']).then(async (result): Promise<string[]> => {
       whoamiResolved = true;
       sudoGranted('Root access granted.');
       return result;
@@ -210,6 +212,6 @@ export class ShellRunner {
     });
     await Promise.race([whoamiPromise, timeoutPromise]);
 
-    return this.run(`sudo ${cmd}`, arguments_, verbose, detached, environmentVariablesToAppend);
+    return this.run('sudo', [cmd, ...arguments_], verbose, detached, environmentVariablesToAppend);
   }
 }

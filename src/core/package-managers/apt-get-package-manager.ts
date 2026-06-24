@@ -22,19 +22,19 @@ export class AptGetPackageManager extends ShellRunner implements PackageManager 
   }
 
   public async installPackages(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, `apt-get install ${dependencies.join(' ')}`);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['install', ...dependencies]);
   }
 
   public async uninstallPackages(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, `apt-get remove ${dependencies.join(' ')}`);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['remove', ...dependencies]);
   }
 
   public async update(): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get update');
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['update']);
   }
 
   public async upgrade(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, `apt-get upgrade ${dependencies.join(' ')}`);
+    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['upgrade', ...dependencies]);
   }
 
   public async install(): Promise<boolean> {
@@ -47,7 +47,7 @@ export class AptGetPackageManager extends ShellRunner implements PackageManager 
 
   public async isAvailable(): Promise<boolean> {
     try {
-      await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get -v');
+      await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get', ['-v']);
       return true;
     } catch {
       return false;

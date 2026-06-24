@@ -322,9 +322,20 @@ export class BackupRestoreCommand extends BaseCommand {
           task: async (): Promise<void> => {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
             const zipFile: string = this.configManager.getFlag<string>(flags.zipFile);
-            const compressionCommand: string = `cd "${outputDirectory}" && zip -rX -P "${zipPassword}" "${zipFile}" .`;
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
-            await shellRunner.run(compressionCommand, [], true, false);
+            // Run zip from the output directory (cwd) with an explicit argument array and no shell, so the
+            // password and file names cannot be interpreted by a shell.
+            await shellRunner.run(
+              'zip',
+              ['-rX', '-P', zipPassword, zipFile, '.'],
+              true,
+              false,
+              {},
+              undefined,
+              false,
+              undefined,
+              outputDirectory,
+            );
             this.logger.showUser(chalk.green(`Backup compressed to ${zipFile}`));
           },
         },
@@ -1368,9 +1379,9 @@ export class BackupRestoreCommand extends BaseCommand {
       fs.mkdirSync(targetDirectory, {recursive: true});
     }
 
-    const unzipCommand: string = `unzip -o -P "${zipPassword}" "${inputPath}" -d "${targetDirectory}"`;
     const shellRunner: ShellRunner = new ShellRunner(this.logger);
-    await shellRunner.run(unzipCommand, [], true, false);
+    // Explicit argument array, no shell: the password and paths cannot be interpreted by a shell.
+    await shellRunner.run('unzip', ['-o', '-P', zipPassword, inputPath, '-d', targetDirectory], true, false);
 
     this.configManager.setFlag(flags.inputDir, targetDirectory);
 
@@ -1397,9 +1408,24 @@ export class BackupRestoreCommand extends BaseCommand {
           this.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
           try {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
-            await shellRunner.run(
-              'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
-            );
+            // Remove any pre-existing network (ignoring failure, replacing the previous `|| true`), then
+            // create it — two explicit array-form commands instead of a shell `||`/`&&` pipeline.
+            try {
+              await shellRunner.run('docker', ['network', 'rm', '-f', 'kind']);
+            } catch {
+              // network may not exist yet; safe to ignore
+            }
+            await shellRunner.run('docker', [
+              'network',
+              'create',
+              'kind',
+              '--scope',
+              'local',
+              '--subnet',
+              '172.19.0.0/16',
+              '--driver',
+              'bridge',
+            ]);
 
             // Add MetalLB Helm repository for multi-cluster load balancing
             this.logger.info('Adding MetalLB Helm repository...');

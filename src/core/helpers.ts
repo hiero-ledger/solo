@@ -644,8 +644,6 @@ export class Helpers {
   public static checkDockerImageExists(imageName: string, imageTag: string): boolean {
     const fullImageName: string = `${imageName}:${imageTag}`;
     try {
-      // Run 'docker images' with an explicit argument array (no shell) and filter the output in JS,
-      // rather than piping into grep through a shell, to avoid shell injection from the image name/tag.
       const output: string = execFileSync('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}'], {
         encoding: 'utf8',
         stdio: 'pipe',

@@ -43,7 +43,7 @@ export class DockerClient implements ContainerEngineClient {
       false,
       {},
       DockerClient.IMAGE_PULL_TIMEOUT_MS,
-      true,
+      false,
       DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
     );
   }
@@ -61,7 +61,7 @@ export class DockerClient implements ContainerEngineClient {
       false,
       {},
       DockerClient.IMAGE_PULL_TIMEOUT_MS,
-      true,
+      false,
       DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
     );
   }

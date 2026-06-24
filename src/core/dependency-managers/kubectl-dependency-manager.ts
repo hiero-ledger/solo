@@ -55,8 +55,8 @@ export class KubectlDependencyManager extends BaseDependencyManager {
       // server or credential-related operations.
       const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
       const output: string[] = await this.run(
-        `"${executableWithPath}" version --client`,
-        [],
+        executableWithPath,
+        ['version', '--client'],
         false,
         false,
         {KUBECONFIG: nullDevice},

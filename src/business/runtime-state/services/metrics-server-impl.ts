@@ -230,13 +230,19 @@ export class MetricsServerImpl implements MetricsServer {
     if (!namespace) {
       return 0;
     }
-    const contextParameter: string = context && context !== 'default' ? `--context ${context}` : '';
-    const cmd: string = `kubectl get pod network-node1-0 -n ${namespace.name} --no-headers ${contextParameter} | awk '{print $5}'`;
-    const results: string[] = await new ShellRunner().run(cmd, [], true, false, {
+    const kubectlArguments: string[] = ['get', 'pod', 'network-node1-0', '-n', namespace.name, '--no-headers'];
+    if (context && context !== 'default') {
+      kubectlArguments.push('--context', context);
+    }
+    const results: string[] = await new ShellRunner().run('kubectl', kubectlArguments, true, false, {
       PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
     });
     if (results?.length > 0) {
-      return Number.parseInt(results[0].split('m')[0]);
+      const columns: string[] = results[0].trim().split(/\s+/);
+      const cpuColumn: string | undefined = columns[4];
+      if (cpuColumn) {
+        return Number.parseInt(cpuColumn.split('m')[0]);
+      }
     }
     return 0;
   }

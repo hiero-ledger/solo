@@ -100,8 +100,8 @@ export class HelmDependencyManager extends BaseDependencyManager {
       // plugins (e.g., Teleport exec credentials) which can hang in non-interactive environments.
       const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
       const output: string[] = await this.run(
-        `"${executableWithPath}" version --short`,
-        [],
+        executableWithPath,
+        ['version', '--short'],
         false,
         false,
         {KUBECONFIG: nullDevice},
