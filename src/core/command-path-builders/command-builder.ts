@@ -11,7 +11,7 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {InitCommand} from '../../commands/init/init.js';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {type TaskList} from '../task-list/task-list.js';
-import {ListrContext, ListrRendererValue} from 'listr2';
+import {ListrContext, ListrRendererValue, ListrDefaultRendererLogLevels, Spinner} from 'listr2';
 import * as constants from '../constants.js';
 
 export const ONE_SHOT_COMMAND: string = 'one-shot';
@@ -37,7 +37,10 @@ export class Subcommand {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
-  public async installDependencies(useSmallMemoryCluster: boolean = false): Promise<void> {
+  public async installDependencies(
+    useSmallMemoryCluster: boolean = false,
+    collapseTasks: boolean = false,
+  ): Promise<void> {
     const tasks: any = this.taskList.newTaskList(
       [
         ...this.initCommand.installDependenciesTasks({
@@ -46,7 +49,7 @@ export class Subcommand {
           useSmallMemoryCluster,
         }),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      collapseTasks ? Subcommand.collapsedListrOptions() : constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       this.name,
     );
@@ -57,6 +60,21 @@ export class Subcommand {
         throw new SoloErrors.system.dependencyInstallFailed('dependencies', error);
       }
     }
+  }
+
+  private static collapsedListrOptions(): typeof constants.LISTR_DEFAULT_OPTIONS.DEFAULT {
+    const spinner: Spinner = new Spinner();
+    return {
+      ...constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      rendererOptions: {
+        ...constants.LISTR_DEFAULT_RENDERER_OPTION,
+        showSubtasks: false,
+        spinner,
+        icon: {
+          [ListrDefaultRendererLogLevels.PENDING]: (): string => spinner.fetch(),
+        },
+      },
+    };
   }
 }
 
@@ -120,12 +138,14 @@ export class CommandBuilder {
                       subcommand.commandHandlerClass,
                     );
 
-                    let useSmallMemoryCluster: boolean = false;
-                    if (commandPath === `${ONE_SHOT_COMMAND} ${SINGLE_SUBCOMMAND} ${SINGLE_DEPLOY}`) {
-                      useSmallMemoryCluster = true;
-                    }
+                    const isOneShotSingleDeploy: boolean =
+                      commandPath === `${ONE_SHOT_COMMAND} ${SINGLE_SUBCOMMAND} ${SINGLE_DEPLOY}`;
+                    const useSmallMemoryCluster: boolean = isOneShotSingleDeploy;
 
-                    await subcommand.installDependencies(useSmallMemoryCluster);
+                    const collapseDependencyTasks: boolean =
+                      isOneShotSingleDeploy && argv[flags.parallelDeploy.name] !== false;
+
+                    await subcommand.installDependencies(useSmallMemoryCluster, collapseDependencyTasks);
                     const response: boolean = await handlerCallback(argv);
 
                     logger.info(`==== Finished running '${commandPath}'====`);

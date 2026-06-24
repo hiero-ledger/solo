@@ -46,6 +46,9 @@ com.swirlds.platform.system.SystemExitUtils.exitSystem(SystemExitUtils.java:37)
       showUser: sinon.stub().callsFake((message: unknown): void => {
         userMessages.push(String(message));
       }),
+      showUserUnlessOneShot: sinon.stub(),
+      beginDeferredUserOutput: sinon.stub(),
+      flushDeferredUserOutput: sinon.stub(),
       showUserError: sinon.stub(),
       error: sinon.stub(),
       warn: sinon.stub(),

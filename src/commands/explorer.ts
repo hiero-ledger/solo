@@ -700,7 +700,9 @@ export class ExplorerCommand extends BaseCommand {
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
-          skip: (): boolean => !this.oneShotState.isActive(),
+          // Skip during one-shot: the one-shot Finish phase shows the consolidated summary
+          // (matches relay/mirror), so showing it here too would duplicate the port-forwarding section.
+          skip: (): boolean => this.oneShotState.isActive(),
           task: (): void => {
             this.logger.showAllMessageGroups();
           },

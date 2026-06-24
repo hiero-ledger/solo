@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {inject, injectable} from 'tsyringe-neo';
-import {type Listr, type ListrBaseClassOptions, type ListrContext, type ListrRendererValue} from 'listr2';
+import {
+  type Listr,
+  type ListrBaseClassOptions,
+  type ListrContext,
+  type ListrRendererValue,
+  ListrDefaultRendererLogLevels,
+  Spinner,
+} from 'listr2';
 import {
   AccountId,
   type Client,
@@ -382,141 +389,162 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             context_.config.force === true || context_.config.quiet === true,
         }),
       }),
-      new OrchestratorPipelinePhase('Pull docker images', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
-            `solo ${CacheCommandDefinition.IMAGE_PULL_COMMAND}`,
-            CacheCommandDefinition.IMAGE_PULL_COMMAND,
-            (): string[] => DeployArgvBuilders.buildImagePullArgv(getConfig()),
-            this.taskList,
-            (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
-          ),
-      }),
-      new OrchestratorPipelinePhase('Load docker images', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-          invokeSoloCommand(
-            `solo ${CacheCommandDefinition.IMAGE_LOAD_COMMAND}`,
-            CacheCommandDefinition.IMAGE_LOAD_COMMAND,
-            (): string[] => DeployArgvBuilders.buildImageLoadArgv(getConfig()),
-            this.taskList,
-            (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
-          ),
-      }),
-      new OrchestratorPipelinePhase('Cluster connect', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const baseTask: InvokedSoloCommand = invokeSoloCommand(
-            `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
-            ClusterReferenceCommandDefinition.CONNECT_COMMAND,
-            (): string[] => DeployArgvBuilders.buildClusterConnectArgv(getConfig()),
-            this.taskList,
-          );
-          return {
-            ...baseTask,
-            skip: (context_: OneShotSingleDeployContext): boolean => {
-              // Idempotency guard: skip if cluster ref already exists in local config
-              if (context_.deploymentStateSnapshot?.localConfig.clusterRefs.has(context_.config.clusterRef)) {
-                this.logger.info(
-                  `Step '${ClusterReferenceCommandDefinition.CONNECT_COMMAND}' skipped: cluster ref already in local config`,
-                );
-                return true;
-              }
-              return false;
+      OrchestratorPipelinePhase.composite(
+        'Prepare cluster and deployment',
+        [
+          new OrchestratorPipelinePhase('Pull docker images', {
+            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+              invokeSoloCommand(
+                `solo ${CacheCommandDefinition.IMAGE_PULL_COMMAND}`,
+                CacheCommandDefinition.IMAGE_PULL_COMMAND,
+                (): string[] => DeployArgvBuilders.buildImagePullArgv(getConfig()),
+                this.taskList,
+                (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
+              ),
+          }),
+          new OrchestratorPipelinePhase('Load docker images', {
+            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+              invokeSoloCommand(
+                `solo ${CacheCommandDefinition.IMAGE_LOAD_COMMAND}`,
+                CacheCommandDefinition.IMAGE_LOAD_COMMAND,
+                (): string[] => DeployArgvBuilders.buildImageLoadArgv(getConfig()),
+                this.taskList,
+                (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
+              ),
+          }),
+          new OrchestratorPipelinePhase('Cluster connect', {
+            asListrTask: (
+              getConfig: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> => {
+              const baseTask: InvokedSoloCommand = invokeSoloCommand(
+                `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
+                ClusterReferenceCommandDefinition.CONNECT_COMMAND,
+                (): string[] => DeployArgvBuilders.buildClusterConnectArgv(getConfig()),
+                this.taskList,
+              );
+              return {
+                ...baseTask,
+                skip: (context_: OneShotSingleDeployContext): boolean => {
+                  // Idempotency guard: skip if cluster ref already exists in local config
+                  if (context_.deploymentStateSnapshot?.localConfig.clusterRefs.has(context_.config.clusterRef)) {
+                    this.logger.info(
+                      `Step '${ClusterReferenceCommandDefinition.CONNECT_COMMAND}' skipped: cluster ref already in local config`,
+                    );
+                    return true;
+                  }
+                  return false;
+                },
+              };
             },
-          };
-        },
-      }),
-      new OrchestratorPipelinePhase('Deployment create', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const baseTask: InvokedSoloCommand = invokeSoloCommand(
-            `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
-            DeploymentCommandDefinition.CREATE_COMMAND,
-            (): string[] => DeployArgvBuilders.buildDeploymentCreateArgv(getConfig()),
-            this.taskList,
-          );
-          return {
-            ...baseTask,
-            skip: (context_: OneShotSingleDeployContext): boolean => {
-              // Idempotency guard: skip if deployment already exists in local config
-              if (context_.deploymentStateSnapshot?.localConfig.deploymentExists) {
-                this.logger.info(
-                  `Step '${DeploymentCommandDefinition.CREATE_COMMAND}' skipped: deployment already exists in local config`,
-                );
-                return true;
-              }
-              return false;
+          }),
+          new OrchestratorPipelinePhase('Deployment create', {
+            asListrTask: (
+              getConfig: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> => {
+              const baseTask: InvokedSoloCommand = invokeSoloCommand(
+                `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
+                DeploymentCommandDefinition.CREATE_COMMAND,
+                (): string[] => DeployArgvBuilders.buildDeploymentCreateArgv(getConfig()),
+                this.taskList,
+              );
+              return {
+                ...baseTask,
+                skip: (context_: OneShotSingleDeployContext): boolean => {
+                  // Idempotency guard: skip if deployment already exists in local config
+                  if (context_.deploymentStateSnapshot?.localConfig.deploymentExists) {
+                    this.logger.info(
+                      `Step '${DeploymentCommandDefinition.CREATE_COMMAND}' skipped: deployment already exists in local config`,
+                    );
+                    return true;
+                  }
+                  return false;
+                },
+              };
             },
-          };
-        },
-      }),
-      new OrchestratorPipelinePhase('Deployment attach', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const baseTask: InvokedSoloCommand = invokeSoloCommand(
-            `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
-            DeploymentCommandDefinition.ATTACH_COMMAND,
-            (): string[] => DeployArgvBuilders.buildDeploymentAttachArgv(getConfig()),
-            this.taskList,
-          );
-          return {
-            ...baseTask,
-            skip: (context_: OneShotSingleDeployContext): boolean => {
-              // Idempotency guard: skip if remote config already exists in cluster
-              if (context_.deploymentStateSnapshot?.remoteConfig.configMapExists) {
-                this.logger.info(
-                  `Step '${DeploymentCommandDefinition.ATTACH_COMMAND}' skipped: remote config already exists`,
-                );
-                return true;
-              }
-              return false;
+          }),
+          new OrchestratorPipelinePhase('Deployment attach', {
+            asListrTask: (
+              getConfig: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> => {
+              const baseTask: InvokedSoloCommand = invokeSoloCommand(
+                `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
+                DeploymentCommandDefinition.ATTACH_COMMAND,
+                (): string[] => DeployArgvBuilders.buildDeploymentAttachArgv(getConfig()),
+                this.taskList,
+              );
+              return {
+                ...baseTask,
+                skip: (context_: OneShotSingleDeployContext): boolean => {
+                  // Idempotency guard: skip if remote config already exists in cluster
+                  if (context_.deploymentStateSnapshot?.remoteConfig.configMapExists) {
+                    this.logger.info(
+                      `Step '${DeploymentCommandDefinition.ATTACH_COMMAND}' skipped: remote config already exists`,
+                    );
+                    return true;
+                  }
+                  return false;
+                },
+              };
             },
-          };
-        },
-      }),
-      new OrchestratorPipelinePhase('Cluster setup', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const baseTask: InvokedSoloCommand = invokeSoloCommand(
-            `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
-            ClusterReferenceCommandDefinition.SETUP_COMMAND,
-            (): string[] => DeployArgvBuilders.buildClusterSetupArgv(getConfig()),
-            this.taskList,
-          );
-          return {
-            ...baseTask,
-            skip: (context_: OneShotSingleDeployContext): boolean => {
-              // Idempotency guard: skip if pod-monitor-role exists in cluster
-              if (context_.deploymentStateSnapshot?.cluster.podMonitorRoleExists) {
-                this.logger.info(
-                  `Step '${ClusterReferenceCommandDefinition.SETUP_COMMAND}' skipped: pod-monitor-role already installed`,
-                );
-                return true;
-              }
-              return false;
+          }),
+          new OrchestratorPipelinePhase('Cluster setup', {
+            asListrTask: (
+              getConfig: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> => {
+              const baseTask: InvokedSoloCommand = invokeSoloCommand(
+                `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
+                ClusterReferenceCommandDefinition.SETUP_COMMAND,
+                (): string[] => DeployArgvBuilders.buildClusterSetupArgv(getConfig()),
+                this.taskList,
+              );
+              return {
+                ...baseTask,
+                skip: (context_: OneShotSingleDeployContext): boolean => {
+                  // Idempotency guard: skip if pod-monitor-role exists in cluster
+                  if (context_.deploymentStateSnapshot?.cluster.podMonitorRoleExists) {
+                    this.logger.info(
+                      `Step '${ClusterReferenceCommandDefinition.SETUP_COMMAND}' skipped: pod-monitor-role already installed`,
+                    );
+                    return true;
+                  }
+                  return false;
+                },
+              };
             },
-          };
-        },
-      }),
-      new OrchestratorPipelinePhase('Keys generate', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => {
-          const baseTask: InvokedSoloCommand = invokeSoloCommand(
-            `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
-            KeysCommandDefinition.KEYS_COMMAND,
-            (): string[] => DeployArgvBuilders.buildKeysGenerateArgv(getConfig()),
-            this.taskList,
-          );
-          return {
-            ...baseTask,
-            skip: (context_: OneShotSingleDeployContext): boolean => {
-              // Idempotency guard: skip if keys already exist in the SOLO_HOME directory
-              if (context_.deploymentStateSnapshot?.keys.consensusKeysOnDisk) {
-                this.logger.info(
-                  `Step '${KeysCommandDefinition.KEYS_COMMAND}' skipped: consensus keys already on disk`,
-                );
-                return true;
-              }
-              return false;
+          }),
+          new OrchestratorPipelinePhase('Keys generate', {
+            asListrTask: (
+              getConfig: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> => {
+              const baseTask: InvokedSoloCommand = invokeSoloCommand(
+                `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
+                KeysCommandDefinition.KEYS_COMMAND,
+                (): string[] => DeployArgvBuilders.buildKeysGenerateArgv(getConfig()),
+                this.taskList,
+              );
+              return {
+                ...baseTask,
+                skip: (context_: OneShotSingleDeployContext): boolean => {
+                  // Idempotency guard: skip if keys already exist in the SOLO_HOME directory
+                  if (context_.deploymentStateSnapshot?.keys.consensusKeysOnDisk) {
+                    this.logger.info(
+                      `Step '${KeysCommandDefinition.KEYS_COMMAND}' skipped: consensus keys already on disk`,
+                    );
+                    return true;
+                  }
+                  return false;
+                },
+              };
             },
-          };
-        },
-      }),
+          }),
+        ],
+        OrchestratorPipelinePhase.EXECUTION_MODE.SEQUENTIAL,
+        true,
+        undefined,
+        undefined,
+        // Collapse each setup step to a single line in parallel mode; --no-parallel-deploy keeps full detail.
+        (getConfig: () => OneShotSingleDeployConfigClass): boolean => getConfig()?.parallelDeploy === true,
+      ),
       new OrchestratorPipelinePhase('Create remote config components', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Create remote config components',
@@ -752,7 +780,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   ),
               ),
           })
-            .withWaitCondition(SoloEventType.MirrorNodeDeployed, Duration.ofSeconds(3))
+            .withWaitCondition(
+              SoloEventType.MirrorNodeDeployed,
+              Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
+            )
             .withWaitCondition(
               SoloEventType.NodesStarted,
               Duration.ofMinutes(constants.NODES_STARTED_EVENT_TIMEOUT_MINUTES),
@@ -764,6 +795,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             : OrchestratorPipelinePhase.EXECUTION_MODE.SEQUENTIAL,
         true,
         {collapseSubtasks: false},
+        undefined,
+        // In parallel mode, render each component (block, network, mirror, explorer, relay) as a
+        // single collapsed line so their concurrent subtrees do not overwrite one another.
+        (getConfig: () => OneShotSingleDeployConfigClass): boolean => getConfig()?.parallelDeploy === true,
       ),
       new OrchestratorPipelinePhase('Finish', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
@@ -782,14 +817,38 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       }),
     ];
 
+    // In parallel mode the components are collapsed to single lines (showSubtasks: false). The
+    // default renderer draws a static pointer for a running task that still has (hidden) subtasks,
+    // so animate those collapsed lines with a spinner instead.
+    const parallel: boolean = argv[flags.parallelDeploy.name] !== false;
+
     return new OrchestratorPipeline<OneShotSingleDeployContext>(
       phases.map(
         (
           phase: OrchestratorPipelinePhase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
         ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfigGlobal, this.eventBus),
       ),
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDeployContext>,
+      parallel
+        ? this.buildSpinnerPipelineOptions()
+        : (constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDeployContext>),
     );
+  }
+
+  /**
+   * Pipeline renderer options that animate running collapsed tasks with a spinner.
+   */
+  private buildSpinnerPipelineOptions(): ListrBaseClassOptions<OneShotSingleDeployContext> {
+    const spinner: Spinner = new Spinner();
+    return {
+      ...constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      rendererOptions: {
+        ...constants.LISTR_DEFAULT_RENDERER_OPTION,
+        spinner,
+        icon: {
+          [ListrDefaultRendererLogLevels.PENDING]: (): string => spinner.fetch(),
+        },
+      },
+    } as ListrBaseClassOptions<OneShotSingleDeployContext>;
   }
 
   private buildCreateAccountsTask(config: OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> {

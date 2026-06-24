@@ -894,7 +894,9 @@ export class DeploymentCommand extends BaseCommand {
             `Cluster-ref: ${clusterRef} already exists for deployment: ${deployment} in local config`,
           );
         } else {
-          this.logger.showUser(`Adding cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`);
+          this.logger.showUserUnlessOneShot(
+            `Adding cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`,
+          );
           this.localConfig.configuration.deploymentByName(deployment).clusters.add(new StringFacade(clusterRef));
         }
 
