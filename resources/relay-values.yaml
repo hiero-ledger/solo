@@ -46,4 +46,4 @@ ws:
     MIRROR_NODE_STARTUP_MAX_ATTEMPTS: 600
     MIRROR_NODE_STARTUP_RETRY_DELAY_MS: 1000
   startupProbe:
-    failureThreshold: 660
+    failureThreshold: 660 # other probe timing fields inherit chart defaults

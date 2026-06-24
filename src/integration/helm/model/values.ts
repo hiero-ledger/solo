@@ -74,6 +74,38 @@ export class HelmChartValues {
   }
 
   /**
+   * Add a Solo-supplied values file for a specific cluster to both the chart-values map and the
+   * path-tracking map. Initializes either map entry if absent.
+   */
+  public static addFileForCluster(
+    chartValuesMap: Record<string, HelmChartValues>,
+    valueFilePathsMap: Record<string, string[]>,
+    clusterReference: string,
+    file: string,
+  ): void {
+    chartValuesMap[clusterReference] ??= new HelmChartValues();
+    valueFilePathsMap[clusterReference] ??= [];
+    chartValuesMap[clusterReference].file(file);
+    valueFilePathsMap[clusterReference].push(file);
+  }
+
+  /**
+   * Add a user-supplied values file for a specific cluster to both the chart-values map and the
+   * path-tracking map. User files are placed in `_userArguments` so they override Solo defaults.
+   */
+  public static addUserFileForCluster(
+    chartValuesMap: Record<string, HelmChartValues>,
+    valueFilePathsMap: Record<string, string[]>,
+    clusterReference: string,
+    file: string,
+  ): void {
+    chartValuesMap[clusterReference] ??= new HelmChartValues();
+    valueFilePathsMap[clusterReference] ??= [];
+    chartValuesMap[clusterReference].userFile(file);
+    valueFilePathsMap[clusterReference].push(file);
+  }
+
+  /**
    * Parse a comma-separated list of file paths and add each as a user-supplied values file.
    * User files are always placed after Solo-supplied values so they take precedence.
    */
