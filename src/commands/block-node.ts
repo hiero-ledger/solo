@@ -2,7 +2,6 @@
 
 import {Listr} from 'listr2';
 import {
-  checkDockerImageExists,
   createAndCopyBlockNodeJsonFileForConsensusNode,
   showVersionBanner,
   sleep,
@@ -311,7 +310,7 @@ export class BlockNodeCommand extends BaseCommand {
       if (this.isLocalImageReference(config.componentImage)) {
         const {name: localImageName, tag: rawTag} = this.splitImageNameTag(config.componentImage);
         const localImageTag: string = SemanticVersion.getValidSemanticVersion(rawTag, false, 'Block node image tag');
-        if (checkDockerImageExists(localImageName, localImageTag)) {
+        if (this.isLocalImageAvailableInDocker(`${localImageName}:${localImageTag}`)) {
           // Image found locally — kind-load task will load it; set pullPolicy: Never.
           chartValues
             .set('image.repository', localImageName)
@@ -332,14 +331,15 @@ export class BlockNodeCommand extends BaseCommand {
 
     const {state, clusters} = this.remoteConfig.configuration;
 
-    const currentBlockNodeId: ComponentId =
-      'newBlockNodeComponent' in config ? config.newBlockNodeComponent.metadata.id : -1;
+    const sourceBlockNodes: BlockNodeStateSchema[] =
+      'newBlockNodeComponent' in config
+        ? state.blockNodes.filter(
+            (blockNode): boolean => blockNode.metadata.id !== config.newBlockNodeComponent.metadata.id,
+          )
+        : state.blockNodes;
     let sourceIndex: number = 0;
-    const otherBlockNodes: BlockNodeStateSchema[] = state.blockNodes.filter(
-      (blockNode): boolean => blockNode.metadata.id !== currentBlockNodeId,
-    );
 
-    for (const blockNode of otherBlockNodes) {
+    for (const blockNode of sourceBlockNodes) {
       const cluster: ClusterSchema = clusters.find(({name}): boolean => name === blockNode.metadata.cluster);
 
       const fqdn: string = Templates.renderSvcFullyQualifiedDomainName(

@@ -395,10 +395,9 @@ export class ExplorerCommand extends BaseCommand {
         }
 
         if (config.componentImage) {
-          const {tag: localImageTag} = this.splitImageNameTag(config.componentImage);
+          const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
 
           if (this.isLocalImageAvailableInDocker(config.componentImage)) {
-            const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
             explorerChartValues
               .setLiteral('image.registry', parsedReference.registry)
               .setLiteral('image.repository', parsedReference.repository)
@@ -406,10 +405,9 @@ export class ExplorerCommand extends BaseCommand {
               .setLiteral('image.pullPolicy', 'Never');
           } else if (this.isLocalImageReference(config.componentImage)) {
             // Local-looking ref but not in Docker — plain tag override, K8s will pull from registry.
-            explorerChartValues.set('image.tag', localImageTag);
+            explorerChartValues.set('image.tag', parsedReference.tag);
           } else {
             // Explicit registry reference.
-            const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
             explorerChartValues
               .setLiteral('image.registry', parsedReference.registry)
               .setLiteral('image.repository', parsedReference.repository)
