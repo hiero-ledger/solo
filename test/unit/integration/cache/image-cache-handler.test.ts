@@ -60,6 +60,7 @@ describe('ImageCacheHandler pull', (): void => {
     info: (): void => undefined,
     debug: (): void => undefined,
     showList: (): void => undefined,
+    showListIfNotEmpty: (): void => undefined,
     showJSON: (): void => undefined,
     addMessageGroup: (): void => undefined,
     getMessageGroup: (): string[] => [],

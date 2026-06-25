@@ -55,6 +55,7 @@ com.swirlds.platform.system.SystemExitUtils.exitSystem(SystemExitUtils.java:37)
       info: sinon.stub(),
       debug: sinon.stub(),
       showList: sinon.stub(),
+      showListIfNotEmpty: sinon.stub(),
       showJSON: sinon.stub(),
       addMessageGroup: sinon.stub(),
       getMessageGroup: sinon.stub().returns([]),

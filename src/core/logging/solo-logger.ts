@@ -82,6 +82,8 @@ export interface SoloLogger {
 
   showList(title: string, items: string[]): void;
 
+  showListIfNotEmpty(title: string, items: string[]): void;
+
   showJSON(title: string, object: object): void;
 
   addMessageGroup(key: string, title: string): void;
