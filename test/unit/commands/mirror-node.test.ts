@@ -15,6 +15,7 @@ import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
 import {type SoloListrTask} from '../../../src/types/index.js';
 import path from 'node:path';
 import yaml from 'yaml';
+import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 
 interface MirrorNodeMemoryOverrideConfig {
   mirrorNodeVersion: string;
@@ -49,6 +50,11 @@ interface MirrorNodeCommandInternal {
     forceBlockNodeIntegration?: boolean;
     mirrorNodeVersion: string;
   }) => HelmChartValues;
+  shouldReuseValuesOnUpgrade: (
+    currentVersion: SemanticVersion<string> | null,
+    targetVersion: string,
+    commandType: string,
+  ) => boolean;
 }
 
 interface MirrorNodeDatabaseTaskContext {
@@ -259,6 +265,32 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(valuesFileContents).to.not.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST');
 
     fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+  });
+
+  it('should not reuse values when upgrading across mirror node block node endpoint property boundary', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+
+    const shouldReuseValues: boolean = mirrorNodeCommandInternal.shouldReuseValuesOnUpgrade(
+      new SemanticVersion<string>('0.156.0'),
+      '0.157.0',
+      'upgrade',
+    );
+
+    expect(shouldReuseValues).to.equal(false);
+  });
+
+  it('should reuse values when upgrading within the mirror node block node endpoint property shape', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+
+    const shouldReuseValues: boolean = mirrorNodeCommandInternal.shouldReuseValuesOnUpgrade(
+      new SemanticVersion<string>('0.157.0'),
+      '0.157.1',
+      'upgrade',
+    );
+
+    expect(shouldReuseValues).to.equal(true);
   });
 
   it('should run shared postgres initialization when shared resources already exist', (): void => {

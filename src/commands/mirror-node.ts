@@ -611,40 +611,56 @@ export class MirrorNodeCommand extends BaseCommand {
     return chartValues;
   }
 
+  private shouldReuseValuesOnUpgrade(
+    currentVersion: SemanticVersion<string> | null,
+    targetVersion: string,
+    commandType: MirrorNodeCommandType,
+  ): boolean {
+    if (commandType === MirrorNodeCommandType.ADD || currentVersion === null) {
+      return false;
+    }
+
+    const targetSemanticVersion: SemanticVersion<string> = new SemanticVersion<string>(targetVersion);
+
+    // Don't reuse values when crossing the shared-resources/memory-improvements boundary
+    // (upgrading from < v0.152.0 to >= v0.152.0). Versions before this boundary used an
+    // embedded chart-managed Redis with sentinel nodes pointed at "<release>-redis".
+    // Reusing those old values would leak stale SPRING_DATA_REDIS_SENTINEL_NODES into the
+    // upgraded pods because --reuse-values merges all old chart values.
+    if (
+      currentVersion.lessThan(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION) &&
+      targetSemanticVersion.greaterThanOrEqual(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION)
+    ) {
+      return false;
+    }
+
+    // Mirror node v0.157.0 changed block node importer properties from nodes[].host/port
+    // to nodes[].endpoints[].host/port. Reusing values across this boundary preserves the
+    // old env vars, and the importer fails strict binding with those stale keys.
+    if (
+      currentVersion.lessThan(MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS) &&
+      targetSemanticVersion.greaterThanOrEqual(
+        MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
+      )
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
   private async deployMirrorNode(
     {config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext,
     commandType: MirrorNodeCommandType,
   ): Promise<void> {
-    // Determine if we should reuse values based on the currently deployed version from remote config.
-    // Reuse values on upgrades (a current version exists); skip on first install.
     const currentVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
       ComponentTypes.MirrorNode,
     );
-    let shouldReuseValues: boolean = currentVersion !== null;
-
-    // Don't reuse values when crossing the shared-resources/memory-improvements boundary
-    // (upgrading from < v0.152.0 → >= v0.152.0).  Versions before this boundary used an
-    // embedded chart-managed Redis with sentinel nodes pointed at "<release>-redis".
-    // Reusing those old values would leak the stale "SPRING_DATA_REDIS_SENTINEL_NODES"
-    // configuration into the upgraded pods even though redis.enabled is now set to false,
-    // because --reuse-values merges ALL old chart values (including sentinel node addresses)
-    // and we only explicitly override redis.enabled / redis.host / redis.port — not every
-    // sentinel sub-key.  Forcing a clean value set here prevents pods from failing to
-    // resolve the no-longer-existent "<release>-redis" hostname.
-    if (
-      shouldReuseValues &&
-      currentVersion !== null &&
-      currentVersion.lessThan(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION) &&
-      new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
-        versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION,
-      )
-    ) {
-      shouldReuseValues = false;
-    }
-
-    if (commandType === MirrorNodeCommandType.ADD) {
-      shouldReuseValues = false;
-    }
+    const shouldReuseValues: boolean = this.shouldReuseValuesOnUpgrade(
+      currentVersion,
+      config.mirrorNodeVersion,
+      commandType,
+    );
 
     await this.chartManager.upgrade(
       config.namespace,
