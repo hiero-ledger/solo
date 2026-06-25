@@ -413,7 +413,6 @@ export class SoloPinoLogger implements SoloLogger {
     this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
     const serialized: string = JSON.stringify(object, undefined, 2);
     this.writeUser(serialized);
-    this.info(serialized);
   }
 
   public getMessageGroup(key: string): string[] {
