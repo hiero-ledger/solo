@@ -18,6 +18,16 @@ export class SoloError extends Error {
   protected static readonly DOC_BASE: string = 'https://solo.hiero.org/docs/troubleshooting/errors';
   public static readonly bugReportUrl: string = 'https://github.com/hiero-ledger/solo/issues';
 
+  /** Maps the leading digit of an error code's numeric range to its documentation category slug. */
+  private static readonly DOC_CATEGORY_BY_RANGE: Readonly<Record<string, string>> = {
+    '1': 'config',
+    '2': 'deployment',
+    '3': 'component',
+    '4': 'validation',
+    '5': 'system',
+    '9': 'internal',
+  };
+
   /**
    * Create a custom error object
    *
@@ -60,7 +70,12 @@ export class SoloError extends Error {
 
   /** Returns the documentation URL for this error, or undefined if not defined. */
   public getDocumentUrl(): string | undefined {
-    return this.code ? `${SoloError.DOC_BASE}/${this.code}` : undefined;
+    if (!this.code) {
+      return undefined;
+    }
+    const rangeDigit: string | undefined = this.code.match(/SOLO-(\d)/)?.[1];
+    const category: string | undefined = rangeDigit ? SoloError.DOC_CATEGORY_BY_RANGE[rangeDigit] : undefined;
+    return category ? `${SoloError.DOC_BASE}/${category}/${this.code}/` : `${SoloError.DOC_BASE}/${this.code}/`;
   }
 
   /** Returns the formatted error code label (e.g. "SOLO-1001"), or undefined if not defined. */
