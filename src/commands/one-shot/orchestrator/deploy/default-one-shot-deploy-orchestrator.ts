@@ -29,6 +29,8 @@ import {type ConfigManager} from '../../../../core/config-manager.js';
 import {type OneShotState} from '../../../../core/one-shot-state.js';
 import {type K8Factory} from '../../../../integration/kube/k8-factory.js';
 import {type HelmClient} from '../../../../integration/helm/helm-client.js';
+import {type ContainerEngineResourceInspector} from '../../../../integration/container-engine/container-engine-resource-inspector.js';
+import {ContainerResourcePreflight} from '../../../../core/container-resource-preflight.js';
 import {type ReleaseItem} from '../../../../integration/helm/model/release/release-item.js';
 import {type LockManager} from '../../../../core/lock/lock-manager.js';
 import {type ComponentFactoryApi} from '../../../../core/config/remote/api/component-factory-api.js';
@@ -67,6 +69,7 @@ import {
   sleep,
 } from '../../../../core/helpers.js';
 import {Duration} from '../../../../core/time/duration.js';
+import {BlockNodeDeployedEvent} from '../../../../core/events/event-types/block-node-deployed-event.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
 import {UserBreak} from '../../../../core/errors/user-break.js';
 import {Templates} from '../../../../core/templates.js';
@@ -111,6 +114,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
     @inject(InjectTokens.Helm) private readonly helm: HelmClient,
+    @inject(InjectTokens.ContainerEngineResourceInspector)
+    private readonly containerEngineResourceInspector: ContainerEngineResourceInspector,
   ) {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
@@ -124,6 +129,11 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
     this.helm = patchInject(helm, InjectTokens.Helm, this.constructor.name);
+    this.containerEngineResourceInspector = patchInject(
+      containerEngineResourceInspector,
+      InjectTokens.ContainerEngineResourceInspector,
+      this.constructor.name,
+    );
   }
 
   public buildDeployPipeline(
@@ -147,6 +157,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
           ): Promise<void> => {
             this.configManager.update(argv);
             this.oneShotState.activate();
+
+            // Warn if the local container engine reports fewer resources than recommended
+            await ContainerResourcePreflight.warnIfInsufficient(this.containerEngineResourceInspector, this.logger);
 
             const edgeEnabled: boolean = this.configManager.getFlag(flags.edgeEnabled);
             const versions: OneShotVersionsObject = await DeployArgvBuilders.resolveOneShotComponentVersions(
@@ -610,20 +623,30 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         'Deploy Solo components',
         [
           new OrchestratorPipelinePhase('Deploy block node', {
-            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-              invokeSoloCommand(
-                `solo ${BlockCommandDefinition.ADD_COMMAND}`,
-                BlockCommandDefinition.ADD_COMMAND,
-                (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
-                this.taskList,
-                (): boolean =>
+            asListrTask: (
+              getConfig: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> => {
+              const skipAndNotify: () => boolean = (): boolean => {
+                const shouldSkip: boolean =
                   !DeployArgvBuilders.shouldDeployBlockNode(getConfig()) ||
                   this.isComponentInPhaseAtLeast(
                     deploymentStateSnapshot,
                     ComponentTypes.BlockNode,
                     DeploymentPhase.DEPLOYED,
-                  ),
-              ),
+                  );
+                if (shouldSkip) {
+                  this.eventBus.emit(new BlockNodeDeployedEvent(getConfig().deployment));
+                }
+                return shouldSkip;
+              };
+              return invokeSoloCommand(
+                `solo ${BlockCommandDefinition.ADD_COMMAND}`,
+                BlockCommandDefinition.ADD_COMMAND,
+                (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
+                this.taskList,
+                skipAndNotify,
+              );
+            },
           }),
           OrchestratorPipelinePhase.composite('Deploy network node', [
             new OrchestratorPipelinePhase('Deploy consensus node', {
@@ -638,7 +661,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   // Idempotency guard: skip if the consensus node is already deployed or the network Helm release exists.
                   (): boolean => this.isConsensusDeployStepComplete(deploymentStateSnapshot),
                 ),
-            }),
+              // consensus network deploy has a "Copy block-nodes.json" step that reads blockNodeMap.
+              // Gate it on BlockNodeDeployed so block-node add has fully populated blockNodeMap before
+              // consensus network deploy runs.
+            }).withWaitCondition(SoloEventType.BlockNodeDeployed, Duration.ofMinutes(10)),
             OrchestratorPipelinePhase.composite('Setup and start consensus node', [
               new OrchestratorPipelinePhase('Setup consensus node', {
                 asListrTask: (

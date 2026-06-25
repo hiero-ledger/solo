@@ -66,6 +66,7 @@ import {optionFromFlag} from './command-helpers.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {K8} from '../integration/kube/k8.js';
+import {HelmSchedulingValues} from '../core/util/helm-scheduling-values.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -458,6 +459,7 @@ export class MirrorNodeCommand extends BaseCommand {
     const chartValues: HelmChartValues = new HelmChartValues();
 
     chartValues.filesFromCommaSeparatedInput(config.valuesFile);
+    chartValues.add(HelmSchedulingValues.buildSchedulingChartValues(chartValues, 'pinger', 'pinger'));
 
     config.mirrorNodeVersion = SemanticVersion.getValidSemanticVersion(
       config.mirrorNodeVersion,
@@ -899,20 +901,10 @@ export class MirrorNodeCommand extends BaseCommand {
           MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX,
         );
       },
-      skip: ({config}: MirrorNodeDeployContext): boolean =>
-        config.useExternalDatabase || !config.installSharedResources,
+      skip: ({config}: MirrorNodeDeployContext): boolean => config.useExternalDatabase,
     };
   }
 
-  /**
-   * Installs the mirror chart with all application components disabled in order to create the
-   * `mirror-passwords` secret.  The init script (run by {@link initializeSharedPostgresDatabaseTask})
-   * reads that secret to obtain the DB user passwords, so the secret must exist before init runs.
-   * The importer must not be running during init (it would hold a session that blocks DROP DATABASE),
-   * so we use this lightweight prime install instead of a full chart install.
-   *
-   * Skipped when the secret already exists (upgrade path) or when using an external database.
-   */
   /**
    * Deletes the `<release>-redis` secret so that the subsequent mirror chart install/upgrade
    * re-creates it cleanly.  This is necessary because Kubernetes strategic-merge-patch does not
@@ -933,6 +925,13 @@ export class MirrorNodeCommand extends BaseCommand {
     };
   }
 
+  /**
+   * Installs the mirror chart with all application components disabled in order to create the
+   * `mirror-passwords` secret.  The init script (run by {@link initializeSharedPostgresDatabaseTask})
+   * reads that secret to obtain the DB user passwords, so the secret must exist before init runs.
+   * The importer must not be running during init (it would hold a session that blocks DROP DATABASE),
+   * so we use this lightweight prime install instead of a full chart install.
+   */
   private primePostgresSecretTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prime mirror-node postgres secret',
@@ -984,8 +983,7 @@ export class MirrorNodeCommand extends BaseCommand {
           Boolean(context_.config.mirrorNodeChartDirectory),
         );
       },
-      skip: ({config}: MirrorNodeDeployContext): boolean =>
-        config.useExternalDatabase || !config.installSharedResources,
+      skip: ({config}: MirrorNodeDeployContext): boolean => config.useExternalDatabase,
     };
   }
 
@@ -1027,6 +1025,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
                 const mirrorIngressControllerChartValues: HelmChartValues = new HelmChartValues().file(
                   constants.INGRESS_CONTROLLER_VALUES_FILE,
+                );
+                mirrorIngressControllerChartValues.add(
+                  HelmSchedulingValues.buildSchedulingChartValues(config.chartValues, 'controller'),
                 );
                 if (config.mirrorStaticIp !== '') {
                   mirrorIngressControllerChartValues.setLiteral(
