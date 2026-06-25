@@ -81,7 +81,7 @@ export class PostgresSharedResource {
   ): Promise<void> {
     const containerReference: ContainerReference = await this.resolveContainerReference(namespace, context);
     const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-    const tag: string = getMirrorNodeReleaseTag(MIRROR_NODE_VERSION);
+    const tag: string = PostgresSharedResource.getMirrorNodeReleaseTag(MIRROR_NODE_VERSION);
 
     // check if path exists recursive PathEx.join(constants.SOLO_CACHE_DIR, 'mirror-node', mirrorRelease, 'init-script.sh')
     if (!fs.existsSync(PathEx.join(SOLO_CACHE_DIR, 'mirror-node', tag))) {
@@ -212,7 +212,7 @@ export class PostgresSharedResource {
           '# Check for the sentinel comment that marks a fully completed initialization.',
           '# Using a DB comment means the sentinel survives pod restarts and is only written',
           '# after init-postgres.sh completes successfully (see end of this script).',
-          `SENTINEL=$(psql -tc "SELECT obj_description(oid, 'pg_database') FROM pg_database WHERE datname = '${databaseName}'" 2>/dev/null | tr -d '[:space:]')`,
+          `SENTINEL=$(psql -tc "SELECT shobj_description(oid, 'pg_database') FROM pg_database WHERE datname = '${databaseName}'" 2>/dev/null | tr -d '[:space:]')`,
           'if [[ "${SENTINEL}" == "solo-initialized" ]]; then',
           `  echo "Initialization sentinel found on database '${databaseName}' — already complete, skipping."`,
           '  exit 0',

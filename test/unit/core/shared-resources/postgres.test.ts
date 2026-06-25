@@ -6,7 +6,7 @@ import sinon, {type SinonSpyCall} from 'sinon';
 import fs from 'node:fs';
 import * as Base64 from 'js-base64';
 
-import {getMirrorNodeReleaseTag, PostgresSharedResource} from '../../../../src/core/shared-resources/postgres.js';
+import {PostgresSharedResource} from '../../../../src/core/shared-resources/postgres.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type K8Factory} from '../../../../src/integration/kube/k8-factory.js';
 import {type HelmClient} from '../../../../src/integration/helm/helm-client.js';
@@ -172,6 +172,27 @@ describe('PostgresSharedResource', (): void => {
       expect(writtenContent).to.include('export OWNER_USERNAME=mirror_node_owner');
     });
 
+    it('reads the initialization sentinel from the database shared-object comment', async (): Promise<void> => {
+      await postgres.initializeMirrorNode(namespace, context);
+
+      const wrapperArguments: string[] = writeFileSyncStub
+        .getCalls()
+        .find((call: SinonSpyCall<string[], string>): boolean => (call.args[0] as string).includes('run-init'))!.args;
+      const writtenContent: string = wrapperArguments[1] as string;
+      expect(writtenContent).to.include("SELECT shobj_description(oid, 'pg_database') FROM pg_database");
+      expect(writtenContent).to.not.include("SELECT obj_description(oid, 'pg_database') FROM pg_database");
+    });
+
+    it('drops legacy and current REST users during partial initialization cleanup', async (): Promise<void> => {
+      await postgres.initializeMirrorNode(namespace, context);
+
+      const wrapperArguments: string[] = writeFileSyncStub
+        .getCalls()
+        .find((call: SinonSpyCall<string[], string>): boolean => (call.args[0] as string).includes('run-init'))!.args;
+      const writtenContent: string = wrapperArguments[1] as string;
+      expect(writtenContent).to.include('mirror_api mirror_rest mirror_rest_java');
+    });
+
     it('wrapper script contains all required service passwords', async (): Promise<void> => {
       await postgres.initializeMirrorNode(namespace, context);
 
@@ -306,11 +327,11 @@ describe('PostgresSharedResource', (): void => {
 
   describe('getMirrorNodeReleaseTag()', (): void => {
     it('preserves pre-release suffixes', (): void => {
-      expect(getMirrorNodeReleaseTag('v0.153.0-rc2')).to.equal('v0.153.0-rc2');
+      expect(PostgresSharedResource.getMirrorNodeReleaseTag('v0.153.0-rc2')).to.equal('v0.153.0-rc2');
     });
 
     it('adds v prefix when missing', (): void => {
-      expect(getMirrorNodeReleaseTag('0.153.0-rc2')).to.equal('v0.153.0-rc2');
+      expect(PostgresSharedResource.getMirrorNodeReleaseTag('0.153.0-rc2')).to.equal('v0.153.0-rc2');
     });
   });
 });

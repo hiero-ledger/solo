@@ -20,6 +20,10 @@ name: "Standard Runner One-Shot Deploy and Destroy"
 # This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.
 
 on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
   pull_request:
     types:
       - opened
