@@ -2,9 +2,9 @@
 
 import fs from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
 import {ShellRunner} from '../shell-runner.js';
 import {type PackageManager} from './package-manager.js';
+import {PathEx} from '../../business/utils/path-ex.js';
 import {injectable} from 'tsyringe-neo';
 
 @injectable()
@@ -34,7 +34,7 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
   public async install(): Promise<boolean> {
     await this.runHomebrewScript(BrewPackageManager.INSTALL_SCRIPT_URL);
     await this.applyShellEnvironment();
-    process.env.PATH = `${process.env.PATH}${path.delimiter}${BrewPackageManager.LINUXBREW_BIN}`;
+    process.env.PATH = `${process.env.PATH}${PathEx.delimiter}${BrewPackageManager.LINUXBREW_BIN}`;
     return this.isAvailable();
   }
 
@@ -56,7 +56,7 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
    * perform command substitution (replaces the previous `bash -c "$(curl …)"` pattern).
    */
   private async runHomebrewScript(scriptUrl: string): Promise<void> {
-    const scriptPath: string = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'solo-brew-')), 'homebrew.sh');
+    const scriptPath: string = PathEx.join(fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-brew-')), 'homebrew.sh');
     try {
       await this.run('curl', ['-fsSL', scriptUrl, '-o', scriptPath]);
       await this.run('bash', [scriptPath], true, false, {NONINTERACTIVE: '1'});
@@ -81,7 +81,7 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
       // brew emits values such as "/home/linuxbrew/.linuxbrew/bin${PATH+:$PATH}"; expand those to the
       // current PATH so the resulting value is correct without a shell performing the expansion.
       process.env[key] = rawValue
-        .replaceAll('${PATH+:$PATH}', currentPath ? `${path.delimiter}${currentPath}` : '')
+        .replaceAll('${PATH+:$PATH}', currentPath ? `${PathEx.delimiter}${currentPath}` : '')
         .replaceAll('$PATH', currentPath);
     }
   }

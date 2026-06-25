@@ -429,7 +429,7 @@ describe('PodmanDependencyManager', (): void => {
       });
       runStub.withArgs(fakeGlobalPodmanPath, ['--version']).resolves([`podman version ${PODMAN_LOW_VERSION}`]);
       runStub
-        .withArgs(`"${PathEx.join(temporaryDirectory, 'podman')}" --version`)
+        .withArgs(PathEx.join(temporaryDirectory, 'podman'), ['--version'])
         .resolves([`podman version ${PODMAN_LOW_VERSION}`]);
       existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'podman')).returns(true);
 
