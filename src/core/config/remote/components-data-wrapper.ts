@@ -387,7 +387,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     }
 
     if (component === undefined || !component.metadata.portForwardConfigs) {
-      logger.showUser(`No port forward config found for ${label}`);
+      logger.showUserUnlessOneShot(`No port forward config found for ${label}`);
       return;
     }
 

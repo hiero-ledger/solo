@@ -877,10 +877,15 @@ export class RelayCommand extends BaseCommand {
           task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
-            this.logger.showList(
-              'Destroyed Relays',
-              await this.chartManager.getInstalledCharts(config.namespace, config.context),
+            const destroyedRelays: string[] = await this.chartManager.getInstalledCharts(
+              config.namespace,
+              config.context,
             );
+            if (this.oneShotState.isActive()) {
+              this.logger.showListIfNotEmpty('Destroyed Relays', destroyedRelays);
+            } else {
+              this.logger.showList('Destroyed Relays', destroyedRelays);
+            }
 
             // reset nodeAliasesUnparsed
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
