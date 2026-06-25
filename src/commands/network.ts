@@ -711,13 +711,6 @@ export class NetworkCommand extends BaseCommand {
 
       const nodePath: string = `hedera.nodes[${nodeIndex}]`;
       chartValuesMap[consensusNode.cluster].setLiteral(`${nodePath}.name`, consensusNode.name);
-      this.addRootImageValues(
-        chartValuesMap[consensusNode.cluster],
-        nodePath,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
     }
 
     for (const clusterReference of clusterReferences) {
@@ -787,27 +780,6 @@ export class NetworkCommand extends BaseCommand {
         }
       }
     }
-  }
-
-  /**
-   * Append root.image registry/repository/tag settings for a given node path to Helm chart values.
-   * @param chartValues - existing chart values
-   * @param nodePath - base node path, e.g. `hedera.nodes[0]`
-   * @param registry - image registry
-   * @param repository - image repository
-   * @param tag - image tag
-   */
-  private addRootImageValues(
-    chartValues: HelmChartValues,
-    nodePath: string,
-    registry: string,
-    repository: string,
-    tag: string,
-  ): void {
-    chartValues
-      .setLiteral(`${nodePath}.root.image.registry`, registry)
-      .setLiteral(`${nodePath}.root.image.tag`, tag)
-      .setLiteral(`${nodePath}.root.image.repository`, repository);
   }
 
   /**

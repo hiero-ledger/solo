@@ -66,7 +66,6 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
-import * as versions from '../../../version.js';
 import {HEDERA_PLATFORM_VERSION, needsConfigTxtForConsensusVersion} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
@@ -3815,13 +3814,6 @@ export class NodeCommandTasks {
           .set(`hedera.nodes[${index}].nodeId`, consensusNode.nodeId);
       }
 
-      this.addRootImageValues(
-        chartValues,
-        `hedera.nodes[${index}]`,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
       // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
     }
   }
@@ -3859,14 +3851,6 @@ export class NodeCommandTasks {
         .set(`hedera.nodes[${index}].accountId`, serviceMap.get(node.name).accountId)
         .set(`hedera.nodes[${index}].name`, node.name)
         .set(`hedera.nodes[${index}].nodeId`, node.nodeId);
-
-      this.addRootImageValues(
-        chartValues,
-        `hedera.nodes[${index}]`,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
     }
 
     // Add new node
@@ -3876,14 +3860,6 @@ export class NodeCommandTasks {
       .set(`hedera.nodes[${index}].accountId`, newNode.accountId)
       .set(`hedera.nodes[${index}].name`, newNode.name)
       .set(`hedera.nodes[${index}].nodeId`, nodeId);
-
-    this.addRootImageValues(
-      chartValues,
-      `hedera.nodes[${index}]`,
-      constants.S6_NODE_IMAGE_REGISTRY,
-      constants.S6_NODE_IMAGE_REPOSITORY,
-      versions.S6_NODE_IMAGE_VERSION,
-    );
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
@@ -3939,13 +3915,6 @@ export class NodeCommandTasks {
           .set(`hedera.nodes[${index}].name`, node.name)
           .set(`hedera.nodes[${index}].nodeId`, node.nodeId);
 
-        this.addRootImageValues(
-          chartValues,
-          `hedera.nodes[${index}]`,
-          constants.S6_NODE_IMAGE_REGISTRY,
-          constants.S6_NODE_IMAGE_REPOSITORY,
-          versions.S6_NODE_IMAGE_VERSION,
-        );
         // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
 
         index++;
