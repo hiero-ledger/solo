@@ -244,6 +244,8 @@ jobs:
       - name: One-Shot Single Deploy
         shell: pwsh
         timeout-minutes: 70
+        env:
+          ENABLE_IMAGE_CACHE: 'false'
         run: |
           $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
           npm run solo -- one-shot single deploy --dev
