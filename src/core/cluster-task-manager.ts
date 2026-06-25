@@ -4,6 +4,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {ShellRunner} from './shell-runner.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {OsPackageManager} from './package-managers/os-package-manager.js';
+import {BrewPackageManager} from './package-managers/brew-package-manager.js';
 import {type PackageManager} from './package-managers/package-manager.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {PodmanMode, SoloListrTask, type SoloListrTaskWrapper} from '../types/index.js';
@@ -33,6 +34,10 @@ import {type ContainerEngineClient} from '../integration/container-engine/contai
 
 @injectable()
 export class ClusterTaskManager extends ShellRunner {
+  // Podman is installed via Homebrew rather than the native package manager because some distros
+  // (notably Ubuntu/apt) ship a podman that is too old for kind; brew provides a current build.
+  private readonly brewPackageManager: BrewPackageManager = new BrewPackageManager();
+
   public constructor(
     @inject(InjectTokens.OsPackageManager) protected readonly osPackageManager: OsPackageManager,
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
@@ -112,6 +117,18 @@ export class ClusterTaskManager extends ShellRunner {
         },
       },
       {
+        title: 'Install brew...',
+        task: async (): Promise<void> => {
+          const brewInstalled: boolean = await this.brewPackageManager.isAvailable();
+          if (!brewInstalled) {
+            this.logger.info('Homebrew not found, installing Homebrew...');
+            if (!(await this.brewPackageManager.install())) {
+              throw new SoloErrors.system.homebrewInstallFailed();
+            }
+          }
+        },
+      },
+      {
         title: 'Install podman...',
         task: async (): Promise<void> => {
           try {
@@ -119,13 +136,9 @@ export class ClusterTaskManager extends ShellRunner {
             this.logger.info(`Podman already installed: ${podmanVersion}`);
           } catch {
             this.logger.info('Podman not found, installing Podman...');
-            const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(parentTask);
-            const packageManager: PackageManager = this.osPackageManager.getPackageManager();
-            packageManager.setOnSudoGranted(onSudoGranted);
-            packageManager.setOnSudoRequested(onSudoRequested);
-            await packageManager.installPackages(['podman']);
-            const podmanPath: string[] = await this.run('which podman');
-            process.env.PATH = `${process.env.PATH}:${podmanPath.join('').replace('/podman', '')}`;
+            await this.brewPackageManager.installPackages(['podman']);
+            const brewBin: string[] = await this.run('which podman');
+            process.env.PATH = `${process.env.PATH}:${brewBin.join('').replace('/podman', '')}`;
           }
         },
       } as SoloListrTask<InitContext>,
