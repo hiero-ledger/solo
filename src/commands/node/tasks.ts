@@ -4510,6 +4510,7 @@ export class NodeCommandTasks {
             node,
             this.logger,
             this.k8Factory,
+            false,
             this.remoteConfig.configuration.versions.consensusNode,
           );
         }
