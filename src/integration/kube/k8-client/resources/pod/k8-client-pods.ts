@@ -569,7 +569,11 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     }
   }
 
-  public async readLogs(podReference: PodReference, timestamps: boolean = true): Promise<string> {
+  public async readLogs(
+    podReference: PodReference,
+    timestamps: boolean = true,
+    previous: boolean = false,
+  ): Promise<string> {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
@@ -584,6 +588,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         name,
         namespace,
         timestamps,
+        previous,
       });
       return log ?? '';
     }
