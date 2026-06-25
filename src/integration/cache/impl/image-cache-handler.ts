@@ -17,8 +17,22 @@ import {type AnyListrContext} from '../../../types/aliases.js';
 import chalk from 'chalk';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {type CacheCatalogStore} from '../api/cache-catalog-store.js';
+import {parse} from 'yaml';
+import * as constants from '../../../core/constants.js';
+import {ImageReference, type ParsedImageReference} from '../../../business/utils/image-reference.js';
+
+interface KindClusterConfig {
+  containerdConfigPatches?: string[];
+}
 
 export class ImageCacheHandler implements CacheOperationHandler {
+  private static readonly DOCKER_HUB_REGISTRY: string = 'docker.io';
+  private static readonly DOCKER_HUB_DIRECT_REGISTRY: string = 'registry-1.docker.io';
+  private static readonly KIND_DOCKER_REGISTRY_MIRRORS_ENVIRONMENT_VARIABLE: string = 'KIND_DOCKER_REGISTRY_MIRRORS';
+  private static readonly DEFAULT_DOCKER_HUB_MIRROR_REGISTRY: string = 'hub.mirror.docker.lat.ope.eng.hashgraph.io';
+  private static readonly RATE_LIMIT_ERROR_PATTERN: RegExp =
+    /toomanyrequests|too many requests|rate limit|429 Too Many Requests/i;
+
   public constructor(
     private readonly engine: ContainerEngineClient,
     private readonly provider: CacheTargetProvider,
@@ -65,9 +79,15 @@ export class ImageCacheHandler implements CacheOperationHandler {
 
           if (!archiveExists) {
             try {
-              await this.engine.saveImage(image, archivePath);
+              await this.saveImage(image, archivePath);
             } catch (error) {
-              const message: string = error instanceof Error ? error.message : String(error);
+              const message: string = ImageCacheHandler.getErrorMessage(error);
+              if (ImageCacheHandler.isRateLimitError(error)) {
+                task.title += ' - ' + chalk.red(`Docker Hub rate limit reached for image: ${image}`);
+                this.logger.showUser(`Docker Hub rate limit reached for image: ${image}. ${message}`);
+                this.logger.error('Docker Hub rate limit reached:', error);
+                throw error;
+              }
               task.title += ' - ' + chalk.red(`failed to SAVE image: ${image}`);
               this.logger.showUser(`Failed to save image archive: ${image}. ${message}`);
               this.logger.error('Failed to save image archive:', error);
@@ -176,5 +196,159 @@ export class ImageCacheHandler implements CacheOperationHandler {
     if (exists) {
       await this.engine.loadImage(item.localPath);
     }
+  }
+
+  private async saveImage(image: string, archivePath: string): Promise<void> {
+    const imageCandidates: readonly string[] = await ImageCacheHandler.resolveImageCandidates(image);
+    let lastError: unknown;
+    let rateLimitError: unknown;
+
+    for (const imageCandidate of imageCandidates) {
+      try {
+        await this.engine.saveImage(imageCandidate, archivePath);
+        if (imageCandidate !== image) {
+          this.logger.info(`Saved image archive for ${image} using mirror image ${imageCandidate}`);
+        }
+        return;
+      } catch (error) {
+        lastError = error;
+        if (ImageCacheHandler.isRateLimitError(error)) {
+          rateLimitError = error;
+        }
+        const message: string = ImageCacheHandler.getErrorMessage(error);
+        this.logger.warn(`Failed to save image archive candidate ${imageCandidate}: ${message}`);
+      }
+    }
+
+    if (rateLimitError) {
+      throw rateLimitError;
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(`Failed to save image archive: ${image}`);
+  }
+
+  private static async resolveImageCandidates(image: string): Promise<readonly string[]> {
+    const parsed: ParsedImageReference = ImageReference.parseImageReference(image);
+
+    if (!ImageCacheHandler.isDockerHubRegistry(parsed.registry)) {
+      return [image];
+    }
+
+    const registries: string[] = [
+      ...(await ImageCacheHandler.resolveDockerHubMirrorRegistries()),
+      ImageCacheHandler.DOCKER_HUB_REGISTRY,
+      ImageCacheHandler.DOCKER_HUB_DIRECT_REGISTRY,
+    ];
+
+    const candidates: string[] = [];
+    const seen: Set<string> = new Set<string>();
+
+    for (const registry of registries) {
+      const candidate: string = `${registry}/${parsed.repository}:${parsed.tag}`;
+      if (!seen.has(candidate)) {
+        seen.add(candidate);
+        candidates.push(candidate);
+      }
+    }
+
+    return candidates;
+  }
+
+  private static async resolveDockerHubMirrorRegistries(): Promise<readonly string[]> {
+    const mirrorRegistriesFromEnvironment: string | undefined = constants.getEnvironmentVariable(
+      ImageCacheHandler.KIND_DOCKER_REGISTRY_MIRRORS_ENVIRONMENT_VARIABLE,
+    );
+
+    const registries: readonly string[] =
+      mirrorRegistriesFromEnvironment && mirrorRegistriesFromEnvironment.trim().length > 0
+        ? mirrorRegistriesFromEnvironment.split(',')
+        : await ImageCacheHandler.resolveDockerHubMirrorRegistriesFromKindConfig();
+
+    const normalized: readonly string[] = ImageCacheHandler.normalizeMirrorRegistries(registries);
+    return normalized.length > 0 ? normalized : [ImageCacheHandler.DEFAULT_DOCKER_HUB_MIRROR_REGISTRY];
+  }
+
+  private static async resolveDockerHubMirrorRegistriesFromKindConfig(): Promise<readonly string[]> {
+    try {
+      const raw: string = await fs.readFile(constants.KIND_CLUSTER_CONFIG_FILE, 'utf8');
+      const parsed: KindClusterConfig = parse(raw) as KindClusterConfig;
+      const patches: readonly string[] = parsed.containerdConfigPatches ?? [];
+      const registries: string[] = [];
+
+      for (const patch of patches) {
+        const endpointMatches: IterableIterator<RegExpMatchArray> = patch.matchAll(
+          /\[plugins\."io\.containerd\.grpc\.v1\.cri"\.registry\.mirrors\."(?:docker\.io|registry-1\.docker\.io)"\]\s*endpoint\s*=\s*\[([^\]]*)\]/g,
+        );
+
+        for (const endpointMatch of endpointMatches) {
+          const endpoints: string = endpointMatch[1];
+          const registryMatches: IterableIterator<RegExpMatchArray> = endpoints.matchAll(/"([^"]+)"/g);
+
+          for (const registryMatch of registryMatches) {
+            registries.push(registryMatch[1]);
+          }
+        }
+      }
+
+      return registries;
+    } catch {
+      // best-effort: fall back to empty list when kind-config.yaml is absent or unparseable
+      return [];
+    }
+  }
+
+  private static normalizeMirrorRegistries(registries: readonly string[]): readonly string[] {
+    const result: string[] = [];
+    const seen: Set<string> = new Set<string>();
+
+    for (const registry of registries) {
+      const normalizedRegistry: string = registry
+        .trim()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '');
+
+      if (
+        normalizedRegistry.length === 0 ||
+        ImageCacheHandler.isDockerHubRegistry(normalizedRegistry) ||
+        seen.has(normalizedRegistry)
+      ) {
+        continue;
+      }
+
+      seen.add(normalizedRegistry);
+      result.push(normalizedRegistry);
+    }
+
+    return result;
+  }
+
+  private static isDockerHubRegistry(registry: string): boolean {
+    return (
+      registry === ImageCacheHandler.DOCKER_HUB_REGISTRY || registry === ImageCacheHandler.DOCKER_HUB_DIRECT_REGISTRY
+    );
+  }
+
+  private static isRateLimitError(error: unknown): boolean {
+    let current: unknown = error;
+    let depth: number = 0;
+
+    while (current && depth < 10) {
+      if (ImageCacheHandler.RATE_LIMIT_ERROR_PATTERN.test(ImageCacheHandler.getErrorMessage(current))) {
+        return true;
+      }
+
+      current = (current as {cause?: unknown}).cause;
+      depth += 1;
+    }
+
+    return false;
+  }
+
+  private static getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    return String(error);
   }
 }
