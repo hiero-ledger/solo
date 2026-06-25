@@ -1003,18 +1003,6 @@ export class NetworkCommand extends BaseCommand {
       config.releaseTag = normalizedReleaseTag;
     }
 
-    const realm: Realm = this.localConfig.configuration.realmForDeployment(config.deployment);
-    const shard: Shard = this.localConfig.configuration.shardForDeployment(config.deployment);
-
-    const networkNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(config.releaseTag);
-    const minimumVersionForNonZeroRealms: SemanticVersion<string> = new SemanticVersion<string>('0.60.0');
-    if (
-      (realm !== 0 || shard !== 0) &&
-      new SemanticVersion<string>(networkNodeVersion).lessThan(minimumVersionForNonZeroRealms)
-    ) {
-      throw new SoloErrors.validation.realmShardVersionConstraint(minimumVersionForNonZeroRealms.toString());
-    }
-
     if (config.haproxyIps) {
       config.haproxyIpsParsed = Templates.parseNodeAliasToIpMapping(config.haproxyIps);
     }
@@ -1051,6 +1039,7 @@ export class NetworkCommand extends BaseCommand {
 
     config.singleUseServiceMonitor = config.serviceMonitor;
     config.singleUsePodLog = config.podLog;
+    const networkNodeVersion: SemanticVersion<string> = new SemanticVersion(config.releaseTag);
     const tssByDefaultSupported: boolean = networkNodeVersion.greaterThanOrEqual(
       versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
     );
@@ -1111,6 +1100,11 @@ export class NetworkCommand extends BaseCommand {
       ),
     );
 
+    if (this.oneShotState.isActive()) {
+      task.title = `Force terminating pods in namespace ${namespace}`;
+      await this.logDestroyResults('Force terminate pods', await this.forceTerminatePods(namespace, contexts));
+    }
+
     task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
     await this.logDestroyResults(
       'Delete remote config configmap',
@@ -1143,7 +1137,7 @@ export class NetworkCommand extends BaseCommand {
             const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(namespace);
 
             if (shouldDeleteNamespace) {
-              await this.k8Factory.getK8(context).namespaces().delete(namespace);
+              await this.k8Factory.getK8(context).namespaces().delete(namespace, this.destroyGracePeriodSeconds());
             } else {
               this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
             }
@@ -1168,6 +1162,28 @@ export class NetworkCommand extends BaseCommand {
         await this.deleteSecrets(namespace, contexts);
       }
     }
+  }
+
+  private destroyGracePeriodSeconds(): number | undefined {
+    return this.oneShotState.isActive() ? 0 : undefined;
+  }
+
+  private async forceTerminatePods(
+    namespace: NamespaceName,
+    contexts: Context[],
+  ): Promise<PromiseSettledResult<void>[]> {
+    return Promise.allSettled(
+      contexts.map(async (context): Promise<void> => {
+        const k8: K8 = this.k8Factory.getK8(context);
+        if (!(await k8.namespaces().has(namespace))) {
+          return;
+        }
+        const pods: Pod[] = await k8.pods().list(namespace, []);
+        await Promise.allSettled(
+          pods.map((pod: Pod): Promise<void> => k8.pods().readByReference(pod.podReference).killPod(0)),
+        );
+      }),
+    );
   }
 
   private async logDestroyResults(title: string, results: PromiseSettledResult<void>[]): Promise<void> {
@@ -2025,54 +2041,78 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         {
-          title: 'Running sub-tasks to destroy network',
-          task: async (
-            {config: {enableTimeout, deletePvcs, deleteSecrets, namespace, contexts}},
-            task,
-          ): Promise<void> => {
-            if (!enableTimeout) {
-              await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
-              return;
-            }
+          title: 'Destroy network resources',
+          task: (_, parentTask): SoloListr<NetworkDestroyContext> =>
+            parentTask.newListr(
+              [
+                {
+                  title: 'Running sub-tasks to destroy network',
+                  task: async (
+                    {config: {enableTimeout, deletePvcs, deleteSecrets, namespace, contexts}},
+                    task,
+                  ): Promise<void> => {
+                    if (!enableTimeout) {
+                      await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
+                      return;
+                    }
 
-            const onTimeoutCallback: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
-              const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
-              this.logger.error(message);
-              this.logger.showUser(chalk.red(message));
-              networkDestroySuccess = false;
+                    const onTimeoutCallback: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
+                      const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
+                      this.logger.error(message);
+                      this.logger.showUser(chalk.red(message));
+                      networkDestroySuccess = false;
 
-              if (!deleteSecrets || !deletePvcs) {
-                await this.remoteConfig.deleteComponents();
-                return;
-              }
+                      if (!deleteSecrets || !deletePvcs) {
+                        await this.remoteConfig.deleteComponents();
+                        return;
+                      }
 
-              for (const context of contexts) {
-                const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(namespace);
+                      for (const context of contexts) {
+                        const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(
+                          namespace,
+                        );
 
-                if (shouldDeleteNamespace) {
-                  await this.k8Factory.getK8(context).namespaces().delete(namespace);
-                } else {
-                  this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
-                }
-              }
-            }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
+                        if (shouldDeleteNamespace) {
+                          await this.k8Factory
+                            .getK8(context)
+                            .namespaces()
+                            .delete(namespace, this.destroyGracePeriodSeconds());
+                        } else {
+                          this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
+                        }
+                      }
+                    }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
-            await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
+                    await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
 
-            clearTimeout(onTimeoutCallback);
-          },
-        },
-        {
-          title: `Remove ${constants.SOLO_SETUP_NAMESPACE.name}`,
-          task: async ({config: {contexts}}): Promise<void> => {
-            const namespace: NamespaceName = constants.SOLO_SETUP_NAMESPACE;
+                    clearTimeout(onTimeoutCallback);
+                  },
+                },
+                {
+                  title: `Remove ${constants.SOLO_SETUP_NAMESPACE.name}`,
+                  task: async ({config: {contexts}}): Promise<void> => {
+                    const namespace: NamespaceName = constants.SOLO_SETUP_NAMESPACE;
 
-            for (const context of contexts) {
-              if (await this.k8Factory.getK8(context).namespaces().has(namespace)) {
-                await this.k8Factory.getK8(context).namespaces().delete(namespace);
-              }
-            }
-          },
+                    if (this.oneShotState.isActive()) {
+                      await this.forceTerminatePods(namespace, contexts);
+                    }
+
+                    for (const context of contexts) {
+                      if (await this.k8Factory.getK8(context).namespaces().has(namespace)) {
+                        await this.k8Factory
+                          .getK8(context)
+                          .namespaces()
+                          .delete(namespace, this.destroyGracePeriodSeconds());
+                      }
+                    }
+                  },
+                },
+              ],
+              {
+                concurrent: this.oneShotState.isActive(),
+                rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+              },
+            ),
         },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,

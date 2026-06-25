@@ -55,7 +55,6 @@ import {
   createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
   extractContextFromConsensusNodes,
-  getInternalAddress,
   parseNodeAliases,
   prepareEndpoints,
   renameAndCopyFile,
@@ -68,11 +67,7 @@ import {
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
 import * as versions from '../../../version.js';
-import {
-  HEDERA_PLATFORM_VERSION,
-  MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
-  needsConfigTxtForConsensusVersion,
-} from '../../../version.js';
+import {HEDERA_PLATFORM_VERSION, needsConfigTxtForConsensusVersion} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -1661,11 +1656,6 @@ export class NodeCommandTasks {
   public setupNetworkNodeFolders(): SoloListrTask<NodeSetupContext> {
     return {
       title: 'setup network node folders',
-      skip: (): boolean => {
-        const currentVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
-        const versionRequirement: SemanticVersion<string> = new SemanticVersion<string>('0.63.0');
-        return currentVersion.lessThan(versionRequirement);
-      },
       task: async (context_): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
           const context: string = extractContextFromConsensusNodes(consensusNode.name, context_.config.consensusNodes);
@@ -1764,15 +1754,7 @@ export class NodeCommandTasks {
       title: 'set gRPC Web endpoint',
       skip: ({config: {app}}): boolean => {
         // skip setting the gRPC Web endpoint if we are not running a Consensus Node
-        if (app !== constants.HEDERA_APP_NAME) {
-          return true;
-        }
-
-        const currentVersion: SemanticVersion<string> = this.remoteConfig.configuration.versions.consensusNode;
-        const versionRequirement: SemanticVersion<string> = new SemanticVersion<string>(
-          MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
-        );
-        return currentVersion.lessThan(versionRequirement);
+        return app !== constants.HEDERA_APP_NAME;
       },
       task: async ({config}): Promise<void> => {
         const {namespace, deployment, adminKey} = config;
@@ -3203,7 +3185,7 @@ export class NodeCommandTasks {
           );
 
           endpoints = [
-            `${getInternalAddress(config.releaseTag, config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
+            `${constants.LOCAL_HOST}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
             `${externalEndpointAddress.formattedAddress()}`,
           ];
         }
@@ -4713,6 +4695,17 @@ export class NodeCommandTasks {
       const logs: string = await k8.pods().readLogs(podReference, true);
       fs.writeFileSync(logFile, logs, 'utf8');
       this.logger.info(`Saved logs to ${logFile}`);
+
+      // Fetch previous logs via K8 client API (cross-platform, no kubectl shell dependency).
+      const logFile1: string = PathEx.join(podLogDirectory, `${podName}-1.log`);
+      this.logger.info(`Downloading previous logs for pod ${podName}...`);
+      try {
+        const logs1: string = await k8.pods().readLogs(podReference, true, true);
+        fs.writeFileSync(logFile1, logs1, 'utf8');
+        this.logger.info(`Saved logs to ${logFile1}`);
+      } catch {
+        this.logger.info(`No previous logs found for pod ${podName}`);
+      }
 
       // Save pod describe-like output (pod + events) for troubleshooting pod states/restarts/events.
       const describeFile: string = PathEx.join(podLogDirectory, `${podName}.describe.txt`);

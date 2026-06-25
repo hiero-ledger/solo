@@ -117,6 +117,7 @@ export class InjectTokens {
   public static CacheHealthInspector: symbol = Symbol.for('CacheHealthInspector');
   public static ImageCacheHandlerBuilder: symbol = Symbol.for('ImageCacheHandlerBuilder');
   public static ContainerEngineClient: symbol = Symbol.for('ContainerEngineClient');
+  public static ContainerEngineResourceInspector: symbol = Symbol.for('ContainerEngineResourceInspector');
 
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');
