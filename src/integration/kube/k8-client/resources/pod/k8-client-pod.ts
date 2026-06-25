@@ -63,12 +63,12 @@ export class K8ClientPod implements Pod {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
-  public async killPod(): Promise<void> {
+  public async killPod(gracePeriodSeconds: number = 1): Promise<void> {
     try {
       await this.kubeClient.deleteNamespacedPod({
         name: this.podReference.name.toString(),
         namespace: this.podReference.namespace.toString(),
-        gracePeriodSeconds: 1,
+        gracePeriodSeconds,
       });
 
       let podExists: boolean = true;
