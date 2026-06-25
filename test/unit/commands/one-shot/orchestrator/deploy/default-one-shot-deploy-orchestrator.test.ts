@@ -518,11 +518,25 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
 });
 
 describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void => {
-  const CLUSTER_CONNECT_TASK_INDEX: number = 6;
-  const DEPLOYMENT_CREATE_TASK_INDEX: number = 7;
-  const DEPLOYMENT_ATTACH_TASK_INDEX: number = 8;
-  const CLUSTER_SETUP_TASK_INDEX: number = 9;
-  const KEYS_GENERATE_TASK_INDEX: number = 10;
+  const SETUP_COMPOSITE_TASK_INDEX: number = 4;
+  const CLUSTER_CONNECT_CHILD_INDEX: number = 2;
+  const DEPLOYMENT_CREATE_CHILD_INDEX: number = 3;
+  const DEPLOYMENT_ATTACH_CHILD_INDEX: number = 4;
+  const CLUSTER_SETUP_CHILD_INDEX: number = 5;
+  const KEYS_GENERATE_CHILD_INDEX: number = 6;
+
+  function getSetupChildTasks(tasks: MockType[]): MockType[] {
+    const composite: MockType = tasks[SETUP_COMPOSITE_TASK_INDEX];
+    let captured: MockType[] = [];
+    const taskWrapper: MockType = {
+      newListr: (subtasks: MockType[]): MockType => {
+        captured = subtasks;
+        return {} as MockType;
+      },
+    };
+    composite.task({} as MockType, taskWrapper);
+    return captured;
+  }
 
   function makeSnapshot(overrides: Partial<DeploymentStateSnapshot> = {}): DeploymentStateSnapshot {
     return {
@@ -541,7 +555,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
     const tasks: MockType[] = buildPipelineTasks(orchestrator);
     const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
 
-    expect(tasks[CLUSTER_CONNECT_TASK_INDEX].skip(context_)).to.be.false;
+    expect(getSetupChildTasks(tasks)[CLUSTER_CONNECT_CHILD_INDEX].skip(context_)).to.be.false;
   });
 
   it('cluster connect: skips when clusterRef is already in local config', (): void => {
@@ -554,7 +568,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       }),
     };
 
-    expect(tasks[CLUSTER_CONNECT_TASK_INDEX].skip(context_)).to.be.true;
+    expect(getSetupChildTasks(tasks)[CLUSTER_CONNECT_CHILD_INDEX].skip(context_)).to.be.true;
   });
 
   it('cluster connect: does not skip when clusterRef is not in local config', (): void => {
@@ -567,7 +581,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       }),
     };
 
-    expect(tasks[CLUSTER_CONNECT_TASK_INDEX].skip(context_)).to.be.false;
+    expect(getSetupChildTasks(tasks)[CLUSTER_CONNECT_CHILD_INDEX].skip(context_)).to.be.false;
   });
 
   it('deployment create: does not skip when snapshot is absent', (): void => {
@@ -575,7 +589,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
     const tasks: MockType[] = buildPipelineTasks(orchestrator);
     const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
 
-    expect(tasks[DEPLOYMENT_CREATE_TASK_INDEX].skip(context_)).to.be.false;
+    expect(getSetupChildTasks(tasks)[DEPLOYMENT_CREATE_CHILD_INDEX].skip(context_)).to.be.false;
   });
 
   it('deployment create: skips when deployment already exists in local config', (): void => {
@@ -588,7 +602,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       }),
     };
 
-    expect(tasks[DEPLOYMENT_CREATE_TASK_INDEX].skip(context_)).to.be.true;
+    expect(getSetupChildTasks(tasks)[DEPLOYMENT_CREATE_CHILD_INDEX].skip(context_)).to.be.true;
   });
 
   it('deployment create: does not skip when deployment does not exist', (): void => {
@@ -601,7 +615,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       }),
     };
 
-    expect(tasks[DEPLOYMENT_CREATE_TASK_INDEX].skip(context_)).to.be.false;
+    expect(getSetupChildTasks(tasks)[DEPLOYMENT_CREATE_CHILD_INDEX].skip(context_)).to.be.false;
   });
 
   it('deployment attach: does not skip when snapshot is absent', (): void => {
@@ -609,7 +623,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
     const tasks: MockType[] = buildPipelineTasks(orchestrator);
     const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
 
-    expect(tasks[DEPLOYMENT_ATTACH_TASK_INDEX].skip(context_)).to.be.false;
+    expect(getSetupChildTasks(tasks)[DEPLOYMENT_ATTACH_CHILD_INDEX].skip(context_)).to.be.false;
   });
 
   it('deployment attach: skips when remote config already exists', (): void => {
@@ -622,7 +636,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       }),
     };
 
-    expect(tasks[DEPLOYMENT_ATTACH_TASK_INDEX].skip(context_)).to.be.true;
+    expect(getSetupChildTasks(tasks)[DEPLOYMENT_ATTACH_CHILD_INDEX].skip(context_)).to.be.true;
   });
 
   it('deployment attach: does not skip when remote config is absent', (): void => {
@@ -635,7 +649,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       }),
     };
 
-    expect(tasks[DEPLOYMENT_ATTACH_TASK_INDEX].skip(context_)).to.be.false;
+    expect(getSetupChildTasks(tasks)[DEPLOYMENT_ATTACH_CHILD_INDEX].skip(context_)).to.be.false;
   });
 
   it('cluster setup: does not skip when snapshot is absent', (): void => {
@@ -643,7 +657,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
     const tasks: MockType[] = buildPipelineTasks(orchestrator);
     const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
 
-    expect(tasks[CLUSTER_SETUP_TASK_INDEX].skip(context_)).to.be.false;
+    expect(getSetupChildTasks(tasks)[CLUSTER_SETUP_CHILD_INDEX].skip(context_)).to.be.false;
   });
 
   it('cluster setup: skips when pod-monitor-role already exists', (): void => {
@@ -654,7 +668,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       deploymentStateSnapshot: makeSnapshot({cluster: {podMonitorRoleExists: true}}),
     };
 
-    expect(tasks[CLUSTER_SETUP_TASK_INDEX].skip(context_)).to.be.true;
+    expect(getSetupChildTasks(tasks)[CLUSTER_SETUP_CHILD_INDEX].skip(context_)).to.be.true;
   });
 
   it('cluster setup: does not skip when pod-monitor-role is absent', (): void => {
@@ -665,7 +679,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       deploymentStateSnapshot: makeSnapshot({cluster: {podMonitorRoleExists: false}}),
     };
 
-    expect(tasks[CLUSTER_SETUP_TASK_INDEX].skip(context_)).to.be.false;
+    expect(getSetupChildTasks(tasks)[CLUSTER_SETUP_CHILD_INDEX].skip(context_)).to.be.false;
   });
 
   it('keys generate: does not skip when snapshot is absent', (): void => {
@@ -673,7 +687,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
     const tasks: MockType[] = buildPipelineTasks(orchestrator);
     const context_: MockType = {config: makeConfig(), deploymentStateSnapshot: undefined};
 
-    expect(tasks[KEYS_GENERATE_TASK_INDEX].skip(context_)).to.be.false;
+    expect(getSetupChildTasks(tasks)[KEYS_GENERATE_CHILD_INDEX].skip(context_)).to.be.false;
   });
 
   it('keys generate: skips when consensus keys are already on disk', (): void => {
@@ -684,7 +698,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       deploymentStateSnapshot: makeSnapshot({keys: {consensusKeysOnDisk: true}}),
     };
 
-    expect(tasks[KEYS_GENERATE_TASK_INDEX].skip(context_)).to.be.true;
+    expect(getSetupChildTasks(tasks)[KEYS_GENERATE_CHILD_INDEX].skip(context_)).to.be.true;
   });
 
   it('keys generate: does not skip when keys are absent', (): void => {
@@ -695,7 +709,7 @@ describe('DefaultOneShotDeployOrchestrator idempotency skip guards', (): void =>
       deploymentStateSnapshot: makeSnapshot({keys: {consensusKeysOnDisk: false}}),
     };
 
-    expect(tasks[KEYS_GENERATE_TASK_INDEX].skip(context_)).to.be.false;
+    expect(getSetupChildTasks(tasks)[KEYS_GENERATE_CHILD_INDEX].skip(context_)).to.be.false;
   });
 });
 

@@ -116,6 +116,7 @@ import {FalconValuesPreparationFailedSoloError} from './classes/component/falcon
 import {BlockNodeNotInRemoteConfigSoloError} from './classes/system/block-node-not-in-remote-config-solo-error.js';
 import {BlockNodeNotReadySoloError} from './classes/system/block-node-not-ready-solo-error.js';
 import {BlockNodePodNotFoundSoloError} from './classes/system/block-node-pod-not-found-solo-error.js';
+import {BlockNodesJsonEmptySoloError} from './classes/system/block-nodes-json-empty-solo-error.js';
 import {ExternalBlockNodeNotInRemoteConfigSoloError} from './classes/system/external-block-node-not-in-remote-config-solo-error.js';
 import {ExplorerPodNotFoundSoloError} from './classes/system/explorer-pod-not-found-solo-error.js';
 import {ExplorerNotInRemoteConfigSoloError} from './classes/system/explorer-not-in-remote-config-solo-error.js';
@@ -703,6 +704,7 @@ export class SoloErrors {
     readonly blockNodePodNotFound: typeof BlockNodePodNotFoundSoloError;
     readonly blockNodeNotReady: typeof BlockNodeNotReadySoloError;
     readonly blockNodeNotInRemoteConfig: typeof BlockNodeNotInRemoteConfigSoloError;
+    readonly blockNodesJsonEmpty: typeof BlockNodesJsonEmptySoloError;
     readonly externalBlockNodeNotInRemoteConfig: typeof ExternalBlockNodeNotInRemoteConfigSoloError;
     readonly clusterConnectionFailed: typeof ClusterConnectionFailedError;
     readonly githubApiHttpResponseError: typeof GitHubApiHttpResponseError;
@@ -778,6 +780,7 @@ export class SoloErrors {
     blockNodePodNotFound: BlockNodePodNotFoundSoloError,
     blockNodeNotReady: BlockNodeNotReadySoloError,
     blockNodeNotInRemoteConfig: BlockNodeNotInRemoteConfigSoloError,
+    blockNodesJsonEmpty: BlockNodesJsonEmptySoloError,
     externalBlockNodeNotInRemoteConfig: ExternalBlockNodeNotInRemoteConfigSoloError,
     clusterConnectionFailed: ClusterConnectionFailedError,
     githubApiHttpResponseError: GitHubApiHttpResponseError,
