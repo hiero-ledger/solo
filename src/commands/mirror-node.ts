@@ -386,6 +386,9 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     const data: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number> = {};
+    const usesBlockNodeEndpoints: boolean = new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
+      MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
+    );
 
     if (config.forceBlockNodeIntegration || !constants.DISABLE_IMPORTER_SPRING_PROFILES) {
       if (config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
@@ -396,14 +399,74 @@ export class MirrorNodeCommand extends BaseCommand {
       data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
     }
 
-    const usesBlockNodeEndpoints: boolean = new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
-      MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
-    );
+    const importerConfig: {
+      [key: string]: {
+        mirror: {
+          importer: {
+            block?: {
+              nodes: {
+                endpoints: {
+                  host: string;
+                  port: number;
+                }[];
+              }[];
+            };
+            downloader: {
+              balance: {
+                enabled: boolean;
+              };
+              record: {
+                enabled: boolean;
+              };
+            };
+          };
+        };
+      };
+    } = {
+      [MirrorNodeCommand.MIRROR_CHART_NAMESPACE]: {
+        mirror: {
+          importer: {
+            downloader: {
+              balance: {
+                enabled: false,
+              },
+              record: {
+                enabled: false,
+              },
+            },
+          },
+        },
+      },
+    };
+
+    if (usesBlockNodeEndpoints) {
+      importerConfig[MirrorNodeCommand.MIRROR_CHART_NAMESPACE].mirror.importer.block = {
+        nodes: blockNodeFqdnList.map(
+          (
+            node,
+          ): {
+            endpoints: {
+              host: string;
+              port: number;
+            }[];
+          } => ({
+            endpoints: [
+              {
+                host: node.host,
+                port: node.port,
+              },
+            ],
+          }),
+        ),
+      };
+    }
 
     for (const [index, node] of blockNodeFqdnList.entries()) {
-      const blockNodeVariablePrefix: string = usesBlockNodeEndpoints
-        ? `HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_ENDPOINTS_0`
-        : `HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}`;
+      if (usesBlockNodeEndpoints) {
+        continue;
+      }
+
+      const blockNodeVariablePrefix: string = `HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}`;
 
       data[`${blockNodeVariablePrefix}_HOST`] = node.host;
       if (node.port !== constants.BLOCK_NODE_PORT) {
@@ -414,42 +477,12 @@ export class MirrorNodeCommand extends BaseCommand {
     const mirrorNodeBlockNodeValues: {
       importer: {
         env: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number>;
-        config: {
-          [key: string]: {
-            mirror: {
-              importer: {
-                downloader: {
-                  balance: {
-                    enabled: boolean;
-                  };
-                  record: {
-                    enabled: boolean;
-                  };
-                };
-              };
-            };
-          };
-        };
+        config: typeof importerConfig;
       };
     } = {
       importer: {
         env: data,
-        config: {
-          [MirrorNodeCommand.MIRROR_CHART_NAMESPACE]: {
-            mirror: {
-              importer: {
-                downloader: {
-                  balance: {
-                    enabled: false,
-                  },
-                  record: {
-                    enabled: false,
-                  },
-                },
-              },
-            },
-          },
-        },
+        config: importerConfig,
       },
     };
 

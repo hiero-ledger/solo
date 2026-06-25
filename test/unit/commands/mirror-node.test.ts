@@ -76,12 +76,19 @@ interface MirrorNodeIntegrationValues {
     env: {
       SPRING_PROFILES_ACTIVE: string;
       HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST?: string;
-      HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST?: string;
     };
     config: {
       hiero: {
         mirror: {
           importer: {
+            block?: {
+              nodes: {
+                endpoints: {
+                  host: string;
+                  port: number;
+                }[];
+              }[];
+            };
             downloader: {
               record: {enabled: boolean};
               balance: {enabled: boolean};
@@ -230,9 +237,16 @@ describe('MirrorNodeCommand unit tests', (): void => {
     });
     const valuesFilePath: string = chartValues.toArguments()[1];
     const valuesFileContents: string = fs.readFileSync(valuesFilePath, 'utf8');
+    const values: MirrorNodeIntegrationValues = yaml.parse(valuesFileContents) as MirrorNodeIntegrationValues;
 
-    expect(valuesFileContents).to.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST');
     expect(valuesFileContents).to.not.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST:');
+    expect(valuesFileContents).to.not.include('HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST:');
+    expect(values.importer.config.hiero.mirror.importer.block.nodes[0].endpoints[0].host).to.equal(
+      'block-node-1.solo.svc.cluster.local',
+    );
+    expect(values.importer.config.hiero.mirror.importer.block.nodes[0].endpoints[0].port).to.equal(
+      constants.BLOCK_NODE_PORT,
+    );
 
     fs.rmSync(temporaryDirectory, {recursive: true, force: true});
   });
@@ -377,8 +391,12 @@ describe('MirrorNodeCommand unit tests', (): void => {
       ) as MirrorNodeIntegrationValues;
 
       expect(values.importer.env.SPRING_PROFILES_ACTIVE).to.equal(constants.SPRING_PROFILES_ACTIVE);
-      expect(values.importer.env.HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST).to.equal(
+      expect(values.importer.env.HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST).to.equal(undefined);
+      expect(values.importer.config.hiero.mirror.importer.block.nodes[0].endpoints[0].host).to.equal(
         'block-node-1.solo.svc.cluster.local',
+      );
+      expect(values.importer.config.hiero.mirror.importer.block.nodes[0].endpoints[0].port).to.equal(
+        constants.BLOCK_NODE_PORT,
       );
       expect(values.importer.config.hiero.mirror.importer.downloader.record.enabled).to.equal(false);
       expect(values.importer.config.hiero.mirror.importer.downloader.balance.enabled).to.equal(false);
