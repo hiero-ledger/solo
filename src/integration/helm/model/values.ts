@@ -17,6 +17,11 @@ export class HelmChartValues {
     return this;
   }
 
+  public setString(name: string, value: HelmChartValue): this {
+    this._arguments.push('--set-string', `${name}=${value}`);
+    return this;
+  }
+
   public setFile(name: string, path: string): this {
     this._arguments.push('--set-file', `${name}=${path}`);
     return this;
