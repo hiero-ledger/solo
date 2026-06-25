@@ -20,6 +20,10 @@ name: "Standard Runner One-Shot Deploy and Destroy"
 # This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.
 
 on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
   pull_request:
     types:
       - opened
@@ -76,6 +80,8 @@ jobs:
 
       - name: One-Shot Single Deploy
         timeout-minutes: 70
+        env:
+          ENABLE_IMAGE_CACHE: 'false'
         run: |
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single deploy --dev

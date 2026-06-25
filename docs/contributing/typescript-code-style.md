@@ -138,6 +138,10 @@ Do not use default exports.
 
 Only export symbols used outside of the module. Minimize exported API surface.
 
+Files exporting module-scope behavior functions are unwanted. Do not export implementation helpers, parser details, or
+single-call-site glue functions just so another file can reach into a module; keep them private or replace
+them with a deliberate, domain-level API.
+
 #### 3.4.4 Mutable exports
 
 Mutable exports can create hard-to-debug code; `export let` is not allowed.

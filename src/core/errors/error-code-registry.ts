@@ -281,6 +281,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CACHE_PROVIDER_NOT_CONFIGURED: 'SOLO-5071',
   POD_TERMINATION_TIMEOUT: 'SOLO-5072',
   CLUSTER_ROLE_CHECK_FAILED: 'SOLO-5073',
+  BLOCK_NODES_JSON_EMPTY: 'SOLO-5074',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
