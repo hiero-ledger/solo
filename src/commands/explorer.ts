@@ -43,6 +43,7 @@ import {createHash} from 'node:crypto';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {optionFromFlag} from './command-helpers.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
+import {HelmSchedulingValues} from '../core/util/helm-scheduling-values.js';
 
 interface ExplorerDeployConfigClass {
   cacheDir: string;
@@ -236,7 +237,7 @@ export class ExplorerCommand extends BaseCommand {
 
     chartValues.setLiteral(
       'proxyPass./api',
-      `http://${constants.MIRROR_INGRESS_CONTROLLER}-${config.mirrorNamespace}.${config.mirrorNamespace}.svc.cluster.local`,
+      Templates.renderMirrorNodeRestServiceUrl(config.mirrorNodeReleaseName, config.mirrorNamespace),
     );
 
     if (config.domainName) {
@@ -428,7 +429,12 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Install explorer ingress controller',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableIngress,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues();
+        const explorerChartValues: HelmChartValues = new HelmChartValues().filesFromCommaSeparatedInput(
+          config.valuesFile,
+        );
+        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues().add(
+          HelmSchedulingValues.buildSchedulingChartValues(explorerChartValues, 'controller'),
+        );
 
         if (config.explorerStaticIp !== '') {
           explorerIngressControllerChartValues.setLiteral('controller.service.loadBalancerIP', config.explorerStaticIp);
@@ -439,9 +445,7 @@ export class ExplorerCommand extends BaseCommand {
           'controller.extraArgs.controller-class',
           config.ingressReleaseName,
         );
-        if (config.tlsClusterIssuerType === 'self-signed') {
-          explorerIngressControllerChartValues.filesFromCommaSeparatedInput(config.ingressControllerValueFile);
-        }
+        explorerIngressControllerChartValues.filesFromCommaSeparatedInput(config.ingressControllerValueFile);
 
         await this.chartManager.upgrade(
           config.namespace,
