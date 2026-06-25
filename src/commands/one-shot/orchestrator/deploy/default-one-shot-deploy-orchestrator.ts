@@ -70,6 +70,7 @@ import {
   sleep,
 } from '../../../../core/helpers.js';
 import {Duration} from '../../../../core/time/duration.js';
+import {BlockNodeDeployedEvent} from '../../../../core/events/event-types/block-node-deployed-event.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
 import {UserBreak} from '../../../../core/errors/user-break.js';
 import {Templates} from '../../../../core/templates.js';
@@ -625,20 +626,30 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         'Deploy Solo components',
         [
           new OrchestratorPipelinePhase('Deploy block node', {
-            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
-              invokeSoloCommand(
-                `solo ${BlockCommandDefinition.ADD_COMMAND}`,
-                BlockCommandDefinition.ADD_COMMAND,
-                (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
-                this.taskList,
-                (): boolean =>
+            asListrTask: (
+              getConfig: () => OneShotSingleDeployConfigClass,
+            ): SoloListrTask<OneShotSingleDeployContext> => {
+              const skipAndNotify: () => boolean = (): boolean => {
+                const shouldSkip: boolean =
                   !DeployArgvBuilders.shouldDeployBlockNode(getConfig()) ||
                   this.isComponentInPhaseAtLeast(
                     deploymentStateSnapshot,
                     ComponentTypes.BlockNode,
                     DeploymentPhase.DEPLOYED,
-                  ),
-              ),
+                  );
+                if (shouldSkip) {
+                  this.eventBus.emit(new BlockNodeDeployedEvent(getConfig().deployment));
+                }
+                return shouldSkip;
+              };
+              return invokeSoloCommand(
+                `solo ${BlockCommandDefinition.ADD_COMMAND}`,
+                BlockCommandDefinition.ADD_COMMAND,
+                (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
+                this.taskList,
+                skipAndNotify,
+              );
+            },
           }),
           OrchestratorPipelinePhase.composite('Deploy network node', [
             new OrchestratorPipelinePhase('Deploy consensus node', {
@@ -653,7 +664,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                   // Idempotency guard: skip if the consensus node is already deployed or the network Helm release exists.
                   (): boolean => this.isConsensusDeployStepComplete(deploymentStateSnapshot),
                 ),
-            }),
+              // consensus network deploy has a "Copy block-nodes.json" step that reads blockNodeMap.
+              // Gate it on BlockNodeDeployed so block-node add has fully populated blockNodeMap before
+              // consensus network deploy runs.
+            }).withWaitCondition(SoloEventType.BlockNodeDeployed, Duration.ofMinutes(10)),
             OrchestratorPipelinePhase.composite('Setup and start consensus node', [
               new OrchestratorPipelinePhase('Setup consensus node', {
                 asListrTask: (
