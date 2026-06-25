@@ -42,6 +42,7 @@ interface MirrorNodeCommandInternal {
     hasMirrorNodeMemoryImprovements: boolean,
     config: MirrorNodeMemoryOverrideConfig,
   ) => void;
+  addMirrorNodeImageTagOverrides: (chartValues: HelmChartValues, mirrorNodeVersion: string) => void;
   initializeSharedPostgresDatabaseTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
   primePostgresSecretTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
   prepareBlockNodeIntegrationValues: (config: {
@@ -212,6 +213,23 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(valuesArguments).to.not.include(`web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`);
     expect(valuesArguments).to.not.include(`web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`);
     expect(valuesArguments).to.include(`web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`);
+  });
+
+  it('should pin mirror node image tags to the selected mirror node version', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const chartValues: HelmChartValues = new HelmChartValues();
+
+    mirrorNodeCommandInternal.addMirrorNodeImageTagOverrides(chartValues, 'v0.157.0');
+
+    const valuesArguments: string[] = chartValues.toArguments();
+    expect(valuesArguments).to.include('grpc.image.tag=0.157.0');
+    expect(valuesArguments).to.include('importer.image.tag=0.157.0');
+    expect(valuesArguments).to.include('monitor.image.tag=0.157.0');
+    expect(valuesArguments).to.include('pinger.image.tag=0.157.0');
+    expect(valuesArguments).to.include('rest.image.tag=0.157.0');
+    expect(valuesArguments).to.include('restjava.image.tag=0.157.0');
+    expect(valuesArguments).to.include('web3.image.tag=0.157.0');
   });
 
   it('should use block node importer endpoint properties for mirror node 0.157.0', (): void => {

@@ -533,6 +533,8 @@ export class MirrorNodeCommand extends BaseCommand {
         .setLiteral('restjava.image.tag', parsedImageReference.tag)
         .setLiteral('web3.image.tag', parsedImageReference.tag)
         .setLiteral('monitor.image.tag', parsedImageReference.tag);
+    } else {
+      this.addMirrorNodeImageTagOverrides(chartValues, config.mirrorNodeVersion);
     }
 
     if (config.storageBucket) {
@@ -642,6 +644,18 @@ export class MirrorNodeCommand extends BaseCommand {
     chartValues.add(this.prepareBlockNodeIntegrationValues(config));
 
     return chartValues;
+  }
+
+  private addMirrorNodeImageTagOverrides(chartValues: HelmChartValues, mirrorNodeVersion: string): void {
+    const imageTag: string = mirrorNodeVersion.replace(/^v/, '');
+    chartValues
+      .setLiteral('grpc.image.tag', imageTag)
+      .setLiteral('importer.image.tag', imageTag)
+      .setLiteral('monitor.image.tag', imageTag)
+      .setLiteral('pinger.image.tag', imageTag)
+      .setLiteral('rest.image.tag', imageTag)
+      .setLiteral('restjava.image.tag', imageTag)
+      .setLiteral('web3.image.tag', imageTag);
   }
 
   private shouldReuseValuesOnUpgrade(
