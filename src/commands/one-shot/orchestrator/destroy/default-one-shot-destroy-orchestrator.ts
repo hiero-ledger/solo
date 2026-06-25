@@ -42,6 +42,7 @@ import {type Deployment} from '../../../../business/runtime-state/config/local/d
 import {type StringFacade} from '../../../../business/runtime-state/facade/string-facade.js';
 import {DestroyArgvBuilders} from './destroy-argv-builders.js';
 import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
+import {SpinnerListrOptions} from '../../../../core/spinner-listr-options.js';
 import {MutableFacadeArray} from '../../../../business/runtime-state/collection/mutable-facade-array.js';
 import {DeploymentSchema} from '../../../../data/schema/model/local/deployment-schema.js';
 import {PathEx} from '../../../../business/utils/path-ex.js';
@@ -393,6 +394,9 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
         false,
         {collapseSubtasks: false},
         (getConfig: () => OneShotSingleDestroyConfigClass): boolean => getConfig().skipAll,
+        // Render each destroy step (mirror/block/consensus/cluster reset/disconnect/deployment delete,
+        // and the concurrent explorer+relay group) as a single collapsed line.
+        true,
       ),
       new OrchestratorPipelinePhase('Remove output directory', {
         asListrTask: (
@@ -415,7 +419,9 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
           phase: OrchestratorPipelinePhase<OneShotSingleDestroyConfigClass, OneShotSingleDestroyContext>,
         ): SoloListrTask<OneShotSingleDestroyContext> => phase.asListrTask(getConfigGlobal, this.eventBus),
       ),
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDestroyContext>,
+      // Animate the collapsed destroy lines with a spinner (the default renderer otherwise shows a
+      // static pointer for a running task with hidden subtasks).
+      SpinnerListrOptions.build() as ListrBaseClassOptions<OneShotSingleDestroyContext>,
     );
   }
 
