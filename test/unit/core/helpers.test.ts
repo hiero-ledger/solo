@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import {describe, it} from 'mocha';
+import {describe, it, beforeEach, afterEach} from 'mocha';
 import each from 'mocha-each';
 import sinon, {type SinonStub} from 'sinon';
 import {Flags as flags} from '../../../src/commands/flags.js';
@@ -12,6 +12,8 @@ import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {type ConfigMap} from '../../../src/integration/kube/resources/config-map/config-map.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
 import yaml from 'yaml';
+import {container} from 'tsyringe-neo';
+import {resetTestContainer} from '../../test-container.js';
 
 import {
   Helpers,
@@ -22,11 +24,14 @@ import {
   remoteConfigsToDeploymentsTable,
   parseGossipFqdnRestricted,
   readGossipFqdnRestrictedFromFile,
+  createAndCopyBlockNodeJsonFileForConsensusNode,
 } from '../../../src/core/helpers.js';
 import * as constants from '../../../src/core/constants.js';
 import {helmValuesHelper} from '../../../src/core/helm-values-helper.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
+import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
+import {SoloErrors} from '../../../src/core/errors/solo-errors.js';
 
 function makeConsensusNode(name: NodeAlias, nodeId: number): ConsensusNode {
   return new ConsensusNode(
@@ -628,5 +633,55 @@ nodes.gossipFqdnRestricted=false`;
       // Should skip staging (no value) and use cache value
       expect(result).to.equal(true);
     });
+  });
+});
+
+describe('createAndCopyBlockNodeJsonFileForConsensusNode', (): void => {
+  beforeEach((): void => {
+    // Use the project's standard test-container reset so all baseline tokens
+    // (LogLevel, DevelopmentMode, SoloLogger, etc.) are registered before our mocks.
+    // Direct container.clearInstances() wipes those tokens and breaks subsequent tests.
+    resetTestContainer();
+    // Provide a minimal RemoteConfigRuntimeState so BlockNodesJsonWrapper can construct
+    // without a live cluster. The state has no block nodes, which exercises the empty-nodes guard.
+    container.registerInstance(InjectTokens.RemoteConfigRuntimeState, {
+      configuration: {
+        state: {
+          blockNodes: [],
+          externalBlockNodes: [],
+          tssEnabled: false,
+          blockNodeMessageSizeSoftLimitBytes: undefined,
+          blockNodeMessageSizeHardLimitBytes: undefined,
+        },
+        clusters: [],
+      },
+    });
+    container.registerInstance(InjectTokens.ConfigProvider, {
+      config: (): {asObject: () => object} => ({asObject: (): object => ({})}),
+    });
+  });
+
+  afterEach((): void => {
+    sinon.restore();
+  });
+
+  it('throws BlockNodesJsonEmptySoloError when blockNodeMap is empty and allowEmpty is false', async (): Promise<void> => {
+    const node: ConsensusNode = makeConsensusNode('node1' as NodeAlias, 1);
+    await expect(
+      createAndCopyBlockNodeJsonFileForConsensusNode(node, undefined as never, undefined as never, false),
+    ).to.be.rejectedWith(SoloErrors.system.blockNodesJsonEmpty);
+  });
+
+  it('does not throw the empty-nodes guard when allowEmpty is true', async (): Promise<void> => {
+    const node: ConsensusNode = makeConsensusNode('node1' as NodeAlias, 1);
+    // Stub out filesystem calls that run after the guard passes.
+    sinon.stub(fs, 'writeFileSync');
+    sinon.stub(fs, 'existsSync').returns(false);
+    // Stub logger so warn() doesn't throw when called with a null receiver.
+    const stubLogger: {warn: () => void} = {warn: sinon.stub()};
+    // With allowEmpty=true the guard is skipped; existsSync returns false so the
+    // function returns early without touching K8, meaning no error is thrown.
+    await expect(createAndCopyBlockNodeJsonFileForConsensusNode(node, stubLogger as never, undefined as never, true)).to
+      .not.be.rejected;
   });
 });
