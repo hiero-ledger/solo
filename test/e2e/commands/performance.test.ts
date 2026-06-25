@@ -123,11 +123,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           try {
             // read all logged metrics and parse the JSON
             const namespace: string = await getNamespaceFromDeployment();
-            const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
-            const files: string[] = fs.readdirSync(tartgetDirectory);
+            const targetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
+            const files: string[] = fs.readdirSync(targetDirectory);
             const allMetrics: Record<string, AggregatedMetrics> = {};
             for (const file of files) {
-              const filePath: string = PathEx.join(tartgetDirectory, file);
+              const filePath: string = PathEx.join(targetDirectory, file);
               const fileContents: string = fs.readFileSync(filePath, 'utf8');
               const fileName: string = file.split('.')[0];
               allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
@@ -135,7 +135,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
             // save the aggregated metrics to a single file
             const aggregatedMetricsFileName: string = 'timeline-metrics.json';
-            const aggregatedMetricsPath: string = PathEx.join(tartgetDirectory, aggregatedMetricsFileName);
+            const aggregatedMetricsPath: string = PathEx.join(targetDirectory, aggregatedMetricsFileName);
             fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
 
             let maxCpuMetrics: number = 0;
@@ -165,19 +165,19 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
               peakMemorySnapshot: allMetrics[maxMemoryFile]?.snapshotName,
               clusterMetrics: clusterMetricsData,
             };
-            fs.writeFileSync(PathEx.join(tartgetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
+            fs.writeFileSync(PathEx.join(targetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
 
             // remove all snapshot files except the representative one
             const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
             for (const file of files) {
               if (!filesToKeep.has(file)) {
-                fs.rmSync(PathEx.join(tartgetDirectory, file));
+                fs.rmSync(PathEx.join(targetDirectory, file));
               }
             }
 
             // copy the summary to the main solo logs directory to be accessible by existing scripts
             fs.copyFileSync(
-              PathEx.join(tartgetDirectory, `${namespace}.json`),
+              PathEx.join(targetDirectory, `${namespace}.json`),
               PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
             );
           } catch (error: unknown) {
