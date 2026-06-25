@@ -93,13 +93,7 @@ import {RapidFireCommand} from '../../commands/rapid-fire.js';
 import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommand} from '../../commands/backup-restore.js';
 import {BackupRestoreCommandDefinition} from '../../commands/command-definitions/backup-restore-command-definition.js';
-import {BrewPackageManager} from '../package-managers/brew-package-manager.js';
 import {OsPackageManager} from '../package-managers/os-package-manager.js';
-import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.js';
-import {DnfPackageManager} from '../package-managers/dnf-package-manager.js';
-import {ZypperPackageManager} from '../package-managers/zypper-package-manager.js';
-import {PacmanPackageManager} from '../package-managers/pacman-package-manager.js';
-import {ApkPackageManager} from '../package-managers/apk-package-manager.js';
 import {ClusterTaskManager} from '../cluster-task-manager.js';
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
@@ -204,12 +198,6 @@ export class Container {
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
       new SingletonContainer(InjectTokens.MetricsServer, MetricsServerImpl),
-      new SingletonContainer(InjectTokens.BrewPackageManager, BrewPackageManager),
-      new SingletonContainer(InjectTokens.AptGetPackageManager, AptGetPackageManager),
-      new SingletonContainer(InjectTokens.DnfPackageManager, DnfPackageManager),
-      new SingletonContainer(InjectTokens.ZypperPackageManager, ZypperPackageManager),
-      new SingletonContainer(InjectTokens.PacmanPackageManager, PacmanPackageManager),
-      new SingletonContainer(InjectTokens.ApkPackageManager, ApkPackageManager),
       new SingletonContainer(InjectTokens.OsPackageManager, OsPackageManager),
       new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
       new SingletonContainer(InjectTokens.PostgresSharedResource, PostgresSharedResource),

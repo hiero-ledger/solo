@@ -6,6 +6,7 @@
 export enum LinuxPackageManagerType {
   APT_GET = 'apt-get',
   DNF = 'dnf',
+  YUM = 'yum',
   ZYPPER = 'zypper',
   PACMAN = 'pacman',
   APK = 'apk',

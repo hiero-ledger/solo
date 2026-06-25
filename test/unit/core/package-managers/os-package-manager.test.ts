@@ -8,22 +8,9 @@ import {container} from 'tsyringe-neo';
 import {resetForTest} from '../../../test-container.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {OsPackageManager} from '../../../../src/core/package-managers/os-package-manager.js';
-import {BrewPackageManager} from '../../../../src/core/package-managers/brew-package-manager.js';
-import {AptGetPackageManager} from '../../../../src/core/package-managers/apt-get-package-manager.js';
-import {DnfPackageManager} from '../../../../src/core/package-managers/dnf-package-manager.js';
-import {ZypperPackageManager} from '../../../../src/core/package-managers/zypper-package-manager.js';
-import {PacmanPackageManager} from '../../../../src/core/package-managers/pacman-package-manager.js';
-import {ApkPackageManager} from '../../../../src/core/package-managers/apk-package-manager.js';
 
 function buildOsPackageManager(): OsPackageManager {
-  return new OsPackageManager(
-    new BrewPackageManager(),
-    new AptGetPackageManager(),
-    new DnfPackageManager(),
-    new ZypperPackageManager(),
-    new PacmanPackageManager(),
-    new ApkPackageManager(),
-  );
+  return new OsPackageManager();
 }
 
 const detectionCases: Array<{name: string; osRelease: string; expectedManager: string}> = [
@@ -64,6 +51,17 @@ describe('OsPackageManager Linux distribution detection', (): void => {
       expect(osPackageManager.getPackageManager().constructor.name).to.equal(detectionCase.expectedManager);
     });
   }
+
+  it('falls back to probing and selects YumPackageManager when only yum is installed', (): void => {
+    sinon.stub(fs, 'readFileSync').returns('ID=amzn\n');
+    sinon.stub(fs, 'accessSync').callsFake((probedPath: fs.PathLike): void => {
+      if (!String(probedPath).endsWith('yum')) {
+        throw new Error('not found');
+      }
+    });
+    const osPackageManager: OsPackageManager = buildOsPackageManager();
+    expect(osPackageManager.getPackageManager().constructor.name).to.equal('YumPackageManager');
+  });
 
   it('throws a clear error for an unsupported distribution with no known package manager', (): void => {
     sinon.stub(fs, 'readFileSync').returns('ID=plan9\n');

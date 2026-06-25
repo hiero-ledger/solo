@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {inject, injectable} from 'tsyringe-neo';
+import {injectable} from 'tsyringe-neo';
 import fs from 'node:fs';
 import path from 'node:path';
 import {type PackageManager} from './package-manager.js';
 import {LinuxPackageManagerType} from './linux-package-manager-type.js';
-import {InjectTokens} from '../dependency-injection/inject-tokens.js';
-import {patchInject} from '../dependency-injection/container-helper.js';
 import {BrewPackageManager} from './brew-package-manager.js';
 import {AptGetPackageManager} from './apt-get-package-manager.js';
 import {DnfPackageManager} from './dnf-package-manager.js';
+import {YumPackageManager} from './yum-package-manager.js';
 import {ZypperPackageManager} from './zypper-package-manager.js';
 import {PacmanPackageManager} from './pacman-package-manager.js';
 import {ApkPackageManager} from './apk-package-manager.js';
@@ -41,6 +40,7 @@ export class OsPackageManager {
   private static readonly FALLBACK_PROBE_ORDER: LinuxPackageManagerType[] = [
     LinuxPackageManagerType.APT_GET,
     LinuxPackageManagerType.DNF,
+    LinuxPackageManagerType.YUM,
     LinuxPackageManagerType.ZYPPER,
     LinuxPackageManagerType.PACMAN,
     LinuxPackageManagerType.APK,
@@ -48,40 +48,14 @@ export class OsPackageManager {
 
   protected packageManager: PackageManager;
 
-  public constructor(
-    @inject(InjectTokens.BrewPackageManager) protected readonly brewPackageManager: BrewPackageManager,
-    @inject(InjectTokens.AptGetPackageManager) protected readonly aptGetPackageManager: AptGetPackageManager,
-    @inject(InjectTokens.DnfPackageManager) protected readonly dnfPackageManager: DnfPackageManager,
-    @inject(InjectTokens.ZypperPackageManager) protected readonly zypperPackageManager: ZypperPackageManager,
-    @inject(InjectTokens.PacmanPackageManager) protected readonly pacmanPackageManager: PacmanPackageManager,
-    @inject(InjectTokens.ApkPackageManager) protected readonly apkPackageManager: ApkPackageManager,
-  ) {
-    this.brewPackageManager = patchInject(brewPackageManager, InjectTokens.BrewPackageManager, OsPackageManager.name);
-    this.aptGetPackageManager = patchInject(
-      aptGetPackageManager,
-      InjectTokens.AptGetPackageManager,
-      OsPackageManager.name,
-    );
-    this.dnfPackageManager = patchInject(dnfPackageManager, InjectTokens.DnfPackageManager, OsPackageManager.name);
-    this.zypperPackageManager = patchInject(
-      zypperPackageManager,
-      InjectTokens.ZypperPackageManager,
-      OsPackageManager.name,
-    );
-    this.pacmanPackageManager = patchInject(
-      pacmanPackageManager,
-      InjectTokens.PacmanPackageManager,
-      OsPackageManager.name,
-    );
-    this.apkPackageManager = patchInject(apkPackageManager, InjectTokens.ApkPackageManager, OsPackageManager.name);
-
+  public constructor() {
     if (OperatingSystem.isDarwin()) {
-      this.packageManager = this.brewPackageManager;
+      this.packageManager = new BrewPackageManager();
     } else if (OperatingSystem.isWin32()) {
       // On Windows, Solo runs its Linux install flow inside WSL2 (Ubuntu), which uses apt-get.
-      this.packageManager = this.aptGetPackageManager;
+      this.packageManager = new AptGetPackageManager();
     } else if (OperatingSystem.isLinux()) {
-      this.packageManager = this.resolveLinuxPackageManager();
+      this.packageManager = OsPackageManager.resolveLinuxPackageManager();
     } else {
       throw new Error(`Unsupported OS platform: ${OperatingSystem.getPlatform()}`);
     }
@@ -92,36 +66,38 @@ export class OsPackageManager {
   }
 
   /** Resolves the package manager for the current Linux distribution via /etc/os-release, with a binary probe fallback. */
-  private resolveLinuxPackageManager(): PackageManager {
+  private static resolveLinuxPackageManager(): PackageManager {
     const osRelease: {id: string; idLike: string[]} = OsPackageManager.readOsRelease();
     const candidates: string[] = [osRelease.id, ...osRelease.idLike].filter(Boolean);
 
     for (const candidate of candidates) {
       const type: LinuxPackageManagerType | undefined = OsPackageManager.DISTRIBUTION_PACKAGE_MANAGERS[candidate];
       if (type) {
-        return this.getManagerByType(type);
+        return OsPackageManager.createManagerByType(type);
       }
     }
 
     // os-release did not identify a known distribution; fall back to probing for an installed binary.
     for (const type of OsPackageManager.FALLBACK_PROBE_ORDER) {
       if (OsPackageManager.isCommandAvailable(type)) {
-        return this.getManagerByType(type);
+        return OsPackageManager.createManagerByType(type);
       }
     }
 
     throw new SoloErrors.system.unsupportedLinuxDistribution(osRelease.id);
   }
 
-  private getManagerByType(type: LinuxPackageManagerType): PackageManager {
-    const managers: Record<LinuxPackageManagerType, PackageManager> = {
-      [LinuxPackageManagerType.APT_GET]: this.aptGetPackageManager,
-      [LinuxPackageManagerType.DNF]: this.dnfPackageManager,
-      [LinuxPackageManagerType.ZYPPER]: this.zypperPackageManager,
-      [LinuxPackageManagerType.PACMAN]: this.pacmanPackageManager,
-      [LinuxPackageManagerType.APK]: this.apkPackageManager,
+  /** Instantiates only the package manager matching the resolved distribution type. */
+  private static createManagerByType(type: LinuxPackageManagerType): PackageManager {
+    const factories: Record<LinuxPackageManagerType, () => PackageManager> = {
+      [LinuxPackageManagerType.APT_GET]: (): PackageManager => new AptGetPackageManager(),
+      [LinuxPackageManagerType.DNF]: (): PackageManager => new DnfPackageManager(),
+      [LinuxPackageManagerType.YUM]: (): PackageManager => new YumPackageManager(),
+      [LinuxPackageManagerType.ZYPPER]: (): PackageManager => new ZypperPackageManager(),
+      [LinuxPackageManagerType.PACMAN]: (): PackageManager => new PacmanPackageManager(),
+      [LinuxPackageManagerType.APK]: (): PackageManager => new ApkPackageManager(),
     };
-    return managers[type];
+    return factories[type]();
   }
 
   /** Reads and parses `ID` and `ID_LIKE` from `/etc/os-release`; returns empty values when unavailable. */

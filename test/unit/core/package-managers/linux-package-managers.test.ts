@@ -7,6 +7,7 @@ import {resetForTest} from '../../../test-container.js';
 import {type LinuxPackageManager} from '../../../../src/core/package-managers/linux-package-manager.js';
 import {AptGetPackageManager} from '../../../../src/core/package-managers/apt-get-package-manager.js';
 import {DnfPackageManager} from '../../../../src/core/package-managers/dnf-package-manager.js';
+import {YumPackageManager} from '../../../../src/core/package-managers/yum-package-manager.js';
 import {ZypperPackageManager} from '../../../../src/core/package-managers/zypper-package-manager.js';
 import {PacmanPackageManager} from '../../../../src/core/package-managers/pacman-package-manager.js';
 import {ApkPackageManager} from '../../../../src/core/package-managers/apk-package-manager.js';
@@ -39,6 +40,15 @@ const managerCases: Array<{
     update: 'dnf makecache',
     upgrade: 'dnf upgrade -y git iptables',
     version: 'dnf --version',
+  },
+  {
+    name: 'YumPackageManager',
+    create: (): LinuxPackageManager => new YumPackageManager(),
+    install: 'yum install -y git iptables',
+    uninstall: 'yum remove -y git iptables',
+    update: 'yum makecache',
+    upgrade: 'yum upgrade -y git iptables',
+    version: 'yum --version',
   },
   {
     name: 'ZypperPackageManager',
