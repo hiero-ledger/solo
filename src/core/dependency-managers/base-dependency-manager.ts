@@ -264,9 +264,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
       const localVersion: string = await this.getVersion(this.localExecutableWithPath).catch((): string =>
         this.getRequiredVersion(),
       );
-      this.logger.showUser(
-        `Compatible ${this.executableName} v${localVersion} found at ${this.localExecutableWithPath}`,
-      );
+      this.logger.debug(`Compatible ${this.executableName} v${localVersion} found at ${this.localExecutableWithPath}`);
       return true;
     }
 
@@ -275,12 +273,12 @@ export abstract class BaseDependencyManager extends ShellRunner {
       const globalVersion: string = await this.getVersion(this.globalExecutablePath).catch((): string =>
         this.getRequiredVersion(),
       );
-      this.logger.showUser(`Compatible ${this.executableName} v${globalVersion} found at ${this.globalExecutablePath}`);
+      this.logger.debug(`Compatible ${this.executableName} v${globalVersion} found at ${this.globalExecutablePath}`);
       return true;
     }
 
     // If not installed, download and install
-    this.logger.showUser(
+    this.logger.debug(
       `Compatible ${this.executableName} ${this.getRequiredVersion()} was not found locally or globally. ` +
         `Downloading and installing it into ${this.installationDirectory}...`,
     );
@@ -312,7 +310,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
       throw new SoloErrors.system.dependencyInstallFailed(this.executableName, error);
     }
 
-    this.logger.showUser(
+    this.logger.debug(
       `Installed ${this.executableName} ${this.getRequiredVersion()} into ${this.installationDirectory}.`,
     );
 
