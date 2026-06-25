@@ -65,6 +65,11 @@ echo "Next version: ${NEXT}"
 
 State the computed version and the reason (feat found → minor / none → patch) before proceeding.
 
+> **Patch-only short-circuit:** if the bump is a **patch** (no `feat:` commits since the last tag), there is
+> **nothing to prepare** — do **not** create a branch, edit any files, or commit. Report that the next version is a
+> patch release and that no documentation changes are needed, then stop. Skip every step below. Only continue when the
+> bump is a **minor**.
+
 ## Step 2 — Classify the release (LTS vs normal)
 
 The minor number decides the support policy:
@@ -143,7 +148,7 @@ signature (`-S`):
 
 ```bash
 git add README.md legacy-versions.md
-git commit -s -S -m "chore: prepare release ${NEXT}"
+git commit -s -S -m "chore(release): update readme and legacy versions for release ${NEXT}"
 ```
 
 If signing fails (no GPG/SSH key configured), stop and tell the user — do **not** commit unsigned. The repo
@@ -155,32 +160,41 @@ Verify the commit is signed and signed-off before finishing:
 git log -1 --show-signature --pretty=full | grep -iE 'Signed-off-by|gpg|Good signature'
 ```
 
-## Step 7 — Hand off to the PR
+## Step 7 — Push and open the PR
 
-Report: the computed version, LTS/normal classification, the new README row, how many rows were moved to legacy
-(if any), and the branch + commit. Then offer to push and open the PR:
+A commit was made, so this step is **required** — push the branch and open the PR (do not wait for confirmation):
 
 ```bash
 git push -u origin "chore-prepare-release-${NEXT}"
-gh pr create --base main --title "chore: prepare release ${NEXT}" \
+gh pr create --base main \
+  --title "chore(release): update readme and legacy versions for release ${NEXT}" \
   --body "Prepares documentation for the \`${NEXT}\` release."
 ```
 
-Push and `gh pr create` are outward-facing — only run them after the user confirms.
+The PR title is a **Conventional Commit** with a `release` scope and must match the commit subject exactly:
+`chore(release): update readme and legacy versions for release <next-version>`
+(e.g. `chore(release): update readme and legacy versions for release 0.80.0`). Never use a `feat:`/`fix:` prefix
+for the release-prep PR — it only touches docs, so `chore(release):` is correct.
+
+Then report: the computed version, LTS/normal classification, the new README row, how many rows were moved to legacy
+(if any), the branch + commit, and the PR URL.
 
 ## Constraints
 
 ### MUST
 
+- Stop immediately with no branch, no file edits, and no commit when the bump is **patch-only** (no `feat:` commits).
 - Read dependency versions from `version.ts` (`HEDERA_PLATFORM_VERSION`, `KUBECTL_VERSION`), never assume them.
 - Insert the new release as the first data row of the "Current Releases" table.
 - Apply the even=LTS/3-month, odd=normal/1-month rule from the **minor** version number.
 - Move only rows whose End of Support is before today, preserving legacy-table descending order and formatting.
 - Commit with both `-s` (sign-off) and a valid signature; stop if signing is unavailable.
+- Whenever a commit is made, push the branch and open the PR — with a Conventional Commit title that matches the
+  commit subject (`chore(release): update readme and legacy versions for release <next>`).
 
 ### MUST NOT
 
 - Commit anything other than `README.md` and `legacy-versions.md`.
 - "Fix" the existing legacy-table header typo or reflow unrelated table rows.
-- Push the branch or open the PR without explicit user confirmation.
+- Make any file change or commit for a patch-only bump.
 - Bump major version — this skill only does minor/patch bumps.
