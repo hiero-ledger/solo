@@ -56,33 +56,54 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
    * perform command substitution (replaces the previous `bash -c "$(curl …)"` pattern).
    */
   private async runHomebrewScript(scriptUrl: string): Promise<void> {
-    const scriptPath: string = PathEx.join(fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-brew-')), 'homebrew.sh');
+    const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-brew-'));
+    const scriptPath: string = PathEx.join(temporaryDirectory, 'homebrew.sh');
     try {
       await this.run('curl', ['-fsSL', scriptUrl, '-o', scriptPath]);
-      await this.run('bash', [scriptPath], true, false, {NONINTERACTIVE: '1'});
+      await this.run('bash', [scriptPath], {verbose: true, environmentVariablesToAppend: {NONINTERACTIVE: '1'}});
     } finally {
-      fs.rmSync(scriptPath, {force: true});
+      // Remove the whole temp directory created by mkdtempSync, not just the script file.
+      fs.rmSync(temporaryDirectory, {recursive: true, force: true});
     }
   }
 
   /**
    * Applies the environment that `brew shellenv` would export, without a shell `eval`. Parses the
-   * `export KEY="VALUE";` lines and expands references to the current PATH so the values are correct.
+   * `export KEY="VALUE";` lines and expands the shell parameter references each value contains.
    */
   private async applyShellEnvironment(): Promise<void> {
     const output: string[] = await this.run(`${BrewPackageManager.LINUXBREW_BIN}/brew`, ['shellenv']);
-    const currentPath: string = process.env.PATH ?? '';
     for (const line of output) {
-      const match: RegExpMatchArray | null = line.match(/^export ([A-Za-z_][\w]*)="(.*)";?$/);
+      const match: RegExpMatchArray | null = line.match(/^export ([A-Za-z_]\w*)="(.*)";?$/);
       if (!match) {
         continue;
       }
       const [, key, rawValue]: string[] = match;
-      // brew emits values such as "/home/linuxbrew/.linuxbrew/bin${PATH+:$PATH}"; expand those to the
-      // current PATH so the resulting value is correct without a shell performing the expansion.
-      process.env[key] = rawValue
-        .replaceAll('${PATH+:$PATH}', currentPath ? `${PathEx.delimiter}${currentPath}` : '')
-        .replaceAll('$PATH', currentPath);
+      process.env[key] = BrewPackageManager.expandShellValue(rawValue);
     }
+  }
+
+  /**
+   * Expands the shell parameter references that `brew shellenv` emits against the current environment, so
+   * the values are correct without a shell performing the expansion. brew uses three forms — `${VAR+:$VAR}`
+   * (PATH, MANPATH), `${VAR:-}` (INFOPATH) and bare `$VAR` — and hardcodes `:` as the separator, so the
+   * literal separators it emits are preserved as-is.
+   */
+  private static expandShellValue(rawValue: string): string {
+    return (
+      rawValue
+        // ${VAR+word}: substitute word only when VAR is set (brew uses ":$VAR" as the word).
+        .replaceAll(/\$\{(\w+)\+([^}]*)\}/g, (_match: string, name: string, word: string): string =>
+          process.env[name] === undefined ? '' : BrewPackageManager.expandShellValue(word),
+        )
+        // ${VAR:-default}: VAR when set and non-empty, otherwise the default.
+        .replaceAll(
+          /\$\{(\w+):-([^}]*)\}/g,
+          (_match: string, name: string, fallback: string): string =>
+            process.env[name] || BrewPackageManager.expandShellValue(fallback),
+        )
+        // $VAR or ${VAR}: direct substitution.
+        .replaceAll(/\$\{?(\w+)\}?/g, (_match: string, name: string): string => process.env[name] ?? '')
+    );
   }
 }

@@ -283,17 +283,14 @@ export class K8ClientPod implements Pod {
       // Don't use shell on Windows when doing persist mode to avoid argument parsing issues
       const useShell: boolean = isWindows && persist ? false : true;
 
-      await new ShellRunner().run(
-        cmd,
-        cmdArguments,
-        true,
-        true,
-        {
+      await new ShellRunner().run(cmd, cmdArguments, {
+        verbose: true,
+        detached: true,
+        environmentVariablesToAppend: {
           PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
         },
-        undefined,
         useShell,
-      );
+      });
 
       return availablePort;
     } catch (error) {

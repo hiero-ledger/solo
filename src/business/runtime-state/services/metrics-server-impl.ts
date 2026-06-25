@@ -234,8 +234,11 @@ export class MetricsServerImpl implements MetricsServer {
     if (context && context !== 'default') {
       kubectlArguments.push('--context', context);
     }
-    const results: string[] = await new ShellRunner().run('kubectl', kubectlArguments, true, false, {
-      PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
+    const results: string[] = await new ShellRunner().run('kubectl', kubectlArguments, {
+      verbose: true,
+      environmentVariablesToAppend: {
+        PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
+      },
     });
     if (results?.length > 0) {
       const columns: string[] = results[0].trim().split(/\s+/);

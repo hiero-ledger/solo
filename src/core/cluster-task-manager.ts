@@ -152,8 +152,7 @@ export class ClusterTaskManager extends ShellRunner {
               `${this.podmanInstallationDirectory}${path.delimiter}` +
               `${this.kindInstallationDirectory}${path.delimiter}${process.env.PATH}`,
           };
-          // PATH passed to kind (via `env`) replicates the previous inline `PATH="$PATH:${podmanPath}"`,
-          // so kind (resolved from kindInstallationDirectory) and podman are both discoverable.
+          // PATH must include both kindInstallationDirectory (for kind) and podmanPath (for podman).
           const kindRuntimePath: string = `${sudoEnvironment.PATH}${path.delimiter}${podmanPath}`;
           const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
           // Use `sudo env VAR=... PATH=... kind ...` instead of a shell env-var prefix so no shell is needed.
@@ -210,7 +209,7 @@ export class ClusterTaskManager extends ShellRunner {
             sudoEnvironment,
           );
 
-          const rootYamlData: string = fs.readFileSync(`${temporaryDirectory}/kube-config-root`, 'utf8');
+          const rootYamlData: string = fs.readFileSync(rootKubeConfigPath, 'utf8');
           const rootConfig: Record<string, AnyObject> = yaml.parse(rootYamlData) as Record<string, AnyObject>;
 
           let userConfig: Record<string, AnyObject>;
@@ -281,29 +280,19 @@ export class ClusterTaskManager extends ShellRunner {
               await this.podmanDependencyManager.setupConfig();
               const podmanExecutable: string = await this.podmanDependencyManager.getExecutable();
               try {
-                await this.run(
-                  podmanExecutable,
-                  ['machine', 'inspect', constants.PODMAN_MACHINE_NAME],
-                  false,
-                  false,
-                  podmanEnvironment,
-                );
+                await this.run(podmanExecutable, ['machine', 'inspect', constants.PODMAN_MACHINE_NAME], {
+                  environmentVariablesToAppend: podmanEnvironment,
+                });
               } catch (error) {
                 if (error.message.includes('VM does not exist')) {
                   await this.run(
                     podmanExecutable,
                     ['machine', 'init', constants.PODMAN_MACHINE_NAME, '--memory=16384'], // 16GB
-                    false,
-                    false,
-                    podmanEnvironment,
+                    {environmentVariablesToAppend: podmanEnvironment},
                   );
-                  await this.run(
-                    podmanExecutable,
-                    ['machine', 'start', constants.PODMAN_MACHINE_NAME],
-                    false,
-                    false,
-                    podmanEnvironment,
-                  );
+                  await this.run(podmanExecutable, ['machine', 'start', constants.PODMAN_MACHINE_NAME], {
+                    environmentVariablesToAppend: podmanEnvironment,
+                  });
                 } else {
                   throw new SoloErrors.system.podmanMachineInspectFailed(error);
                 }

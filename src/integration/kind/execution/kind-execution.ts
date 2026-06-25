@@ -115,12 +115,17 @@ export class KindExecution {
       setTimeout((): void => resolve(false), timeout.toMillis());
     });
 
-    const successPromise: Promise<boolean> = new Promise((resolve): void => {
+    const successPromise: Promise<boolean> = new Promise((resolve, reject): void => {
+      // Reject (rather than resolve false) on a spawn failure so the real start-up error surfaces instead
+      // of being masked as a generic timeout by responseAsTimeout()/callTimeout().
+      const rejectWithSpawnError: (error: Error) => void = (error: Error): void => {
+        reject(new KindExecutionException(1, `Failed to start process: ${error.message}`, '', error.message));
+      };
       if (this.spawnError) {
-        resolve(false);
+        rejectWithSpawnError(this.spawnError);
         return;
       }
-      this.process.on('error', (): void => resolve(false));
+      this.process.on('error', rejectWithSpawnError);
       this.process.on('close', (code): void => {
         resolve(code === 0);
       });

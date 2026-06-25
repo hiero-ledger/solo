@@ -325,17 +325,10 @@ export class BackupRestoreCommand extends BaseCommand {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
             // Run zip from the output directory (cwd) with an explicit argument array and no shell, so the
             // password and file names cannot be interpreted by a shell.
-            await shellRunner.run(
-              'zip',
-              ['-rX', '-P', zipPassword, zipFile, '.'],
-              true,
-              false,
-              {},
-              undefined,
-              false,
-              undefined,
-              outputDirectory,
-            );
+            await shellRunner.run('zip', ['-rX', '-P', zipPassword, zipFile, '.'], {
+              verbose: true,
+              workingDirectory: outputDirectory,
+            });
             this.logger.showUser(chalk.green(`Backup compressed to ${zipFile}`));
           },
         },
@@ -1381,7 +1374,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
     const shellRunner: ShellRunner = new ShellRunner(this.logger);
     // Explicit argument array, no shell: the password and paths cannot be interpreted by a shell.
-    await shellRunner.run('unzip', ['-o', '-P', zipPassword, inputPath, '-d', targetDirectory], true, false);
+    await shellRunner.run('unzip', ['-o', '-P', zipPassword, inputPath, '-d', targetDirectory], {verbose: true});
 
     this.configManager.setFlag(flags.inputDir, targetDirectory);
 
@@ -1408,8 +1401,7 @@ export class BackupRestoreCommand extends BaseCommand {
           this.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
           try {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
-            // Remove any pre-existing network (ignoring failure, replacing the previous `|| true`), then
-            // create it — two explicit array-form commands instead of a shell `||`/`&&` pipeline.
+            // Remove any pre-existing network, then create it.
             try {
               await shellRunner.run('docker', ['network', 'rm', '-f', 'kind']);
             } catch {

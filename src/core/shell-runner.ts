@@ -8,6 +8,7 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
 import {SensitiveDataRedactor} from './util/sensitive-data-redactor.js';
+import {type ShellRunOptions} from './shell-run-options.js';
 
 @injectable()
 export class ShellRunner {
@@ -29,17 +30,16 @@ export class ShellRunner {
   }
 
   /** Returns a promise that invokes the shell command */
-  public async run(
-    cmd: string,
-    arguments_: string[] = [],
-    verbose: boolean = false,
-    detached: boolean = false,
-    environmentVariablesToAppend: Record<string, string> = {},
-    timeoutMs?: number,
-    useShell: boolean = false,
-    idleTimeoutMs?: number,
-    workingDirectory?: string,
-  ): Promise<string[]> {
+  public async run(cmd: string, arguments_: string[] = [], options: ShellRunOptions = {}): Promise<string[]> {
+    const {
+      verbose = false,
+      detached = false,
+      environmentVariablesToAppend = {},
+      timeoutMs,
+      useShell = false,
+      idleTimeoutMs,
+      workingDirectory,
+    }: ShellRunOptions = options;
     const redactedArguments: string[] = ShellRunner.redactArguments(arguments_);
     const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${redactedArguments.join(' ')}`;
     const callStack: string = new Error(message).stack; // capture the callstack to be included in error
@@ -229,6 +229,6 @@ export class ShellRunner {
     });
     await Promise.race([whoamiPromise, timeoutPromise]);
 
-    return this.run('sudo', [cmd, ...arguments_], verbose, detached, environmentVariablesToAppend);
+    return this.run('sudo', [cmd, ...arguments_], {verbose, detached, environmentVariablesToAppend});
   }
 }

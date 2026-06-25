@@ -44,20 +44,20 @@ describe('ShellRunner', (): void => {
   }).timeout(Duration.ofSeconds(10).toMillis());
 
   it('should complete successfully within timeout', async (): Promise<void> => {
-    const result: string[] = await shellRunner.run('node', ['-e', "console.log('hello')"], false, false, {}, 10_000);
+    const result: string[] = await shellRunner.run('node', ['-e', "console.log('hello')"], {timeoutMs: 10_000});
     expect(result).to.include('hello');
   }).timeout(Duration.ofSeconds(15).toMillis());
 
   it('should reject with timeout error when command exceeds timeoutMs', async (): Promise<void> => {
     const timeoutMs: number = 500;
 
-    await expect(
-      shellRunner.run('node', ['-e', 'setTimeout(()=>{}, 10000)'], false, false, {}, timeoutMs),
-    ).to.be.rejectedWith(`Command timed out after ${timeoutMs}ms`);
+    await expect(shellRunner.run('node', ['-e', 'setTimeout(()=>{}, 10000)'], {timeoutMs})).to.be.rejectedWith(
+      `Command timed out after ${timeoutMs}ms`,
+    );
   }).timeout(Duration.ofSeconds(10).toMillis());
 
   it('should stream output when verbose mode is enabled', async (): Promise<void> => {
-    await shellRunner.run('node', ['-e', "console.log('verbose-output')"], true);
+    await shellRunner.run('node', ['-e', "console.log('verbose-output')"], {verbose: true});
 
     expect(loggerShowUserStub).to.have.been.calledWith('verbose-output');
   }).timeout(Duration.ofSeconds(10).toMillis());
@@ -66,7 +66,7 @@ describe('ShellRunner', (): void => {
     const idleTimeoutMs: number = 500;
 
     await expect(
-      shellRunner.run('node', ['-e', 'setTimeout(()=>{}, 10000)'], false, false, {}, 10_000, false, idleTimeoutMs),
+      shellRunner.run('node', ['-e', 'setTimeout(()=>{}, 10000)'], {timeoutMs: 10_000, idleTimeoutMs}),
     ).to.be.rejectedWith(`Command produced no output for ${idleTimeoutMs}ms`);
   }).timeout(Duration.ofSeconds(10).toMillis());
 
