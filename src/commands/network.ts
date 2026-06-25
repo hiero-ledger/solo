@@ -1920,6 +1920,7 @@ export class NetworkCommand extends BaseCommand {
                   consensusNode,
                   this.logger,
                   this.k8Factory,
+                  false,
                   this.remoteConfig.configuration.versions.consensusNode,
                 );
               }

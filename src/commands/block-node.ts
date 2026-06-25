@@ -34,7 +34,9 @@ import chalk from 'chalk';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {injectable} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {Templates} from '../core/templates.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
@@ -53,6 +55,8 @@ import {
 import {optionFromFlag} from './command-helpers.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
+import {type SoloEventBus} from '../core/events/solo-event-bus.js';
+import {BlockNodeDeployedEvent} from '../core/events/event-types/block-node-deployed-event.js';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -168,8 +172,9 @@ interface InferredData {
 
 @injectable()
 export class BlockNodeCommand extends BaseCommand {
-  public constructor() {
+  public constructor(@inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus) {
     super();
+    this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
   }
 
   private static readonly ADD_CONFIGS_NAME: string = 'addConfigs';
@@ -398,6 +403,7 @@ export class BlockNodeCommand extends BaseCommand {
             node,
             this.logger,
             this.k8Factory,
+            false,
             this.remoteConfig.configuration.versions.consensusNode,
           );
         }
@@ -420,6 +426,7 @@ export class BlockNodeCommand extends BaseCommand {
             node,
             this.logger,
             this.k8Factory,
+            false,
             this.remoteConfig.configuration.versions.consensusNode,
           );
         }
@@ -657,6 +664,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         this.checkBlockNodeReadiness(),
         this.handleConsensusNodeUpdating(),
+        this.emitBlockNodeDeployed(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -1155,6 +1163,15 @@ export class BlockNodeCommand extends BaseCommand {
     return true;
   }
 
+  private emitBlockNodeDeployed(): SoloListrTask<BlockNodeDeployContext> {
+    return {
+      title: 'Signal block node deployed',
+      task: ({config: {deployment}}): void => {
+        this.eventBus.emit(new BlockNodeDeployedEvent(deployment));
+      },
+    };
+  }
+
   private rebuildBlockNodesJsonForConsensusNodes(): SoloListrTask<AnyListrContext> {
     return {
       title: "Rebuild 'block.nodes.json' for consensus nodes",
@@ -1165,6 +1182,7 @@ export class BlockNodeCommand extends BaseCommand {
             node,
             this.logger,
             this.k8Factory,
+            true,
             this.remoteConfig.configuration.versions.consensusNode,
           );
         }

@@ -9,6 +9,7 @@ import * as constants from '../../../src/core/constants.js';
 import * as versions from '../../../version.js';
 import {resetForTest} from '../../test-container.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
+import {type SoloListrTask} from '../../../src/types/index.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -40,12 +41,28 @@ interface MirrorNodeCommandInternal {
     hasMirrorNodeMemoryImprovements: boolean,
     config: MirrorNodeMemoryOverrideConfig,
   ) => void;
+  initializeSharedPostgresDatabaseTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
+  primePostgresSecretTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
   prepareBlockNodeIntegrationValues: (config: {
     cacheDir: string;
     clusterReference: string;
     forceBlockNodeIntegration?: boolean;
     mirrorNodeVersion: string;
   }) => HelmChartValues;
+}
+
+interface MirrorNodeDatabaseTaskContext {
+  config: {
+    useExternalDatabase: boolean;
+    installSharedResources: boolean;
+  };
+}
+
+type MirrorNodeDatabaseSkip = (context: MirrorNodeDatabaseTaskContext) => boolean;
+
+function getSkipFunction(task: SoloListrTask<MirrorNodeDatabaseTaskContext>): MirrorNodeDatabaseSkip {
+  expect(task.skip).to.be.a('function');
+  return task.skip as MirrorNodeDatabaseSkip;
 }
 
 interface MirrorNodeIntegrationValues {
@@ -181,6 +198,49 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(valuesArguments).to.not.include(`web3.image.registry=${constants.MIRROR_NODE_OLD_IMAGE_REGISTRY}`);
     expect(valuesArguments).to.not.include(`web3.image.repository=${constants.MIRROR_NODE_OLD_IMAGE_REPO_ROOT}web3`);
     expect(valuesArguments).to.include(`web3.resources.limits.memory=${constants.MIRROR_NODE_OLD_MEMORY_WEB3}`);
+  });
+
+  it('should run shared postgres initialization when shared resources already exist', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const task: SoloListrTask<MirrorNodeDatabaseTaskContext> =
+      mirrorNodeCommandInternal.initializeSharedPostgresDatabaseTask();
+    const context: MirrorNodeDatabaseTaskContext = {
+      config: {
+        useExternalDatabase: false,
+        installSharedResources: false,
+      },
+    };
+
+    expect(getSkipFunction(task)(context)).to.equal(false);
+  });
+
+  it('should run postgres secret priming when shared resources already exist', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const task: SoloListrTask<MirrorNodeDatabaseTaskContext> = mirrorNodeCommandInternal.primePostgresSecretTask();
+    const context: MirrorNodeDatabaseTaskContext = {
+      config: {
+        useExternalDatabase: false,
+        installSharedResources: false,
+      },
+    };
+
+    expect(getSkipFunction(task)(context)).to.equal(false);
+  });
+
+  it('should skip shared postgres tasks for external database deployments', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const context: MirrorNodeDatabaseTaskContext = {
+      config: {
+        useExternalDatabase: true,
+        installSharedResources: false,
+      },
+    };
+
+    expect(getSkipFunction(mirrorNodeCommandInternal.initializeSharedPostgresDatabaseTask())(context)).to.equal(true);
+    expect(getSkipFunction(mirrorNodeCommandInternal.primePostgresSecretTask())(context)).to.equal(true);
   });
 
   it('should disable record and balance downloaders when block node integration is enabled', (): void => {
