@@ -66,7 +66,11 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
-import {HEDERA_PLATFORM_VERSION, needsConfigTxtForConsensusVersion} from '../../../version.js';
+import {
+  HEDERA_PLATFORM_VERSION,
+  MINIMUM_SOLO_CHART_VERSION,
+  needsConfigTxtForConsensusVersion,
+} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -2589,6 +2593,7 @@ export class NodeCommandTasks {
                     config.soloChartVersion,
                     false,
                     'Solo chart version',
+                    MINIMUM_SOLO_CHART_VERSION,
                   );
 
                   await this.chartManager.upgrade(
@@ -3665,6 +3670,7 @@ export class NodeCommandTasks {
               config.soloChartVersion,
               false,
               'Solo chart version',
+              MINIMUM_SOLO_CHART_VERSION,
             );
             const chartValues: HelmChartValues = extraEnvironmentChartValuesMap[clusterReference]
               .clone()

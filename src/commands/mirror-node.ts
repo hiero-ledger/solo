@@ -1337,6 +1337,7 @@ export class MirrorNodeCommand extends BaseCommand {
               context_.config.soloChartVersion,
               false,
               'Solo chart version',
+              versions.MINIMUM_SOLO_CHART_VERSION,
             );
 
             // predefined values first
@@ -1596,6 +1597,7 @@ export class MirrorNodeCommand extends BaseCommand {
               context_.config.soloChartVersion,
               false,
               'Solo chart version',
+              versions.MINIMUM_SOLO_CHART_VERSION,
             );
 
             const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';

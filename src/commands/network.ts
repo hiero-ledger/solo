@@ -1581,6 +1581,7 @@ export class NetworkCommand extends BaseCommand {
                 config.soloChartVersion,
                 false,
                 'Solo chart version',
+                versions.MINIMUM_SOLO_CHART_VERSION,
               );
 
               await this.chartManager.upgrade(
