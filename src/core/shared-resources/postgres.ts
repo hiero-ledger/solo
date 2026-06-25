@@ -81,7 +81,7 @@ export class PostgresSharedResource {
   ): Promise<void> {
     const containerReference: ContainerReference = await this.resolveContainerReference(namespace, context);
     const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-    const tag: string = getMirrorNodeReleaseTag(MIRROR_NODE_VERSION);
+    const tag: string = PostgresSharedResource.getMirrorNodeReleaseTag(MIRROR_NODE_VERSION);
 
     // check if path exists recursive PathEx.join(constants.SOLO_CACHE_DIR, 'mirror-node', mirrorRelease, 'init-script.sh')
     if (!fs.existsSync(PathEx.join(SOLO_CACHE_DIR, 'mirror-node', tag))) {
