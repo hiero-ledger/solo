@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {basename} from 'node:path';
 import globals from 'globals';
 import eslintJs from '@eslint/js';
 import nodePlugin from 'eslint-plugin-n';
@@ -41,6 +42,52 @@ const soloLocalPlugin = {
             const initializerType = node.init?.type;
             if (initializerType === 'ArrowFunctionExpression' || initializerType === 'FunctionExpression') {
               context.report({node, messageId: 'noExportedFunction'});
+            }
+          },
+        };
+      },
+    },
+
+    // Each exported interface must be in its own file named in kebab-case matching the
+    // interface name — §3.5. No off-the-shelf rule covers name-matching; unicorn/filename-case
+    // enforces kebab-case style but not that the filename matches the interface name.
+    'exported-interface-in-own-file': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'Each exported interface must be in its own file named in kebab-case matching the interface name (§3.5).',
+        },
+        schema: [],
+        messages: {
+          filenameMismatch:
+            'Exported interface "{{interfaceName}}" must be in its own file named ' +
+            '"{{expectedFilename}}.ts" — move it or rename the file (§3.5).',
+        },
+      },
+      create(context) {
+        function toKebabCase(name) {
+          return name
+            .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+            .replace(/([a-z\d])([A-Z])/g, '$1-$2')
+            .toLowerCase();
+        }
+
+        return {
+          'ExportNamedDeclaration > TSInterfaceDeclaration'(node) {
+            const filename = context.filename;
+            if (!filename || filename.endsWith('.d.ts')) return;
+
+            const interfaceName = node.id.name;
+            const expectedFilename = toKebabCase(interfaceName);
+            const actualFilename = basename(filename, '.ts');
+
+            if (actualFilename !== expectedFilename) {
+              context.report({
+                node: node.id,
+                messageId: 'filenameMismatch',
+                data: {interfaceName, expectedFilename},
+              });
             }
           },
         };
@@ -269,12 +316,43 @@ export default [
     },
   },
   {
-    // No exported functions in source code — see §10.3.1. Warned repo-wide while existing
-    // exported functions are migrated incrementally.
+    // No exported functions in source code — see §10.3.1.
+    // One exported interface per file, filename matches interface name in kebab-case — see §3.5.
+    // exported-interface-in-own-file is warned while existing multi-interface barrel files
+    // (src/types/index.ts, src/types/flag-types.ts) are migrated; escalate to 'error' once done.
     files: ['src/**/*.ts'],
     plugins: {solo: soloLocalPlugin},
     rules: {
       'solo/no-exported-function': 'error',
+      'solo/exported-interface-in-own-file': 'warn', // TODO error (migrate src/types/ barrels first)
+    },
+  },
+  {
+    // Enforce getEnvironmentVariable() over process.env[...] bracket notation in src/.
+    // Bracket-notation reads bypass the utility and the env.md documentation requirement.
+    // See CLAUDE.md "Environment Variable Access".
+    // constants.ts is excluded because it defines getEnvironmentVariable() and legitimately
+    // accesses process.env[name] internally.
+    files: ['src/**/*.ts'],
+    ignores: ['src/core/constants.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        // Re-state the global import-type check here because this block overrides
+        // no-restricted-syntax for src/ files; @typescript-eslint/consistent-type-imports
+        // already enforces the same thing at error level, so this is belt-and-suspenders.
+        {
+          selector: "ImportDeclaration[importKind='type'] ImportSpecifier",
+          message: "Use `import {type X} from 'path';` instead of `import type {X} from 'path';`.",
+        },
+        {
+          selector:
+            'MemberExpression[computed=true][object.type="MemberExpression"][object.object.name="process"][object.property.name="env"]',
+          message:
+            'Use getEnvironmentVariable() from src/core/constants.ts instead of process.env[...]. ' +
+            'Bracket-notation access bypasses the project utility and the env.md documentation requirement (see CLAUDE.md).',
+        },
+      ],
     },
   },
   {
