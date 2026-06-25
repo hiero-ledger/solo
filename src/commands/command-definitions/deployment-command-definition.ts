@@ -67,6 +67,8 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly DIAGNOSTICS_REPORT: string = 'report';
   public static readonly REFRESH_PORT_FORWARDS: string = 'port-forwards';
 
+  public static readonly STATE_IMAGES: string = 'images';
+
   public static readonly CREATE_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
 
@@ -90,6 +92,9 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
 
   public static readonly PORTS_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_PORTS}` as const;
+
+  public static readonly IMAGES_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.STATE_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.STATE_IMAGES}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -167,6 +172,22 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               [],
             ),
           ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          DeploymentCommandDefinition.STATE_SUBCOMMAND_NAME,
+          DeploymentCommandDefinition.STATE_SUBCOMMAND_DESCRIPTION,
+        ).addSubcommand(
+          new Subcommand(
+            DeploymentCommandDefinition.STATE_IMAGES,
+            'Lists every pod in the deployment namespace and shows its running container image. ' +
+              'Useful to verify that a locally-built image was loaded correctly.',
+            this.deploymentCommand,
+            this.deploymentCommand.images,
+            DeploymentCommand.IMAGES_FLAGS_LIST,
+            [constants.KUBECTL],
+          ),
+        ),
       )
       .addCommandGroup(
         new CommandGroup(

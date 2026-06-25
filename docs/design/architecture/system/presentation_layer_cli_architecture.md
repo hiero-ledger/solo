@@ -146,7 +146,7 @@ flags may be specified at any level of the command hierarchy.
 | consensus   | dev-freeze         | < prepare-upgrade & freeze-upgrade >                                               |
 | deployment  | config             | < list & info & create & delete & import >                                         |
 | deployment  | cluster            | < list & info & attach & detach >                                                  |
-| deployment  | state              | < info & destroy >                                                                 |
+| deployment  | state              | < info & destroy & images >                                                        |
 | deployment  | diagnostics        | < logs & configs & all & connections & analyze >                                   |
 | explorer    | node               | < list & info & logs & add & upgrade & destroy >                                   |
 | keys        | consensus          | < generate >                                                                       |

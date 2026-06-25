@@ -489,6 +489,16 @@ export class MirrorNodeCommand extends BaseCommand {
         .setLiteral('restjava.image.tag', parsedImageReference.tag)
         .setLiteral('web3.image.tag', parsedImageReference.tag)
         .setLiteral('monitor.image.tag', parsedImageReference.tag);
+
+      if (this.isLocalImageAvailableInDocker(config.componentImage)) {
+        chartValues
+          .setLiteral('importer.image.pullPolicy', 'Never')
+          .setLiteral('grpc.image.pullPolicy', 'Never')
+          .setLiteral('rest.image.pullPolicy', 'Never')
+          .setLiteral('restjava.image.pullPolicy', 'Never')
+          .setLiteral('web3.image.pullPolicy', 'Never')
+          .setLiteral('monitor.image.pullPolicy', 'Never');
+      }
     }
 
     if (config.storageBucket) {
@@ -635,6 +645,10 @@ export class MirrorNodeCommand extends BaseCommand {
       shouldReuseValues = false;
     }
 
+    if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
+      await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
+    }
+
     await this.chartManager.upgrade(
       config.namespace,
       config.releaseName,
@@ -645,6 +659,8 @@ export class MirrorNodeCommand extends BaseCommand {
       config.clusterContext,
       shouldReuseValues,
       true,
+      false,
+      Boolean(config.mirrorNodeChartDirectory),
     );
 
     this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
@@ -964,6 +980,8 @@ export class MirrorNodeCommand extends BaseCommand {
           context_.config.clusterContext,
           false,
           true,
+          false,
+          Boolean(context_.config.mirrorNodeChartDirectory),
         );
       },
       skip: ({config}: MirrorNodeDeployContext): boolean =>
