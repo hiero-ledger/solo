@@ -438,7 +438,7 @@ describe('CraneDependencyManager', (): void => {
             return [executablePath];
           });
 
-        sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.CRANE}`).alwaysReturned(false);
+        sandbox.stub(ShellRunner.prototype, 'run');
 
         craneDependencyManager.uninstallLocal();
         expect(craneDependencyManager.isInstalledLocally()).not.to.be.ok;
