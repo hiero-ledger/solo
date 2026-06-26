@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type Lock, type LockRenewalService} from './lock.js';
+import {type Lock} from './lock.js';
+import {type LockRenewalService} from './lock-renewal-service.js';
 import {Duration} from '../time/duration.js';
 import {injectable} from 'tsyringe-neo';
 
