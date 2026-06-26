@@ -56,7 +56,6 @@ runs:
           echo "primary-key=${primary_key}"
           echo "restore-keys<<RESTORE_KEYS"
           echo "${{ inputs.key-prefix }}-${RUNNER_OS}-${RUNNER_ARCH}-"
-          echo "${{ inputs.key-prefix }}-${RUNNER_OS}-"
           echo "RESTORE_KEYS"
         } >> "${GITHUB_OUTPUT}"
 
