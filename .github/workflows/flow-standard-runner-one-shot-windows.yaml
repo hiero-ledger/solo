@@ -135,7 +135,8 @@ jobs:
           wsl-version: 2
           use-cache: false
           set-as-default: true
-          additional-packages: apt-transport-https
+          additional-packages: |
+            apt-transport-https
             ca-certificates
             curl
             software-properties-common
