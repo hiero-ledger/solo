@@ -290,7 +290,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Download Node Logs',
-          task: async (context_, task): Promise<void> => {
+          task: async (_, task): Promise<void> => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const [clusterReference, context] of clusterReferences.entries()) {
               const logsDirectory: string = PathEx.join(outputDirectory, clusterReference, 'logs');
@@ -301,7 +301,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Download Node State Files',
-          task: async (context_, task): Promise<void> => {
+          task: async (_, task): Promise<void> => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const node of consensusNodes) {
               const nodeAlias: NodeAlias = node.name;
