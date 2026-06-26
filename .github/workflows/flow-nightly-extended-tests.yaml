@@ -201,7 +201,7 @@ jobs:
           fi
 
       - name: Save Solo Image Cache
-        if: ${{ steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
         uses: ./.github/actions/solo-image-cache
         with:
           operation: save

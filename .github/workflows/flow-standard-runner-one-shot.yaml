@@ -89,8 +89,6 @@ jobs:
 
       - name: One-Shot Single Deploy
         timeout-minutes: 70
-        env:
-          ENABLE_IMAGE_CACHE: 'false'
         run: |
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single deploy --dev

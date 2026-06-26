@@ -77,7 +77,7 @@ runs:
       run: |
         set -euo pipefail
 
-        image_cache_dir="${HOME}/.solo/cache/images"
+        image_cache_dir="${{ inputs.cache-path }}"
         if [[ -d "${image_cache_dir}" ]] && find "${image_cache_dir}" -type f -name '*.tar' -print -quit | grep -q .; then
           echo "has-files=true" >> "${GITHUB_OUTPUT}"
         else
