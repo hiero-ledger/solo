@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: 'Standard Runner One-Shot Deploy and Destroy'
+name: "Standard Runner One-Shot Deploy and Destroy"
 # The purpose of this workflow is to verify that Solo can successfully deploy a network
 # using the one-shot single deploy command on a standard GitHub-hosted ubuntu runner.
 # This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.

@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: 'Windows One-Shot Deploy and Destroy'
+name: "Windows One-Shot Deploy and Destroy"
 # Compatibility gate: verifies that Solo one-shot deploy continues to work on native Windows.
 # Solo runs natively in PowerShell on a standard GitHub-hosted Windows runner.
 # Docker runs inside WSL2 (replicating how Docker Desktop works for Windows users) and is

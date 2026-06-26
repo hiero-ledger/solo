@@ -14,30 +14,30 @@
 # limitations under the License.
 ##
 
-name: 'Ledger Reset Warm Start Timing Test'
+name: "Ledger Reset Warm Start Timing Test"
 
 on:
   workflow_dispatch:
     inputs:
       use-released-solo:
-        description: 'Use latest released Solo CLI (true) or build from source (false)'
+        description: "Use latest released Solo CLI (true) or build from source (false)"
         type: boolean
         required: false
         default: false
       cycles:
-        description: 'Number of warm-start reset cycles to run'
+        description: "Number of warm-start reset cycles to run"
         type: number
         required: false
         default: 3
   workflow_call:
     inputs:
       use-released-solo:
-        description: 'Use latest released Solo CLI (true) or build from source (false)'
+        description: "Use latest released Solo CLI (true) or build from source (false)"
         type: boolean
         required: false
         default: false
       cycles:
-        description: 'Number of warm-start reset cycles to run'
+        description: "Number of warm-start reset cycles to run"
         type: number
         required: false
         default: 3
@@ -232,7 +232,7 @@ jobs:
             echo "::warning::Runner appears slow (calibration=${BASELINE}s). Timing results may be unreliable."
           fi
 
-      - name: 'Cold/Warm Cycles (${{ inputs.cycles || 3 }} iterations)'
+      - name: "Cold/Warm Cycles (${{ inputs.cycles || 3 }} iterations)"
         id: timing-cycles
         timeout-minutes: 360
         env:

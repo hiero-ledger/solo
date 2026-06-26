@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: 'Test Examples'
+name: "Test Examples"
 
 on:
   schedule:
@@ -25,17 +25,17 @@ on:
   workflow_dispatch:
     inputs:
       node-version:
-        description: 'NodeJS Version:'
+        description: "NodeJS Version:"
         type: string
         required: false
-        default: '22'
+        default: "22"
       consensus-node-version:
-        description: 'Consensus node release tag to use'
+        description: "Consensus node release tag to use"
         type: string
         required: false
-        default: ''
+        default: ""
       released-or-latest:
-        description: 'Use released or latest version'
+        description: "Use released or latest version"
         type: boolean
         required: false
         default: false
@@ -43,26 +43,26 @@ on:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
         required: false
-        default: ''
+        default: ""
       use-release-example-zip:
-        description: 'Download example zip from latest release and run from extracted directory.'
+        description: "Download example zip from latest release and run from extracted directory."
         type: boolean
         required: false
         default: false
   workflow_call:
     inputs:
       node-version:
-        description: 'NodeJS Version:'
+        description: "NodeJS Version:"
         type: string
         required: false
-        default: '22'
+        default: "22"
       consensus-node-version:
-        description: 'Consensus node release tag to use'
+        description: "Consensus node release tag to use"
         type: string
         required: false
-        default: ''
+        default: ""
       released-or-latest:
-        description: 'Use released or latest version'
+        description: "Use released or latest version"
         type: boolean
         required: false
         default: false
@@ -70,9 +70,9 @@ on:
         description: "Specific example directory to run (e.g., 'consensus-node-local-build'). Leave empty to run all examples."
         type: string
         required: false
-        default: ''
+        default: ""
       use-release-example-zip:
-        description: 'Download example zip from latest release and run from extracted directory.'
+        description: "Download example zip from latest release and run from extracted directory."
         type: boolean
         required: false
         default: false

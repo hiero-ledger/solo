@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: 'ZXC: E2E Test'
+name: "ZXC: E2E Test"
 # The purpose of this reusable workflow is to run the e2e tests on every PR and commit.
 # This reusable component is called by the following workflows:
 # - .github/workflows/flow-pull-request-checks.yaml
@@ -24,194 +24,194 @@ on:
   workflow_dispatch:
     inputs:
       consensus-node-version:
-        description: 'Consensus Node Version:'
+        description: "Consensus Node Version:"
         type: string
         required: false
-        default: ''
+        default: ""
       custom-job-label:
-        description: 'Custom Job Label:'
+        description: "Custom Job Label:"
         type: string
         required: false
-        default: 'E2E Test'
+        default: "E2E Test"
       test-script:
-        description: 'NPM Test Run Script:'
+        description: "NPM Test Run Script:"
         type: string
         required: false
-        default: 'test-e2e-standard'
+        default: "test-e2e-standard"
       coverage-subdirectory:
-        description: 'Coverage Report Subdirectory:'
+        description: "Coverage Report Subdirectory:"
         type: string
         required: false
-        default: 'e2e'
+        default: "e2e"
       coverage-report-name:
-        description: 'Coverage Report Name:'
+        description: "Coverage Report Name:"
         type: string
         required: false
-        default: 'E2E Tests Coverage Report'
+        default: "E2E Tests Coverage Report"
       local-java-build:
-        description: 'Build Local Java Code:'
+        description: "Build Local Java Code:"
         type: boolean
         required: false
         default: false
       cluster-name:
-        description: 'Cluster Name:'
+        description: "Cluster Name:"
         type: string
         required: false
-        default: 'solo-e2e'
+        default: "solo-e2e"
       install-dependencies:
-        description: 'Install Solo Dependencies:'
+        description: "Install Solo Dependencies:"
         type: boolean
         required: false
         default: true
       runner:
-        description: 'Runner Label:'
+        description: "Runner Label:"
         type: string
         required: false
-        default: 'hiero-solo-linux-large'
+        default: "hiero-solo-linux-large"
       kind-install:
-        description: 'Install Kind:'
+        description: "Install Kind:"
         type: boolean
         required: false
         default: true
       kind-version:
-        description: 'Kind Version:'
+        description: "Kind Version:"
         type: string
         required: false
-        default: '0.29.0'
+        default: "0.29.0"
       kind-node-image:
-        description: 'Kind Node Image:'
+        description: "Kind Node Image:"
         type: string
         required: false
-        default: 'kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211'
+        default: "kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211"
       kubectl-install:
-        description: 'Install Kubectl:'
+        description: "Install Kubectl:"
         type: boolean
         required: false
         default: true
       kubectl-version:
-        description: 'Kubectl Version:'
+        description: "Kubectl Version:"
         type: string
         required: false
-        default: '1.32.2'
+        default: "1.32.2"
       helm-install:
-        description: 'Install Helm:'
+        description: "Install Helm:"
         type: boolean
         required: false
         default: true
       helm-version:
-        description: 'Helm Version:'
+        description: "Helm Version:"
         type: string
         required: false
-        default: '3.14.2'
+        default: "3.14.2"
       node-version:
-        description: 'NodeJS Version:'
+        description: "NodeJS Version:"
         type: string
         required: false
-        default: '22'
+        default: "22"
       dual-cluster-node-count:
-        description: 'Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):'
+        description: "Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):"
         type: number
         required: false
         default: 3
       test-timeout-minutes:
-        description: 'Test Timeout (minutes):'
+        description: "Test Timeout (minutes):"
         type: number
         required: false
         default: 60
   workflow_call:
     inputs:
       consensus-node-version:
-        description: 'Consensus Node Version:'
+        description: "Consensus Node Version:"
         type: string
         required: false
-        default: ''
+        default: ""
       custom-job-label:
-        description: 'Custom Job Label:'
+        description: "Custom Job Label:"
         type: string
         required: false
-        default: 'E2E Test'
+        default: "E2E Test"
       test-script:
-        description: 'NPM Test Run Script:'
+        description: "NPM Test Run Script:"
         type: string
         required: false
-        default: 'test-e2e-standard'
+        default: "test-e2e-standard"
       coverage-subdirectory:
-        description: 'Coverage Report Subdirectory:'
+        description: "Coverage Report Subdirectory:"
         type: string
         required: false
-        default: 'e2e'
+        default: "e2e"
       coverage-report-name:
-        description: 'Coverage Report Name:'
+        description: "Coverage Report Name:"
         type: string
         required: false
-        default: 'E2E Tests Coverage Report'
+        default: "E2E Tests Coverage Report"
       local-java-build:
-        description: 'Build Local Java Code:'
+        description: "Build Local Java Code:"
         type: boolean
         required: false
         default: false
       cluster-name:
-        description: 'Cluster Name:'
+        description: "Cluster Name:"
         type: string
         required: false
-        default: 'solo-e2e'
+        default: "solo-e2e"
       install-dependencies:
-        description: 'Install Solo Dependencies:'
+        description: "Install Solo Dependencies:"
         type: boolean
         required: false
         default: true
       runner:
-        description: 'Runner Label:'
+        description: "Runner Label:"
         type: string
         required: false
-        default: 'hiero-solo-linux-large'
+        default: "hiero-solo-linux-large"
       kind-install:
-        description: 'Install Kind:'
+        description: "Install Kind:"
         type: boolean
         required: false
         default: true
       kind-version:
-        description: 'Kind Version:'
+        description: "Kind Version:"
         type: string
         required: false
-        default: '0.29.0'
+        default: "0.29.0"
       kind-node-image:
-        description: 'Kind Node Image:'
+        description: "Kind Node Image:"
         type: string
         required: false
-        default: 'kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211'
+        default: "kindest/node:v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211"
       kubectl-install:
-        description: 'Install Kubectl:'
+        description: "Install Kubectl:"
         type: boolean
         required: false
         default: true
       kubectl-version:
-        description: 'Kubectl Version:'
+        description: "Kubectl Version:"
         type: string
         required: false
-        default: '1.32.2'
+        default: "1.32.2"
       helm-install:
-        description: 'Install Helm:'
+        description: "Install Helm:"
         type: boolean
         required: false
         default: true
       helm-version:
-        description: 'Helm Version:'
+        description: "Helm Version:"
         type: string
         required: false
-        default: '3.14.2'
+        default: "3.14.2"
       node-version:
-        description: 'NodeJS Version:'
+        description: "NodeJS Version:"
         type: string
         required: false
-        default: '22'
+        default: "22"
       dual-cluster-node-count:
-        description: 'Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):'
+        description: "Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):"
         type: number
         required: false
         default: 3
       test-timeout-minutes:
-        description: 'Test Timeout (minutes):'
+        description: "Test Timeout (minutes):"
         type: number
         required: false
         default: 60
@@ -230,7 +230,7 @@ permissions:
 
 env:
   #CG_EXEC: export R_UID=$(id -u); CGROUP_LOGLEVEL=DEBUG cgexec -g cpu,memory:user.slice/user-${R_UID}.slice/user@${R_UID}.service/e2e-${{ github.run_id }} --sticky ionice -c 2 -n 2 nice -n 19
-  CG_EXEC: 'ionice -c 2 -n 2 nice -n 19'
+  CG_EXEC: "ionice -c 2 -n 2 nice -n 19"
   KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
   SOLO_CLUSTER_DUALITY: ${{ (inputs.test-script == 'test-e2e-dual-cluster-full' || inputs.test-script == 'test-e2e-external-database') && 2 || 1 }}
   STEP_TIMEOUT_MINUTES: '5'
@@ -599,8 +599,8 @@ jobs:
         if: ${{ !cancelled() && steps.run-e2e-tests.conclusion == 'success' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
-          LOG_FILE: '${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md'
-          JSON_INPUT: '${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}'
+          LOG_FILE: "${{ steps.log-metrics.outputs.solo_log_dir }}/log_file.md"
+          JSON_INPUT: "${{ toJSON(fromJSON(steps.log-metrics.outputs.json_log)) }}"
         run: |
           echo "## Log Metrics - ${{ inputs.custom-job-label }}" >> $LOG_FILE
           echo "" >> $LOG_FILE
@@ -659,7 +659,7 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: e2e_test_report_${{ inputs.test-script }}
-          path: 'junit-${{ inputs.coverage-subdirectory }}.xml'
+          path: "junit-${{ inputs.coverage-subdirectory }}.xml"
           overwrite: true
           if-no-files-found: error
 

@@ -14,7 +14,7 @@
 # limitations under the License.
 ##
 
-name: 'Test Migration Process'
+name: "Test Migration Process"
 
 on:
   workflow_dispatch:
@@ -88,7 +88,7 @@ jobs:
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
-          version: 'v3.12.3' # helm version
+          version: "v3.12.3" # helm version
 
       - name: Setup Kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
