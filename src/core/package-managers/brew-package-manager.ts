@@ -5,6 +5,7 @@ import os from 'node:os';
 import {ShellRunner} from '../shell-runner.js';
 import {type PackageManager} from './package-manager.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {getEnvironmentVariable} from '../constants.js';
 import {injectable} from 'tsyringe-neo';
 
 @injectable()
@@ -79,6 +80,7 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
         continue;
       }
       const [, key, rawValue]: string[] = match;
+      // eslint-disable-next-line no-restricted-syntax
       process.env[key] = BrewPackageManager.expandShellValue(rawValue);
     }
   }
@@ -94,16 +96,16 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
       rawValue
         // ${VAR+word}: substitute word only when VAR is set (brew uses ":$VAR" as the word).
         .replaceAll(/\$\{(\w+)\+([^}]*)\}/g, (_match: string, name: string, word: string): string =>
-          process.env[name] === undefined ? '' : BrewPackageManager.expandShellValue(word),
+          getEnvironmentVariable(name) === undefined ? '' : BrewPackageManager.expandShellValue(word),
         )
         // ${VAR:-default}: VAR when set and non-empty, otherwise the default.
         .replaceAll(
           /\$\{(\w+):-([^}]*)\}/g,
           (_match: string, name: string, fallback: string): string =>
-            process.env[name] || BrewPackageManager.expandShellValue(fallback),
+            getEnvironmentVariable(name) || BrewPackageManager.expandShellValue(fallback),
         )
         // $VAR or ${VAR}: direct substitution.
-        .replaceAll(/\$\{?(\w+)\}?/g, (_match: string, name: string): string => process.env[name] ?? '')
+        .replaceAll(/\$\{?(\w+)\}?/g, (_match: string, name: string): string => getEnvironmentVariable(name) ?? '')
     );
   }
 }

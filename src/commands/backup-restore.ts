@@ -1396,8 +1396,8 @@ export class BackupRestoreCommand extends BaseCommand {
     const tasks: SoloListrTask<any>[] = [
       {
         title: 'Setup Docker network for multi-cluster',
-        skip: (context_: any): boolean => !context_.clusters || context_.clusters.length <= 1,
-        task: async (context_: any): Promise<void> => {
+        skip: (context_): boolean => !context_.clusters || context_.clusters.length <= 1,
+        task: async (context_): Promise<void> => {
           this.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
           try {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
