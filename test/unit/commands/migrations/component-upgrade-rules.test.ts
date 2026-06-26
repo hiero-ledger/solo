@@ -3,13 +3,13 @@
 import {afterEach, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 import fs from 'node:fs';
-import {ComponentUpgradeMigrationRules} from '../../../../src/commands/migrations/component-upgrade-rules.js';
 import {
-  type ComponentUpgradeMigrationConfigFile,
+  ComponentUpgradeMigrationRules,
   type ComponentUpgradeMigrationStep,
-} from '../../../../src/commands/migrations/component-upgrade-rules-types.js';
+} from '../../../../src/commands/migrations/component-upgrade-rules.js';
 import * as constants from '../../../../src/core/constants.js';
 import sinon from 'sinon';
+import {type ComponentUpgradeMigrationConfigFile} from '../../../../src/commands/migrations/component-upgrade-migration-config-file.js';
 
 describe('ComponentUpgradeMigrationRules.planUpgradeMigrationPath', (): void => {
   let existsSyncStub: sinon.SinonStub;
