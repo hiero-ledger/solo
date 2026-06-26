@@ -88,6 +88,7 @@ import {
 import {PodName} from '../../integration/kube/resources/pod/pod-name.js';
 import {NodeStatusCodes, NodeStatusEnums, NodeSubcommandType} from '../../core/enumerations.js';
 import {type Lock} from '../../core/lock/lock.js';
+import {type LeaseWrapper} from './lease-wrapper.js';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {Duration} from '../../core/time/duration.js';
 import {type NodeAddConfigClass} from './config-interfaces/node-add-config-class.js';
@@ -189,10 +190,6 @@ const localBuildPathFilter: (path: string | string[]) => boolean = (path: string
 };
 
 const {gray, cyan, red, green, yellow} = chalk;
-
-export interface LeaseWrapper {
-  lease: Lock;
-}
 
 @injectable()
 export class NodeCommandTasks {
