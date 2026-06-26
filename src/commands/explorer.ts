@@ -25,7 +25,7 @@ import {type ClusterChecks} from '../core/cluster-checks.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
-import {INGRESS_CONTROLLER_VERSION} from '../../version.js';
+import {INGRESS_CONTROLLER_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Lock} from '../core/lock/lock.js';
@@ -301,6 +301,7 @@ export class ExplorerCommand extends BaseCommand {
           config.soloChartVersion,
           false,
           'Solo chart version',
+          MINIMUM_SOLO_CHART_VERSION,
         );
 
         const {soloChartVersion} = config;

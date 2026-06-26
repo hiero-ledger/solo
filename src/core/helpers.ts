@@ -32,15 +32,7 @@ import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import * as versions from '../../version.js';
-
-export interface ResolveGossipFqdnRestrictedOptions {
-  k8?: K8;
-  namespace?: NamespaceName;
-  stagingDir?: string;
-  cacheDir?: string;
-  resourcesDir?: string;
-  applicationPropertiesPath?: string;
-}
+import {type ResolveGossipFqdnRestrictedOptions} from './resolve-gossip-fqdn-restricted-options.js';
 
 type AddLoadContext = AnyListrContext & {
   config: NodeAddConfigClass;

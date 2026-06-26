@@ -17,6 +17,7 @@ import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
+import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
@@ -104,6 +105,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = options.javaFlightRecorderConfiguration;
           await main(soloOneShotDeploy(testName, deployment));
           testLogger.info(`${testName}: finished ${testName}: deploy`);
+
+          // Opt-in: deploy a JFR-enabled block node so its JVM metrics are recorded and collected at teardown.
+          if (process.env.PERFORMANCE_TEST_WITH_BLOCK_NODE === 'true') {
+            testLogger.info(`${testName}: beginning ${testName}: block node deploy (JFR enabled)`);
+            await main(soloBlockNodeJfrDeploy(testName, deployment));
+            testLogger.info(`${testName}: finished ${testName}: block node deploy`);
+          }
 
           startTime = new Date();
           metricsInterval = setInterval(async (): Promise<void> => {
@@ -325,6 +333,25 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
   if (process.env.ONE_SHOT_USE_EDGE === 'true') {
     argv.push(optionFromFlag(Flags.edgeEnabled));
   }
+  return argv;
+}
+
+export function soloBlockNodeJfrDeploy(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+
+  const argv: string[] = newArgv();
+  argv.push(
+    BlockCommandDefinition.COMMAND_NAME,
+    BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+    BlockCommandDefinition.NODE_ADD,
+  );
+  argvPushGlobalFlags(argv, testName);
+  argv.push(
+    optionFromFlag(Flags.deployment),
+    deployment,
+    optionFromFlag(Flags.valuesFile),
+    PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'block-node-perf-values.yaml'),
+  );
   return argv;
 }
 
