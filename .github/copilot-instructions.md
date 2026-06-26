@@ -26,6 +26,9 @@ authoritative rules and rationale. The conventions below are the ones violated m
   class/interface name (e.g. `class KubeValidation` → `kube-validation.ts`,
   `interface FooBarOptions` → `foo-bar-options.ts`). (§3.5; enforced by `solo/exported-interface-in-own-file`
   lint rule for interfaces — a warning today, escalating to error once legacy barrel files are split)
+  Splitting types into separate files can create **circular dependencies** — verify with
+  `npx dpdm --no-warning --no-tree --exit-code circular:1 ./solo.ts` after any such move. Break
+  cycles by extracting a minimal shared interface rather than having two files import each other.
 - **`import type`** — use the inline form `import {type Foo} from '...'`, never `import type {Foo}`.
 - **Explicit types** on every variable declaration and every callback (including `it()`/`describe()`
   callbacks in tests). (§6.1)

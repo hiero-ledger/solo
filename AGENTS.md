@@ -14,6 +14,8 @@ conventions are defined once and referenced here — do not duplicate them:
   or `export const fn = () => …` at module scope. Pure data (constants, types) may be exported.
   Helpers used by one class become `private static` members. (§3.4.5, §10.3.1–§10.3.2; enforced by
   `solo/no-exported-function`.)
-- **One exported class/interface per file**, file named in kebab-case matching it. (§3.5)
+- **One exported class/interface per file**, file named in kebab-case matching it. (§3.5) Splitting
+  interfaces into separate files can introduce **circular dependencies** — always verify with
+  `npx dpdm --no-warning --no-tree --exit-code circular:1 ./solo.ts` after any such move.
 - `import {type X}` (inline), explicit type annotations everywhere, no banned abbreviations, SPDX
   header on every source file.

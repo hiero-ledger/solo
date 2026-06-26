@@ -10,7 +10,7 @@ import {SoloListrTaskWrapper, type DeploymentName, type Optional, type SoloListr
 import {CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
-import {OneShotCommand} from './one-shot.js';
+import {type OneShotCommand} from './one-shot-command.js';
 import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
 import {type OneShotVersionsObject} from './one-shot-versions-object.js';
 import * as version from '../../../version.js';
