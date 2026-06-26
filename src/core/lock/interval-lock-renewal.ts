@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type Lock, type LockRenewalService} from './lock.js';
+import {type RenewableLock} from './renewable-lock.js';
+import {type LockRenewalService} from './lock-renewal-service.js';
 import {Duration} from '../time/duration.js';
 import {injectable} from 'tsyringe-neo';
 
@@ -11,13 +12,13 @@ import {injectable} from 'tsyringe-neo';
 @injectable()
 export class IntervalLockRenewalService implements LockRenewalService {
   /** The internal registry used to track all non-cancelled lease renewals. */
-  private readonly _scheduledLeases: Map<number, Lock>;
+  private readonly _scheduledLeases: Map<number, RenewableLock>;
 
   /**
    * Constructs a new interval lease renewal service.
    */
   constructor() {
-    this._scheduledLeases = new Map<number, Lock>();
+    this._scheduledLeases = new Map<number, RenewableLock>();
   }
 
   /**
@@ -38,7 +39,7 @@ export class IntervalLockRenewalService implements LockRenewalService {
    * @param lock - the lock to be renewed.
    * @returns the unique identifier of the scheduled lock renewal. The unique identifier is the ID of the setInterval() timeout.
    */
-  public async schedule(lock: Lock): Promise<number> {
+  public async schedule(lock: RenewableLock): Promise<number> {
     const renewalDelay: Duration = this.calculateRenewalDelay(lock);
     const timeout: NodeJS.Timeout = setInterval((): Promise<boolean> => lock.tryRenew(), renewalDelay.toMillis());
     const scheduleId: number = Number(timeout);
@@ -91,7 +92,7 @@ export class IntervalLockRenewalService implements LockRenewalService {
    * @param lock - the lock to be renewed.
    * @returns the delay in milliseconds.
    */
-  public calculateRenewalDelay(lock: Lock): Duration {
+  public calculateRenewalDelay(lock: RenewableLock): Duration {
     return Duration.ofSeconds(lock.durationSeconds * 0.5);
   }
 }
