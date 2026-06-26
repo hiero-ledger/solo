@@ -162,9 +162,6 @@ jobs:
           fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
-          # Workaround: keep BOTH mode so SmartContractLoadTest does not return INVALID_TRANSACTION_BODY.
-          # TODO: remove once https://github.com/hiero-ledger/hiero-consensus-node/issues/25883 is fixed.
-          echo BLOCK_STREAM_STREAM_MODE=BOTH >> .env
           cat .env
 
           # Start resource monitoring in background (30s interval for finer granularity)

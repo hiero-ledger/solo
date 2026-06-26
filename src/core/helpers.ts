@@ -71,10 +71,7 @@ export class Helpers {
       }
 
       // CN >= v0.74.0 defaults to BLOCKS (pure block-node streaming, no MinIO record streams).
-      // BLOCK_STREAM_STREAM_MODE env var overrides this default — used in performance tests as a
-      // workaround for SmartContractLoadTest returning INVALID_TRANSACTION_BODY in BLOCKS mode.
-      // TODO: remove the override from flow-performance-test.yaml once
-      //   https://github.com/hiero-ledger/hiero-consensus-node/issues/25883 is resolved.
+      // Keep BLOCK_STREAM_STREAM_MODE as a legacy override for explicit compatibility testing.
       return constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
     }
 
@@ -86,11 +83,17 @@ export class Helpers {
     consensusNodeVersion?: SemanticVersion<string> | string,
     blockNodeIntegrationEnabled: boolean = false,
   ): string {
+    const version: SemanticVersion<string> = new SemanticVersion<string>(
+      consensusNodeVersion?.toString() || versions.HEDERA_PLATFORM_VERSION,
+    );
+
     if (blockNodeIntegrationEnabled) {
-      // Preserve an already block-node-compatible setting during upgrades. This prevents
-      // networks created on older CN versions (for example 0.73 with BOTH) from being
-      // silently flipped to the newer 0.74+ default during later maintenance steps.
-      if (existingStreamMode === 'BOTH' || existingStreamMode === 'BLOCKS') {
+      // Preserve the current stream mode only when it is already the correct mode for the
+      // consensus version. CN 0.74+ with block nodes must use pure block streaming by default.
+      if (
+        existingStreamMode === 'BLOCKS' ||
+        (existingStreamMode === 'BOTH' && version.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS))
+      ) {
         return existingStreamMode;
       }
     } else if (existingStreamMode === 'BOTH' || existingStreamMode === 'RECORDS') {
@@ -107,6 +110,44 @@ export class Helpers {
       /^\s*blockStream\.streamMode\s*=\s*(\S+)\s*$/m,
     );
     return match?.[1];
+  }
+
+  public static updateBlockStreamPropertiesForMode(
+    lines: string[],
+    streamMode: string,
+    writerMode: string = constants.BLOCK_STREAM_WRITER_MODE,
+  ): void {
+    Helpers.upsertApplicationProperty(lines, 'blockStream.streamMode', streamMode);
+    Helpers.upsertApplicationProperty(lines, 'blockStream.writerMode', writerMode);
+
+    if (streamMode === 'BLOCKS') {
+      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'false');
+    } else if (streamMode === 'BOTH') {
+      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'true');
+    }
+  }
+
+  public static upsertApplicationProperty(lines: string[], key: string, value: string): void {
+    const propertyPrefix: string = `${key}=`;
+    let propertyUpdated: boolean = false;
+
+    for (let index: number = 0; index < lines.length; index++) {
+      if (!lines[index].startsWith(propertyPrefix)) {
+        continue;
+      }
+
+      if (propertyUpdated) {
+        lines.splice(index, 1);
+        index--;
+      } else {
+        lines[index] = `${key}=${value}`;
+        propertyUpdated = true;
+      }
+    }
+
+    if (!propertyUpdated) {
+      lines.push(`${key}=${value}`);
+    }
   }
 
   public static sleep(duration: Duration): Promise<void> {
@@ -783,22 +824,7 @@ export class Helpers {
       consensusNodeVersion,
       true,
     );
-    let streamModeUpdated: boolean = false;
-    for (const line of lines) {
-      if (line.startsWith('blockStream.streamMode=')) {
-        lines[lines.indexOf(line)] = `blockStream.streamMode=${blockStreamMode}`;
-        streamModeUpdated = true;
-        break;
-      }
-    }
-
-    if (!streamModeUpdated) {
-      lines.push(`blockStream.streamMode=${blockStreamMode}`);
-    }
-
-    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
-      lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
-    }
+    Helpers.updateBlockStreamPropertiesForMode(lines, blockStreamMode);
 
     const updatedApplicationPropertiesData: string = lines.join('\n');
     if (updatedApplicationPropertiesData !== applicationPropertiesData) {

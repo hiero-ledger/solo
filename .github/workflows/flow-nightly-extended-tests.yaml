@@ -254,6 +254,5 @@ jobs:
       - generate_matrix
     uses: ./.github/workflows/flow-performance-test.yaml
     with:
-      cn-edge-version: v0.74.0
-      use-edge: true
+      cn-edge-version: v0.75.0-rc.6
     secrets: inherit

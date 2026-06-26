@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -62,7 +63,7 @@ trap on_exit EXIT
 
 is_tss_supported_consensus_version() {
   local consensus_version="${1#v}"
-  local minimum_tss_version="0.74.0-0"
+  local minimum_tss_version="0.74.0"
 
   [[ "$(printf '%s\n' "${minimum_tss_version}" "${consensus_version}" | sort -V | head -n 1)" == "${minimum_tss_version}" ]]
 }
@@ -145,6 +146,54 @@ show_service_ips() {
   local label="${2}"
   echo "$(date '+%Y-%m-%d %H:%M:%S') - Service IPs ${label}:"
   kubectl get svc -n "${namespace}" network-node1-svc network-node2-svc -o custom-columns=NAME:.metadata.name,CLUSTER-IP:.spec.clusterIP,CREATED:.metadata.creationTimestamp
+}
+
+get_latest_mirror_block_number() {
+  local mirror_url="${1:-http://127.0.0.1:38081}"
+  local response=""
+
+  response=$(curl -sfS \
+    -H 'Cache-Control: no-cache, no-store, must-revalidate' \
+    -H 'Pragma: no-cache' \
+    -H 'Expires: 0' \
+    "${mirror_url}/api/v1/blocks?limit=1&order=desc" || true)
+
+  node -e '
+const fs = require("fs");
+const input = fs.readFileSync(0, "utf8");
+try {
+  const data = JSON.parse(input);
+  const value = Number(data.blocks?.[0]?.number);
+  console.log(Number.isFinite(value) ? value : -1);
+} catch {
+  console.log(-1);
+}
+' <<< "${response}"
+}
+
+wait_for_mirror_block_progress() {
+  local label="${1}"
+  local previous_block="${2:--1}"
+  local max_attempts="${3:-90}"
+  local sleep_seconds="${4:-2}"
+  local latest_block=-1
+  local minimum_block=$((previous_block + 1))
+
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for mirror block ingestion (${label}), minimum block ${minimum_block}" >&2
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    latest_block=$(get_latest_mirror_block_number)
+    if [[ "${latest_block}" -ge "${minimum_block}" ]]; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - Mirror block ingestion ready (${label}): latest block ${latest_block}" >&2
+      echo "${latest_block}"
+      return 0
+    fi
+
+    echo "Mirror block ingestion not ready (${label}) [attempt=${attempt}/${max_attempts}, latest=${latest_block}, minimum=${minimum_block}]" >&2
+    sleep "${sleep_seconds}"
+  done
+
+  echo "Timed out waiting for mirror block ingestion (${label}); latest=${latest_block}, minimum=${minimum_block}" >&2
+  return 1
 }
 
 # Restart relay after upgrade and refresh port-forwards.
@@ -560,11 +609,13 @@ cp resources/templates/application.properties "${TEMP_SOURCE_APPLICATION_PROPERT
 
 if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   SOURCE_BLOCK_STREAM_MODE="BLOCKS"
+  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
   SOURCE_MINIO_ENABLED="false"
   SOURCE_MIRROR_BLOCK_ENABLED="true"
   SOURCE_MIRROR_RECORD_ENABLED="false"
 else
   SOURCE_BLOCK_STREAM_MODE="BOTH"
+  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
   SOURCE_MINIO_ENABLED="true"
   SOURCE_MIRROR_BLOCK_ENABLED="false"
   SOURCE_MIRROR_RECORD_ENABLED="true"
@@ -574,6 +625,13 @@ if grep -q '^blockStream.streamMode=' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE
   sed -i.bak "s/^blockStream.streamMode=.*/blockStream.streamMode=${SOURCE_BLOCK_STREAM_MODE}/" "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 else
   echo "blockStream.streamMode=${SOURCE_BLOCK_STREAM_MODE}" >> "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+fi
+rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}.bak"
+
+if grep -q '^blockStream.streamWrappedRecordBlocks=' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"; then
+  sed -i.bak "s/^blockStream.streamWrappedRecordBlocks=.*/blockStream.streamWrappedRecordBlocks=${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}/" "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+else
+  echo "blockStream.streamWrappedRecordBlocks=${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}" >> "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 fi
 rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}.bak"
 
@@ -608,6 +666,9 @@ blockNode:
 
 mirrorNode:
   --values-file: "${TEMP_MIRROR_NODE_VALUES_FILE}"
+
+relayNode:
+  --relay-version: "${PREV_RELAY_VERSION}"
 EOF
 
 export ONE_SHOT_WITH_BLOCK_NODE=true
@@ -627,11 +688,14 @@ BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
   --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"
 
+SOURCE_PRE_FREEZE_BLOCK_NUMBER=$(wait_for_mirror_block_progress "source deployment before freeze" -1 90 2)
+
 echo "::endgroup::"
 
 
 echo "::group::Upgrade Solo"
-solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
+wait_for_mirror_block_progress "source freeze boundary" "${SOURCE_PRE_FREEZE_BLOCK_NUMBER}" 90 2 > /dev/null
 show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
 save_cluster_ips "${SOLO_NAMESPACE}"
 
@@ -690,9 +754,11 @@ else
   npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
 fi
 
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
-
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+
+npm run solo -- consensus node restart --deployment "${SOLO_DEPLOYMENT}" -q --dev
+
+npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
 npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 # Restart relay and refresh forwards after upgrade to reduce stale-connection windows.

@@ -733,7 +733,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
         );
         const upgradedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
 
-        expect(modifiedApplicationProperties).to.equal(upgradedApplicationProperties);
+        expect(modifiedApplicationProperties.trimEnd()).to.equal(upgradedApplicationProperties.trimEnd());
       }
 
       {
@@ -820,7 +820,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
       const upgradedApplicationProperties: string = fs.readFileSync(testApplicationPropertiesPath, 'utf8');
 
-      expect(updatedContent).to.equal(upgradedApplicationProperties);
+      expect(updatedContent.trimEnd()).to.equal(upgradedApplicationProperties.trimEnd());
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 

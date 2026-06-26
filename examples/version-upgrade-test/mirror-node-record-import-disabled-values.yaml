@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+
+importer:
+  env:
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "false"
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
+  config:
+    hiero:
+      mirror:
+        importer:
+          downloader:
+            record:
+              enabled: false
+            balance:
+              enabled: false

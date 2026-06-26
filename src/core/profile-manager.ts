@@ -350,16 +350,28 @@ export class ProfileManager {
     }
   }
 
-  public resourcesForNetworkUpgrade(
+  public async resourcesForNetworkUpgrade(
     itemPath: string,
     fileName: string,
     stagingDirectory: string,
     yamlRoot: AnyObject,
-  ): void {
+    deploymentName?: DeploymentName,
+  ): Promise<void> {
     const filePath: string = PathEx.join(stagingDirectory, 'templates', fileName);
 
     if (!fs.existsSync(filePath)) {
       return;
+    }
+
+    if (fileName === constants.APPLICATION_PROPERTIES) {
+      if (deploymentName) {
+        await this.updateApplicationPropertiesWithRealmAndShard(
+          filePath,
+          this.localConfig.configuration.realmForDeployment(deploymentName),
+          this.localConfig.configuration.shardForDeployment(deploymentName),
+        );
+      }
+      await this.updateApplicationPropertiesForBlockNode(filePath);
     }
 
     this._setFileContentsAsValue(itemPath, filePath, yamlRoot);
@@ -549,28 +561,7 @@ export class ProfileManager {
       this.remoteConfig.configuration.versions.consensusNode,
       hasDeployedBlockNodes,
     );
-    const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
-
-    let streamModeUpdated: boolean = false;
-    let writerModeUpdated: boolean = false;
-    for (const line of lines) {
-      if (line.startsWith('blockStream.streamMode=')) {
-        lines[lines.indexOf(line)] = `blockStream.streamMode=${streamMode}`;
-        streamModeUpdated = true;
-        continue;
-      }
-      if (line.startsWith('blockStream.writerMode=')) {
-        lines[lines.indexOf(line)] = `blockStream.writerMode=${writerMode}`;
-        writerModeUpdated = true;
-      }
-    }
-
-    if (!streamModeUpdated) {
-      lines.push(`blockStream.streamMode=${streamMode}`);
-    }
-    if (!writerModeUpdated) {
-      lines.push(`blockStream.writerMode=${writerMode}`);
-    }
+    Helpers.updateBlockStreamPropertiesForMode(lines, streamMode);
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
@@ -612,26 +603,8 @@ export class ProfileManager {
     const fileContents: string = await readFile(applicationPropertiesPath, 'utf8');
     const lines: string[] = fileContents.split('\n');
 
-    let realmUpdated: boolean = false;
-    let shardUpdated: boolean = false;
-    for (const line of lines) {
-      if (line.startsWith('hedera.realm=')) {
-        lines[lines.indexOf(line)] = `hedera.realm=${realm}`;
-        realmUpdated = true;
-        continue;
-      }
-      if (line.startsWith('hedera.shard=')) {
-        lines[lines.indexOf(line)] = `hedera.shard=${shard}`;
-        shardUpdated = true;
-      }
-    }
-
-    if (!realmUpdated) {
-      lines.push(`hedera.realm=${realm}`);
-    }
-    if (!shardUpdated) {
-      lines.push(`hedera.shard=${shard}`);
-    }
+    Helpers.upsertApplicationProperty(lines, 'hedera.realm', `${realm}`);
+    Helpers.upsertApplicationProperty(lines, 'hedera.shard', `${shard}`);
 
     let releaseTag: SemanticVersion<string> = new SemanticVersion<string>(versions.HEDERA_PLATFORM_VERSION);
     try {
@@ -648,10 +621,12 @@ export class ProfileManager {
     }
 
     if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
-      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.forceMockSignatures=false');
+      Helpers.upsertApplicationProperty(lines, 'tss.hintsEnabled', 'true');
+      Helpers.upsertApplicationProperty(lines, 'tss.historyEnabled', 'true');
+      Helpers.upsertApplicationProperty(lines, 'tss.forceMockSignatures', 'false');
 
       if (this.remoteConfig.configuration.state.wrapsEnabled) {
-        lines.push('tss.wrapsEnabled=true');
+        Helpers.upsertApplicationProperty(lines, 'tss.wrapsEnabled', 'true');
       }
     }
 
@@ -666,6 +641,7 @@ export class ProfileManager {
     if (configTxtPath) {
       this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
     }
+    await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
     await this.bumpHederaConfigVersion(applicationPropertiesPath);
     this._setFileContentsAsValue('hedera.configMaps.applicationProperties', applicationPropertiesPath, yamlRoot);
 

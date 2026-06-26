@@ -85,16 +85,12 @@ export class DeployArgvBuilders {
     delete blockNodeConfiguration.consensusNodeVersion;
     delete blockNodeConfiguration['consensus-node-version'];
 
-    // Build a local copy with the dev image values file appended, without mutating
-    // config.blockNodeConfiguration — it may be an alias for another section's object
-    // (e.g. via YAML anchors), causing the values file to leak into other commands.
-    const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
+    // Build a local copy without mutating config.blockNodeConfiguration — it may
+    // be an alias for another section's object (e.g. via YAML anchors), causing
+    // values to leak into other commands.
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
       ...blockNodeConfiguration,
-      [Flags.getFormattedFlagKey(Flags.valuesFile)]: blockExistingValuesFile
-        ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
-        : constants.BLOCK_NODE_SOLO_DEV_FILE,
     };
     appendConfigToArgv(argv, blockLocalConfig);
     return argvPushGlobalFlags(argv);

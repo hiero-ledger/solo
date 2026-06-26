@@ -114,8 +114,12 @@ describe('Helpers', (): void => {
       expect(Helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.74.0', true)).to.equal('BLOCKS');
     });
 
-    it('preserves BOTH during upgrades to 0.74+ when a block node is deployed', (): void => {
-      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.74.0', true)).to.equal('BOTH');
+    it('preserves BOTH during pre-0.74 upgrades when a block node is deployed', (): void => {
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.73.0', true)).to.equal('BOTH');
+    });
+
+    it('switches BOTH to BLOCKS during 0.74+ upgrades when a block node is deployed', (): void => {
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.74.0', true)).to.equal('BLOCKS');
     });
 
     it('preserves BOTH during upgrades to 0.74+ when no block node is deployed', (): void => {
@@ -132,6 +136,37 @@ describe('Helpers', (): void => {
 
     it('does not preserve BLOCKS when block node integration is inactive', (): void => {
       expect(Helpers.resolveBlockStreamModeForConsensusVersion('BLOCKS', 'v0.74.0')).to.equal('RECORDS');
+    });
+  });
+
+  describe('updateBlockStreamPropertiesForMode', (): void => {
+    it('sets pure block-node streaming to use normal block stream publishing', (): void => {
+      const lines: string[] = [
+        'blockStream.streamMode=RECORDS',
+        'blockStream.writerMode=FILE',
+        'blockStream.streamWrappedRecordBlocks=true',
+        'blockStream.streamMode=BOTH',
+      ];
+
+      Helpers.updateBlockStreamPropertiesForMode(lines, 'BLOCKS');
+
+      expect(lines).to.deep.equal([
+        'blockStream.streamMode=BLOCKS',
+        'blockStream.writerMode=FILE_AND_GRPC',
+        'blockStream.streamWrappedRecordBlocks=false',
+      ]);
+    });
+
+    it('keeps wrapped record block publishing enabled for BOTH mode', (): void => {
+      const lines: string[] = ['blockStream.streamMode=BLOCKS', 'blockStream.streamWrappedRecordBlocks=false'];
+
+      Helpers.updateBlockStreamPropertiesForMode(lines, 'BOTH');
+
+      expect(lines).to.deep.equal([
+        'blockStream.streamMode=BOTH',
+        'blockStream.streamWrappedRecordBlocks=true',
+        'blockStream.writerMode=FILE_AND_GRPC',
+      ]);
     });
   });
 

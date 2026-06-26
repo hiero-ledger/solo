@@ -23,20 +23,24 @@ interface MirrorNodeMemoryOverrideConfig {
   componentImage?: string;
 }
 
+interface MirrorNodeRemoteConfigTestState {
+  clusters: {name: string; dnsBaseDomain: string}[];
+  components: {
+    state: {
+      blockNodes: {metadata: {id: number; cluster: string; namespace: string}}[];
+    };
+  };
+  versions?: {
+    consensusNode: {greaterThanOrEqual: () => boolean};
+    blockNodeChart: {greaterThanOrEqual: () => boolean};
+  };
+}
+
 interface MirrorNodeCommandInternal {
   remoteConfig: {
-    configuration: {
-      clusters: {name: string; dnsBaseDomain: string}[];
-      components: {
-        state: {
-          blockNodes: {metadata: {id: number; cluster: string; namespace: string}}[];
-        };
-      };
-      versions?: {
-        consensusNode: {greaterThanOrEqual: () => boolean};
-        blockNodeChart: {greaterThanOrEqual: () => boolean};
-      };
-    };
+    configuration: MirrorNodeRemoteConfigTestState;
+    _remoteConfig?: MirrorNodeRemoteConfigTestState;
+    phase?: 'loaded' | 'not_loaded';
   };
   addMirrorNodeMemoryOverrides: (
     hasMirrorNodeMemoryImprovements: boolean,
@@ -244,6 +248,14 @@ describe('MirrorNodeCommand unit tests', (): void => {
           },
         },
         clusters: [{name: 'cluster-a', dnsBaseDomain: 'cluster.local'}],
+        versions: {
+          consensusNode: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+          blockNodeChart: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+        },
       },
     };
 
@@ -281,6 +293,14 @@ describe('MirrorNodeCommand unit tests', (): void => {
           },
         },
         clusters: [{name: 'cluster-a', dnsBaseDomain: 'cluster.local'}],
+        versions: {
+          consensusNode: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+          blockNodeChart: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+        },
       },
     };
 
@@ -418,6 +438,42 @@ describe('MirrorNodeCommand unit tests', (): void => {
       );
       expect(values.importer.config.hiero.mirror.importer.downloader.record.enabled).to.equal(false);
       expect(values.importer.config.hiero.mirror.importer.downloader.balance.enabled).to.equal(false);
+    } finally {
+      fs.rmSync(cacheDirection, {recursive: true, force: true});
+    }
+  });
+
+  it('should leave mirror node on consensus streams when consensus node version is not supported', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
+
+    try {
+      mirrorNodeCommandInternal.remoteConfig._remoteConfig = {
+        clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
+        components: {
+          state: {
+            blockNodes: [{metadata: {id: 1, cluster: 'kind-a', namespace: 'solo'}}],
+          },
+        },
+        versions: {
+          consensusNode: {
+            greaterThanOrEqual: (): boolean => false,
+          },
+          blockNodeChart: {
+            greaterThanOrEqual: (): boolean => true,
+          },
+        },
+      };
+      mirrorNodeCommandInternal.remoteConfig.phase = 'loaded';
+
+      const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
+        cacheDir: cacheDirection,
+        clusterReference: 'kind-a',
+        mirrorNodeVersion: versions.MIRROR_NODE_VERSION,
+      });
+
+      expect(chartValues.toArguments()).to.deep.equal([]);
     } finally {
       fs.rmSync(cacheDirection, {recursive: true, force: true});
     }

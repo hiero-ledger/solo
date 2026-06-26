@@ -18,7 +18,7 @@ restjava:
       datasource:
         hikari:
           minimumIdle: 1
-          maximumPoolSize: 2
+          maximumPoolSize: 4
 web3:
   config:
     spring:

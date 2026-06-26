@@ -118,8 +118,11 @@ tasks:
 
       # Deploy mirror node with previous version
       - cmd: |
-          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} \
-          --pinger --enable-ingress --mirror-node-version {{ .PREV_MIRROR_VERSION }}
+          # Keep importer on record-stream mode for this cross-version boundary.
+          # Old version combos can fail block-node TSS verification and break relay startup.
+          DISABLE_IMPORTER_SPRING_PROFILES=true $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} \
+          --pinger --enable-ingress --mirror-node-version {{ .PREV_MIRROR_VERSION }} \
+          --values-file {{ .TASKFILE_DIR }}/mirror-node-record-import-disabled-values.yaml
 
       # Deploy relay with previous version
       - cmd: |
@@ -137,13 +140,7 @@ tasks:
   upgrade-components:
     desc: Upgrade all components to current versions
     cmds:
-      # Upgrade mirror node
-      - cmd: |
-          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
-          --mirror-node-version {{ .CURRENT_MIRROR_VERSION }}
-      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
-
-      # Upgrade network to main with local build path
+      # Upgrade consensus network to current version first
       - cmd: |
           export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' ../../version.ts)
           echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
@@ -154,6 +151,14 @@ tasks:
       # Upgrade block node
       - cmd: |
           $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND consensus node restart --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
+
+      # Switch mirror importer to block-stream mode after CN + block-node are upgraded.
+      - cmd: |
+          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
+          --mirror-node-version {{ .CURRENT_MIRROR_VERSION }} \
+          --force
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
 

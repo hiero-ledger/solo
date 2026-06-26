@@ -2474,7 +2474,7 @@ export class NodeCommandTasks {
         const yamlRoot: AnyObject = {};
 
         if (!this.isDefaultFlagValue(flags.log4j2Xml)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.log4j2Xml',
             'log4j2.xml',
             stagingDirectory,
@@ -2483,7 +2483,7 @@ export class NodeCommandTasks {
         }
 
         if (!this.isDefaultFlagValue(flags.settingTxt)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.settingsTxt',
             'settings.txt',
             stagingDirectory,
@@ -2492,16 +2492,17 @@ export class NodeCommandTasks {
         }
 
         if (!this.isDefaultFlagValue(flags.applicationProperties)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.applicationProperties',
             constants.APPLICATION_PROPERTIES,
             stagingDirectory,
             yamlRoot,
+            config.deployment,
           );
         }
 
         if (!this.isDefaultFlagValue(flags.apiPermissionProperties)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.apiPermissionsProperties',
             'api-permission.properties',
             stagingDirectory,
@@ -2510,7 +2511,7 @@ export class NodeCommandTasks {
         }
 
         if (!this.isDefaultFlagValue(flags.bootstrapProperties)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.bootstrapProperties',
             'bootstrap.properties',
             stagingDirectory,
@@ -2519,7 +2520,7 @@ export class NodeCommandTasks {
         }
 
         if (!this.isDefaultFlagValue(flags.applicationEnv)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.applicationEnv',
             'application.env',
             stagingDirectory,
@@ -4282,7 +4283,14 @@ export class NodeCommandTasks {
         let txResp: TransactionResponse;
         let nodeCreateReceipt: TransactionReceipt;
         try {
-          signedTransaction = await nodeCreateTransaction.sign(context_.adminKey);
+          const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
+            context_.newNode.accountId,
+            config.namespace,
+          );
+
+          // v0.75+ requires accountId signature when the account already exists.
+          signedTransaction = await nodeCreateTransaction.sign(PrivateKey.fromString(accountKeys.privateKey));
+          signedTransaction = await signedTransaction.sign(context_.adminKey);
           txResp = await signedTransaction.execute(config.nodeClient);
           nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
         } catch (error) {

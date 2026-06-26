@@ -76,6 +76,7 @@ export class NodeCommandHandlers extends CommandHandler {
   private static readonly DESTROY_CONTEXT_FILE: string = 'node-destroy.json';
   private static readonly UPDATE_CONTEXT_FILE: string = 'node-update.json';
   private static readonly UPGRADE_CONTEXT_FILE: string = 'node-upgrade.json';
+  private static readonly FREEZE_BLOCK_STREAM_DRAIN_MILLISECONDS: number = 20_000;
 
   private resolveOutputDirectory(argv: ArgvStruct, fallback: string = ''): string {
     this.nodeConfigManager.update(argv);
@@ -1153,6 +1154,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.sendFreezeTransaction(),
         this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
+        this.tasks.sleep('Drain block stream after freeze', NodeCommandHandlers.FREEZE_BLOCK_STREAM_DRAIN_MILLISECONDS),
         this.tasks.stopNodes('existingNodeAliases'),
         this.changeAllNodePhases(DeploymentPhase.FROZEN),
       ],

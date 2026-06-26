@@ -21,9 +21,12 @@ import {KubeConfig} from '@kubernetes/client-node';
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
+import {type RemoteConfig} from '../../../src/business/runtime-state/config/remote/remote-config.js';
+import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {type AnyObject, type NodeAlias, type NodeAliases} from '../../../src/types/aliases.js';
 import * as constants from '../../../src/core/constants.js';
 import {Address} from '../../../src/business/address/address.js';
+import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 
 function invokeExtractSavedEndpoint(
   manager: ProfileManager,
@@ -42,12 +45,13 @@ describe('ProfileManager', (): void => {
   const deploymentName: string = 'deployment';
   const kubeConfig: KubeConfig = new KubeConfig();
   kubeConfig.loadFromDefault();
+  const currentClusterName: string = kubeConfig.getCurrentCluster()?.name ?? 'test-cluster';
   const consensusNodes: ConsensusNode[] = [
     {
       name: 'node1',
       nodeId: 1,
       namespace: namespace.name,
-      cluster: kubeConfig.getCurrentCluster().name,
+      cluster: currentClusterName,
       context: kubeConfig.getCurrentContext(),
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
@@ -59,7 +63,7 @@ describe('ProfileManager', (): void => {
       name: 'node2',
       nodeId: 2,
       namespace: namespace.name,
-      cluster: kubeConfig.getCurrentCluster().name,
+      cluster: currentClusterName,
       context: kubeConfig.getCurrentContext(),
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
@@ -71,7 +75,7 @@ describe('ProfileManager', (): void => {
       name: 'node3',
       nodeId: 3,
       namespace: namespace.name,
-      cluster: kubeConfig.getCurrentCluster().name,
+      cluster: currentClusterName,
       context: kubeConfig.getCurrentContext(),
       dnsBaseDomain: 'cluster.local',
       dnsConsensusNodePattern: 'network-{nodeAlias}-svc.{namespace}.svc',
@@ -193,6 +197,96 @@ describe('ProfileManager', (): void => {
       const cachedValuesFile: string = Object.values(cachedValuesFileMapping)[0];
       const valuesYaml: AnyObject = yaml.parse(fs.readFileSync(cachedValuesFile, 'utf8')) as AnyObject;
       expect(valuesYaml.hedera.configMaps.applicationEnv).to.equal(fileContents);
+    });
+
+    it('resourcesForNetworkUpgrade should normalize application.properties before writing chart values', async (): Promise<void> => {
+      const templatesDirectory: string = PathEx.join(stagingDirectory, 'templates');
+      const applicationPropertiesPath: string = PathEx.join(templatesDirectory, constants.APPLICATION_PROPERTIES);
+      const yamlRoot: AnyObject = {};
+      const updateApplicationPropertiesStub: sinon.SinonStub = (
+        profileManager as unknown as {updateApplicationPropertiesForBlockNode: sinon.SinonStub}
+      ).updateApplicationPropertiesForBlockNode;
+
+      fs.mkdirSync(templatesDirectory, {recursive: true});
+      fs.writeFileSync(applicationPropertiesPath, 'blockStream.streamMode=RECORDS\n', 'utf8');
+
+      updateApplicationPropertiesStub.callsFake(async (filePath: string): Promise<void> => {
+        fs.appendFileSync(filePath, 'blockStream.streamMode=BLOCKS\n', 'utf8');
+      });
+
+      await profileManager.resourcesForNetworkUpgrade(
+        'hedera.configMaps.applicationProperties',
+        constants.APPLICATION_PROPERTIES,
+        stagingDirectory,
+        yamlRoot,
+      );
+
+      expect(updateApplicationPropertiesStub.calledWith(applicationPropertiesPath)).to.be.true;
+      expect(yamlRoot.hedera.configMaps.applicationProperties).to.contain('blockStream.streamMode=BLOCKS');
+
+      updateApplicationPropertiesStub.resetBehavior();
+      updateApplicationPropertiesStub.resetHistory();
+    });
+
+    it('updateApplicationPropertiesWithRealmAndShard should not duplicate TSS properties', async (): Promise<void> => {
+      const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
+      const applicationProperties: string = [
+        'hedera.realm=0',
+        'hedera.shard=0',
+        'tss.hintsEnabled=true',
+        'tss.historyEnabled=true',
+        'tss.forceMockSignatures=false',
+        '',
+      ].join('\n');
+
+      fs.writeFileSync(applicationPropertiesPath, applicationProperties, 'utf8');
+
+      const profileManagerPrivate: {
+        remoteConfig: RemoteConfigRuntimeStateApi;
+        updateApplicationPropertiesWithRealmAndShard: (
+          applicationPropertiesPath: string,
+          realm: number,
+          shard: number,
+        ) => Promise<void>;
+      } = profileManager as unknown as {
+        remoteConfig: RemoteConfigRuntimeStateApi;
+        updateApplicationPropertiesWithRealmAndShard: (
+          applicationPropertiesPath: string,
+          realm: number,
+          shard: number,
+        ) => Promise<void>;
+      };
+
+      const configurationStub: sinon.SinonStub = sinon.stub(profileManagerPrivate.remoteConfig, 'configuration').get(
+        (): RemoteConfig =>
+          ({
+            state: {tssEnabled: true, wrapsEnabled: false},
+            versions: {consensusNode: new SemanticVersion<string>(version.HEDERA_PLATFORM_VERSION)},
+          }) as unknown as RemoteConfig,
+      );
+
+      const updateApplicationPropertiesWithRealmAndShard: (
+        applicationPropertiesPath: string,
+        realm: number,
+        shard: number,
+      ) => Promise<void> = profileManagerPrivate.updateApplicationPropertiesWithRealmAndShard;
+
+      try {
+        await updateApplicationPropertiesWithRealmAndShard.call(profileManager, applicationPropertiesPath, 1, 2);
+        await updateApplicationPropertiesWithRealmAndShard.call(profileManager, applicationPropertiesPath, 1, 2);
+      } finally {
+        configurationStub.restore();
+      }
+
+      const updatedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+
+      expect(updatedApplicationProperties.match(/^hedera\.realm=/gm)).to.have.lengthOf(1);
+      expect(updatedApplicationProperties.match(/^hedera\.shard=/gm)).to.have.lengthOf(1);
+      expect(updatedApplicationProperties.match(/^tss\.hintsEnabled=/gm)).to.have.lengthOf(1);
+      expect(updatedApplicationProperties.match(/^tss\.historyEnabled=/gm)).to.have.lengthOf(1);
+      expect(updatedApplicationProperties.match(/^tss\.forceMockSignatures=/gm)).to.have.lengthOf(1);
+      expect(updatedApplicationProperties).to.contain('hedera.realm=1');
+      expect(updatedApplicationProperties).to.contain('hedera.shard=2');
     });
   });
 

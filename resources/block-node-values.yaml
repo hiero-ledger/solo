@@ -6,6 +6,15 @@ resources:
     cpu: "2"
     memory: "160Mi"
 
+# Use solo-dev image by default so block-node bootstrap plugins are available
+# without Maven resolution.
+image:
+  repository: ghcr.io/hiero-ledger/hiero-block-node-solo-dev
+
+# Disable chart-time plugin resolution and use plugins bundled in the image.
+plugins:
+  names:
+
 blockNode:
   # NOTE: for Block Node logging, see this link:
   #  https://github.com/hiero-ledger/hiero-block-node/blob/v0.11.0/charts/block-node-server/values.yaml#L141-L168

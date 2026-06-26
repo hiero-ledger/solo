@@ -250,15 +250,28 @@ export class RapidFireCommand extends BaseCommand {
           const errorStream: PassThrough = new PassThrough();
           const stdoutBuffer: string[] = [];
           const stderrBuffer: string[] = [];
+          let displayOutput: string = '';
+          let displayOutputOmittedCharacters: number = 0;
+          const appendDisplayOutput = (chunk: string): void => {
+            const nextOutput: string = displayOutput + chalk.gray(chunk);
+            const excessLength: number = nextOutput.length - RapidFireCommand.NLG_CONSOLE_OUTPUT_MAX_CHARACTERS;
+            if (excessLength > 0) {
+              displayOutputOmittedCharacters += excessLength;
+              displayOutput = nextOutput.slice(excessLength);
+            } else {
+              displayOutput = nextOutput;
+            }
+            task.output = RapidFireCommand.formatNlgConsoleOutput(displayOutput, displayOutputOmittedCharacters);
+          };
           outputStream.on('data', (chunk: Buffer): void => {
             const string_: string = chunk.toString();
             stdoutBuffer.push(string_);
-            task.output = (task.output || '') + chalk.gray(string_);
+            appendDisplayOutput(string_);
           });
           errorStream.on('data', (chunk: Buffer): void => {
             const string_: string = chunk.toString();
             stderrBuffer.push(string_);
-            task.output = (task.output || '') + chalk.gray(string_);
+            appendDisplayOutput(string_);
           });
 
           let execError: Error | undefined;
@@ -280,8 +293,13 @@ export class RapidFireCommand extends BaseCommand {
             execError = error instanceof Error ? error : new Error(String(error));
           }
 
-          if (task.output) {
-            const showOutput: string = '>   ' + task.output.replaceAll('\n', '\n    ');
+          if (displayOutput) {
+            const showOutput: string =
+              '>   ' +
+              RapidFireCommand.formatNlgConsoleOutput(displayOutput, displayOutputOmittedCharacters).replaceAll(
+                '\n',
+                '\n    ',
+              );
             this.logger.showUser(showOutput);
           }
 
@@ -327,6 +345,17 @@ export class RapidFireCommand extends BaseCommand {
   // .*? skips any prefix before the count; (?:\w+\s+)+ matches one or more unit words after it.
   private static readonly NLG_FINISHED_PATTERN: RegExp =
     /Finished\s+([\w.]+):.*?(\d+)\s+(?:\w+\s+)+in\s+(\d+)\s+sec,\s+TPS:\s+(\d+)/;
+  private static readonly NLG_CONSOLE_OUTPUT_MAX_CHARACTERS: number = 20_000;
+
+  private static formatNlgConsoleOutput(output: string, omittedCharacters: number): string {
+    if (omittedCharacters <= 0) {
+      return output;
+    }
+    return [
+      `[rapid-fire output truncated: omitted ${omittedCharacters} earlier characters; showing latest output]`,
+      output,
+    ].join('\n');
+  }
 
   private static analyzeNlgOutput(output: string, testClass: string, performanceTest: string): NlgResult {
     const lines: string[] = output.split('\n');
