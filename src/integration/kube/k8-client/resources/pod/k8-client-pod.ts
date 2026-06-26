@@ -63,12 +63,12 @@ export class K8ClientPod implements Pod {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
-  public async killPod(): Promise<void> {
+  public async killPod(gracePeriodSeconds: number = 1): Promise<void> {
     try {
       await this.kubeClient.deleteNamespacedPod({
         name: this.podReference.name.toString(),
         namespace: this.podReference.namespace.toString(),
-        gracePeriodSeconds: 1,
+        gracePeriodSeconds,
       });
 
       let podExists: boolean = true;
@@ -204,7 +204,7 @@ export class K8ClientPod implements Pod {
       availablePort = await PortUtilities.findAvailablePort(localPort, Duration.ofSeconds(30).toMillis(), this.logger);
 
       if (availablePort === localPort) {
-        this.logger.showUser(chalk.yellow(`Using requested port ${localPort}`));
+        this.logger.showUserUnlessOneShot(chalk.yellow(`Using requested port ${localPort}`));
       } else {
         this.logger.showUser(chalk.yellow(`Using available port ${availablePort}`));
       }
@@ -346,7 +346,7 @@ export class K8ClientPod implements Pod {
       return;
     }
 
-    this.logger.showUser(chalk.yellow(`Stopping port-forward for port [${port}]`));
+    this.logger.showUserUnlessOneShot(chalk.yellow(`Stopping port-forward for port [${port}]`));
 
     try {
       let matchedProcesses: ProcessInfo[] = await this.searchProcessListCommandByStrings(['port-forward', `${port}:`]);

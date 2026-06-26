@@ -5,7 +5,7 @@ import {describe, it} from 'mocha';
 import {IntervalLock} from '../../../src/core/lock/interval-lock.js';
 import {LockHolder} from '../../../src/core/lock/lock-holder.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import {type LockRenewalService} from '../../../src/core/lock/lock.js';
+import {type LockRenewalService} from '../../../src/core/lock/lock-renewal-service.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
 import {type Namespaces} from '../../../src/types/namespace/namespaces.js';

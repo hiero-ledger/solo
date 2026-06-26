@@ -128,6 +128,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   PREDEFINED_ACCOUNTS_CREATION_FAILED: 'SOLO-3087',
   FILE_CONTENT_MISMATCH: 'SOLO-3088',
   NODE_SERVICE_NOT_FOUND: 'SOLO-3089',
+  BLOCK_NODE_JFR_COLLECTION_FAILED: 'SOLO-3090',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -281,6 +282,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CACHE_PROVIDER_NOT_CONFIGURED: 'SOLO-5071',
   POD_TERMINATION_TIMEOUT: 'SOLO-5072',
   CLUSTER_ROLE_CHECK_FAILED: 'SOLO-5073',
+  BLOCK_NODES_JSON_EMPTY: 'SOLO-5074',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

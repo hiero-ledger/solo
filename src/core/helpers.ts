@@ -32,15 +32,7 @@ import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import * as versions from '../../version.js';
-
-export interface ResolveGossipFqdnRestrictedOptions {
-  k8?: K8;
-  namespace?: NamespaceName;
-  stagingDir?: string;
-  cacheDir?: string;
-  resourcesDir?: string;
-  applicationPropertiesPath?: string;
-}
+import {type ResolveGossipFqdnRestrictedOptions} from './resolve-gossip-fqdn-restricted-options.js';
 
 type AddLoadContext = AnyListrContext & {
   config: NodeAddConfigClass;
@@ -725,6 +717,7 @@ export class Helpers {
     consensusNode: ConsensusNode,
     logger: SoloLogger,
     k8Factory: K8Factory,
+    allowEmpty: boolean = false,
     consensusNodeVersion?: SemanticVersion<string> | string,
   ): Promise<void> {
     const {
@@ -740,10 +733,15 @@ export class Helpers {
 
     const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, externalBlockNodeMap).toJSON();
 
+    const parsedBlockNodesJson: {nodes: unknown[]} = JSON.parse(blockNodesJsonData) as {nodes: unknown[]};
+    if (!allowEmpty && parsedBlockNodesJson.nodes.length === 0) {
+      throw new SoloErrors.system.blockNodesJsonEmpty(nodeAlias);
+    }
+
     const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
     const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
 
-    fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
+    fs.writeFileSync(blockNodesJsonPath, JSON.stringify(parsedBlockNodesJson, undefined, 2));
 
     // Check if the file exists before copying
     if (!fs.existsSync(blockNodesJsonPath)) {

@@ -9,7 +9,7 @@ import {type ClusterReferenceName, type ComponentId, type PortForwardConfig} fro
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
-import {type ComponentIdsStructure} from '../../../data/schema/model/remote/interfaces/components-ids-structure.js';
+import {type ComponentIdsStructure} from '../../../data/schema/model/remote/interfaces/component-ids-structure.js';
 import {type PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
 import {type K8} from '../../../integration/kube/k8.js';
 import {type SoloLogger} from '../../logging/solo-logger.js';
@@ -387,7 +387,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     }
 
     if (component === undefined || !component.metadata.portForwardConfigs) {
-      logger.showUser(`No port forward config found for ${label}`);
+      logger.showUserUnlessOneShot(`No port forward config found for ${label}`);
       return;
     }
 

@@ -28,7 +28,7 @@ import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
-import {type AnyListrContext, type ArgvStruct, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type NodeAlias} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
@@ -74,89 +74,14 @@ import {Zippy} from '../core/zippy.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 import {NetworkDeployedEvent} from '../core/events/event-types/network-deployed-event.js';
 import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
+import {type NetworkDeployConfigClass} from './network-deploy-config-class.js';
+import {type NetworkDestroyContext} from './network-destroy-context.js';
 
-export interface NetworkDeployConfigClass {
-  isUpgrade: boolean;
-  applicationEnv: string;
-  chainId: string;
-  cacheDir: string;
-  chartDirectory: string;
-  loadBalancerEnabled: boolean;
-  soloChartVersion: string;
-  namespace: NamespaceName;
-  deployment: string;
-  nodeAliasesUnparsed: string;
-  persistentVolumeClaims: string;
-  releaseTag: string;
-  keysDir: string;
-  nodeAliases: NodeAliases;
-  stagingDir: string;
-  stagingKeysDir: string;
-  valuesFile: string;
-  chartValuesMap: Record<ClusterReferenceName, HelmChartValues>;
-  grpcTlsCertificatePath: string;
-  grpcWebTlsCertificatePath: string;
-  grpcTlsKeyPath: string;
-  grpcWebTlsKeyPath: string;
-  genesisThrottlesFile: string;
-  resolvedThrottlesFile: string;
-  haproxyIps: string;
-  envoyIps: string;
-  haproxyIpsParsed?: Record<NodeAlias, IP>;
-  envoyIpsParsed?: Record<NodeAlias, IP>;
-  storageType: constants.StorageType;
-  gcsWriteAccessKey: string;
-  gcsWriteSecrets: string;
-  gcsEndpoint: string;
-  gcsBucket: string;
-  gcsBucketPrefix: string;
-  awsWriteAccessKey: string;
-  awsWriteSecrets: string;
-  awsEndpoint: string;
-  awsBucket: string;
-  awsBucketPrefix: string;
-  awsBucketRegion: string;
-  backupBucket: string;
-  backupWriteSecrets: string;
-  backupWriteAccessKey: string;
-  backupEndpoint: string;
-  backupRegion: string;
-  backupProvider: string;
-  consensusNodes: ConsensusNode[];
-  contexts: string[];
-  clusterRefs: ClusterReferences;
-  domainNames?: string;
-  domainNamesMapping?: Record<NodeAlias, string>;
-  blockNodeComponents: BlockNodeStateSchema[];
-  debugNodeAlias: NodeAlias;
-  app: string;
-  serviceMonitor: string;
-  podLog: string;
-  singleUseServiceMonitor: string;
-  singleUsePodLog: string;
-  enableMonitoringSupport: boolean;
-  javaFlightRecorderConfiguration: string;
-  wrapsEnabled: boolean;
-  wrapsKeyPath: string;
-  tssEnabled: boolean;
-  minioEnabled: boolean;
-}
+export {type NetworkDeployConfigClass} from './network-deploy-config-class.js';
+export {type NetworkDestroyContext} from './network-destroy-context.js';
 
 interface NetworkDeployContext {
   config: NetworkDeployConfigClass;
-}
-
-export interface NetworkDestroyContext {
-  config: {
-    deletePvcs: boolean;
-    deleteSecrets: boolean;
-    namespace: NamespaceName;
-    enableTimeout: boolean;
-    force: boolean;
-    contexts: string[];
-    deployment: string;
-  };
-  checkTimeout: boolean;
 }
 
 @injectable()
@@ -711,13 +636,6 @@ export class NetworkCommand extends BaseCommand {
 
       const nodePath: string = `hedera.nodes[${nodeIndex}]`;
       chartValuesMap[consensusNode.cluster].setLiteral(`${nodePath}.name`, consensusNode.name);
-      this.addRootImageValues(
-        chartValuesMap[consensusNode.cluster],
-        nodePath,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
     }
 
     for (const clusterReference of clusterReferences) {
@@ -790,27 +708,6 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /**
-   * Append root.image registry/repository/tag settings for a given node path to Helm chart values.
-   * @param chartValues - existing chart values
-   * @param nodePath - base node path, e.g. `hedera.nodes[0]`
-   * @param registry - image registry
-   * @param repository - image repository
-   * @param tag - image tag
-   */
-  private addRootImageValues(
-    chartValues: HelmChartValues,
-    nodePath: string,
-    registry: string,
-    repository: string,
-    tag: string,
-  ): void {
-    chartValues
-      .setLiteral(`${nodePath}.root.image.registry`, registry)
-      .setLiteral(`${nodePath}.root.image.tag`, tag)
-      .setLiteral(`${nodePath}.root.image.repository`, repository);
-  }
-
-  /**
    * Prepare the values files map for each cluster
    *
    * Order of precedence:
@@ -847,7 +744,7 @@ export class NetworkCommand extends BaseCommand {
     if (chartDirectory) {
       const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
       for (const clusterReference in chartValuesMap) {
-        this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, chartValuesFile);
+        HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, chartValuesFile);
       }
     }
 
@@ -855,7 +752,7 @@ export class NetworkCommand extends BaseCommand {
     if (baseValuesFiles) {
       for (const file of baseValuesFiles) {
         for (const clusterReference in chartValuesMap) {
-          this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+          HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
         }
       }
     }
@@ -864,10 +761,10 @@ export class NetworkCommand extends BaseCommand {
       for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
         if (clusterReference === flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(chartValuesMap)) {
-            this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+            HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference_, file);
           }
         } else {
-          this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+          HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
         }
       }
     }
@@ -878,12 +775,12 @@ export class NetworkCommand extends BaseCommand {
         if (clusterReference === flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(chartValuesMap)) {
             for (const file of files) {
-              this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+              HelmChartValues.addUserFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference_, file);
             }
           }
         } else {
           for (const file of files) {
-            this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+            HelmChartValues.addUserFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
           }
         }
       }
@@ -899,18 +796,6 @@ export class NetworkCommand extends BaseCommand {
       chartValuesMap: chartValuesMap as Record<ClusterReferenceName, HelmChartValues>,
       valueFilePathsMap: valueFilePathsMap as Record<ClusterReferenceName, string[]>,
     };
-  }
-
-  private addValuesFile(
-    chartValuesMap: Record<string, HelmChartValues>,
-    valueFilePathsMap: Record<string, string[]>,
-    clusterReference: string,
-    file: string,
-  ): void {
-    chartValuesMap[clusterReference] ??= new HelmChartValues();
-    valueFilePathsMap[clusterReference] ??= [];
-    chartValuesMap[clusterReference].file(file);
-    valueFilePathsMap[clusterReference].push(file);
   }
 
   private async prepareNamespaces(config: NetworkDeployConfigClass): Promise<void> {
@@ -1100,6 +985,11 @@ export class NetworkCommand extends BaseCommand {
       ),
     );
 
+    if (this.oneShotState.isActive()) {
+      task.title = `Force terminating pods in namespace ${namespace}`;
+      await this.logDestroyResults('Force terminate pods', await this.forceTerminatePods(namespace, contexts));
+    }
+
     task.title = `Deleting the RemoteConfig configmap in namespace ${namespace}`;
     await this.logDestroyResults(
       'Delete remote config configmap',
@@ -1132,7 +1022,7 @@ export class NetworkCommand extends BaseCommand {
             const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(namespace);
 
             if (shouldDeleteNamespace) {
-              await this.k8Factory.getK8(context).namespaces().delete(namespace);
+              await this.k8Factory.getK8(context).namespaces().delete(namespace, this.destroyGracePeriodSeconds());
             } else {
               this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
             }
@@ -1157,6 +1047,28 @@ export class NetworkCommand extends BaseCommand {
         await this.deleteSecrets(namespace, contexts);
       }
     }
+  }
+
+  private destroyGracePeriodSeconds(): number | undefined {
+    return this.oneShotState.isActive() ? 0 : undefined;
+  }
+
+  private async forceTerminatePods(
+    namespace: NamespaceName,
+    contexts: Context[],
+  ): Promise<PromiseSettledResult<void>[]> {
+    return Promise.allSettled(
+      contexts.map(async (context): Promise<void> => {
+        const k8: K8 = this.k8Factory.getK8(context);
+        if (!(await k8.namespaces().has(namespace))) {
+          return;
+        }
+        const pods: Pod[] = await k8.pods().list(namespace, []);
+        await Promise.allSettled(
+          pods.map((pod: Pod): Promise<void> => k8.pods().readByReference(pod.podReference).killPod(0)),
+        );
+      }),
+    );
   }
 
   private async logDestroyResults(title: string, results: PromiseSettledResult<void>[]): Promise<void> {
@@ -1594,6 +1506,7 @@ export class NetworkCommand extends BaseCommand {
                 config.soloChartVersion,
                 false,
                 'Solo chart version',
+                versions.MINIMUM_SOLO_CHART_VERSION,
               );
 
               await this.chartManager.upgrade(
@@ -1893,6 +1806,7 @@ export class NetworkCommand extends BaseCommand {
                   consensusNode,
                   this.logger,
                   this.k8Factory,
+                  false,
                   this.remoteConfig.configuration.versions.consensusNode,
                 );
               }
@@ -2014,54 +1928,78 @@ export class NetworkCommand extends BaseCommand {
           },
         },
         {
-          title: 'Running sub-tasks to destroy network',
-          task: async (
-            {config: {enableTimeout, deletePvcs, deleteSecrets, namespace, contexts}},
-            task,
-          ): Promise<void> => {
-            if (!enableTimeout) {
-              await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
-              return;
-            }
+          title: 'Destroy network resources',
+          task: (_, parentTask): SoloListr<NetworkDestroyContext> =>
+            parentTask.newListr(
+              [
+                {
+                  title: 'Running sub-tasks to destroy network',
+                  task: async (
+                    {config: {enableTimeout, deletePvcs, deleteSecrets, namespace, contexts}},
+                    task,
+                  ): Promise<void> => {
+                    if (!enableTimeout) {
+                      await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
+                      return;
+                    }
 
-            const onTimeoutCallback: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
-              const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
-              this.logger.error(message);
-              this.logger.showUser(chalk.red(message));
-              networkDestroySuccess = false;
+                    const onTimeoutCallback: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
+                      const message: string = `\n\nUnable to finish consensus network destroy in ${constants.NETWORK_DESTROY_WAIT_TIMEOUT} seconds\n\n`;
+                      this.logger.error(message);
+                      this.logger.showUser(chalk.red(message));
+                      networkDestroySuccess = false;
 
-              if (!deleteSecrets || !deletePvcs) {
-                await this.remoteConfig.deleteComponents();
-                return;
-              }
+                      if (!deleteSecrets || !deletePvcs) {
+                        await this.remoteConfig.deleteComponents();
+                        return;
+                      }
 
-              for (const context of contexts) {
-                const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(namespace);
+                      for (const context of contexts) {
+                        const shouldDeleteNamespace: boolean = await new K8Helper(context).isNamespaceOwnedBySolo(
+                          namespace,
+                        );
 
-                if (shouldDeleteNamespace) {
-                  await this.k8Factory.getK8(context).namespaces().delete(namespace);
-                } else {
-                  this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
-                }
-              }
-            }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
+                        if (shouldDeleteNamespace) {
+                          await this.k8Factory
+                            .getK8(context)
+                            .namespaces()
+                            .delete(namespace, this.destroyGracePeriodSeconds());
+                        } else {
+                          this.logger.warn(`Skipping deletion of namespace '${namespace.name}', not created by solo`);
+                        }
+                      }
+                    }, constants.NETWORK_DESTROY_WAIT_TIMEOUT * 1000);
 
-            await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
+                    await this.destroyTask(task, namespace, deletePvcs, deleteSecrets, contexts);
 
-            clearTimeout(onTimeoutCallback);
-          },
-        },
-        {
-          title: `Remove ${constants.SOLO_SETUP_NAMESPACE.name}`,
-          task: async ({config: {contexts}}): Promise<void> => {
-            const namespace: NamespaceName = constants.SOLO_SETUP_NAMESPACE;
+                    clearTimeout(onTimeoutCallback);
+                  },
+                },
+                {
+                  title: `Remove ${constants.SOLO_SETUP_NAMESPACE.name}`,
+                  task: async ({config: {contexts}}): Promise<void> => {
+                    const namespace: NamespaceName = constants.SOLO_SETUP_NAMESPACE;
 
-            for (const context of contexts) {
-              if (await this.k8Factory.getK8(context).namespaces().has(namespace)) {
-                await this.k8Factory.getK8(context).namespaces().delete(namespace);
-              }
-            }
-          },
+                    if (this.oneShotState.isActive()) {
+                      await this.forceTerminatePods(namespace, contexts);
+                    }
+
+                    for (const context of contexts) {
+                      if (await this.k8Factory.getK8(context).namespaces().has(namespace)) {
+                        await this.k8Factory
+                          .getK8(context)
+                          .namespaces()
+                          .delete(namespace, this.destroyGracePeriodSeconds());
+                      }
+                    }
+                  },
+                },
+              ],
+              {
+                concurrent: this.oneShotState.isActive(),
+                rendererOptions: constants.LISTR_DEFAULT_RENDERER_OPTION,
+              },
+            ),
         },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,

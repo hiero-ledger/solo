@@ -425,6 +425,16 @@ jobs:
           overwrite: true
           if-no-files-found: error
 
+      - name: Upload Java Flight Recorder Recordings to GitHub
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: solo-performance-test-jfr
+          path: ~/.solo/logs/**/*.jfr
+          overwrite: true
+          if-no-files-found: warn
+
       - name: Performance Test Verification
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |

@@ -34,7 +34,9 @@ import chalk from 'chalk';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
-import {injectable} from 'tsyringe-neo';
+import {inject, injectable} from 'tsyringe-neo';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {Templates} from '../core/templates.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
@@ -53,6 +55,11 @@ import {
 import {optionFromFlag} from './command-helpers.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
+import {type SoloEventBus} from '../core/events/solo-event-bus.js';
+import {BlockNodeDeployedEvent} from '../core/events/event-types/block-node-deployed-event.js';
+import {type Container} from '../integration/kube/resources/container/container.js';
+import {PathEx} from '../business/utils/path-ex.js';
+import fs from 'node:fs';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -159,6 +166,20 @@ interface BlockNodeDeleteExternalContext {
   config: BlockNodeDeleteExternalConfigClass;
 }
 
+interface BlockNodeCollectJfrConfigClass {
+  clusterRef: ClusterReferenceName;
+  deployment: DeploymentName;
+  devMode: boolean;
+  quiet: boolean;
+  namespace: NamespaceName;
+  context: string;
+  id: ComponentId;
+}
+
+interface BlockNodeCollectJfrContext {
+  config: BlockNodeCollectJfrConfigClass;
+}
+
 interface InferredData {
   id: ComponentId;
   releaseName: string;
@@ -168,8 +189,9 @@ interface InferredData {
 
 @injectable()
 export class BlockNodeCommand extends BaseCommand {
-  public constructor() {
+  public constructor(@inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus) {
     super();
+    this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
   }
 
   private static readonly ADD_CONFIGS_NAME: string = 'addConfigs';
@@ -181,6 +203,11 @@ export class BlockNodeCommand extends BaseCommand {
   private static readonly ADD_EXTERNAL_CONFIGS_NAME: string = 'addExternalConfigs';
 
   private static readonly DELETE_CONFIGS_NAME: string = 'deleteExternalConfigs';
+
+  private static readonly COLLECT_JFR_CONFIGS_NAME: string = 'collectJfrConfigs';
+
+  // Sentinel printed by the in-pod consolidation script when no JFR recording is present.
+  private static readonly NO_JFR_MARKER: string = 'SOLO_NO_JFR_RECORDING';
   private static readonly MIGRATION_COMPONENT_KEY: string = 'block-node';
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
@@ -228,6 +255,11 @@ export class BlockNodeCommand extends BaseCommand {
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.chartDirectory, flags.clusterRef, flags.devMode, flags.force, flags.quiet, flags.id],
+  };
+
+  public static readonly COLLECT_JFR_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.clusterRef, flags.devMode, flags.quiet, flags.id],
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
@@ -331,9 +363,9 @@ export class BlockNodeCommand extends BaseCommand {
       );
 
       chartValues
-        .set(`blockNode.sources[${sourceIndex}].address`, fqdn)
-        .set(`blockNode.sources[${sourceIndex}].port`, constants.BLOCK_NODE_PORT)
-        .set(`blockNode.sources[${sourceIndex}].priority`, 1);
+        .set(`blockNode.backfill.sources[${sourceIndex}].address`, fqdn)
+        .set(`blockNode.backfill.sources[${sourceIndex}].port`, constants.BLOCK_NODE_PORT)
+        .set(`blockNode.backfill.sources[${sourceIndex}].priority`, 1);
       sourceIndex++;
     }
 
@@ -398,6 +430,7 @@ export class BlockNodeCommand extends BaseCommand {
             node,
             this.logger,
             this.k8Factory,
+            false,
             this.remoteConfig.configuration.versions.consensusNode,
           );
         }
@@ -420,6 +453,7 @@ export class BlockNodeCommand extends BaseCommand {
             node,
             this.logger,
             this.k8Factory,
+            false,
             this.remoteConfig.configuration.versions.consensusNode,
           );
         }
@@ -657,6 +691,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         this.checkBlockNodeReadiness(),
         this.handleConsensusNodeUpdating(),
+        this.emitBlockNodeDeployed(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -770,6 +805,132 @@ export class BlockNodeCommand extends BaseCommand {
         await tasks.run();
       } catch (error) {
         throw new SoloErrors.component.blockNodeDestroyFailed(error);
+      } finally {
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
+      });
+    }
+
+    return true;
+  }
+
+  private downloadBlockNodeJavaFlightRecorderLogs(): SoloListrTask<BlockNodeCollectJfrContext> {
+    return {
+      title: 'Download Java Flight Recorder logs from block node pod',
+      task: async ({config}, task): Promise<void> => {
+        const labels: string[] = Templates.renderBlockNodeLabels(config.id);
+        const blockNodePods: Pod[] = await this.k8Factory.getK8(config.context).pods().list(config.namespace, labels);
+
+        if (blockNodePods.length === 0) {
+          throw new SoloErrors.system.blockNodePodNotFound();
+        }
+
+        const podReference: PodReference = blockNodePods[0].podReference;
+        const containerReference: ContainerReference = ContainerReference.of(
+          podReference,
+          constants.BLOCK_NODE_CONTAINER_NAME,
+        );
+        const k8Container: Container = this.k8Factory.getK8(config.context).containers().readByRef(containerReference);
+
+        const repositoryDirectory: string = constants.BLOCK_NODE_JFR_REPOSITORY_DIRECTORY;
+        const collectedRecordingPath: string = `${repositoryDirectory}/collected-recording.jfr`;
+
+        const consolidateScript: string =
+          'set -e; ' +
+          `finalized=$(ls -1 ${repositoryDirectory}/*/*.jfr 2>/dev/null | sort | sed '$d'); ` +
+          `if [ -z "$finalized" ]; then echo "${BlockNodeCommand.NO_JFR_MARKER}"; exit 0; fi; ` +
+          `cat $finalized > ${collectedRecordingPath}`;
+
+        let consolidateResult: string;
+        try {
+          consolidateResult = await k8Container.execContainer(['bash', '-c', consolidateScript]);
+        } catch (error) {
+          throw new SoloErrors.component.blockNodeJfrCollectionFailed(error);
+        }
+
+        if (consolidateResult.includes(BlockNodeCommand.NO_JFR_MARKER)) {
+          const reason: string = `no finalized Java Flight Recorder chunk found in ${repositoryDirectory} on block node pod ${podReference.name}; the block node may not have been deployed with Java Flight Recorder enabled, or the recording is still shorter than one chunk`;
+          this.logger.warn(reason);
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey(reason)}`);
+          return;
+        }
+
+        const localJfrLogsDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, config.deployment);
+        fs.mkdirSync(localJfrLogsDirectory, {recursive: true});
+
+        await k8Container.copyFrom(collectedRecordingPath, localJfrLogsDirectory);
+
+        const downloadedRecordingPath: string = PathEx.join(localJfrLogsDirectory, 'collected-recording.jfr');
+        this.logger.showUser(`Downloaded Java Flight Recorder recording to ${downloadedRecordingPath}`);
+      },
+    };
+  }
+
+  public async collectJfr(argv: ArgvStruct): Promise<boolean> {
+    let lease: Lock;
+
+    const tasks: SoloListr<BlockNodeCollectJfrContext> = this.taskList.newTaskList<BlockNodeCollectJfrContext>(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
+
+            this.configManager.update(argv);
+
+            flags.disablePrompts(BlockNodeCommand.COLLECT_JFR_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...BlockNodeCommand.COLLECT_JFR_FLAGS_LIST.required,
+              ...BlockNodeCommand.COLLECT_JFR_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            const config: BlockNodeCollectJfrConfigClass = this.configManager.getConfig(
+              BlockNodeCommand.COLLECT_JFR_CONFIGS_NAME,
+              allFlags,
+            ) as BlockNodeCollectJfrConfigClass;
+
+            context_.config = config;
+
+            config.namespace = await this.getNamespace(task);
+            config.clusterRef = this.getClusterReference();
+            config.context = this.getClusterContext(config.clusterRef);
+
+            config.id = this.inferBlockNodeId(config.id);
+
+            await this.throwIfNamespaceIsMissing(config.context, config.namespace);
+
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
+          },
+        },
+        this.downloadBlockNodeJavaFlightRecorderLogs(),
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'block node collect-jfr',
+    );
+
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloErrors.component.blockNodeJfrCollectionFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -1155,6 +1316,15 @@ export class BlockNodeCommand extends BaseCommand {
     return true;
   }
 
+  private emitBlockNodeDeployed(): SoloListrTask<BlockNodeDeployContext> {
+    return {
+      title: 'Signal block node deployed',
+      task: ({config: {deployment}}): void => {
+        this.eventBus.emit(new BlockNodeDeployedEvent(deployment));
+      },
+    };
+  }
+
   private rebuildBlockNodesJsonForConsensusNodes(): SoloListrTask<AnyListrContext> {
     return {
       title: "Rebuild 'block.nodes.json' for consensus nodes",
@@ -1165,6 +1335,7 @@ export class BlockNodeCommand extends BaseCommand {
             node,
             this.logger,
             this.k8Factory,
+            true,
             this.remoteConfig.configuration.versions.consensusNode,
           );
         }

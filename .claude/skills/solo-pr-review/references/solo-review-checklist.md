@@ -432,6 +432,35 @@ and changing the signature to `detectFatalContainerError(pod: Pod)`).
 
 ---
 
+## 22. No new circular dependencies
+
+**What to look for**
+
+- Any PR that moves an interface or class to a new file, splits a barrel file, or adds a new import
+  between files — these are the most common ways circular dependencies are introduced.
+- A new import where file A already (transitively) imports from file B.
+
+**How to verify**
+
+Run `npx dpdm --no-warning --no-tree --exit-code circular:1 ./solo.ts`. It exits non-zero if any
+cycle is detected and prints the offending chains.
+
+**How to respond**
+
+- "This introduces a circular dependency: `A → B → A`. Extract a minimal shared interface (e.g.
+  `renewable-lock.ts`) that both files can import from without forming a cycle, rather than having
+  them import each other."
+- Tip: two interfaces that are genuinely mutually recursive (each references the other as a type) can
+  often be decoupled by extracting the *minimal shape* one side actually needs — usually a subset of
+  fields and methods — into a third file.
+
+**Prior precedent:** interface-extraction work in PR #4805 introduced two cycles:
+- `flag-types.ts ↔ command-flag.ts` — fixed by moving `PromptFunction` into `command-flag.ts`.
+- `lock.ts ↔ lock-renewal-service.ts` — fixed by extracting `RenewableLock` with only
+  `durationSeconds` and `tryRenew()`, which `LockRenewalService` uses instead of the full `Lock`.
+
+---
+
 ## Quick decision aids
 
 **"Should this be a class with statics or a module of functions?"**

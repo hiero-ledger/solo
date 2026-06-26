@@ -66,8 +66,11 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
-import * as versions from '../../../version.js';
-import {HEDERA_PLATFORM_VERSION, needsConfigTxtForConsensusVersion} from '../../../version.js';
+import {
+  HEDERA_PLATFORM_VERSION,
+  MINIMUM_SOLO_CHART_VERSION,
+  needsConfigTxtForConsensusVersion,
+} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -85,6 +88,7 @@ import {
 import {PodName} from '../../integration/kube/resources/pod/pod-name.js';
 import {NodeStatusCodes, NodeStatusEnums, NodeSubcommandType} from '../../core/enumerations.js';
 import {type Lock} from '../../core/lock/lock.js';
+import {type LeaseWrapper} from './lease-wrapper.js';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {Duration} from '../../core/time/duration.js';
 import {type NodeAddConfigClass} from './config-interfaces/node-add-config-class.js';
@@ -140,7 +144,8 @@ import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodeKeysContext} from './config-interfaces/node-keys-context.js';
 import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-class.js';
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
-import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-interfaces/node-common-config-class.js';
+import {type CheckedNodesConfigClass} from './config-interfaces/checked-nodes-config-class.js';
+import {type CheckedNodesContext} from './config-interfaces/checked-nodes-context.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
@@ -186,10 +191,6 @@ const localBuildPathFilter: (path: string | string[]) => boolean = (path: string
 };
 
 const {gray, cyan, red, green, yellow} = chalk;
-
-export interface LeaseWrapper {
-  lease: Lock;
-}
 
 @injectable()
 export class NodeCommandTasks {
@@ -2590,6 +2591,7 @@ export class NodeCommandTasks {
                     config.soloChartVersion,
                     false,
                     'Solo chart version',
+                    MINIMUM_SOLO_CHART_VERSION,
                   );
 
                   await this.chartManager.upgrade(
@@ -3666,6 +3668,7 @@ export class NodeCommandTasks {
               config.soloChartVersion,
               false,
               'Solo chart version',
+              MINIMUM_SOLO_CHART_VERSION,
             );
             const chartValues: HelmChartValues = extraEnvironmentChartValuesMap[clusterReference]
               .clone()
@@ -3719,7 +3722,7 @@ export class NodeCommandTasks {
     if (chartDirectory) {
       const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
       for (const clusterReference in chartValuesMap) {
-        this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, chartValuesFile);
+        HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, chartValuesFile);
       }
     }
 
@@ -3727,10 +3730,10 @@ export class NodeCommandTasks {
       for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
         if (clusterReference === flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(chartValuesMap)) {
-            this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+            HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference_, file);
           }
         } else {
-          this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+          HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
         }
       }
     }
@@ -3741,12 +3744,12 @@ export class NodeCommandTasks {
         if (clusterReference === flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(chartValuesMap)) {
             for (const file of files) {
-              this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+              HelmChartValues.addUserFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference_, file);
             }
           }
         } else {
           for (const file of files) {
-            this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+            HelmChartValues.addUserFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
           }
         }
       }
@@ -3762,18 +3765,6 @@ export class NodeCommandTasks {
       chartValuesMap: chartValuesMap as Record<ClusterReferenceName, HelmChartValues>,
       valueFilePathsMap: valueFilePathsMap as Record<ClusterReferenceName, string[]>,
     };
-  }
-
-  private addValuesFile(
-    chartValuesMap: Record<string, HelmChartValues>,
-    valueFilePathsMap: Record<string, string[]>,
-    clusterReference: string,
-    file: string,
-  ): void {
-    chartValuesMap[clusterReference] ??= new HelmChartValues();
-    valueFilePathsMap[clusterReference] ??= [];
-    chartValuesMap[clusterReference].file(file);
-    valueFilePathsMap[clusterReference].push(file);
   }
 
   /**
@@ -3827,13 +3818,6 @@ export class NodeCommandTasks {
           .set(`hedera.nodes[${index}].nodeId`, consensusNode.nodeId);
       }
 
-      this.addRootImageValues(
-        chartValues,
-        `hedera.nodes[${index}]`,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
       // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
     }
   }
@@ -3871,14 +3855,6 @@ export class NodeCommandTasks {
         .set(`hedera.nodes[${index}].accountId`, serviceMap.get(node.name).accountId)
         .set(`hedera.nodes[${index}].name`, node.name)
         .set(`hedera.nodes[${index}].nodeId`, node.nodeId);
-
-      this.addRootImageValues(
-        chartValues,
-        `hedera.nodes[${index}]`,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
     }
 
     // Add new node
@@ -3888,14 +3864,6 @@ export class NodeCommandTasks {
       .set(`hedera.nodes[${index}].accountId`, newNode.accountId)
       .set(`hedera.nodes[${index}].name`, newNode.name)
       .set(`hedera.nodes[${index}].nodeId`, nodeId);
-
-    this.addRootImageValues(
-      chartValues,
-      `hedera.nodes[${index}]`,
-      constants.S6_NODE_IMAGE_REGISTRY,
-      constants.S6_NODE_IMAGE_REPOSITORY,
-      versions.S6_NODE_IMAGE_VERSION,
-    );
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
@@ -3951,13 +3919,6 @@ export class NodeCommandTasks {
           .set(`hedera.nodes[${index}].name`, node.name)
           .set(`hedera.nodes[${index}].nodeId`, node.nodeId);
 
-        this.addRootImageValues(
-          chartValues,
-          `hedera.nodes[${index}]`,
-          constants.S6_NODE_IMAGE_REGISTRY,
-          constants.S6_NODE_IMAGE_REPOSITORY,
-          versions.S6_NODE_IMAGE_VERSION,
-        );
         // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
 
         index++;
@@ -4510,6 +4471,7 @@ export class NodeCommandTasks {
             node,
             this.logger,
             this.k8Factory,
+            false,
             this.remoteConfig.configuration.versions.consensusNode,
           );
         }
@@ -4695,6 +4657,17 @@ export class NodeCommandTasks {
       const logs: string = await k8.pods().readLogs(podReference, true);
       fs.writeFileSync(logFile, logs, 'utf8');
       this.logger.info(`Saved logs to ${logFile}`);
+
+      // Fetch previous logs via K8 client API (cross-platform, no kubectl shell dependency).
+      const logFile1: string = PathEx.join(podLogDirectory, `${podName}-1.log`);
+      this.logger.info(`Downloading previous logs for pod ${podName}...`);
+      try {
+        const logs1: string = await k8.pods().readLogs(podReference, true, true);
+        fs.writeFileSync(logFile1, logs1, 'utf8');
+        this.logger.info(`Saved logs to ${logFile1}`);
+      } catch {
+        this.logger.info(`No previous logs found for pod ${podName}`);
+      }
 
       // Save pod describe-like output (pod + events) for troubleshooting pod states/restarts/events.
       const describeFile: string = PathEx.join(podLogDirectory, `${podName}.describe.txt`);

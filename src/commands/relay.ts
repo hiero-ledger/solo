@@ -41,7 +41,6 @@ import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
-import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
@@ -146,12 +145,6 @@ interface InferredData {
   isLegacyChartInstalled: boolean;
 }
 
-const RELAY_OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS: number = 600;
-const RELAY_OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS: number = 1000;
-const RELAY_MIRROR_NODE_STARTUP_MAX_ATTEMPTS: number = 600;
-const RELAY_MIRROR_NODE_STARTUP_RETRY_DELAY_MS: number = 1000;
-const RELAY_STARTUP_PROBE_FAILURE_THRESHOLD: number = 660;
-
 enum RelayCommandType {
   ADD = 'add',
   UPGRADE = 'upgrade',
@@ -249,25 +242,16 @@ export class RelayCommand extends BaseCommand {
     releaseName,
     deployment,
     mirrorNamespace,
+    mirrorNodeReleaseName,
   }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<HelmChartValues> {
-    const mirrorNodeUrl: string = `http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
+    const mirrorNodeUrl: string = Templates.renderMirrorNodeIngressControllerUrl(mirrorNamespace);
+    const mirrorNodeWeb3Url: string = Templates.renderMirrorNodeWeb3ServiceUrl(mirrorNodeReleaseName, mirrorNamespace);
 
     const chartValues: HelmChartValues = new HelmChartValues()
       .file(constants.RELAY_VALUES_FILE)
       .set('nameOverride', releaseName)
-      .set('ws.enabled', true)
-      .set('relay.config.OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS', RELAY_OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS)
-      .set('relay.config.OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS', RELAY_OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS)
-      .set('relay.config.MIRROR_NODE_STARTUP_MAX_ATTEMPTS', RELAY_MIRROR_NODE_STARTUP_MAX_ATTEMPTS)
-      .set('relay.config.MIRROR_NODE_STARTUP_RETRY_DELAY_MS', RELAY_MIRROR_NODE_STARTUP_RETRY_DELAY_MS)
-      .set('relay.startupProbe.failureThreshold', RELAY_STARTUP_PROBE_FAILURE_THRESHOLD)
-      .set('ws.config.OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS', RELAY_OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS)
-      .set('ws.config.OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS', RELAY_OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS)
-      .set('ws.config.MIRROR_NODE_STARTUP_MAX_ATTEMPTS', RELAY_MIRROR_NODE_STARTUP_MAX_ATTEMPTS)
-      .set('ws.config.MIRROR_NODE_STARTUP_RETRY_DELAY_MS', RELAY_MIRROR_NODE_STARTUP_RETRY_DELAY_MS)
-      .set('ws.startupProbe.failureThreshold', RELAY_STARTUP_PROBE_FAILURE_THRESHOLD)
       .set('relay.config.MIRROR_NODE_URL', mirrorNodeUrl)
-      .set('relay.config.MIRROR_NODE_URL_WEB3', mirrorNodeUrl)
+      .set('relay.config.MIRROR_NODE_URL_WEB3', mirrorNodeWeb3Url)
       .set('ws.config.MIRROR_NODE_URL', mirrorNodeUrl);
 
     if (chainId) {
@@ -876,10 +860,15 @@ export class RelayCommand extends BaseCommand {
           task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
-            this.logger.showList(
-              'Destroyed Relays',
-              await this.chartManager.getInstalledCharts(config.namespace, config.context),
+            const destroyedRelays: string[] = await this.chartManager.getInstalledCharts(
+              config.namespace,
+              config.context,
             );
+            if (this.oneShotState.isActive()) {
+              this.logger.showListIfNotEmpty('Destroyed Relays', destroyedRelays);
+            } else {
+              this.logger.showList('Destroyed Relays', destroyedRelays);
+            }
 
             // reset nodeAliasesUnparsed
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');

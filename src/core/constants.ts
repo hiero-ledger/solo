@@ -79,6 +79,10 @@ export const SKIP_NODE_PING: boolean = Boolean(getEnvironmentVariable('SKIP_NODE
 export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS: number = +getEnvironmentVariable('SOLO_LEASE_ACQUIRE_ATTEMPTS') || 10;
 export const DEFAULT_LEASE_DURATION: number = +getEnvironmentVariable('SOLO_LEASE_DURATION') || 20;
 
+// Recommended minimum container-engine (Docker/Podman) resources; used by the pre-flight resource check.
+export const MINIMUM_RECOMMENDED_MEMORY_BYTES: number = 12 * 1024 * 1024 * 1024;
+export const MINIMUM_RECOMMENDED_CPU_CORES: number = 6;
+
 export const SOLO_USER_AGENT_HEADER: string = 'Solo-User-Agent';
 // --------------- Hedera network and node related constants --------------------------------------------------------------------
 export const HEDERA_CHAIN_ID: string = getEnvironmentVariable('SOLO_CHAIN_ID') || '298';
@@ -96,11 +100,6 @@ export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT: string =
   getEnvironmentVariable('SOLO_NODE_EXTERNAL_GOSSIP_PORT') || '50111';
 export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT: number =
   +getEnvironmentVariable('SOLO_NODE_DEFAULT_STAKE_AMOUNT') || 500;
-
-// S6-based consensus node image configuration (overridable via environment)
-export const S6_NODE_IMAGE_REGISTRY: string = getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REGISTRY') || 'ghcr.io';
-export const S6_NODE_IMAGE_REPOSITORY: string =
-  getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/debian-s6-java25';
 
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
@@ -185,6 +184,11 @@ export const BLOCK_NODE_CHART_URL: string =
 export const BLOCK_NODE_CHART: string = getEnvironmentVariable('BLOCK_NODE_CHART') ?? 'block-node-server';
 export const BLOCK_NODE_RELEASE_NAME: string = 'block-node';
 export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of(BLOCK_NODE_CHART);
+
+// In-pod JFR disk-repository path `solo block node collect-jfr` reads from; mirrors the consensus node's
+// ${HEDERA_HAPI_PATH}/output convention. The overlay's repository path is kept in sync with this constant by
+// block-node-values.test.ts.
+export const BLOCK_NODE_JFR_REPOSITORY_DIRECTORY: string = '/opt/hiero/block-node/output/jfr';
 
 export const NETWORK_LOAD_GENERATOR_CHART: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_RELEASE_NAME: string = 'network-load-generator';

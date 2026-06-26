@@ -49,29 +49,8 @@ import yaml from 'yaml';
 import {PathEx} from '../business/utils/path-ex.js';
 import fs from 'node:fs/promises';
 import {DEFAULT_SOLO_NAMESPACE_LABELS} from '../core/constants.js';
-
-interface DeploymentAddClusterConfig {
-  quiet: boolean;
-  context: string;
-  namespace: NamespaceName;
-  deployment: DeploymentName;
-  clusterRef: ClusterReferenceName;
-
-  enableCertManager: boolean;
-  numberOfConsensusNodes: number;
-  dnsBaseDomain: string;
-  dnsConsensusNodePattern: string;
-
-  ledgerPhase?: LedgerPhase;
-  nodeAliases: NodeAliases;
-
-  existingNodesCount: number;
-  existingClusterContext?: string;
-}
-
-export interface DeploymentAddClusterContext {
-  config: DeploymentAddClusterConfig;
-}
+import {type DeploymentAddClusterContext} from './deployment-add-cluster-context.js';
+export {type DeploymentAddClusterContext} from './deployment-add-cluster-context.js';
 
 interface PortEntry {
   componentId: number;
@@ -414,17 +393,41 @@ export class DeploymentCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_): Promise<void> => {
+          task: async (context_, task): Promise<void> => {
             await this.localConfig.load();
 
             this.configManager.update(argv);
 
-            const clusterName: ClusterReferenceName | undefined = this.configManager.getFlag<ClusterReferenceName>(
-              flags.clusterRef,
-            );
+            let clusterName: ClusterReferenceName | undefined = this.configManager.getFlag(flags.clusterRef);
 
-            // Note: cluster-ref is now optional. If not provided, we list local deployments.
-            // We no longer prompt for cluster-ref to allow listing all deployments without requiring cluster access.
+            // --cluster-ref is optional.
+            // When it is not provided, prompt the user to either filter by one of the
+            // cluster references found in local config or list all deployments.
+            //
+            // --quiet (or no cluster references in local config)
+            // lists all deployments without prompting.
+            if (!clusterName) {
+              const isQuiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
+              const clusterReferences: ClusterReferenceName[] = [...this.localConfig.configuration.clusterRefs.keys()];
+
+              if (!isQuiet && clusterReferences.length > 0) {
+                const selectedClusterReference: string = (await task
+                  .prompt(ListrInquirerPromptAdapter)
+                  .run(selectPrompt, {
+                    message: 'Select cluster-ref to filter deployments by:',
+                    choices: [
+                      {name: 'All deployments', value: ''},
+                      ...clusterReferences.map((clusterReference): {name: string; value: string} => ({
+                        name: `${clusterReference} (${this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString() ?? 'no-context'})`,
+                        value: clusterReference,
+                      })),
+                    ],
+                  })) as string;
+
+                clusterName = selectedClusterReference || undefined;
+              }
+            }
+
             context_.config = {
               clusterName,
             } as Config;
@@ -894,7 +897,9 @@ export class DeploymentCommand extends BaseCommand {
             `Cluster-ref: ${clusterRef} already exists for deployment: ${deployment} in local config`,
           );
         } else {
-          this.logger.showUser(`Adding cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`);
+          this.logger.showUserUnlessOneShot(
+            `Adding cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`,
+          );
           this.localConfig.configuration.deploymentByName(deployment).clusters.add(new StringFacade(clusterRef));
         }
 

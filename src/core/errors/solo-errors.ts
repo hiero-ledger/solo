@@ -38,6 +38,7 @@ import {BlockNodeConfigFailedSoloError} from './classes/component/block-node-con
 import {BlockNodeDeleteExternalFailedSoloError} from './classes/component/block-node-delete-external-failed-solo-error.js';
 import {BlockNodeDeployFailedSoloError} from './classes/component/block-node-deploy-failed-solo-error.js';
 import {BlockNodeDestroyFailedSoloError} from './classes/component/block-node-destroy-failed-solo-error.js';
+import {BlockNodeJfrCollectionFailedSoloError} from './classes/component/block-node-jfr-collection-failed-solo-error.js';
 import {BlockNodeHealthCheckFailedSoloError} from './classes/component/block-node-health-check-failed-solo-error.js';
 import {BlockNodeUpgradeFailedSoloError} from './classes/component/block-node-upgrade-failed-solo-error.js';
 import {ChartInstallFailedSoloError} from './classes/component/chart-install-failed-solo-error.js';
@@ -116,6 +117,7 @@ import {FalconValuesPreparationFailedSoloError} from './classes/component/falcon
 import {BlockNodeNotInRemoteConfigSoloError} from './classes/system/block-node-not-in-remote-config-solo-error.js';
 import {BlockNodeNotReadySoloError} from './classes/system/block-node-not-ready-solo-error.js';
 import {BlockNodePodNotFoundSoloError} from './classes/system/block-node-pod-not-found-solo-error.js';
+import {BlockNodesJsonEmptySoloError} from './classes/system/block-nodes-json-empty-solo-error.js';
 import {ExternalBlockNodeNotInRemoteConfigSoloError} from './classes/system/external-block-node-not-in-remote-config-solo-error.js';
 import {ExplorerPodNotFoundSoloError} from './classes/system/explorer-pod-not-found-solo-error.js';
 import {ExplorerNotInRemoteConfigSoloError} from './classes/system/explorer-not-in-remote-config-solo-error.js';
@@ -380,6 +382,7 @@ export class SoloErrors {
     readonly blockNodeConfigFailed: typeof BlockNodeConfigFailedSoloError;
     readonly blockNodeDeployFailed: typeof BlockNodeDeployFailedSoloError;
     readonly blockNodeDestroyFailed: typeof BlockNodeDestroyFailedSoloError;
+    readonly blockNodeJfrCollectionFailed: typeof BlockNodeJfrCollectionFailedSoloError;
     readonly blockNodeUpgradeFailed: typeof BlockNodeUpgradeFailedSoloError;
     readonly blockNodeAddExternalFailed: typeof BlockNodeAddExternalFailedSoloError;
     readonly blockNodeDeleteExternalFailed: typeof BlockNodeDeleteExternalFailedSoloError;
@@ -468,6 +471,7 @@ export class SoloErrors {
     blockNodeConfigFailed: BlockNodeConfigFailedSoloError,
     blockNodeDeployFailed: BlockNodeDeployFailedSoloError,
     blockNodeDestroyFailed: BlockNodeDestroyFailedSoloError,
+    blockNodeJfrCollectionFailed: BlockNodeJfrCollectionFailedSoloError,
     blockNodeUpgradeFailed: BlockNodeUpgradeFailedSoloError,
     blockNodeAddExternalFailed: BlockNodeAddExternalFailedSoloError,
     blockNodeDeleteExternalFailed: BlockNodeDeleteExternalFailedSoloError,
@@ -703,6 +707,7 @@ export class SoloErrors {
     readonly blockNodePodNotFound: typeof BlockNodePodNotFoundSoloError;
     readonly blockNodeNotReady: typeof BlockNodeNotReadySoloError;
     readonly blockNodeNotInRemoteConfig: typeof BlockNodeNotInRemoteConfigSoloError;
+    readonly blockNodesJsonEmpty: typeof BlockNodesJsonEmptySoloError;
     readonly externalBlockNodeNotInRemoteConfig: typeof ExternalBlockNodeNotInRemoteConfigSoloError;
     readonly clusterConnectionFailed: typeof ClusterConnectionFailedError;
     readonly githubApiHttpResponseError: typeof GitHubApiHttpResponseError;
@@ -778,6 +783,7 @@ export class SoloErrors {
     blockNodePodNotFound: BlockNodePodNotFoundSoloError,
     blockNodeNotReady: BlockNodeNotReadySoloError,
     blockNodeNotInRemoteConfig: BlockNodeNotInRemoteConfigSoloError,
+    blockNodesJsonEmpty: BlockNodesJsonEmptySoloError,
     externalBlockNodeNotInRemoteConfig: ExternalBlockNodeNotInRemoteConfigSoloError,
     clusterConnectionFailed: ClusterConnectionFailedError,
     githubApiHttpResponseError: GitHubApiHttpResponseError,
