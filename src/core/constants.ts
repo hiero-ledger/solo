@@ -527,6 +527,8 @@ export const BLOCK_STREAM_STREAM_MODE: string = getEnvironmentVariable('BLOCK_ST
 export const BLOCK_STREAM_WRITER_MODE: string = getEnvironmentVariable('BLOCK_STREAM_WRITER_MODE') || 'FILE_AND_GRPC';
 
 export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
+export const RELAY_IMAGE_NAME: string = 'hiero-json-rpc-relay';
+export const EXPLORER_IMAGE_NAME: string = 'hiero-explorer';
 export const APPLICATION_PROPERTIES: string = 'application.properties';
 export const APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER: string = 'SOLO_ENABLE_OVERWRITE=true';
 export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';
