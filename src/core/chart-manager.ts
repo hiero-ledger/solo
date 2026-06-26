@@ -127,6 +127,7 @@ export class ChartManager {
     kubeContext: string,
     atomic: boolean = false,
     waitFor: boolean = false,
+    dependencyUpdate: boolean = false,
   ): Promise<boolean> {
     try {
       const isInstalled: boolean = await this.isChartInstalled(namespaceName, chartReleaseName, kubeContext);
@@ -139,7 +140,8 @@ export class ChartManager {
           .kubeContext(kubeContext)
           .atomic(atomic)
           .waitFor(waitFor)
-          .valueArguments(chartValues.toArguments());
+          .valueArguments(chartValues.toArguments())
+          .dependencyUpdate(dependencyUpdate);
 
         if (version) {
           builder.version(version);
@@ -218,6 +220,7 @@ export class ChartManager {
     reuseValues: boolean = false,
     install: boolean = false,
     createNamespace: boolean = false,
+    dependencyUpdate: boolean = false,
   ): Promise<boolean> {
     try {
       this.logger.debug(chalk.cyan('> upgrading chart:'), chalk.yellow(`${chartReleaseName}`));
@@ -228,7 +231,8 @@ export class ChartManager {
         .createNamespace(createNamespace)
         .namespace(namespaceName.name)
         .kubeContext(kubeContext)
-        .valueArguments(chartValues.toArguments());
+        .valueArguments(chartValues.toArguments())
+        .dependencyUpdate(dependencyUpdate);
 
       if (version) {
         builder.version(version);
