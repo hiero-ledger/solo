@@ -50,6 +50,7 @@ const associations: number = 50;
 const nfts: number = 50;
 const percent: number = 50;
 const maxTps: number = 100;
+const maxRtt: number = 500;
 const nftTransferLoadTestTimeoutMultiplier: number = 6;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
@@ -223,7 +224,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         async function runLoadTest(performanceTest: string, argumentsString: string): Promise<void> {
           // rapid-fire enforces the TPS!=0 + "Finished" check internally and throws
           // on degraded runs (proxy backpressure, NFT-vs-fungible token mismatch, etc.).
-          await main(soloRapidFire(testName, performanceTest, argumentsString, maxTps));
+          await main(soloRapidFire(testName, performanceTest, argumentsString, maxTps, maxRtt));
           // Cool-down lets haproxy drain tunnel sockets before the next test.
           await sleep(Duration.ofSeconds(30));
         }
@@ -340,6 +341,7 @@ export function soloRapidFire(
   performanceTest: string,
   argumentsString: string,
   maxTps: number,
+  maxRtt: number,
 ): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
@@ -355,6 +357,8 @@ export function soloRapidFire(
     performanceTest,
     optionFromFlag(Flags.maxTps),
     maxTps.toString(),
+    optionFromFlag(Flags.maxRtt),
+    maxRtt.toString(),
     optionFromFlag(Flags.nlgArguments),
     `'"${argumentsString}"'`,
   );

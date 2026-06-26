@@ -50,6 +50,7 @@ interface RapidFireStartConfigClass {
   performanceTest: string;
   packageName: string;
   maxTps: number;
+  maxRtt: number;
 }
 
 interface RapidFireStopConfigClass {
@@ -72,12 +73,14 @@ interface RapidFireStopContext {
 }
 
 interface NlgResult {
-  status: 'success' | 'zero-tps' | 'no-result';
+  status: 'success' | 'zero-tps' | 'no-result' | 'no-rtt-result' | 'rtt-threshold-exceeded';
   testClass: string;
   performanceTest: string;
   transactionCount?: number;
   durationSeconds?: number;
   tps?: number;
+  rttMilliseconds?: number;
+  maxRttMilliseconds?: number;
   hint?: string;
 }
 
@@ -110,6 +113,7 @@ export class RapidFireCommand extends BaseCommand {
       flags.javaHeap,
       flags.packageName,
       flags.maxTps,
+      flags.maxRtt,
     ],
   };
 
@@ -291,6 +295,7 @@ export class RapidFireCommand extends BaseCommand {
             stdoutText + stderrText,
             testClass,
             performanceTest,
+            context_.config.maxRtt,
           );
 
           if (execError || result.status !== 'success') {
@@ -309,9 +314,10 @@ export class RapidFireCommand extends BaseCommand {
             );
           }
 
+          const rttMessage: string = result.rttMilliseconds === undefined ? '' : `, RTT ${result.rttMilliseconds} ms`;
           this.logger.showUser(
             chalk.green(
-              `${testClass}: TPS ${result.tps} (${result.transactionCount} transactions in ${result.durationSeconds} sec)`,
+              `${testClass}: TPS ${result.tps} (${result.transactionCount} transactions in ${result.durationSeconds} sec)${rttMessage}`,
             ),
           );
         }
@@ -328,7 +334,12 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly NLG_FINISHED_PATTERN: RegExp =
     /Finished\s+([\w.]+):.*?(\d+)\s+(?:\w+\s+)+in\s+(\d+)\s+sec,\s+TPS:\s+(\d+)/;
 
-  private static analyzeNlgOutput(output: string, testClass: string, performanceTest: string): NlgResult {
+  private static analyzeNlgOutput(
+    output: string,
+    testClass: string,
+    performanceTest: string,
+    maxRttMilliseconds: number = 0,
+  ): NlgResult {
     const lines: string[] = output.split('\n');
     let lastMatch: RegExpMatchArray | undefined;
     const longevityMatches: RegExpMatchArray[] = [];
@@ -370,6 +381,7 @@ export class RapidFireCommand extends BaseCommand {
     const transactionCount: number = Number.parseInt(lastMatch[2], 10);
     const durationSeconds: number = Number.parseInt(lastMatch[3], 10);
     const tps: number = Number.parseInt(lastMatch[4], 10);
+    const rttMilliseconds: number | undefined = RapidFireCommand.extractMaxRttMilliseconds(output);
 
     // NLG reports integer TPS. For short/low-volume runs it can print "TPS: 0"
     // even when transfers occurred (for example 12 tx in 29 sec -> 0 when rounded).
@@ -382,6 +394,34 @@ export class RapidFireCommand extends BaseCommand {
         transactionCount,
         durationSeconds,
         tps,
+        rttMilliseconds,
+        hint: RapidFireCommand.classifyFailure(output),
+      };
+    }
+
+    if (maxRttMilliseconds > 0 && rttMilliseconds === undefined) {
+      return {
+        status: 'no-rtt-result',
+        testClass,
+        performanceTest,
+        transactionCount,
+        durationSeconds,
+        tps,
+        maxRttMilliseconds,
+        hint: RapidFireCommand.classifyFailure(output),
+      };
+    }
+
+    if (maxRttMilliseconds > 0 && rttMilliseconds !== undefined && rttMilliseconds > maxRttMilliseconds) {
+      return {
+        status: 'rtt-threshold-exceeded',
+        testClass,
+        performanceTest,
+        transactionCount,
+        durationSeconds,
+        tps,
+        rttMilliseconds,
+        maxRttMilliseconds,
         hint: RapidFireCommand.classifyFailure(output),
       };
     }
@@ -393,7 +433,53 @@ export class RapidFireCommand extends BaseCommand {
       transactionCount,
       durationSeconds,
       tps,
+      rttMilliseconds,
     };
+  }
+
+  private static extractMaxRttMilliseconds(output: string): number | undefined {
+    const patterns: {pattern: RegExp; valueIndex: number; unitIndex: number}[] = [
+      {
+        pattern:
+          /\b(?:rtt|round[-\s]?trip(?:\s+time)?)\b[^0-9\n\r]{0,40}(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|seconds?)\b/gi,
+        valueIndex: 1,
+        unitIndex: 2,
+      },
+      {
+        pattern:
+          /(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|seconds?)\b[^a-zA-Z\n\r]{0,40}\b(?:rtt|round[-\s]?trip(?:\s+time)?)\b/gi,
+        valueIndex: 1,
+        unitIndex: 2,
+      },
+      {
+        pattern:
+          /\b(?:rtt|round[-\s]?trip(?:\s+time)?)\b[^a-zA-Z\n\r]{0,20}\b(ms|milliseconds?|s|seconds?)\b[^0-9\n\r]{0,20}(\d+(?:\.\d+)?)/gi,
+        valueIndex: 2,
+        unitIndex: 1,
+      },
+    ];
+
+    const matches: number[] = [];
+    for (const {pattern, valueIndex, unitIndex} of patterns) {
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(output)) !== null) {
+        const rttValue: number = Number.parseFloat(match[valueIndex]);
+        if (Number.isNaN(rttValue)) {
+          continue;
+        }
+        matches.push(RapidFireCommand.rttValueToMilliseconds(rttValue, match[unitIndex]));
+      }
+    }
+
+    if (matches.length === 0) {
+      return undefined;
+    }
+
+    return Math.max(...matches);
+  }
+
+  private static rttValueToMilliseconds(value: number, unit: string): number {
+    return unit.toLowerCase().startsWith('s') ? value * 1000 : value;
   }
 
   // Returns a short hint string based on patterns found in the NLG output.
@@ -444,6 +530,18 @@ export class RapidFireCommand extends BaseCommand {
       case 'no-result': {
         lines.push(
           `${result.testClass} produced no "Finished <test>: ... TPS: N" result line. The NLG process exited or hung without reporting a benchmark result.`,
+        );
+        break;
+      }
+      case 'no-rtt-result': {
+        lines.push(
+          `${result.testClass} produced no RTT result while --max-rtt=${result.maxRttMilliseconds} ms was configured.`,
+        );
+        break;
+      }
+      case 'rtt-threshold-exceeded': {
+        lines.push(
+          `${result.testClass} completed with RTT ${result.rttMilliseconds} ms, exceeding the configured maximum of ${result.maxRttMilliseconds} ms.`,
         );
         break;
       }
@@ -534,6 +632,12 @@ export class RapidFireCommand extends BaseCommand {
         `transactions:${result.transactionCount}`,
         `duration:    ${result.durationSeconds}s`,
       );
+    }
+    if (result.rttMilliseconds !== undefined) {
+      headerLines.push(`rtt:         ${result.rttMilliseconds}ms`);
+    }
+    if (result.maxRttMilliseconds !== undefined) {
+      headerLines.push(`maxRtt:      ${result.maxRttMilliseconds}ms`);
     }
     if (result.hint) {
       headerLines.push(`hint:        ${result.hint}`);
