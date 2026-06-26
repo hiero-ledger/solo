@@ -49,29 +49,8 @@ import yaml from 'yaml';
 import {PathEx} from '../business/utils/path-ex.js';
 import fs from 'node:fs/promises';
 import {DEFAULT_SOLO_NAMESPACE_LABELS} from '../core/constants.js';
-
-interface DeploymentAddClusterConfig {
-  quiet: boolean;
-  context: string;
-  namespace: NamespaceName;
-  deployment: DeploymentName;
-  clusterRef: ClusterReferenceName;
-
-  enableCertManager: boolean;
-  numberOfConsensusNodes: number;
-  dnsBaseDomain: string;
-  dnsConsensusNodePattern: string;
-
-  ledgerPhase?: LedgerPhase;
-  nodeAliases: NodeAliases;
-
-  existingNodesCount: number;
-  existingClusterContext?: string;
-}
-
-export interface DeploymentAddClusterContext {
-  config: DeploymentAddClusterConfig;
-}
+import {type DeploymentAddClusterContext} from './deployment-add-cluster-context.js';
+export {type DeploymentAddClusterContext} from './deployment-add-cluster-context.js';
 
 interface PortEntry {
   componentId: number;
