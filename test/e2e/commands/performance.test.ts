@@ -65,6 +65,7 @@ let peakMemoryInMebibytes: number = 0;
 // minutes. Force-exit immediately so the runner can move on without waiting.
 process.on('SIGTERM', (): void => {
   clearInterval(metricsInterval);
+  // eslint-disable-next-line n/no-process-exit -- SIGTERM handler must force-exit; throwing does not terminate the process
   process.exit(143); // 128 + SIGTERM(15)
 });
 const defaultJFREnvironmentValue: string = process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION;

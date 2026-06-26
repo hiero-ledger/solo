@@ -252,26 +252,25 @@ export class RapidFireCommand extends BaseCommand {
           const stderrBuffer: string[] = [];
           let displayOutput: string = '';
           let displayOutputOmittedCharacters: number = 0;
-          const appendDisplayOutput = (chunk: string): void => {
-            const nextOutput: string = displayOutput + chalk.gray(chunk);
-            const excessLength: number = nextOutput.length - RapidFireCommand.NLG_CONSOLE_OUTPUT_MAX_CHARACTERS;
-            if (excessLength > 0) {
-              displayOutputOmittedCharacters += excessLength;
-              displayOutput = nextOutput.slice(excessLength);
-            } else {
-              displayOutput = nextOutput;
-            }
-            task.output = RapidFireCommand.formatNlgConsoleOutput(displayOutput, displayOutputOmittedCharacters);
-          };
           outputStream.on('data', (chunk: Buffer): void => {
             const string_: string = chunk.toString();
             stdoutBuffer.push(string_);
-            appendDisplayOutput(string_);
+            ({displayOutput, displayOutputOmittedCharacters} = RapidFireCommand.appendNlgDisplayOutput(
+              string_,
+              displayOutput,
+              displayOutputOmittedCharacters,
+              task,
+            ));
           });
           errorStream.on('data', (chunk: Buffer): void => {
             const string_: string = chunk.toString();
             stderrBuffer.push(string_);
-            appendDisplayOutput(string_);
+            ({displayOutput, displayOutputOmittedCharacters} = RapidFireCommand.appendNlgDisplayOutput(
+              string_,
+              displayOutput,
+              displayOutputOmittedCharacters,
+              task,
+            ));
           });
 
           let execError: Error | undefined;
@@ -355,6 +354,24 @@ export class RapidFireCommand extends BaseCommand {
       `[rapid-fire output truncated: omitted ${omittedCharacters} earlier characters; showing latest output]`,
       output,
     ].join('\n');
+  }
+
+  private static appendNlgDisplayOutput(
+    chunk: string,
+    displayOutput: string,
+    displayOutputOmittedCharacters: number,
+    task: SoloListrTaskWrapper<RapidFireStartContext>,
+  ): {displayOutput: string; displayOutputOmittedCharacters: number} {
+    const nextOutput: string = displayOutput + chalk.gray(chunk);
+    const excessLength: number = nextOutput.length - RapidFireCommand.NLG_CONSOLE_OUTPUT_MAX_CHARACTERS;
+    if (excessLength > 0) {
+      displayOutputOmittedCharacters += excessLength;
+      displayOutput = nextOutput.slice(excessLength);
+    } else {
+      displayOutput = nextOutput;
+    }
+    task.output = RapidFireCommand.formatNlgConsoleOutput(displayOutput, displayOutputOmittedCharacters);
+    return {displayOutput, displayOutputOmittedCharacters};
   }
 
   private static analyzeNlgOutput(output: string, testClass: string, performanceTest: string): NlgResult {
