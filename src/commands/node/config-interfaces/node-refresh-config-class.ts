@@ -2,7 +2,7 @@
 
 import {type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
 import {type PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
-import {type NodeCommonConfigWithNodeAliases} from './node-common-config-class.js';
+import {type NodeCommonConfigWithNodeAliases} from './node-common-config-with-node-aliases.js';
 
 export interface NodeRefreshConfigClass extends NodeCommonConfigWithNodeAliases {
   app: string;
