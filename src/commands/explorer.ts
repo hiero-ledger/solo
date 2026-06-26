@@ -11,6 +11,7 @@ import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {showVersionBanner, sleep} from '../core/helpers.js';
+import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {
   type ClusterReferenceName,
   type ComponentId,
@@ -57,6 +58,7 @@ interface ExplorerDeployConfigClass {
   explorerTlsHostName: string;
   explorerStaticIp: string | '';
   explorerVersion: string;
+  componentImage: Optional<string>;
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
   valuesFile: string;
@@ -96,6 +98,7 @@ interface ExplorerUpgradeConfigClass {
   explorerTlsHostName: string;
   explorerStaticIp: string | '';
   explorerVersion: string;
+  componentImage: Optional<string>;
   namespace: NamespaceName;
   tlsClusterIssuerType: string;
   valuesFile: string;
@@ -174,6 +177,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerTlsHostName,
       flags.explorerStaticIp,
       flags.explorerVersion,
+      flags.componentImage,
       flags.namespace,
       flags.quiet,
       flags.soloChartVersion,
@@ -203,6 +207,7 @@ export class ExplorerCommand extends BaseCommand {
       flags.explorerTlsHostName,
       flags.explorerStaticIp,
       flags.explorerVersion,
+      flags.componentImage,
       flags.namespace,
       flags.quiet,
       flags.soloChartVersion,
@@ -390,6 +395,27 @@ export class ExplorerCommand extends BaseCommand {
           explorerChartValues.set('image.tag', config.explorerVersion);
         }
 
+        if (config.componentImage) {
+          const parsedReference: ParsedImageReference = ImageReference.parseImageReference(config.componentImage);
+
+          if (this.isLocalImageAvailableInDocker(config.componentImage)) {
+            explorerChartValues
+              .setLiteral('image.registry', parsedReference.registry)
+              .setLiteral('image.repository', parsedReference.repository)
+              .set('image.tag', parsedReference.tag)
+              .setLiteral('image.pullPolicy', 'Never');
+          } else if (this.isLocalImageReference(config.componentImage)) {
+            // Local-looking ref but not in Docker — plain tag override, K8s will pull from registry.
+            explorerChartValues.set('image.tag', parsedReference.tag);
+          } else {
+            // Explicit registry reference.
+            explorerChartValues
+              .setLiteral('image.registry', parsedReference.registry)
+              .setLiteral('image.repository', parsedReference.repository)
+              .set('image.tag', parsedReference.tag);
+          }
+        }
+
         await this.chartManager.upgrade(
           config.namespace,
           config.releaseName,
@@ -400,6 +426,8 @@ export class ExplorerCommand extends BaseCommand {
           config.clusterContext,
           false,
           true,
+          false,
+          Boolean(config.explorerChartDirectory),
         );
 
         if (commandType === ExplorerCommandType.ADD) {
