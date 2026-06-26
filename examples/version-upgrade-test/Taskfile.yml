@@ -118,9 +118,8 @@ tasks:
 
       # Deploy mirror node with previous version
       - cmd: |
-          # Keep importer on record-stream mode for this cross-version boundary.
-          # Old version combos can fail block-node TSS verification and break relay startup.
-          DISABLE_IMPORTER_SPRING_PROFILES=true $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} \
+          # Keep importer on block-node mode for this cross-version boundary.
+          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} \
           --pinger --enable-ingress --mirror-node-version {{ .PREV_MIRROR_VERSION }} \
           --values-file {{ .TASKFILE_DIR }}/mirror-node-record-import-disabled-values.yaml
 

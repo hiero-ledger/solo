@@ -68,17 +68,6 @@ is_tss_supported_consensus_version() {
   [[ "$(printf '%s\n' "${minimum_tss_version}" "${consensus_version}" | sort -V | head -n 1)" == "${minimum_tss_version}" ]]
 }
 
-source_migration_requires_record_stream() {
-  local consensus_version="${1#v}"
-
-  # The source phase is frozen, redeployed, and restarted before the CN upgrade.
-  # CN 0.74 can leave the freeze-boundary block local-only while the block-node
-  # stream closes, then skip that pending block on restart. Import records during
-  # the 0.74 source phase so mirror does not depend on that transient block-node
-  # stream handoff; the upgraded target phase still uses block-node streaming.
-  [[ "${consensus_version}" == 0.74.* ]]
-}
-
 install_minio_operator_for_source_deploy() {
   local context="kind-${SOLO_CLUSTER_NAME}"
   local namespace="solo-setup"
@@ -618,8 +607,7 @@ TEMP_SOURCE_APPLICATION_PROPERTIES_FILE="$(mktemp -t source-application-properti
 
 cp resources/templates/application.properties "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
-if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}" || \
-  source_migration_requires_record_stream "${FROM_CONSENSUS_NODE_VERSION}"; then
+if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   SOURCE_BLOCK_STREAM_MODE="BOTH"
   SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
   SOURCE_MINIO_ENABLED="true"
@@ -664,6 +652,15 @@ importer:
     HEDERA_MIRROR_IMPORTER_BLOCK_ENABLED: "${SOURCE_MIRROR_BLOCK_ENABLED}"
     HEDERA_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "${SOURCE_MIRROR_RECORD_ENABLED}"
     HEDERA_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
+  config:
+    hiero:
+      mirror:
+        importer:
+          downloader:
+            record:
+              enabled: ${SOURCE_MIRROR_RECORD_ENABLED}
+            balance:
+              enabled: false
 EOF
 
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
