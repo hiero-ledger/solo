@@ -50,8 +50,12 @@ runs:
       run: |
         set -euo pipefail
 
-        primary_key="${{ inputs.key-prefix }}-${RUNNER_OS}-${RUNNER_ARCH}-${{ inputs.key-suffix }}"
+        case "${{ inputs.operation }}" in
+          restore|save) ;;
+          *) echo "Unsupported operation: ${{ inputs.operation }} (expected 'restore' or 'save')" >&2; exit 1 ;;
+        esac
 
+        primary_key="${{ inputs.key-prefix }}-${RUNNER_OS}-${RUNNER_ARCH}-${{ inputs.key-suffix }}"
         {
           echo "primary-key=${primary_key}"
           echo "restore-keys<<RESTORE_KEYS"
