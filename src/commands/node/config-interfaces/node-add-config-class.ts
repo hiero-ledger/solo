@@ -2,7 +2,8 @@
 
 import {type NodeAlias, type NodeAliases} from '../../../types/aliases.js';
 import {type PrivateKey} from '@hiero-ledger/sdk';
-import {type CheckedNodesConfigClass, type NodeCommonConfigWithNodeAlias} from './node-common-config-class.js';
+import {type CheckedNodesConfigClass} from './checked-nodes-config-class.js';
+import {type NodeCommonConfigWithNodeAlias} from './node-common-config-with-node-alias.js';
 import {type Client} from '@hiero-ledger/sdk';
 import {type ClusterReferenceName} from '../../../types/index.js';
 

@@ -9,8 +9,3 @@
  *   More disruptive but guaranteed to work across any chart change.
  */
 export type ComponentUpgradeMigrationStrategy = 'in-place' | 'recreate';
-
-export {type ComponentUpgradeBoundaryRule} from './component-upgrade-boundary-rule.js';
-export {type ComponentUpgradeMigrationConfig} from './component-upgrade-migration-config.js';
-export {type ComponentUpgradeMigrationConfigFile} from './component-upgrade-migration-config-file.js';
-export {type ComponentUpgradeMigrationStep} from './component-upgrade-migration-step.js';
