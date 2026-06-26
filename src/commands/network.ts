@@ -28,7 +28,7 @@ import {type KeyManager} from '../core/key-manager.js';
 import {type PlatformInstaller} from '../core/platform-installer.js';
 import {type ProfileManager} from '../core/profile-manager.js';
 import {type CertificateManager} from '../core/certificate-manager.js';
-import {type AnyListrContext, type ArgvStruct, type IP, type NodeAlias, type NodeAliases} from '../types/aliases.js';
+import {type AnyListrContext, type ArgvStruct, type NodeAlias} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
 import {v4 as uuidv4} from 'uuid';
 import {
@@ -74,89 +74,14 @@ import {Zippy} from '../core/zippy.js';
 import {type SoloEventBus} from '../core/events/solo-event-bus.js';
 import {NetworkDeployedEvent} from '../core/events/event-types/network-deployed-event.js';
 import {type Wraps} from '../business/runtime-state/config/solo/wraps.js';
+import {type NetworkDeployConfigClass} from './network-deploy-config-class.js';
+import {type NetworkDestroyContext} from './network-destroy-context.js';
 
-export interface NetworkDeployConfigClass {
-  isUpgrade: boolean;
-  applicationEnv: string;
-  chainId: string;
-  cacheDir: string;
-  chartDirectory: string;
-  loadBalancerEnabled: boolean;
-  soloChartVersion: string;
-  namespace: NamespaceName;
-  deployment: string;
-  nodeAliasesUnparsed: string;
-  persistentVolumeClaims: string;
-  releaseTag: string;
-  keysDir: string;
-  nodeAliases: NodeAliases;
-  stagingDir: string;
-  stagingKeysDir: string;
-  valuesFile: string;
-  chartValuesMap: Record<ClusterReferenceName, HelmChartValues>;
-  grpcTlsCertificatePath: string;
-  grpcWebTlsCertificatePath: string;
-  grpcTlsKeyPath: string;
-  grpcWebTlsKeyPath: string;
-  genesisThrottlesFile: string;
-  resolvedThrottlesFile: string;
-  haproxyIps: string;
-  envoyIps: string;
-  haproxyIpsParsed?: Record<NodeAlias, IP>;
-  envoyIpsParsed?: Record<NodeAlias, IP>;
-  storageType: constants.StorageType;
-  gcsWriteAccessKey: string;
-  gcsWriteSecrets: string;
-  gcsEndpoint: string;
-  gcsBucket: string;
-  gcsBucketPrefix: string;
-  awsWriteAccessKey: string;
-  awsWriteSecrets: string;
-  awsEndpoint: string;
-  awsBucket: string;
-  awsBucketPrefix: string;
-  awsBucketRegion: string;
-  backupBucket: string;
-  backupWriteSecrets: string;
-  backupWriteAccessKey: string;
-  backupEndpoint: string;
-  backupRegion: string;
-  backupProvider: string;
-  consensusNodes: ConsensusNode[];
-  contexts: string[];
-  clusterRefs: ClusterReferences;
-  domainNames?: string;
-  domainNamesMapping?: Record<NodeAlias, string>;
-  blockNodeComponents: BlockNodeStateSchema[];
-  debugNodeAlias: NodeAlias;
-  app: string;
-  serviceMonitor: string;
-  podLog: string;
-  singleUseServiceMonitor: string;
-  singleUsePodLog: string;
-  enableMonitoringSupport: boolean;
-  javaFlightRecorderConfiguration: string;
-  wrapsEnabled: boolean;
-  wrapsKeyPath: string;
-  tssEnabled: boolean;
-  minioEnabled: boolean;
-}
+export {type NetworkDeployConfigClass} from './network-deploy-config-class.js';
+export {type NetworkDestroyContext} from './network-destroy-context.js';
 
 interface NetworkDeployContext {
   config: NetworkDeployConfigClass;
-}
-
-export interface NetworkDestroyContext {
-  config: {
-    deletePvcs: boolean;
-    deleteSecrets: boolean;
-    namespace: NamespaceName;
-    enableTimeout: boolean;
-    force: boolean;
-    contexts: string[];
-    deployment: string;
-  };
-  checkTimeout: boolean;
 }
 
 @injectable()
