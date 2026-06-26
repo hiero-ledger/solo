@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type Lock} from './lock.js';
+import {type RenewableLock} from './renewable-lock.js';
 import {type Duration} from '../time/duration.js';
 
 export interface LockRenewalService {
@@ -16,7 +16,7 @@ export interface LockRenewalService {
    * @param lease - the lease to be renewed.
    * @returns the unique identifier of the scheduled lease renewal.
    */
-  schedule(lease: Lock): Promise<number>;
+  schedule(lease: RenewableLock): Promise<number>;
 
   /**
    * Cancels a scheduled lease renewal.
@@ -36,5 +36,5 @@ export interface LockRenewalService {
    * @param lease - the lease to be renewed.
    * @returns the delay in milliseconds.
    */
-  calculateRenewalDelay(lease: Lock): Duration;
+  calculateRenewalDelay(lease: RenewableLock): Duration;
 }
