@@ -324,7 +324,7 @@ export default [
     plugins: {solo: soloLocalPlugin},
     rules: {
       'solo/no-exported-function': 'error',
-      'solo/exported-interface-in-own-file': 'warn', // TODO error (migrate src/types/ barrels first)
+      'solo/exported-interface-in-own-file': 'error',
     },
   },
   {
