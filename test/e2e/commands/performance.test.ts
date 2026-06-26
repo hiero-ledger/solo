@@ -17,6 +17,7 @@ import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
+import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
@@ -105,6 +106,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await main(soloOneShotDeploy(testName, deployment));
           testLogger.info(`${testName}: finished ${testName}: deploy`);
 
+          // Opt-in: deploy a JFR-enabled block node so its JVM metrics are recorded and collected at teardown.
+          if (process.env.PERFORMANCE_TEST_WITH_BLOCK_NODE === 'true') {
+            testLogger.info(`${testName}: beginning ${testName}: block node deploy (JFR enabled)`);
+            await main(soloBlockNodeJfrDeploy(testName, deployment));
+            testLogger.info(`${testName}: finished ${testName}: block node deploy`);
+          }
+
           startTime = new Date();
           metricsInterval = setInterval(async (): Promise<void> => {
             logMetrics(startTime);
@@ -121,8 +129,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           const namespace: string = await getNamespaceFromDeployment();
           const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
           const files: string[] = fs.readdirSync(tartgetDirectory);
+          // Only the per-snapshot metric files are JSON. Ignore other artifacts in the logs tree (e.g.
+          // Java Flight Recorder .jfr recordings collected by the teardown) so they don't break parsing.
+          const metricFiles: string[] = files.filter((file: string): boolean => file.endsWith('.json'));
           const allMetrics: Record<string, AggregatedMetrics> = {};
-          for (const file of files) {
+          for (const file of metricFiles) {
             const filePath: string = PathEx.join(tartgetDirectory, file);
             const fileContents: string = fs.readFileSync(filePath, 'utf8');
             const fileName: string = file.split('.')[0];
@@ -163,19 +174,20 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           };
           fs.writeFileSync(PathEx.join(tartgetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
 
-          // remove all snapshot files except the representative one
+          // remove all snapshot files except the representative one (only the JSON snapshots; leave other
+          // artifacts such as .jfr recordings in place for collection/upload)
           const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
-          for (const file of files) {
+          for (const file of metricFiles) {
             if (!filesToKeep.has(file)) {
               fs.rmSync(PathEx.join(tartgetDirectory, file));
             }
           }
 
-          // copy the summary to the main solo logs directory to be accessible by existing scripts
-          fs.copyFileSync(
-            PathEx.join(tartgetDirectory, `${namespace}.json`),
-            PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
-          );
+          // copy the summary to the main solo logs directory (guard against a missing summary on disrupted runs)
+          const summaryPath: string = PathEx.join(tartgetDirectory, `${namespace}.json`);
+          if (fs.existsSync(summaryPath)) {
+            fs.copyFileSync(summaryPath, PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`));
+          }
 
           await preDestroy(endToEndTestSuite);
 
@@ -311,6 +323,25 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
   if (process.env.ONE_SHOT_USE_EDGE === 'true') {
     argv.push(optionFromFlag(Flags.edgeEnabled));
   }
+  return argv;
+}
+
+export function soloBlockNodeJfrDeploy(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+
+  const argv: string[] = newArgv();
+  argv.push(
+    BlockCommandDefinition.COMMAND_NAME,
+    BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+    BlockCommandDefinition.NODE_ADD,
+  );
+  argvPushGlobalFlags(argv, testName);
+  argv.push(
+    optionFromFlag(Flags.deployment),
+    deployment,
+    optionFromFlag(Flags.valuesFile),
+    PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'block-node-perf-values.yaml'),
+  );
   return argv;
 }
 
