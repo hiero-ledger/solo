@@ -25,6 +25,7 @@ import {Flags} from '../../../src/commands/flags.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
 import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/aggregated-metrics.js';
+import * as versions from '../../../version.js';
 
 // A snapshot file on disk has AggregatedMetrics' fields plus the peakMemoryInMebibytes
 // we inject during logMetrics().
@@ -53,6 +54,11 @@ const nfts: number = 50;
 const percent: number = 50;
 const maxTps: number = 100;
 const nftTransferLoadTestTimeoutMultiplier: number = 6;
+const consensusNodeVersion: string = (process.env.CONSENSUS_NODE_VERSION || versions.HEDERA_PLATFORM_VERSION).replace(
+  /^v/,
+  '',
+);
+const smartContractLoadTestEnabled: boolean = !consensusNodeVersion.startsWith('0.75.');
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
 let events: string[] = [];
@@ -254,7 +260,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await runLoadTest('HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
-        it('SmartContractLoadTest', async (): Promise<void> => {
+        it('SmartContractLoadTest', async function (this: Mocha.Context): Promise<void> {
+          if (!smartContractLoadTestEnabled) {
+            this.skip();
+          }
+
           logEvent('Starting SmartContractLoadTest');
           await runLoadTest('SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 6).toMillis());
