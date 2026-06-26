@@ -115,6 +115,7 @@ describe('PostgresSharedResource', (): void => {
         HIERO_MIRROR_GRPC_DB_PASSWORD: encode('grpcpass'),
         HIERO_MIRROR_IMPORTER_DB_PASSWORD: encode('importerpass'),
         HIERO_MIRROR_REST_DB_PASSWORD: encode('restpass'),
+        HIERO_MIRROR_REST_DB_USERNAME: encode('mirror_rest'),
         HIERO_MIRROR_RESTJAVA_DB_PASSWORD: encode('restjavapass'),
         HIERO_MIRROR_ROSETTA_DB_PASSWORD: encode('rosettapass'),
         HIERO_MIRROR_WEB3_DB_PASSWORD: encode('web3pass'),
@@ -203,6 +204,9 @@ describe('PostgresSharedResource', (): void => {
       expect(writtenContent).to.include('export GRPC_PASSWORD=grpcpass');
       expect(writtenContent).to.include('export IMPORTER_PASSWORD=importerpass');
       expect(writtenContent).to.include('export REST_PASSWORD=restpass');
+      expect(writtenContent).to.include('export REST_USERNAME=mirror_rest');
+      expect(writtenContent).to.not.include('create user :restUsername');
+      expect(writtenContent).to.not.include('export CREATE_MIRROR_API_USER=true');
       expect(writtenContent).to.include('export REST_JAVA_PASSWORD=restjavapass');
       expect(writtenContent).to.include('export ROSETTA_PASSWORD=rosettapass');
       expect(writtenContent).to.include('export WEB3_PASSWORD=web3pass');
@@ -218,6 +222,7 @@ describe('PostgresSharedResource', (): void => {
           CUSTOM_MIRROR_GRPC_DB_PASSWORD: encode('grpcpass'),
           CUSTOM_MIRROR_IMPORTER_DB_PASSWORD: encode('importerpass'),
           CUSTOM_MIRROR_REST_DB_PASSWORD: encode('restpass'),
+          CUSTOM_MIRROR_REST_DB_USERNAME: encode('custom_rest'),
           CUSTOM_MIRROR_RESTJAVA_DB_PASSWORD: encode('restjavapass'),
           CUSTOM_MIRROR_ROSETTA_DB_PASSWORD: encode('rosettapass'),
           CUSTOM_MIRROR_WEB3_DB_PASSWORD: encode('web3pass'),
@@ -233,6 +238,7 @@ describe('PostgresSharedResource', (): void => {
       const writtenContent: string = wrapperArguments[1] as string;
       expect(writtenContent).to.include('export DB_NAME=custom_db');
       expect(writtenContent).to.include('export OWNER_USERNAME=custom_owner');
+      expect(writtenContent).to.include('export REST_USERNAME=custom_rest');
     });
 
     it('uses the postgres pod from namespace zero', async (): Promise<void> => {

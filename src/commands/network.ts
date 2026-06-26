@@ -711,13 +711,6 @@ export class NetworkCommand extends BaseCommand {
 
       const nodePath: string = `hedera.nodes[${nodeIndex}]`;
       chartValuesMap[consensusNode.cluster].setLiteral(`${nodePath}.name`, consensusNode.name);
-      this.addRootImageValues(
-        chartValuesMap[consensusNode.cluster],
-        nodePath,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
     }
 
     for (const clusterReference of clusterReferences) {
@@ -790,27 +783,6 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /**
-   * Append root.image registry/repository/tag settings for a given node path to Helm chart values.
-   * @param chartValues - existing chart values
-   * @param nodePath - base node path, e.g. `hedera.nodes[0]`
-   * @param registry - image registry
-   * @param repository - image repository
-   * @param tag - image tag
-   */
-  private addRootImageValues(
-    chartValues: HelmChartValues,
-    nodePath: string,
-    registry: string,
-    repository: string,
-    tag: string,
-  ): void {
-    chartValues
-      .setLiteral(`${nodePath}.root.image.registry`, registry)
-      .setLiteral(`${nodePath}.root.image.tag`, tag)
-      .setLiteral(`${nodePath}.root.image.repository`, repository);
-  }
-
-  /**
    * Prepare the values files map for each cluster
    *
    * Order of precedence:
@@ -847,7 +819,7 @@ export class NetworkCommand extends BaseCommand {
     if (chartDirectory) {
       const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
       for (const clusterReference in chartValuesMap) {
-        this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, chartValuesFile);
+        HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, chartValuesFile);
       }
     }
 
@@ -855,7 +827,7 @@ export class NetworkCommand extends BaseCommand {
     if (baseValuesFiles) {
       for (const file of baseValuesFiles) {
         for (const clusterReference in chartValuesMap) {
-          this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+          HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
         }
       }
     }
@@ -864,10 +836,10 @@ export class NetworkCommand extends BaseCommand {
       for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
         if (clusterReference === flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(chartValuesMap)) {
-            this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+            HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference_, file);
           }
         } else {
-          this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+          HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
         }
       }
     }
@@ -878,12 +850,12 @@ export class NetworkCommand extends BaseCommand {
         if (clusterReference === flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(chartValuesMap)) {
             for (const file of files) {
-              this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+              HelmChartValues.addUserFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference_, file);
             }
           }
         } else {
           for (const file of files) {
-            this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+            HelmChartValues.addUserFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
           }
         }
       }
@@ -899,18 +871,6 @@ export class NetworkCommand extends BaseCommand {
       chartValuesMap: chartValuesMap as Record<ClusterReferenceName, HelmChartValues>,
       valueFilePathsMap: valueFilePathsMap as Record<ClusterReferenceName, string[]>,
     };
-  }
-
-  private addValuesFile(
-    chartValuesMap: Record<string, HelmChartValues>,
-    valueFilePathsMap: Record<string, string[]>,
-    clusterReference: string,
-    file: string,
-  ): void {
-    chartValuesMap[clusterReference] ??= new HelmChartValues();
-    valueFilePathsMap[clusterReference] ??= [];
-    chartValuesMap[clusterReference].file(file);
-    valueFilePathsMap[clusterReference].push(file);
   }
 
   private async prepareNamespaces(config: NetworkDeployConfigClass): Promise<void> {
@@ -1621,6 +1581,7 @@ export class NetworkCommand extends BaseCommand {
                 config.soloChartVersion,
                 false,
                 'Solo chart version',
+                versions.MINIMUM_SOLO_CHART_VERSION,
               );
 
               await this.chartManager.upgrade(

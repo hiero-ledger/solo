@@ -204,7 +204,7 @@ export class K8ClientPod implements Pod {
       availablePort = await PortUtilities.findAvailablePort(localPort, Duration.ofSeconds(30).toMillis(), this.logger);
 
       if (availablePort === localPort) {
-        this.logger.showUser(chalk.yellow(`Using requested port ${localPort}`));
+        this.logger.showUserUnlessOneShot(chalk.yellow(`Using requested port ${localPort}`));
       } else {
         this.logger.showUser(chalk.yellow(`Using available port ${availablePort}`));
       }
@@ -346,7 +346,7 @@ export class K8ClientPod implements Pod {
       return;
     }
 
-    this.logger.showUser(chalk.yellow(`Stopping port-forward for port [${port}]`));
+    this.logger.showUserUnlessOneShot(chalk.yellow(`Stopping port-forward for port [${port}]`));
 
     try {
       let matchedProcesses: ProcessInfo[] = await this.searchProcessListCommandByStrings(['port-forward', `${port}:`]);

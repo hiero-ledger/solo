@@ -66,8 +66,11 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
-import * as versions from '../../../version.js';
-import {HEDERA_PLATFORM_VERSION, needsConfigTxtForConsensusVersion} from '../../../version.js';
+import {
+  HEDERA_PLATFORM_VERSION,
+  MINIMUM_SOLO_CHART_VERSION,
+  needsConfigTxtForConsensusVersion,
+} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -2590,6 +2593,7 @@ export class NodeCommandTasks {
                     config.soloChartVersion,
                     false,
                     'Solo chart version',
+                    MINIMUM_SOLO_CHART_VERSION,
                   );
 
                   await this.chartManager.upgrade(
@@ -3666,6 +3670,7 @@ export class NodeCommandTasks {
               config.soloChartVersion,
               false,
               'Solo chart version',
+              MINIMUM_SOLO_CHART_VERSION,
             );
             const chartValues: HelmChartValues = extraEnvironmentChartValuesMap[clusterReference]
               .clone()
@@ -3719,7 +3724,7 @@ export class NodeCommandTasks {
     if (chartDirectory) {
       const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
       for (const clusterReference in chartValuesMap) {
-        this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, chartValuesFile);
+        HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, chartValuesFile);
       }
     }
 
@@ -3727,10 +3732,10 @@ export class NodeCommandTasks {
       for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
         if (clusterReference === flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(chartValuesMap)) {
-            this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+            HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference_, file);
           }
         } else {
-          this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+          HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
         }
       }
     }
@@ -3741,12 +3746,12 @@ export class NodeCommandTasks {
         if (clusterReference === flags.KEY_COMMON) {
           for (const clusterReference_ of Object.keys(chartValuesMap)) {
             for (const file of files) {
-              this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+              HelmChartValues.addUserFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference_, file);
             }
           }
         } else {
           for (const file of files) {
-            this.addValuesFile(chartValuesMap, valueFilePathsMap, clusterReference, file);
+            HelmChartValues.addUserFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
           }
         }
       }
@@ -3762,18 +3767,6 @@ export class NodeCommandTasks {
       chartValuesMap: chartValuesMap as Record<ClusterReferenceName, HelmChartValues>,
       valueFilePathsMap: valueFilePathsMap as Record<ClusterReferenceName, string[]>,
     };
-  }
-
-  private addValuesFile(
-    chartValuesMap: Record<string, HelmChartValues>,
-    valueFilePathsMap: Record<string, string[]>,
-    clusterReference: string,
-    file: string,
-  ): void {
-    chartValuesMap[clusterReference] ??= new HelmChartValues();
-    valueFilePathsMap[clusterReference] ??= [];
-    chartValuesMap[clusterReference].file(file);
-    valueFilePathsMap[clusterReference].push(file);
   }
 
   /**
@@ -3827,13 +3820,6 @@ export class NodeCommandTasks {
           .set(`hedera.nodes[${index}].nodeId`, consensusNode.nodeId);
       }
 
-      this.addRootImageValues(
-        chartValues,
-        `hedera.nodes[${index}]`,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
       // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
     }
   }
@@ -3871,14 +3857,6 @@ export class NodeCommandTasks {
         .set(`hedera.nodes[${index}].accountId`, serviceMap.get(node.name).accountId)
         .set(`hedera.nodes[${index}].name`, node.name)
         .set(`hedera.nodes[${index}].nodeId`, node.nodeId);
-
-      this.addRootImageValues(
-        chartValues,
-        `hedera.nodes[${index}]`,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
     }
 
     // Add new node
@@ -3888,14 +3866,6 @@ export class NodeCommandTasks {
       .set(`hedera.nodes[${index}].accountId`, newNode.accountId)
       .set(`hedera.nodes[${index}].name`, newNode.name)
       .set(`hedera.nodes[${index}].nodeId`, nodeId);
-
-    this.addRootImageValues(
-      chartValues,
-      `hedera.nodes[${index}]`,
-      constants.S6_NODE_IMAGE_REGISTRY,
-      constants.S6_NODE_IMAGE_REPOSITORY,
-      versions.S6_NODE_IMAGE_VERSION,
-    );
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
@@ -3951,13 +3921,6 @@ export class NodeCommandTasks {
           .set(`hedera.nodes[${index}].name`, node.name)
           .set(`hedera.nodes[${index}].nodeId`, node.nodeId);
 
-        this.addRootImageValues(
-          chartValues,
-          `hedera.nodes[${index}]`,
-          constants.S6_NODE_IMAGE_REGISTRY,
-          constants.S6_NODE_IMAGE_REPOSITORY,
-          versions.S6_NODE_IMAGE_VERSION,
-        );
         // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
 
         index++;
