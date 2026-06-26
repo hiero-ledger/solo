@@ -135,8 +135,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             const targetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
             if (fs.existsSync(targetDirectory)) {
               const files: string[] = fs.readdirSync(targetDirectory);
+              // Only the per-snapshot metric files are JSON. Ignore other artifacts in the logs tree
+              // (e.g. Java Flight Recorder .jfr recordings) so they don't break parsing.
+              const metricFiles: string[] = files.filter((file: string): boolean => file.endsWith('.json'));
               const allMetrics: Record<string, AggregatedMetrics> = {};
-              for (const file of files) {
+              for (const file of metricFiles) {
                 const filePath: string = PathEx.join(targetDirectory, file);
                 const fileContents: string = fs.readFileSync(filePath, 'utf8');
                 const fileName: string = file.split('.')[0];
@@ -185,9 +188,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
                   'utf8',
                 );
 
-                // remove all snapshot files except the representative one
+                // remove all snapshot files except the representative one (only JSON snapshots;
+                // leave other artifacts such as .jfr recordings in place for collection/upload)
                 const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
-                for (const file of files) {
+                for (const file of metricFiles) {
                   if (!filesToKeep.has(file)) {
                     fs.rmSync(PathEx.join(targetDirectory, file));
                   }
