@@ -36,6 +36,7 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
 
   public static readonly NODE_ADD_EXTERNAL: string = 'add-external';
   public static readonly NODE_DELETE_EXTERNAL: string = 'delete-external';
+  public static readonly NODE_COLLECT_JFR: string = 'collect-jfr';
 
   public static readonly ADD_COMMAND: string =
     `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_ADD}` as const;
@@ -43,6 +44,8 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
     `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_DESTROY}` as const;
   public static readonly UPGRADE_COMMAND: string =
     `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_UPGRADE}` as const;
+  public static readonly COLLECT_JFR_COMMAND: string =
+    `${BlockCommandDefinition.COMMAND_NAME} ${BlockCommandDefinition.NODE_SUBCOMMAND_NAME} ${BlockCommandDefinition.NODE_COLLECT_JFR}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(BlockCommandDefinition.COMMAND_NAME, BlockCommandDefinition.DESCRIPTION, this.logger)
@@ -103,6 +106,18 @@ export class BlockCommandDefinition extends BaseCommandDefinition {
               this.blockNodeCommand,
               this.blockNodeCommand.deleteExternal,
               BlockNodeCommand.DELETE_EXTERNAL_FLAGS_LIST,
+              [...constants.BASE_DEPENDENCIES],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BlockCommandDefinition.NODE_COLLECT_JFR,
+              'Downloads the Java Flight Recorder recording from a block node instance in the specified ' +
+                'deployment to the local solo logs directory. Requires the block node to have been deployed ' +
+                'with Java Flight Recorder enabled.',
+              this.blockNodeCommand,
+              this.blockNodeCommand.collectJfr,
+              BlockNodeCommand.COLLECT_JFR_FLAGS_LIST,
               [...constants.BASE_DEPENDENCIES],
             ),
           ),
