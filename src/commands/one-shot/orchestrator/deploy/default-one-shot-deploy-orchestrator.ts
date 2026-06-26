@@ -14,6 +14,7 @@ import {
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
+import {UserInput} from '../../../../core/user-input.js';
 import {patchInject} from '../../../../core/dependency-injection/container-helper.js';
 import {type TaskList} from '../../../../core/task-list/task-list.js';
 import {type SoloEventBus} from '../../../../core/events/solo-event-bus.js';
@@ -973,7 +974,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
   }
 
   private getOneShotOutputDirectory(deploymentName: string): string {
-    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${deploymentName}`);
+    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${UserInput.safeFilenameComponent(deploymentName)}`);
   }
 
   /**
