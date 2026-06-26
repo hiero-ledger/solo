@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from '../../core/errors/solo-errors.js';
+import {type ParsedImageReference} from './parsed-image-reference.js';
 
-export interface ParsedImageReference {
-  registry: string;
-  repository: string;
-  tag: string;
-}
+export {type ParsedImageReference} from './parsed-image-reference.js';
 
 export class ImageReference {
   private static readonly IMAGE_TAG_REGEX: RegExp = /^[\w][\w.-]{0,127}$/;

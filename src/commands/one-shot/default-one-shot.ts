@@ -10,7 +10,7 @@ import {SoloListrTaskWrapper, type DeploymentName, type Optional, type SoloListr
 import {CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
-import {OneShotCommand} from './one-shot.js';
+import {type OneShotCommand} from './one-shot-command.js';
 import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
 import {type OneShotVersionsObject} from './one-shot-versions-object.js';
 import * as version from '../../../version.js';
@@ -263,11 +263,18 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     const leaseReference: {value?: Lock} = {};
     const configReference: {value?: OneShotSingleDeployConfigClass} = {};
+    const deferUserOutput: boolean = argv[flags.parallelDeploy.name] !== false;
+    if (deferUserOutput) {
+      this.logger.beginDeferredUserOutput();
+    }
     try {
       await this.deployOrchestrator.buildDeployPipeline(argv, flagsList, leaseReference, configReference).run();
     } catch (error) {
       await this.performRollback(error, configReference.value);
     } finally {
+      if (deferUserOutput) {
+        this.logger.flushDeferredUserOutput();
+      }
       this.oneShotState.deactivate();
       const cleanupPromises: Promise<void>[] = [];
       if (leaseReference.value) {

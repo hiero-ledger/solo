@@ -37,15 +37,7 @@ import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
-
-export interface ProfileManagerStagingOptions {
-  // These values are intentionally passed from the command's resolved config so profile generation
-  // does not depend on mutable global flags that can be changed by concurrently running subcommands.
-  cacheDir: DirectoryPath;
-  releaseTag: string;
-  appName: string;
-  chainId: string;
-}
+import {type ProfileManagerStagingOptions} from './profile-manager-staging-options.js';
 
 @injectable()
 export class ProfileManager {

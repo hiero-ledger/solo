@@ -47,6 +47,7 @@ import {LoadDockerImageOptionsBuilder} from '../integration/kind/model/load-dock
 import {checkDockerImageExists} from '../core/helpers.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
+import {getEnvironmentVariable} from '../core/constants.js';
 
 interface DockerDesktopContainerdCheckResult {
   readonly containerdSnapshotterEnabled: boolean;
@@ -119,7 +120,7 @@ export abstract class BaseCommand extends ShellRunner {
     ];
 
     if (OperatingSystem.isWin32()) {
-      const appData: string = process.env['APPDATA'] ?? PathEx.join(home, 'AppData', 'Roaming');
+      const appData: string = getEnvironmentVariable('APPDATA') ?? PathEx.join(home, 'AppData', 'Roaming');
       paths.unshift(
         PathEx.join(appData, 'Docker', 'settings-store.json'),
         PathEx.join(appData, 'Docker', 'settings.json'),

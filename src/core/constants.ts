@@ -101,11 +101,6 @@ export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT: string =
 export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT: number =
   +getEnvironmentVariable('SOLO_NODE_DEFAULT_STAKE_AMOUNT') || 500;
 
-// S6-based consensus node image configuration (overridable via environment)
-export const S6_NODE_IMAGE_REGISTRY: string = getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REGISTRY') || 'ghcr.io';
-export const S6_NODE_IMAGE_REPOSITORY: string =
-  getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/debian-s6-java25';
-
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
 export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
@@ -189,6 +184,11 @@ export const BLOCK_NODE_CHART_URL: string =
 export const BLOCK_NODE_CHART: string = getEnvironmentVariable('BLOCK_NODE_CHART') ?? 'block-node-server';
 export const BLOCK_NODE_RELEASE_NAME: string = 'block-node';
 export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of(BLOCK_NODE_CHART);
+
+// In-pod JFR disk-repository path `solo block node collect-jfr` reads from; mirrors the consensus node's
+// ${HEDERA_HAPI_PATH}/output convention. The overlay's repository path is kept in sync with this constant by
+// block-node-values.test.ts.
+export const BLOCK_NODE_JFR_REPOSITORY_DIRECTORY: string = '/opt/hiero/block-node/output/jfr';
 
 export const NETWORK_LOAD_GENERATOR_CHART: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_RELEASE_NAME: string = 'network-load-generator';
