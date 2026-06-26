@@ -161,6 +161,10 @@ export class PostgresSharedResource {
     const ownerPassword: string = Base64.decode(
       mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_OWNERPASSWORD`],
     );
+    const restUsernameEncoded: string | undefined =
+      mirrorPasswordsSecret.data[`${prefix}_MIRROR_REST_DB_USERNAME`] ??
+      mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_RESTUSERNAME`];
+    const restUsername: string = restUsernameEncoded ? Base64.decode(restUsernameEncoded) : 'mirror_rest';
 
     const maxAttempts: number = 3;
     const backoff: number = 2;
@@ -200,6 +204,7 @@ export class PostgresSharedResource {
           `export GRPC_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_GRPC_DB_PASSWORD`])}`,
           `export IMPORTER_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_IMPORTER_DB_PASSWORD`])}`,
           `export REST_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_REST_DB_PASSWORD`])}`,
+          `export REST_USERNAME=${restUsername}`,
           `export REST_JAVA_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_RESTJAVA_DB_PASSWORD`])}`,
           `export ROSETTA_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_ROSETTA_DB_PASSWORD`])}`,
           `export WEB3_PASSWORD=${PostgresSharedResource.tryToDecode(mirrorPasswordsSecret.data[`${prefix}_MIRROR_WEB3_DB_PASSWORD`])}`,
@@ -221,7 +226,7 @@ export class PostgresSharedResource {
           `  echo "Partial initialization detected: database '${databaseName}' exists but no sentinel. Cleaning up for fresh initialization."`,
           `  psql -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${databaseName}' AND pid <> pg_backend_pid();" 2>/dev/null || true`,
           `  psql -c "DROP DATABASE IF EXISTS ${databaseName};"`,
-          `  for role in mirror_graphql mirror_grpc mirror_importer mirror_api mirror_rest mirror_rest_java mirror_rosetta mirror_web3 ${ownerUsername}; do`,
+          `  for role in mirror_graphql mirror_grpc mirror_importer mirror_api ${restUsername} mirror_rest_java mirror_rosetta mirror_web3 ${ownerUsername}; do`,
           '    psql -c "DROP USER IF EXISTS ${role};" 2>/dev/null || true',
           '  done',
           '  psql -c "DROP ROLE IF EXISTS temporary_admin, readwrite, readonly;" 2>/dev/null || true',
