@@ -1222,9 +1222,7 @@ export class MirrorNodeCommand extends BaseCommand {
                     needsExtendedWait
                       ? constants.MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS
                       : constants.PODS_READY_MAX_ATTEMPTS,
-                    needsExtendedWait
-                      ? constants.MIRROR_NODE_PINGER_PODS_READY_DELAY
-                      : constants.PODS_READY_DELAY,
+                    needsExtendedWait ? constants.MIRROR_NODE_PINGER_PODS_READY_DELAY : constants.PODS_READY_DELAY,
                   ),
             };
           },
