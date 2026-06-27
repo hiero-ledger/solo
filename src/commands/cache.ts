@@ -440,13 +440,12 @@ export class CacheCommand extends BaseCommand {
                 config.clusterName,
               );
 
-              // containerd omits the docker.io/ prefix; strip it from both sides before comparing
               const normalizedClusterImages: string[] = clusterImages.map((image: string): string =>
-                image.replace(/^docker\.io\//, ''),
+                CacheCommand.normalizeImageRef(image),
               );
               const clusterImageSet: Set<string> = new Set(normalizedClusterImages);
               const normalizedExpectedImages: string[] = expectedImages.map((image: string): string =>
-                image.replace(/^docker\.io\//, ''),
+                CacheCommand.normalizeImageRef(image),
               );
               const expectedImageSet: Set<string> = new Set(normalizedExpectedImages);
 
@@ -520,6 +519,11 @@ export class CacheCommand extends BaseCommand {
     };
   }
 
+  private static normalizeImageRef(image: string): string {
+    // containerd may store Docker Hub images as docker.io/… or index.docker.io/… or without any prefix
+    return image.replace(/^(?:index\.)?docker\.io\//, '');
+  }
+
   private verifyImagesLoadedIntoCluster(): SoloListrTask<CacheLoadContext> {
     return {
       title: 'Verify images loaded into cluster',
@@ -531,19 +535,23 @@ export class CacheCommand extends BaseCommand {
 
         const clusterImages: readonly string[] =
           await this.containerEngineClient.listLoadedImagesInCluster(clusterName);
-        // containerd omits the docker.io/ prefix; strip it from both sides before comparing
         const clusterImageSet: Set<string> = new Set(
-          clusterImages.map((image: string): string => image.replace(/^docker\.io\//, '')),
+          clusterImages.map((image: string): string => CacheCommand.normalizeImageRef(image)),
         );
 
         const missingImages: string[] = expectedImages.filter(
-          (image: string): boolean => !clusterImageSet.has(image.replace(/^docker\.io\//, '')),
+          (image: string): boolean => !clusterImageSet.has(CacheCommand.normalizeImageRef(image)),
         );
 
         if (missingImages.length > 0) {
+          const clusterSample: string = clusterImages
+            .slice(0, 5)
+            .map((image: string): string => `  ${image}`)
+            .join('\n');
           throw new SoloError(
             `Cache load incomplete: ${missingImages.length} expected image(s) not found in cluster "${clusterName}" after load.\n` +
               `Missing:\n${missingImages.map((image: string): string => `  - ${image}`).join('\n')}\n` +
+              `Cluster images (first ${Math.min(5, clusterImages.length)} of ${clusterImages.length}):\n${clusterSample}\n` +
               'This usually means the image name or version in solo-cache-images-target.yaml does not match what the charts deploy.',
           );
         }
