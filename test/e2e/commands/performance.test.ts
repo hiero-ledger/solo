@@ -125,68 +125,74 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // restore environment variable for other tests
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
 
-          // read all logged metrics and parse the JSON
-          const namespace: string = await getNamespaceFromDeployment();
-          const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
-          const files: string[] = fs.readdirSync(tartgetDirectory);
-          // Only the per-snapshot metric files are JSON. Ignore other artifacts in the logs tree (e.g.
-          // Java Flight Recorder .jfr recordings collected by the teardown) so they don't break parsing.
-          const metricFiles: string[] = files.filter((file: string): boolean => file.endsWith('.json'));
-          const allMetrics: Record<string, AggregatedMetrics> = {};
-          for (const file of metricFiles) {
-            const filePath: string = PathEx.join(tartgetDirectory, file);
-            const fileContents: string = fs.readFileSync(filePath, 'utf8');
-            const fileName: string = file.split('.')[0];
-            allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
-          }
-
-          // save the aggregated metrics to a single file
-          const aggregatedMetricsFileName: string = 'timeline-metrics.json';
-          const aggregatedMetricsPath: string = PathEx.join(tartgetDirectory, aggregatedMetricsFileName);
-          fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
-
-          let maxCpuMetrics: number = 0;
-          let maxCpuFile: string = '';
-          let maxMemoryMetrics: number = 0;
-          let maxMemoryFile: string = '';
-          for (const [fileName, metrics] of Object.entries(allMetrics)) {
-            if (metrics.cpuInMillicores > maxCpuMetrics) {
-              maxCpuMetrics = metrics.cpuInMillicores;
-              maxCpuFile = fileName;
+          // Wrap metrics processing so that diagnostics collection and cluster teardown
+          // always run, even when the before() hook's deploy failed and files are absent.
+          let metricsError: unknown;
+          try {
+            // read all logged metrics and parse the JSON
+            const namespace: string = await getNamespaceFromDeployment();
+            const targetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
+            const files: string[] = fs.readdirSync(targetDirectory);
+            const allMetrics: Record<string, AggregatedMetrics> = {};
+            for (const file of files) {
+              const filePath: string = PathEx.join(targetDirectory, file);
+              const fileContents: string = fs.readFileSync(filePath, 'utf8');
+              const fileName: string = file.split('.')[0];
+              allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
             }
-            if (metrics.memoryInMebibytes > maxMemoryMetrics) {
-              maxMemoryMetrics = metrics.memoryInMebibytes;
-              maxMemoryFile = fileName;
+
+            // save the aggregated metrics to a single file
+            const aggregatedMetricsFileName: string = 'timeline-metrics.json';
+            const aggregatedMetricsPath: string = PathEx.join(targetDirectory, aggregatedMetricsFileName);
+            fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
+
+            let maxCpuMetrics: number = 0;
+            let maxCpuFile: string = '';
+            let maxMemoryMetrics: number = 0;
+            let maxMemoryFile: string = '';
+            for (const [fileName, metrics] of Object.entries(allMetrics)) {
+              if (metrics.cpuInMillicores > maxCpuMetrics) {
+                maxCpuMetrics = metrics.cpuInMillicores;
+                maxCpuFile = fileName;
+              }
+              if (metrics.memoryInMebibytes > maxMemoryMetrics) {
+                maxMemoryMetrics = metrics.memoryInMebibytes;
+                maxMemoryFile = fileName;
+              }
             }
-          }
 
-          // Use the max-memory snapshot as the representative record since memory
-          // pressure reflects actual workload behavior, not startup CPU spikes
-          const representativeFileName: string = `${maxMemoryFile}.json`;
-          const {clusterMetrics: clusterMetricsData, ...summaryFields} = allMetrics[maxMemoryFile];
-          const namespaceJson: PerformanceSummary = {
-            ...summaryFields,
-            peakCpuInMillicores: maxCpuMetrics,
-            peakCpuSnapshot: allMetrics[maxCpuFile]?.snapshotName,
-            peakMemoryInMebibytes: maxMemoryMetrics,
-            peakMemorySnapshot: allMetrics[maxMemoryFile]?.snapshotName,
-            clusterMetrics: clusterMetricsData,
-          };
-          fs.writeFileSync(PathEx.join(tartgetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
+            // Use the max-memory snapshot as the representative record since memory
+            // pressure reflects actual workload behavior, not startup CPU spikes
+            const representativeFileName: string = `${maxMemoryFile}.json`;
+            const {clusterMetrics: clusterMetricsData, ...summaryFields} = allMetrics[maxMemoryFile];
+            const namespaceJson: PerformanceSummary = {
+              ...summaryFields,
+              peakCpuInMillicores: maxCpuMetrics,
+              peakCpuSnapshot: allMetrics[maxCpuFile]?.snapshotName,
+              peakMemoryInMebibytes: maxMemoryMetrics,
+              peakMemorySnapshot: allMetrics[maxMemoryFile]?.snapshotName,
+              clusterMetrics: clusterMetricsData,
+            };
+            fs.writeFileSync(PathEx.join(targetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
 
-          // remove all snapshot files except the representative one (only the JSON snapshots; leave other
-          // artifacts such as .jfr recordings in place for collection/upload)
-          const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
-          for (const file of metricFiles) {
-            if (!filesToKeep.has(file)) {
-              fs.rmSync(PathEx.join(tartgetDirectory, file));
+            // remove all snapshot files except the representative one
+            const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
+            for (const file of files) {
+              if (!filesToKeep.has(file)) {
+                fs.rmSync(PathEx.join(targetDirectory, file));
+              }
             }
-          }
 
-          // copy the summary to the main solo logs directory (guard against a missing summary on disrupted runs)
-          const summaryPath: string = PathEx.join(tartgetDirectory, `${namespace}.json`);
-          if (fs.existsSync(summaryPath)) {
-            fs.copyFileSync(summaryPath, PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`));
+            // copy the summary to the main solo logs directory to be accessible by existing scripts
+            fs.copyFileSync(
+              PathEx.join(targetDirectory, `${namespace}.json`),
+              PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
+            );
+          } catch (error: unknown) {
+            testLogger.error(
+              `${testName}: metrics processing failed (deploy may have failed); diagnostics and destroy will still run: ${error}`,
+            );
+            metricsError = error;
           }
 
           await preDestroy(endToEndTestSuite);
@@ -194,6 +200,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
           await main(soloOneShotDestroy(testName));
           testLogger.info(`${testName}: finished ${testName}: destroy`);
+
+          if (metricsError !== undefined) {
+            throw metricsError;
+          }
         }).timeout(Duration.ofMinutes(8).toMillis());
 
         // NOTE: NLG 0.14.0 expanded -R (reuse) to cover tokens as well as accounts. It reuses
