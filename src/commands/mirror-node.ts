@@ -1203,10 +1203,13 @@ export class MirrorNodeCommand extends BaseCommand {
             title: string;
             labels: string[];
           }): SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => {
-            // The pinger is the last component to become ready because it depends on the
-            // consensus network processing transactions and the mirror REST API ingesting
-            // them.  On Windows/WSL2 this can take significantly longer than the default.
-            const isPinger: boolean = labels.includes('app.kubernetes.io/component=pinger');
+            // The pinger and rest-java both depend on the importer completing its Flyway
+            // migrations before they can become ready.  Give them the same extended timeout
+            // as the pinger so they do not time out on slow runners (e.g. Windows WSL2)
+            // before the importer finishes creating the required tables (e.g. file_data).
+            const needsExtendedWait: boolean =
+              labels.includes('app.kubernetes.io/component=pinger') ||
+              labels.includes('app.kubernetes.io/component=rest-java');
             return {
               title,
               task: async (): Promise<Pod[]> =>
@@ -1216,8 +1219,12 @@ export class MirrorNodeCommand extends BaseCommand {
                   .waitForReadyStatus(
                     context_.config.namespace,
                     labels,
-                    isPinger ? constants.MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS : constants.PODS_READY_MAX_ATTEMPTS,
-                    isPinger ? constants.MIRROR_NODE_PINGER_PODS_READY_DELAY : constants.PODS_READY_DELAY,
+                    needsExtendedWait
+                      ? constants.MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS
+                      : constants.PODS_READY_MAX_ATTEMPTS,
+                    needsExtendedWait
+                      ? constants.MIRROR_NODE_PINGER_PODS_READY_DELAY
+                      : constants.PODS_READY_DELAY,
                   ),
             };
           },
@@ -1859,23 +1866,6 @@ export class MirrorNodeCommand extends BaseCommand {
         `${errorMessage} ${missingFlags.map((flag: CommandFlag): string => `--${flag.name}`).join(', ')}`,
       );
     }
-  }
-
-  /**
-   * Encodes a shard.realm.num entity ID into the integer form used by the mirror node database.
-   * Matches the encoding in EntityId.java: |10-bit shard|16-bit realm|38-bit num|
-   */
-  private static encodeEntityId(shard: number, realm: number, entityNumber: number): string {
-    if (shard === 0 && realm === 0) {
-      return String(entityNumber);
-    }
-    const NUM_BITS: bigint = 38n;
-    const REALM_BITS: bigint = 16n;
-    const encoded: bigint =
-      (BigInt(entityNumber) & ((1n << NUM_BITS) - 1n)) |
-      ((BigInt(realm) & ((1n << REALM_BITS) - 1n)) << NUM_BITS) |
-      (BigInt(shard) << (REALM_BITS + NUM_BITS));
-    return encoded.toString();
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
