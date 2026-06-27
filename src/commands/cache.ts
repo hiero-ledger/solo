@@ -39,6 +39,7 @@ interface CacheLoadConfigClass {
   imageCacheHandler: ImageCacheHandler;
   clusterReference: ClusterReferenceName;
   context: Context;
+  clusterName: string;
 }
 
 interface CacheLoadContext {
@@ -226,10 +227,12 @@ export class CacheCommand extends BaseCommand {
               imageCacheHandler: await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory),
               clusterReference,
               context,
+              clusterName: this.prepareClusterName(this.k8Factory.getK8(context).clusters().readCurrent()),
             };
           },
         },
         this.loadImagesIntoCluster(),
+        this.verifyImagesLoadedIntoCluster(),
         this.showUserMessages(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -504,6 +507,32 @@ export class CacheCommand extends BaseCommand {
         subTasks.push(...newTasks);
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY_COLLAPSABLE);
+      },
+    };
+  }
+
+  private verifyImagesLoadedIntoCluster(): SoloListrTask<CacheLoadContext> {
+    return {
+      title: 'Verify images loaded into cluster',
+      task: async ({config: {imageCacheHandler, clusterName}}): Promise<void> => {
+        const expectedTargets: readonly CacheTarget[] = await imageCacheHandler.resolveRequiredArtifacts();
+        const expectedImages: string[] = expectedTargets.map(
+          (target: CacheTarget): string => `${target.name}:${target.version}`,
+        );
+
+        const clusterImages: readonly string[] =
+          await this.containerEngineClient.listLoadedImagesInCluster(clusterName);
+        const clusterImageSet: Set<string> = new Set(clusterImages);
+
+        const missingImages: string[] = expectedImages.filter((image: string): boolean => !clusterImageSet.has(image));
+
+        if (missingImages.length > 0) {
+          throw new SoloError(
+            `Cache load incomplete: ${missingImages.length} expected image(s) not found in cluster "${clusterName}" after load.\n` +
+              `Missing:\n${missingImages.map((image: string): string => `  - ${image}`).join('\n')}\n` +
+              'This usually means the image name or version in solo-cache-images-target.yaml does not match what the charts deploy.',
+          );
+        }
       },
     };
   }
