@@ -2,9 +2,11 @@
 
 importer:
   env:
-    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "false"
+    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "false"
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "true"
     HIERO_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
-    HEDERA_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "false"
+    HEDERA_MIRROR_IMPORTER_BLOCK_ENABLED: "false"
+    HEDERA_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "true"
     HEDERA_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
   config:
     hiero:
@@ -12,6 +14,6 @@ importer:
         importer:
           downloader:
             record:
-              enabled: false
+              enabled: true
             balance:
               enabled: false

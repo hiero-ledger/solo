@@ -610,15 +610,17 @@ cp resources/templates/application.properties "${TEMP_SOURCE_APPLICATION_PROPERT
 if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   SOURCE_BLOCK_STREAM_MODE="BOTH"
   SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
+  SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
   SOURCE_MINIO_ENABLED="true"
   SOURCE_MIRROR_BLOCK_ENABLED="false"
   SOURCE_MIRROR_RECORD_ENABLED="true"
 else
-  SOURCE_BLOCK_STREAM_MODE="BLOCKS"
-  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
-  SOURCE_MINIO_ENABLED="false"
-  SOURCE_MIRROR_BLOCK_ENABLED="true"
-  SOURCE_MIRROR_RECORD_ENABLED="false"
+  SOURCE_BLOCK_STREAM_MODE="BOTH"
+  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
+  SOURCE_BLOCK_STREAM_WRITER_MODE="FILE"
+  SOURCE_MINIO_ENABLED="true"
+  SOURCE_MIRROR_BLOCK_ENABLED="false"
+  SOURCE_MIRROR_RECORD_ENABLED="true"
 fi
 
 if grep -q '^blockStream.streamMode=' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"; then
@@ -636,9 +638,9 @@ fi
 rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}.bak"
 
 if grep -q '^blockStream.writerMode=' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"; then
-  sed -i.bak 's/^blockStream.writerMode=.*/blockStream.writerMode=FILE_AND_GRPC/' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+  sed -i.bak "s/^blockStream.writerMode=.*/blockStream.writerMode=${SOURCE_BLOCK_STREAM_WRITER_MODE}/" "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 else
-  echo 'blockStream.writerMode=FILE_AND_GRPC' >> "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+  echo "blockStream.writerMode=${SOURCE_BLOCK_STREAM_WRITER_MODE}" >> "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 fi
 rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}.bak"
 
@@ -687,7 +689,10 @@ export ONE_SHOT_WITH_BLOCK_NODE=true
 # The source deploy uses released Solo, so set stream/minio behavior with generated
 # values rather than relying on local source changes.
 export BLOCK_STREAM_STREAM_MODE="${SOURCE_BLOCK_STREAM_MODE}"
+export BLOCK_STREAM_WRITER_MODE="${SOURCE_BLOCK_STREAM_WRITER_MODE}"
+export DISABLE_IMPORTER_SPRING_PROFILES=true
 echo "Initial source block stream mode: ${SOURCE_BLOCK_STREAM_MODE}"
+echo "Initial source block stream writer mode: ${SOURCE_BLOCK_STREAM_WRITER_MODE}"
 echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
 
 if [[ "${SOURCE_MINIO_ENABLED}" == "true" ]]; then
@@ -699,6 +704,13 @@ BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   --num-consensus-nodes 2 \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
   --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"
+
+DISABLE_IMPORTER_SPRING_PROFILES=true \
+  solo mirror node upgrade \
+  --deployment "${SOLO_DEPLOYMENT}" \
+  --enable-ingress \
+  --pinger \
+  --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}"
 
 SOURCE_PRE_FREEZE_BLOCK_NUMBER=$(wait_for_mirror_block_progress "source deployment before freeze" -1 90 2)
 
@@ -739,7 +751,7 @@ collect_restart_boundary_diagnostics "${SOLO_NAMESPACE}"
 # Apply preventive reset at the known freeze/restart boundary.
 auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
 
-npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
+npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 echo "::endgroup::"
 
