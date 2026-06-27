@@ -643,6 +643,7 @@ else
   echo "blockStream.writerMode=${SOURCE_BLOCK_STREAM_WRITER_MODE}" >> "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 fi
 rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}.bak"
+chmod 644 "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
 cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<EOF
 # Generated for migration workflow launch.
@@ -703,7 +704,28 @@ BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
-  --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"
+  --values-file "${TEMP_ONE_SHOT_VALUES_FILE}" \
+  --deploy-mirror-node=false \
+  --deploy-explorer=false \
+  --deploy-relay=false
+
+DISABLE_IMPORTER_SPRING_PROFILES=true \
+  solo mirror node add \
+  --deployment "${SOLO_DEPLOYMENT}" \
+  --enable-ingress \
+  --pinger \
+  --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}"
+
+SOURCE_PRE_FREEZE_BLOCK_NUMBER=$(wait_for_mirror_block_progress "source deployment before relay" -1 90 2)
+
+solo explorer node add \
+  --deployment "${SOLO_DEPLOYMENT}" \
+  --enable-ingress
+
+solo relay node add \
+  --deployment "${SOLO_DEPLOYMENT}" \
+  --node-aliases node1,node2 \
+  --relay-release "${PREV_RELAY_VERSION}"
 
 DISABLE_IMPORTER_SPRING_PROFILES=true \
   solo mirror node upgrade \
@@ -711,8 +733,6 @@ DISABLE_IMPORTER_SPRING_PROFILES=true \
   --enable-ingress \
   --pinger \
   --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}"
-
-SOURCE_PRE_FREEZE_BLOCK_NUMBER=$(wait_for_mirror_block_progress "source deployment before freeze" -1 90 2)
 
 echo "::endgroup::"
 

@@ -156,6 +156,7 @@ tasks:
           set_property blockStream.streamMode BLOCKS
           set_property blockStream.writerMode FILE_AND_GRPC
           set_property blockStream.streamWrappedRecordBlocks false
+          chmod 644 "${UPGRADE_APPLICATION_PROPERTIES}"
           echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
           SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
           --upgrade-version ${CONSENSUS_NODE_VERSION} \
