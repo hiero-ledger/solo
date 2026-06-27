@@ -8,6 +8,7 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
 import {SensitiveDataRedactor} from './util/sensitive-data-redactor.js';
+import {type ShellRunOptions} from './shell-run-options.js';
 
 @injectable()
 export class ShellRunner {
@@ -29,16 +30,16 @@ export class ShellRunner {
   }
 
   /** Returns a promise that invokes the shell command */
-  public async run(
-    cmd: string,
-    arguments_: string[] = [],
-    verbose: boolean = false,
-    detached: boolean = false,
-    environmentVariablesToAppend: Record<string, string> = {},
-    timeoutMs?: number,
-    useShell: boolean = true,
-    idleTimeoutMs?: number,
-  ): Promise<string[]> {
+  public async run(cmd: string, arguments_: string[] = [], options: ShellRunOptions = {}): Promise<string[]> {
+    const {
+      verbose = false,
+      detached = false,
+      environmentVariablesToAppend = {},
+      timeoutMs,
+      useShell = false,
+      idleTimeoutMs,
+      workingDirectory,
+    }: ShellRunOptions = options;
     const redactedArguments: string[] = ShellRunner.redactArguments(arguments_);
     const message: string = `Executing command${OperatingSystem.isWin32() ? ' (Windows)' : ''}: ${cmd} ${redactedArguments.join(' ')}`;
     const callStack: string = new Error(message).stack; // capture the callstack to be included in error
@@ -49,6 +50,7 @@ export class ShellRunner {
         env: {...process.env, ...environmentVariablesToAppend},
         shell: useShell,
         detached,
+        cwd: workingDirectory,
         stdio: detached && !OperatingSystem.isWin32() ? 'ignore' : undefined,
       });
 
@@ -181,6 +183,23 @@ export class ShellRunner {
 
         resolve(output);
       });
+
+      // With shell:false a missing/invalid executable surfaces as an 'error' event (e.g. ENOENT) rather
+      // than a non-zero exit, so it must be handled here to reject instead of throwing uncaught.
+      child.on('error', (error: Error): void => {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+        if (idleTimeoutHandle) {
+          clearTimeout(idleTimeoutHandle);
+        }
+        if (timedOut) {
+          return; // already rejected by timeout handler
+        }
+        error.stack = callStack;
+        this.logger.error(`Error executing: '${cmd}'`, {error: {message: error.message, stack: error.stack}});
+        reject(error);
+      });
     });
   }
 
@@ -195,7 +214,7 @@ export class ShellRunner {
   ): Promise<string[]> {
     // Use Promise.race to handle sudo whoami and timeout
     let whoamiResolved: boolean = false;
-    const whoamiPromise: Promise<string[]> = this.run('sudo whoami').then(async (result): Promise<string[]> => {
+    const whoamiPromise: Promise<string[]> = this.run('sudo', ['whoami']).then(async (result): Promise<string[]> => {
       whoamiResolved = true;
       sudoGranted('Root access granted.');
       return result;
@@ -210,6 +229,6 @@ export class ShellRunner {
     });
     await Promise.race([whoamiPromise, timeoutPromise]);
 
-    return this.run(`sudo ${cmd}`, arguments_, verbose, detached, environmentVariablesToAppend);
+    return this.run('sudo', [cmd, ...arguments_], {verbose, detached, environmentVariablesToAppend});
   }
 }

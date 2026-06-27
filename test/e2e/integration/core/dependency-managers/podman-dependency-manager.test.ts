@@ -219,7 +219,7 @@ describe('PodmanDependencyManager', (): void => {
       const executableWithPath: string = '/usr/local/bin/podman';
       sandbox
         .stub(ShellRunner.prototype, 'run')
-        .withArgs(`"${executableWithPath}" --version`)
+        .withArgs(executableWithPath, ['--version'])
         .resolves([`podman version ${PODMAN_VERSION}`]);
       const version: string = await podmanDependencyManager.getVersion(executableWithPath);
       expect(version).to.equal(PODMAN_VERSION);
@@ -248,7 +248,7 @@ describe('PodmanDependencyManager', (): void => {
     it('shouldInstall should return false when Docker is installed', async (): Promise<void> => {
       sandbox
         .stub(ShellRunner.prototype, 'run')
-        .withArgs(`"${constants.DOCKER}" --version`)
+        .withArgs(constants.DOCKER, ['--version'])
         .resolves(['Docker version 20.10.8']);
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.false;
@@ -257,7 +257,7 @@ describe('PodmanDependencyManager', (): void => {
     it('shouldInstall should return true when Docker is not installed', async (): Promise<void> => {
       sandbox
         .stub(ShellRunner.prototype, 'run')
-        .withArgs(`"${constants.DOCKER}" --version`)
+        .withArgs(constants.DOCKER, ['--version'])
         .rejects(new Error('Docker not found'));
       const result: boolean = await podmanDependencyManager.shouldInstall();
       expect(result).to.be.true;
@@ -399,7 +399,7 @@ describe('PodmanDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub.withArgs(`"${fakeGlobalPodmanPath}" --version`).resolves([`podman version ${version.PODMAN_VERSION}`]);
+      runStub.withArgs(fakeGlobalPodmanPath, ['--version']).resolves([`podman version ${version.PODMAN_VERSION}`]);
       existsSyncStub.withArgs(`${temporaryDirectory}/podman`).returns(false);
 
       try {
@@ -427,9 +427,9 @@ describe('PodmanDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub.withArgs(`"${fakeGlobalPodmanPath}" --version`).resolves([`podman version ${PODMAN_LOW_VERSION}`]);
+      runStub.withArgs(fakeGlobalPodmanPath, ['--version']).resolves([`podman version ${PODMAN_LOW_VERSION}`]);
       runStub
-        .withArgs(`"${PathEx.join(temporaryDirectory, 'podman')}" --version`)
+        .withArgs(PathEx.join(temporaryDirectory, 'podman'), ['--version'])
         .resolves([`podman version ${PODMAN_LOW_VERSION}`]);
       existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'podman')).returns(true);
 
