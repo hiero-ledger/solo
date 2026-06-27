@@ -536,9 +536,6 @@ export class ProfileManager {
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
     const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.components.state.blockNodes;
     const hasDeployedBlockNodes: boolean = blockNodes.length > 0;
-    if (!hasDeployedBlockNodes) {
-      return;
-    }
 
     const lines: string[] = await readFile(applicationPropertiesPath, 'utf8').then((fileText): string[] =>
       fileText.split('\n'),
@@ -549,7 +546,10 @@ export class ProfileManager {
       this.remoteConfig.configuration.versions.consensusNode,
       hasDeployedBlockNodes,
     );
-    const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
+    // Without a block node, FILE_AND_GRPC (the CN default) fills the 5-block buffer
+    // and stalls record file production.  Explicitly set FILE so the record stream keeps
+    // writing even when no block node connection is available.
+    const writerMode: string = hasDeployedBlockNodes ? constants.BLOCK_STREAM_WRITER_MODE : 'FILE';
 
     let streamModeUpdated: boolean = false;
     let writerModeUpdated: boolean = false;
