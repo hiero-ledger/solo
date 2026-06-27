@@ -294,7 +294,11 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 );
 
               // Remove the properties that are managed by solo from the template.
-              // They will be populated later when building the staging directory
+              // They will be populated later when building the staging directory.
+              // blockStream.writerMode is intentionally NOT in this set: the base template
+              // already contains writerMode=FILE so the merged file passes it through, and
+              // prepareStagingDirectory's updateApplicationPropertiesForBlockNode call then
+              // sets the correct value (FILE vs FILE_AND_GRPC) for block-node deployments.
               const applicationPropertiesMerged: string = fs.readFileSync(mergedApplicationPropertiesPath, 'utf8');
               const propertiesLines: string[] = applicationPropertiesMerged.split('\n');
               const soloManagedKeys: Set<string> = new Set([
@@ -302,7 +306,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 'hedera.shard',
                 'contracts.chainId',
                 'blockStream.streamMode',
-                'blockStream.writerMode',
               ]);
               const filteredLines: string[] = propertiesLines.filter((line: string): boolean => {
                 const keyValuePair: string[] = line.split('=');
