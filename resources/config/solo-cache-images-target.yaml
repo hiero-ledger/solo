@@ -4,6 +4,8 @@ templates:
   - RELAY_VERSION
   - EXPLORER_VERSION
   - MINIO_OPERATOR_VERSION
+  - SOLO_CHEETAH_VERSION
+  - SOLO_CONTAINERS_VERSION
 
 images:
   # --- Mirror Node ---
@@ -19,9 +21,9 @@ images:
     version: MIRROR_NODE_VERSION
     source: gcr.io
 
-  - name: gcr.io/mirrornode/hedera-mirror-web3
+  - name: ghcr.io/hiero-ledger/hiero-mirror-node/web3
     version: MIRROR_NODE_VERSION
-    source: gcr.io
+    source: ghcr.io
 
   - name: ghcr.io/hiero-ledger/hiero-mirror-node/grpc
     version: MIRROR_NODE_VERSION
@@ -122,11 +124,11 @@ images:
     source: docker.io
 
   - name: ghcr.io/hashgraph/solo-cheetah/cheetah
-    version: 0.3.4
+    version: SOLO_CHEETAH_VERSION
     source: ghcr.io
 
-  - name: ghcr.io/hashgraph/solo-containers/ubi8-init-java21
-    version: 0.41.2
+  - name: ghcr.io/hashgraph/solo-containers/debian-s6-java25
+    version: SOLO_CONTAINERS_VERSION
     source: ghcr.io
 
   - name: quay.io/jcmoraisjr/haproxy-ingress
