@@ -141,9 +141,25 @@ tasks:
       # Upgrade consensus network to current version first
       - cmd: |
           export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' ../../version.ts)
+          UPGRADE_APPLICATION_PROPERTIES=$(mktemp -t version-upgrade-application-properties-XXXX.properties)
+          cp "{{ .ROOT_DIR }}/resources/templates/application.properties" "${UPGRADE_APPLICATION_PROPERTIES}"
+          set_property() {
+            local key="$1"
+            local value="$2"
+            if grep -q "^${key}=" "${UPGRADE_APPLICATION_PROPERTIES}"; then
+              sed -i.bak "s/^${key}=.*/${key}=${value}/" "${UPGRADE_APPLICATION_PROPERTIES}"
+              rm -f "${UPGRADE_APPLICATION_PROPERTIES}.bak"
+            else
+              echo "${key}=${value}" >> "${UPGRADE_APPLICATION_PROPERTIES}"
+            fi
+          }
+          set_property blockStream.streamMode BLOCKS
+          set_property blockStream.writerMode FILE_AND_GRPC
+          set_property blockStream.streamWrappedRecordBlocks false
           echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
           SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
           --upgrade-version ${CONSENSUS_NODE_VERSION} \
+          --application-properties "${UPGRADE_APPLICATION_PROPERTIES}" \
           --deployment {{ .DEPLOYMENT }}
 
       # Upgrade block node
