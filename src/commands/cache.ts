@@ -520,8 +520,19 @@ export class CacheCommand extends BaseCommand {
   }
 
   private static normalizeImageRef(image: string): string {
-    // containerd may store Docker Hub images as docker.io/… or index.docker.io/… or without any prefix
-    return image.replace(/^(?:index\.)?docker\.io\//, '');
+    // Strip the registry hostname so that docker.io/foo/bar:tag,
+    // index.docker.io/foo/bar:tag, and any Docker Hub mirror hostname
+    // (e.g. hub.mirror.example.com/foo/bar:tag) all normalize to foo/bar:tag.
+    // A registry segment is the first path component that contains a '.' or ':'.
+    const slashIndex: number = image.indexOf('/');
+    if (slashIndex === -1) {
+      return image;
+    }
+    const firstSegment: string = image.slice(0, slashIndex);
+    if (firstSegment.includes('.') || firstSegment.includes(':') || firstSegment === 'localhost') {
+      return image.slice(slashIndex + 1);
+    }
+    return image;
   }
 
   private verifyImagesLoadedIntoCluster(): SoloListrTask<CacheLoadContext> {

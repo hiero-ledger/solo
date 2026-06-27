@@ -95,18 +95,6 @@ images:
     version: 2.4.25
     source: docker.io
 
-  - name: docker.io/kindest/kindnetd
-    version: v20241212-9f82dd49
-    source: docker.io
-
-  - name: docker.io/kindest/local-path-helper
-    version: v20241212-8ac705d0
-    source: docker.io
-
-  - name: docker.io/kindest/local-path-provisioner
-    version: v20241212-8ac705d0
-    source: docker.io
-
   - name: docker.io/library/busybox
     version: 1.36.1
     source: docker.io
