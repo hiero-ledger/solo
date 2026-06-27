@@ -249,7 +249,7 @@ jobs:
           trap - SIGTERM SIGINT
 
           # Stop resource monitoring and display summary
-          ./.github/workflows/script/monitor-resources.sh stop
+          ./.github/workflows/script/monitor-resources.sh stop || true
 
           if [ "${TASK_RC}" -ne 0 ]; then
             echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
