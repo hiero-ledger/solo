@@ -47,7 +47,7 @@ import {
 } from '@hiero-ledger/sdk';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import {execSync} from 'node:child_process';
+import {execFileSync} from 'node:child_process';
 import find from 'find-process';
 import type FindConfig from 'find-process';
 import type ProcessInfo from 'find-process';
@@ -2706,17 +2706,21 @@ export class NodeCommandTasks {
                 // Do NOT use "helm get all": it also outputs the full rendered K8s manifests
                 // which include Secret resources (base64-encoded credentials, TLS keys, etc.)
                 // and pod specs that may embed plaintext passwords from chart values.
-                const getAllCommand: string = `helm get values ${release.name} -n ${release.namespace} --kube-context ${context} --all`;
-                const output: string = execSync(getAllCommand, {
-                  encoding: 'utf8',
-                  cwd: process.cwd(),
-                  shell: '/bin/bash',
-                  maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-                  env: {
-                    ...process.env,
-                    PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${PathEx.delimiter}${process.env.PATH}`,
+                // Use an explicit argument array with no shell so release/namespace/context cannot
+                // be interpreted by a shell (shell injection). helm is resolved via the prepended PATH.
+                const output: string = execFileSync(
+                  'helm',
+                  ['get', 'values', release.name, '-n', release.namespace, '--kube-context', context, '--all'],
+                  {
+                    encoding: 'utf8',
+                    cwd: process.cwd(),
+                    maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+                    env: {
+                      ...process.env,
+                      PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${PathEx.delimiter}${process.env.PATH}`,
+                    },
                   },
-                }).toString();
+                ).toString();
 
                 const valuesFile: string = PathEx.join(contextDirectory, `${release.name}.yaml`);
                 try {

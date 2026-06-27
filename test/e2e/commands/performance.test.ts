@@ -135,80 +135,90 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // restore environment variable for other tests
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
 
+          let metricsError: unknown;
           if (oneShotDeployCompleted && fs.existsSync(lastOneShotDeploymentFile)) {
-            // read all logged metrics and parse the JSON
-            const namespace: string = await getNamespaceFromDeployment();
-            const targetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
-            if (fs.existsSync(targetDirectory)) {
-              const files: string[] = fs.readdirSync(targetDirectory);
-              // Only the per-snapshot metric files are JSON. Ignore other artifacts in the logs tree
-              // (e.g. Java Flight Recorder .jfr recordings) so they don't break parsing.
-              const metricFiles: string[] = files.filter((file: string): boolean => file.endsWith('.json'));
-              const allMetrics: Record<string, AggregatedMetrics> = {};
-              for (const file of metricFiles) {
-                const filePath: string = PathEx.join(targetDirectory, file);
-                const fileContents: string = fs.readFileSync(filePath, 'utf8');
-                const fileName: string = file.split('.')[0];
-                allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
-              }
-
-              const metricEntries: [string, AggregatedMetrics][] = Object.entries(allMetrics);
-              if (metricEntries.length === 0) {
-                testLogger.info(`${testName}: skipping metrics aggregation because no metrics snapshots were found`);
-              } else {
-                // save the aggregated metrics to a single file
-                const aggregatedMetricsFileName: string = 'timeline-metrics.json';
-                const aggregatedMetricsPath: string = PathEx.join(targetDirectory, aggregatedMetricsFileName);
-                fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
-
-                let maxCpuMetrics: number = metricEntries[0][1].cpuInMillicores;
-                let maxCpuFile: string = metricEntries[0][0];
-                let maxMemoryMetrics: number = metricEntries[0][1].memoryInMebibytes;
-                let maxMemoryFile: string = metricEntries[0][0];
-                for (const [fileName, metrics] of metricEntries) {
-                  if (metrics.cpuInMillicores > maxCpuMetrics) {
-                    maxCpuMetrics = metrics.cpuInMillicores;
-                    maxCpuFile = fileName;
-                  }
-                  if (metrics.memoryInMebibytes > maxMemoryMetrics) {
-                    maxMemoryMetrics = metrics.memoryInMebibytes;
-                    maxMemoryFile = fileName;
-                  }
-                }
-
-                // Use the max-memory snapshot as the representative record since memory
-                // pressure reflects actual workload behavior, not startup CPU spikes
-                const representativeFileName: string = `${maxMemoryFile}.json`;
-                const {clusterMetrics: clusterMetricsData, ...summaryFields} = allMetrics[maxMemoryFile];
-                const namespaceJson: PerformanceSummary = {
-                  ...summaryFields,
-                  peakCpuInMillicores: maxCpuMetrics,
-                  peakCpuSnapshot: allMetrics[maxCpuFile]?.snapshotName,
-                  peakMemoryInMebibytes: maxMemoryMetrics,
-                  peakMemorySnapshot: allMetrics[maxMemoryFile]?.snapshotName,
-                  clusterMetrics: clusterMetricsData,
-                };
-                fs.writeFileSync(
-                  PathEx.join(targetDirectory, `${namespace}.json`),
-                  JSON.stringify(namespaceJson),
-                  'utf8',
-                );
-
-                // remove all snapshot files except the representative one (only JSON snapshots;
-                // leave other artifacts such as .jfr recordings in place for collection/upload)
-                const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
+            // Wrap metrics processing so that diagnostics collection and cluster teardown
+            // always run, even when the before() hook's deploy failed and files are absent.
+            try {
+              // read all logged metrics and parse the JSON
+              const namespace: string = await getNamespaceFromDeployment();
+              const targetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
+              if (fs.existsSync(targetDirectory)) {
+                const files: string[] = fs.readdirSync(targetDirectory);
+                // Only the per-snapshot metric files are JSON. Ignore other artifacts in the logs tree
+                // (e.g. Java Flight Recorder .jfr recordings) so they don't break parsing.
+                const metricFiles: string[] = files.filter((file: string): boolean => file.endsWith('.json'));
+                const allMetrics: Record<string, AggregatedMetrics> = {};
                 for (const file of metricFiles) {
-                  if (!filesToKeep.has(file)) {
-                    fs.rmSync(PathEx.join(targetDirectory, file));
-                  }
+                  const filePath: string = PathEx.join(targetDirectory, file);
+                  const fileContents: string = fs.readFileSync(filePath, 'utf8');
+                  const fileName: string = file.split('.')[0];
+                  allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
                 }
 
-                // copy the summary to the main solo logs directory to be accessible by existing scripts
-                fs.copyFileSync(
-                  PathEx.join(targetDirectory, `${namespace}.json`),
-                  PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
-                );
+                const metricEntries: [string, AggregatedMetrics][] = Object.entries(allMetrics);
+                if (metricEntries.length === 0) {
+                  testLogger.info(`${testName}: skipping metrics aggregation because no metrics snapshots were found`);
+                } else {
+                  // save the aggregated metrics to a single file
+                  const aggregatedMetricsFileName: string = 'timeline-metrics.json';
+                  const aggregatedMetricsPath: string = PathEx.join(targetDirectory, aggregatedMetricsFileName);
+                  fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
+
+                  let maxCpuMetrics: number = metricEntries[0][1].cpuInMillicores;
+                  let maxCpuFile: string = metricEntries[0][0];
+                  let maxMemoryMetrics: number = metricEntries[0][1].memoryInMebibytes;
+                  let maxMemoryFile: string = metricEntries[0][0];
+                  for (const [fileName, metrics] of metricEntries) {
+                    if (metrics.cpuInMillicores > maxCpuMetrics) {
+                      maxCpuMetrics = metrics.cpuInMillicores;
+                      maxCpuFile = fileName;
+                    }
+                    if (metrics.memoryInMebibytes > maxMemoryMetrics) {
+                      maxMemoryMetrics = metrics.memoryInMebibytes;
+                      maxMemoryFile = fileName;
+                    }
+                  }
+
+                  // Use the max-memory snapshot as the representative record since memory
+                  // pressure reflects actual workload behavior, not startup CPU spikes
+                  const representativeFileName: string = `${maxMemoryFile}.json`;
+                  const {clusterMetrics: clusterMetricsData, ...summaryFields} = allMetrics[maxMemoryFile];
+                  const namespaceJson: PerformanceSummary = {
+                    ...summaryFields,
+                    peakCpuInMillicores: maxCpuMetrics,
+                    peakCpuSnapshot: allMetrics[maxCpuFile]?.snapshotName,
+                    peakMemoryInMebibytes: maxMemoryMetrics,
+                    peakMemorySnapshot: allMetrics[maxMemoryFile]?.snapshotName,
+                    clusterMetrics: clusterMetricsData,
+                  };
+                  fs.writeFileSync(
+                    PathEx.join(targetDirectory, `${namespace}.json`),
+                    JSON.stringify(namespaceJson),
+                    'utf8',
+                  );
+
+                  // remove all snapshot files except the representative one (only JSON snapshots;
+                  // leave other artifacts such as .jfr recordings in place for collection/upload)
+                  const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
+                  for (const file of metricFiles) {
+                    if (!filesToKeep.has(file)) {
+                      fs.rmSync(PathEx.join(targetDirectory, file));
+                    }
+                  }
+
+                  // copy the summary to the main solo logs directory to be accessible by existing scripts
+                  fs.copyFileSync(
+                    PathEx.join(targetDirectory, `${namespace}.json`),
+                    PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
+                  );
+                }
               }
+            } catch (error: unknown) {
+              testLogger.error(
+                `${testName}: metrics processing failed (deploy may have failed); diagnostics and destroy will still run: ${error}`,
+              );
+              metricsError = error;
             }
           } else {
             testLogger.info(`${testName}: skipping metrics aggregation because one-shot deploy did not complete`);
@@ -220,6 +230,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           try {
             await main(soloOneShotDestroy(testName, deployment));
             testLogger.info(`${testName}: finished ${testName}: destroy`);
+            if (metricsError !== undefined) {
+              throw metricsError;
+            }
           } catch (error: unknown) {
             if (oneShotDeployCompleted) {
               throw error;

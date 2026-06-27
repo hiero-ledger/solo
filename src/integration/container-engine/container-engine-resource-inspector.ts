@@ -55,8 +55,9 @@ export class ContainerEngineResourceInspector {
 
   private async readEngineInfo<T>(engine: string, commandArguments: string[]): Promise<T | undefined> {
     try {
-      // useShell=false so format arguments such as '{{json .}}' are not split on their spaces by the shell.
-      const output: string[] = await this.shellRunner.run(engine, commandArguments, false, false, {}, undefined, false);
+      // run() defaults useShell to false so format arguments such as '{{json .}}' are not split on their
+      // spaces by the shell.
+      const output: string[] = await this.shellRunner.run(engine, commandArguments);
       return JSON.parse(output.join('').trim()) as T;
     } catch (error) {
       this.logger.debug(`Unable to read ${engine} engine resources`, error);
