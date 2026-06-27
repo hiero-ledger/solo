@@ -440,17 +440,26 @@ export class CacheCommand extends BaseCommand {
                 config.clusterName,
               );
 
-              const clusterImageSet: Set<string> = new Set(clusterImages);
-              const expectedImageSet: Set<string> = new Set(expectedImages);
+              // containerd omits the docker.io/ prefix; strip it from both sides before comparing
+              const normalizedClusterImages: string[] = clusterImages.map((image: string): string =>
+                image.replace(/^docker\.io\//, ''),
+              );
+              const clusterImageSet: Set<string> = new Set(normalizedClusterImages);
+              const normalizedExpectedImages: string[] = expectedImages.map((image: string): string =>
+                image.replace(/^docker\.io\//, ''),
+              );
+              const expectedImageSet: Set<string> = new Set(normalizedExpectedImages);
 
-              const loadedExpectedImages: string[] = expectedImages.filter((image: string): boolean =>
+              const loadedExpectedImages: string[] = normalizedExpectedImages.filter((image: string): boolean =>
                 clusterImageSet.has(image),
               );
 
-              const missingInCluster: string[] = expectedImages.filter((image): boolean => !clusterImageSet.has(image));
+              const missingInCluster: string[] = normalizedExpectedImages.filter(
+                (image: string): boolean => !clusterImageSet.has(image),
+              );
 
-              const additionalClusterImages: string[] = clusterImages.filter(
-                (image): boolean => !expectedImageSet.has(image),
+              const additionalClusterImages: string[] = normalizedClusterImages.filter(
+                (image: string): boolean => !expectedImageSet.has(image),
               );
 
               this.logger.showUser(
@@ -522,9 +531,14 @@ export class CacheCommand extends BaseCommand {
 
         const clusterImages: readonly string[] =
           await this.containerEngineClient.listLoadedImagesInCluster(clusterName);
-        const clusterImageSet: Set<string> = new Set(clusterImages);
+        // containerd omits the docker.io/ prefix; strip it from both sides before comparing
+        const clusterImageSet: Set<string> = new Set(
+          clusterImages.map((image: string): string => image.replace(/^docker\.io\//, '')),
+        );
 
-        const missingImages: string[] = expectedImages.filter((image: string): boolean => !clusterImageSet.has(image));
+        const missingImages: string[] = expectedImages.filter(
+          (image: string): boolean => !clusterImageSet.has(image.replace(/^docker\.io\//, '')),
+        );
 
         if (missingImages.length > 0) {
           throw new SoloError(
