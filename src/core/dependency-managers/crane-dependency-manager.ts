@@ -63,7 +63,7 @@ export class CraneDependencyManager extends BaseDependencyManager {
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.run(`"${executableWithPath}" version`);
+        const output: string[] = await this.run(executableWithPath, ['version']);
         if (output.length > 0) {
           const joined: string = output.join('\n').trim();
           const match: RegExpMatchArray | null = joined.match(/(\d+\.\d+\.\d+)/);

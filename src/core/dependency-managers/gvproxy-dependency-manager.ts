@@ -64,7 +64,7 @@ export class GvproxyDependencyManager extends BaseDependencyManager {
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.run(`"${executableWithPath}" --version`);
+        const output: string[] = await this.run(executableWithPath, ['--version']);
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
           return match[1];
