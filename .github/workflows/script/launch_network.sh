@@ -722,35 +722,9 @@ BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
-  --values-file "${TEMP_ONE_SHOT_VALUES_FILE}" \
-  --deploy-mirror-node=false \
-  --deploy-explorer=false \
-  --deploy-relay=false
+  --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"
 
-DISABLE_IMPORTER_SPRING_PROFILES="${SOURCE_DISABLE_IMPORTER_SPRING_PROFILES}" \
-  solo mirror node add \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  --enable-ingress \
-  --pinger \
-  --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}"
-
-SOURCE_PRE_FREEZE_BLOCK_NUMBER=$(wait_for_mirror_block_progress "source deployment before relay" -1 90 2)
-
-solo explorer node add \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  --enable-ingress
-
-solo relay node add \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  --node-aliases node1,node2 \
-  --relay-release "${PREV_RELAY_VERSION}"
-
-DISABLE_IMPORTER_SPRING_PROFILES="${SOURCE_DISABLE_IMPORTER_SPRING_PROFILES}" \
-  solo mirror node upgrade \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  --enable-ingress \
-  --pinger \
-  --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}"
+SOURCE_PRE_FREEZE_BLOCK_NUMBER=$(wait_for_mirror_block_progress "source deployment after one-shot" -1 90 2)
 
 echo "::endgroup::"
 
