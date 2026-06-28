@@ -79,7 +79,24 @@ export class DockerClient implements ContainerEngineClient {
   public async listLoadedImagesInCluster(clusterName: string): Promise<readonly string[]> {
     const nodeName: string = `${clusterName}-control-plane`;
 
-    const output: string[] = await this.shellRunner.run('docker', [
+    try {
+      return await this.listLoadedImagesInClusterWithEngine(constants.DOCKER, nodeName);
+    } catch (dockerError) {
+      try {
+        const podmanExecutable: string = await this.dependencyManager.getExecutable(constants.PODMAN);
+        return await this.listLoadedImagesInClusterWithEngine(podmanExecutable, nodeName);
+      } catch (podmanError) {
+        this.logger.debug(`Unable to list images in cluster "${clusterName}" with Podman`, podmanError);
+        throw dockerError;
+      }
+    }
+  }
+
+  private async listLoadedImagesInClusterWithEngine(
+    engineExecutable: string,
+    nodeName: string,
+  ): Promise<readonly string[]> {
+    const output: string[] = await this.shellRunner.run(engineExecutable, [
       'exec',
       '--privileged',
       nodeName,
