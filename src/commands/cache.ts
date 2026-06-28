@@ -39,6 +39,7 @@ interface CacheLoadConfigClass {
   imageCacheHandler: ImageCacheHandler;
   clusterReference: ClusterReferenceName;
   context: Context;
+  clusterName: string;
 }
 
 interface CacheLoadContext {
@@ -226,10 +227,12 @@ export class CacheCommand extends BaseCommand {
               imageCacheHandler: await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory),
               clusterReference,
               context,
+              clusterName: this.prepareClusterName(this.k8Factory.getK8(context).clusters().readCurrent()),
             };
           },
         },
         this.loadImagesIntoCluster(),
+        this.verifyImagesLoadedIntoCluster(),
         this.showUserMessages(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -437,17 +440,25 @@ export class CacheCommand extends BaseCommand {
                 config.clusterName,
               );
 
-              const clusterImageSet: Set<string> = new Set(clusterImages);
-              const expectedImageSet: Set<string> = new Set(expectedImages);
+              const normalizedClusterImages: string[] = clusterImages.map((image: string): string =>
+                CacheCommand.normalizeImageRef(image),
+              );
+              const clusterImageSet: Set<string> = new Set(normalizedClusterImages);
+              const normalizedExpectedImages: string[] = expectedImages.map((image: string): string =>
+                CacheCommand.normalizeImageRef(image),
+              );
+              const expectedImageSet: Set<string> = new Set(normalizedExpectedImages);
 
-              const loadedExpectedImages: string[] = expectedImages.filter((image: string): boolean =>
+              const loadedExpectedImages: string[] = normalizedExpectedImages.filter((image: string): boolean =>
                 clusterImageSet.has(image),
               );
 
-              const missingInCluster: string[] = expectedImages.filter((image): boolean => !clusterImageSet.has(image));
+              const missingInCluster: string[] = normalizedExpectedImages.filter(
+                (image: string): boolean => !clusterImageSet.has(image),
+              );
 
-              const additionalClusterImages: string[] = clusterImages.filter(
-                (image): boolean => !expectedImageSet.has(image),
+              const additionalClusterImages: string[] = normalizedClusterImages.filter(
+                (image: string): boolean => !expectedImageSet.has(image),
               );
 
               this.logger.showUser(
@@ -508,6 +519,57 @@ export class CacheCommand extends BaseCommand {
     };
   }
 
+  private static normalizeImageRef(image: string): string {
+    // Strip the registry hostname so that docker.io/foo/bar:tag,
+    // index.docker.io/foo/bar:tag, and any Docker Hub mirror hostname
+    // (e.g. hub.mirror.example.com/foo/bar:tag) all normalize to foo/bar:tag.
+    // A registry segment is the first path component that contains a '.' or ':'.
+    const slashIndex: number = image.indexOf('/');
+    if (slashIndex === -1) {
+      return image;
+    }
+    const firstSegment: string = image.slice(0, slashIndex);
+    if (firstSegment.includes('.') || firstSegment.includes(':') || firstSegment === 'localhost') {
+      return image.slice(slashIndex + 1);
+    }
+    return image;
+  }
+
+  private verifyImagesLoadedIntoCluster(): SoloListrTask<CacheLoadContext> {
+    return {
+      title: 'Verify images loaded into cluster',
+      task: async ({config: {imageCacheHandler, clusterName}}): Promise<void> => {
+        const expectedTargets: readonly CacheTarget[] = await imageCacheHandler.resolveRequiredArtifacts();
+        const expectedImages: string[] = expectedTargets.map(
+          (target: CacheTarget): string => `${target.name}:${target.version}`,
+        );
+
+        const clusterImages: readonly string[] =
+          await this.containerEngineClient.listLoadedImagesInCluster(clusterName);
+        const clusterImageSet: Set<string> = new Set(
+          clusterImages.map((image: string): string => CacheCommand.normalizeImageRef(image)),
+        );
+
+        const missingImages: string[] = expectedImages.filter(
+          (image: string): boolean => !clusterImageSet.has(CacheCommand.normalizeImageRef(image)),
+        );
+
+        if (missingImages.length > 0) {
+          const clusterSample: string = clusterImages
+            .slice(0, 5)
+            .map((image: string): string => `  ${image}`)
+            .join('\n');
+          throw new SoloError(
+            `Cache load incomplete: ${missingImages.length} expected image(s) not found in cluster "${clusterName}" after load.\n` +
+              `Missing:\n${missingImages.map((image: string): string => `  - ${image}`).join('\n')}\n` +
+              `Cluster images (first ${Math.min(5, clusterImages.length)} of ${clusterImages.length}):\n${clusterSample}\n` +
+              'This usually means the image name or version in solo-cache-images-target.yaml does not match what the charts deploy.',
+          );
+        }
+      },
+    };
+  }
+
   private showUserMessages(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Show user messages',
@@ -547,8 +609,10 @@ export class CacheCommand extends BaseCommand {
             (edgeEnabled ? version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION : version.HEDERA_JSON_RPC_RELAY_VERSION),
           explorerVersion || (edgeEnabled ? version.EXPLORER_EDGE_VERSION : version.EXPLORER_VERSION),
 
-          // MinIO is an external dependency and currently has no Solo edge variant.
+          // These three are external/chart-internal — no Solo edge variants.
           version.MINIO_OPERATOR_VERSION,
+          version.SOLO_CHEETAH_VERSION,
+          version.SOLO_CONTAINERS_VERSION,
         ),
       ),
     ).renderToFile(constants.SOLO_CACHE_IMAGES_TARGET_FILE, renderedConfigDirectory);
