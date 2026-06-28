@@ -617,7 +617,7 @@ if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
 else
   SOURCE_BLOCK_STREAM_MODE="BOTH"
   SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
-  SOURCE_BLOCK_STREAM_WRITER_MODE="FILE"
+  SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
   SOURCE_MINIO_ENABLED="true"
   SOURCE_MIRROR_BLOCK_ENABLED="false"
   SOURCE_MIRROR_RECORD_ENABLED="true"
@@ -650,16 +650,28 @@ cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<EOF
 importer:
   env:
     HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "${SOURCE_MIRROR_BLOCK_ENABLED}"
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_ALLOW_ANONYMOUS_ACCESS: "true"
     HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "${SOURCE_MIRROR_RECORD_ENABLED}"
     HIERO_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
     HEDERA_MIRROR_IMPORTER_BLOCK_ENABLED: "${SOURCE_MIRROR_BLOCK_ENABLED}"
+    HEDERA_MIRROR_IMPORTER_DOWNLOADER_ALLOW_ANONYMOUS_ACCESS: "true"
     HEDERA_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "${SOURCE_MIRROR_RECORD_ENABLED}"
     HEDERA_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
   config:
+    hedera:
+      mirror:
+        importer:
+          downloader:
+            allowAnonymousAccess: true
+            record:
+              enabled: ${SOURCE_MIRROR_RECORD_ENABLED}
+            balance:
+              enabled: false
     hiero:
       mirror:
         importer:
           downloader:
+            allowAnonymousAccess: true
             record:
               enabled: ${SOURCE_MIRROR_RECORD_ENABLED}
             balance:

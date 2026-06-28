@@ -107,10 +107,10 @@ tasks:
           --chart-version {{ .PREV_BLOCK_VERSION }}
 
       - cmd: |
-          BLOCK_STREAM_STREAM_MODE=BOTH BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          BLOCK_STREAM_STREAM_MODE=BOTH BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
           --release-tag {{ .PREV_CN_VERSION }}
 
-      - cmd: BLOCK_STREAM_STREAM_MODE=BOTH BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
+      - cmd: BLOCK_STREAM_STREAM_MODE=BOTH BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
 
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
@@ -156,6 +156,7 @@ tasks:
           set_property blockStream.streamMode BLOCKS
           set_property blockStream.writerMode FILE_AND_GRPC
           set_property blockStream.streamWrappedRecordBlocks false
+          set_property fees.simpleFeesEnabled false
           chmod 644 "${UPGRADE_APPLICATION_PROPERTIES}"
           echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
           SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
