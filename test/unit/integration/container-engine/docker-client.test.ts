@@ -110,11 +110,70 @@ describe('DockerClient', (): void => {
       DockerClientTestBuilder.listImagesArguments('kind-control-plane', ['-n', 'podman']),
     );
   });
+
+  it('loads image archives into a podman-backed kind cluster with the podman kind provider', async (): Promise<void> => {
+    const kindExecutable: string = '/home/runner/.solo/bin/kind';
+    const dependencyManager: DependencyManager = DockerClientTestBuilder.buildDependencyManager(kindExecutable);
+    shellRunnerRunStub
+      .withArgs('podman', DockerClientTestBuilder.containerExistsArguments('kind-control-plane'), sinon.match.object)
+      .resolves([]);
+    shellRunnerRunStub
+      .withArgs(
+        kindExecutable,
+        DockerClientTestBuilder.loadImageArchiveArguments('/tmp/busybox.tar', 'kind'),
+        sinon.match.object,
+      )
+      .resolves([]);
+
+    const client: DockerClient = DockerClientTestBuilder.build(dependencyManager);
+    await client.loadImageArchiveIntoCluster('/tmp/busybox.tar', 'kind');
+
+    expect(shellRunnerRunStub).to.have.been.calledWith(
+      kindExecutable,
+      DockerClientTestBuilder.loadImageArchiveArguments('/tmp/busybox.tar', 'kind'),
+      sinon.match.hasNested('environmentVariablesToAppend.KIND_EXPERIMENTAL_PROVIDER', 'podman'),
+    );
+  });
+
+  it('loads image archives into a rootful podman-backed kind cluster with sudo', async (): Promise<void> => {
+    const kindExecutable: string = '/home/runner/.solo/bin/kind';
+    const dependencyManager: DependencyManager = DockerClientTestBuilder.buildDependencyManager(kindExecutable);
+    shellRunnerRunStub
+      .withArgs('podman', DockerClientTestBuilder.containerExistsArguments('kind-control-plane'), sinon.match.object)
+      .rejects(new Error('missing rootful container'));
+    shellRunnerRunStub
+      .withArgs(
+        'sudo',
+        DockerClientTestBuilder.containerExistsArguments('kind-control-plane', ['-n', 'podman']),
+        sinon.match.object,
+      )
+      .resolves([]);
+    shellRunnerRunStub
+      .withArgs(
+        'sudo',
+        DockerClientTestBuilder.sudoKindLoadImageArchiveArguments(kindExecutable, '/tmp/busybox.tar', 'kind'),
+      )
+      .resolves([]);
+
+    const client: DockerClient = DockerClientTestBuilder.build(dependencyManager);
+    await client.loadImageArchiveIntoCluster('/tmp/busybox.tar', 'kind');
+
+    expect(shellRunnerRunStub).to.have.been.calledWith(
+      'sudo',
+      DockerClientTestBuilder.sudoKindLoadImageArchiveArguments(kindExecutable, '/tmp/busybox.tar', 'kind'),
+    );
+  });
 });
 
 class DockerClientTestBuilder {
-  public static build(): DockerClient {
-    return new DockerClient({} as DefaultKindClientBuilder, {} as SoloLogger, {} as DependencyManager);
+  public static build(dependencyManager: DependencyManager = {} as DependencyManager): DockerClient {
+    return new DockerClient({} as DefaultKindClientBuilder, {} as SoloLogger, dependencyManager);
+  }
+
+  public static buildDependencyManager(kindExecutable: string): DependencyManager {
+    return {
+      getExecutable: async (): Promise<string> => kindExecutable,
+    } as unknown as DependencyManager;
   }
 
   public static containerExistsArguments(nodeName: string, prefix: readonly string[] = []): string[] {
@@ -123,6 +182,25 @@ class DockerClientTestBuilder {
 
   public static listImagesArguments(nodeName: string, prefix: readonly string[] = []): string[] {
     return [...prefix, 'exec', '--privileged', nodeName, 'ctr', '--namespace=k8s.io', 'images', 'ls', '-q'];
+  }
+
+  public static loadImageArchiveArguments(archivePath: string, clusterName: string): string[] {
+    return ['load', 'image-archive', archivePath, '--name', clusterName];
+  }
+
+  public static sudoKindLoadImageArchiveArguments(
+    kindExecutable: string,
+    archivePath: string,
+    clusterName: string,
+  ): string[] {
+    return [
+      '-n',
+      'env',
+      'KIND_EXPERIMENTAL_PROVIDER=podman',
+      sinon.match.string as unknown as string,
+      kindExecutable,
+      ...DockerClientTestBuilder.loadImageArchiveArguments(archivePath, clusterName),
+    ];
   }
 
   public static stubMissingPodmanContainer(shellRunnerRunStub: SinonStub, nodeName: string): void {

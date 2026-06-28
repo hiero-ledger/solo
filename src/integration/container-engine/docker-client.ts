@@ -66,13 +66,21 @@ export class DockerClient implements ContainerEngineClient {
     await this.shellRunner.run('docker', ['load', '--input', archivePath]);
   }
 
-  public async loadImageArchiveIntoCluster(archivePath: string, clusterReference?: string): Promise<void> {
+  public async loadImageArchiveIntoCluster(archivePath: string, clusterName: string = 'kind'): Promise<void> {
+    const nodeName: string = `${clusterName}-control-plane`;
+    const engineCommand: ContainerEngineCommand = await this.getKindContainerEngineCommand(nodeName);
+    const kindExecutable: string = await this.dependencyManager.getExecutable(constants.KIND);
+
+    if (DockerClient.isPodmanCommand(engineCommand)) {
+      await this.loadImageArchiveIntoPodmanBackedCluster(kindExecutable, archivePath, clusterName, engineCommand);
+      return;
+    }
+
     const options: LoadImageArchiveOptions = LoadImageArchiveOptionsBuilder.builder()
       .archivePath(archivePath)
-      .name(clusterReference)
+      .name(clusterName)
       .build();
 
-    const kindExecutable: string = await this.dependencyManager.getExecutable(constants.KIND);
     const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build(true);
 
     await kindClient.loadImageArchive(archivePath, options);
@@ -122,6 +130,43 @@ export class DockerClient implements ContainerEngineClient {
       executable: constants.DOCKER,
       argumentsPrefix: [],
     };
+  }
+
+  private async loadImageArchiveIntoPodmanBackedCluster(
+    kindExecutable: string,
+    archivePath: string,
+    clusterName: string,
+    engineCommand: ContainerEngineCommand,
+  ): Promise<void> {
+    const kindArguments: string[] = ['load', 'image-archive', archivePath, '--name', clusterName];
+    const pathEnvironment: string = `${path.dirname(kindExecutable)}${path.delimiter}${process.env.PATH}`;
+
+    if (DockerClient.isSudoPodmanCommand(engineCommand)) {
+      await this.shellRunner.run('sudo', [
+        '-n',
+        'env',
+        `KIND_EXPERIMENTAL_PROVIDER=${constants.PODMAN}`,
+        `PATH=${pathEnvironment}`,
+        kindExecutable,
+        ...kindArguments,
+      ]);
+      return;
+    }
+
+    await this.shellRunner.run(kindExecutable, kindArguments, {
+      environmentVariablesToAppend: {
+        KIND_EXPERIMENTAL_PROVIDER: constants.PODMAN,
+        PATH: pathEnvironment,
+      },
+    });
+  }
+
+  private static isPodmanCommand(command: ContainerEngineCommand): boolean {
+    return command.executable === constants.PODMAN || command.argumentsPrefix.includes(constants.PODMAN);
+  }
+
+  private static isSudoPodmanCommand(command: ContainerEngineCommand): boolean {
+    return command.executable === 'sudo' && command.argumentsPrefix.includes(constants.PODMAN);
   }
 
   private async getPodmanKindContainerCommand(nodeName: string): Promise<ContainerEngineCommand | undefined> {
