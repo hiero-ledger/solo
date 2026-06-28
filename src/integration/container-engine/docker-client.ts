@@ -78,8 +78,9 @@ export class DockerClient implements ContainerEngineClient {
 
   public async listLoadedImagesInCluster(clusterName: string): Promise<readonly string[]> {
     const nodeName: string = `${clusterName}-control-plane`;
+    const engineExecutable: string = DockerClient.getKindContainerEngineExecutable();
 
-    const output: string[] = await this.shellRunner.run('docker', [
+    const output: string[] = await this.shellRunner.run(engineExecutable, [
       'exec',
       '--privileged',
       nodeName,
@@ -94,5 +95,9 @@ export class DockerClient implements ContainerEngineClient {
       .map((line): string => line.trim())
       .filter((line): boolean => line.length > 0)
       .filter((line): boolean => !line.startsWith('import-'));
+  }
+
+  private static getKindContainerEngineExecutable(): string {
+    return process.env.KIND_EXPERIMENTAL_PROVIDER === constants.PODMAN ? constants.PODMAN : constants.DOCKER;
   }
 }
