@@ -16,10 +16,16 @@ import {LoadImageArchiveOptionsBuilder} from '../kind/model/load-image-archive/l
 import {LoadImageArchiveOptions} from '../kind/model/load-image-archive/load-image-archive-options.js';
 import {Architecture} from '../../business/utils/architecture.js';
 
+type ContainerEngineCommand = {
+  readonly executable: string;
+  readonly argumentsPrefix: readonly string[];
+};
+
 @injectable()
 export class DockerClient implements ContainerEngineClient {
   private static readonly IMAGE_PULL_TIMEOUT_MS: number = 10 * 60 * 1000;
   private static readonly IMAGE_PULL_IDLE_TIMEOUT_MS: number = 10 * 60 * 1000;
+  private static readonly CONTAINER_ENGINE_PROBE_TIMEOUT_MS: number = 5 * 1000;
   private readonly shellRunner: ShellRunner;
 
   public constructor(
@@ -78,9 +84,10 @@ export class DockerClient implements ContainerEngineClient {
 
   public async listLoadedImagesInCluster(clusterName: string): Promise<readonly string[]> {
     const nodeName: string = `${clusterName}-control-plane`;
-    const engineExecutable: string = DockerClient.getKindContainerEngineExecutable();
+    const engineCommand: ContainerEngineCommand = await this.getKindContainerEngineCommand(nodeName);
 
-    const output: string[] = await this.shellRunner.run(engineExecutable, [
+    const output: string[] = await this.shellRunner.run(engineCommand.executable, [
+      ...engineCommand.argumentsPrefix,
       'exec',
       '--privileged',
       nodeName,
@@ -97,7 +104,56 @@ export class DockerClient implements ContainerEngineClient {
       .filter((line): boolean => !line.startsWith('import-'));
   }
 
-  private static getKindContainerEngineExecutable(): string {
-    return process.env.KIND_EXPERIMENTAL_PROVIDER === constants.PODMAN ? constants.PODMAN : constants.DOCKER;
+  private async getKindContainerEngineCommand(nodeName: string): Promise<ContainerEngineCommand> {
+    const podmanCommand: ContainerEngineCommand | undefined = await this.getPodmanKindContainerCommand(nodeName);
+
+    if (podmanCommand) {
+      return podmanCommand;
+    }
+
+    if (process.env.KIND_EXPERIMENTAL_PROVIDER === constants.PODMAN) {
+      return {
+        executable: constants.PODMAN,
+        argumentsPrefix: [],
+      };
+    }
+
+    return {
+      executable: constants.DOCKER,
+      argumentsPrefix: [],
+    };
+  }
+
+  private async getPodmanKindContainerCommand(nodeName: string): Promise<ContainerEngineCommand | undefined> {
+    const podmanCommand: ContainerEngineCommand = {
+      executable: constants.PODMAN,
+      argumentsPrefix: [],
+    };
+
+    if (await this.containerExists(podmanCommand, nodeName)) {
+      return podmanCommand;
+    }
+
+    const sudoPodmanCommand: ContainerEngineCommand = {
+      executable: 'sudo',
+      argumentsPrefix: ['-n', constants.PODMAN],
+    };
+
+    if (await this.containerExists(sudoPodmanCommand, nodeName)) {
+      return sudoPodmanCommand;
+    }
+
+    return undefined;
+  }
+
+  private async containerExists(command: ContainerEngineCommand, nodeName: string): Promise<boolean> {
+    try {
+      await this.shellRunner.run(command.executable, [...command.argumentsPrefix, 'container', 'exists', nodeName], {
+        timeoutMs: DockerClient.CONTAINER_ENGINE_PROBE_TIMEOUT_MS,
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
