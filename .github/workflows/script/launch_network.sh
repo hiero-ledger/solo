@@ -615,12 +615,18 @@ if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   SOURCE_MIRROR_BLOCK_ENABLED="false"
   SOURCE_MIRROR_RECORD_ENABLED="true"
 else
-  SOURCE_BLOCK_STREAM_MODE="BOTH"
-  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
+  SOURCE_BLOCK_STREAM_MODE="BLOCKS"
+  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
   SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
-  SOURCE_MINIO_ENABLED="true"
-  SOURCE_MIRROR_BLOCK_ENABLED="false"
-  SOURCE_MIRROR_RECORD_ENABLED="true"
+  SOURCE_MINIO_ENABLED="false"
+  SOURCE_MIRROR_BLOCK_ENABLED="true"
+  SOURCE_MIRROR_RECORD_ENABLED="false"
+fi
+
+if [[ "${SOURCE_MIRROR_BLOCK_ENABLED}" == "true" ]]; then
+  SOURCE_DISABLE_IMPORTER_SPRING_PROFILES="false"
+else
+  SOURCE_DISABLE_IMPORTER_SPRING_PROFILES="true"
 fi
 
 if grep -q '^blockStream.streamMode=' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"; then
@@ -703,7 +709,7 @@ export ONE_SHOT_WITH_BLOCK_NODE=true
 # values rather than relying on local source changes.
 export BLOCK_STREAM_STREAM_MODE="${SOURCE_BLOCK_STREAM_MODE}"
 export BLOCK_STREAM_WRITER_MODE="${SOURCE_BLOCK_STREAM_WRITER_MODE}"
-export DISABLE_IMPORTER_SPRING_PROFILES=true
+export DISABLE_IMPORTER_SPRING_PROFILES="${SOURCE_DISABLE_IMPORTER_SPRING_PROFILES}"
 echo "Initial source block stream mode: ${SOURCE_BLOCK_STREAM_MODE}"
 echo "Initial source block stream writer mode: ${SOURCE_BLOCK_STREAM_WRITER_MODE}"
 echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
@@ -721,7 +727,7 @@ BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   --deploy-explorer=false \
   --deploy-relay=false
 
-DISABLE_IMPORTER_SPRING_PROFILES=true \
+DISABLE_IMPORTER_SPRING_PROFILES="${SOURCE_DISABLE_IMPORTER_SPRING_PROFILES}" \
   solo mirror node add \
   --deployment "${SOLO_DEPLOYMENT}" \
   --enable-ingress \
@@ -739,7 +745,7 @@ solo relay node add \
   --node-aliases node1,node2 \
   --relay-release "${PREV_RELAY_VERSION}"
 
-DISABLE_IMPORTER_SPRING_PROFILES=true \
+DISABLE_IMPORTER_SPRING_PROFILES="${SOURCE_DISABLE_IMPORTER_SPRING_PROFILES}" \
   solo mirror node upgrade \
   --deployment "${SOLO_DEPLOYMENT}" \
   --enable-ingress \

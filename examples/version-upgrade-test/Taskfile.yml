@@ -107,10 +107,10 @@ tasks:
           --chart-version {{ .PREV_BLOCK_VERSION }}
 
       - cmd: |
-          BLOCK_STREAM_STREAM_MODE=BOTH BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          BLOCK_STREAM_STREAM_MODE=BLOCKS BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
           --release-tag {{ .PREV_CN_VERSION }}
 
-      - cmd: BLOCK_STREAM_STREAM_MODE=BOTH BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
+      - cmd: BLOCK_STREAM_STREAM_MODE=BLOCKS BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
 
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
@@ -118,9 +118,8 @@ tasks:
 
       # Deploy mirror node with previous version
       - cmd: |
-          DISABLE_IMPORTER_SPRING_PROFILES=true $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} \
-          --pinger --enable-ingress --mirror-node-version {{ .PREV_MIRROR_VERSION }} \
-          --values-file {{ .TASKFILE_DIR }}/mirror-node-record-import-values.yaml
+          $SOLO_COMMAND mirror node add --deployment {{ .DEPLOYMENT }} \
+          --pinger --enable-ingress --mirror-node-version {{ .PREV_MIRROR_VERSION }}
 
       # Deploy relay with previous version
       - cmd: |
