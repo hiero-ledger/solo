@@ -81,6 +81,18 @@ is_tss_supported_consensus_version() {
   [[ "$(printf '%s\n' "${minimum_tss_version}" "${consensus_version}" | sort -V | head -n 1)" == "${minimum_tss_version}" ]]
 }
 
+extract_required_test_version() {
+  local variable_name="${1}"
+  local version_value=""
+
+  if ! version_value="$(extract_version "${variable_name}" version-test.ts)"; then
+    echo "${variable_name} is empty, please check version-test.ts" >&2
+    return 1
+  fi
+
+  printf '%s' "${version_value}"
+}
+
 install_minio_operator_for_source_deploy() {
   local context="kind-${SOLO_CLUSTER_NAME}"
   local namespace="solo-setup"
@@ -565,9 +577,14 @@ export SOLO_NAMESPACE=one-shot
 export SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 export SOLO_DEPLOYMENT=one-shot
 export SOLO_LOG_LEVEL=debug
-export PREV_BLOCK_VERSION=v0.32.0
-export PREV_EXPLORER_VERSION=26.0.0
-export PREV_RELAY_VERSION=0.76.0
+PREV_BLOCK_VERSION="$(extract_required_test_version PREV_BLOCK_NODE_VERSION)"
+PREV_EXPLORER_VERSION="$(extract_required_test_version PREV_EXPLORER_VERSION)"
+PREV_MIRROR_VERSION="$(extract_required_test_version PREV_MIRROR_NODE_VERSION)"
+PREV_RELAY_VERSION="$(extract_required_test_version PREV_RELAY_VERSION)"
+export PREV_BLOCK_VERSION
+export PREV_EXPLORER_VERSION
+export PREV_MIRROR_VERSION
+export PREV_RELAY_VERSION
 
 KIND_CLUSTER_CONFIG_FILE="${KIND_CLUSTER_CONFIG_FILE:-.github/workflows/script/kind-config.yaml}"
 KIND_CONFIG_RENDERER=".github/workflows/script/render_kind_config.sh"
@@ -613,6 +630,10 @@ fi
 
 echo "Consensus Node Version (from): ${FROM_CONSENSUS_NODE_VERSION}"
 echo "Consensus Node Version (to): ${TO_CONSENSUS_NODE_VERSION}"
+echo "Block Node Version (previous): ${PREV_BLOCK_VERSION}"
+echo "Mirror Node Version (previous): ${PREV_MIRROR_VERSION}"
+echo "Explorer Version (previous): ${PREV_EXPLORER_VERSION}"
+echo "Relay Version (previous): ${PREV_RELAY_VERSION}"
 
 TEMP_ONE_SHOT_VALUES_FILE="$(mktemp -t falcon-values-migration-XXXX.yaml)"
 TEMP_MIRROR_NODE_VALUES_FILE="$(mktemp -t mirror-node-migration-XXXX.yaml)"
@@ -696,10 +717,14 @@ blockNode:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
 
 mirrorNode:
+  --mirror-node-version: "${PREV_MIRROR_VERSION}"
   --values-file: "${TEMP_MIRROR_NODE_VALUES_FILE}"
 
 relayNode:
-  --relay-version: "${PREV_RELAY_VERSION}"
+  --relay-release: "${PREV_RELAY_VERSION}"
+
+explorerNode:
+  --explorer-version: "${PREV_EXPLORER_VERSION}"
 EOF
 
 export ONE_SHOT_WITH_BLOCK_NODE=true
