@@ -61,6 +61,19 @@ on_exit() {
 
 trap on_exit EXIT
 
+set_application_property() {
+  local file_path="${1}"
+  local key="${2}"
+  local value="${3}"
+
+  if grep -q "^${key}=" "${file_path}"; then
+    sed -i.bak "s/^${key}=.*/${key}=${value}/" "${file_path}"
+  else
+    echo "${key}=${value}" >> "${file_path}"
+  fi
+  rm -f "${file_path}.bak"
+}
+
 is_tss_supported_consensus_version() {
   local consensus_version="${1#v}"
   local minimum_tss_version="0.74.0"
@@ -629,26 +642,11 @@ else
   SOURCE_DISABLE_IMPORTER_SPRING_PROFILES="true"
 fi
 
-if grep -q '^blockStream.streamMode=' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"; then
-  sed -i.bak "s/^blockStream.streamMode=.*/blockStream.streamMode=${SOURCE_BLOCK_STREAM_MODE}/" "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
-else
-  echo "blockStream.streamMode=${SOURCE_BLOCK_STREAM_MODE}" >> "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
-fi
-rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}.bak"
-
-if grep -q '^blockStream.streamWrappedRecordBlocks=' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"; then
-  sed -i.bak "s/^blockStream.streamWrappedRecordBlocks=.*/blockStream.streamWrappedRecordBlocks=${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}/" "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
-else
-  echo "blockStream.streamWrappedRecordBlocks=${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}" >> "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
-fi
-rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}.bak"
-
-if grep -q '^blockStream.writerMode=' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"; then
-  sed -i.bak "s/^blockStream.writerMode=.*/blockStream.writerMode=${SOURCE_BLOCK_STREAM_WRITER_MODE}/" "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
-else
-  echo "blockStream.writerMode=${SOURCE_BLOCK_STREAM_WRITER_MODE}" >> "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
-fi
-rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}.bak"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "${SOURCE_BLOCK_STREAM_MODE}"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "${SOURCE_BLOCK_STREAM_WRITER_MODE}"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 chmod 644 "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
 cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<EOF
@@ -774,12 +772,9 @@ ps -ef |grep port-forward
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
 cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
-if grep -q '^fees.simpleFeesEnabled=' "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"; then
-  sed -i.bak 's/^fees.simpleFeesEnabled=.*/fees.simpleFeesEnabled=false/' "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-else
-  echo 'fees.simpleFeesEnabled=false' >> "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-fi
-rm -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}.bak"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "fees.simpleFeesEnabled" "false"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"

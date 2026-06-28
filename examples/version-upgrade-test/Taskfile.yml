@@ -107,8 +107,27 @@ tasks:
           --chart-version {{ .PREV_BLOCK_VERSION }}
 
       - cmd: |
+          SOURCE_APPLICATION_PROPERTIES=$(mktemp -t version-upgrade-source-application-properties-XXXX.properties)
+          cp "{{ .ROOT_DIR }}/resources/templates/application.properties" "${SOURCE_APPLICATION_PROPERTIES}"
+          set_property() {
+            local key="$1"
+            local value="$2"
+            if grep -q "^${key}=" "${SOURCE_APPLICATION_PROPERTIES}"; then
+              sed -i.bak "s/^${key}=.*/${key}=${value}/" "${SOURCE_APPLICATION_PROPERTIES}"
+              rm -f "${SOURCE_APPLICATION_PROPERTIES}.bak"
+            else
+              echo "${key}=${value}" >> "${SOURCE_APPLICATION_PROPERTIES}"
+            fi
+          }
+          set_property blockStream.streamMode BLOCKS
+          set_property blockStream.writerMode FILE_AND_GRPC
+          set_property blockStream.streamWrappedRecordBlocks false
+          set_property blockStream.buffer.isBufferPersistenceEnabled true
+          set_property blockNode.wantedBlockExpirationMillis 60000
+          chmod 644 "${SOURCE_APPLICATION_PROPERTIES}"
           BLOCK_STREAM_STREAM_MODE=BLOCKS BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
-          --release-tag {{ .PREV_CN_VERSION }}
+          --release-tag {{ .PREV_CN_VERSION }} \
+          --application-properties "${SOURCE_APPLICATION_PROPERTIES}"
 
       - cmd: BLOCK_STREAM_STREAM_MODE=BLOCKS BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
 
@@ -155,6 +174,8 @@ tasks:
           set_property blockStream.streamMode BLOCKS
           set_property blockStream.writerMode FILE_AND_GRPC
           set_property blockStream.streamWrappedRecordBlocks false
+          set_property blockStream.buffer.isBufferPersistenceEnabled true
+          set_property blockNode.wantedBlockExpirationMillis 60000
           set_property fees.simpleFeesEnabled false
           chmod 644 "${UPGRADE_APPLICATION_PROPERTIES}"
           echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
