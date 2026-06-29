@@ -4,27 +4,27 @@ import {injectable} from 'tsyringe-neo';
 import {LinuxPackageManager} from './linux-package-manager.js';
 
 /**
- * Package manager for Debian-based distributions that ship apt-get (Debian, Ubuntu, Mint, ...).
+ * Package manager for older RPM-based distributions that ship yum (RHEL 7, CentOS 7, Amazon Linux 2, ...).
  */
 @injectable()
-export class AptGetPackageManager extends LinuxPackageManager {
+export class YumPackageManager extends LinuxPackageManager {
   protected installCommand(dependencies: string[]): string[] {
-    return ['apt-get', 'install', '-y', ...dependencies];
+    return ['yum', 'install', '-y', ...dependencies];
   }
 
   protected uninstallCommand(dependencies: string[]): string[] {
-    return ['apt-get', 'remove', '-y', ...dependencies];
+    return ['yum', 'remove', '-y', ...dependencies];
   }
 
   protected updateCommand(): string[] {
-    return ['apt-get', 'update'];
+    return ['yum', 'makecache'];
   }
 
   protected upgradeCommand(dependencies: string[]): string[] {
-    return ['apt-get', 'upgrade', '-y', ...dependencies];
+    return ['yum', 'upgrade', '-y', ...dependencies];
   }
 
   protected versionCommand(): string[] {
-    return ['apt-get', '--version'];
+    return ['yum', '--version'];
   }
 }
