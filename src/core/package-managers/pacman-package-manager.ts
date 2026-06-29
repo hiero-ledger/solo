@@ -4,27 +4,27 @@ import {injectable} from 'tsyringe-neo';
 import {LinuxPackageManager} from './linux-package-manager.js';
 
 /**
- * Package manager for Debian-based distributions that ship apt-get (Debian, Ubuntu, Mint, ...).
+ * Package manager for Arch-based distributions that ship pacman (Arch, Manjaro, EndeavourOS, ...).
  */
 @injectable()
-export class AptGetPackageManager extends LinuxPackageManager {
+export class PacmanPackageManager extends LinuxPackageManager {
   protected installCommand(dependencies: string[]): string[] {
-    return ['apt-get', 'install', '-y', ...dependencies];
+    return ['pacman', '-S', '--noconfirm', ...dependencies];
   }
 
   protected uninstallCommand(dependencies: string[]): string[] {
-    return ['apt-get', 'remove', '-y', ...dependencies];
+    return ['pacman', '-R', '--noconfirm', ...dependencies];
   }
 
   protected updateCommand(): string[] {
-    return ['apt-get', 'update'];
+    return ['pacman', '-Sy', '--noconfirm'];
   }
 
   protected upgradeCommand(dependencies: string[]): string[] {
-    return ['apt-get', 'upgrade', '-y', ...dependencies];
+    return ['pacman', '-S', '--noconfirm', ...dependencies];
   }
 
   protected versionCommand(): string[] {
-    return ['apt-get', '--version'];
+    return ['pacman', '--version'];
   }
 }

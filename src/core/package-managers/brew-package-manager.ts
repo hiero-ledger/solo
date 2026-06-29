@@ -16,6 +16,16 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
     'https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh';
   private static readonly LINUXBREW_BIN: string = '/home/linuxbrew/.linuxbrew/bin';
 
+  // Homebrew does not require sudo elevation; the sudo callbacks are no-ops so that
+  // BrewPackageManager satisfies the PackageManager contract used across platforms.
+  public setOnSudoRequested(_callback: (message: string) => void): void {
+    void _callback;
+  }
+
+  public setOnSudoGranted(_callback: (message: string) => void): void {
+    void _callback;
+  }
+
   public async installPackages(dependencies: string[]): Promise<void> {
     await this.run('brew', ['install', ...dependencies]);
   }
