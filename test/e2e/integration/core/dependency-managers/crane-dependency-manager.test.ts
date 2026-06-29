@@ -197,7 +197,7 @@ describe('CraneDependencyManager', (): void => {
 
     it('getVersion should return version from crane version output', async (): Promise<void> => {
       const executableWithPath: string = '/usr/local/bin/crane';
-      sandbox.stub(ShellRunner.prototype, 'run').withArgs(`"${executableWithPath}" version`).resolves(['0.21.4']);
+      sandbox.stub(ShellRunner.prototype, 'run').withArgs(executableWithPath, ['version']).resolves(['0.21.4']);
 
       const actualVersion: string = await craneDependencyManager.getVersion(executableWithPath);
       expect(actualVersion).to.equal('0.21.4');
@@ -362,9 +362,8 @@ describe('CraneDependencyManager', (): void => {
     });
 
     it('should install crane locally if the global installation does not meet the requirements', async (): Promise<void> => {
-      runStub.withArgs('which crane').resolves(['/usr/local/bin/crane']);
-      runStub.withArgs('"/usr/local/bin/crane" version').resolves(['0.1.0']);
-      runStub.withArgs(`"${PathEx.join(temporaryDirectory, 'crane')}" version`).resolves(['0.1.0']);
+      runStub.withArgs('/usr/local/bin/crane', ['version']).resolves(['0.1.0']);
+      runStub.withArgs(PathEx.join(temporaryDirectory, 'crane'), ['version']).resolves(['0.1.0']);
       existsSyncStub.withArgs(PathEx.join(temporaryDirectory, 'crane')).returns(true);
 
       const dummyDownloadedArchive: string = PathEx.join(getTemporaryDirectory(), 'crane.tar.gz');
@@ -439,7 +438,7 @@ describe('CraneDependencyManager', (): void => {
             return [executablePath];
           });
 
-        sandbox.stub(ShellRunner.prototype, 'run').withArgs(`which ${constants.CRANE}`).alwaysReturned(false);
+        sandbox.stub(ShellRunner.prototype, 'run').resolves([]);
 
         craneDependencyManager.uninstallLocal();
         expect(craneDependencyManager.isInstalledLocally()).not.to.be.ok;
