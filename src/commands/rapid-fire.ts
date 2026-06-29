@@ -441,19 +441,19 @@ export class RapidFireCommand extends BaseCommand {
     const patterns: {pattern: RegExp; valueIndex: number; unitIndex: number}[] = [
       {
         pattern:
-          /\b(?:rtt|round[-\s]?trip(?:\s+time)?)\b[^0-9\n\r]{0,40}(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|seconds?)\b/gi,
+          /\b(?=.*(?:mirror|end[-\s]?to[-\s]?end|e2e))(?:[^\n\r]*?)\b(?:rtt|round[-\s]?trip(?:\s+time)?)\b[^0-9\n\r]{0,60}(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|seconds?)\b/gi,
         valueIndex: 1,
         unitIndex: 2,
       },
       {
         pattern:
-          /(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|seconds?)\b[^a-zA-Z\n\r]{0,40}\b(?:rtt|round[-\s]?trip(?:\s+time)?)\b/gi,
+          /\b(?=.*(?:mirror|end[-\s]?to[-\s]?end|e2e))(?:[^\n\r]*?)(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|seconds?)\b[^a-zA-Z\n\r]{0,60}\b(?:rtt|round[-\s]?trip(?:\s+time)?)\b/gi,
         valueIndex: 1,
         unitIndex: 2,
       },
       {
         pattern:
-          /\b(?:rtt|round[-\s]?trip(?:\s+time)?)\b[^a-zA-Z\n\r]{0,20}\b(ms|milliseconds?|s|seconds?)\b[^0-9\n\r]{0,20}(\d+(?:\.\d+)?)/gi,
+          /\b(?=.*(?:mirror|end[-\s]?to[-\s]?end|e2e))(?:[^\n\r]*?)\b(?:rtt|round[-\s]?trip(?:\s+time)?)\b[^a-zA-Z\n\r]{0,40}\b(ms|milliseconds?|s|seconds?)\b[^0-9\n\r]{0,40}(\d+(?:\.\d+)?)/gi,
         valueIndex: 2,
         unitIndex: 1,
       },

@@ -30,9 +30,9 @@ describe('RapidFireCommand', (): void => {
   const testClass: string = `com.hedera.benchmark.${performanceTest}`;
 
   describe('analyzeNlgOutput', (): void => {
-    it('returns success when RTT is below the configured threshold', (): void => {
+    it('returns success when end-to-end mirror RTT is below the configured threshold', (): void => {
       const output: string = [
-        'Average RTT: 499 ms',
+        'Max end-to-end mirror RTT: 499 ms',
         'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10',
       ].join('\n');
 
@@ -44,7 +44,7 @@ describe('RapidFireCommand', (): void => {
 
     it('returns rtt-threshold-exceeded when RTT is above the configured threshold', (): void => {
       const output: string = [
-        'Round trip time: 501 milliseconds',
+        'End to end mirror round trip time: 501 milliseconds',
         'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10',
       ].join('\n');
 
@@ -66,7 +66,7 @@ describe('RapidFireCommand', (): void => {
 
     it('converts seconds to milliseconds before comparing RTT', (): void => {
       const output: string = [
-        'P95 round trip time: 0.6 seconds',
+        'P95 end-to-end mirror round trip time: 0.6 seconds',
         'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10',
       ].join('\n');
 
@@ -78,7 +78,7 @@ describe('RapidFireCommand', (): void => {
 
     it('parses RTT output when the unit appears before the value', (): void => {
       const output: string = [
-        'Max RTT (ms): 501',
+        'Max mirror RTT (ms): 501',
         'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10',
       ].join('\n');
 
@@ -86,6 +86,18 @@ describe('RapidFireCommand', (): void => {
 
       expect(result.status).to.equal('rtt-threshold-exceeded');
       expect(result.rttMilliseconds).to.equal(501);
+    });
+
+    it('does not accept a consensus-only RTT as the roadmap RTT result', (): void => {
+      const output: string = [
+        'Consensus RTT: 499 ms',
+        'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10',
+      ].join('\n');
+
+      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
+
+      expect(result.status).to.equal('no-rtt-result');
+      expect(result.maxRttMilliseconds).to.equal(500);
     });
 
     it('keeps existing success behavior when no RTT threshold is configured', (): void => {

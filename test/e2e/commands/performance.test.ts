@@ -49,8 +49,8 @@ const tokens: number = 50;
 const associations: number = 50;
 const nfts: number = 50;
 const percent: number = 50;
-const maxTps: number = 100;
-const maxRtt: number = 500;
+const stableTransactionPerSecondTarget: number = 100;
+const maxEndToEndRtt: number = 500;
 const nftTransferLoadTestTimeoutMultiplier: number = 6;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;
@@ -224,7 +224,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         async function runLoadTest(performanceTest: string, argumentsString: string): Promise<void> {
           // rapid-fire enforces the TPS!=0 + "Finished" check internally and throws
           // on degraded runs (proxy backpressure, NFT-vs-fungible token mismatch, etc.).
-          await main(soloRapidFire(testName, performanceTest, argumentsString, maxTps, maxRtt));
+          await main(
+            soloRapidFire(testName, performanceTest, argumentsString, stableTransactionPerSecondTarget, maxEndToEndRtt),
+          );
           // Cool-down lets haproxy drain tunnel sockets before the next test.
           await sleep(Duration.ofSeconds(30));
         }

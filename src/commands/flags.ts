@@ -2949,7 +2949,7 @@ export class Flags {
     constName: 'maxRtt',
     name: 'max-rtt',
     definition: {
-      describe: 'The maximum allowed round trip time in milliseconds for the NLG load test',
+      describe: 'The maximum allowed end-to-end transaction submission to mirror node availability RTT in milliseconds',
       type: 'number',
       defaultValue: 0,
     },
