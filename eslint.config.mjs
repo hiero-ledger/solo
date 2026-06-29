@@ -318,13 +318,11 @@ export default [
   {
     // No exported functions in source code — see §10.3.1.
     // One exported interface per file, filename matches interface name in kebab-case — see §3.5.
-    // exported-interface-in-own-file is warned while existing multi-interface barrel files
-    // (src/types/index.ts, src/types/flag-types.ts) are migrated; escalate to 'error' once done.
     files: ['src/**/*.ts'],
     plugins: {solo: soloLocalPlugin},
     rules: {
       'solo/no-exported-function': 'error',
-      'solo/exported-interface-in-own-file': 'warn', // TODO error (migrate src/types/ barrels first)
+      'solo/exported-interface-in-own-file': 'error',
     },
   },
   {
