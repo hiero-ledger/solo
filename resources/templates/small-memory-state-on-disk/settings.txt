@@ -2,6 +2,7 @@
                                           #          MerkleDb         #
                                           #############################
 merkleDb.useDiskIndices,                       true
+merkleDb.maxNumOfKeys,                         250000
 
                                           #############################
                                           #    Low-Latency Solo RTT   #
