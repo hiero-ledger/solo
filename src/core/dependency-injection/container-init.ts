@@ -94,6 +94,7 @@ import {RapidFireCommandDefinition} from '../../commands/command-definitions/rap
 import {BackupRestoreCommand} from '../../commands/backup-restore.js';
 import {BackupRestoreCommandDefinition} from '../../commands/command-definitions/backup-restore-command-definition.js';
 import {OsPackageManager} from '../package-managers/os-package-manager.js';
+import {BrewPackageManager} from '../package-managers/brew-package-manager.js';
 import {ClusterTaskManager} from '../cluster-task-manager.js';
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
@@ -199,6 +200,7 @@ export class Container {
       new SingletonContainer(InjectTokens.Commands, Commands),
       new SingletonContainer(InjectTokens.MetricsServer, MetricsServerImpl),
       new SingletonContainer(InjectTokens.OsPackageManager, OsPackageManager),
+      new SingletonContainer(InjectTokens.BrewPackageManager, BrewPackageManager),
       new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
       new SingletonContainer(InjectTokens.PostgresSharedResource, PostgresSharedResource),
       new SingletonContainer(InjectTokens.SharedResourceManager, SharedResourceManager),

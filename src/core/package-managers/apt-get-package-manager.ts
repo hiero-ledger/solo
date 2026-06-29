@@ -8,23 +8,23 @@ import {LinuxPackageManager} from './linux-package-manager.js';
  */
 @injectable()
 export class AptGetPackageManager extends LinuxPackageManager {
-  protected installCommand(dependencies: string[]): string {
-    return `apt-get install -y ${dependencies.join(' ')}`;
+  protected installCommand(dependencies: string[]): string[] {
+    return ['apt-get', 'install', '-y', ...dependencies];
   }
 
-  protected uninstallCommand(dependencies: string[]): string {
-    return `apt-get remove -y ${dependencies.join(' ')}`;
+  protected uninstallCommand(dependencies: string[]): string[] {
+    return ['apt-get', 'remove', '-y', ...dependencies];
   }
 
-  protected updateCommand(): string {
-    return 'apt-get update';
+  protected updateCommand(): string[] {
+    return ['apt-get', 'update'];
   }
 
-  protected upgradeCommand(dependencies: string[]): string {
-    return `apt-get upgrade -y ${dependencies.join(' ')}`;
+  protected upgradeCommand(dependencies: string[]): string[] {
+    return ['apt-get', 'upgrade', '-y', ...dependencies];
   }
 
-  protected versionCommand(): string {
-    return 'apt-get --version';
+  protected versionCommand(): string[] {
+    return ['apt-get', '--version'];
   }
 }

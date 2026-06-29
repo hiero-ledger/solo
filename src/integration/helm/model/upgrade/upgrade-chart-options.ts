@@ -14,6 +14,7 @@ export class UpgradeChartOptions implements Options {
   private readonly _version?: string;
   private readonly _install?: boolean;
   private readonly _createNamespace?: boolean;
+  private readonly _dependencyUpdate?: boolean;
 
   public constructor(
     namespace?: string,
@@ -23,6 +24,7 @@ export class UpgradeChartOptions implements Options {
     version?: string,
     install: boolean = false,
     createNamespace: boolean = false,
+    dependencyUpdate: boolean = false,
   ) {
     this._namespace = namespace;
     this._kubeContext = kubeContext;
@@ -31,6 +33,7 @@ export class UpgradeChartOptions implements Options {
     this._version = version;
     this._install = install;
     this._createNamespace = createNamespace;
+    this._dependencyUpdate = dependencyUpdate;
   }
 
   /**
@@ -88,6 +91,13 @@ export class UpgradeChartOptions implements Options {
   }
 
   /**
+   * Gets whether to run helm dependency update before upgrading
+   */
+  public get dependencyUpdate(): boolean {
+    return this._dependencyUpdate;
+  }
+
+  /**
    * Applies the options to the given builder.
    * @param builder The builder to apply the options to.
    */
@@ -112,6 +122,10 @@ export class UpgradeChartOptions implements Options {
 
     if (this.createNamespace) {
       builder.flag('--create-namespace');
+    }
+
+    if (this.dependencyUpdate) {
+      builder.flag('--dependency-update');
     }
 
     if (this.valueArguments.length > 0) {

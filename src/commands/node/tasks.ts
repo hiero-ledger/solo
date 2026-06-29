@@ -47,7 +47,7 @@ import {
 } from '@hiero-ledger/sdk';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import {execSync} from 'node:child_process';
+import {execFileSync} from 'node:child_process';
 import find from 'find-process';
 import type FindConfig from 'find-process';
 import type ProcessInfo from 'find-process';
@@ -88,6 +88,7 @@ import {
 import {PodName} from '../../integration/kube/resources/pod/pod-name.js';
 import {NodeStatusCodes, NodeStatusEnums, NodeSubcommandType} from '../../core/enumerations.js';
 import {type Lock} from '../../core/lock/lock.js';
+import {type LeaseWrapper} from './lease-wrapper.js';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {Duration} from '../../core/time/duration.js';
 import {type NodeAddConfigClass} from './config-interfaces/node-add-config-class.js';
@@ -143,7 +144,8 @@ import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodeKeysContext} from './config-interfaces/node-keys-context.js';
 import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-class.js';
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
-import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-interfaces/node-common-config-class.js';
+import {type CheckedNodesConfigClass} from './config-interfaces/checked-nodes-config-class.js';
+import {type CheckedNodesContext} from './config-interfaces/checked-nodes-context.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
@@ -189,10 +191,6 @@ const localBuildPathFilter: (path: string | string[]) => boolean = (path: string
 };
 
 const {gray, cyan, red, green, yellow} = chalk;
-
-export interface LeaseWrapper {
-  lease: Lock;
-}
 
 @injectable()
 export class NodeCommandTasks {
@@ -2707,17 +2705,21 @@ export class NodeCommandTasks {
                 // Do NOT use "helm get all": it also outputs the full rendered K8s manifests
                 // which include Secret resources (base64-encoded credentials, TLS keys, etc.)
                 // and pod specs that may embed plaintext passwords from chart values.
-                const getAllCommand: string = `helm get values ${release.name} -n ${release.namespace} --kube-context ${context} --all`;
-                const output: string = execSync(getAllCommand, {
-                  encoding: 'utf8',
-                  cwd: process.cwd(),
-                  shell: '/bin/bash',
-                  maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-                  env: {
-                    ...process.env,
-                    PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${PathEx.delimiter}${process.env.PATH}`,
+                // Use an explicit argument array with no shell so release/namespace/context cannot
+                // be interpreted by a shell (shell injection). helm is resolved via the prepended PATH.
+                const output: string = execFileSync(
+                  'helm',
+                  ['get', 'values', release.name, '-n', release.namespace, '--kube-context', context, '--all'],
+                  {
+                    encoding: 'utf8',
+                    cwd: process.cwd(),
+                    maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+                    env: {
+                      ...process.env,
+                      PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${PathEx.delimiter}${process.env.PATH}`,
+                    },
                   },
-                }).toString();
+                ).toString();
 
                 const valuesFile: string = PathEx.join(contextDirectory, `${release.name}.yaml`);
                 try {

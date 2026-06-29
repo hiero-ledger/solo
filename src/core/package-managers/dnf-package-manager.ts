@@ -8,23 +8,23 @@ import {LinuxPackageManager} from './linux-package-manager.js';
  */
 @injectable()
 export class DnfPackageManager extends LinuxPackageManager {
-  protected installCommand(dependencies: string[]): string {
-    return `dnf install -y ${dependencies.join(' ')}`;
+  protected installCommand(dependencies: string[]): string[] {
+    return ['dnf', 'install', '-y', ...dependencies];
   }
 
-  protected uninstallCommand(dependencies: string[]): string {
-    return `dnf remove -y ${dependencies.join(' ')}`;
+  protected uninstallCommand(dependencies: string[]): string[] {
+    return ['dnf', 'remove', '-y', ...dependencies];
   }
 
-  protected updateCommand(): string {
-    return 'dnf makecache';
+  protected updateCommand(): string[] {
+    return ['dnf', 'makecache'];
   }
 
-  protected upgradeCommand(dependencies: string[]): string {
-    return `dnf upgrade -y ${dependencies.join(' ')}`;
+  protected upgradeCommand(dependencies: string[]): string[] {
+    return ['dnf', 'upgrade', '-y', ...dependencies];
   }
 
-  protected versionCommand(): string {
-    return 'dnf --version';
+  protected versionCommand(): string[] {
+    return ['dnf', '--version'];
   }
 }

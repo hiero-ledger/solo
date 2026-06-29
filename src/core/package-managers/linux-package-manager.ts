@@ -5,7 +5,7 @@ import {type PackageManager} from './package-manager.js';
 
 /**
  * Shared base for native Linux package managers. Concrete subclasses provide the
- * distribution-specific command strings; this base handles sudo elevation and the
+ * distribution-specific command argv arrays; this base handles sudo elevation and the
  * common {@link PackageManager} lifecycle so that callers never need to know which
  * distribution they are running on.
  */
@@ -21,35 +21,35 @@ export abstract class LinuxPackageManager extends ShellRunner implements Package
     this.onSudoGranted = callback;
   }
 
-  /** Builds the command that installs the given packages. */
-  protected abstract installCommand(dependencies: string[]): string;
+  /** Builds the argv that installs the given packages (executable first, then arguments). */
+  protected abstract installCommand(dependencies: string[]): string[];
 
-  /** Builds the command that removes the given packages. */
-  protected abstract uninstallCommand(dependencies: string[]): string;
+  /** Builds the argv that removes the given packages. */
+  protected abstract uninstallCommand(dependencies: string[]): string[];
 
-  /** Builds the command that refreshes the package index/metadata. */
-  protected abstract updateCommand(): string;
+  /** Builds the argv that refreshes the package index/metadata. */
+  protected abstract updateCommand(): string[];
 
-  /** Builds the command that upgrades the given packages. */
-  protected abstract upgradeCommand(dependencies: string[]): string;
+  /** Builds the argv that upgrades the given packages. */
+  protected abstract upgradeCommand(dependencies: string[]): string[];
 
-  /** Builds the command used to check that the package manager is available (no sudo required). */
-  protected abstract versionCommand(): string;
+  /** Builds the argv used to check that the package manager is available (no sudo required). */
+  protected abstract versionCommand(): string[];
 
   public async installPackages(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, this.installCommand(dependencies));
+    await this.runWithSudo(this.installCommand(dependencies));
   }
 
   public async uninstallPackages(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, this.uninstallCommand(dependencies));
+    await this.runWithSudo(this.uninstallCommand(dependencies));
   }
 
   public async update(): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, this.updateCommand());
+    await this.runWithSudo(this.updateCommand());
   }
 
   public async upgrade(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, this.upgradeCommand(dependencies));
+    await this.runWithSudo(this.upgradeCommand(dependencies));
   }
 
   public async install(): Promise<boolean> {
@@ -61,11 +61,19 @@ export abstract class LinuxPackageManager extends ShellRunner implements Package
   }
 
   public async isAvailable(): Promise<boolean> {
+    const [command, ...arguments_]: string[] = this.versionCommand();
     try {
-      await this.run(this.versionCommand());
+      await this.run(command, arguments_);
       return true;
     } catch {
+      // best-effort: report unavailable when the version probe fails (e.g. the binary is absent)
       return false;
     }
+  }
+
+  /** Runs a package-manager argv under sudo, surfacing the elevation prompts to the configured callbacks. */
+  private async runWithSudo(command: string[]): Promise<string[]> {
+    const [executable, ...arguments_]: string[] = command;
+    return this.sudoRun(this.onSudoRequested, this.onSudoGranted, executable, arguments_);
   }
 }

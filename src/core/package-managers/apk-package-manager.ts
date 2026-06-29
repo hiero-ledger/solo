@@ -8,23 +8,23 @@ import {LinuxPackageManager} from './linux-package-manager.js';
  */
 @injectable()
 export class ApkPackageManager extends LinuxPackageManager {
-  protected installCommand(dependencies: string[]): string {
-    return `apk add ${dependencies.join(' ')}`;
+  protected installCommand(dependencies: string[]): string[] {
+    return ['apk', 'add', ...dependencies];
   }
 
-  protected uninstallCommand(dependencies: string[]): string {
-    return `apk del ${dependencies.join(' ')}`;
+  protected uninstallCommand(dependencies: string[]): string[] {
+    return ['apk', 'del', ...dependencies];
   }
 
-  protected updateCommand(): string {
-    return 'apk update';
+  protected updateCommand(): string[] {
+    return ['apk', 'update'];
   }
 
-  protected upgradeCommand(dependencies: string[]): string {
-    return `apk upgrade ${dependencies.join(' ')}`;
+  protected upgradeCommand(dependencies: string[]): string[] {
+    return ['apk', 'upgrade', ...dependencies];
   }
 
-  protected versionCommand(): string {
-    return 'apk --version';
+  protected versionCommand(): string[] {
+    return ['apk', '--version'];
   }
 }

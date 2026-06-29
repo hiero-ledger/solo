@@ -8,23 +8,23 @@ import {LinuxPackageManager} from './linux-package-manager.js';
  */
 @injectable()
 export class ZypperPackageManager extends LinuxPackageManager {
-  protected installCommand(dependencies: string[]): string {
-    return `zypper --non-interactive install ${dependencies.join(' ')}`;
+  protected installCommand(dependencies: string[]): string[] {
+    return ['zypper', '--non-interactive', 'install', ...dependencies];
   }
 
-  protected uninstallCommand(dependencies: string[]): string {
-    return `zypper --non-interactive remove ${dependencies.join(' ')}`;
+  protected uninstallCommand(dependencies: string[]): string[] {
+    return ['zypper', '--non-interactive', 'remove', ...dependencies];
   }
 
-  protected updateCommand(): string {
-    return 'zypper --non-interactive refresh';
+  protected updateCommand(): string[] {
+    return ['zypper', '--non-interactive', 'refresh'];
   }
 
-  protected upgradeCommand(dependencies: string[]): string {
-    return `zypper --non-interactive update ${dependencies.join(' ')}`;
+  protected upgradeCommand(dependencies: string[]): string[] {
+    return ['zypper', '--non-interactive', 'update', ...dependencies];
   }
 
-  protected versionCommand(): string {
-    return 'zypper --version';
+  protected versionCommand(): string[] {
+    return ['zypper', '--version'];
   }
 }

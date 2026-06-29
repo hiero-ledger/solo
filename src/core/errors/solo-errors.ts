@@ -38,6 +38,7 @@ import {BlockNodeConfigFailedSoloError} from './classes/component/block-node-con
 import {BlockNodeDeleteExternalFailedSoloError} from './classes/component/block-node-delete-external-failed-solo-error.js';
 import {BlockNodeDeployFailedSoloError} from './classes/component/block-node-deploy-failed-solo-error.js';
 import {BlockNodeDestroyFailedSoloError} from './classes/component/block-node-destroy-failed-solo-error.js';
+import {BlockNodeJfrCollectionFailedSoloError} from './classes/component/block-node-jfr-collection-failed-solo-error.js';
 import {BlockNodeHealthCheckFailedSoloError} from './classes/component/block-node-health-check-failed-solo-error.js';
 import {BlockNodeUpgradeFailedSoloError} from './classes/component/block-node-upgrade-failed-solo-error.js';
 import {ChartInstallFailedSoloError} from './classes/component/chart-install-failed-solo-error.js';
@@ -382,6 +383,7 @@ export class SoloErrors {
     readonly blockNodeConfigFailed: typeof BlockNodeConfigFailedSoloError;
     readonly blockNodeDeployFailed: typeof BlockNodeDeployFailedSoloError;
     readonly blockNodeDestroyFailed: typeof BlockNodeDestroyFailedSoloError;
+    readonly blockNodeJfrCollectionFailed: typeof BlockNodeJfrCollectionFailedSoloError;
     readonly blockNodeUpgradeFailed: typeof BlockNodeUpgradeFailedSoloError;
     readonly blockNodeAddExternalFailed: typeof BlockNodeAddExternalFailedSoloError;
     readonly blockNodeDeleteExternalFailed: typeof BlockNodeDeleteExternalFailedSoloError;
@@ -470,6 +472,7 @@ export class SoloErrors {
     blockNodeConfigFailed: BlockNodeConfigFailedSoloError,
     blockNodeDeployFailed: BlockNodeDeployFailedSoloError,
     blockNodeDestroyFailed: BlockNodeDestroyFailedSoloError,
+    blockNodeJfrCollectionFailed: BlockNodeJfrCollectionFailedSoloError,
     blockNodeUpgradeFailed: BlockNodeUpgradeFailedSoloError,
     blockNodeAddExternalFailed: BlockNodeAddExternalFailedSoloError,
     blockNodeDeleteExternalFailed: BlockNodeDeleteExternalFailedSoloError,

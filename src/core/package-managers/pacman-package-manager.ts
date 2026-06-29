@@ -8,23 +8,23 @@ import {LinuxPackageManager} from './linux-package-manager.js';
  */
 @injectable()
 export class PacmanPackageManager extends LinuxPackageManager {
-  protected installCommand(dependencies: string[]): string {
-    return `pacman -S --noconfirm ${dependencies.join(' ')}`;
+  protected installCommand(dependencies: string[]): string[] {
+    return ['pacman', '-S', '--noconfirm', ...dependencies];
   }
 
-  protected uninstallCommand(dependencies: string[]): string {
-    return `pacman -R --noconfirm ${dependencies.join(' ')}`;
+  protected uninstallCommand(dependencies: string[]): string[] {
+    return ['pacman', '-R', '--noconfirm', ...dependencies];
   }
 
-  protected updateCommand(): string {
-    return 'pacman -Sy --noconfirm';
+  protected updateCommand(): string[] {
+    return ['pacman', '-Sy', '--noconfirm'];
   }
 
-  protected upgradeCommand(dependencies: string[]): string {
-    return `pacman -S --noconfirm ${dependencies.join(' ')}`;
+  protected upgradeCommand(dependencies: string[]): string[] {
+    return ['pacman', '-S', '--noconfirm', ...dependencies];
   }
 
-  protected versionCommand(): string {
-    return 'pacman --version';
+  protected versionCommand(): string[] {
+    return ['pacman', '--version'];
   }
 }
