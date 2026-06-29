@@ -15,11 +15,7 @@ import * as constants from '../../core/constants.js';
 import {LoadImageArchiveOptionsBuilder} from '../kind/model/load-image-archive/load-image-archive-options-builder.js';
 import {LoadImageArchiveOptions} from '../kind/model/load-image-archive/load-image-archive-options.js';
 import {Architecture} from '../../business/utils/architecture.js';
-
-type ContainerEngineCommand = {
-  readonly executable: string;
-  readonly argumentsPrefix: readonly string[];
-};
+import {type ContainerEngineCommand} from './container-engine-command.js';
 
 @injectable()
 export class DockerClient implements ContainerEngineClient {
