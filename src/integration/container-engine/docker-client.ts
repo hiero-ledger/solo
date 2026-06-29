@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import {inject, injectable} from 'tsyringe-neo';
 import {ContainerEngineClient} from './container-engine-client.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
@@ -16,6 +15,7 @@ import {LoadImageArchiveOptionsBuilder} from '../kind/model/load-image-archive/l
 import {LoadImageArchiveOptions} from '../kind/model/load-image-archive/load-image-archive-options.js';
 import {Architecture} from '../../business/utils/architecture.js';
 import {type ContainerEngineCommand} from './container-engine-command.js';
+import {PathEx} from '../../business/utils/path-ex.js';
 
 @injectable()
 export class DockerClient implements ContainerEngineClient {
@@ -46,7 +46,7 @@ export class DockerClient implements ContainerEngineClient {
   }
 
   public async saveImage(image: string, archivePath: string): Promise<void> {
-    await fs.mkdir(path.dirname(archivePath), {recursive: true});
+    await fs.mkdir(PathEx.dirname(archivePath), {recursive: true});
 
     const platform: string = Architecture.getLinuxPlatform();
     const craneExecutable: string = await this.dependencyManager.getExecutable(constants.CRANE);
@@ -115,7 +115,7 @@ export class DockerClient implements ContainerEngineClient {
       return podmanCommand;
     }
 
-    if (process.env.KIND_EXPERIMENTAL_PROVIDER === constants.PODMAN) {
+    if (constants.getEnvironmentVariable('KIND_EXPERIMENTAL_PROVIDER') === constants.PODMAN) {
       return {
         executable: constants.PODMAN,
         argumentsPrefix: [],
@@ -135,7 +135,7 @@ export class DockerClient implements ContainerEngineClient {
     engineCommand: ContainerEngineCommand,
   ): Promise<void> {
     const kindArguments: string[] = ['load', 'image-archive', archivePath, '--name', clusterName];
-    const pathEnvironment: string = `${path.dirname(kindExecutable)}${path.delimiter}${process.env.PATH}`;
+    const pathEnvironment: string = `${PathEx.dirname(kindExecutable)}${PathEx.delimiter}${process.env.PATH}`;
 
     if (DockerClient.isSudoPodmanCommand(engineCommand)) {
       await this.shellRunner.run('sudo', [
@@ -194,6 +194,7 @@ export class DockerClient implements ContainerEngineClient {
       });
       return true;
     } catch {
+      // best-effort probe: fall back to the next supported container engine when this one cannot see the kind node
       return false;
     }
   }
