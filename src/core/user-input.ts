@@ -33,14 +33,17 @@ export class UserInput {
       return input;
     }
     let result: string = input.replaceAll('\0', '');
-    // Remove parent-directory traversal: ../, ..\, and the encoded variants %2e%2e%2f, ..%2f, etc.
-    // Apply repeatedly until stable so removed segments cannot re-form dangerous patterns.
-    let previous: string;
-    do {
-      previous = result;
-      result = result.replaceAll(/\.\.[/\\]/g, '');
-      result = result.replaceAll(/%2e%2e(?:%2f|%5c|[/\\])|\.\.(?:%2f|%5c)/gi, '');
-    } while (result !== previous);
+    // Remove parent-directory traversal: ../, ..\, and the URL-encoded variants
+    // (%2e%2e%2f, ..%2f, ..%5c, etc.). The `while (test) { replace }` shape is the
+    // canonical fixed-point sanitization pattern CodeQL's
+    // `js/incomplete-multi-character-sanitization` rule recognizes — repeatedly
+    // stripping until no traversal pattern remains, which closes overlap bypasses
+    // like `....//` that single-pass replace would leave as `../`.
+    const traversalPattern: RegExp = /\.\.[/\\]|%2e%2e(?:%2f|%5c|[/\\])|\.\.(?:%2f|%5c)/i;
+    const traversalPatternGlobal: RegExp = /\.\.[/\\]|%2e%2e(?:%2f|%5c|[/\\])|\.\.(?:%2f|%5c)/gi;
+    while (traversalPattern.test(result)) {
+      result = result.replaceAll(traversalPatternGlobal, '');
+    }
     // Remove leading single-dot prefixes that resolve relative to CWD when concatenated.
     result = result.replace(/^\.[/\\]+/, '');
     return result;
