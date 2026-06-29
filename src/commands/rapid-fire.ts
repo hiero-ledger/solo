@@ -17,8 +17,8 @@ import {
 } from '../types/index.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type Lock} from '../core/lock/lock.js';
-import {type NamespaceName} from '../types/namespace/namespace-name.js';
-import {injectable} from 'tsyringe-neo';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {inject, injectable} from 'tsyringe-neo';
 import {
   MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR,
   NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72,
@@ -35,6 +35,22 @@ import {PassThrough} from 'node:stream';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import fs from 'node:fs';
 import {PathEx} from '../business/utils/path-ex.js';
+import {sleep} from '../core/helpers.js';
+import {Duration} from '../core/time/duration.js';
+import {PortUtilities} from '../business/utils/port-utilities.js';
+import {type AccountManager} from '../core/account-manager.js';
+import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../core/dependency-injection/container-helper.js';
+import {
+  Hbar,
+  Status,
+  TransferTransaction,
+  type AccountId,
+  type Client,
+  type TransactionId,
+  type TransactionReceipt,
+  type TransactionResponse,
+} from '@hiero-ledger/sdk';
 
 interface RapidFireStartConfigClass {
   clusterRef: ClusterReferenceName;
@@ -51,6 +67,11 @@ interface RapidFireStartConfigClass {
   packageName: string;
   maxTps: number;
   maxRtt: number;
+  mirrorNamespace?: string;
+  rttSampleCount: number;
+  rttSampleInterval: number;
+  rttWarmupSeconds: number;
+  rttPollTimeout: number;
 }
 
 interface RapidFireStopConfigClass {
@@ -84,6 +105,26 @@ interface NlgResult {
   hint?: string;
 }
 
+interface MirrorTransactionResponse {
+  transactions?: {transaction_id?: string}[];
+}
+
+interface RttSample {
+  transactionId: string;
+  submitToReceiptMilliseconds: number;
+  receiptToMirrorMilliseconds: number;
+  endToEndMilliseconds: number;
+}
+
+interface RttProbeResult {
+  samples: RttSample[];
+  minMilliseconds: number;
+  p50Milliseconds: number;
+  p95Milliseconds: number;
+  p99Milliseconds: number;
+  maxMilliseconds: number;
+}
+
 export enum NLGTestClass {
   HCSLoadTest = 'HCSLoadTest',
   CryptoTransferLoadTest = 'CryptoTransferLoadTest',
@@ -96,8 +137,10 @@ export enum NLGTestClass {
 
 @injectable()
 export class RapidFireCommand extends BaseCommand {
-  public constructor() {
+  public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager?: AccountManager) {
     super();
+
+    this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
   private static readonly CRYPTO_TRANSFER_START_CONFIG_NAME: string = 'cryptoTransferStartConfig';
@@ -114,6 +157,11 @@ export class RapidFireCommand extends BaseCommand {
       flags.packageName,
       flags.maxTps,
       flags.maxRtt,
+      flags.mirrorNamespace,
+      flags.rttSampleCount,
+      flags.rttSampleInterval,
+      flags.rttWarmupSeconds,
+      flags.rttPollTimeout,
     ],
   };
 
@@ -228,6 +276,198 @@ export class RapidFireCommand extends BaseCommand {
     };
   }
 
+  private static assertPositiveInteger(value: number, flagName: string): void {
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new SoloErrors.validation.illegalArgument(`${flagName} must be a positive integer`, value);
+    }
+  }
+
+  private static mirrorTransactionId(transactionId: TransactionId): string {
+    const seconds: string = transactionId.validStart.seconds.toString();
+    const nanoseconds: string = transactionId.validStart.nanos.toString().padStart(9, '0');
+    return `${transactionId.accountId.toString()}-${seconds}-${nanoseconds}`;
+  }
+
+  private static percentile(sortedValues: number[], percentile: number): number {
+    const index: number = Math.min(
+      sortedValues.length - 1,
+      Math.max(0, Math.ceil((percentile / 100) * sortedValues.length) - 1),
+    );
+    return sortedValues[index];
+  }
+
+  private static summarizeRttSamples(samples: RttSample[]): RttProbeResult {
+    const sortedValues: number[] = samples
+      .map((sample: RttSample): number => sample.endToEndMilliseconds)
+      // eslint-disable-next-line unicorn/no-array-sort
+      .sort((left: number, right: number): number => left - right);
+
+    return {
+      samples,
+      minMilliseconds: sortedValues[0],
+      p50Milliseconds: RapidFireCommand.percentile(sortedValues, 50),
+      p95Milliseconds: RapidFireCommand.percentile(sortedValues, 95),
+      p99Milliseconds: RapidFireCommand.percentile(sortedValues, 99),
+      maxMilliseconds: sortedValues.at(-1),
+    };
+  }
+
+  private static async mirrorTransactionIsAvailable(port: number, mirrorTransactionId: string): Promise<boolean> {
+    const url: string = `http://localhost:${port}/api/v1/transactions/${mirrorTransactionId}`;
+    try {
+      const response: Response = await fetch(url, {
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const responseBody: MirrorTransactionResponse = (await response.json()) as MirrorTransactionResponse;
+      return !!responseBody.transactions?.some(
+        (transaction: {transaction_id?: string}): boolean => transaction.transaction_id === mirrorTransactionId,
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private async waitForMirrorTransaction(
+    port: number,
+    mirrorTransactionId: string,
+    timeoutMilliseconds: number,
+  ): Promise<void> {
+    const startedAt: number = performance.now();
+    while (performance.now() - startedAt <= timeoutMilliseconds) {
+      if (await RapidFireCommand.mirrorTransactionIsAvailable(port, mirrorTransactionId)) {
+        return;
+      }
+      await sleep(Duration.ofMillis(100));
+    }
+
+    throw new Error(
+      `Timed out after ${timeoutMilliseconds} ms waiting for transaction ${mirrorTransactionId} in mirror node`,
+    );
+  }
+
+  private async forwardMirrorRestPort(
+    config: RapidFireStartConfigClass,
+  ): Promise<{port: number; portForwarder: number}> {
+    const mirrorNamespace: NamespaceName = NamespaceName.of(config.mirrorNamespace || config.namespace.name);
+    if (!(await PortUtilities.isPortAvailable(constants.MIRROR_NODE_PORT))) {
+      return {port: constants.MIRROR_NODE_PORT, portForwarder: 0};
+    }
+
+    const ingressPods: Pod[] = await this.k8Factory
+      .getK8(config.context)
+      .pods()
+      .list(mirrorNamespace, [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]);
+    const mirrorIngressPod: Pod | undefined =
+      ingressPods.find((pod: Pod): boolean =>
+        pod.podReference.name.name.startsWith(constants.MIRROR_INGRESS_CONTROLLER),
+      ) ?? ingressPods[0];
+
+    if (!mirrorIngressPod) {
+      throw new Error(`No mirror ingress pod found in namespace ${mirrorNamespace.name}`);
+    }
+
+    const portForwarder: number = await this.k8Factory
+      .getK8(config.context)
+      .pods()
+      .readByReference(mirrorIngressPod.podReference)
+      .portForward(constants.MIRROR_NODE_PORT, 80, true);
+    await sleep(Duration.ofSeconds(2));
+
+    return {port: constants.MIRROR_NODE_PORT, portForwarder};
+  }
+
+  private async stopMirrorRestPortForward(config: RapidFireStartConfigClass, portForwarder: number): Promise<void> {
+    if (portForwarder) {
+      // eslint-disable-next-line unicorn/no-null
+      await this.k8Factory.getK8(config.context).pods().readByReference(null).stopPortForward(portForwarder);
+    }
+  }
+
+  private async measureTransactionRtt(
+    client: Client,
+    config: RapidFireStartConfigClass,
+    mirrorPort: number,
+  ): Promise<RttSample> {
+    const operatorAccountId: AccountId = this.accountManager.getTreasuryAccountId(config.deployment);
+    const recipientAccountId: AccountId = this.accountManager.getAccountIdByNumber(config.deployment, 3);
+    const startMilliseconds: number = performance.now();
+    const transactionResponse: TransactionResponse = await new TransferTransaction()
+      .addHbarTransfer(operatorAccountId, Hbar.fromTinybars(-1))
+      .addHbarTransfer(recipientAccountId, Hbar.fromTinybars(1))
+      .execute(client);
+    const receipt: TransactionReceipt = await transactionResponse.getReceipt(client);
+    const receiptMilliseconds: number = performance.now();
+
+    if (receipt.status !== Status.Success) {
+      throw new Error(
+        `RTT probe transaction ${transactionResponse.transactionId.toString()} failed: ${receipt.status}`,
+      );
+    }
+
+    const mirrorTransactionId: string = RapidFireCommand.mirrorTransactionId(transactionResponse.transactionId);
+    await this.waitForMirrorTransaction(mirrorPort, mirrorTransactionId, config.rttPollTimeout);
+    const mirrorMilliseconds: number = performance.now();
+
+    return {
+      transactionId: mirrorTransactionId,
+      submitToReceiptMilliseconds: Math.round(receiptMilliseconds - startMilliseconds),
+      receiptToMirrorMilliseconds: Math.round(mirrorMilliseconds - receiptMilliseconds),
+      endToEndMilliseconds: Math.round(mirrorMilliseconds - startMilliseconds),
+    };
+  }
+
+  private async measureRttDuringLoad(config: RapidFireStartConfigClass): Promise<RttProbeResult> {
+    RapidFireCommand.assertPositiveInteger(config.rttSampleCount, flags.rttSampleCount.name);
+    RapidFireCommand.assertPositiveInteger(config.rttSampleInterval, flags.rttSampleInterval.name);
+    RapidFireCommand.assertPositiveInteger(config.rttPollTimeout, flags.rttPollTimeout.name);
+    if (!Number.isInteger(config.rttWarmupSeconds) || config.rttWarmupSeconds < 0) {
+      throw new SoloErrors.validation.illegalArgument(
+        `${flags.rttWarmupSeconds.name} must be a non-negative integer`,
+        config.rttWarmupSeconds,
+      );
+    }
+
+    await sleep(Duration.ofSeconds(config.rttWarmupSeconds));
+    const {port, portForwarder}: {port: number; portForwarder: number} = await this.forwardMirrorRestPort(config);
+    const samples: RttSample[] = [];
+
+    try {
+      const client: Client = await this.accountManager.loadNodeClient(
+        config.namespace,
+        this.remoteConfig.getClusterRefs(),
+        config.deployment,
+        true,
+      );
+
+      for (let index: number = 0; index < config.rttSampleCount; index++) {
+        samples.push(await this.measureTransactionRtt(client, config, port));
+        if (index < config.rttSampleCount - 1) {
+          await sleep(Duration.ofMillis(config.rttSampleInterval));
+        }
+      }
+    } finally {
+      await this.stopMirrorRestPortForward(config, portForwarder);
+      await this.accountManager.close();
+    }
+
+    const result: RttProbeResult = RapidFireCommand.summarizeRttSamples(samples);
+    if (result.maxMilliseconds > config.maxRtt) {
+      throw new Error(`RTT probe max ${result.maxMilliseconds} ms exceeded configured maximum ${config.maxRtt} ms`);
+    }
+
+    return result;
+  }
+
   private startLoadTest(leaseReference: {lease?: Lock}): SoloListrTask<RapidFireStartContext> {
     return {
       title: 'Start performance load test',
@@ -266,9 +506,21 @@ export class RapidFireCommand extends BaseCommand {
           });
 
           let execError: Error | undefined;
+          let rttProbeError: Error | undefined;
+          let rttProbeResult: RttProbeResult | undefined;
+          let rttProbePromise: Promise<void> | undefined;
           try {
             if (!this.oneShotState.isActive()) {
               await leaseReference.lease?.release();
+            }
+            if (context_.config.maxRtt > 0) {
+              rttProbePromise = this.measureRttDuringLoad(context_.config)
+                .then((result: RttProbeResult): void => {
+                  rttProbeResult = result;
+                })
+                .catch((error: unknown): void => {
+                  rttProbeError = error instanceof Error ? error : new Error(String(error));
+                });
             }
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
             const consensusNodeVersion: string = this.remoteConfig.configuration.versions.consensusNode.toString();
@@ -295,8 +547,26 @@ export class RapidFireCommand extends BaseCommand {
             stdoutText + stderrText,
             testClass,
             performanceTest,
-            context_.config.maxRtt,
           );
+          if (rttProbePromise) {
+            await rttProbePromise;
+          }
+
+          if (rttProbeError) {
+            const diagnosticsFilePath: string = await this.collectFailureDiagnostics(
+              context_.config.context,
+              context_.config.namespace,
+              testClass,
+              stdoutText,
+              stderrText,
+              result,
+              rttProbeError,
+            );
+            throw new SoloErrors.component.rapidFireExecutionFailed(
+              `RTT probe failed: ${rttProbeError.message}\nFull output and cluster diagnostics written to ${diagnosticsFilePath}`,
+              rttProbeError,
+            );
+          }
 
           if (execError || result.status !== 'success') {
             const diagnosticsFilePath: string = await this.collectFailureDiagnostics(
@@ -320,6 +590,15 @@ export class RapidFireCommand extends BaseCommand {
               `${testClass}: TPS ${result.tps} (${result.transactionCount} transactions in ${result.durationSeconds} sec)${rttMessage}`,
             ),
           );
+          if (rttProbeResult) {
+            this.logger.showUser(
+              chalk.green(
+                `${testClass}: end-to-end mirror RTT max ${rttProbeResult.maxMilliseconds} ms ` +
+                  `(p50 ${rttProbeResult.p50Milliseconds} ms, p95 ${rttProbeResult.p95Milliseconds} ms, ` +
+                  `${rttProbeResult.samples.length} samples)`,
+              ),
+            );
+          }
         }
       },
     };

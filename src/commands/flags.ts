@@ -2956,6 +2956,50 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly rttSampleCount: CommandFlag = {
+    constName: 'rttSampleCount',
+    name: 'rtt-sample-count',
+    definition: {
+      describe: 'The number of synthetic transactions to submit for end-to-end RTT measurement',
+      type: 'number',
+      defaultValue: 5,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly rttSampleInterval: CommandFlag = {
+    constName: 'rttSampleInterval',
+    name: 'rtt-sample-interval',
+    definition: {
+      describe: 'Delay between synthetic RTT measurement transactions, in milliseconds',
+      type: 'number',
+      defaultValue: 1000,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly rttWarmupSeconds: CommandFlag = {
+    constName: 'rttWarmupSeconds',
+    name: 'rtt-warmup-seconds',
+    definition: {
+      describe: 'Delay before starting synthetic RTT measurement after NLG starts',
+      type: 'number',
+      defaultValue: 30,
+    },
+    prompt: undefined,
+  };
+
+  public static readonly rttPollTimeout: CommandFlag = {
+    constName: 'rttPollTimeout',
+    name: 'rtt-poll-timeout',
+    definition: {
+      describe: 'Maximum time to wait for each synthetic transaction to appear in mirror node, in milliseconds',
+      type: 'number',
+      defaultValue: 30_000,
+    },
+    prompt: undefined,
+  };
+
   public static readonly performanceTest: CommandFlag = {
     constName: 'performanceTest',
     name: 'test',
@@ -3290,6 +3334,10 @@ export class Flags {
     Flags.zipFile,
     Flags.maxTps,
     Flags.maxRtt,
+    Flags.rttSampleCount,
+    Flags.rttSampleInterval,
+    Flags.rttWarmupSeconds,
+    Flags.rttPollTimeout,
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
