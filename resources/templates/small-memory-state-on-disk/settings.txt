@@ -2,3 +2,14 @@
                                           #          MerkleDb         #
                                           #############################
 merkleDb.useDiskIndices,                       true
+
+                                          #############################
+                                          #    Low-Latency Solo RTT   #
+                                          #############################
+state.saveStatePeriod,                         600
+event.creation.maxCreationRate,                100
+sync.rpcSleepAfterSync,                        1ms
+sync.rpcIdleWritePollTimeout,                  1ms
+sync.rpcIdleDispatchPollTimeout,               1ms
+sync.syncKeepalivePeriod,                      100ms
+platformStatus.observingStatusDelay,           1ms

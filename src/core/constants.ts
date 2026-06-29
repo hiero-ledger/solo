@@ -22,11 +22,13 @@ export const SOLO_SILENT_MODE: boolean = getEnvironmentVariable('SOLO_SILENT_MOD
 
 // eslint-disable-next-line solo/no-exported-function
 export function getEnvironmentVariable(name: string): string | undefined {
-  if (process.env[name] && process.env[name].trim() !== '') {
+  const value: string | undefined = process.env[name];
+
+  if (value && value.trim() !== '') {
     if (!(process.env.SOLO_SILENT_MODE === 'true')) {
-      console.log(`>> environment variable '${name}' exists, using its value`);
+      console.log(`>> environment variable '${name}' exists, using value '${value}'`);
     }
-    return process.env[name];
+    return value;
   }
   return undefined;
 }
