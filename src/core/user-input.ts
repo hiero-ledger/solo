@@ -34,8 +34,13 @@ export class UserInput {
     }
     let result: string = input.replaceAll('\0', '');
     // Remove parent-directory traversal: ../, ..\, and the encoded variants %2e%2e%2f, ..%2f, etc.
-    result = result.replaceAll(/\.\.[/\\]/g, '');
-    result = result.replaceAll(/%2e%2e(?:%2f|%5c|[/\\])|\.\.(?:%2f|%5c)/gi, '');
+    // Apply repeatedly until stable so removed segments cannot re-form dangerous patterns.
+    let previous: string;
+    do {
+      previous = result;
+      result = result.replaceAll(/\.\.[/\\]/g, '');
+      result = result.replaceAll(/%2e%2e(?:%2f|%5c|[/\\])|\.\.(?:%2f|%5c)/gi, '');
+    } while (result !== previous);
     // Remove leading single-dot prefixes that resolve relative to CWD when concatenated.
     result = result.replace(/^\.[/\\]+/, '');
     return result;
