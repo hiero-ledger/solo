@@ -366,8 +366,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
           ): Promise<void> => {
             // Destroying prior installs always requires explicit confirmation. Quiet/force run
-            // non-interactively and cannot present the prompt, so we refuse rather than silently
-            // wipe an existing deployment.
+            // non-interactively and cannot present the prompt
             if (context_.config.quiet === true || context_.config.force === true) {
               throw new ConfirmationRequiredSoloError(
                 'cleaning up the existing one-shot deployment',

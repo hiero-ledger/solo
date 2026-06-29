@@ -17,19 +17,12 @@ import {EndToEndTestSuiteBuilder} from '../end-to-end-test-suite-builder.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 import {type BaseTestOptions} from './tests/base-test-options.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
-import {OneShotIdempotencyLogCapture} from './tests/one-shot-idempotency-log-capture.js';
 import {main} from '../../../src/index.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
 import {Flags} from '../../../src/commands/flags.js';
 
-// SOLO_FAIL_AFTER_STEP titles matching OrchestratorPipelinePhase titles in
-// `DefaultOneShotDeployOrchestrator`. Injecting a failure after these phases lets us leave the
-// deployment in a known partial state and then assert that a re-run resumes from the right place.
-// const FAIL_AFTER_CONSENSUS_DEPLOY: string = 'Deploy consensus node';
-// const FAIL_AFTER_NETWORK_NODE: string = 'Deploy network node';
-
 const testName: string = 'one-shot-idempotency';
-const testTitle: string = 'One Shot Idempotency Re-run Scenarios E2E Test';
+const testTitle: string = 'One Shot Re-run Scenarios E2E Test';
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
@@ -42,17 +35,15 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
 
       /**
-       * Resets host and cluster to a clean slate so the next deploy behaves as a fresh install,
-       * leaving every idempotency guard inactive.
+       * Resets host and cluster to a clean slate so the first deploy behaves as a fresh install.
        *
        * Tears down any existing deployment with `one-shot single destroy` first — this is the only
-       * thing that removes the cluster-scoped state a prior scenario leaves behind (the
-       * `pod-monitor-role` ClusterRole, the metrics-server, and the cluster-setup Helm release),
-       * which deleting the namespace alone does not. Then it removes the on-disk state (local/remote
-       * config cache, generated consensus keys, and the one-shot output directory that holds
-       * `accounts.json`) so keys and accounts are regenerated. Finally it deletes the namespace and
-       * the `pod-monitor-role` RBAC resources directly, as a fallback for a first run (or an aborted
-       * prior run) where destroy has no deployment to act on.
+       * thing that removes the cluster-scoped state a prior run leaves behind (the `pod-monitor-role`
+       * ClusterRole, the metrics-server, and the cluster-setup Helm release), which deleting the
+       * namespace alone does not. Then it removes the on-disk state (local/remote config cache,
+       * generated consensus keys, and the one-shot output directory that holds `accounts.json`).
+       * Finally it deletes the namespace and the `pod-monitor-role` RBAC resources directly, as a
+       * fallback for a first run (or an aborted prior run) where destroy has no deployment to act on.
        */
       async function cleanStart(): Promise<void> {
         if (!fs.existsSync(testCacheDirectory)) {
@@ -98,38 +89,15 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         }
       }
 
-      /**
-       * Runs `one-shot single deploy`, capturing the `solo.log` text produced by this run and
-       * returning the number of idempotency guards that fired (skipped steps). When
-       * {@link failAfterStep} is provided, the SOLO_FAIL_AFTER_STEP hook injects a failure after
-       * that phase so the deploy rejects mid-pipeline.
-       */
-      async function runDeploy(failAfterStep?: string): Promise<{skippedSteps: number; logContent: string}> {
-        const logOffset: number = OneShotIdempotencyLogCapture.mark();
-        if (failAfterStep) {
-          process.env.SOLO_FAIL_AFTER_STEP = failAfterStep;
+      async function namespaceExists(): Promise<boolean> {
+        for (const item of contexts) {
+          const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
+          if (await k8Client.namespaces().has(namespace)) {
+            return true;
+          }
         }
-        try {
-          await main(soloOneShotDeploy(testName, deployment));
-        } finally {
-          delete process.env.SOLO_FAIL_AFTER_STEP;
-        }
-        const logContent: string = OneShotIdempotencyLogCapture.readSince(logOffset);
-        return {skippedSteps: OneShotIdempotencyLogCapture.countSkippedSteps(logContent), logContent};
+        return false;
       }
-
-      // async function expectDeployToFailAfter(failAfterStep: string): Promise<void> {
-      //   const logOffset: number = OneShotIdempotencyLogCapture.mark();
-      //   process.env.SOLO_FAIL_AFTER_STEP = failAfterStep;
-      //   try {
-      //     await expect(main(soloOneShotDeploy(testName, deployment))).to.be.rejectedWith(/Injected failure/i);
-      //   } finally {
-      //     delete process.env.SOLO_FAIL_AFTER_STEP;
-      //   }
-      //   // A fresh deploy that fails partway must not have tripped any idempotency guard.
-      //   const logContent: string = OneShotIdempotencyLogCapture.readSince(logOffset);
-      //   expect(OneShotIdempotencyLogCapture.countSkippedSteps(logContent)).to.equal(0);
-      // }
 
       before(async (): Promise<void> => {
         await cleanStart();
@@ -143,50 +111,33 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         testLogger.info(`${testName}: finished ${testName}: destroy`);
       }).timeout(Duration.ofMinutes(10).toMillis());
 
-      // Scenario 1: Fresh deploy — no prior configuration, every idempotency guard stays inactive.
-      it(`${testName}: scenario 1 - fresh deploy leaves all guards inactive`, async (): Promise<void> => {
-        const {skippedSteps} = await runDeploy();
-        expect(skippedSteps, 'a fresh deploy should not skip any guarded step').to.equal(0);
+      // Scenario 1: Fresh deploy from a clean slate produces a healthy deployment.
+      it(`${testName}: scenario 1 - fresh deploy succeeds`, async (): Promise<void> => {
+        await main(soloOneShotDeploy(testName, deployment));
+        expect(await namespaceExists(), 'a fresh deploy should create the deployment namespace').to.be.true;
       }).timeout(Duration.ofMinutes(30).toMillis());
 
-      // Scenario 2: Re-run after full success — every guard activates and each step is bypassed.
-      it(`${testName}: scenario 2 - re-run after full success skips every guarded step`, async (): Promise<void> => {
-        const {skippedSteps} = await runDeploy();
-        expect(skippedSteps, 're-running a complete deploy should skip every guarded step').to.equal(
-          OneShotIdempotencyLogCapture.SKIP_REASONS.length,
+      // Scenario 2: Re-running over an existing deployment must clean it up first, but the cleanup
+      // always requires interactive confirmation. With --force the prompt cannot be shown, so the
+      // deploy is refused. Combined with --no-rollback, the refusal must not tear the existing
+      // deployment down.
+      it(`${testName}: scenario 2 - forced re-run is refused without destroying the deployment`, async (): Promise<void> => {
+        await expect(main(soloOneShotDeploy(testName, deployment, {force: true, rollback: false}))).to.be.rejectedWith(
+          /Confirmation required/i,
         );
+
+        expect(await namespaceExists(), 'a refused re-run must leave the existing deployment intact').to.be.true;
       }).timeout(Duration.ofMinutes(15).toMillis());
-
-      // TODO: Enable with next phases
-      // Scenario 3: Re-run after a consensus-deploy failure — the early steps are skipped and the
-      // consensus setup/start continue from where the failed run stopped.
-      // it(`${testName}: scenario 3 - re-run after consensus failure resumes setup`, async (): Promise<void> => {
-      //   await cleanStart();
-      //   await expectDeployToFailAfter(FAIL_AFTER_CONSENSUS_DEPLOY);
-      //
-      //   const {skippedSteps} = await runDeploy();
-      //   expect(skippedSteps, 'the re-run should skip the steps completed before the consensus failure').to.equal(
-      //     OneShotIdempotencyLogCapture.SKIP_REASONS.length,
-      //   );
-      // }).timeout(Duration.ofMinutes(45).toMillis());
-
-      // Scenario 4: Re-run after a mirror-add failure — the consensus node persists while the mirror
-      // (and remaining components) deployment proceeds.
-      // it(`${testName}: scenario 4 - re-run after mirror failure keeps consensus and adds mirror`, async (): Promise<void> => {
-      //   await cleanStart();
-      //   await expectDeployToFailAfter(FAIL_AFTER_NETWORK_NODE);
-      //
-      //   const {skippedSteps} = await runDeploy();
-      //   expect(skippedSteps, 'the re-run should skip the steps completed before the mirror failure').to.equal(
-      //     OneShotIdempotencyLogCapture.SKIP_REASONS.length,
-      //   );
-      // }).timeout(Duration.ofMinutes(45).toMillis());
     });
   })
   .build();
 endToEndTestSuite.runTestSuite();
 
-export function soloOneShotDeploy(testName: string, deployment: string): string[] {
+export function soloOneShotDeploy(
+  testName: string,
+  deployment: string,
+  options: {force?: boolean; rollback?: boolean} = {},
+): string[] {
   const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
 
   const argv: string[] = newArgv();
@@ -197,6 +148,12 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
     optionFromFlag(Flags.deployment),
     deployment,
   );
+  if (options.force === true) {
+    argv.push(optionFromFlag(Flags.force));
+  }
+  if (options.rollback === false) {
+    argv.push('--no-rollback');
+  }
   argvPushGlobalFlags(argv, testName);
   return argv;
 }
