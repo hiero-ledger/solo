@@ -43,12 +43,10 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {
   Hbar,
-  Status,
   TransferTransaction,
   type AccountId,
   type Client,
   type TransactionId,
-  type TransactionReceipt,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
 
@@ -111,8 +109,7 @@ interface MirrorTransactionResponse {
 
 interface RttSample {
   transactionId: string;
-  submitToReceiptMilliseconds: number;
-  receiptToMirrorMilliseconds: number;
+  submitToMirrorMilliseconds: number;
   endToEndMilliseconds: number;
 }
 
@@ -405,14 +402,6 @@ export class RapidFireCommand extends BaseCommand {
       .addHbarTransfer(operatorAccountId, Hbar.fromTinybars(-1))
       .addHbarTransfer(recipientAccountId, Hbar.fromTinybars(1))
       .execute(client);
-    const receipt: TransactionReceipt = await transactionResponse.getReceipt(client);
-    const receiptMilliseconds: number = performance.now();
-
-    if (receipt.status !== Status.Success) {
-      throw new Error(
-        `RTT probe transaction ${transactionResponse.transactionId.toString()} failed: ${receipt.status}`,
-      );
-    }
 
     const mirrorTransactionId: string = RapidFireCommand.mirrorTransactionId(transactionResponse.transactionId);
     await this.waitForMirrorTransaction(mirrorPort, mirrorTransactionId, config.rttPollTimeout);
@@ -420,8 +409,7 @@ export class RapidFireCommand extends BaseCommand {
 
     return {
       transactionId: mirrorTransactionId,
-      submitToReceiptMilliseconds: Math.round(receiptMilliseconds - startMilliseconds),
-      receiptToMirrorMilliseconds: Math.round(mirrorMilliseconds - receiptMilliseconds),
+      submitToMirrorMilliseconds: Math.round(mirrorMilliseconds - startMilliseconds),
       endToEndMilliseconds: Math.round(mirrorMilliseconds - startMilliseconds),
     };
   }
