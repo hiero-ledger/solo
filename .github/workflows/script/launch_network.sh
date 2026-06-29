@@ -747,48 +747,10 @@ BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
   --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"
 
-SOURCE_PRE_FREEZE_BLOCK_NUMBER=$(wait_for_mirror_block_progress "source deployment after one-shot" -1 90 2)
+wait_for_mirror_block_progress "source deployment after one-shot" -1 90 2 > /dev/null
 
 echo "::endgroup::"
 
-
-echo "::group::Upgrade Solo"
-npm run solo -- consensus network freeze --deployment "${SOLO_DEPLOYMENT}" --dev
-wait_for_mirror_block_progress "source freeze boundary" "${SOURCE_PRE_FREEZE_BLOCK_NUMBER}" 90 2 > /dev/null
-show_service_ips "${SOLO_NAMESPACE}" "BEFORE network deploy"
-save_cluster_ips "${SOLO_NAMESPACE}"
-
-# using new solo to redeploy solo deployment chart to new version
-npm run solo -- consensus network deploy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --pvcs --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
-
-show_service_ips "${SOLO_NAMESPACE}" "AFTER network deploy"
-restore_cluster_ips "${SOLO_NAMESPACE}" "${NODE1_IP}" "${NODE2_IP}"
-
-npm run solo -- consensus node setup -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" -q --dev
-
-show_service_ips "${SOLO_NAMESPACE}" "AFTER node setup"
-
-# force mirror component restarts to pick up secret/config changes due to solo chart upgrade.
-# deployment naming varies by chart version (e.g. mirror-* vs mirror-1-*), so discover dynamically.
-mirrorComponentDeployments=$(kubectl get deployment -n "${SOLO_NAMESPACE}" -o name | grep -E '^deployment.apps/mirror(-[0-9]+)?-(importer|rest|restjava|web3|grpc|pinger|postgres-pgpool)$' || true)
-if [[ -z "${mirrorComponentDeployments}" ]]; then
-  echo "No mirror component deployments found to restart in namespace ${SOLO_NAMESPACE}"
-else
-  while IFS= read -r deploymentName; do
-    [[ -z "${deploymentName}" ]] && continue
-    kubectl rollout restart "${deploymentName}" -n "${SOLO_NAMESPACE}"
-  done <<< "${mirrorComponentDeployments}"
-fi
-
-npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-collect_restart_boundary_diagnostics "${SOLO_NAMESPACE}"
-
-# Apply preventive reset at the known freeze/restart boundary.
-auto_recover_importer_hash_chain "${SOLO_NAMESPACE}"
-
-npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
-npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
-echo "::endgroup::"
 
 echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
@@ -798,6 +760,9 @@ TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-p
 cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "fees.simpleFeesEnabled" "false"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
@@ -813,6 +778,9 @@ fi
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
 npm run solo -- consensus node restart --deployment "${SOLO_DEPLOYMENT}" -q --dev
+
+npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
+npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
