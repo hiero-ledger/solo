@@ -46,12 +46,16 @@ com.swirlds.platform.system.SystemExitUtils.exitSystem(SystemExitUtils.java:37)
       showUser: sinon.stub().callsFake((message: unknown): void => {
         userMessages.push(String(message));
       }),
+      showUserUnlessOneShot: sinon.stub(),
+      beginDeferredUserOutput: sinon.stub(),
+      flushDeferredUserOutput: sinon.stub(),
       showUserError: sinon.stub(),
       error: sinon.stub(),
       warn: sinon.stub(),
       info: sinon.stub(),
       debug: sinon.stub(),
       showList: sinon.stub(),
+      showListIfNotEmpty: sinon.stub(),
       showJSON: sinon.stub(),
       addMessageGroup: sinon.stub(),
       getMessageGroup: sinon.stub().returns([]),
@@ -182,6 +186,51 @@ events:
     expect(reportText).to.include('message: "Error: ErrImagePull"');
     expect(reportText).to.include('message: "Error: ImagePullBackOff"');
     expect(reportText).to.not.include('Pod not ready/running: network-node1-0');
+  });
+
+  it('includes container termination exit codes in pod readiness findings', (): void => {
+    const describeSample: string = `pod:
+  status:
+    phase: Running
+    conditions:
+      - message: "containers with unready status: [relay]"
+        reason: ContainersNotReady
+        status: "False"
+        type: ContainersReady
+    containerStatuses:
+      - lastState:
+          terminated:
+            exitCode: 137
+            reason: Error
+        name: relay
+        ready: false
+        state:
+          running:
+            startedAt: 2026-06-25T07:42:53.000Z
+containers:
+  relay:
+    Last State: Terminated
+      Reason: Error
+      Exit Code: 137
+    Ready: False
+`;
+
+    const describeDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs', 'kind-solo-e2e');
+    fs.mkdirSync(describeDirectory, {recursive: true});
+    fs.writeFileSync(path.join(describeDirectory, 'relay-1.describe.txt'), describeSample, 'utf8');
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Pod not ready/running: relay-1');
+    expect(reportText).to.include('line 12: exitCode: 137');
+    expect(reportText).to.include('line 23: Exit Code: 137');
+    expect(reportText).to.include('line 13: reason: Error');
+
+    const consoleSummary: string = userMessages.join('\n');
+    expect(consoleSummary).to.include('line 12: exitCode: 137');
+    expect(consoleSummary).to.include('line 23: Exit Code: 137');
   });
 
   it('suppresses known transient postgres migration race errors but keeps other errors', (): void => {

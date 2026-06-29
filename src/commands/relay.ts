@@ -145,12 +145,6 @@ interface InferredData {
   isLegacyChartInstalled: boolean;
 }
 
-const RELAY_OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS: number = 600;
-const RELAY_OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS: number = 1000;
-const RELAY_MIRROR_NODE_STARTUP_MAX_ATTEMPTS: number = 600;
-const RELAY_MIRROR_NODE_STARTUP_RETRY_DELAY_MS: number = 1000;
-const RELAY_STARTUP_PROBE_FAILURE_THRESHOLD: number = 660;
-
 enum RelayCommandType {
   ADD = 'add',
   UPGRADE = 'upgrade',
@@ -161,7 +155,6 @@ enum RelayCommandType {
 export class RelayCommand extends BaseCommand {
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
-
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
@@ -256,17 +249,6 @@ export class RelayCommand extends BaseCommand {
     const chartValues: HelmChartValues = new HelmChartValues()
       .file(constants.RELAY_VALUES_FILE)
       .set('nameOverride', releaseName)
-      .set('ws.enabled', true)
-      .set('relay.config.OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS', RELAY_OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS)
-      .set('relay.config.OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS', RELAY_OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS)
-      .set('relay.config.MIRROR_NODE_STARTUP_MAX_ATTEMPTS', RELAY_MIRROR_NODE_STARTUP_MAX_ATTEMPTS)
-      .set('relay.config.MIRROR_NODE_STARTUP_RETRY_DELAY_MS', RELAY_MIRROR_NODE_STARTUP_RETRY_DELAY_MS)
-      .set('relay.startupProbe.failureThreshold', RELAY_STARTUP_PROBE_FAILURE_THRESHOLD)
-      .set('ws.config.OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS', RELAY_OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS)
-      .set('ws.config.OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS', RELAY_OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS)
-      .set('ws.config.MIRROR_NODE_STARTUP_MAX_ATTEMPTS', RELAY_MIRROR_NODE_STARTUP_MAX_ATTEMPTS)
-      .set('ws.config.MIRROR_NODE_STARTUP_RETRY_DELAY_MS', RELAY_MIRROR_NODE_STARTUP_RETRY_DELAY_MS)
-      .set('ws.startupProbe.failureThreshold', RELAY_STARTUP_PROBE_FAILURE_THRESHOLD)
       .set('relay.config.MIRROR_NODE_URL', mirrorNodeUrl)
       .set('relay.config.MIRROR_NODE_URL_WEB3', mirrorNodeWeb3Url)
       .set('ws.config.MIRROR_NODE_URL', mirrorNodeUrl);
@@ -291,6 +273,10 @@ export class RelayCommand extends BaseCommand {
         .set('ws.image.repository', parsedImageReference.repository)
         .set('relay.image.tag', parsedImageReference.tag)
         .set('ws.image.tag', parsedImageReference.tag);
+
+      if (this.isLocalImageAvailableInDocker(componentImage)) {
+        chartValues.set('relay.image.pullPolicy', 'Never').set('ws.image.pullPolicy', 'Never');
+      }
     }
 
     if (replicaCount) {
@@ -439,6 +425,10 @@ export class RelayCommand extends BaseCommand {
     return {
       title: 'Deploy JSON RPC Relay',
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
+          await this.kindLoadComponentImage(config.componentImage, config.context);
+        }
+
         await this.chartManager.upgrade(
           config.namespace,
           config.releaseName,
@@ -449,6 +439,8 @@ export class RelayCommand extends BaseCommand {
           config.context,
           commandType !== RelayCommandType.ADD,
           commandType === RelayCommandType.ADD,
+          false,
+          Boolean(config.relayChartDirectory),
         );
 
         showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
@@ -877,10 +869,15 @@ export class RelayCommand extends BaseCommand {
           task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
-            this.logger.showList(
-              'Destroyed Relays',
-              await this.chartManager.getInstalledCharts(config.namespace, config.context),
+            const destroyedRelays: string[] = await this.chartManager.getInstalledCharts(
+              config.namespace,
+              config.context,
             );
+            if (this.oneShotState.isActive()) {
+              this.logger.showListIfNotEmpty('Destroyed Relays', destroyedRelays);
+            } else {
+              this.logger.showList('Destroyed Relays', destroyedRelays);
+            }
 
             // reset nodeAliasesUnparsed
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');

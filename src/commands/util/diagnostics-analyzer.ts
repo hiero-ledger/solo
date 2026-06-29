@@ -267,7 +267,8 @@ export class DiagnosticsAnalyzer {
       for (const [index, finding] of findings.slice(0, 10).entries()) {
         this.logger.showUser(`${index + 1}. ${finding.title} [${finding.source}]`);
         if (finding.evidence.length > 0) {
-          const maxEvidenceLines: number = finding.category === 'log-exception' ? 8 : 4;
+          const maxEvidenceLines: number =
+            finding.category === 'log-exception' || finding.category === 'pod-readiness' ? 8 : 4;
           for (const evidenceLine of finding.evidence.slice(0, maxEvidenceLines)) {
             this.logger.showUser(`   - ${evidenceLine}`);
           }
@@ -362,8 +363,8 @@ export class DiagnosticsAnalyzer {
       //                                            "ready: false"
       //
       // Both are matched so the check is format-agnostic.
-      // Reason: / Message: / reason: / message: lines (case-insensitive) are
-      // captured for additional context.
+      // Reason: / Message: / Exit Code: / reason: / message: / exitCode:
+      // lines are captured for additional context.
       const statusMatch: RegExpMatchArray = content.match(/^\s*(?:Status|phase):\s+([^\n]+)/m);
       const status: string = statusMatch?.[1]?.trim().replaceAll(/^"|"$/g, '') ?? '';
       const readyFalse: boolean = /^\s*[Rr]eady:\s+[Ff]alse\b/m.test(content);
@@ -375,7 +376,9 @@ export class DiagnosticsAnalyzer {
         if (readyFalse) {
           evidence.push('Ready: False');
         }
-        evidence.push(...this.extractMatchSnippetsJoiningContinuations(content, /^\s*(Reason|Message):\s+/i, 8));
+        evidence.push(
+          ...this.extractMatchSnippetsJoiningContinuations(content, /^\s*(Reason|Message|Exit Code|exitCode):\s+/i, 8),
+        );
 
         this.addDiagnosticsFinding(findings, {
           category: 'pod-readiness',

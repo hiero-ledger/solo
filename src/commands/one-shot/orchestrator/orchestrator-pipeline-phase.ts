@@ -34,6 +34,7 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
     private readonly exitOnError: boolean = true,
     private readonly rendererOptions?: object,
     private readonly skipFunction?: (getConfig: () => TConfig) => boolean,
+    private readonly collapseChildren: boolean | ((getConfig: () => TConfig) => boolean) = false,
   ) {}
 
   public static composite<TConfig extends {deployment: string}, TContext>(
@@ -44,6 +45,7 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
     exitOnError: boolean = true,
     rendererOptions?: object,
     skipFunction?: (getConfig: () => TConfig) => boolean,
+    collapseChildren: boolean | ((getConfig: () => TConfig) => boolean) = false,
   ): OrchestratorPipelinePhase<TConfig, TContext> {
     return new OrchestratorPipelinePhase<TConfig, TContext>(
       title,
@@ -53,6 +55,7 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
       exitOnError,
       rendererOptions,
       skipFunction,
+      collapseChildren,
     );
   }
 
@@ -81,10 +84,15 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
           if (shouldInjectFailure) {
             subTasks.push(this.buildFailureInjectionTask());
           }
+
+          const shouldCollapseChildren: boolean =
+            typeof this.collapseChildren === 'function' ? this.collapseChildren(getConfig) : this.collapseChildren;
+          const collapsedRendererOptions: object = shouldCollapseChildren ? {showSubtasks: false} : {};
+          const mergedRendererOptions: object = {...this.rendererOptions, ...collapsedRendererOptions};
           return task.newListr(subTasks, {
             concurrent: isConcurrent,
             exitOnError: this.exitOnError,
-            ...(this.rendererOptions ? {rendererOptions: this.rendererOptions} : {}),
+            ...(Object.keys(mergedRendererOptions).length > 0 ? {rendererOptions: mergedRendererOptions} : {}),
           });
         },
       };

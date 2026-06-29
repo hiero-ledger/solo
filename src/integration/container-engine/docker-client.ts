@@ -36,16 +36,11 @@ export class DockerClient implements ContainerEngineClient {
   public async pullImage(image: string): Promise<void> {
     const platform: string = Architecture.getLinuxPlatform();
 
-    await this.shellRunner.run(
-      'docker',
-      ['pull', '--platform', platform, image],
-      true,
-      false,
-      {},
-      DockerClient.IMAGE_PULL_TIMEOUT_MS,
-      true,
-      DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
-    );
+    await this.shellRunner.run('docker', ['pull', '--platform', platform, image], {
+      verbose: true,
+      timeoutMs: DockerClient.IMAGE_PULL_TIMEOUT_MS,
+      idleTimeoutMs: DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
+    });
   }
 
   public async saveImage(image: string, archivePath: string): Promise<void> {
@@ -54,16 +49,11 @@ export class DockerClient implements ContainerEngineClient {
     const platform: string = Architecture.getLinuxPlatform();
     const craneExecutable: string = await this.dependencyManager.getExecutable(constants.CRANE);
 
-    await this.shellRunner.run(
-      craneExecutable,
-      ['pull', '--platform', platform, image, archivePath],
-      true,
-      false,
-      {},
-      DockerClient.IMAGE_PULL_TIMEOUT_MS,
-      true,
-      DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
-    );
+    await this.shellRunner.run(craneExecutable, ['pull', '--platform', platform, image, archivePath], {
+      verbose: true,
+      timeoutMs: DockerClient.IMAGE_PULL_TIMEOUT_MS,
+      idleTimeoutMs: DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
+    });
   }
 
   public async loadImage(archivePath: string): Promise<void> {

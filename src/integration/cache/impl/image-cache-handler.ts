@@ -174,8 +174,6 @@ export class ImageCacheHandler implements CacheOperationHandler {
   // Non-generic
 
   public async pullKindNodeImageIfMissing(): Promise<void> {
-    console.log(await this.resolveExpectedCachedItems());
-
     const item: CachedItem = await this.resolveExpectedCachedItems().then(
       (items: readonly CachedItem[]): CachedItem => items[0],
     );
