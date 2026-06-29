@@ -36,12 +36,20 @@ export abstract class LinuxPackageManager extends ShellRunner implements Package
   /** Builds the argv used to check that the package manager is available (no sudo required). */
   protected abstract versionCommand(): string[];
 
+  /**
+   * Maps the generic dependency names callers pass to the names this distribution actually ships.
+   * Defaults to the identity mapping; subclasses override it when a package is named differently.
+   */
+  protected resolveDependencies(dependencies: string[]): string[] {
+    return dependencies;
+  }
+
   public async installPackages(dependencies: string[]): Promise<void> {
-    await this.runWithSudo(this.installCommand(dependencies));
+    await this.runWithSudo(this.installCommand(this.resolveDependencies(dependencies)));
   }
 
   public async uninstallPackages(dependencies: string[]): Promise<void> {
-    await this.runWithSudo(this.uninstallCommand(dependencies));
+    await this.runWithSudo(this.uninstallCommand(this.resolveDependencies(dependencies)));
   }
 
   public async update(): Promise<void> {
@@ -49,7 +57,7 @@ export abstract class LinuxPackageManager extends ShellRunner implements Package
   }
 
   public async upgrade(dependencies: string[]): Promise<void> {
-    await this.runWithSudo(this.upgradeCommand(dependencies));
+    await this.runWithSudo(this.upgradeCommand(this.resolveDependencies(dependencies)));
   }
 
   public async install(): Promise<boolean> {

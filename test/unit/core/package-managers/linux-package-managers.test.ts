@@ -35,10 +35,11 @@ const managerCases: Array<{
   {
     name: 'DnfPackageManager',
     create: (): LinuxPackageManager => new DnfPackageManager(),
-    install: ['dnf', 'install', '-y', 'git', 'iptables'],
-    uninstall: ['dnf', 'remove', '-y', 'git', 'iptables'],
+    // Fedora/RHEL 8+ ships iptables as `iptables-nft`; the manager maps it explicitly.
+    install: ['dnf', 'install', '-y', 'git', 'iptables-nft'],
+    uninstall: ['dnf', 'remove', '-y', 'git', 'iptables-nft'],
     update: ['dnf', 'makecache'],
-    upgrade: ['dnf', 'upgrade', '-y', 'git', 'iptables'],
+    upgrade: ['dnf', 'upgrade', '-y', 'git', 'iptables-nft'],
     version: ['dnf', '--version'],
   },
   {

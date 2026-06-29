@@ -8,6 +8,12 @@ import {LinuxPackageManager} from './linux-package-manager.js';
  */
 @injectable()
 export class DnfPackageManager extends LinuxPackageManager {
+  // On Fedora/RHEL 8+ there is no package literally named `iptables`; `iptables-nft` carries
+  // `Provides: iptables`. Install it explicitly rather than relying on that provides-resolution.
+  protected override resolveDependencies(dependencies: string[]): string[] {
+    return dependencies.map((dependency: string): string => (dependency === 'iptables' ? 'iptables-nft' : dependency));
+  }
+
   protected installCommand(dependencies: string[]): string[] {
     return ['dnf', 'install', '-y', ...dependencies];
   }

@@ -71,7 +71,6 @@ export class InjectTokens {
   public static MetricsServer: symbol = Symbol.for('MetricsServer');
   public static BackupRestoreCommand: symbol = Symbol.for('BackupRestoreCommand');
   public static OsPackageManager: symbol = Symbol.for('OsPackageManager');
-  public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
   public static ClusterTaskManager: symbol = Symbol.for('ClusterTaskManager');
   public static GitClient: symbol = Symbol.for('GitClient');
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
