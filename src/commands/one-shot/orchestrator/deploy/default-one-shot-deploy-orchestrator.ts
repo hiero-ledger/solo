@@ -1202,6 +1202,15 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     if (snapshot?.accounts.accountsFileExists) {
       detected.push('  - accounts file on disk');
     }
+
+    const componentPhases: Map<ComponentTypes, DeploymentPhase> = snapshot?.remoteConfig.componentPhases ?? new Map();
+
+    for (const [componentType, phase] of componentPhases) {
+      if (isDeploymentPhaseAtLeast(phase, DeploymentPhase.DEPLOYED)) {
+        detected.push(`  - component ${componentType} in phase ${phase}`);
+      }
+    }
+
     return (
       'Warning: an existing one-shot deployment was detected:\n\n' +
       detected.join('\n') +

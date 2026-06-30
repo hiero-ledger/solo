@@ -259,6 +259,9 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
 
             config = context_.config;
 
+            config.skipAll = false;
+            config.skipClusterCleanup = false;
+
             await this.localConfig.load();
 
             config.cacheDir ??= constants.SOLO_CACHE_DIR;
