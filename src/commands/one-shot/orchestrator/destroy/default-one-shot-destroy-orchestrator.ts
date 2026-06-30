@@ -5,6 +5,7 @@ import {type Listr, type ListrBaseClassOptions, type ListrContext, type ListrRen
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {select as selectPrompt} from '@inquirer/prompts';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
+import {UserInput} from '../../../../core/user-input.js';
 import {patchInject} from '../../../../core/dependency-injection/container-helper.js';
 import {type TaskList} from '../../../../core/task-list/task-list.js';
 import {type SoloEventBus} from '../../../../core/events/solo-event-bus.js';
@@ -428,7 +429,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
   }
 
   private getOneShotOutputDirectory(deploymentName: string): string {
-    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${deploymentName}`);
+    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${UserInput.safeFilenameComponent(deploymentName)}`);
   }
 
   private async loadRemoteConfigOrWarn(argv: ArgvStruct): Promise<boolean> {

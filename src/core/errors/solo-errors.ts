@@ -258,6 +258,7 @@ import {GitHubReleasesNotFoundSoloError} from './classes/system/github-releases-
 import {GitHubReleaseTagNotFoundSoloError} from './classes/system/github-release-tag-not-found-solo-error.js';
 import {GitHubReleaseAssetNotFoundSoloError} from './classes/system/github-release-asset-not-found-solo-error.js';
 import {HomebrewInstallFailedSoloError} from './classes/system/homebrew-install-failed-solo-error.js';
+import {UnsupportedLinuxDistributionSoloError} from './classes/system/unsupported-linux-distribution-solo-error.js';
 import {PodmanMachineInspectFailedSoloError} from './classes/system/podman-machine-inspect-failed-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
@@ -765,6 +766,7 @@ export class SoloErrors {
     readonly gitHubReleaseTagNotFound: typeof GitHubReleaseTagNotFoundSoloError;
     readonly gitHubReleaseAssetNotFound: typeof GitHubReleaseAssetNotFoundSoloError;
     readonly homebrewInstallFailed: typeof HomebrewInstallFailedSoloError;
+    readonly unsupportedLinuxDistribution: typeof UnsupportedLinuxDistributionSoloError;
     readonly podmanMachineInspectFailed: typeof PodmanMachineInspectFailedSoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
@@ -841,6 +843,7 @@ export class SoloErrors {
     gitHubReleaseTagNotFound: GitHubReleaseTagNotFoundSoloError,
     gitHubReleaseAssetNotFound: GitHubReleaseAssetNotFoundSoloError,
     homebrewInstallFailed: HomebrewInstallFailedSoloError,
+    unsupportedLinuxDistribution: UnsupportedLinuxDistributionSoloError,
     podmanMachineInspectFailed: PodmanMachineInspectFailedSoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,

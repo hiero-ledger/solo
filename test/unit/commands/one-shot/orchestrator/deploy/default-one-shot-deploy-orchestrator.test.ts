@@ -39,6 +39,7 @@ function makeOrchestrator(
     {} as MockType,
     overrides.helm ?? ({} as MockType),
     {} as MockType,
+    {} as MockType,
   );
 }
 
@@ -256,6 +257,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       helmMock,
       {} as MockType,
+      {} as MockType,
     );
 
     // @ts-expect-error - to access private method
@@ -294,6 +296,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
       {} as MockType,
     );
 
@@ -351,6 +354,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
       {} as MockType,
     );
 

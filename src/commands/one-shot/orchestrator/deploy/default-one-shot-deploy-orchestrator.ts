@@ -14,6 +14,7 @@ import {
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
+import {UserInput} from '../../../../core/user-input.js';
 import {patchInject} from '../../../../core/dependency-injection/container-helper.js';
 import {type TaskList} from '../../../../core/task-list/task-list.js';
 import {type SoloEventBus} from '../../../../core/events/solo-event-bus.js';
@@ -52,6 +53,7 @@ import {OrchestratorPipelinePhase} from '../orchestrator-pipeline-phase.js';
 import {type ExecutionMode} from '../execution-mode.js';
 import {BlockCommandDefinition} from '../../../command-definitions/block-command-definition.js';
 import {MirrorCommandDefinition} from '../../../command-definitions/mirror-command-definition.js';
+import {MirrorNodeCommand} from '../../../mirror-node.js';
 import {ExplorerCommandDefinition} from '../../../command-definitions/explorer-command-definition.js';
 import {RelayCommandDefinition} from '../../../command-definitions/relay-command-definition.js';
 import {ConsensusCommandDefinition} from '../../../command-definitions/consensus-command-definition.js';
@@ -116,6 +118,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.LockManager) private readonly leaseManager: LockManager,
     @inject(InjectTokens.ComponentFactory) private readonly componentFactory: ComponentFactoryApi,
     @inject(InjectTokens.Helm) private readonly helm: HelmClient,
+    @inject(InjectTokens.MirrorNodeCommand) private readonly mirrorNodeCommand: MirrorNodeCommand,
     @inject(InjectTokens.ContainerEngineResourceInspector)
     private readonly containerEngineResourceInspector: ContainerEngineResourceInspector,
   ) {
@@ -131,6 +134,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     this.leaseManager = patchInject(leaseManager, InjectTokens.LockManager, this.constructor.name);
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
     this.helm = patchInject(helm, InjectTokens.Helm, this.constructor.name);
+    this.mirrorNodeCommand = patchInject(mirrorNodeCommand, InjectTokens.MirrorNodeCommand, this.constructor.name);
     this.containerEngineResourceInspector = patchInject(
       containerEngineResourceInspector,
       InjectTokens.ContainerEngineResourceInspector,
@@ -704,15 +708,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 this.taskList,
                 (): boolean => !getConfig().deployMirrorNode || !getConfig().pinger,
               ),
-          })
-            .withWaitCondition(
-              SoloEventType.MirrorNodeDeployed,
-              Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
-            )
-            .withWaitCondition(
-              SoloEventType.NodesStarted,
-              Duration.ofMinutes(constants.NODES_STARTED_EVENT_TIMEOUT_MINUTES),
-            ),
+          }).withWaitCondition(
+            SoloEventType.MirrorNodeDeployed,
+            Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
+          ),
           new OrchestratorPipelinePhase('Deploy explorer', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
@@ -732,15 +731,10 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 this.taskList,
                 (): boolean => !getConfig().deployRelay && !getConfig().minimalSetup,
               ),
-          })
-            .withWaitCondition(
-              SoloEventType.MirrorNodeDeployed,
-              Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
-            )
-            .withWaitCondition(
-              SoloEventType.NodesStarted,
-              Duration.ofMinutes(constants.NODES_STARTED_EVENT_TIMEOUT_MINUTES),
-            ),
+          }).withWaitCondition(
+            SoloEventType.MirrorNodeDeployed,
+            Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
+          ),
         ],
         (getConfig: () => OneShotSingleDeployConfigClass): ExecutionMode =>
           getConfig().parallelDeploy
@@ -892,7 +886,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
   }
 
   private getOneShotOutputDirectory(deploymentName: string): string {
-    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${deploymentName}`);
+    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${UserInput.safeFilenameComponent(deploymentName)}`);
   }
 
   /**
