@@ -776,7 +776,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     const setupOverrides: FalconOverrideMap = new Map([
       flagEntry(flags.releaseTag, config.releaseTag),
       flagEntry(flags.localBuildPath, config.localBuildPath),
-      flagEntry(flags.devMode, config.enableDevChartMode),
+      flagEntry(flags.debugMode, config.enableDevChartMode),
     ]);
 
     const consensusNodeOverrides: FalconOverrideMap = new Map([
@@ -803,7 +803,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     const blockNodeOverrides: FalconOverrideMap = new Map([
       flagEntry(flags.blockNodeChartVersion, config.chartVersion),
       flagEntry(flags.enableIngress, flags.enableIngress.definition.defaultValue),
-      flagEntry(flags.devMode, config.enableDevChartMode),
+      flagEntry(flags.debugMode, config.enableDevChartMode),
     ]);
 
     const explorerNodeOverrides: FalconOverrideMap = new Map([

@@ -21,6 +21,7 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {type ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
+import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {PathEx} from '../business/utils/path-ex.js';
@@ -511,5 +512,103 @@ export class PlatformInstaller {
       });
     }
     return subTasks;
+  }
+
+  /**
+   * Write secret data entries (keyed by the original file basename, values base64-encoded) back into a local keys
+   * directory. Private key files are written owner-read/write only (SA8); public certs inherit the process umask.
+   * @param data secret data map (file basename -> base64 content)
+   * @param keysDirectory directory to write the decoded key/cert files into
+   */
+  private static writeSecretDataToKeysDirectory(data: Record<string, string>, keysDirectory: string): void {
+    for (const [fileName, encodedContents] of Object.entries(data)) {
+      const isPrivateKey: boolean = fileName.endsWith('.key') || fileName.includes('-private-');
+      fs.writeFileSync(
+        PathEx.join(keysDirectory, fileName),
+        Base64.decode(encodedContents),
+        isPrivateKey ? {mode: 0o600} : undefined,
+      );
+    }
+  }
+
+  /**
+   * Restore a consensus node's gossip keys from its Kubernetes secret back into a local keys directory. Used after
+   * `network deploy` has removed the cached keys (when `--debug` is off) so later commands can read them from disk.
+   * @param consensusNode the node whose gossip key secret should be read
+   * @param keysDirectory directory to write the decoded gossip key/cert files into
+   */
+  public async copyGossipKeysFromSecretToDirectory(consensusNode: ConsensusNode, keysDirectory: string): Promise<void> {
+    const secretName: string = Templates.renderGossipKeySecretName(consensusNode.name as NodeAlias);
+    let secret: Secret;
+    try {
+      secret = await this.k8Factory
+        .getK8(consensusNode.context)
+        .secrets()
+        .read(NamespaceName.of(consensusNode.namespace), secretName);
+    } catch (error) {
+      throw new SoloErrors.component.gossipKeySecretRestoreFailed(
+        consensusNode.name,
+        `failed to read secret '${secretName}'`,
+        error,
+      );
+    }
+
+    if (!secret?.data || Object.keys(secret.data).length === 0) {
+      throw new SoloErrors.component.gossipKeySecretRestoreFailed(
+        consensusNode.name,
+        `secret '${secretName}' is missing or empty`,
+      );
+    }
+
+    PlatformInstaller.writeSecretDataToKeysDirectory(secret.data, keysDirectory);
+  }
+
+  /**
+   * Restore all consensus nodes' TLS keys from the shared Kubernetes secret back into a local keys directory.
+   * @param contexts list of k8s contexts (the shared secret is identical in each, so the first is read)
+   * @param keysDirectory directory to write the decoded TLS key/cert files into
+   */
+  public async copyTLSKeysFromSecretToDirectory(contexts: string[], keysDirectory: string): Promise<void> {
+    if (!contexts || contexts.length === 0) {
+      throw new SoloErrors.validation.missingArgument('contexts cannot be empty');
+    }
+
+    const secretName: string = 'network-node-hapi-app-secrets';
+    let secret: Secret;
+    try {
+      secret = await this.k8Factory.getK8(contexts[0]).secrets().read(this._getNamespace(), secretName);
+    } catch (error) {
+      throw new SoloErrors.component.tlsKeySecretRestoreFailed(`failed to read secret '${secretName}'`, error);
+    }
+
+    if (!secret?.data || Object.keys(secret.data).length === 0) {
+      throw new SoloErrors.component.tlsKeySecretRestoreFailed(`secret '${secretName}' is missing or empty`);
+    }
+
+    PlatformInstaller.writeSecretDataToKeysDirectory(secret.data, keysDirectory);
+  }
+
+  /**
+   * Restore all consensus node gossip + TLS keys from their Kubernetes secrets into a local keys directory. This is
+   * the inverse of {@link copyNodeKeys}; it is used so that node commands run after `network deploy` (which removes
+   * the cached keys when `--debug` is off) can read the keys from disk again.
+   * @param keysDirectory directory to write the decoded key/cert files into
+   * @param consensusNodes list of consensus nodes
+   * @param contexts list of k8s contexts
+   */
+  public async copyNodeKeysFromSecretsToDirectory(
+    keysDirectory: string,
+    consensusNodes: ConsensusNode[],
+    contexts: string[],
+  ): Promise<void> {
+    if (!fs.existsSync(keysDirectory)) {
+      // SA8: owner-only; it holds private keys
+      fs.mkdirSync(keysDirectory, {recursive: true, mode: 0o700});
+    }
+
+    await this.copyTLSKeysFromSecretToDirectory(contexts, keysDirectory);
+    for (const consensusNode of consensusNodes) {
+      await this.copyGossipKeysFromSecretToDirectory(consensusNode, keysDirectory);
+    }
   }
 }

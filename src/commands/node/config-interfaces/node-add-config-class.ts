@@ -12,7 +12,7 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   cacheDir: string;
   chainId: string;
   chartDirectory: string;
-  devMode: boolean;
+  debugMode: boolean;
   debugNodeAlias: NodeAlias;
   endpointType: string;
   soloChartVersion: string;

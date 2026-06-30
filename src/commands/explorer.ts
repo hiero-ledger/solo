@@ -227,7 +227,7 @@ export class ExplorerCommand extends BaseCommand {
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.debugMode],
   };
 
   private async prepareHederaExplorerChartValues(

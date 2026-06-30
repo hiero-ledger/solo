@@ -164,7 +164,9 @@ import {SdkPingFailedSoloError} from './classes/component/sdk-ping-failed-solo-e
 import {NodeServicesRetrievalFailedSoloError} from './classes/component/node-services-retrieval-failed-solo-error.js';
 import {NodeServiceNotFoundSoloError} from './classes/component/node-service-not-found-solo-error.js';
 import {GossipKeySecretCreationFailedSoloError} from './classes/component/gossip-key-secret-creation-failed-solo-error.js';
+import {GossipKeySecretRestoreFailedSoloError} from './classes/component/gossip-key-secret-restore-failed-solo-error.js';
 import {TlsKeySecretCreationFailedSoloError} from './classes/component/tls-key-secret-creation-failed-solo-error.js';
+import {TlsKeySecretRestoreFailedSoloError} from './classes/component/tls-key-secret-restore-failed-solo-error.js';
 import {TlsKeyGenerationFailedSoloError} from './classes/component/tls-key-generation-failed-solo-error.js';
 import {SigningKeyGenerationFailedSoloError} from './classes/component/signing-key-generation-failed-solo-error.js';
 import {GrpcTlsKeyGenerationFailedSoloError} from './classes/component/grpc-tls-key-generation-failed-solo-error.js';
@@ -435,7 +437,9 @@ export class SoloErrors {
     readonly nodeServicesRetrievalFailed: typeof NodeServicesRetrievalFailedSoloError;
     readonly nodeServiceNotFound: typeof NodeServiceNotFoundSoloError;
     readonly gossipKeySecretCreationFailed: typeof GossipKeySecretCreationFailedSoloError;
+    readonly gossipKeySecretRestoreFailed: typeof GossipKeySecretRestoreFailedSoloError;
     readonly tlsKeySecretCreationFailed: typeof TlsKeySecretCreationFailedSoloError;
+    readonly tlsKeySecretRestoreFailed: typeof TlsKeySecretRestoreFailedSoloError;
     readonly tlsKeyGenerationFailed: typeof TlsKeyGenerationFailedSoloError;
     readonly signingKeyGenerationFailed: typeof SigningKeyGenerationFailedSoloError;
     readonly grpcTlsKeyGenerationFailed: typeof GrpcTlsKeyGenerationFailedSoloError;
@@ -524,7 +528,9 @@ export class SoloErrors {
     nodeServicesRetrievalFailed: NodeServicesRetrievalFailedSoloError,
     nodeServiceNotFound: NodeServiceNotFoundSoloError,
     gossipKeySecretCreationFailed: GossipKeySecretCreationFailedSoloError,
+    gossipKeySecretRestoreFailed: GossipKeySecretRestoreFailedSoloError,
     tlsKeySecretCreationFailed: TlsKeySecretCreationFailedSoloError,
+    tlsKeySecretRestoreFailed: TlsKeySecretRestoreFailedSoloError,
     tlsKeyGenerationFailed: TlsKeyGenerationFailedSoloError,
     signingKeyGenerationFailed: SigningKeyGenerationFailedSoloError,
     grpcTlsKeyGenerationFailed: GrpcTlsKeyGenerationFailedSoloError,

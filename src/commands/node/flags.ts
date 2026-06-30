@@ -6,7 +6,7 @@ import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 const PREPARE_UPGRADE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
 const PREPARE_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.cacheDir,
-  flags.devMode,
+  flags.debugMode,
   flags.quiet,
   flags.skipNodeAlias,
 ];
@@ -23,7 +23,7 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.nodeAliasesUnparsed,
   flags.soloChartVersion,
   flags.chartDirectory,
-  flags.devMode,
+  flags.debugMode,
   flags.quiet,
   flags.localBuildPath,
   flags.force,
@@ -38,7 +38,7 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.endpointType,
   flags.soloChartVersion,
   flags.chartDirectory,
-  flags.devMode,
+  flags.debugMode,
   flags.quiet,
   flags.localBuildPath,
   flags.force,
@@ -130,7 +130,7 @@ const COMMON_DESTROY_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.debugNodeAlias,
   flags.endpointType,
   flags.soloChartVersion,
-  flags.devMode,
+  flags.debugMode,
   flags.force,
   flags.localBuildPath,
   flags.quiet,
@@ -156,7 +156,7 @@ const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.grpcWebTlsKeyPath,
   flags.gossipEndpoints,
   flags.grpcEndpoints,
-  flags.devMode,
+  flags.debugMode,
   flags.force,
   flags.localBuildPath,
   flags.chartDirectory,
@@ -240,7 +240,7 @@ export const REFRESH_FLAGS: CommandFlags = {
   optional: [
     flags.app,
     flags.localBuildPath,
-    flags.devMode,
+    flags.debugMode,
     flags.quiet,
     flags.nodeAliasesUnparsed,
     // Keep deprecated legacy flag accepted for backward compatibility.
@@ -257,7 +257,7 @@ export const KEYS_FLAGS: CommandFlags = {
     flags.cacheDir,
     flags.generateGossipKeys,
     flags.generateTlsKeys,
-    flags.devMode,
+    flags.debugMode,
     flags.quiet,
     flags.nodeAliasesUnparsed,
     // TODO remove namespace once the remote config manager is updated to pull the namespace from the local config
@@ -307,7 +307,7 @@ export const SETUP_FLAGS: CommandFlags = {
     flags.appConfig,
     flags.nodeAliasesUnparsed,
     flags.quiet,
-    flags.devMode,
+    flags.debugMode,
     flags.localBuildPath,
     flags.adminPublicKeys,
     flags.domainNames,
@@ -316,10 +316,10 @@ export const SETUP_FLAGS: CommandFlags = {
 
 export const COLLECT_JFR_FLAGS: CommandFlags = {
   required: [flags.deployment, flags.nodeAlias],
-  optional: [flags.quiet, flags.devMode],
+  optional: [flags.quiet, flags.debugMode],
 };
 
 export const DIAGNOSTICS_CONNECTIONS: CommandFlags = {
   required: [],
-  optional: [flags.deployment, flags.quiet, flags.devMode, flags.check],
+  optional: [flags.deployment, flags.quiet, flags.debugMode, flags.check],
 };

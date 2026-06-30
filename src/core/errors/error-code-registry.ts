@@ -129,6 +129,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   FILE_CONTENT_MISMATCH: 'SOLO-3088',
   NODE_SERVICE_NOT_FOUND: 'SOLO-3089',
   BLOCK_NODE_JFR_COLLECTION_FAILED: 'SOLO-3090',
+  GOSSIP_KEY_SECRET_RESTORE_FAILED: 'SOLO-3091',
+  TLS_KEY_SECRET_RESTORE_FAILED: 'SOLO-3092',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',

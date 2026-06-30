@@ -187,7 +187,7 @@ export class KeyManager {
       try {
         this.logger.debug(`Storing ${keyName} key for node: ${nodeAlias}`, {nodeKeyFiles});
 
-        fs.writeFileSync(nodeKeyFiles.privateKeyFile, keyPem);
+        fs.writeFileSync(nodeKeyFiles.privateKeyFile, keyPem, {mode: 0o600});
 
         // remove if the certificate file exists already as otherwise we'll keep appending to the last
         if (fs.existsSync(nodeKeyFiles.certificateFile)) {
@@ -634,7 +634,7 @@ export class KeyManager {
         },
       );
       fs.writeFileSync(certificatePath, pems.cert);
-      fs.writeFileSync(keyPath, pems.private);
+      fs.writeFileSync(keyPath, pems.private, {mode: 0o600});
       return {
         certificatePath,
         keyPath,

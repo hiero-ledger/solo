@@ -11,7 +11,7 @@ export interface NodeUpdateConfigClass extends NodeCommonConfigWithNodeAlias, Ch
   cacheDir: string;
   chartDirectory: string;
   nodeAliases: NodeAliases;
-  devMode: boolean;
+  debugMode: boolean;
   debugNodeAlias: NodeAlias;
   endpointType: string;
   soloChartVersion: string;

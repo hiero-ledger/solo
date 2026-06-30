@@ -87,7 +87,7 @@ export class InitCommand extends BaseCommand {
             fs.cpSync(sourceDirectory, destinationDirectory, {recursive: true});
           }
 
-          if (argv.dev && !InitCommand.hasShownDevSystemFileLists) {
+          if (argv.debug && !InitCommand.hasShownDevSystemFileLists) {
             this.logger.showList('Home Directories', context_.dirs);
             this.logger.showList('Chart Repository', context_.repoURLs);
             InitCommand.hasShownDevSystemFileLists = true;

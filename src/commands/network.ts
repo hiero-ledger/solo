@@ -948,12 +948,12 @@ export class NetworkCommand extends BaseCommand {
 
     // prepare staging keys directory
     if (!fs.existsSync(config.stagingKeysDir)) {
-      fs.mkdirSync(config.stagingKeysDir, {recursive: true});
+      fs.mkdirSync(config.stagingKeysDir, {recursive: true, mode: 0o700});
     }
 
     // create cached keys dir if it does not exist yet
     if (!fs.existsSync(config.keysDir)) {
-      fs.mkdirSync(config.keysDir);
+      fs.mkdirSync(config.keysDir, {mode: 0o700});
     }
 
     this.logger.debug('Preparing storage secrets');
@@ -1462,6 +1462,23 @@ export class NetworkCommand extends BaseCommand {
               this.platformInstaller.copyNodeKeys(stagingDir, consensusNodes, contexts),
               constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             );
+          },
+        },
+        {
+          title: 'Remove cached keys',
+          // When --debug is off, the keys now live only in the cluster secrets (uploaded by the task above), so
+          // remove the on-disk copies to avoid leaving private keys in SOLO_CACHE_DIR. Later node commands
+          // re-materialize them from the secrets via PlatformInstaller.copyNodeKeysFromSecretsToDirectory().
+          skip: (): boolean | string =>
+            this.configManager.getFlag<boolean>(flags.debugMode)
+              ? '--debug enabled, keeping cached keys on disk'
+              : false,
+          task: ({config: {keysDir, stagingKeysDir}}): void => {
+            for (const directory of [keysDir, stagingKeysDir]) {
+              if (directory && fs.existsSync(directory)) {
+                fs.rmSync(directory, {recursive: true, force: true});
+              }
+            }
           },
         },
         {

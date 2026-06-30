@@ -11,7 +11,7 @@ export interface NodeDestroyConfigClass extends NodeCommonConfigWithNodeAlias, C
   app: string;
   cacheDir: string;
   chartDirectory: string;
-  devMode: boolean;
+  debugMode: boolean;
   debugNodeAlias: NodeAlias;
   nodeAliases: NodeAliases;
   endpointType: string;

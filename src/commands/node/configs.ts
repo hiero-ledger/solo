@@ -98,12 +98,12 @@ export class NodeCommandConfigs {
 
     // prepare staging keys directory
     if (!fs.existsSync(config.stagingKeysDir)) {
-      fs.mkdirSync(config.stagingKeysDir, {recursive: true});
+      fs.mkdirSync(config.stagingKeysDir, {recursive: true, mode: 0o700});
     }
 
     // create cached keys dir if it does not exist yet
     if (!fs.existsSync(config.keysDir)) {
-      fs.mkdirSync(config.keysDir);
+      fs.mkdirSync(config.keysDir, {mode: 0o700});
     }
   }
 
@@ -529,7 +529,7 @@ export class NodeCommandConfigs {
     context_.config.keysDir = PathEx.join(this.configManager.getFlag(flags.cacheDir), 'keys');
 
     if (!fs.existsSync(context_.config.keysDir)) {
-      fs.mkdirSync(context_.config.keysDir);
+      fs.mkdirSync(context_.config.keysDir, {mode: 0o700});
     }
     return context_.config;
   }

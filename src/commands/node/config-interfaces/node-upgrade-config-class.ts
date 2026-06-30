@@ -10,7 +10,7 @@ export interface NodeUpgradeConfigClass extends NodeCommonConfigWithNodeAliases,
   app: string;
   cacheDir: string;
   chartDirectory: string;
-  devMode: boolean;
+  debugMode: boolean;
   debugNodeAlias: NodeAlias;
   soloChartVersion: string;
   localBuildPath: string;

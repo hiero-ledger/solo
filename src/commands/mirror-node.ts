@@ -309,7 +309,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode, flags.id],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.debugMode, flags.id],
   };
 
   private prepareBlockNodeIntegrationValues(
