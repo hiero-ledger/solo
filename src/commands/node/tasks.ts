@@ -495,7 +495,18 @@ export class NodeCommandTasks {
       subTasks.push({
         title: `Update node: ${chalk.yellow(nodeAlias)} [ platformVersion = ${releaseTag}, context = ${context} ]`,
         task: async (): Promise<void> => {
-          await platformInstaller.fetchPlatform(podReference, releaseTag, zipPath, checksumPath, context);
+          for (let retryIndex: number = 0; retryIndex < constants.LOCAL_BUILD_COPY_RETRY; retryIndex++) {
+            try {
+              await platformInstaller.fetchPlatform(podReference, releaseTag, zipPath, checksumPath, context);
+              return;
+            } catch (error: Error | unknown) {
+              if (retryIndex === constants.LOCAL_BUILD_COPY_RETRY - 1) {
+                throw error;
+              }
+
+              await sleep(Duration.ofSeconds(2));
+            }
+          }
         },
       });
     }
@@ -2575,9 +2586,6 @@ export class NodeCommandTasks {
           config.valuesFile,
         ).chartValuesMap;
 
-        // A chart version or template change can recreate node pods even when the explicit configuration file
-        // overrides do not touch the pod template. Wait after the Helm upgrade so later tasks do not race startup.
-        const upgradeTimestamp: Date = new Date();
         const subTasks: SoloListrTask<NodeConnectionsContext>[] = [
           {
             title: 'Update all charts',
@@ -2607,36 +2615,6 @@ export class NodeCommandTasks {
                   showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
                 }),
               );
-            },
-          },
-          {
-            title: 'Check node pods are running',
-            task: (_, task): SoloListr<NodeConnectionsContext> => {
-              const waitSubTasks: SoloListrTask<NodeConnectionsContext>[] = [];
-              for (const node of config.consensusNodes) {
-                waitSubTasks.push({
-                  title: `Check Node: ${chalk.yellow(node.name)}, Cluster: ${chalk.yellow(node.cluster)}`,
-                  task: async (): Promise<void> => {
-                    await this.k8Factory
-                      .getK8(node.context)
-                      .pods()
-                      .waitForReadyStatus(
-                        NamespaceName.of(node.namespace),
-                        [`solo.hedera.com/node-name=${node.name}`, 'solo.hedera.com/type=network-node'],
-                        constants.PODS_RUNNING_MAX_ATTEMPTS,
-                        constants.PODS_RUNNING_DELAY,
-                        upgradeTimestamp,
-                      );
-                  },
-                });
-              }
-
-              return task.newListr(waitSubTasks, {
-                concurrent: true,
-                rendererOptions: {
-                  collapseSubtasks: false,
-                },
-              });
             },
           },
         ];
