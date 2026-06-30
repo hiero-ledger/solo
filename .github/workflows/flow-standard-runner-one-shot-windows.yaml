@@ -35,7 +35,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -244,14 +243,6 @@ jobs:
         run: |
           $env:PATH = "$env:USERPROFILE\.solo\bin;$env:PATH"
           npm run solo -- init --dev
-
-      - name: Restore Solo Image Cache
-        id: solo-image-cache
-        if: ${{ !cancelled() && !failure() }}
-        uses: ./.github/actions/solo-image-cache
-        with:
-          operation: restore
-          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: One-Shot Single Deploy
         shell: pwsh

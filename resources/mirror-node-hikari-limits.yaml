@@ -17,6 +17,8 @@ restjava:
     spring:
       datasource:
         hikari:
+          # Windows one-shot CI runs REST readiness checks and mirror-node pinger traffic together.
+          # Keep this Solo overlay slightly above the chart default to avoid startup pool starvation.
           minimumIdle: 2
           maximumPoolSize: 4
 web3:

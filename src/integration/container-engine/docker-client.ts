@@ -135,7 +135,7 @@ export class DockerClient implements ContainerEngineClient {
     engineCommand: ContainerEngineCommand,
   ): Promise<void> {
     const kindArguments: string[] = ['load', 'image-archive', archivePath, '--name', clusterName];
-    const pathEnvironment: string = `${PathEx.dirname(kindExecutable)}${PathEx.delimiter}${process.env.PATH}`;
+    const pathEnvironment: string = `${PathEx.dirname(kindExecutable)}${PathEx.delimiter}${process.env.PATH || ''}`;
 
     if (DockerClient.isSudoPodmanCommand(engineCommand)) {
       await this.shellRunner.run('sudo', [
