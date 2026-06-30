@@ -18,7 +18,7 @@
     "@types/mocha": "10.0.10",
     "@types/node": "24.9.1",
     "chai": "5.3.3",
-    "ethers": "6.15.0",
+    "ethers": "6.17.0",
     "hardhat": "3.1.6",
     "mocha": "11.7.5",
     "ts-node": "10.9.2",
