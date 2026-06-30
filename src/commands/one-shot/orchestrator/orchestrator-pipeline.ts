@@ -9,7 +9,7 @@ import {type SoloListrTask} from '../../../types/index.js';
 export class OrchestratorPipeline<TContext> {
   public constructor(
     public readonly tasks: SoloListrTask<TContext>[],
-    private readonly defaultOptions: ListrBaseClassOptions<TContext>,
+    public readonly defaultOptions: ListrBaseClassOptions<TContext>,
   ) {}
 
   /**
