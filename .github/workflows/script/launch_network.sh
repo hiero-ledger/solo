@@ -756,6 +756,17 @@ echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
 
+# For block stream upgrades, the target consensus node must not start before the
+# target block node is ready. Otherwise CN can advance block-stream state while
+# BN still cannot accept those blocks, leaving mirror importer stuck on the gap.
+npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+
+npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+
+npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+
+wait_for_mirror_block_progress "source deployment after block node upgrade" -1 120 2 > /dev/null
+
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
 cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
@@ -774,12 +785,6 @@ if [[ "$(printf '%s\n' "v0.73.0" "${TO_CONSENSUS_NODE_VERSION}" | sort -V | head
 else
   npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
 fi
-
-npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
-
-npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
-
-npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
