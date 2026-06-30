@@ -12,6 +12,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {type AnyListrContext, type ArgvStruct, type NodeAlias} from '../types/aliases.js';
 import {ListrLock} from '../core/lock/listr-lock.js';
+import {type K8} from '../integration/kube/k8.js';
 import {
   type ClusterReferenceName,
   type ComponentId,
@@ -29,6 +30,7 @@ import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {type Service} from '../integration/kube/resources/service/service.js';
 import chalk from 'chalk';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
@@ -85,6 +87,7 @@ interface BlockNodeDeployConfigClass {
   priorityMapping: Record<NodeAlias, number>;
   blockNodeMessageSizeSoftLimitBytes: Optional<number>;
   blockNodeMessageSizeHardLimitBytes: Optional<number>;
+  hostAliasesPatchTime?: Date;
 }
 
 interface BlockNodeDeployContext {
@@ -129,6 +132,7 @@ interface BlockNodeUpgradeConfigClass {
   isLegacyChartInstalled: boolean;
   /** Set by recreateBlockNodeChart; used by the readiness check to ignore the terminating predecessor pod. */
   recreateInstallTime?: Date;
+  hostAliasesPatchTime?: Date;
 }
 
 interface BlockNodeUpgradeContext {
@@ -186,6 +190,11 @@ interface InferredData {
   releaseName: string;
   isChartInstalled: boolean;
   isLegacyChartInstalled: boolean;
+}
+
+interface BlockNodeHostAlias {
+  ip: string;
+  hostnames: string[];
 }
 
 @injectable()
@@ -383,6 +392,139 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     return chartValues;
+  }
+
+  private getCluster(blockNode: BlockNodeStateSchema): ClusterSchema {
+    const clusterReference: ClusterReferenceName = blockNode.metadata.cluster;
+    const cluster: ClusterSchema | undefined = this.remoteConfig.configuration.clusters.find(
+      ({name}): boolean => name === clusterReference,
+    );
+
+    if (!cluster) {
+      throw new SoloErrors.system.clusterNotFoundInRemoteConfig(clusterReference);
+    }
+
+    return cluster;
+  }
+
+  private renderBlockNodeHostnames(blockNode: BlockNodeStateSchema): string[] {
+    const cluster: ClusterSchema = this.getCluster(blockNode);
+    const serviceName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
+    const namespace: string = blockNode.metadata.namespace;
+
+    return [serviceName, Templates.renderSvcFullyQualifiedDomainName(serviceName, namespace, cluster.dnsBaseDomain)];
+  }
+
+  private async buildBlockNodeHostAliases(targetBlockNode: BlockNodeStateSchema): Promise<BlockNodeHostAlias[]> {
+    const k8: K8 = this.k8Factory.getK8(this.remoteConfig.getClusterRefs()[targetBlockNode.metadata.cluster]);
+    const hostAliases: BlockNodeHostAlias[] = [];
+
+    const peerBlockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes.filter(
+      (blockNode): boolean =>
+        blockNode.metadata.id !== targetBlockNode.metadata.id &&
+        blockNode.metadata.cluster === targetBlockNode.metadata.cluster,
+    );
+
+    for (const peerBlockNode of peerBlockNodes) {
+      const serviceName: string = Templates.renderBlockNodeName(peerBlockNode.metadata.id);
+      const namespace: NamespaceName = NamespaceName.of(peerBlockNode.metadata.namespace);
+      const service: Service = await k8.services().read(namespace, serviceName);
+      const clusterIpAddress: string | undefined = service?.spec?.clusterIP;
+
+      if (!clusterIpAddress || clusterIpAddress === 'None') {
+        this.logger.warn(`Skipping host alias for block node service ${serviceName}: clusterIP is not available`);
+      } else {
+        hostAliases.push({
+          ip: clusterIpAddress,
+          hostnames: this.renderBlockNodeHostnames(peerBlockNode),
+        });
+      }
+    }
+
+    return hostAliases;
+  }
+
+  private async patchBlockNodePeerHostAliases(
+    clusterReference: ClusterReferenceName,
+    patchEmptyAliases: boolean,
+  ): Promise<boolean> {
+    const targetBlockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes.filter(
+      (blockNode): boolean => blockNode.metadata.cluster === clusterReference,
+    );
+    const k8: K8 = this.k8Factory.getK8(this.remoteConfig.getClusterRefs()[clusterReference]);
+    let patched: boolean = false;
+
+    for (const targetBlockNode of targetBlockNodes) {
+      const hostAliases: BlockNodeHostAlias[] = await this.buildBlockNodeHostAliases(targetBlockNode);
+
+      if (hostAliases.length === 0 && !patchEmptyAliases) {
+        continue;
+      }
+
+      const statefulSetName: string = Templates.renderBlockNodeName(targetBlockNode.metadata.id);
+
+      await k8.manifests().patchObject({
+        apiVersion: 'apps/v1',
+        kind: 'StatefulSet',
+        metadata: {
+          namespace: targetBlockNode.metadata.namespace,
+          name: statefulSetName,
+        },
+        spec: {
+          template: {
+            spec: {
+              hostAliases,
+            },
+          },
+        },
+      });
+      patched = true;
+
+      this.logger.debug(
+        `Patched block node StatefulSet '${statefulSetName}' in namespace '${targetBlockNode.metadata.namespace}' ` +
+          `with ${hostAliases.length} peer host alias entries`,
+      );
+    }
+
+    return patched;
+  }
+
+  private patchBlockNodePeerHostAliasesForAdd(): SoloListrTask<BlockNodeDeployContext> {
+    return {
+      title: 'Patch block node peer host aliases',
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async ({config}): Promise<void> => {
+        const patchTime: Date = new Date();
+        const patched: boolean = await this.patchBlockNodePeerHostAliases(config.clusterRef, false);
+        if (patched) {
+          config.hostAliasesPatchTime = patchTime;
+        }
+      },
+    };
+  }
+
+  private patchBlockNodePeerHostAliasesForDestroy(): SoloListrTask<BlockNodeDestroyContext> {
+    return {
+      title: 'Patch block node peer host aliases',
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async ({config}): Promise<void> => {
+        await this.patchBlockNodePeerHostAliases(config.clusterRef, true);
+      },
+    };
+  }
+
+  private patchBlockNodePeerHostAliasesForUpgrade(): SoloListrTask<BlockNodeUpgradeContext> {
+    return {
+      title: 'Patch block node peer host aliases',
+      skip: (): boolean => !this.remoteConfig.isLoaded(),
+      task: async ({config}): Promise<void> => {
+        const patchTime: Date = new Date();
+        const patched: boolean = await this.patchBlockNodePeerHostAliases(config.clusterRef, true);
+        if (patched) {
+          config.hostAliasesPatchTime = patchTime;
+        }
+      },
+    };
   }
 
   private static appendExtraCommandArgs(
@@ -706,6 +848,7 @@ export class BlockNodeCommand extends BaseCommand {
             }
           },
         },
+        this.patchBlockNodePeerHostAliasesForAdd(),
         {
           title: 'Check block node pod is ready',
           task: async ({config}): Promise<void> => {
@@ -718,6 +861,7 @@ export class BlockNodeCommand extends BaseCommand {
                   Templates.renderBlockNodeLabels(config.newBlockNodeComponent.metadata.id),
                   constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
                   constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+                  config.hostAliasesPatchTime,
                 );
             } catch (error) {
               throw new SoloErrors.system.blockNodeNotReady(config.releaseName, error);
@@ -828,6 +972,7 @@ export class BlockNodeCommand extends BaseCommand {
           skip: ({config}): boolean => !config.isChartInstalled,
         },
         this.removeBlockNodeComponentFromRemoteConfig(),
+        this.patchBlockNodePeerHostAliasesForDestroy(),
         this.rebuildBlockNodesJsonForConsensusNodes(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -1143,6 +1288,7 @@ export class BlockNodeCommand extends BaseCommand {
             await this.updateBlockNodeVersionInRemoteConfig(config);
           },
         },
+        this.patchBlockNodePeerHostAliasesForUpgrade(),
         {
           title: 'Check block node pod is ready',
           task: async ({config}): Promise<void> => {
@@ -1155,7 +1301,7 @@ export class BlockNodeCommand extends BaseCommand {
                   Templates.renderBlockNodeLabels(config.id),
                   constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
                   constants.BLOCK_NODE_PODS_RUNNING_DELAY,
-                  config.recreateInstallTime,
+                  config.hostAliasesPatchTime ?? config.recreateInstallTime,
                 );
             } catch (error) {
               throw new SoloErrors.system.blockNodeNotReady(config.releaseName, error);
@@ -1684,6 +1830,18 @@ export class BlockNodeCommand extends BaseCommand {
 
   private async inferDestroyData(id: ComponentId, namespace: NamespaceName, context: Context): Promise<InferredData> {
     id = this.inferBlockNodeId(id);
+    const releaseName: string = this.renderReleaseName(id);
+    const isChartInstalled: boolean = await this.chartManager.isChartInstalled(namespace, releaseName, context);
+
+    if (isChartInstalled) {
+      return {
+        id,
+        releaseName,
+        isChartInstalled,
+        isLegacyChartInstalled: false,
+      };
+    }
+
     const isLegacyChartInstalled: boolean = await this.checkIfLegacyChartIsInstalled(id, namespace, context);
 
     if (isLegacyChartInstalled) {
@@ -1695,11 +1853,10 @@ export class BlockNodeCommand extends BaseCommand {
       };
     }
 
-    const releaseName: string = this.renderReleaseName(id);
     return {
       id,
       releaseName,
-      isChartInstalled: await this.chartManager.isChartInstalled(namespace, releaseName, context),
+      isChartInstalled,
       isLegacyChartInstalled,
     };
   }
