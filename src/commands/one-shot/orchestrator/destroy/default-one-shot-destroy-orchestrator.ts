@@ -77,6 +77,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
     argv: ArgvStruct,
     flagsList: CommandFlags,
     leaseReference: {value?: Lock},
+    skipDeploymentLock: boolean = false,
   ): OrchestratorPipeline<OneShotSingleDestroyContext> {
     let config: OneShotSingleDestroyConfigClass;
     const getConfigGlobal: () => OneShotSingleDestroyConfigClass = (): OneShotSingleDestroyConfigClass => config;
@@ -380,8 +381,9 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
             leaseReference.value = await this.leaseManager.create();
             return ListrLock.newAcquireLockTask(leaseReference.value, task);
           },
-          // The lock lives in the cluster; skip it when there is nothing to do or the cluster is unreachable.
-          skip: (): boolean => getConfig().skipAll || getConfig().skipClusterCleanup,
+          // The lock lives in the cluster; skip it when there is nothing to do, the cluster is
+          // unreachable, or the caller already holds the lock (e.g. one-shot deploy's auto-clean).
+          skip: (): boolean => skipDeploymentLock || getConfig().skipAll || getConfig().skipClusterCleanup,
         }),
       }),
       OrchestratorPipelinePhase.composite(
