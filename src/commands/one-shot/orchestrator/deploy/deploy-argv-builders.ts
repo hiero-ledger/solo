@@ -23,6 +23,7 @@ import * as constants from '../../../../core/constants.js';
 import * as version from '../../../../../version.js';
 import {type AnyObject, type ArgvStruct} from '../../../../types/aliases.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
+import {SINGLE_DESTROY_COMMAND} from '../../one-shot-command-paths.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
@@ -56,6 +57,21 @@ export class DeployArgvBuilders {
   public static shouldDeployBlockNode(config: OneShotSingleDeployConfigClass): boolean {
     void config;
     return this.isBlockNodeEnvironmentEnabled();
+  }
+
+  /**
+   * Builds the argv for `one-shot single destroy`, used by the deploy pipeline to auto-clean any
+   * pre-existing one-shot state before a fresh deploy. Runs quietly against the same deployment.
+   */
+  public static buildOneShotSingleDestroyArgv(config: OneShotSingleDeployConfigClass): string[] {
+    const argv: string[] = newArgv();
+    argv.push(
+      ...SINGLE_DESTROY_COMMAND.split(' '),
+      optionFromFlag(Flags.deployment),
+      config.deployment,
+      optionFromFlag(Flags.quiet),
+    );
+    return argvPushGlobalFlags(argv);
   }
 
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {

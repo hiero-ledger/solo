@@ -326,10 +326,12 @@ export class DeploymentCommand extends BaseCommand {
               }
 
               if (remoteConfigExists || existingConfigMaps.length > 0) {
-                throw new SoloErrors.deployment.hasRemoteResources(
-                  deployment,
-                  clusterReference,
-                  Flags.getFormattedFlagKey(Flags.deployment),
+                // Best-effort, never-blocking: do not abort local-config cleanup when remote resources
+                // still exist. The one-shot destroy flow tears these down first; a standalone delete
+                // simply warns so the user can run the network/component destroy commands.
+                this.logger.warn(
+                  `Deployment '${deployment}' still has remote resources in cluster-ref '${clusterReference}'; ` +
+                    'continuing with local config cleanup. Run the network/component destroy commands to remove them.',
                 );
               }
             }
@@ -343,6 +345,20 @@ export class DeploymentCommand extends BaseCommand {
               const actualDeployment: Deployment = this.localConfig.configuration.deploymentByName(deployment);
               if (actualDeployment) {
                 this.localConfig.configuration.deployments.remove(actualDeployment);
+              }
+
+              // Prune cluster-refs that are no longer referenced by any remaining deployment, so destroy
+              // converges to a clean local config. Idempotent: deleting an absent cluster-ref is a no-op.
+              const referencedClusterReferences: Set<string> = new Set<string>();
+              for (const remainingDeployment of this.localConfig.configuration.deployments) {
+                for (const cluster of remainingDeployment.clusters) {
+                  referencedClusterReferences.add(cluster.toString());
+                }
+              }
+              for (const clusterReference of this.localConfig.configuration.clusterRefs.keys()) {
+                if (!referencedClusterReferences.has(clusterReference)) {
+                  this.localConfig.configuration.clusterRefs.delete(clusterReference);
+                }
               }
 
               await this.localConfig.persist();
