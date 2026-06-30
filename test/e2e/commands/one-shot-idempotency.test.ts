@@ -9,6 +9,7 @@ import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-client-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {DEFAULT_LOCAL_CONFIG_FILE} from '../../../src/core/constants.js';
 import * as constants from '../../../src/core/constants.js';
 import {Duration} from '../../../src/core/time/duration.js';
@@ -33,6 +34,8 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestSuiteCallback((options: BaseTestOptions): void => {
     describe(testTitle, (): void => {
       const {testCacheDirectory, testLogger, namespace, contexts, deployment} = options;
+
+      const oneShotNamespace: NamespaceName = NamespaceName.of('one-shot');
 
       /**
        * Resets host and cluster to a clean slate so the first deploy behaves as a fresh install.
@@ -72,7 +75,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         for (const item of contexts) {
           const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
           try {
-            await k8Client.namespaces().delete(namespace);
+            await k8Client.namespaces().delete(oneShotNamespace);
           } catch {
             // allowed to fail if the namespace doesn't exist
           }
@@ -92,7 +95,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       async function namespaceExists(): Promise<boolean> {
         for (const item of contexts) {
           const k8Client: K8 = container.resolve<K8ClientFactory>(InjectTokens.K8Factory).getK8(item);
-          if (await k8Client.namespaces().has(namespace)) {
+          if (await k8Client.namespaces().has(oneShotNamespace)) {
             return true;
           }
         }
