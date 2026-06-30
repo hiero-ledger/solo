@@ -3,9 +3,10 @@
 import {expect} from 'chai';
 import {describe, it} from 'mocha';
 import {RapidFireCommand} from '../../../src/commands/rapid-fire.js';
+import {NlgResultStatus} from '../../../src/commands/rapid-fire-model.js';
 
 interface NlgResultForTest {
-  status: string;
+  status: NlgResultStatus;
   testClass: string;
   performanceTest: string;
   transactionCount?: number;
@@ -38,7 +39,7 @@ describe('RapidFireCommand', (): void => {
 
       const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
 
-      expect(result.status).to.equal('success');
+      expect(result.status).to.equal(NlgResultStatus.Success);
       expect(result.rttMilliseconds).to.equal(499);
     });
 
@@ -50,7 +51,7 @@ describe('RapidFireCommand', (): void => {
 
       const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
 
-      expect(result.status).to.equal('rtt-threshold-exceeded');
+      expect(result.status).to.equal(NlgResultStatus.RttThresholdExceeded);
       expect(result.rttMilliseconds).to.equal(501);
       expect(result.maxRttMilliseconds).to.equal(500);
     });
@@ -60,7 +61,7 @@ describe('RapidFireCommand', (): void => {
 
       const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
 
-      expect(result.status).to.equal('no-rtt-result');
+      expect(result.status).to.equal(NlgResultStatus.NoRttResult);
       expect(result.maxRttMilliseconds).to.equal(500);
     });
 
@@ -72,7 +73,7 @@ describe('RapidFireCommand', (): void => {
 
       const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
 
-      expect(result.status).to.equal('rtt-threshold-exceeded');
+      expect(result.status).to.equal(NlgResultStatus.RttThresholdExceeded);
       expect(result.rttMilliseconds).to.equal(600);
     });
 
@@ -84,7 +85,7 @@ describe('RapidFireCommand', (): void => {
 
       const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
 
-      expect(result.status).to.equal('rtt-threshold-exceeded');
+      expect(result.status).to.equal(NlgResultStatus.RttThresholdExceeded);
       expect(result.rttMilliseconds).to.equal(501);
     });
 
@@ -96,7 +97,7 @@ describe('RapidFireCommand', (): void => {
 
       const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
 
-      expect(result.status).to.equal('no-rtt-result');
+      expect(result.status).to.equal(NlgResultStatus.NoRttResult);
       expect(result.maxRttMilliseconds).to.equal(500);
     });
 
@@ -105,7 +106,7 @@ describe('RapidFireCommand', (): void => {
 
       const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest);
 
-      expect(result.status).to.equal('success');
+      expect(result.status).to.equal(NlgResultStatus.Success);
       expect(result.rttMilliseconds).to.equal(undefined);
     });
   });

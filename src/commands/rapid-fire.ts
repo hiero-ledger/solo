@@ -49,6 +49,14 @@ import {
   type TransactionId,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
+import {
+  type MirrorTransactionResponse,
+  type NlgResult,
+  NlgResultStatus,
+  type RapidFireFailureDiagnostics,
+  type RttProbeResult,
+  type RttSample,
+} from './rapid-fire-model.js';
 
 interface RapidFireStartConfigClass {
   clusterRef: ClusterReferenceName;
@@ -91,37 +99,6 @@ interface RapidFireStopContext {
   config: RapidFireStopConfigClass;
 }
 
-interface NlgResult {
-  status: 'success' | 'zero-tps' | 'no-result' | 'no-rtt-result' | 'rtt-threshold-exceeded';
-  testClass: string;
-  performanceTest: string;
-  transactionCount?: number;
-  durationSeconds?: number;
-  tps?: number;
-  rttMilliseconds?: number;
-  maxRttMilliseconds?: number;
-  hint?: string;
-}
-
-interface MirrorTransactionResponse {
-  transactions?: {transaction_id?: string}[];
-}
-
-interface RttSample {
-  transactionId: string;
-  submitToMirrorMilliseconds: number;
-  endToEndMilliseconds: number;
-}
-
-interface RttProbeResult {
-  samples: RttSample[];
-  minMilliseconds: number;
-  p50Milliseconds: number;
-  p95Milliseconds: number;
-  p99Milliseconds: number;
-  maxMilliseconds: number;
-}
-
 export enum NLGTestClass {
   HCSLoadTest = 'HCSLoadTest',
   CryptoTransferLoadTest = 'CryptoTransferLoadTest',
@@ -155,10 +132,6 @@ export class RapidFireCommand extends BaseCommand {
       flags.maxTps,
       flags.maxRtt,
       flags.mirrorNamespace,
-      flags.rttSampleCount,
-      flags.rttSampleInterval,
-      flags.rttWarmupSeconds,
-      flags.rttPollTimeout,
     ],
   };
 
@@ -415,12 +388,12 @@ export class RapidFireCommand extends BaseCommand {
   }
 
   private async measureRttDuringLoad(config: RapidFireStartConfigClass): Promise<RttProbeResult> {
-    RapidFireCommand.assertPositiveInteger(config.rttSampleCount, flags.rttSampleCount.name);
-    RapidFireCommand.assertPositiveInteger(config.rttSampleInterval, flags.rttSampleInterval.name);
-    RapidFireCommand.assertPositiveInteger(config.rttPollTimeout, flags.rttPollTimeout.name);
+    RapidFireCommand.assertPositiveInteger(config.rttSampleCount, constants.RAPID_FIRE_RTT_SAMPLE_COUNT_ENV);
+    RapidFireCommand.assertPositiveInteger(config.rttSampleInterval, constants.RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS_ENV);
+    RapidFireCommand.assertPositiveInteger(config.rttPollTimeout, constants.RAPID_FIRE_RTT_POLL_TIMEOUT_MS_ENV);
     if (!Number.isInteger(config.rttWarmupSeconds) || config.rttWarmupSeconds < 0) {
       throw new SoloErrors.validation.illegalArgument(
-        `${flags.rttWarmupSeconds.name} must be a non-negative integer`,
+        `${constants.RAPID_FIRE_RTT_WARMUP_SECONDS_ENV} must be a non-negative integer`,
         config.rttWarmupSeconds,
       );
     }
@@ -541,31 +514,31 @@ export class RapidFireCommand extends BaseCommand {
           }
 
           if (rttProbeError) {
-            const diagnosticsFilePath: string = await this.collectFailureDiagnostics(
-              context_.config.context,
-              context_.config.namespace,
+            const diagnosticsFilePath: string = await this.collectFailureDiagnostics({
+              context: context_.config.context,
+              namespace: context_.config.namespace,
               testClass,
               stdoutText,
               stderrText,
               result,
-              rttProbeError,
-            );
+              execError: rttProbeError,
+            });
             throw new SoloErrors.component.rapidFireExecutionFailed(
               `RTT probe failed: ${rttProbeError.message}\nFull output and cluster diagnostics written to ${diagnosticsFilePath}`,
               rttProbeError,
             );
           }
 
-          if (execError || result.status !== 'success') {
-            const diagnosticsFilePath: string = await this.collectFailureDiagnostics(
-              context_.config.context,
-              context_.config.namespace,
+          if (execError || result.status !== NlgResultStatus.Success) {
+            const diagnosticsFilePath: string = await this.collectFailureDiagnostics({
+              context: context_.config.context,
+              namespace: context_.config.namespace,
               testClass,
               stdoutText,
               stderrText,
               result,
               execError,
-            );
+            });
             throw new SoloErrors.component.rapidFireExecutionFailed(
               RapidFireCommand.buildFailureMessage(result, execError, stdoutText, stderrText, diagnosticsFilePath),
               execError,
@@ -638,7 +611,7 @@ export class RapidFireCommand extends BaseCommand {
 
     if (!lastMatch) {
       return {
-        status: 'no-result',
+        status: NlgResultStatus.NoResult,
         testClass,
         performanceTest,
         hint: RapidFireCommand.classifyFailure(output),
@@ -655,7 +628,7 @@ export class RapidFireCommand extends BaseCommand {
     // Treat this as success and only fail when there were no processed transactions.
     if (tps === 0 && transactionCount === 0) {
       return {
-        status: 'zero-tps',
+        status: NlgResultStatus.ZeroTps,
         testClass,
         performanceTest,
         transactionCount,
@@ -668,7 +641,7 @@ export class RapidFireCommand extends BaseCommand {
 
     if (maxRttMilliseconds > 0 && rttMilliseconds === undefined) {
       return {
-        status: 'no-rtt-result',
+        status: NlgResultStatus.NoRttResult,
         testClass,
         performanceTest,
         transactionCount,
@@ -681,7 +654,7 @@ export class RapidFireCommand extends BaseCommand {
 
     if (maxRttMilliseconds > 0 && rttMilliseconds !== undefined && rttMilliseconds > maxRttMilliseconds) {
       return {
-        status: 'rtt-threshold-exceeded',
+        status: NlgResultStatus.RttThresholdExceeded,
         testClass,
         performanceTest,
         transactionCount,
@@ -694,7 +667,7 @@ export class RapidFireCommand extends BaseCommand {
     }
 
     return {
-      status: 'success',
+      status: NlgResultStatus.Success,
       testClass,
       performanceTest,
       transactionCount,
@@ -788,25 +761,25 @@ export class RapidFireCommand extends BaseCommand {
       lines.push(`NLG process error: ${execError.message}`);
     }
     switch (result.status) {
-      case 'zero-tps': {
+      case NlgResultStatus.ZeroTps: {
         lines.push(
           `${result.testClass} completed with TPS: 0 (${result.transactionCount} transactions in ${result.durationSeconds} sec). No transactions were processed.`,
         );
         break;
       }
-      case 'no-result': {
+      case NlgResultStatus.NoResult: {
         lines.push(
           `${result.testClass} produced no "Finished <test>: ... TPS: N" result line. The NLG process exited or hung without reporting a benchmark result.`,
         );
         break;
       }
-      case 'no-rtt-result': {
+      case NlgResultStatus.NoRttResult: {
         lines.push(
           `${result.testClass} produced no RTT result while --max-rtt=${result.maxRttMilliseconds} ms was configured.`,
         );
         break;
       }
-      case 'rtt-threshold-exceeded': {
+      case NlgResultStatus.RttThresholdExceeded: {
         lines.push(
           `${result.testClass} completed with RTT ${result.rttMilliseconds} ms, exceeding the configured maximum of ${result.maxRttMilliseconds} ms.`,
         );
@@ -873,55 +846,47 @@ export class RapidFireCommand extends BaseCommand {
   // Best-effort: write a diagnostics file capturing full NLG output plus
   // consensus-node and haproxy pod logs (last 200 lines each). Returns the
   // file path even if some log fetches fail.
-  private async collectFailureDiagnostics(
-    context: string,
-    namespace: NamespaceName,
-    testClass: string,
-    stdoutText: string,
-    stderrText: string,
-    result: NlgResult,
-    execError: Error | undefined,
-  ): Promise<string> {
+  private async collectFailureDiagnostics(diagnostics: RapidFireFailureDiagnostics): Promise<string> {
     const timestamp: string = new Date().toISOString().replaceAll(':', '-');
-    const safeTestClass: string = testClass.replaceAll(/[^a-zA-Z0-9.-]/g, '_');
+    const safeTestClass: string = diagnostics.testClass.replaceAll(/[^a-zA-Z0-9.-]/g, '_');
     const fileName: string = `rapid-fire-failure-${safeTestClass}-${timestamp}.log`;
     const filePath: string = PathEx.join(constants.SOLO_LOGS_DIR, fileName);
 
     const headerLines: string[] = [
       '==== rapid-fire failure diagnostics ====',
       `time:        ${new Date().toISOString()}`,
-      `testClass:   ${testClass}`,
-      `status:      ${result.status}`,
+      `testClass:   ${diagnostics.testClass}`,
+      `status:      ${diagnostics.result.status}`,
     ];
-    if (result.tps !== undefined) {
+    if (diagnostics.result.tps !== undefined) {
       headerLines.push(
-        `tps:         ${result.tps}`,
-        `transactions:${result.transactionCount}`,
-        `duration:    ${result.durationSeconds}s`,
+        `tps:         ${diagnostics.result.tps}`,
+        `transactions:${diagnostics.result.transactionCount}`,
+        `duration:    ${diagnostics.result.durationSeconds}s`,
       );
     }
-    if (result.rttMilliseconds !== undefined) {
-      headerLines.push(`rtt:         ${result.rttMilliseconds}ms`);
+    if (diagnostics.result.rttMilliseconds !== undefined) {
+      headerLines.push(`rtt:         ${diagnostics.result.rttMilliseconds}ms`);
     }
-    if (result.maxRttMilliseconds !== undefined) {
-      headerLines.push(`maxRtt:      ${result.maxRttMilliseconds}ms`);
+    if (diagnostics.result.maxRttMilliseconds !== undefined) {
+      headerLines.push(`maxRtt:      ${diagnostics.result.maxRttMilliseconds}ms`);
     }
-    if (result.hint) {
-      headerLines.push(`hint:        ${result.hint}`);
+    if (diagnostics.result.hint) {
+      headerLines.push(`hint:        ${diagnostics.result.hint}`);
     }
-    if (execError) {
-      headerLines.push(`execError:   ${execError.message}`);
+    if (diagnostics.execError) {
+      headerLines.push(`execError:   ${diagnostics.execError.message}`);
     }
 
     const sections: string[] = [
       ...headerLines,
       '',
       '==== NLG stdout (full) ====',
-      stdoutText || '(empty)',
+      diagnostics.stdoutText || '(empty)',
       '',
       '==== NLG stderr (full) ====',
-      stderrText || '(empty)',
-      ...(await this.collectPodLogSections(context, namespace)),
+      diagnostics.stderrText || '(empty)',
+      ...(await this.collectPodLogSections(diagnostics.context, diagnostics.namespace)),
     ];
 
     try {
@@ -972,6 +937,10 @@ export class RapidFireCommand extends BaseCommand {
             config.namespace = await this.getNamespace(task);
             config.clusterRef = this.getClusterReference();
             config.context = this.getClusterContext(config.clusterRef);
+            config.rttSampleCount = constants.RAPID_FIRE_RTT_SAMPLE_COUNT;
+            config.rttSampleInterval = constants.RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS;
+            config.rttWarmupSeconds = constants.RAPID_FIRE_RTT_WARMUP_SECONDS;
+            config.rttPollTimeout = constants.RAPID_FIRE_RTT_POLL_TIMEOUT_MS;
 
             // Parse nlgArguments to remove any surrounding quotes
             config.parsedNlgArguments = config.nlgArguments.replaceAll("'", '').replaceAll('"', '');

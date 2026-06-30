@@ -492,6 +492,16 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_DELAY') || 1000;
+export const RAPID_FIRE_RTT_SAMPLE_COUNT_ENV: string = 'RAPID_FIRE_RTT_SAMPLE_COUNT';
+export const RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS_ENV: string = 'RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS';
+export const RAPID_FIRE_RTT_WARMUP_SECONDS_ENV: string = 'RAPID_FIRE_RTT_WARMUP_SECONDS';
+export const RAPID_FIRE_RTT_POLL_TIMEOUT_MS_ENV: string = 'RAPID_FIRE_RTT_POLL_TIMEOUT_MS';
+export const RAPID_FIRE_RTT_SAMPLE_COUNT: number = +getEnvironmentVariable(RAPID_FIRE_RTT_SAMPLE_COUNT_ENV) || 5;
+export const RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS: number =
+  +getEnvironmentVariable(RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS_ENV) || 1000;
+export const RAPID_FIRE_RTT_WARMUP_SECONDS: number = +getEnvironmentVariable(RAPID_FIRE_RTT_WARMUP_SECONDS_ENV) || 30;
+export const RAPID_FIRE_RTT_POLL_TIMEOUT_MS: number =
+  +getEnvironmentVariable(RAPID_FIRE_RTT_POLL_TIMEOUT_MS_ENV) || 30_000;
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
