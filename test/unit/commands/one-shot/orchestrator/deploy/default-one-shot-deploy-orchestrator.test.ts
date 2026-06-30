@@ -499,6 +499,7 @@ function makeMinimalOrchestrator(): DefaultOneShotDeployOrchestrator {
     {} as MockType,
     {} as MockType,
     {} as MockType,
+    {} as MockType,
   );
 }
 
