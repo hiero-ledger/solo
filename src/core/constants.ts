@@ -32,6 +32,17 @@ export function getEnvironmentVariable(name: string): string | undefined {
   }
   return undefined;
 }
+
+function getNumberEnvironmentVariable(name: string, defaultValue: number): number {
+  const value: string | undefined = getEnvironmentVariable(name);
+  if (!value) {
+    return defaultValue;
+  }
+
+  const numberValue: number = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : defaultValue;
+}
+
 export const ROOT_DIR: string = PathEx.joinWithRealPath(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
 
 // -------------------- solo related constants ---------------------------------------------------------------------
@@ -496,12 +507,19 @@ export const RAPID_FIRE_RTT_SAMPLE_COUNT_ENV: string = 'RAPID_FIRE_RTT_SAMPLE_CO
 export const RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS_ENV: string = 'RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS';
 export const RAPID_FIRE_RTT_WARMUP_SECONDS_ENV: string = 'RAPID_FIRE_RTT_WARMUP_SECONDS';
 export const RAPID_FIRE_RTT_POLL_TIMEOUT_MS_ENV: string = 'RAPID_FIRE_RTT_POLL_TIMEOUT_MS';
-export const RAPID_FIRE_RTT_SAMPLE_COUNT: number = +getEnvironmentVariable(RAPID_FIRE_RTT_SAMPLE_COUNT_ENV) || 5;
-export const RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS: number =
-  +getEnvironmentVariable(RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS_ENV) || 1000;
-export const RAPID_FIRE_RTT_WARMUP_SECONDS: number = +getEnvironmentVariable(RAPID_FIRE_RTT_WARMUP_SECONDS_ENV) || 30;
-export const RAPID_FIRE_RTT_POLL_TIMEOUT_MS: number =
-  +getEnvironmentVariable(RAPID_FIRE_RTT_POLL_TIMEOUT_MS_ENV) || 30_000;
+export const RAPID_FIRE_RTT_SAMPLE_COUNT: number = getNumberEnvironmentVariable(RAPID_FIRE_RTT_SAMPLE_COUNT_ENV, 5);
+export const RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS: number = getNumberEnvironmentVariable(
+  RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS_ENV,
+  1000,
+);
+export const RAPID_FIRE_RTT_WARMUP_SECONDS: number = getNumberEnvironmentVariable(
+  RAPID_FIRE_RTT_WARMUP_SECONDS_ENV,
+  30,
+);
+export const RAPID_FIRE_RTT_POLL_TIMEOUT_MS: number = getNumberEnvironmentVariable(
+  RAPID_FIRE_RTT_POLL_TIMEOUT_MS_ENV,
+  30_000,
+);
 
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;

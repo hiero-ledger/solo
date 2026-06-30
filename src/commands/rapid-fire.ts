@@ -49,14 +49,12 @@ import {
   type TransactionId,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
-import {
-  type MirrorTransactionResponse,
-  type NlgResult,
-  NlgResultStatus,
-  type RapidFireFailureDiagnostics,
-  type RttProbeResult,
-  type RttSample,
-} from './rapid-fire-model.js';
+import {type MirrorTransactionResponse} from './rapid-fire/mirror-transaction-response.js';
+import {type NlgResult} from './rapid-fire/nlg-result.js';
+import {NlgResultStatus} from './rapid-fire/nlg-result-status.js';
+import {type RapidFireFailureDiagnostics} from './rapid-fire/rapid-fire-failure-diagnostics.js';
+import {type RttProbeResult} from './rapid-fire/rtt-probe-result.js';
+import {type RttSample} from './rapid-fire/rtt-sample.js';
 
 interface RapidFireStartConfigClass {
   clusterRef: ClusterReferenceName;
@@ -529,7 +527,7 @@ export class RapidFireCommand extends BaseCommand {
             );
           }
 
-          if (execError || result.status !== NlgResultStatus.Success) {
+          if (execError || result.status !== NlgResultStatus.SUCCESS) {
             const diagnosticsFilePath: string = await this.collectFailureDiagnostics({
               context: context_.config.context,
               namespace: context_.config.namespace,
@@ -611,7 +609,7 @@ export class RapidFireCommand extends BaseCommand {
 
     if (!lastMatch) {
       return {
-        status: NlgResultStatus.NoResult,
+        status: NlgResultStatus.NO_RESULT,
         testClass,
         performanceTest,
         hint: RapidFireCommand.classifyFailure(output),
@@ -628,7 +626,7 @@ export class RapidFireCommand extends BaseCommand {
     // Treat this as success and only fail when there were no processed transactions.
     if (tps === 0 && transactionCount === 0) {
       return {
-        status: NlgResultStatus.ZeroTps,
+        status: NlgResultStatus.ZERO_TPS,
         testClass,
         performanceTest,
         transactionCount,
@@ -641,7 +639,7 @@ export class RapidFireCommand extends BaseCommand {
 
     if (maxRttMilliseconds > 0 && rttMilliseconds === undefined) {
       return {
-        status: NlgResultStatus.NoRttResult,
+        status: NlgResultStatus.NO_RTT_RESULT,
         testClass,
         performanceTest,
         transactionCount,
@@ -654,7 +652,7 @@ export class RapidFireCommand extends BaseCommand {
 
     if (maxRttMilliseconds > 0 && rttMilliseconds !== undefined && rttMilliseconds > maxRttMilliseconds) {
       return {
-        status: NlgResultStatus.RttThresholdExceeded,
+        status: NlgResultStatus.RTT_THRESHOLD_EXCEEDED,
         testClass,
         performanceTest,
         transactionCount,
@@ -667,7 +665,7 @@ export class RapidFireCommand extends BaseCommand {
     }
 
     return {
-      status: NlgResultStatus.Success,
+      status: NlgResultStatus.SUCCESS,
       testClass,
       performanceTest,
       transactionCount,
@@ -761,25 +759,25 @@ export class RapidFireCommand extends BaseCommand {
       lines.push(`NLG process error: ${execError.message}`);
     }
     switch (result.status) {
-      case NlgResultStatus.ZeroTps: {
+      case NlgResultStatus.ZERO_TPS: {
         lines.push(
           `${result.testClass} completed with TPS: 0 (${result.transactionCount} transactions in ${result.durationSeconds} sec). No transactions were processed.`,
         );
         break;
       }
-      case NlgResultStatus.NoResult: {
+      case NlgResultStatus.NO_RESULT: {
         lines.push(
           `${result.testClass} produced no "Finished <test>: ... TPS: N" result line. The NLG process exited or hung without reporting a benchmark result.`,
         );
         break;
       }
-      case NlgResultStatus.NoRttResult: {
+      case NlgResultStatus.NO_RTT_RESULT: {
         lines.push(
           `${result.testClass} produced no RTT result while --max-rtt=${result.maxRttMilliseconds} ms was configured.`,
         );
         break;
       }
-      case NlgResultStatus.RttThresholdExceeded: {
+      case NlgResultStatus.RTT_THRESHOLD_EXCEEDED: {
         lines.push(
           `${result.testClass} completed with RTT ${result.rttMilliseconds} ms, exceeding the configured maximum of ${result.maxRttMilliseconds} ms.`,
         );
