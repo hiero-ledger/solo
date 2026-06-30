@@ -117,6 +117,8 @@ export class RapidFireCommand extends BaseCommand {
 
   private static readonly CRYPTO_TRANSFER_START_CONFIG_NAME: string = 'cryptoTransferStartConfig';
   private static readonly STOP_CONFIG_NAME: string = 'stopConfig';
+  private static readonly MIRROR_REST_POLL_INTERVAL_MS: number = 100;
+  private static readonly MIRROR_REST_REQUEST_TIMEOUT_MS: number = 1000;
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.nlgArguments, flags.performanceTest],
@@ -280,8 +282,17 @@ export class RapidFireCommand extends BaseCommand {
     };
   }
 
-  private static async mirrorTransactionIsAvailable(port: number, mirrorTransactionId: string): Promise<boolean> {
+  private static async mirrorTransactionIsAvailable(
+    port: number,
+    mirrorTransactionId: string,
+    requestTimeoutMilliseconds: number,
+  ): Promise<boolean> {
     const url: string = `http://localhost:${port}/api/v1/transactions/${mirrorTransactionId}`;
+    const abortController: AbortController = new AbortController();
+    const abortTimeout: NodeJS.Timeout = setTimeout((): void => {
+      abortController.abort();
+    }, requestTimeoutMilliseconds);
+
     try {
       const response: Response = await fetch(url, {
         cache: 'no-cache',
@@ -290,6 +301,7 @@ export class RapidFireCommand extends BaseCommand {
           Pragma: 'no-cache',
           Expires: '0',
         },
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -302,6 +314,8 @@ export class RapidFireCommand extends BaseCommand {
       );
     } catch {
       return false;
+    } finally {
+      clearTimeout(abortTimeout);
     }
   }
 
@@ -311,11 +325,24 @@ export class RapidFireCommand extends BaseCommand {
     timeoutMilliseconds: number,
   ): Promise<void> {
     const startedAt: number = performance.now();
-    while (performance.now() - startedAt <= timeoutMilliseconds) {
-      if (await RapidFireCommand.mirrorTransactionIsAvailable(port, mirrorTransactionId)) {
+    while (performance.now() - startedAt < timeoutMilliseconds) {
+      const remainingMilliseconds: number = timeoutMilliseconds - (performance.now() - startedAt);
+      const requestTimeoutMilliseconds: number = Math.min(
+        remainingMilliseconds,
+        RapidFireCommand.MIRROR_REST_REQUEST_TIMEOUT_MS,
+      );
+
+      if (await RapidFireCommand.mirrorTransactionIsAvailable(port, mirrorTransactionId, requestTimeoutMilliseconds)) {
         return;
       }
-      await sleep(Duration.ofMillis(100));
+
+      const sleepMilliseconds: number = Math.min(
+        RapidFireCommand.MIRROR_REST_POLL_INTERVAL_MS,
+        Math.max(0, timeoutMilliseconds - (performance.now() - startedAt)),
+      );
+      if (sleepMilliseconds > 0) {
+        await sleep(Duration.ofMillis(sleepMilliseconds));
+      }
     }
 
     throw new Error(
@@ -327,9 +354,7 @@ export class RapidFireCommand extends BaseCommand {
     config: RapidFireStartConfigClass,
   ): Promise<{port: number; portForwarder: number}> {
     const mirrorNamespace: NamespaceName = NamespaceName.of(config.mirrorNamespace || config.namespace.name);
-    if (!(await PortUtilities.isPortAvailable(constants.MIRROR_NODE_PORT))) {
-      return {port: constants.MIRROR_NODE_PORT, portForwarder: 0};
-    }
+    const port: number = await PortUtilities.findAvailablePort(constants.MIRROR_NODE_PORT, 30_000, this.logger);
 
     const ingressPods: Pod[] = await this.k8Factory
       .getK8(config.context)
@@ -348,10 +373,10 @@ export class RapidFireCommand extends BaseCommand {
       .getK8(config.context)
       .pods()
       .readByReference(mirrorIngressPod.podReference)
-      .portForward(constants.MIRROR_NODE_PORT, 80, true);
+      .portForward(port, 80, true);
     await sleep(Duration.ofSeconds(2));
 
-    return {port: constants.MIRROR_NODE_PORT, portForwarder};
+    return {port, portForwarder};
   }
 
   private async stopMirrorRestPortForward(config: RapidFireStartConfigClass, portForwarder: number): Promise<void> {
@@ -701,7 +726,7 @@ export class RapidFireCommand extends BaseCommand {
     for (const {pattern, valueIndex, unitIndex} of patterns) {
       let match: RegExpExecArray | null;
       while ((match = pattern.exec(output)) !== null) {
-        const rttValue: number = Number.parseFloat(match[valueIndex]);
+        const rttValue: number = Number(match[valueIndex]);
         if (Number.isNaN(rttValue)) {
           continue;
         }
@@ -784,6 +809,9 @@ export class RapidFireCommand extends BaseCommand {
         break;
       }
       // success case handled by caller
+      default: {
+        break;
+      }
     }
     if (result.hint) {
       lines.push(`hint: ${result.hint}`);

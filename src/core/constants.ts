@@ -26,7 +26,7 @@ export function getEnvironmentVariable(name: string): string | undefined {
 
   if (value && value.trim() !== '') {
     if (!(process.env.SOLO_SILENT_MODE === 'true')) {
-      console.log(`>> environment variable '${name}' exists, using value '${value}'`);
+      console.log(`>> environment variable '${name}' exists, using its value`);
     }
     return value;
   }
