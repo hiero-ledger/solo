@@ -14,7 +14,7 @@ import {type ConfigManager} from './config-manager.js';
 import {Helpers} from './helpers.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, type DirectoryPath, type NodeAlias, type NodeAliases, type Path} from '../types/aliases.js';
-import {type Optional} from '../types/index.js';
+import {type Optional, type PriorityMapping} from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
@@ -289,6 +289,15 @@ export class ProfileManager {
       yamlRoot,
     );
 
+    this.addBlockNodesJsonValues(consensusNodes, nodeAliases, deploymentName, yamlRoot);
+  }
+
+  public addBlockNodesJsonValues(
+    consensusNodes: ConsensusNode[],
+    nodeAliases: NodeAliases,
+    deploymentName: DeploymentName,
+    yamlRoot: AnyObject,
+  ): void {
     try {
       if (
         this.remoteConfig.configuration.state.blockNodes.length === 0 &&
@@ -297,29 +306,49 @@ export class ProfileManager {
         return;
       }
     } catch {
-      // quick fix for tests where field on remote config are unaccessible
+      // Some unit tests intentionally stub only part of remoteConfig; skip block-node values in those cases.
       return;
     }
 
-    for (const node of consensusNodes) {
-      const blockNodesJsonData: string = new BlockNodesJsonWrapper(
-        node.blockNodeMap,
-        node.externalBlockNodeMap,
-      ).toJSON();
+    const latestConsensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+    const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap([...nodeAliases], deploymentName);
 
-      let nodeIndex: number = 0;
+    for (const [nodeIndex, nodeAlias] of nodeAliases.entries()) {
+      const node: ConsensusNode | undefined =
+        consensusNodes.find((candidate: ConsensusNode): boolean => candidate.name === nodeAlias) ??
+        latestConsensusNodes.find((candidate: ConsensusNode): boolean => candidate.name === nodeAlias);
 
-      for (const [index, nodeAlias] of nodeAliases.entries()) {
-        if (nodeAlias === node.name) {
-          nodeIndex = index;
-        }
+      if (!node) {
+        continue;
       }
+
+      const latestNode: ConsensusNode | undefined = latestConsensusNodes.find(
+        (candidate: ConsensusNode): boolean => candidate.name === nodeAlias,
+      );
+      const blockNodeMap: PriorityMapping[] =
+        node.blockNodeMap.length > 0 ? node.blockNodeMap : (latestNode?.blockNodeMap ?? []);
+      const externalBlockNodeMap: PriorityMapping[] =
+        node.externalBlockNodeMap.length > 0 ? node.externalBlockNodeMap : (latestNode?.externalBlockNodeMap ?? []);
+      const blockNodesJsonData: string = new BlockNodesJsonWrapper(
+        blockNodeMap,
+        externalBlockNodeMap,
+        this.remoteConfig,
+      ).toJSON();
+      const parsedBlockNodesJson: {nodes: unknown[]} = JSON.parse(blockNodesJsonData) as {nodes: unknown[]};
+
+      if (parsedBlockNodesJson.nodes.length === 0) {
+        continue;
+      }
+
+      this._setValue(`hedera.nodes.${nodeIndex}.name`, nodeAlias, yamlRoot);
+      this._setValue(`hedera.nodes.${nodeIndex}.nodeId`, `${Templates.nodeIdFromNodeAlias(nodeAlias)}`, yamlRoot);
+      this._setValue(`hedera.nodes.${nodeIndex}.accountId`, accountMap.get(nodeAlias), yamlRoot);
 
       // Create a unique filename for each consensus node
       const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${node.name}.json`;
       const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
 
-      fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
+      fs.writeFileSync(blockNodesJsonPath, JSON.stringify(parsedBlockNodesJson, undefined, 2));
       this._setFileContentsAsValue(`hedera.nodes.${nodeIndex}.blockNodesJson`, blockNodesJsonPath, yamlRoot);
     }
   }

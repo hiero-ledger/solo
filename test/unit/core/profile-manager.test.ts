@@ -27,6 +27,9 @@ import {type AnyObject, type NodeAlias, type NodeAliases} from '../../../src/typ
 import * as constants from '../../../src/core/constants.js';
 import {Address} from '../../../src/business/address/address.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
+import {BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
+import {ComponentStateMetadataSchema} from '../../../src/data/schema/model/remote/state/component-state-metadata-schema.js';
+import {ClusterSchema} from '../../../src/data/schema/model/common/cluster-schema.js';
 
 function invokeExtractSavedEndpoint(
   manager: ProfileManager,
@@ -197,6 +200,67 @@ describe('ProfileManager', (): void => {
       const cachedValuesFile: string = Object.values(cachedValuesFileMapping)[0];
       const valuesYaml: AnyObject = yaml.parse(fs.readFileSync(cachedValuesFile, 'utf8')) as AnyObject;
       expect(valuesYaml.hedera.configMaps.applicationEnv).to.equal(fileContents);
+    });
+
+    it('addBlockNodesJsonValues should use current remote config mappings when node input is stale', (): void => {
+      const staleConsensusNodes: ConsensusNode[] = [
+        {
+          ...consensusNodes[0],
+          blockNodeMap: [],
+          externalBlockNodeMap: [],
+        },
+      ];
+      const latestConsensusNodes: ConsensusNode[] = [
+        {
+          ...consensusNodes[0],
+          blockNodeMap: [[1, 1]],
+          externalBlockNodeMap: [],
+        },
+      ];
+      const yamlRoot: AnyObject = {};
+
+      const profileManagerPrivate: {
+        remoteConfig: RemoteConfigRuntimeStateApi;
+      } = profileManager as unknown as {
+        remoteConfig: RemoteConfigRuntimeStateApi;
+      };
+      const configurationStub: sinon.SinonStub = sinon.stub(profileManagerPrivate.remoteConfig, 'configuration').get(
+        (): RemoteConfig =>
+          ({
+            clusters: [new ClusterSchema(currentClusterName, namespace.name, deploymentName)],
+            state: {
+              blockNodes: [
+                new BlockNodeStateSchema(new ComponentStateMetadataSchema(1, namespace.name, currentClusterName)),
+              ],
+              externalBlockNodes: [],
+              tssEnabled: false,
+            },
+            versions: {
+              consensusNode: version.HEDERA_PLATFORM_VERSION,
+            },
+          }) as unknown as RemoteConfig,
+      );
+
+      try {
+        // @ts-expect-error - TS2339: to mock
+        profileManager.remoteConfig.getConsensusNodes = sinon.stub().returns(latestConsensusNodes);
+
+        profileManager.addBlockNodesJsonValues(staleConsensusNodes, ['node1'], deploymentName, yamlRoot);
+
+        const blockNodesJson: {
+          nodes: {address: string; priority: number; servicePort: number; streamingPort: number}[];
+        } = JSON.parse(yamlRoot.hedera.nodes[0].blockNodesJson) as {
+          nodes: {address: string; priority: number; servicePort: number; streamingPort: number}[];
+        };
+
+        expect(blockNodesJson.nodes).to.have.lengthOf(1);
+        expect(blockNodesJson.nodes[0].address).to.equal(`block-node-1.${namespace.name}.svc.cluster.local`);
+        expect(blockNodesJson.nodes[0].priority).to.equal(1);
+      } finally {
+        configurationStub.restore();
+        // @ts-expect-error - TS2339: to mock
+        profileManager.remoteConfig.getConsensusNodes = sinon.stub().returns(consensusNodes);
+      }
     });
 
     it('resourcesForNetworkUpgrade should normalize application.properties before writing chart values', async (): Promise<void> => {

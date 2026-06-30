@@ -2539,6 +2539,13 @@ export class NodeCommandTasks {
           );
         }
 
+        this.profileManager.addBlockNodesJsonValues(
+          config.consensusNodes,
+          config.nodeAliases,
+          config.deployment,
+          yamlRoot,
+        );
+
         for (const node of config.consensusNodes) {
           const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
             NamespaceName.of(node.namespace),
