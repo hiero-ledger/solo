@@ -437,6 +437,8 @@ jobs:
         id: run-e2e-tests
         if: ${{ inputs.runner != 'windows-latest' && !cancelled() && !failure() }}
         timeout-minutes: ${{ fromJSON(inputs.test-timeout-minutes) }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           export PATH=~/.solo/bin:${PATH}
           echo "PATH: $PATH"
