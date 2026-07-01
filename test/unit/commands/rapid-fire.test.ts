@@ -28,6 +28,7 @@ interface RapidFireCommandInternals {
     mirrorTransactionId: string,
     requestTimeoutMilliseconds: number,
   ): Promise<boolean>;
+  mirrorReadinessPollTimeout(config: {rttPollTimeout: number}): number;
 }
 
 describe('RapidFireCommand', (): void => {
@@ -183,6 +184,12 @@ describe('RapidFireCommand', (): void => {
       const result: boolean = await internals.mirrorTransactionIsAvailable(38_081, mirrorTransactionId, 1);
 
       expect(result).to.equal(false);
+    });
+  });
+
+  describe('mirrorReadinessPollTimeout', (): void => {
+    it('uses a longer catch-up timeout before measured RTT samples start', (): void => {
+      expect(internals.mirrorReadinessPollTimeout({rttPollTimeout: 30_000})).to.equal(300_000);
     });
   });
 });

@@ -119,6 +119,7 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly STOP_CONFIG_NAME: string = 'stopConfig';
   private static readonly MIRROR_REST_POLL_INTERVAL_MS: number = 100;
   private static readonly MIRROR_REST_REQUEST_TIMEOUT_MS: number = 1000;
+  private static readonly MIRROR_READINESS_POLL_TIMEOUT_MULTIPLIER: number = 10;
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.nlgArguments, flags.performanceTest],
@@ -258,6 +259,10 @@ export class RapidFireCommand extends BaseCommand {
     return `${transactionId.accountId.toString()}-${seconds}-${nanoseconds}`;
   }
 
+  private static mirrorReadinessPollTimeout(config: RapidFireStartConfigClass): number {
+    return config.rttPollTimeout * RapidFireCommand.MIRROR_READINESS_POLL_TIMEOUT_MULTIPLIER;
+  }
+
   private static percentile(sortedValues: number[], percentile: number): number {
     const index: number = Math.min(
       sortedValues.length - 1,
@@ -390,6 +395,7 @@ export class RapidFireCommand extends BaseCommand {
     client: Client,
     config: RapidFireStartConfigClass,
     mirrorPort: number,
+    pollTimeoutMilliseconds: number = config.rttPollTimeout,
   ): Promise<RttSample> {
     const operatorAccountId: AccountId = this.accountManager.getTreasuryAccountId(config.deployment);
     const recipientAccountId: AccountId = this.accountManager.getAccountIdByNumber(config.deployment, 3);
@@ -400,7 +406,7 @@ export class RapidFireCommand extends BaseCommand {
       .execute(client);
 
     const mirrorTransactionId: string = RapidFireCommand.mirrorTransactionId(transactionResponse.transactionId);
-    await this.waitForMirrorTransaction(mirrorPort, mirrorTransactionId, config.rttPollTimeout);
+    await this.waitForMirrorTransaction(mirrorPort, mirrorTransactionId, pollTimeoutMilliseconds);
     const mirrorMilliseconds: number = performance.now();
 
     return {
@@ -408,6 +414,23 @@ export class RapidFireCommand extends BaseCommand {
       submitToMirrorMilliseconds: Math.round(mirrorMilliseconds - startMilliseconds),
       endToEndMilliseconds: Math.round(mirrorMilliseconds - startMilliseconds),
     };
+  }
+
+  private async waitForMirrorReadiness(
+    client: Client,
+    config: RapidFireStartConfigClass,
+    mirrorPort: number,
+  ): Promise<void> {
+    const readinessSample: RttSample = await this.measureTransactionRtt(
+      client,
+      config,
+      mirrorPort,
+      RapidFireCommand.mirrorReadinessPollTimeout(config),
+    );
+    this.logger.info(
+      `Mirror REST readiness observed transaction ${readinessSample.transactionId} in ` +
+        `${readinessSample.endToEndMilliseconds} ms; starting measured RTT samples`,
+    );
   }
 
   private async measureRttDuringLoad(config: RapidFireStartConfigClass): Promise<RttProbeResult> {
@@ -432,6 +455,7 @@ export class RapidFireCommand extends BaseCommand {
         config.deployment,
         true,
       );
+      await this.waitForMirrorReadiness(client, config, port);
 
       for (let index: number = 0; index < config.rttSampleCount; index++) {
         samples.push(await this.measureTransactionRtt(client, config, port));
