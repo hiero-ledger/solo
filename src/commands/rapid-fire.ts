@@ -43,10 +43,12 @@ import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {
   Hbar,
+  Status,
   TransferTransaction,
   type AccountId,
   type Client,
   type TransactionId,
+  type TransactionReceipt,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
 import {type MirrorTransactionResponse} from './rapid-fire/mirror-transaction-response.js';
@@ -120,6 +122,7 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly MIRROR_REST_POLL_INTERVAL_MS: number = 100;
   private static readonly MIRROR_REST_REQUEST_TIMEOUT_MS: number = 1000;
   private static readonly MIRROR_READINESS_POLL_TIMEOUT_MULTIPLIER: number = 15;
+  private static readonly RTT_PROBE_RECIPIENT_ACCOUNT_NUMBER: number = 98;
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.nlgArguments, flags.performanceTest],
@@ -355,6 +358,28 @@ export class RapidFireCommand extends BaseCommand {
     );
   }
 
+  private static async waitWithTimeout<T>(
+    operation: Promise<T>,
+    timeoutMilliseconds: number,
+    errorMessage: string,
+  ): Promise<T> {
+    let timeout: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        operation,
+        new Promise<T>((_resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: unknown) => void): void => {
+          timeout = setTimeout((): void => {
+            reject(new Error(errorMessage));
+          }, timeoutMilliseconds);
+        }),
+      ]);
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
   private async forwardMirrorRestPort(
     config: RapidFireStartConfigClass,
   ): Promise<{port: number; portForwarder: number}> {
@@ -398,7 +423,10 @@ export class RapidFireCommand extends BaseCommand {
     pollTimeoutMilliseconds: number = config.rttPollTimeout,
   ): Promise<RttSample> {
     const operatorAccountId: AccountId = this.accountManager.getTreasuryAccountId(config.deployment);
-    const recipientAccountId: AccountId = this.accountManager.getAccountIdByNumber(config.deployment, 3);
+    const recipientAccountId: AccountId = this.accountManager.getAccountIdByNumber(
+      config.deployment,
+      RapidFireCommand.RTT_PROBE_RECIPIENT_ACCOUNT_NUMBER,
+    );
     const startMilliseconds: number = performance.now();
     const transactionResponse: TransactionResponse = await new TransferTransaction()
       .addHbarTransfer(operatorAccountId, Hbar.fromTinybars(-1))
@@ -406,7 +434,23 @@ export class RapidFireCommand extends BaseCommand {
       .execute(client);
 
     const mirrorTransactionId: string = RapidFireCommand.mirrorTransactionId(transactionResponse.transactionId);
-    await this.waitForMirrorTransaction(mirrorPort, mirrorTransactionId, pollTimeoutMilliseconds);
+    const transactionReceipt: TransactionReceipt = await RapidFireCommand.waitWithTimeout(
+      transactionResponse.getReceipt(client),
+      pollTimeoutMilliseconds,
+      `Timed out after ${pollTimeoutMilliseconds} ms waiting for transaction ${mirrorTransactionId} receipt`,
+    );
+    if (transactionReceipt.status !== Status.Success) {
+      throw new Error(
+        `Transaction ${mirrorTransactionId} reached consensus with status ${transactionReceipt.status.toString()}`,
+      );
+    }
+
+    const receiptMilliseconds: number = performance.now();
+    const remainingPollTimeoutMilliseconds: number = Math.max(
+      1,
+      pollTimeoutMilliseconds - Math.round(receiptMilliseconds - startMilliseconds),
+    );
+    await this.waitForMirrorTransaction(mirrorPort, mirrorTransactionId, remainingPollTimeoutMilliseconds);
     const mirrorMilliseconds: number = performance.now();
 
     return {
