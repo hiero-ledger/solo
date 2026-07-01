@@ -8,6 +8,7 @@ import sinon, {type SinonStub} from 'sinon';
 import fs from 'node:fs/promises';
 import {YamlImageTargetProvider} from '../../../../src/integration/cache/target-providers/yaml-image-target-provider.js';
 import {CacheArtifactEnum} from '../../../../src/integration/cache/enums/cache-artifact-enum.js';
+import {type CacheTargetStructure} from '../../../../src/integration/cache/models/cache-target-structure.js';
 
 describe('YamlImageTargetProvider', (): void => {
   let readFileStub: SinonStub;
@@ -30,7 +31,7 @@ images:
     version: 2.0.0
 `);
 
-    const result = await provider.getRequiredTargets();
+    const result: readonly CacheTargetStructure[] = await provider.getRequiredTargets();
 
     expect(result).to.have.lengthOf(2);
     expect(result[0].type).to.equal(CacheArtifactEnum.IMAGE);

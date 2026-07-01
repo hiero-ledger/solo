@@ -13,15 +13,15 @@ import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {LockRelinquishmentError} from '../../../../src/core/lock/lock-relinquishment-error.js';
 
-const defaultTimeout = Duration.ofMinutes(2).toMillis();
-const leaseDuration = 4;
+const defaultTimeout: number = Duration.ofMinutes(2).toMillis();
+const leaseDuration: number = 4;
 
 describe('Lease', async (): Promise<void> => {
   const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
   const testNamespace: NamespaceName = NamespaceName.of('lease-e2e');
   const renewalService: NoopLeaseRenewalService = new NoopLeaseRenewalService();
 
-  before(async function () {
+  before(async function (): Promise<void> {
     this.timeout(defaultTimeout);
     if (await k8Factory.default().namespaces().has(testNamespace)) {
       await k8Factory.default().namespaces().delete(testNamespace);
@@ -31,7 +31,7 @@ describe('Lease', async (): Promise<void> => {
     await k8Factory.default().namespaces().create(testNamespace);
   });
 
-  after(async function () {
+  after(async function (): Promise<void> {
     this.timeout(defaultTimeout);
     await k8Factory.default().namespaces().delete(testNamespace);
   });
@@ -39,7 +39,7 @@ describe('Lease', async (): Promise<void> => {
   describe('acquire and release', async function (): Promise<void> {
     this.timeout(defaultTimeout);
 
-    it('non-expired lease', async () => {
+    it('non-expired lease', async (): Promise<void> => {
       const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
@@ -56,7 +56,7 @@ describe('Lease', async (): Promise<void> => {
       expect(await lease.isAcquired()).to.be.false;
     });
 
-    it('non-expired lease held by another user should not be released', async () => {
+    it('non-expired lease held by another user should not be released', async (): Promise<void> => {
       const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
@@ -87,7 +87,7 @@ describe('Lease', async (): Promise<void> => {
       expect(await lease.isExpired()).to.be.false;
     });
 
-    it('expired lease held by another user should be released', async () => {
+    it('expired lease held by another user should be released', async (): Promise<void> => {
       const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
@@ -118,7 +118,7 @@ describe('Lease', async (): Promise<void> => {
       expect(await lease.isExpired()).to.be.false;
     });
 
-    it('expired lease should be released', async () => {
+    it('expired lease should be released', async (): Promise<void> => {
       const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
@@ -141,10 +141,10 @@ describe('Lease', async (): Promise<void> => {
     });
   });
 
-  describe('tryAcquire and tryRelease', async function () {
+  describe('tryAcquire and tryRelease', async function (): Promise<void> {
     this.timeout(defaultTimeout);
 
-    it('non-expired lease', async () => {
+    it('non-expired lease', async (): Promise<void> => {
       const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
@@ -163,7 +163,7 @@ describe('Lease', async (): Promise<void> => {
       expect(await lease.isExpired()).to.be.false;
     });
 
-    it('non-expired lease held by another user should not be released', async () => {
+    it('non-expired lease held by another user should not be released', async (): Promise<void> => {
       const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
@@ -194,7 +194,7 @@ describe('Lease', async (): Promise<void> => {
       expect(await lease.isExpired()).to.be.false;
     });
 
-    it('expired lease held by another user should be released', async () => {
+    it('expired lease held by another user should be released', async (): Promise<void> => {
       const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
@@ -225,7 +225,7 @@ describe('Lease', async (): Promise<void> => {
       expect(await lease.isExpired()).to.be.false;
     });
 
-    it('expired lease should be released', async () => {
+    it('expired lease should be released', async (): Promise<void> => {
       const lease: IntervalLock = new IntervalLock(
         k8Factory,
         renewalService,
