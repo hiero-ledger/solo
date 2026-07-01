@@ -421,15 +421,43 @@ export class RapidFireCommand extends BaseCommand {
     config: RapidFireStartConfigClass,
     mirrorPort: number,
   ): Promise<void> {
-    const readinessSample: RttSample = await this.measureTransactionRtt(
-      client,
-      config,
-      mirrorPort,
-      RapidFireCommand.mirrorReadinessPollTimeout(config),
-    );
-    this.logger.info(
-      `Mirror REST readiness observed transaction ${readinessSample.transactionId} in ` +
-        `${readinessSample.endToEndMilliseconds} ms; starting measured RTT samples`,
+    const readinessTimeoutMilliseconds: number = RapidFireCommand.mirrorReadinessPollTimeout(config);
+    const startedAtMilliseconds: number = Date.now();
+    let attempt: number = 0;
+    let lastError: Error | undefined;
+
+    while (Date.now() - startedAtMilliseconds < readinessTimeoutMilliseconds) {
+      attempt++;
+      const remainingMilliseconds: number = Math.max(
+        1,
+        readinessTimeoutMilliseconds - (Date.now() - startedAtMilliseconds),
+      );
+      const attemptTimeoutMilliseconds: number = Math.min(config.rttPollTimeout, remainingMilliseconds);
+
+      try {
+        const readinessSample: RttSample = await this.measureTransactionRtt(
+          client,
+          config,
+          mirrorPort,
+          attemptTimeoutMilliseconds,
+        );
+        this.logger.info(
+          `Mirror REST readiness observed transaction ${readinessSample.transactionId} in ` +
+            `${readinessSample.endToEndMilliseconds} ms after ${attempt} attempt(s); starting measured RTT samples`,
+        );
+        return;
+      } catch (error: unknown) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        this.logger.info(
+          `Mirror REST readiness attempt ${attempt} did not observe a transaction within ` +
+            `${attemptTimeoutMilliseconds} ms: ${lastError.message}`,
+        );
+      }
+    }
+
+    const lastErrorMessage: string = lastError ? `; last error: ${lastError.message}` : '';
+    throw new Error(
+      `Timed out after ${readinessTimeoutMilliseconds} ms waiting for mirror REST readiness${lastErrorMessage}`,
     );
   }
 
