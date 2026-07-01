@@ -3,7 +3,6 @@
 import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
 import fs from 'node:fs';
-import path from 'node:path';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {Templates} from './templates.js';
@@ -436,30 +435,6 @@ export class KeyManager {
   loadTLSKey(nodeAlias: NodeAlias, keysDirectory: string): Promise<NodeKeyObject> {
     const nodeKeyFiles: PrivateKeyAndCertificateObject = this.prepareTlsKeyFilePaths(nodeAlias, keysDirectory);
     return this.loadNodeKey(nodeAlias, keysDirectory, KeyManager.TLSKeyAlgo, nodeKeyFiles, 'gRPC TLS');
-  }
-
-  copyNodeKeysToStaging(nodeKey: PrivateKeyAndCertificateObject, destinationDirectory: string): void {
-    for (const keyFile of [nodeKey.privateKeyFile, nodeKey.certificateFile]) {
-      if (!fs.existsSync(keyFile)) {
-        throw new SoloErrors.component.platformKeyFileMissing(keyFile);
-      }
-
-      const fileName: string = path.basename(keyFile);
-      fs.cpSync(keyFile, PathEx.join(destinationDirectory, fileName));
-    }
-  }
-
-  copyGossipKeysToStaging(keysDirectory: string, stagingKeysDirectory: string, nodeAliases: NodeAliases): void {
-    // copy gossip keys to the staging
-    for (const nodeAlias of nodeAliases) {
-      const signingKeyFiles: PrivateKeyAndCertificateObject = this.prepareNodeKeyFilePaths(nodeAlias, keysDirectory);
-      // Skip nodes whose keys are not on disk (e.g. removed after `network deploy` when --debug is off);
-      // their key material is sourced from the cluster secret when the secrets are rebuilt.
-      if (!fs.existsSync(signingKeyFiles.privateKeyFile)) {
-        continue;
-      }
-      this.copyNodeKeysToStaging(signingKeyFiles, stagingKeysDirectory);
-    }
   }
 
   /**

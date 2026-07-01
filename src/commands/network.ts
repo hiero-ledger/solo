@@ -37,7 +37,6 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
-  type PrivateKeyAndCertificateObject,
   type Realm,
   type Shard,
   type SoloListr,
@@ -873,7 +872,6 @@ export class NetworkCommand extends BaseCommand {
         'keysDir',
         'nodeAliases',
         'stagingDir',
-        'stagingKeysDir',
         'chartValuesMap',
         'resolvedThrottlesFile',
         'namespace',
@@ -904,7 +902,6 @@ export class NetworkCommand extends BaseCommand {
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
     config.stagingDir = Templates.renderStagingDir(config.cacheDir, config.releaseTag);
-    config.stagingKeysDir = PathEx.join(config.stagingDir, 'keys');
 
     config.resolvedThrottlesFile = resolveValidJsonFilePath(
       config.genesisThrottlesFile,
@@ -946,12 +943,6 @@ export class NetworkCommand extends BaseCommand {
     // need to prepare the namespaces before we can proceed
     config.namespace = namespace;
     await this.prepareNamespaces(config);
-
-    // prepare staging keys directory
-    if (!fs.existsSync(config.stagingKeysDir)) {
-      fs.mkdirSync(config.stagingKeysDir, {recursive: true, mode: 0o700});
-      FilePermissions.restrictToOwner(config.stagingKeysDir, true);
-    }
 
     // create cached keys dir if it does not exist yet
     if (!fs.existsSync(config.keysDir)) {
@@ -1432,40 +1423,11 @@ export class NetworkCommand extends BaseCommand {
             !grpcTlsCertificatePath && !grpcWebTlsCertificatePath,
         },
         {
-          title: 'Prepare staging directory',
-          task: (_, parentTask): SoloListr<NetworkDeployContext> => {
-            return parentTask.newListr(
-              [
-                {
-                  title: 'Copy Gossip keys to staging',
-                  task: ({config: {keysDir, stagingKeysDir, nodeAliases}}): void => {
-                    this.keyManager.copyGossipKeysToStaging(keysDir, stagingKeysDir, nodeAliases);
-                  },
-                },
-                {
-                  title: 'Copy gRPC TLS keys to staging',
-                  task: ({config: {nodeAliases, keysDir, stagingKeysDir}}): void => {
-                    for (const nodeAlias of nodeAliases) {
-                      const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTlsKeyFilePaths(
-                        nodeAlias,
-                        keysDir,
-                      );
-
-                      this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, stagingKeysDir);
-                    }
-                  },
-                },
-              ],
-              constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
-            );
-          },
-        },
-        {
           title: 'Copy node keys to secrets',
-          task: ({config: {stagingDir, consensusNodes, contexts}}, parentTask): SoloListr<NetworkDeployContext> => {
+          task: ({config: {keysDir, consensusNodes, contexts}}, parentTask): SoloListr<NetworkDeployContext> => {
             // set up the subtasks
             return parentTask.newListr(
-              this.platformInstaller.copyNodeKeys(stagingDir, consensusNodes, contexts),
+              this.platformInstaller.copyNodeKeys(keysDir, consensusNodes, contexts),
               constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             );
           },
@@ -1474,16 +1436,14 @@ export class NetworkCommand extends BaseCommand {
           title: 'Remove cached keys',
           // When --debug is off, the keys now live only in the cluster secrets (uploaded by the task above), so
           // remove the on-disk copies to avoid leaving private keys in SOLO_CACHE_DIR. Later node commands
-          // re-materialize them from the secrets via PlatformInstaller.copyNodeKeysFromSecretsToDirectory().
+          // re-read them from the secrets in-memory when rebuilding the secrets.
           skip: (): boolean | string =>
             this.configManager.getFlag<boolean>(flags.debugMode)
               ? '--debug enabled, keeping cached keys on disk'
               : false,
-          task: ({config: {keysDir, stagingKeysDir}}): void => {
-            for (const directory of [keysDir, stagingKeysDir]) {
-              if (directory && fs.existsSync(directory)) {
-                fs.rmSync(directory, {recursive: true, force: true});
-              }
+          task: ({config: {keysDir}}): void => {
+            if (keysDir && fs.existsSync(keysDir)) {
+              fs.rmSync(keysDir, {recursive: true, force: true});
             }
           },
         },

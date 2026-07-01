@@ -1042,7 +1042,15 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       this.logger.info('Helm releases unavailable during snapshot, treating as fresh deploy');
     }
 
-    const consensusKeysOnDisk: boolean = fs.existsSync(PathEx.join(deployConfig.cacheDir, 'keys'));
+    const keysDirectory: string = PathEx.join(deployConfig.cacheDir, 'keys');
+    const consensusKeysOnDisk: boolean =
+      fs.existsSync(keysDirectory) &&
+      fs
+        .readdirSync(keysDirectory)
+        .some(
+          (file: string): boolean =>
+            file.startsWith(`${constants.SIGNING_KEY_PREFIX}-private-`) && file.endsWith('.pem'),
+        );
 
     const accountsFileExists: boolean = fs.existsSync(
       PathEx.join(this.getOneShotOutputDirectory(deployConfig.deployment), 'accounts.json'),

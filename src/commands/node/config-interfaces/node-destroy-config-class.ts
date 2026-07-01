@@ -24,7 +24,6 @@ export interface NodeDestroyConfigClass extends NodeCommonConfigWithNodeAlias, C
   keysDir: string;
   nodeClient: Client;
   stagingDir: string;
-  stagingKeysDir: string;
   treasuryKey: PrivateKey;
   curDate: Date;
   refreshedConsensusNodes: ConsensusNode[];

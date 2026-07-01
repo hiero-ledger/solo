@@ -111,7 +111,6 @@ import {
   type NodeAliasToAddressMapping,
   type Optional,
   type PriorityMapping,
-  type PrivateKeyAndCertificateObject,
   type Realm,
   type Shard,
   type SoloListr,
@@ -1958,29 +1957,6 @@ export class NodeCommandTasks {
               }
             },
           },
-          {
-            title: 'Copy Gossip keys to staging',
-            task: async (): Promise<void> => {
-              this.keyManager.copyGossipKeysToStaging(config.keysDir, config.stagingKeysDir, nodeAliases);
-            },
-          },
-          {
-            title: 'Copy gRPC TLS keys to staging',
-            task: async (): Promise<void> => {
-              for (const nodeAlias of nodeAliases) {
-                const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTlsKeyFilePaths(
-                  nodeAlias,
-                  config.keysDir,
-                );
-                // Skip nodes whose keys are not on disk (e.g. removed after `network deploy` when --debug is
-                // off); their key material is sourced from the cluster secret when the secrets are rebuilt.
-                if (!fs.existsSync(tlsKeyFiles.privateKeyFile)) {
-                  continue;
-                }
-                this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, config.stagingKeysDir);
-              }
-            },
-          },
         ];
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
       },
@@ -3382,12 +3358,12 @@ export class NodeCommandTasks {
       title: 'Copy node keys to secrets',
       task: (context_, task): any => {
         const subTasks: any[] = this.platformInstaller.copyNodeKeys(
-          context_.config.stagingDir,
+          context_.config.keysDir,
           nodeListOverride ? context_.config[nodeListOverride] : context_.config.consensusNodes,
           context_.config.contexts,
         );
 
-        // set up the sub-tasks for copying node keys to staging directory
+        // set up the sub-tasks for copying node keys to secrets
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };

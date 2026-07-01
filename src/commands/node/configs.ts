@@ -91,16 +91,9 @@ export class NodeCommandConfigs {
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
     config.stagingDir = Templates.renderStagingDir(config.cacheDir, config.releaseTag);
-    config.stagingKeysDir = PathEx.join(config.stagingDir, 'keys');
 
     if (!(await k8Factory.default().namespaces().has(config.namespace))) {
       throw new SoloErrors.system.namespaceNotFound(String(config.namespace));
-    }
-
-    // prepare staging keys directory
-    if (!fs.existsSync(config.stagingKeysDir)) {
-      fs.mkdirSync(config.stagingKeysDir, {recursive: true, mode: 0o700});
-      FilePermissions.restrictToOwner(config.stagingKeysDir, true);
     }
 
     // create cached keys dir if it does not exist yet
@@ -158,7 +151,6 @@ export class NodeCommandConfigs {
       'nodeClient',
       'podRefs',
       'stagingDir',
-      'stagingKeysDir',
       'namespace',
       'consensusNodes',
       'contexts',
@@ -236,7 +228,6 @@ export class NodeCommandConfigs {
       'podRefs',
       'serviceMap',
       'stagingDir',
-      'stagingKeysDir',
       'treasuryKey',
       'namespace',
       'consensusNodes',
@@ -301,7 +292,6 @@ export class NodeCommandConfigs {
       'podRefs',
       'serviceMap',
       'stagingDir',
-      'stagingKeysDir',
       'treasuryKey',
       'namespace',
       'consensusNodes',
@@ -361,7 +351,6 @@ export class NodeCommandConfigs {
       'podRefs',
       'serviceMap',
       'stagingDir',
-      'stagingKeysDir',
       'treasuryKey',
       'namespace',
       'consensusNodes',

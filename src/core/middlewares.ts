@@ -94,7 +94,9 @@ export class Middlewares {
       // TODO(#1560): remove this deprecation warning when the `dev` alias is dropped from `flags.debugMode`.
       if (process.argv.includes('--dev')) {
         logger.showUser(
-          'Warning: `--dev` is deprecated and will be removed in a future release; use `--debug` instead.',
+          chalk.yellow(
+            'Warning: `--dev` is deprecated and will be removed in a future release; use `--debug` instead.',
+          ),
         );
       }
 

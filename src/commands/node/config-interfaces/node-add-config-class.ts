@@ -33,7 +33,6 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   nodeClient: Client;
   treasuryKey: PrivateKey;
   stagingDir: string;
-  stagingKeysDir: string;
   grpcTlsCertificatePath: string;
   grpcWebTlsCertificatePath: string;
   grpcTlsKeyPath: string;
