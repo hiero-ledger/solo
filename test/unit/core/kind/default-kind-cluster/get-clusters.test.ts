@@ -5,24 +5,24 @@ import sinon, {type SinonStub} from 'sinon';
 import {DefaultKindClient} from '../../../../../src/integration/kind/impl/default-kind-client.js';
 import {KindCluster} from '../../../../../src/integration/kind/model/kind-cluster.js';
 
-describe('DefaultKindClient - getClusters', () => {
+describe('DefaultKindClient - getClusters', (): void => {
   let client: DefaultKindClient;
   let executeAsListStub: SinonStub;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     client = new DefaultKindClient('/usr/local/bin/kind');
     executeAsListStub = sinon.stub(client as any, 'executeAsList');
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     sinon.restore();
   });
 
-  it('getClusters should call executeAsList and return clusters', async () => {
-    const clusters = [new KindCluster('test1'), new KindCluster('test2')];
+  it('getClusters should call executeAsList and return clusters', async (): Promise<void> => {
+    const clusters: KindCluster[] = [new KindCluster('test1'), new KindCluster('test2')];
     executeAsListStub.resolves(clusters);
 
-    const result = await client.getClusters();
+    const result: KindCluster[] = await client.getClusters();
 
     expect(result).to.be.an('array');
     for (const cluster of result) {
@@ -35,7 +35,7 @@ describe('DefaultKindClient - getClusters', () => {
     expect(result).to.deep.equal(clusters);
   });
 
-  it('getClusters should propagate errors from executeAsList', async () => {
+  it('getClusters should propagate errors from executeAsList', async (): Promise<void> => {
     executeAsListStub.rejects(new Error('fail'));
     try {
       await client.getClusters();
