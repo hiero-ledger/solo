@@ -18,8 +18,9 @@ import {type AnyObject} from '../../../../src/types/aliases.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 
+const encode: (s: string) => string = (s: string): string => Base64.encode(s);
+
 describe('PostgresSharedResource', (): void => {
-  const encode: (s: string) => string = (s: string): string => Base64.encode(s);
   const namespace: NamespaceName = NamespaceName.of('test-namespace');
   const context: string = 'test-context';
 
@@ -125,7 +126,6 @@ describe('PostgresSharedResource', (): void => {
     let existsSyncStub: sinon.SinonStub;
     let mkdirSyncStub: sinon.SinonStub;
     let writeFileSyncStub: sinon.SinonStub;
-    let _rmSyncStub: sinon.SinonStub;
 
     beforeEach((): void => {
       secretsStub.list.resolves([postgresPasswordsSecret]);
@@ -135,7 +135,7 @@ describe('PostgresSharedResource', (): void => {
       existsSyncStub = sinon.stub(fs, 'existsSync').returns(true);
       mkdirSyncStub = sinon.stub(fs, 'mkdirSync');
       writeFileSyncStub = sinon.stub(fs, 'writeFileSync');
-      _rmSyncStub = sinon.stub(fs, 'rmSync');
+      sinon.stub(fs, 'rmSync');
     });
 
     it('reads secrets from correct labels and secret names', async (): Promise<void> => {

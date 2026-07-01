@@ -8,14 +8,14 @@ import {ClassToObjectMapper} from '../../../../../src/data/mapper/impl/class-to-
 import {ConfigKeyFormatter} from '../../../../../src/data/key/config-key-formatter.js';
 import {SimpleObjectStorageBackend} from '../../../fixtures/simple-object-storage-backend.fixture.js';
 
-describe('LocalConfigSource', () => {
-  it('constructor with null ObjectMapper throws error', () => {
-    expect(() => {
+describe('LocalConfigSource', (): void => {
+  it('constructor with null ObjectMapper throws error', (): void => {
+    expect((): void => {
       new LocalConfigSource(null, null, null, null);
     }).to.throw('ObjectMapper is required');
   });
 
-  it('asBoolean with null value returns null', async () => {
+  it('asBoolean with null value returns null', async (): Promise<void> => {
     const objectMapper: ObjectMapper = new ClassToObjectMapper(ConfigKeyFormatter.instance());
     const map: Map<string, object> = new Map<string, object>([
       [

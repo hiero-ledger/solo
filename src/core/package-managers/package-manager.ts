@@ -10,5 +10,7 @@ export interface PackageManager {
   install(): Promise<boolean>;
   uninstall(): Promise<void>;
   isAvailable(): Promise<boolean>;
+  setOnSudoRequested(callback: (message: string) => void): void;
+  setOnSudoGranted(callback: (message: string) => void): void;
   run(cmd: string, arguments_?: string[], options?: ShellRunOptions): Promise<string[]>;
 }

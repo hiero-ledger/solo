@@ -46,7 +46,7 @@ function migrateClusters(plainObject: MigrationCandidate): void {
   const clustersArray: object[] = [];
   for (const key in clusters) {
     expect(clusters[key]).to.not.be.undefined.and.to.not.be.null;
-    const cluster = clusters[key];
+    const cluster: object = clusters[key];
     clustersArray.push(cluster);
   }
   plainObject.clusters = clustersArray;
@@ -63,7 +63,7 @@ function migrateHistory(plainObject: MigrationCandidate): void {
 function migrateConsensusNodes(plainObject: MigrationCandidate): void {
   plainObject.state.consensusNodes = [];
   for (const plainConsensusNodeKey of Object.keys(plainObject.components?.consensusNodes)) {
-    const oldConsensusNode = plainObject.components.consensusNodes[plainConsensusNodeKey];
+    const oldConsensusNode: MigrationCandidate = plainObject.components.consensusNodes[plainConsensusNodeKey];
     let migratedState: string;
     switch (oldConsensusNode.state) {
       case 'requested': {
@@ -91,7 +91,7 @@ function migrateConsensusNodes(plainObject: MigrationCandidate): void {
         break;
       }
     }
-    const newConsensusNode = {
+    const newConsensusNode: MigrationCandidate = {
       id: oldConsensusNode.nodeId + 1,
       namespace: oldConsensusNode.namespace,
       cluster: oldConsensusNode.cluster,
@@ -135,7 +135,7 @@ function migrateState(plainObject: MigrationCandidate): void {
 function migrate(plainObject: MigrationCandidate): void {
   plainObject.schemaVersion = 0;
 
-  const meta = plainObject.metadata;
+  const meta: MigrationCandidate = plainObject.metadata;
   meta.lastUpdatedBy = {
     name: os.userInfo().username,
     hostname: os.hostname(),
@@ -145,6 +145,42 @@ function migrate(plainObject: MigrationCandidate): void {
   migrateVersions(plainObject);
   migrateHistory(plainObject);
   migrateState(plainObject);
+}
+
+function expectRemoteConfigClass(rc: RemoteConfigSchema): void {
+  expect(rc).to.not.be.undefined.and.to.not.be.null;
+  expect(rc.history.commands.length).to.be.equal(9);
+  expect(rc.versions.cli.toString()).to.equal('0.34.0');
+  expect(rc.versions.chart.toString()).to.equal('0.44.0');
+  expect(rc.versions.consensusNode.toString()).to.equal('0.58.10');
+  expect(rc.versions.mirrorNodeChart.toString()).to.equal('0.122.0');
+  expect(rc.versions.explorerChart.toString()).to.equal('24.12.0');
+  expect(rc.versions.jsonRpcRelayChart.toString()).to.equal('0.63.2');
+  expect(rc.clusters.length).to.be.equal(1);
+  expect(rc.state.consensusNodes.length).to.be.equal(4);
+  expect(rc.state.consensusNodes[0].metadata.id).to.be.equal(1);
+  expect(rc.state.consensusNodes[0].metadata.namespace).to.be.equal('solo-alpha-prod');
+  expect(rc.state.consensusNodes[0].metadata.cluster).to.be.equal('gke-alpha-prod-us-central1');
+  expect(rc.state.consensusNodes[0].metadata.phase).to.be.equal(DeploymentPhase.STARTED);
+  expect(rc.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
+}
+
+function expectRemoteConfigPlain(object: any): void {
+  expect(object).to.not.be.undefined.and.to.not.be.null;
+  expect(object.history.commands.length).to.be.equal(9);
+  expect(object.versions.cli).to.equal('0.34.0');
+  expect(object.versions.chart).to.equal('0.44.0');
+  expect(object.versions.consensusNode).to.equal('0.58.10');
+  expect(object.versions.mirrorNodeChart).to.equal('0.122.0');
+  expect(object.versions.explorerChart).to.equal('24.12.0');
+  expect(object.versions.jsonRpcRelayChart).to.equal('0.63.2');
+  expect(object.clusters.length).to.be.equal(1);
+  expect(object.state.consensusNodes.length).to.be.equal(4);
+  expect(object.state.consensusNodes[0].metadata.id).to.be.equal(1);
+  expect(object.state.consensusNodes[0].metadata.namespace).to.be.equal('solo-alpha-prod');
+  expect(object.state.consensusNodes[0].metadata.cluster).to.be.equal('gke-alpha-prod-us-central1');
+  expect(object.state.consensusNodes[0].metadata.phase).to.be.equal(DeploymentPhase.STARTED);
+  expect(object.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
 }
 
 describe('RemoteConfig', (): void => {
@@ -164,42 +200,6 @@ describe('RemoteConfig', (): void => {
       migrate(plainObject);
     });
 
-    function expectRemoteConfigClass(rc: RemoteConfigSchema) {
-      expect(rc).to.not.be.undefined.and.to.not.be.null;
-      expect(rc.history.commands.length).to.be.equal(9);
-      expect(rc.versions.cli.toString()).to.equal('0.34.0');
-      expect(rc.versions.chart.toString()).to.equal('0.44.0');
-      expect(rc.versions.consensusNode.toString()).to.equal('0.58.10');
-      expect(rc.versions.mirrorNodeChart.toString()).to.equal('0.122.0');
-      expect(rc.versions.explorerChart.toString()).to.equal('24.12.0');
-      expect(rc.versions.jsonRpcRelayChart.toString()).to.equal('0.63.2');
-      expect(rc.clusters.length).to.be.equal(1);
-      expect(rc.state.consensusNodes.length).to.be.equal(4);
-      expect(rc.state.consensusNodes[0].metadata.id).to.be.equal(1);
-      expect(rc.state.consensusNodes[0].metadata.namespace).to.be.equal('solo-alpha-prod');
-      expect(rc.state.consensusNodes[0].metadata.cluster).to.be.equal('gke-alpha-prod-us-central1');
-      expect(rc.state.consensusNodes[0].metadata.phase).to.be.equal(DeploymentPhase.STARTED);
-      expect(rc.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
-    }
-
-    function expectRemoteConfigPlain(object: any) {
-      expect(object).to.not.be.undefined.and.to.not.be.null;
-      expect(object.history.commands.length).to.be.equal(9);
-      expect(object.versions.cli).to.equal('0.34.0');
-      expect(object.versions.chart).to.equal('0.44.0');
-      expect(object.versions.consensusNode).to.equal('0.58.10');
-      expect(object.versions.mirrorNodeChart).to.equal('0.122.0');
-      expect(object.versions.explorerChart).to.equal('24.12.0');
-      expect(object.versions.jsonRpcRelayChart).to.equal('0.63.2');
-      expect(object.clusters.length).to.be.equal(1);
-      expect(object.state.consensusNodes.length).to.be.equal(4);
-      expect(object.state.consensusNodes[0].metadata.id).to.be.equal(1);
-      expect(object.state.consensusNodes[0].metadata.namespace).to.be.equal('solo-alpha-prod');
-      expect(object.state.consensusNodes[0].metadata.cluster).to.be.equal('gke-alpha-prod-us-central1');
-      expect(object.state.consensusNodes[0].metadata.phase).to.be.equal(DeploymentPhase.STARTED);
-      expect(object.state.ledgerPhase).to.be.equal(LedgerPhase.UNINITIALIZED);
-    }
-
     it('should transform plain to class', async (): Promise<void> => {
       const rc: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainObject);
       expectRemoteConfigClass(rc);
@@ -207,13 +207,13 @@ describe('RemoteConfig', (): void => {
 
     it('should transform class to plain', async (): Promise<void> => {
       const rc: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainObject);
-      const plainRemoteConfigObject = instanceToPlain(rc);
+      const plainRemoteConfigObject: MigrationCandidate = instanceToPlain(rc);
       expectRemoteConfigPlain(plainRemoteConfigObject);
     });
 
     it('should be able to go from a class to an object back to a class', async (): Promise<void> => {
       const rc: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainObject);
-      const plainRemoteConfigObject = instanceToPlain(rc);
+      const plainRemoteConfigObject: MigrationCandidate = instanceToPlain(rc);
       const rc2: RemoteConfigSchema = plainToInstance(RemoteConfigSchema, plainRemoteConfigObject);
       expectRemoteConfigClass(rc2);
     });
