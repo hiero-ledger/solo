@@ -221,6 +221,17 @@ wait_for_mirror_block_progress() {
   return 1
 }
 
+wait_for_mirror_block_count_progress() {
+  local label="${1}"
+  local previous_block="${2:--1}"
+  local required_new_blocks="${3:-1}"
+  local max_attempts="${4:-90}"
+  local sleep_seconds="${5:-2}"
+  local minimum_previous_block=$((previous_block + required_new_blocks - 1))
+
+  wait_for_mirror_block_progress "${label}" "${minimum_previous_block}" "${max_attempts}" "${sleep_seconds}"
+}
+
 # Restart relay after upgrade and refresh port-forwards.
 refresh_relay_network_config() {
   local namespace="${1}"
@@ -749,6 +760,8 @@ BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   --no-parallel-deploy
 
 wait_for_mirror_block_progress "source deployment after one-shot" -1 90 2 > /dev/null
+source_block_after_one_shot="$(get_latest_mirror_block_number)"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before block node upgrade: ${source_block_after_one_shot}"
 
 echo "::endgroup::"
 
@@ -766,7 +779,7 @@ npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
 npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 
-wait_for_mirror_block_progress "source deployment after block node upgrade" -1 120 2 > /dev/null
+wait_for_mirror_block_count_progress "source deployment after block node upgrade" "${source_block_after_one_shot}" 3 180 2 > /dev/null
 
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
 cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
