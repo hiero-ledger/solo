@@ -10,16 +10,16 @@ import {PackageDownloader} from '../../../../src/core/package-downloader.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 
-describe('PackageDownloaderE2E', () => {
-  const testLogger = new SoloPinoLogger('debug', true);
-  const downloader = new PackageDownloader(testLogger);
+describe('PackageDownloaderE2E', (): void => {
+  const testLogger: SoloPinoLogger = new SoloPinoLogger('debug', true);
+  const downloader: PackageDownloader = new PackageDownloader(testLogger);
 
-  it('should succeed with a valid Hedera release tag', async () => {
-    const testCacheDirectory = 'test/data/tmp';
+  it('should succeed with a valid Hedera release tag', async (): Promise<void> => {
+    const testCacheDirectory: string = 'test/data/tmp';
 
-    const tag = 'v0.42.5';
+    const tag: string = 'v0.42.5';
 
-    const destinationPath = `${testCacheDirectory}/build-${tag}.zip`;
+    const destinationPath: string = `${testCacheDirectory}/build-${tag}.zip`;
     await expect(downloader.fetchPlatform(tag, testCacheDirectory)).to.eventually.be.equal(destinationPath);
     expect(fs.existsSync(destinationPath)).to.be.ok;
     testLogger.showUser(destinationPath);
