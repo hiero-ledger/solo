@@ -1,0 +1,146 @@
+##
+# Copyright (C) 2023-2026 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+name: "Clean Environment One-Shot Deploy and Destroy"
+# The purpose of this workflow is to validate that Solo can install and run in a clean environment,
+# reproducing a first-time user experience (no prior setup, no cached images, no residual state).
+#
+# Unlike the standard-runner one-shot workflow, which builds from source and runs `npm run solo`,
+# this workflow packs the current build into a tarball and installs it globally via `npm install -g`
+# (running the package `postinstall`), then invokes the globally-installed `solo` binary directly.
+# This exercises the real install path a first-time user hits and helps surface hidden dependencies
+# or packaging issues that building from source would mask.
+#
+# Image caching is disabled end-to-end so the deploy pulls images fresh, matching a clean environment.
+# Because a full deploy is slow (~70 min), this runs nightly and on-demand rather than per-PR.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run nightly at 03:00 UTC, offset from the 06:00 UTC extended nightly tests to avoid contention.
+    - cron: '0 3 * * *'
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+
+jobs:
+  clean-environment-one-shot:
+    name: Clean Environment Deploy and Destroy
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: 3.49.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile Project
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: task build:compile
+
+      - name: Pack and Globally Install Solo
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        # SOLO_NO_CACHE skips the postinstall image-cache population so no images are cached before deploy.
+        env:
+          SOLO_NO_CACHE: 'true'
+        run: |
+          npm pack
+          npm install -g ./hashgraph-solo-*.tgz
+          echo "Installed Solo version:"
+          solo --version
+
+      - name: One-Shot Single Deploy
+        timeout-minutes: 70
+        env:
+          ENABLE_IMAGE_CACHE: 'false'
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          solo one-shot single deploy --dev
+
+      - name: Check Port Forwarding Still Works After Deploy
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          solo deployment diagnostics connections -d one-shot --check
+
+      - name: Verify Mirror REST API
+        timeout-minutes: 10
+        run: |
+          echo "Checking mirror node REST API at http://localhost:38081/api/v1/accounts ..."
+          for i in $(seq 1 30); do
+            response=$(curl -sf http://localhost:38081/api/v1/accounts 2>/dev/null || true)
+            if echo "${response}" | grep -q '"accounts"'; then
+              echo "Mirror REST API is up and returned accounts."
+              exit 0
+            fi
+            echo "Attempt ${i}/30: not ready yet, retrying in 10s..."
+            sleep 10
+          done
+          echo "ERROR: Mirror REST API did not become available after 5 minutes."
+          exit 1
+
+      - name: Collect Diagnostics on Failure
+        if: ${{ failure() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          solo deployment diagnostics logs -q --dev || true
+
+      - name: One-Shot Single Destroy
+        if: always()
+        timeout-minutes: 15
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          solo one-shot single destroy --quiet-mode --dev || true
+
+      - name: Upload Logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: clean-environment-one-shot-logs
+          path: ~/.solo/logs/*
+          overwrite: true
+          if-no-files-found: warn
