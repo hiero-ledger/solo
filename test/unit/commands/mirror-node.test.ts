@@ -92,7 +92,7 @@ interface MirrorNodeIntegrationValues {
             };
             downloader: {
               record: {enabled: boolean};
-              balance: {enabled: boolean};
+              balance: {enabled: boolean; frequency: string};
             };
           };
         };
@@ -265,6 +265,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(values.importer.config.hiero.mirror.importer.block.nodes[0].endpoints[0].port).to.equal(
       constants.BLOCK_NODE_PORT,
     );
+    expect(values.importer.config.hiero.mirror.importer.downloader.balance.frequency).to.equal('24h');
 
     fs.rmSync(temporaryDirectory, {recursive: true, force: true});
   });
