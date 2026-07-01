@@ -20,6 +20,7 @@ Solo releases are supported for one month after their release date. LTS (Long-Te
 
 | Solo Version | Node.js             | Consensus Node | Kubernetes | Docker Resources               | Release Date | End of Support |
 |--------------|---------------------|----------------|------------|--------------------------------|--------------|----------------|
+| 0.80.0 (LTS) | >= 22.0.0 (lts/jod) | v0.74.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-06-30   | 2026-09-30     |
 | 0.79.0       | >= 22.0.0 (lts/jod) | v0.74.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-06-23   | 2026-07-23     |
 | 0.78.0 (LTS) | >= 22.0.0 (lts/jod) | v0.74.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-06-16   | 2026-09-16     |
 | 0.77.0       | >= 22.0.0 (lts/jod) | v0.73.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-06-03   | 2026-07-03     |
@@ -30,7 +31,6 @@ Solo releases are supported for one month after their release date. LTS (Long-Te
 | 0.70.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-28   | 2026-07-28     |
 | 0.68.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-07   | 2026-07-07     |
 | 0.66.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-02   | 2026-07-02     |
-| 0.64.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-03-27   | 2026-06-27     |
 
 To see a list of legacy releases, please check the [legacy versions documentation page](legacy-versions.md).
 
