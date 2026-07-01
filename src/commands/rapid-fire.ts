@@ -324,9 +324,9 @@ export class RapidFireCommand extends BaseCommand {
     mirrorTransactionId: string,
     timeoutMilliseconds: number,
   ): Promise<void> {
-    const startedAt: number = performance.now();
-    while (performance.now() - startedAt < timeoutMilliseconds) {
-      const remainingMilliseconds: number = timeoutMilliseconds - (performance.now() - startedAt);
+    const startedAt: number = Date.now();
+    while (Date.now() - startedAt < timeoutMilliseconds) {
+      const remainingMilliseconds: number = Math.max(1, timeoutMilliseconds - (Date.now() - startedAt));
       const requestTimeoutMilliseconds: number = Math.min(
         remainingMilliseconds,
         RapidFireCommand.MIRROR_REST_REQUEST_TIMEOUT_MS,
@@ -338,7 +338,7 @@ export class RapidFireCommand extends BaseCommand {
 
       const sleepMilliseconds: number = Math.min(
         RapidFireCommand.MIRROR_REST_POLL_INTERVAL_MS,
-        Math.max(0, timeoutMilliseconds - (performance.now() - startedAt)),
+        Math.max(0, timeoutMilliseconds - (Date.now() - startedAt)),
       );
       if (sleepMilliseconds > 0) {
         await sleep(Duration.ofMillis(sleepMilliseconds));
