@@ -8,6 +8,7 @@ import sinon, {type SinonStub} from 'sinon';
 import fs from 'node:fs/promises';
 import {YamlHelmChartTargetProvider} from '../../../../src/integration/cache/target-providers/yaml-helm-chart-target-provider.js';
 import {CacheArtifactEnum} from '../../../../src/integration/cache/enums/cache-artifact-enum.js';
+import {type CacheTargetStructure} from '../../../../src/integration/cache/models/cache-target-structure.js';
 
 describe('YamlHelmChartTargetProvider', (): void => {
   let readFileStub: SinonStub;
@@ -31,7 +32,7 @@ charts:
     version: 4.11.3
 `);
 
-    const result = await provider.getRequiredTargets();
+    const result: readonly CacheTargetStructure[] = await provider.getRequiredTargets();
 
     expect(result).to.have.lengthOf(2);
     expect(result[0].type).to.equal(CacheArtifactEnum.HELM_CHART);

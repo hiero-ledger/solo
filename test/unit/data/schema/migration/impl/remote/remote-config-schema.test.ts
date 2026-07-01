@@ -7,34 +7,34 @@ import {expect} from 'chai';
 import {RemoteConfigSchema} from '../../../../../../../src/data/schema/model/remote/remote-config-schema.js';
 import {type SchemaMigration} from '../../../../../../../src/data/schema/migration/api/schema-migration.js';
 
-describe('RemoteConfigSchema', () => {
+describe('RemoteConfigSchema', (): void => {
   let objectMapper: ObjectMapper;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     // Mock ObjectMapper (can be a simple object as long as it's not used in logic)
     objectMapper = {} as ObjectMapper;
   });
 
-  it('should instantiate without error', () => {
-    expect(() => new RemoteConfigSchemaDefinition(objectMapper)).not.to.throw();
+  it('should instantiate without error', (): void => {
+    expect((): RemoteConfigSchemaDefinition => new RemoteConfigSchemaDefinition(objectMapper)).not.to.throw();
   });
 
-  it('should return the correct name', () => {
+  it('should return the correct name', (): void => {
     const schema: RemoteConfigSchemaDefinition = new RemoteConfigSchemaDefinition(objectMapper);
     expect(schema.name).to.be.equal('RemoteConfigSchema');
   });
 
-  it('should return the correct version', () => {
+  it('should return the correct version', (): void => {
     const schema: RemoteConfigSchemaDefinition = new RemoteConfigSchemaDefinition(objectMapper);
     expect(schema.version).equal(RemoteConfigSchema.SCHEMA_VERSION);
   });
 
-  it('should return the correct classConstructor', () => {
+  it('should return the correct classConstructor', (): void => {
     const schema: RemoteConfigSchemaDefinition = new RemoteConfigSchemaDefinition(objectMapper);
     expect(schema.classConstructor).equal(RemoteConfigSchema);
   });
 
-  it('should return a migrations array containing RemoteConfigV1Migration', () => {
+  it('should return a migrations array containing RemoteConfigV1Migration', (): void => {
     const schema: RemoteConfigSchemaDefinition = new RemoteConfigSchemaDefinition(objectMapper);
     const migrations: SchemaMigration[] = schema.migrations;
     expect(Array.isArray(migrations)).equal(true);
