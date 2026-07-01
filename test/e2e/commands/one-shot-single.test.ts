@@ -37,6 +37,7 @@ import {Flags} from '../../../src/commands/flags.js';
 import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
 import {DeploymentTest} from './tests/deployment-test.js';
+import {KeysAndPermissionsTest} from './tests/keys-and-permissions-test.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 
 const minimalSetup: boolean = process.env.SOLO_ONE_SHOT_MINIMAL_SETUP?.toLowerCase() === 'true';
@@ -113,6 +114,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
       }).timeout(Duration.ofMinutes(5).toMillis());
 
       DeploymentTest.verifyDeploymentConfigPorts(options);
+
+      // one-shot single always deploys into the 'one-shot' namespace regardless of the test namespace.
+      KeysAndPermissionsTest.verifyConsensusNodeKeysMatchSecrets(options, NamespaceName.of('one-shot'));
+      KeysAndPermissionsTest.verifySoloHomeFilePermissions(options);
 
       it('Should perform a simple TransferTransaction', async (): Promise<void> => {
         // These should be set in your environment or test config
