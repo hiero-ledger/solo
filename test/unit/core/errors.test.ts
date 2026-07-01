@@ -9,12 +9,12 @@ import {MissingArgumentError} from '../../../src/core/errors/classes/validation/
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import {DataValidationError} from '../../../src/core/errors/classes/internal/data-validation-error.js';
 
-describe('Errors', () => {
-  const message = 'errorMessage';
-  const cause = new Error('cause');
+describe('Errors', (): void => {
+  const message: string = 'errorMessage';
+  const cause: Error = new Error('cause');
 
-  it('should construct correct SoloError', () => {
-    const error = new SoloError(message, cause);
+  it('should construct correct SoloError', (): void => {
+    const error: SoloError = new SoloError(message, cause);
     expect(error).to.be.instanceof(Error);
     expect(error.name).to.equal('SoloError');
     expect(error.message).to.equal(message);
@@ -22,9 +22,9 @@ describe('Errors', () => {
     expect(error.meta).to.deep.equal({});
   });
 
-  it('should construct correct ResourceNotFoundError', () => {
-    const resource = 'resource';
-    const error = new ResourceNotFoundError(resource);
+  it('should construct correct ResourceNotFoundError', (): void => {
+    const resource: string = 'resource';
+    const error: ResourceNotFoundError = new ResourceNotFoundError(resource);
     expect(error).to.be.instanceof(SoloError);
     expect(error.name).to.equal('ResourceNotFoundError');
     expect(error.message).to.equal(`Resource not found: ${resource}`);
@@ -32,8 +32,8 @@ describe('Errors', () => {
     expect(error.meta).to.deep.equal({resource});
   });
 
-  it('should construct correct MissingArgumentError', () => {
-    const error = new MissingArgumentError(message);
+  it('should construct correct MissingArgumentError', (): void => {
+    const error: MissingArgumentError = new MissingArgumentError(message);
     expect(error).to.be.instanceof(SoloError);
     expect(error.name).to.equal('MissingArgumentError');
     expect(error.message).to.equal(message);
@@ -41,9 +41,9 @@ describe('Errors', () => {
     expect(error.meta).to.deep.equal({});
   });
 
-  it('should construct correct IllegalArgumentError', () => {
-    const value = 'invalid argument';
-    const error = new IllegalArgumentError(message, value);
+  it('should construct correct IllegalArgumentError', (): void => {
+    const value: string = 'invalid argument';
+    const error: IllegalArgumentError = new IllegalArgumentError(message, value);
     expect(error).to.be.instanceof(SoloError);
     expect(error.name).to.equal('IllegalArgumentError');
     expect(error.message).to.equal(message);
@@ -51,11 +51,11 @@ describe('Errors', () => {
     expect(error.meta).to.deep.equal({value});
   });
 
-  it('should construct correct DataValidationError', () => {
-    const context = 'errorMessage';
-    const expected = 'expected';
-    const found = 'found';
-    const error = new DataValidationError(context, expected, found);
+  it('should construct correct DataValidationError', (): void => {
+    const context: string = 'errorMessage';
+    const expected: string = 'expected';
+    const found: string = 'found';
+    const error: DataValidationError = new DataValidationError(context, expected, found);
     expect(error).to.be.instanceof(SoloError);
     expect(error.name).to.equal('DataValidationError');
     expect(error.message).to.equal(

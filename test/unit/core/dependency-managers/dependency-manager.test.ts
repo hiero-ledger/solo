@@ -9,10 +9,10 @@ import {resetForTest} from '../../../test-container.js';
 import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 import {type LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
-describe('DependencyManager', () => {
+describe('DependencyManager', (): void => {
   let depManager: DependencyManager;
 
-  before(async () => {
+  before(async (): Promise<void> => {
     resetForTest();
     depManager = container.resolve(InjectTokens.DependencyManager);
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
@@ -21,8 +21,8 @@ describe('DependencyManager', () => {
     await localConfig.load();
   });
 
-  describe('checkDependency', () => {
-    it('should fail during invalid dependency check', async () => {
+  describe('checkDependency', (): void => {
+    it('should fail during invalid dependency check', async (): Promise<void> => {
       await expect(depManager.checkDependency('INVALID_PROGRAM')).to.be.rejectedWith(
         "Dependency 'INVALID_PROGRAM' is not found",
       );

@@ -42,7 +42,7 @@ describe('LocalConfig', (): void => {
     });
 
     it('should transform plain to class', async (): Promise<void> => {
-      const lc = await schema.transform(plainObject);
+      const lc: LocalConfigSchema = await schema.transform(plainObject);
       expect(lc).to.not.be.undefined.and.to.not.be.null;
       expect(lc).to.be.instanceOf(LocalConfigSchema);
       expect(lc.versions.cli).to.be.instanceOf(SemanticVersion<string>);
@@ -87,7 +87,7 @@ describe('LocalConfig', (): void => {
         new SemanticVersion<string>(EXPLORER_VERSION),
         new SemanticVersion<string>(HEDERA_JSON_RPC_RELAY_VERSION),
       );
-      const lc = new LocalConfigSchema(2, versions, deployments, clusterReferences);
+      const lc: LocalConfigSchema = new LocalConfigSchema(2, versions, deployments, clusterReferences);
       const newPlainObject: object = instanceToPlain(lc);
 
       expect(newPlainObject).to.not.be.undefined.and.to.not.be.null;
