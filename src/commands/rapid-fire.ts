@@ -119,7 +119,7 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly STOP_CONFIG_NAME: string = 'stopConfig';
   private static readonly MIRROR_REST_POLL_INTERVAL_MS: number = 100;
   private static readonly MIRROR_REST_REQUEST_TIMEOUT_MS: number = 1000;
-  private static readonly MIRROR_READINESS_POLL_TIMEOUT_MULTIPLIER: number = 10;
+  private static readonly MIRROR_READINESS_POLL_TIMEOUT_MULTIPLIER: number = 15;
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.nlgArguments, flags.performanceTest],
