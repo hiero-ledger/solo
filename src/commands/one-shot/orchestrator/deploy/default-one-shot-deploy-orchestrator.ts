@@ -731,10 +731,12 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 this.taskList,
                 (): boolean => !getConfig().deployRelay && !getConfig().minimalSetup,
               ),
-          }).withWaitCondition(
-            SoloEventType.MirrorNodeDeployed,
-            Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
-          ),
+          })
+            .withWaitCondition(
+              SoloEventType.MirrorNodeDeployed,
+              Duration.ofMinutes(constants.MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES),
+            )
+            .withWaitCondition(SoloEventType.NodesStarted, Duration.ofMinutes(10)),
         ],
         (getConfig: () => OneShotSingleDeployConfigClass): ExecutionMode =>
           getConfig().parallelDeploy
