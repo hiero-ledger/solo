@@ -625,7 +625,8 @@ BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
-  --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"
+  --values-file "${TEMP_ONE_SHOT_VALUES_FILE}" \
+  --no-parallel-deploy
 
 echo "::endgroup::"
 
