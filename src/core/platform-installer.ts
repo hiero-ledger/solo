@@ -251,32 +251,28 @@ export class PlatformInstaller {
     }
 
     try {
-      // copy private keys for the node
-      const sourceFiles: string[] = [
-        PathEx.joinWithRealPath(
-          stagingDirectory,
-          'keys',
-          Templates.renderGossipPemPrivateKeyFile(consensusNode.name as NodeAlias),
-        ),
-      ];
-
-      // copy all public keys for all nodes
-      for (const consensusNode of consensusNodes) {
-        sourceFiles.push(
-          PathEx.joinWithRealPath(
-            stagingDirectory,
-            'keys',
-            Templates.renderGossipPemPublicKeyFile(consensusNode.name as NodeAlias),
-          ),
-        );
-      }
+      const gossipSecretDataByNode: Map<string, Record<string, string>> = new Map();
+      const readGossipSecretData = async (node: ConsensusNode): Promise<Record<string, string>> => {
+        if (!gossipSecretDataByNode.has(node.name)) {
+          const existingSecret: Secret = await this.k8Factory
+            .getK8(node.context)
+            .secrets()
+            .read(NamespaceName.of(node.namespace), Templates.renderGossipKeySecretName(node.name as NodeAlias));
+          gossipSecretDataByNode.set(node.name, existingSecret?.data ?? {});
+        }
+        return gossipSecretDataByNode.get(node.name);
+      };
 
       const data: Record<string, string> = {};
-      for (const sourceFile of sourceFiles) {
-        const fileContents: Buffer = fs.readFileSync(sourceFile);
-        const fileName: string = path.basename(sourceFile);
-        // @ts-expect-error - Dynamic key assignment is intentional
-        data[fileName] = Base64.encode(fileContents);
+      const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(consensusNode.name as NodeAlias);
+      data[privateKeyFile] = await this.resolveKeyFileBase64(stagingDirectory, privateKeyFile, () =>
+        readGossipSecretData(consensusNode),
+      );
+      for (const node of consensusNodes) {
+        const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(node.name as NodeAlias);
+        data[publicKeyFile] = await this.resolveKeyFileBase64(stagingDirectory, publicKeyFile, () =>
+          readGossipSecretData(node),
+        );
       }
 
       const secretCreated: boolean = await this.k8Factory
@@ -315,27 +311,26 @@ export class PlatformInstaller {
     }
 
     try {
+      let sharedTlsSecretData: Record<string, string> | undefined;
+      const readSharedTlsSecretData = async (): Promise<Record<string, string>> => {
+        if (!sharedTlsSecretData) {
+          const existingSecret: Secret = await this.k8Factory
+            .getK8(contexts[0])
+            .secrets()
+            .read(this._getNamespace(), 'network-node-hapi-app-secrets');
+          sharedTlsSecretData = existingSecret?.data ?? {};
+        }
+        return sharedTlsSecretData;
+      };
+
       const data: Record<string, string> = {};
-
       for (const consensusNode of consensusNodes) {
-        const sourceFiles: string[] = [
-          PathEx.joinWithRealPath(
-            stagingDirectory,
-            'keys',
-            Templates.renderTLSPemPrivateKeyFile(consensusNode.name as NodeAlias),
-          ),
-          PathEx.joinWithRealPath(
-            stagingDirectory,
-            'keys',
-            Templates.renderTLSPemPublicKeyFile(consensusNode.name as NodeAlias),
-          ),
+        const keyFiles: string[] = [
+          Templates.renderTLSPemPrivateKeyFile(consensusNode.name as NodeAlias),
+          Templates.renderTLSPemPublicKeyFile(consensusNode.name as NodeAlias),
         ];
-
-        for (const sourceFile of sourceFiles) {
-          const fileContents: Buffer = fs.readFileSync(sourceFile);
-          const fileName: string = path.basename(sourceFile);
-          // @ts-expect-error - Dynamic key assignment is intentional
-          data[fileName] = Base64.encode(fileContents);
+        for (const fileName of keyFiles) {
+          data[fileName] = await this.resolveKeyFileBase64(stagingDirectory, fileName, readSharedTlsSecretData);
         }
       }
 
@@ -515,100 +510,31 @@ export class PlatformInstaller {
   }
 
   /**
-   * Write secret data entries (keyed by the original file basename, values base64-encoded) back into a local keys
-   * directory. Private key files are written owner-read/write only (SA8); public certs inherit the process umask.
-   * @param data secret data map (file basename -> base64 content)
-   * @param keysDirectory directory to write the decoded key/cert files into
+   * Resolve the base64-encoded contents of a key file needed to (re)build a Kubernetes secret.
+   *
+   * Prefers the freshly staged copy on disk; when that is absent (e.g. the on-disk keys were removed
+   * after `network deploy` ran without --debug) it falls back to the value already stored in the
+   * owning node's Kubernetes secret, which keeps each entry base64-encoded under its file basename.
+   * @param stagingDirectory - the staging directory that may contain the file under `keys/`
+   * @param fileName - the key file basename (also the secret data key)
+   * @param readSecretData - reads the fallback secret's data map for the node that owns this file
    */
-  private static writeSecretDataToKeysDirectory(data: Record<string, string>, keysDirectory: string): void {
-    for (const [fileName, encodedContents] of Object.entries(data)) {
-      const isPrivateKey: boolean = fileName.endsWith('.key') || fileName.includes('-private-');
-      fs.writeFileSync(
-        PathEx.join(keysDirectory, fileName),
-        Base64.decode(encodedContents),
-        isPrivateKey ? {mode: 0o600} : undefined,
-      );
-    }
-  }
-
-  /**
-   * Restore a consensus node's gossip keys from its Kubernetes secret back into a local keys directory. Used after
-   * `network deploy` has removed the cached keys (when `--debug` is off) so later commands can read them from disk.
-   * @param consensusNode the node whose gossip key secret should be read
-   * @param keysDirectory directory to write the decoded gossip key/cert files into
-   */
-  public async copyGossipKeysFromSecretToDirectory(consensusNode: ConsensusNode, keysDirectory: string): Promise<void> {
-    const secretName: string = Templates.renderGossipKeySecretName(consensusNode.name as NodeAlias);
-    let secret: Secret;
-    try {
-      secret = await this.k8Factory
-        .getK8(consensusNode.context)
-        .secrets()
-        .read(NamespaceName.of(consensusNode.namespace), secretName);
-    } catch (error) {
-      throw new SoloErrors.component.gossipKeySecretRestoreFailed(
-        consensusNode.name,
-        `failed to read secret '${secretName}'`,
-        error,
-      );
+  private async resolveKeyFileBase64(
+    stagingDirectory: string,
+    fileName: string,
+    readSecretData: () => Promise<Record<string, string>>,
+  ): Promise<string> {
+    const stagedPath: string = PathEx.join(stagingDirectory, 'keys', fileName);
+    if (fs.existsSync(stagedPath)) {
+      // Key files are ASCII PEM, so reading as utf8 preserves the previous base64 encoding of the bytes.
+      return Base64.encode(fs.readFileSync(stagedPath, 'utf8'));
     }
 
-    if (!secret?.data || Object.keys(secret.data).length === 0) {
-      throw new SoloErrors.component.gossipKeySecretRestoreFailed(
-        consensusNode.name,
-        `secret '${secretName}' is missing or empty`,
-      );
+    const secretData: Record<string, string> = await readSecretData();
+    const encodedContents: string | undefined = secretData[fileName];
+    if (!encodedContents) {
+      throw new SoloErrors.component.platformKeyFileMissing(fileName);
     }
-
-    PlatformInstaller.writeSecretDataToKeysDirectory(secret.data, keysDirectory);
-  }
-
-  /**
-   * Restore all consensus nodes' TLS keys from the shared Kubernetes secret back into a local keys directory.
-   * @param contexts list of k8s contexts (the shared secret is identical in each, so the first is read)
-   * @param keysDirectory directory to write the decoded TLS key/cert files into
-   */
-  public async copyTLSKeysFromSecretToDirectory(contexts: string[], keysDirectory: string): Promise<void> {
-    if (!contexts || contexts.length === 0) {
-      throw new SoloErrors.validation.missingArgument('contexts cannot be empty');
-    }
-
-    const secretName: string = 'network-node-hapi-app-secrets';
-    let secret: Secret;
-    try {
-      secret = await this.k8Factory.getK8(contexts[0]).secrets().read(this._getNamespace(), secretName);
-    } catch (error) {
-      throw new SoloErrors.component.tlsKeySecretRestoreFailed(`failed to read secret '${secretName}'`, error);
-    }
-
-    if (!secret?.data || Object.keys(secret.data).length === 0) {
-      throw new SoloErrors.component.tlsKeySecretRestoreFailed(`secret '${secretName}' is missing or empty`);
-    }
-
-    PlatformInstaller.writeSecretDataToKeysDirectory(secret.data, keysDirectory);
-  }
-
-  /**
-   * Restore all consensus node gossip + TLS keys from their Kubernetes secrets into a local keys directory. This is
-   * the inverse of {@link copyNodeKeys}; it is used so that node commands run after `network deploy` (which removes
-   * the cached keys when `--debug` is off) can read the keys from disk again.
-   * @param keysDirectory directory to write the decoded key/cert files into
-   * @param consensusNodes list of consensus nodes
-   * @param contexts list of k8s contexts
-   */
-  public async copyNodeKeysFromSecretsToDirectory(
-    keysDirectory: string,
-    consensusNodes: ConsensusNode[],
-    contexts: string[],
-  ): Promise<void> {
-    if (!fs.existsSync(keysDirectory)) {
-      // SA8: owner-only; it holds private keys
-      fs.mkdirSync(keysDirectory, {recursive: true, mode: 0o700});
-    }
-
-    await this.copyTLSKeysFromSecretToDirectory(contexts, keysDirectory);
-    for (const consensusNode of consensusNodes) {
-      await this.copyGossipKeysFromSecretToDirectory(consensusNode, keysDirectory);
-    }
+    return encodedContents;
   }
 }

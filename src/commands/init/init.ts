@@ -7,6 +7,7 @@ import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {Flags as flags} from '../flags.js';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {FilePermissions} from '../../business/utils/file-permissions.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type CommandDefinition, type InitDependenciesOptions, type SoloListrTask} from '../../types/index.js';
 import {InitConfig} from './init-config.js';
@@ -85,6 +86,8 @@ export class InitCommand extends BaseCommand {
             }
 
             fs.cpSync(sourceDirectory, destinationDirectory, {recursive: true});
+            // cpSync preserves the packaged source mode (0755) and bypasses the process umask.
+            FilePermissions.restrictTreeToOwner(destinationDirectory);
           }
 
           if (argv.debug && !InitCommand.hasShownDevSystemFileLists) {

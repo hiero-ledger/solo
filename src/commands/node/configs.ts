@@ -18,6 +18,7 @@ import {type ConfigManager} from '../../core/config-manager.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {FilePermissions} from '../../business/utils/file-permissions.js';
 import {type NodeSetupConfigClass} from './config-interfaces/node-setup-config-class.js';
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
 import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-class.js';
@@ -99,11 +100,13 @@ export class NodeCommandConfigs {
     // prepare staging keys directory
     if (!fs.existsSync(config.stagingKeysDir)) {
       fs.mkdirSync(config.stagingKeysDir, {recursive: true, mode: 0o700});
+      FilePermissions.restrictToOwner(config.stagingKeysDir, true);
     }
 
     // create cached keys dir if it does not exist yet
     if (!fs.existsSync(config.keysDir)) {
       fs.mkdirSync(config.keysDir, {mode: 0o700});
+      FilePermissions.restrictToOwner(config.keysDir, true);
     }
   }
 
@@ -530,6 +533,7 @@ export class NodeCommandConfigs {
 
     if (!fs.existsSync(context_.config.keysDir)) {
       fs.mkdirSync(context_.config.keysDir, {mode: 0o700});
+      FilePermissions.restrictToOwner(context_.config.keysDir, true);
     }
     return context_.config;
   }

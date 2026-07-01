@@ -49,6 +49,7 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
@@ -949,11 +950,13 @@ export class NetworkCommand extends BaseCommand {
     // prepare staging keys directory
     if (!fs.existsSync(config.stagingKeysDir)) {
       fs.mkdirSync(config.stagingKeysDir, {recursive: true, mode: 0o700});
+      FilePermissions.restrictToOwner(config.stagingKeysDir, true);
     }
 
     // create cached keys dir if it does not exist yet
     if (!fs.existsSync(config.keysDir)) {
       fs.mkdirSync(config.keysDir, {mode: 0o700});
+      FilePermissions.restrictToOwner(config.keysDir, true);
     }
 
     this.logger.debug('Preparing storage secrets');
@@ -1215,6 +1218,9 @@ export class NetworkCommand extends BaseCommand {
           }
         }
       }
+
+      // The cached CRD file may have been copyFileSync'd from a packaged (0755) source, bypassing umask.
+      FilePermissions.restrictTreeToOwner(temporaryFile);
 
       await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);
     }

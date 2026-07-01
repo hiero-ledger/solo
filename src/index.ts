@@ -25,9 +25,7 @@ if (!process.stdout.isTTY) {
 // eslint-disable-next-line solo/no-exported-function
 export async function main(argv: string[], context?: {logger: SoloLogger}): Promise<any> {
   try {
-    // SA8: restrict permissions of every file/dir solo writes under $SOLO_HOME. Setting the process
-    // umask here (the earliest entry point) makes new files default to 0640 and new directories to 0750
-    // No-op on Windows, which does not use POSIX permission bits.
+    // New files default to 0640 and new directories to 0750. No-op on Windows.
     process.umask(0o027);
 
     // `--dev` is the deprecated alias of `--debug`; accept either to raise the log level early.

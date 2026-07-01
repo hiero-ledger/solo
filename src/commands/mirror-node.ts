@@ -1069,10 +1069,7 @@ export class MirrorNodeCommand extends BaseCommand {
               title: 'Prepare address book',
               task: async (context_): Promise<void> => {
                 if (this.oneShotState.isActive()) {
-                  context_.addressBook = await this.accountManager.buildAddressBookBase64(
-                    PathEx.join(context_.config.cacheDir, 'keys'),
-                    context_.config.deployment,
-                  );
+                  context_.addressBook = await this.accountManager.buildAddressBookBase64(context_.config.deployment);
 
                   context_.config.chartValues.setLiteral('importer.addressBook', context_.addressBook);
                 } else {
