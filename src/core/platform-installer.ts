@@ -253,7 +253,9 @@ export class PlatformInstaller {
 
     try {
       const gossipSecretDataByNode: Map<string, Record<string, string>> = new Map();
-      const readGossipSecretData = async (node: ConsensusNode): Promise<Record<string, string>> => {
+      const readGossipSecretData: (node: ConsensusNode) => Promise<Record<string, string>> = async (
+        node: ConsensusNode,
+      ): Promise<Record<string, string>> => {
         if (!gossipSecretDataByNode.has(node.name)) {
           gossipSecretDataByNode.set(
             node.name,
@@ -269,13 +271,17 @@ export class PlatformInstaller {
 
       const data: Record<string, string> = {};
       const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(consensusNode.name as NodeAlias);
-      data[privateKeyFile] = await this.resolveKeyFileBase64(keysDirectory, privateKeyFile, () =>
-        readGossipSecretData(consensusNode),
+      data[privateKeyFile] = await this.resolveKeyFileBase64(
+        keysDirectory,
+        privateKeyFile,
+        (): Promise<Record<string, string>> => readGossipSecretData(consensusNode),
       );
       for (const node of consensusNodes) {
         const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(node.name as NodeAlias);
-        data[publicKeyFile] = await this.resolveKeyFileBase64(keysDirectory, publicKeyFile, () =>
-          readGossipSecretData(node),
+        data[publicKeyFile] = await this.resolveKeyFileBase64(
+          keysDirectory,
+          publicKeyFile,
+          (): Promise<Record<string, string>> => readGossipSecretData(node),
         );
       }
 
@@ -312,7 +318,9 @@ export class PlatformInstaller {
 
     try {
       let sharedTlsSecretData: Record<string, string> | undefined;
-      const readSharedTlsSecretData = async (): Promise<Record<string, string>> => {
+      const readSharedTlsSecretData: () => Promise<Record<string, string>> = async (): Promise<
+        Record<string, string>
+      > => {
         if (!sharedTlsSecretData) {
           sharedTlsSecretData = await this.readSecretData(
             contexts[0],
