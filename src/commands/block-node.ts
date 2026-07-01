@@ -106,6 +106,7 @@ interface BlockNodeDestroyConfigClass {
   releaseName: string;
   id: number;
   isLegacyChartInstalled: boolean;
+  hostAliasesPatchTime?: Date;
 }
 
 interface BlockNodeDestroyContext {
@@ -448,6 +449,8 @@ export class BlockNodeCommand extends BaseCommand {
     clusterReference: ClusterReferenceName,
     patchEmptyAliases: boolean,
   ): Promise<boolean> {
+    // The block-node chart does not expose hostAliases, but back-fill needs stable peer service names
+    // in /etc/hosts on dynamic-IP clusters. Keep this patch close to the chart lifecycle operations.
     const targetBlockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes.filter(
       (blockNode): boolean => blockNode.metadata.cluster === clusterReference,
     );
@@ -508,7 +511,36 @@ export class BlockNodeCommand extends BaseCommand {
       title: 'Patch block node peer host aliases',
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async ({config}): Promise<void> => {
-        await this.patchBlockNodePeerHostAliases(config.clusterRef, true);
+        const patchTime: Date = new Date();
+        const patched: boolean = await this.patchBlockNodePeerHostAliases(config.clusterRef, true);
+        if (patched) {
+          config.hostAliasesPatchTime = patchTime;
+        }
+      },
+    };
+  }
+
+  private checkBlockNodePeerHostAliasesPatchForDestroy(): SoloListrTask<BlockNodeDestroyContext> {
+    return {
+      title: 'Check remaining block node pods are ready',
+      skip: ({config}): boolean => !config.hostAliasesPatchTime,
+      task: async ({config}): Promise<void> => {
+        const remainingBlockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes.filter(
+          (blockNode): boolean => blockNode.metadata.cluster === config.clusterRef,
+        );
+
+        for (const blockNode of remainingBlockNodes) {
+          await this.k8Factory
+            .getK8(config.context)
+            .pods()
+            .waitForReadyStatus(
+              NamespaceName.of(blockNode.metadata.namespace),
+              Templates.renderBlockNodeLabels(blockNode.metadata.id),
+              constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
+              constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+              config.hostAliasesPatchTime,
+            );
+        }
       },
     };
   }
@@ -973,6 +1005,7 @@ export class BlockNodeCommand extends BaseCommand {
         },
         this.removeBlockNodeComponentFromRemoteConfig(),
         this.patchBlockNodePeerHostAliasesForDestroy(),
+        this.checkBlockNodePeerHostAliasesPatchForDestroy(),
         this.rebuildBlockNodesJsonForConsensusNodes(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
