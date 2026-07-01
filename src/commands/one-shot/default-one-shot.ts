@@ -39,6 +39,8 @@ import {Templates} from '../../core/templates.js';
 import {type Lock} from '../../core/lock/lock.js';
 import {type OneShotDeployOrchestrator} from './orchestrator/deploy/one-shot-deploy-orchestrator.js';
 import {type OneShotDestroyOrchestrator} from './orchestrator/destroy/one-shot-destroy-orchestrator.js';
+import {type OrchestratorPipeline} from './orchestrator/orchestrator-pipeline.js';
+import {type OneShotSingleDestroyContext} from './one-shot-single-destroy-context.js';
 import {type DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
 import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
@@ -313,8 +315,27 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private async destroyInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     const leaseReference: {value?: Lock} = {};
+    const runningNested: boolean = this.oneShotState.isActive();
+    const commandName: string = argv._.slice(0, 3).join(' ');
+    const pipeline: OrchestratorPipeline<OneShotSingleDestroyContext> = this.destroyOrchestrator.buildDestroyPipeline(
+      argv,
+      flagsList,
+      leaseReference,
+      runningNested,
+    );
+    const tasks: SoloListr<OneShotSingleDestroyContext> = this.taskList.newTaskList(
+      pipeline.tasks,
+      pipeline.defaultOptions,
+      undefined,
+      commandName,
+    );
+
+    if (!tasks.isRoot()) {
+      return true;
+    }
+
     try {
-      await this.destroyOrchestrator.buildDestroyPipeline(argv, flagsList, leaseReference).run();
+      await tasks.run();
     } catch (error) {
       throw new SoloErrors.component.oneShotDestroyFailed(error);
     } finally {
