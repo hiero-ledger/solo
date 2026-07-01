@@ -1,27 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type SoloListrTaskWrapper} from './index.js';
-
-export type PromptFunction = (task: SoloListrTaskWrapper<any>, input: any, data?: any) => Promise<any>;
-
-export interface CommandFlag {
-  constName: string;
-  name: string;
-  definition: Definition;
-  prompt: PromptFunction;
-  validate?: (input: any) => boolean;
-}
-
-export interface Definition {
-  describe: string;
-  defaultValue?: boolean | string | number;
-  alias?: string | string[];
-  type?: string;
-  disablePrompt?: boolean;
-  dataMask?: string;
-}
-
-export interface CommandFlags {
-  required: CommandFlag[];
-  optional: CommandFlag[];
-}
+export type {PromptFunction, CommandFlag} from './command-flag.js';
+export type {Definition} from './definition.js';
+export type {CommandFlags} from './command-flags.js';

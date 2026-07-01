@@ -156,7 +156,6 @@ enum RelayCommandType {
 export class RelayCommand extends BaseCommand {
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
-
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
@@ -275,6 +274,10 @@ export class RelayCommand extends BaseCommand {
         .set('ws.image.repository', parsedImageReference.repository)
         .set('relay.image.tag', parsedImageReference.tag)
         .set('ws.image.tag', parsedImageReference.tag);
+
+      if (this.isLocalImageAvailableInDocker(componentImage)) {
+        chartValues.set('relay.image.pullPolicy', 'Never').set('ws.image.pullPolicy', 'Never');
+      }
     }
 
     if (replicaCount) {
@@ -471,6 +474,10 @@ export class RelayCommand extends BaseCommand {
     return {
       title: 'Deploy JSON RPC Relay',
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
+          await this.kindLoadComponentImage(config.componentImage, config.context);
+        }
+
         await this.chartManager.upgrade(
           config.namespace,
           config.releaseName,
@@ -481,6 +488,8 @@ export class RelayCommand extends BaseCommand {
           config.context,
           commandType !== RelayCommandType.ADD,
           commandType === RelayCommandType.ADD,
+          false,
+          Boolean(config.relayChartDirectory),
         );
 
         showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);

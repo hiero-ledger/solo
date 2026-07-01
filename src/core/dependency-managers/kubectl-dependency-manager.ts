@@ -54,14 +54,10 @@ export class KubectlDependencyManager extends BaseDependencyManager {
       // Using the null device ensures kubectl only reports the client version without any
       // server or credential-related operations.
       const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
-      const output: string[] = await this.run(
-        `"${executableWithPath}" version --client`,
-        [],
-        false,
-        false,
-        {KUBECONFIG: nullDevice},
-        30_000,
-      );
+      const output: string[] = await this.run(executableWithPath, ['version', '--client'], {
+        environmentVariablesToAppend: {KUBECONFIG: nullDevice},
+        timeoutMs: 30_000,
+      });
       this.logger.debug(`Raw kubectl version output: ${output.join('\n')}`);
       if (output.length > 0) {
         for (const line of output) {

@@ -1,165 +1,42 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import type * as x509 from '@peculiar/x509';
-import type net from 'node:net';
-import type * as WebSocket from 'ws';
-import type crypto from 'node:crypto';
 import {type ListrTask, type ListrTaskWrapper} from 'listr2';
-import {type PublicKey} from '@hiero-ledger/sdk';
-import {type AnyYargs, type ArgvStruct, type JsonString, type NodeAlias} from './aliases.js';
+import {type NodeAlias} from './aliases.js';
 import {type Listr} from 'listr2';
 import {type NamespaceName} from './namespace/namespace-name.js';
+import {type PortForwardConfig} from './port-forward-config.js';
 
 // NOTE: DO NOT add any Solo imports in this file to avoid circular dependencies
 
-export interface NodeKeyObject {
-  privateKey: crypto.webcrypto.CryptoKey;
-  certificate: x509.X509Certificate;
-  certificateChain: x509.X509Certificates;
-}
-
-export interface PrivateKeyAndCertificateObject {
-  privateKeyFile: string;
-  certificateFile: string;
-}
-
-export interface ExtendedNetServer extends net.Server {
-  localPort: number;
-  info: string;
-}
-
-export interface LocalContextObject {
-  reject: (reason?: any) => void;
-  connection: WebSocket.WebSocket;
-  errorMessage: string;
-}
-
-export interface AccountIdWithKeyPairObject {
-  accountId: string;
-  privateKey: string;
-  publicKey: string;
-}
+export type {NodeKeyObject} from './node-key-object.js';
+export type {PrivateKeyAndCertificateObject} from './private-key-and-certificate-object.js';
+export type {ExtendedNetServer} from './extended-net-server.js';
+export type {LocalContextObject} from './local-context-object.js';
+export type {AccountIdWithKeyPairObject} from './account-id-with-key-pair-object.js';
+export type {Validate} from './validate.js';
+export type {ToObject} from './to-object.js';
+export type {ToJSON} from './to-json.js';
+export type {ServiceEndpoint} from './service-endpoint.js';
+export type {NodeAccountId} from './node-account-id.js';
+export type {GenesisNetworkNodeStructure} from './genesis-network-node-structure.js';
+export type {GenesisNetworkRosterStructure} from './genesis-network-roster-structure.js';
+export type {GossipEndpoint} from './gossip-endpoint.js';
+export type {PortForwardConfig} from './port-forward-config.js';
+export type {CommandDefinition} from './command-definition.js';
+export type {GitHubReleaseAsset} from './git-hub-release-asset.js';
+export type {GitHubRelease} from './git-hub-release.js';
+export type {ReleaseInfo} from './release-info.js';
 
 /**
  * Generic type for representing optional types
  */
 export type Optional<T> = T | undefined;
 
-/**
- * Interface for capsuling validating for class's own properties
- */
-export interface Validate {
-  /**
-   * Validates all properties of the class and throws if data is invalid
-   */
-  validate(): void;
-}
-
-/**
- * Interface for converting a class to a plain object.
- */
-export interface ToObject<T> {
-  /**
-   * Converts the class instance to a plain object.
-   *
-   * @returns the plain object representation of the class.
-   */
-  toObject(): T;
-}
-
-/**
- * Interface for converting class to JSON string.
- */
-export interface ToJSON {
-  /**
-   * Converts the class instance to a plain JSON string.
-   *
-   * @returns the plain JSON string of the class.
-   */
-  toJSON(): JsonString;
-}
-
 export type SoloListrTask<T> = ListrTask<T, any, any>;
 
 export type SoloListrTaskWrapper<T> = ListrTaskWrapper<T, any, any>;
 
 export type SoloListr<T> = Listr<T, any, any>;
-
-export interface ServiceEndpoint {
-  ipAddressV4?: string;
-  port: number;
-  domainName: string;
-}
-
-export interface NodeAccountId {
-  accountId: {
-    realm: string;
-    shard: string;
-    accountNum: string;
-  };
-}
-
-export interface GenesisNetworkNodeStructure {
-  nodeId: number;
-  accountId: NodeAccountId;
-  description: string;
-  gossipEndpoint: ServiceEndpoint[];
-  serviceEndpoint: ServiceEndpoint[];
-  gossipCaCertificate: string;
-  grpcCertificateHash: string;
-  weight: number;
-  deleted: boolean;
-  adminKey: PublicKey;
-}
-
-export interface GenesisNetworkRosterStructure {
-  nodeId: number;
-  weight: number;
-  gossipEndpoint: ServiceEndpoint[];
-  gossipCaCertificate: string;
-}
-
-export interface GossipEndpoint {
-  nodeId: number;
-  hostname: string;
-  port: number;
-}
-
-export interface PortForwardConfig {
-  localPort: number;
-  podPort: number;
-}
-
-export interface CommandDefinition {
-  command: string;
-  desc: string;
-  builder?: (yargs: AnyYargs) => any;
-  handler?: (argv: ArgvStruct) => Promise<void>;
-}
-
-// GitHub API response interfaces
-export interface GitHubReleaseAsset {
-  name: string;
-  browser_download_url: string;
-  content_type: string;
-  size: number;
-  digest: string;
-}
-
-export interface GitHubRelease {
-  tag_name: string;
-  html_url: string;
-  prerelease: boolean;
-  draft: boolean;
-  assets: GitHubReleaseAsset[];
-}
-
-export interface ReleaseInfo {
-  downloadUrl: string;
-  assetName: string;
-  checksum: string;
-  version: string;
-}
 
 export type ComponentDisplayName = 'Consensus node' | 'Mirror node' | 'Explorer node' | 'Relay node' | 'Block node';
 

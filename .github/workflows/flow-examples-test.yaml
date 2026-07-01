@@ -229,7 +229,7 @@ jobs:
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
@@ -273,7 +273,7 @@ jobs:
         # subsequent run sharing the same version.ts hash. Docker Hub is contacted at most
         # once per version bump — preventing anonymous rate-limit 429s.
         if: ${{ matrix.example.local-java-build }}
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.solo/helm-chart-cache
           key: helm-chart-deps-${{ runner.os }}-${{ hashFiles('version.ts') }}

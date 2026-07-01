@@ -38,6 +38,7 @@ import {BlockNodeConfigFailedSoloError} from './classes/component/block-node-con
 import {BlockNodeDeleteExternalFailedSoloError} from './classes/component/block-node-delete-external-failed-solo-error.js';
 import {BlockNodeDeployFailedSoloError} from './classes/component/block-node-deploy-failed-solo-error.js';
 import {BlockNodeDestroyFailedSoloError} from './classes/component/block-node-destroy-failed-solo-error.js';
+import {BlockNodeJfrCollectionFailedSoloError} from './classes/component/block-node-jfr-collection-failed-solo-error.js';
 import {BlockNodeHealthCheckFailedSoloError} from './classes/component/block-node-health-check-failed-solo-error.js';
 import {BlockNodeUpgradeFailedSoloError} from './classes/component/block-node-upgrade-failed-solo-error.js';
 import {ChartInstallFailedSoloError} from './classes/component/chart-install-failed-solo-error.js';
@@ -233,6 +234,7 @@ import {BackupInputPathNotFoundSoloError} from './classes/validation/backup-inpu
 import {BackupInputMustBeZipSoloError} from './classes/validation/backup-input-must-be-zip-solo-error.js';
 import {BackupNoLogFilesSoloError} from './classes/validation/backup-no-log-files-solo-error.js';
 import {FlagInputFailedSoloError} from './classes/validation/flag-input-failed-solo-error.js';
+import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-required-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
 import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-failed-solo-error.js';
@@ -256,6 +258,7 @@ import {GitHubReleasesNotFoundSoloError} from './classes/system/github-releases-
 import {GitHubReleaseTagNotFoundSoloError} from './classes/system/github-release-tag-not-found-solo-error.js';
 import {GitHubReleaseAssetNotFoundSoloError} from './classes/system/github-release-asset-not-found-solo-error.js';
 import {HomebrewInstallFailedSoloError} from './classes/system/homebrew-install-failed-solo-error.js';
+import {UnsupportedLinuxDistributionSoloError} from './classes/system/unsupported-linux-distribution-solo-error.js';
 import {PodmanMachineInspectFailedSoloError} from './classes/system/podman-machine-inspect-failed-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
@@ -381,6 +384,7 @@ export class SoloErrors {
     readonly blockNodeConfigFailed: typeof BlockNodeConfigFailedSoloError;
     readonly blockNodeDeployFailed: typeof BlockNodeDeployFailedSoloError;
     readonly blockNodeDestroyFailed: typeof BlockNodeDestroyFailedSoloError;
+    readonly blockNodeJfrCollectionFailed: typeof BlockNodeJfrCollectionFailedSoloError;
     readonly blockNodeUpgradeFailed: typeof BlockNodeUpgradeFailedSoloError;
     readonly blockNodeAddExternalFailed: typeof BlockNodeAddExternalFailedSoloError;
     readonly blockNodeDeleteExternalFailed: typeof BlockNodeDeleteExternalFailedSoloError;
@@ -469,6 +473,7 @@ export class SoloErrors {
     blockNodeConfigFailed: BlockNodeConfigFailedSoloError,
     blockNodeDeployFailed: BlockNodeDeployFailedSoloError,
     blockNodeDestroyFailed: BlockNodeDestroyFailedSoloError,
+    blockNodeJfrCollectionFailed: BlockNodeJfrCollectionFailedSoloError,
     blockNodeUpgradeFailed: BlockNodeUpgradeFailedSoloError,
     blockNodeAddExternalFailed: BlockNodeAddExternalFailedSoloError,
     blockNodeDeleteExternalFailed: BlockNodeDeleteExternalFailedSoloError,
@@ -623,6 +628,7 @@ export class SoloErrors {
     readonly backupInputMustBeZip: typeof BackupInputMustBeZipSoloError;
     readonly backupNoLogFiles: typeof BackupNoLogFilesSoloError;
     readonly flagInputFailed: typeof FlagInputFailedSoloError;
+    readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
@@ -697,6 +703,7 @@ export class SoloErrors {
     backupInputMustBeZip: BackupInputMustBeZipSoloError,
     backupNoLogFiles: BackupNoLogFilesSoloError,
     flagInputFailed: FlagInputFailedSoloError,
+    confirmationRequired: ConfirmationRequiredSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
@@ -759,6 +766,7 @@ export class SoloErrors {
     readonly gitHubReleaseTagNotFound: typeof GitHubReleaseTagNotFoundSoloError;
     readonly gitHubReleaseAssetNotFound: typeof GitHubReleaseAssetNotFoundSoloError;
     readonly homebrewInstallFailed: typeof HomebrewInstallFailedSoloError;
+    readonly unsupportedLinuxDistribution: typeof UnsupportedLinuxDistributionSoloError;
     readonly podmanMachineInspectFailed: typeof PodmanMachineInspectFailedSoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
@@ -835,6 +843,7 @@ export class SoloErrors {
     gitHubReleaseTagNotFound: GitHubReleaseTagNotFoundSoloError,
     gitHubReleaseAssetNotFound: GitHubReleaseAssetNotFoundSoloError,
     homebrewInstallFailed: HomebrewInstallFailedSoloError,
+    unsupportedLinuxDistribution: UnsupportedLinuxDistributionSoloError,
     podmanMachineInspectFailed: PodmanMachineInspectFailedSoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,

@@ -128,6 +128,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   PREDEFINED_ACCOUNTS_CREATION_FAILED: 'SOLO-3087',
   FILE_CONTENT_MISMATCH: 'SOLO-3088',
   NODE_SERVICE_NOT_FOUND: 'SOLO-3089',
+  BLOCK_NODE_JFR_COLLECTION_FAILED: 'SOLO-3090',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -206,6 +207,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   BACKUP_INPUT_MUST_BE_ZIP: 'SOLO-4074',
   BACKUP_NO_LOG_FILES: 'SOLO-4075',
   FLAG_INPUT_FAILED: 'SOLO-4076',
+  CONFIRMATION_REQUIRED: 'SOLO-4077',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
@@ -281,7 +283,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CACHE_PROVIDER_NOT_CONFIGURED: 'SOLO-5071',
   POD_TERMINATION_TIMEOUT: 'SOLO-5072',
   CLUSTER_ROLE_CHECK_FAILED: 'SOLO-5073',
-  BLOCK_NODES_JSON_EMPTY: 'SOLO-5074',
+  UNSUPPORTED_LINUX_DISTRIBUTION: 'SOLO-5074',
+  BLOCK_NODES_JSON_EMPTY: 'SOLO-5075',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
