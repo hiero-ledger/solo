@@ -417,9 +417,6 @@ export class MirrorNodeCommand extends BaseCommand {
                 enabled: boolean;
                 frequency: string;
               };
-              record: {
-                enabled: boolean;
-              };
             };
           };
         };
@@ -432,9 +429,6 @@ export class MirrorNodeCommand extends BaseCommand {
               balance: {
                 enabled: false,
                 frequency: MirrorNodeCommand.BLOCK_NODE_BALANCE_DOWNLOADER_FREQUENCY,
-              },
-              record: {
-                enabled: false,
               },
             },
           },

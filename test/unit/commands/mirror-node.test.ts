@@ -91,7 +91,6 @@ interface MirrorNodeIntegrationValues {
               }[];
             };
             downloader: {
-              record: {enabled: boolean};
               balance: {enabled: boolean; frequency: string};
             };
           };
@@ -369,7 +368,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
     expect(getSkipFunction(mirrorNodeCommandInternal.primePostgresSecretTask())(context)).to.equal(true);
   });
 
-  it('should disable record and balance downloaders when block node integration is enabled', (): void => {
+  it('should disable balance downloader when block node integration is enabled', (): void => {
     const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
       mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
     const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
@@ -417,7 +416,6 @@ describe('MirrorNodeCommand unit tests', (): void => {
       expect(values.importer.config.hiero.mirror.importer.block.nodes[0].endpoints[0].port).to.equal(
         constants.BLOCK_NODE_PORT,
       );
-      expect(values.importer.config.hiero.mirror.importer.downloader.record.enabled).to.equal(false);
       expect(values.importer.config.hiero.mirror.importer.downloader.balance.enabled).to.equal(false);
     } finally {
       fs.rmSync(cacheDirection, {recursive: true, force: true});
