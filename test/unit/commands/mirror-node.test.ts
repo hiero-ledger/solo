@@ -89,9 +89,11 @@ interface MirrorNodeIntegrationValues {
                   port: number;
                 }[];
               }[];
+              sourceType: string;
             };
             downloader: {
               balance: {enabled: boolean; frequency: string};
+              record: {enabled: boolean};
             };
           };
         };
@@ -416,7 +418,9 @@ describe('MirrorNodeCommand unit tests', (): void => {
       expect(values.importer.config.hiero.mirror.importer.block.nodes[0].endpoints[0].port).to.equal(
         constants.BLOCK_NODE_PORT,
       );
+      expect(values.importer.config.hiero.mirror.importer.block.sourceType).to.equal('AUTO');
       expect(values.importer.config.hiero.mirror.importer.downloader.balance.enabled).to.equal(false);
+      expect(values.importer.config.hiero.mirror.importer.downloader.record.enabled).to.equal(true);
     } finally {
       fs.rmSync(cacheDirection, {recursive: true, force: true});
     }

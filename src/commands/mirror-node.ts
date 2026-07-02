@@ -411,11 +411,15 @@ export class MirrorNodeCommand extends BaseCommand {
                   port: number;
                 }[];
               }[];
+              sourceType: string;
             };
             downloader: {
               balance: {
                 enabled: boolean;
                 frequency: string;
+              };
+              record: {
+                enabled: boolean;
               };
             };
           };
@@ -425,10 +429,21 @@ export class MirrorNodeCommand extends BaseCommand {
       [MirrorNodeCommand.MIRROR_CHART_NAMESPACE]: {
         mirror: {
           importer: {
+            block: {
+              nodes: [],
+              // Override the blocknode Spring profile's BLOCK_NODE default so the importer
+              // can fall back to record streams after block node errors.
+              sourceType: 'AUTO',
+            },
             downloader: {
               balance: {
                 enabled: false,
                 frequency: MirrorNodeCommand.BLOCK_NODE_BALANCE_DOWNLOADER_FREQUENCY,
+              },
+              // Override the blocknode Spring profile which disables record stream; keep it
+              // enabled so the AUTO source type can fall back to file-based ingestion.
+              record: {
+                enabled: true,
               },
             },
           },
@@ -437,25 +452,23 @@ export class MirrorNodeCommand extends BaseCommand {
     };
 
     if (usesBlockNodeEndpoints) {
-      importerConfig[MirrorNodeCommand.MIRROR_CHART_NAMESPACE].mirror.importer.block = {
-        nodes: blockNodeFqdnList.map(
-          (
-            node,
-          ): {
-            endpoints: {
-              host: string;
-              port: number;
-            }[];
-          } => ({
-            endpoints: [
-              {
-                host: node.host,
-                port: node.port,
-              },
-            ],
-          }),
-        ),
-      };
+      importerConfig[MirrorNodeCommand.MIRROR_CHART_NAMESPACE].mirror.importer.block!.nodes = blockNodeFqdnList.map(
+        (
+          node,
+        ): {
+          endpoints: {
+            host: string;
+            port: number;
+          }[];
+        } => ({
+          endpoints: [
+            {
+              host: node.host,
+              port: node.port,
+            },
+          ],
+        }),
+      );
     }
 
     for (const [index, node] of blockNodeFqdnList.entries()) {
