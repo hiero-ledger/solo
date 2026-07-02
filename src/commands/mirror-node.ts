@@ -405,6 +405,7 @@ export class MirrorNodeCommand extends BaseCommand {
         mirror: {
           importer: {
             block?: {
+              enabled: boolean;
               nodes: {
                 endpoints: {
                   host: string;
@@ -430,9 +431,13 @@ export class MirrorNodeCommand extends BaseCommand {
         mirror: {
           importer: {
             block: {
+              // The blocknode Spring profile (block.enabled=true, record.enabled=false) conflicts
+              // with mirror 0.157.0 + block node 0.36.0 because block node sends ROUND_HEADER as
+              // the first block item but mirror only accepts BLOCK_HEADER, causing constant errors.
+              // Disable block stream ingestion so the importer falls back to record streams from
+              // minio. ImporterConfiguration validates that both cannot be enabled simultaneously.
+              enabled: false,
               nodes: [],
-              // Override the blocknode Spring profile's BLOCK_NODE default so the importer
-              // can fall back to record streams after block node errors.
               sourceType: 'AUTO',
             },
             downloader: {
@@ -440,8 +445,8 @@ export class MirrorNodeCommand extends BaseCommand {
                 enabled: false,
                 frequency: MirrorNodeCommand.BLOCK_NODE_BALANCE_DOWNLOADER_FREQUENCY,
               },
-              // Override the blocknode Spring profile which disables record stream; keep it
-              // enabled so the AUTO source type can fall back to file-based ingestion.
+              // The blocknode Spring profile disables record stream; re-enable it so the importer
+              // can ingest record stream files from minio while block stream ingestion is disabled.
               record: {
                 enabled: true,
               },

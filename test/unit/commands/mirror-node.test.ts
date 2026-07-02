@@ -83,6 +83,7 @@ interface MirrorNodeIntegrationValues {
         mirror: {
           importer: {
             block?: {
+              enabled: boolean;
               nodes: {
                 endpoints: {
                   host: string;
@@ -418,6 +419,7 @@ describe('MirrorNodeCommand unit tests', (): void => {
       expect(values.importer.config.hiero.mirror.importer.block.nodes[0].endpoints[0].port).to.equal(
         constants.BLOCK_NODE_PORT,
       );
+      expect(values.importer.config.hiero.mirror.importer.block.enabled).to.equal(false);
       expect(values.importer.config.hiero.mirror.importer.block.sourceType).to.equal('AUTO');
       expect(values.importer.config.hiero.mirror.importer.downloader.balance.enabled).to.equal(false);
       expect(values.importer.config.hiero.mirror.importer.downloader.record.enabled).to.equal(true);
