@@ -113,6 +113,45 @@ describe('detectFatalContainerError', (): void => {
     expect(podsClient.detectFatalContainerError(pod)).to.be.undefined;
   });
 
+  it('passes previous flag when reading logs for named containers', async (): Promise<void> => {
+    const podReference: PodReference = PodReference.of(NamespaceName.of('default'), PodName.of('test-pod'));
+    const readNamespacedPodStub: SinonStub = sinon.stub().resolves({
+      spec: {
+        containers: [{name: 'main-container'}, {name: 'sidecar-container'}],
+      },
+    });
+    const readNamespacedPodLogStub: SinonStub = sinon.stub().callsFake(({container}: {container: string}): string => {
+      return `${container} previous log`;
+    });
+    const pods: K8ClientPods = new K8ClientPods(
+      {
+        readNamespacedPod: readNamespacedPodStub,
+        readNamespacedPodLog: readNamespacedPodLogStub,
+      } as never,
+      {} as never,
+      '',
+    );
+
+    const logs: string = await pods.readLogs(podReference, true, true);
+
+    expect(logs).to.include('main-container previous log');
+    expect(logs).to.include('sidecar-container previous log');
+    expect(readNamespacedPodLogStub).to.have.been.calledWithMatch({
+      name: 'test-pod',
+      namespace: 'default',
+      container: 'main-container',
+      timestamps: true,
+      previous: true,
+    });
+    expect(readNamespacedPodLogStub).to.have.been.calledWithMatch({
+      name: 'test-pod',
+      namespace: 'default',
+      container: 'sidecar-container',
+      timestamps: true,
+      previous: true,
+    });
+  });
+
   for (const reason of ['InvalidImageName', 'RegistryUnavailable']) {
     it(`should detect fatal waiting reason: ${reason}`, (): void => {
       const pod: Pod = buildPod([buildWaiting('test-container', reason)]);
