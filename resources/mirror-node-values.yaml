@@ -31,10 +31,10 @@ importer:
   resources:
     requests:
       cpu: 0
-      memory: 200Mi
+      memory: 1000Mi
     limits:
-      cpu: 1000m
-      memory: 220Mi
+      cpu: 3
+      memory: 2000Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
