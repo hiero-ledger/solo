@@ -18,20 +18,36 @@ name: "Clean Environment One-Shot Deploy and Destroy"
 # The purpose of this workflow is to validate that Solo can install and run in a clean environment,
 # reproducing a first-time user experience (no prior setup, no cached images, no residual state).
 #
-# Unlike the standard-runner one-shot workflow, which builds from source and runs `npm run solo`,
-# this workflow packs the current build into a tarball and installs it globally via `npm install -g`
-# (running the package `postinstall`), then invokes the globally-installed `solo` binary directly.
-# This exercises the real install path a first-time user hits and helps surface hidden dependencies
-# or packaging issues that building from source would mask.
+# What makes this different from the standard-runner one-shot workflow (which builds from source and
+# runs `npm run solo` from the repo root):
 #
-# Image caching is disabled end-to-end so the deploy pulls images fresh, matching a clean environment.
-# Because a full deploy is slow (~70 min), this runs nightly and on-demand rather than per-PR.
+#   1. Clean proof — before installing, we uninstall any prior Solo, remove ~/.solo, and delete
+#      leftover Kind clusters, then assert that solo/helm/kind/kubectl/crane are absent from PATH and
+#      ~/.solo does not exist. Docker stays: it is a required prerequisite, not Solo-managed state.
+#   2. Faithful package — we build the tarball with the same release packaging code that produces the
+#      published artifact (`scripts/Taskfile.release.yml` dual-publish tasks), so `npm install -g`
+#      installs `@hiero-ledger/solo` under its real published name, exercising the path a first-time
+#      user hits (packaging, bin, postinstall).
+#   3. Separate directory — every `solo` command runs from a directory outside the checkout, surfacing
+#      any code that resolves bundled resources relative to the current working directory instead of
+#      the package.
+#   4. No cached images — SOLO_NO_CACHE skips the postinstall image-cache pull and ENABLE_IMAGE_CACHE
+#      forces the deploy to pull images fresh.
+#
+# Note: postinstall only pre-pulls container images; the ~/.solo/bin toolchain (helm/kind/kubectl) is
+# downloaded lazily at runtime on first use.
 
 on:
   workflow_dispatch:
-  schedule:
-    # Run nightly at 03:00 UTC, offset from the 06:00 UTC extended nightly tests to avoid contention.
-    - cron: '0 3 * * *'
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
 
 defaults:
   run:
@@ -50,8 +66,8 @@ env:
 jobs:
   clean-environment-one-shot:
     name: Clean Environment Deploy and Destroy
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
+    runs-on: hiero-solo-linux-large
+    timeout-minutes: 40
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -76,23 +92,80 @@ jobs:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compile Project
+      - name: Make Clean
+        # Best-effort teardown of anything a prior job on this reused self-hosted runner left behind.
+        # Docker Engine is intentionally left installed: it is a required prerequisite for Kind.
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: task build:compile
+        run: |
+          npm rm -g @hashgraph/solo @hiero-ledger/solo 2>/dev/null || true
+          rm -rf ~/.solo
+          # Remove leftover Kind clusters, targeted by Kind's own container label so we never touch
+          # unrelated containers on the shared runner.
+          docker ps -aq --filter "label=io.x-k8s.kind.cluster" | xargs -r docker rm -f || true
+          docker network rm kind 2>/dev/null || true
 
-      - name: Pack and Globally Install Solo
+      - name: Assert Clean Environment
+        # Demonstrable proof that the environment is clean before we install Solo. Fails loudly if any
+        # Solo-managed component or residual state is present.
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          echo "Container runtime (required prerequisite, expected present):"
+          docker --version
+
+          status=0
+          for tool in solo helm kind kubectl crane; do
+            if command -v "${tool}" >/dev/null 2>&1; then
+              echo "NOT CLEAN: '${tool}' is present on PATH at $(command -v "${tool}")"
+              status=1
+            else
+              echo "clean: '${tool}' is absent from PATH"
+            fi
+          done
+
+          if [ -e ~/.solo ]; then
+            echo "NOT CLEAN: ~/.solo exists (residual toolchain, cache, or state)"
+            status=1
+          else
+            echo "clean: ~/.solo does not exist"
+          fi
+
+          if [ "${status}" -ne 0 ]; then
+            echo "ERROR: environment is not clean; see the failures above."
+            exit 1
+          fi
+          echo "Environment is clean."
+
+      - name: Pack Solo as the Published Package
+        # Use the same release packaging code that produces the published artifact, renaming to the
+        # @hiero-ledger/solo namespace so `npm install -g` emulates a real user install. `dual-publish:pack`
+        # runs npm install + task build + npm pack; the build runs after the rename, so dist/package.json
+        # is renamed too, matching the real artifact. `dual-publish:restore` runs `git restore .`.
+        timeout-minutes: 10
+        run: |
+          task -t scripts/Taskfile.release.yml dual-publish:rename
+          task -t scripts/Taskfile.release.yml dual-publish:pack OUTPUT_DIR=output/hl
+          task -t scripts/Taskfile.release.yml dual-publish:restore
+
+      - name: Globally Install Solo
         # SOLO_NO_CACHE skips the postinstall image-cache population so no images are cached before deploy.
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           SOLO_NO_CACHE: 'true'
         run: |
-          npm pack
-          npm install -g ./hashgraph-solo-*.tgz
+          npm install -g ./output/hl/hiero-ledger-solo-*.tgz
           echo "Installed Solo version:"
           solo --version
 
+      - name: Create Isolated Run Directory
+        # Every subsequent `solo` command runs from here, outside the repo checkout, to surface any
+        # code that resolves bundled resources relative to the current working directory.
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: mkdir -p "${{ runner.temp }}/solo-clean-run"
+
       - name: One-Shot Single Deploy
-        timeout-minutes: 70
+        timeout-minutes: 20
+        working-directory: ${{ runner.temp }}/solo-clean-run
+        # ENABLE_IMAGE_CACHE=false forces the deploy to pull images fresh instead of using a cache.
         env:
           ENABLE_IMAGE_CACHE: 'false'
         run: |
@@ -101,6 +174,7 @@ jobs:
 
       - name: Check Port Forwarding Still Works After Deploy
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        working-directory: ${{ runner.temp }}/solo-clean-run
         run: |
           export PATH=~/.solo/bin:${PATH}
           solo deployment diagnostics connections -d one-shot --check
@@ -124,6 +198,7 @@ jobs:
       - name: Collect Diagnostics on Failure
         if: ${{ failure() }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        working-directory: ${{ runner.temp }}/solo-clean-run
         run: |
           export PATH=~/.solo/bin:${PATH}
           solo deployment diagnostics logs -q --dev || true
@@ -131,6 +206,7 @@ jobs:
       - name: One-Shot Single Destroy
         if: always()
         timeout-minutes: 15
+        working-directory: ${{ runner.temp }}/solo-clean-run
         run: |
           export PATH=~/.solo/bin:${PATH}
           solo one-shot single destroy --quiet-mode --dev || true
