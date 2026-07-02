@@ -24,6 +24,10 @@ import {CacheImageTemplateValues} from '../integration/cache/models/impl/cache-i
 import * as version from '../../version.js';
 import {DefaultCacheImageTemplateResolver} from '../integration/cache/impl/default-cache-image-template-resolver.js';
 import {CacheTarget} from '../integration/cache/models/impl/cache-target.js';
+import {HelmChartCacheHandler} from '../integration/cache/impl/helm-chart-cache-handler.js';
+import {StaticCacheTargetProvider} from '../integration/cache/target-providers/static-cache-target-provider.js';
+import {CacheArtifactEnum} from '../integration/cache/enums/cache-artifact-enum.js';
+import {type HelmClient} from '../integration/helm/helm-client.js';
 
 interface CachePullConfigClass {
   imageCacheHandler: ImageCacheHandler;
@@ -80,6 +84,23 @@ interface CacheListContext {
   config: CacheListConfigClass;
 }
 
+interface CacheChartPullConfigClass {
+  helmChartCacheHandler: HelmChartCacheHandler;
+  results: CachedItem[];
+}
+
+interface CacheChartPullContext {
+  config: CacheChartPullConfigClass;
+}
+
+interface CacheChartConfigClass {
+  helmChartCacheHandler: HelmChartCacheHandler;
+}
+
+interface CacheChartContext {
+  config: CacheChartConfigClass;
+}
+
 @injectable()
 export class CacheCommand extends BaseCommand {
   public static readonly CACHE_NOT_MATERIALIZED_ERROR_MESSAGE: string =
@@ -87,6 +108,7 @@ export class CacheCommand extends BaseCommand {
 
   public constructor(
     @inject(InjectTokens.ContainerEngineClient) private containerEngineClient?: ContainerEngineClient,
+    @inject(InjectTokens.Helm) private helmClient?: HelmClient,
   ) {
     super();
 
@@ -95,6 +117,7 @@ export class CacheCommand extends BaseCommand {
       InjectTokens.ContainerEngineClient,
       this.constructor.name,
     );
+    this.helmClient = patchInject(helmClient, InjectTokens.Helm, this.constructor.name);
   }
 
   public async close(): Promise<void> {}
@@ -140,6 +163,31 @@ export class CacheCommand extends BaseCommand {
   public static readonly STATUS_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.cacheDir, flags.devMode, flags.clusterRef],
+  };
+
+  public static readonly CHART_PULL_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+  };
+
+  public static readonly CHART_LIST_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+  };
+
+  public static readonly CHART_CLEAR_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+  };
+
+  public static readonly CHART_PRUNE_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+  };
+
+  public static readonly CHART_STATUS_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.quiet, flags.cacheDir, flags.devMode],
   };
 
   // ----- Handlers ------- //
@@ -478,7 +526,186 @@ export class CacheCommand extends BaseCommand {
     return true;
   }
 
+  public async chartPull(argv: ArgvStruct): Promise<boolean> {
+    const tasks: SoloListr<CacheChartPullContext> = this.taskList.newTaskList(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<void> => {
+            this.configManager.update(argv);
+
+            flags.disablePrompts(CacheCommand.CHART_PULL_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...CacheCommand.CHART_PULL_FLAGS_LIST.required,
+              ...CacheCommand.CHART_PULL_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            context_.config = {
+              helmChartCacheHandler: this.buildHelmChartCacheHandler(),
+              results: [],
+            };
+          },
+        },
+        this.pullAndCacheHelmCharts(),
+        this.showUserMessages(),
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'cache chart pull',
+    );
+
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloErrors.system.containerOperationFailed('cache chart pull', error);
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {});
+    }
+
+    return true;
+  }
+
+  public async chartList(): Promise<boolean> {
+    const tasks: SoloListr<CacheChartContext> = this.taskList.newTaskList(
+      [
+        {
+          title: 'List cached charts',
+          task: async (context_): Promise<void> => {
+            context_.config = {helmChartCacheHandler: this.buildHelmChartCacheHandler()};
+
+            const cachedItems: readonly CachedItem[] = await context_.config.helmChartCacheHandler.list();
+
+            this.logger.showList(
+              `Cached charts: [${cachedItems.length}]`,
+              cachedItems.map((item): string => `${item.target.name || item.target.source}:${item.target.version}`),
+            );
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'cache chart list',
+    );
+
+    await tasks.run();
+    return true;
+  }
+
+  public async chartClear(): Promise<boolean> {
+    const tasks: SoloListr<CacheChartContext> = this.taskList.newTaskList(
+      [
+        {
+          title: 'Clear chart cache',
+          task: async (context_): Promise<void> => {
+            context_.config = {helmChartCacheHandler: this.buildHelmChartCacheHandler()};
+            await context_.config.helmChartCacheHandler.clear();
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'cache chart clear',
+    );
+
+    await tasks.run();
+    return true;
+  }
+
+  public async chartPrune(): Promise<boolean> {
+    const tasks: SoloListr<CacheChartContext> = this.taskList.newTaskList(
+      [
+        {
+          title: 'Prune chart cache',
+          task: async (context_): Promise<void> => {
+            context_.config = {helmChartCacheHandler: this.buildHelmChartCacheHandler()};
+            await context_.config.helmChartCacheHandler.prune();
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'cache chart prune',
+    );
+
+    await tasks.run();
+    return true;
+  }
+
+  public async chartStatus(argv: ArgvStruct): Promise<boolean> {
+    const tasks: SoloListr<CacheChartContext> = this.taskList.newTaskList(
+      [
+        {
+          title: 'Check chart cache status',
+          task: async (context_, task): Promise<void> => {
+            this.configManager.update(argv);
+            flags.disablePrompts(CacheCommand.CHART_STATUS_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...CacheCommand.CHART_STATUS_FLAGS_LIST.required,
+              ...CacheCommand.CHART_STATUS_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            context_.config = {helmChartCacheHandler: this.buildHelmChartCacheHandler()};
+
+            const items: readonly ArtifactHealthResult[] = await context_.config.helmChartCacheHandler.healthcheck();
+            const cachedItems: readonly CachedItem[] = await context_.config.helmChartCacheHandler.list();
+
+            const missingCharts: string[] = items
+              .filter((item): boolean => !item.healthy)
+              .map((item): string => `${item.target.name || item.target.source}:${item.target.version}`);
+
+            let totalBytes: number = 0;
+
+            for (const item of cachedItems) {
+              try {
+                const stat: Stats = await fs.stat(item.localPath);
+                totalBytes += stat.size;
+              } catch {
+                // missing files are already reflected by healthcheck
+              }
+            }
+
+            const totalSizeMb: string = (totalBytes / (1024 * 1024)).toFixed(2);
+
+            this.logger.showUser(`Cached charts: ${cachedItems.length}`);
+            this.logger.showUser(`Total size: ${totalSizeMb} MB`);
+            this.logger.showUser(`Healthy: ${missingCharts.length === 0}`);
+
+            if (missingCharts.length > 0) {
+              this.logger.showList('Missing chart archives', missingCharts);
+            }
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'cache chart status',
+    );
+
+    await tasks.run();
+    return true;
+  }
+
   // ------ Tasks ------ //
+
+  private pullAndCacheHelmCharts(): SoloListrTask<CacheChartPullContext> {
+    return {
+      title: 'Pull and cache helm charts',
+      task: async ({config: {helmChartCacheHandler}}, task): Promise<SoloListr<AnyListrContext>> => {
+        return task.newListr(
+          await helmChartCacheHandler.pull(),
+          constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY_COLLAPSABLE,
+        );
+      },
+    };
+  }
 
   private pullAndCacheContainerImages(): SoloListrTask<CachePullContext> {
     return {
@@ -568,5 +795,75 @@ export class CacheCommand extends BaseCommand {
     }
 
     return this.buildImageCacheHandlerFromYaml(renderedYamlPath);
+  }
+
+  private buildHelmChartCacheHandler(): HelmChartCacheHandler {
+    return new HelmChartCacheHandler(this.helmClient, new StaticCacheTargetProvider(CacheCommand.soloChartTargets()));
+  }
+
+  /**
+   * The set of Helm charts Solo installs, keyed by the chart name and version passed to
+   * `ChartManager.install`/`upgrade` so the pulled tarballs align with chart-cache lookups at deploy time.
+   * Versions are read verbatim from `version.ts` (no normalization) to preserve exact cache-key matches.
+   */
+  private static soloChartTargets(): CacheTarget[] {
+    return [
+      new CacheTarget(
+        CacheArtifactEnum.HELM_CHART,
+        constants.SOLO_DEPLOYMENT_CHART,
+        version.SOLO_CHART_VERSION,
+        constants.SOLO_TESTING_CHART_URL,
+      ),
+      new CacheTarget(
+        CacheArtifactEnum.HELM_CHART,
+        constants.SOLO_CERT_MANAGER_CHART,
+        version.SOLO_CHART_VERSION,
+        constants.SOLO_TESTING_CHART_URL,
+      ),
+      new CacheTarget(
+        CacheArtifactEnum.HELM_CHART,
+        constants.SOLO_SHARED_RESOURCES_CHART,
+        version.SOLO_CHART_VERSION,
+        constants.SOLO_TESTING_CHART_URL,
+      ),
+      new CacheTarget(
+        CacheArtifactEnum.HELM_CHART,
+        constants.MIRROR_NODE_CHART,
+        version.MIRROR_NODE_VERSION,
+        constants.MIRROR_NODE_CHART_URL,
+      ),
+      new CacheTarget(
+        CacheArtifactEnum.HELM_CHART,
+        constants.JSON_RPC_RELAY_CHART,
+        version.HEDERA_JSON_RPC_RELAY_VERSION,
+        constants.JSON_RPC_RELAY_CHART_URL,
+      ),
+      new CacheTarget(
+        CacheArtifactEnum.HELM_CHART,
+        constants.BLOCK_NODE_CHART,
+        version.BLOCK_NODE_VERSION,
+        constants.BLOCK_NODE_CHART_URL,
+      ),
+      new CacheTarget(
+        CacheArtifactEnum.HELM_CHART,
+        constants.PROMETHEUS_STACK_CHART,
+        version.PROMETHEUS_STACK_VERSION,
+        constants.PROMETHEUS_STACK_CHART_URL,
+      ),
+      new CacheTarget(
+        CacheArtifactEnum.HELM_CHART,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART,
+        version.PROMETHEUS_OPERATOR_CRDS_VERSION,
+        constants.PROMETHEUS_OPERATOR_CRDS_CHART_URL,
+      ),
+      new CacheTarget(
+        CacheArtifactEnum.HELM_CHART,
+        constants.MINIO_OPERATOR_CHART,
+        version.MINIO_OPERATOR_VERSION,
+        constants.MINIO_OPERATOR_CHART_URL,
+      ),
+      // Explorer's chart is fully qualified by its OCI URL, so `ChartManager` passes an empty chart name.
+      new CacheTarget(CacheArtifactEnum.HELM_CHART, '', version.EXPLORER_VERSION, constants.EXPLORER_CHART_URL),
+    ];
   }
 }
