@@ -476,7 +476,9 @@ export class RapidFireCommand extends BaseCommand {
         1,
         readinessTimeoutMilliseconds - (Date.now() - startedAtMilliseconds),
       );
-      const attemptTimeoutMilliseconds: number = Math.min(config.rttPollTimeout, remainingMilliseconds);
+      // Give each readiness attempt the full remaining window. The importer may lag the chain by
+      // several hundred blocks when mirror first starts; capping at rttPollTimeout is too short.
+      const attemptTimeoutMilliseconds: number = remainingMilliseconds;
 
       try {
         const readinessSample: RttSample = await this.measureTransactionRtt(
