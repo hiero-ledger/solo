@@ -862,6 +862,13 @@ export class CacheCommand extends BaseCommand {
         version.MINIO_OPERATOR_VERSION,
         constants.MINIO_OPERATOR_CHART_URL,
       ),
+      // The haproxy-ingress chart name equals its release name, which is what `ChartManager` passes as chartName.
+      new CacheTarget(
+        CacheArtifactEnum.HELM_CHART,
+        constants.INGRESS_CONTROLLER_RELEASE_NAME,
+        version.INGRESS_CONTROLLER_VERSION,
+        constants.INGRESS_CONTROLLER_CHART_URL,
+      ),
       // Explorer's chart is fully qualified by its OCI URL, so `ChartManager` passes an empty chart name.
       new CacheTarget(CacheArtifactEnum.HELM_CHART, '', version.EXPLORER_VERSION, constants.EXPLORER_CHART_URL),
     ];
