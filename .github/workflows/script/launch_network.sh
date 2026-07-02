@@ -770,14 +770,31 @@ echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
 
-# For block stream upgrades, the target consensus node must not start before the
-# target block node is ready. Otherwise CN can advance block-stream state while
-# BN still cannot accept those blocks, leaving mirror importer stuck on the gap.
-npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+# For block stream upgrades where the block node chart version changes, the target
+# consensus node must not start before the target block node is ready. Otherwise CN
+# can advance block-stream state while BN still cannot accept those blocks, leaving
+# mirror importer stuck on the gap.
+#
+# When the block node version is unchanged, performing a stop/start cycle around the
+# upgrade is harmful: CN v0.74.0 fails to reconnect to BN v0.36.0 after an explicit
+# service restart (gRPC reconnection failure), which causes mirror to stall.  Skip
+# the stop/start when the chart version is not actually changing.
+CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
+CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
+PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
+
+echo "Block node version: source=${PREV_BLOCK_VERSION_NO_V}, target=${CURRENT_BLOCK_VERSION}"
+
+if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  echo "Block node version changing — stopping CN before BN upgrade to prevent block gaps"
+  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+fi
 
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
 
-npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+fi
 
 wait_for_mirror_block_count_progress "source deployment after block node upgrade" "${source_block_after_one_shot}" 3 180 2 > /dev/null
 
