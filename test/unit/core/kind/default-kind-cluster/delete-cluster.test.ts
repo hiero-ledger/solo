@@ -8,12 +8,12 @@ import {KindExecution} from '../../../../../src/integration/kind/execution/kind-
 import {ClusterDeleteResponse} from '../../../../../src/integration/kind/model/delete-cluster/cluster-delete-response.js';
 import {type ClusterDeleteOptions} from '../../../../../src/integration/kind/model/delete-cluster/cluster-delete-options.js';
 
-describe('DefaultKindClient - deleteCluster', () => {
+describe('DefaultKindClient - deleteCluster', (): void => {
   let client: DefaultKindClient;
   let executionBuilderStub: sinon.SinonStubbedInstance<KindExecutionBuilder>;
   let executionStub: sinon.SinonStubbedInstance<KindExecution>;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     client = new DefaultKindClient('/usr/local/bin/kind');
     executionBuilderStub = sinon.createStubInstance(KindExecutionBuilder);
     executionStub = sinon.createStubInstance(KindExecution);
@@ -23,14 +23,14 @@ describe('DefaultKindClient - deleteCluster', () => {
     sinon.stub(KindExecutionBuilder.prototype, 'build').returns(executionStub as any);
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     sinon.restore();
   });
 
-  it('should delete a cluster and parse the response correctly', async () => {
+  it('should delete a cluster and parse the response correctly', async (): Promise<void> => {
     const clusterName: string = 'test-cluster';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<ClusterDeleteResponse> => {
       const output: string = `Deleting cluster "${clusterName}" ...
 Deleted nodes: ["${clusterName}-control-plane"]`;
       return Promise.resolve(new responseClass(output));
@@ -43,7 +43,7 @@ Deleted nodes: ["${clusterName}-control-plane"]`;
     expect(result.deletedNodes).to.deep.equal([`${clusterName}-control-plane`]);
   });
 
-  it('should throw if responseAs throws', async () => {
+  it('should throw if responseAs throws', async (): Promise<void> => {
     executionStub.responseAs.rejects(new Error('fail'));
 
     try {
@@ -54,10 +54,10 @@ Deleted nodes: ["${clusterName}-control-plane"]`;
     }
   });
 
-  it('should handle output with multiple deleted nodes', async () => {
+  it('should handle output with multiple deleted nodes', async (): Promise<void> => {
     const clusterName: string = 'multi-node-cluster';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<ClusterDeleteResponse> => {
       const output: string = `Deleting cluster "${clusterName}" ...
 Deleted nodes: ["${clusterName}-control-plane", "${clusterName}-worker", "${clusterName}-worker2"]`;
       return Promise.resolve(new responseClass(output));
@@ -73,10 +73,10 @@ Deleted nodes: ["${clusterName}-control-plane", "${clusterName}-worker", "${clus
     ]);
   });
 
-  it('should handle output without deleted nodes information', async () => {
+  it('should handle output without deleted nodes information', async (): Promise<void> => {
     const clusterName: string = 'no-nodes-cluster';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<ClusterDeleteResponse> => {
       const output: string = `Deleting cluster "${clusterName}" ...`;
       return Promise.resolve(new responseClass(output));
     });
@@ -87,7 +87,7 @@ Deleted nodes: ["${clusterName}-control-plane", "${clusterName}-worker", "${clus
     expect(result.deletedNodes).to.be.an('array').that.is.empty;
   });
 
-  it('should pass cluster name and options to execution builder', async () => {
+  it('should pass cluster name and options to execution builder', async (): Promise<void> => {
     const clusterName: string = 'options-test-cluster';
     const options: ClusterDeleteOptions = {
       name: clusterName,
@@ -114,10 +114,10 @@ Deleted nodes: ["${clusterName}-control-plane", "${clusterName}-worker", "${clus
     expect(argumentSpy.calledWith('kubeconfig', options.kubeconfig)).to.be.true;
   });
 
-  it('should handle no options provided', async () => {
+  it('should handle no options provided', async (): Promise<void> => {
     const clusterName: string = 'default-options-cluster';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<ClusterDeleteResponse> => {
       const output: string = `Deleting cluster "${clusterName}" ...
 Deleted nodes: ["${clusterName}-control-plane"]`;
       return Promise.resolve(new responseClass(output));

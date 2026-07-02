@@ -6,23 +6,23 @@ import {GetKubeConfigRequest} from '../../../../../../src/integration/kind/reque
 import {type KindExecutionBuilder} from '../../../../../../src/integration/kind/execution/kind-execution-builder.js';
 import {type GetKubeConfigOptions} from '../../../../../../src/integration/kind/model/get-kubeconfig/get-kubeconfig-options.js';
 
-describe('GetKubeConfigRequest', () => {
+describe('GetKubeConfigRequest', (): void => {
   let builder: KindExecutionBuilder;
   let request: GetKubeConfigRequest;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     // Create a stub for the builder
     builder = {
       subcommands: Sinon.stub().returnsThis(),
     } as unknown as KindExecutionBuilder;
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     Sinon.restore();
   });
 
-  describe('apply', () => {
-    it('should add get kubeconfig subcommands to the builder', () => {
+  describe('apply', (): void => {
+    it('should add get kubeconfig subcommands to the builder', (): void => {
       // Create request with null options
       request = new GetKubeConfigRequest(null as unknown as GetKubeConfigOptions);
 
@@ -33,9 +33,9 @@ describe('GetKubeConfigRequest', () => {
       expect(builder.subcommands).to.have.been.calledOnceWith('get', 'kubeconfig');
     });
 
-    it('should delegate to options.apply when options are provided', () => {
+    it('should delegate to options.apply when options are provided', (): void => {
       // Create mock options with a stub for apply method
-      const options = {apply: Sinon.stub()} as unknown as GetKubeConfigOptions;
+      const options: GetKubeConfigOptions = {apply: Sinon.stub()} as unknown as GetKubeConfigOptions;
 
       // Create request with options
       request = new GetKubeConfigRequest(options);
