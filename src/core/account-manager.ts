@@ -275,55 +275,29 @@ export class AccountManager {
       }
 
       const treasuryAccountInfo: AccountIdWithKeyPairObject = await this.getTreasuryAccountKeys(namespace, deployment);
-      const maxAttempts: number = constants.NETWORK_PROXY_MAX_ATTEMPTS;
-      let lastError: unknown;
+      const networkNodeServicesMap: NodeServiceMapping = await this.getNodeServiceMap(
+        namespace,
+        clusterReferences,
+        deployment,
+      );
 
-      for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          const networkNodeServicesMap: NodeServiceMapping = await this.getNodeServiceMap(
-            namespace,
-            clusterReferences,
-            deployment,
-          );
+      const selectedNodeServicesMap: NodeServiceMapping = this.selectNodeServices(networkNodeServicesMap, selection);
+      const nodeClient: Client = await this._getNodeClient(
+        namespace,
+        selectedNodeServicesMap,
+        treasuryAccountInfo.accountId,
+        treasuryAccountInfo.privateKey,
+        selection.type === 'all' ? selection.skipNodeAlias : undefined,
+        selection.type === 'only',
+      );
 
-          const selectedNodeServicesMap: NodeServiceMapping = this.selectNodeServices(
-            networkNodeServicesMap,
-            selection,
-          );
-          const nodeClient: Client = await this._getNodeClient(
-            namespace,
-            selectedNodeServicesMap,
-            treasuryAccountInfo.accountId,
-            treasuryAccountInfo.privateKey,
-            selection.type === 'all' ? selection.skipNodeAlias : undefined,
-            selection.type === 'only',
-          );
+      this.logger.debug(
+        selection.type === 'only'
+          ? `single-node client has been refreshed for node '${selection.nodeAlias}'`
+          : 'node client has been refreshed',
+      );
 
-          this.logger.debug(
-            selection.type === 'only'
-              ? `single-node client has been refreshed for node '${selection.nodeAlias}'`
-              : 'node client has been refreshed',
-          );
-
-          return nodeClient;
-        } catch (error) {
-          lastError = error;
-          await this.close();
-
-          if (attempt === maxAttempts || !AccountManager.isNodeClientRefreshRetryable(error)) {
-            throw error;
-          }
-
-          this.logger.warn(
-            'node client refresh failed while waiting for network proxy services ' +
-              `(attempt ${attempt}/${maxAttempts}), retrying in ${constants.NETWORK_PROXY_DELAY}ms: ` +
-              `${error instanceof Error ? error.message : String(error)}`,
-          );
-          await sleep(Duration.ofMillis(constants.NETWORK_PROXY_DELAY));
-        }
-      }
-
-      throw lastError instanceof Error ? lastError : new Error(String(lastError));
+      return nodeClient;
     } catch (error) {
       throw new SoloErrors.component.nodeClientRefreshFailed(error);
     }
@@ -336,16 +310,6 @@ export class AccountManager {
    */
   private shouldUseLocalHostPortForward(networkNodeServices: NetworkNodeServices): boolean {
     return this._forcePortForward || !networkNodeServices.haProxyLoadBalancerIp;
-  }
-
-  private static isNodeClientRefreshRetryable(error: unknown): boolean {
-    const message: string = error instanceof Error ? error.message : String(error);
-    const retryableMessages: string[] = [
-      'HAProxy pod is not available',
-      'No SDK network endpoints were configured from node services',
-    ];
-
-    return retryableMessages.some((retryableMessage: string): boolean => message.includes(retryableMessage));
   }
 
   /**
@@ -397,16 +361,10 @@ export class AccountManager {
               nodes = {...nodes, ...(result as PromiseFulfilledResult<Record<NodeAlias, AccountId>>).value};
               break;
             }
-            default: {
-              break;
-            }
           }
         }
       });
       this.logger.debug(`configured node access for ${Object.keys(nodes).length} nodes`);
-      if (Object.keys(nodes).length === 0) {
-        throw new Error('No SDK network endpoints were configured from node services');
-      }
 
       let formattedNetworkConnection: string = '';
       for (const key of Object.keys(nodes)) {
@@ -470,10 +428,6 @@ export class AccountManager {
       // if the load balancer IP is not set or the test connection fails, then we should use the local host port forward
       const host: string = '127.0.0.1';
       const endpoint: SdkNetworkEndpoint = `${host}:${localPort}`;
-
-      if (!networkNodeService.haProxyPodName) {
-        throw new Error(`HAProxy pod is not available for node ${networkNodeService.nodeAlias}`);
-      }
 
       if (this._portForwards.length < totalNodes) {
         const portForward: number = await this.k8Factory
@@ -664,9 +618,6 @@ export class AccountManager {
             }
             break;
           }
-          default: {
-            break;
-          }
         }
         const consensusNode: ConsensusNode = this.remoteConfig
           .getConsensusNodes()
@@ -688,9 +639,7 @@ export class AccountManager {
           .getK8(serviceBuilder.context)
           .pods()
           .list(namespace, [`app=${serviceBuilder.haProxyAppSelector}`]);
-        if (podList.length > 0) {
-          serviceBuilder.withHaProxyPodName(podList[0].podReference.name);
-        }
+        serviceBuilder.withHaProxyPodName(podList[0].podReference.name);
       }
 
       for (const [, context] of clusterReferences) {
@@ -705,10 +654,9 @@ export class AccountManager {
           }
           const podName: PodName = pod.podReference.name;
           const nodeAlias: NodeAlias = pod.labels!['solo.hedera.com/node-name'] as NodeAlias;
-          const serviceBuilder: NetworkNodeServicesBuilder | undefined = serviceBuilderMap.get(nodeAlias);
-          if (!serviceBuilder) {
-            continue;
-          }
+          const serviceBuilder: NetworkNodeServicesBuilder = serviceBuilderMap.get(
+            nodeAlias,
+          ) as NetworkNodeServicesBuilder;
           serviceBuilder.withNodePodName(podName);
         }
       }

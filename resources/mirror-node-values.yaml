@@ -33,8 +33,8 @@ importer:
       cpu: 0
       memory: 200Mi
     limits:
-      cpu: 3
-      memory: 2000Mi
+      cpu: 1000m
+      memory: 220Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1

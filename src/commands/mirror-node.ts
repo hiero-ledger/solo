@@ -203,7 +203,6 @@ enum MirrorNodeCommandType {
 export class MirrorNodeCommand extends BaseCommand {
   private static readonly MIRROR_ENVIRONMENT_VARIABLE_PREFIX: string = 'HIERO';
   private static readonly MIRROR_CHART_NAMESPACE: string = 'hiero';
-  private static readonly BLOCK_NODE_BALANCE_DOWNLOADER_FREQUENCY: string = '24h';
   private static readonly MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS: string = '0.157.0-0';
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
@@ -405,19 +404,16 @@ export class MirrorNodeCommand extends BaseCommand {
         mirror: {
           importer: {
             block?: {
-              enabled: boolean;
               nodes: {
                 endpoints: {
                   host: string;
                   port: number;
                 }[];
               }[];
-              sourceType: string;
             };
             downloader: {
               balance: {
                 enabled: boolean;
-                frequency: string;
               };
               record: {
                 enabled: boolean;
@@ -430,25 +426,12 @@ export class MirrorNodeCommand extends BaseCommand {
       [MirrorNodeCommand.MIRROR_CHART_NAMESPACE]: {
         mirror: {
           importer: {
-            block: {
-              // The blocknode Spring profile (block.enabled=true, record.enabled=false) conflicts
-              // with mirror 0.157.0 + block node 0.36.0 because block node sends ROUND_HEADER as
-              // the first block item but mirror only accepts BLOCK_HEADER, causing constant errors.
-              // Disable block stream ingestion so the importer falls back to record streams from
-              // minio. ImporterConfiguration validates that both cannot be enabled simultaneously.
-              enabled: false,
-              nodes: [],
-              sourceType: 'AUTO',
-            },
             downloader: {
               balance: {
                 enabled: false,
-                frequency: MirrorNodeCommand.BLOCK_NODE_BALANCE_DOWNLOADER_FREQUENCY,
               },
-              // The blocknode Spring profile disables record stream; re-enable it so the importer
-              // can ingest record stream files from minio while block stream ingestion is disabled.
               record: {
-                enabled: true,
+                enabled: false,
               },
             },
           },
@@ -457,23 +440,25 @@ export class MirrorNodeCommand extends BaseCommand {
     };
 
     if (usesBlockNodeEndpoints) {
-      importerConfig[MirrorNodeCommand.MIRROR_CHART_NAMESPACE].mirror.importer.block!.nodes = blockNodeFqdnList.map(
-        (
-          node,
-        ): {
-          endpoints: {
-            host: string;
-            port: number;
-          }[];
-        } => ({
-          endpoints: [
-            {
-              host: node.host,
-              port: node.port,
-            },
-          ],
-        }),
-      );
+      importerConfig[MirrorNodeCommand.MIRROR_CHART_NAMESPACE].mirror.importer.block = {
+        nodes: blockNodeFqdnList.map(
+          (
+            node,
+          ): {
+            endpoints: {
+              host: string;
+              port: number;
+            }[];
+          } => ({
+            endpoints: [
+              {
+                host: node.host,
+                port: node.port,
+              },
+            ],
+          }),
+        ),
+      };
     }
 
     for (const [index, node] of blockNodeFqdnList.entries()) {

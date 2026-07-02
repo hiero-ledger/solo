@@ -33,8 +33,7 @@ import {ComponentTypes} from '../core/config/remote/enumerations/component-types
 import {Templates} from '../core/templates.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Lock} from '../core/lock/lock.js';
-import {type NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
-import {type NetworkNodeServices} from '../core/network-node-services.js';
+import {NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {Secret} from '../integration/kube/resources/secret/secret.js';
 import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
@@ -359,16 +358,15 @@ export class RelayCommand extends BaseCommand {
     const networkIds: Record<string, string> = {};
 
     const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(nodeAliases, deployment);
-    const networkNodeServicesMap: NodeServiceMapping = await this.waitForRelayNodeServiceMap(
-      nodeAliases,
+    const networkNodeServicesMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
       namespace,
+      this.remoteConfig.getClusterRefs(),
       deployment,
     );
     for (const nodeAlias of nodeAliases) {
-      const networkNodeService: NetworkNodeServices = networkNodeServicesMap.get(nodeAlias)!;
-      const haProxyClusterIp: string = networkNodeService.haProxyClusterIp;
-      const haProxyLoadBalancerIp: string | undefined = networkNodeService.haProxyLoadBalancerIp;
-      const haProxyGrpcPort: string | number = networkNodeService.haProxyGrpcPort;
+      const haProxyClusterIp: string = networkNodeServicesMap.get(nodeAlias).haProxyClusterIp;
+      const haProxyLoadBalancerIp: string | undefined = networkNodeServicesMap.get(nodeAlias).haProxyLoadBalancerIp;
+      const haProxyGrpcPort: string | number = networkNodeServicesMap.get(nodeAlias).haProxyGrpcPort;
       // In multi-cluster deployments the relay may run in a different cluster than some consensus nodes.
       // ClusterIP addresses are only routable within their own cluster, so prefer the load balancer IP
       // when one is available and fall back to ClusterIP otherwise.
@@ -378,53 +376,6 @@ export class RelayCommand extends BaseCommand {
     }
 
     return JSON.stringify(networkIds);
-  }
-
-  private async waitForRelayNodeServiceMap(
-    nodeAliases: NodeAliases,
-    namespace: NamespaceName,
-    deployment: DeploymentName,
-  ): Promise<NodeServiceMapping> {
-    const maxAttempts: number = constants.NETWORK_PROXY_MAX_ATTEMPTS;
-    let lastError: unknown;
-
-    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const networkNodeServicesMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
-          namespace,
-          this.remoteConfig.getClusterRefs(),
-          deployment,
-        );
-
-        for (const nodeAlias of nodeAliases) {
-          const networkNodeService: NetworkNodeServices | undefined = networkNodeServicesMap.get(nodeAlias);
-          if (
-            !networkNodeService?.haProxyClusterIp ||
-            !networkNodeService.haProxyGrpcPort ||
-            !networkNodeService.accountId
-          ) {
-            throw new SoloErrors.component.nodeServiceNotFound(nodeAlias);
-          }
-        }
-
-        return networkNodeServicesMap;
-      } catch (error) {
-        lastError = error;
-
-        if (attempt === maxAttempts) {
-          throw error;
-        }
-
-        this.logger.warn(
-          'relay is waiting for network proxy services ' +
-            `(attempt ${attempt}/${maxAttempts}), retrying in ${constants.NETWORK_PROXY_DELAY}ms: ` +
-            `${error instanceof Error ? error.message : String(error)}`,
-        );
-        await sleep(Duration.ofMillis(constants.NETWORK_PROXY_DELAY));
-      }
-    }
-
-    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   private getReleaseName(): string {
