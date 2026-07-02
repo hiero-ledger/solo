@@ -806,6 +806,14 @@ export class Helpers {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
 
+    // Disable Wrapped Record Block (WRB) generation. When streamMode=BOTH the CN produces WRB
+    // blocks (first item: ROUND_HEADER) alongside regular block-stream blocks (BLOCK_HEADER).
+    // Both reach the block node; the mirror importer rejects ROUND_HEADER and its rapid retries
+    // trigger the block node's "rapid reset attack" protection, cutting off all block ingestion.
+    if (!lines.some((line): boolean => line.startsWith('blockStream.streamWrappedRecordBlocks='))) {
+      lines.push('blockStream.streamWrappedRecordBlocks=false');
+    }
+
     const updatedApplicationPropertiesData: string = lines.join('\n');
     if (updatedApplicationPropertiesData !== applicationPropertiesData) {
       await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
