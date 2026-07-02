@@ -601,6 +601,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
           namespace,
           container: containerName,
           timestamps,
+          previous,
         });
         containerLogs.push(`===== Container: ${containerName} =====\n${containerLog ?? ''}`.trimEnd());
       } catch (error) {
