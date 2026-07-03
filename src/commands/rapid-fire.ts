@@ -291,6 +291,35 @@ export class RapidFireCommand extends BaseCommand {
     };
   }
 
+  // Queries the mirror REST API for the latest processed transaction and returns how many
+  // milliseconds behind real-time the importer is. Returns undefined when the REST endpoint is
+  // unreachable or the response is malformed.
+  private static async mirrorImporterLagMilliseconds(
+    port: number,
+    requestTimeoutMilliseconds: number,
+  ): Promise<number | undefined> {
+    const url: string = `http://localhost:${port}/api/v1/transactions?limit=1&order=desc`;
+    try {
+      const response: Response = await fetch(url, {
+        signal: AbortSignal.timeout(requestTimeoutMilliseconds),
+      });
+      if (!response.ok) {
+        return undefined;
+      }
+      const body: unknown = await response.json();
+      const latestTimestamp: string | undefined = (body as {transactions?: Array<{consensus_timestamp?: string}>})
+        .transactions?.[0]?.consensus_timestamp;
+      if (!latestTimestamp) {
+        return undefined;
+      }
+      // consensus_timestamp format: "seconds.nanos" (e.g. "1783095394.287777868")
+      return Math.max(0, Date.now() - Number.parseFloat(latestTimestamp) * 1000);
+    } catch {
+      // best-effort: return undefined if mirror REST is unreachable or response is malformed
+      return undefined;
+    }
+  }
+
   private static async mirrorTransactionIsAvailable(
     port: number,
     mirrorTransactionId: string,
@@ -491,9 +520,24 @@ export class RapidFireCommand extends BaseCommand {
         1,
         readinessTimeoutMilliseconds - (Date.now() - startedAtMilliseconds),
       );
-      // Give each readiness attempt the full remaining window. The importer may lag the chain by
-      // several hundred blocks when mirror first starts; capping at rttPollTimeout is too short.
-      const attemptTimeoutMilliseconds: number = remainingMilliseconds;
+      const attemptTimeoutMilliseconds: number = Math.min(config.rttPollTimeout, remainingMilliseconds);
+
+      // Before submitting a probe transaction, check that the importer is near real-time.
+      // A high-throughput test (e.g. HCS at ~100 TPS for 5 min) can leave the importer minutes
+      // behind; submitting a probe into that backlog causes it to wait behind all prior blocks and
+      // exhaust the readiness window without success.
+      const lagMilliseconds: number | undefined = await RapidFireCommand.mirrorImporterLagMilliseconds(
+        mirrorPort,
+        attemptTimeoutMilliseconds,
+      );
+      if (lagMilliseconds !== undefined && lagMilliseconds > config.rttPollTimeout) {
+        lastError = new Error(`mirror importer lag ${Math.round(lagMilliseconds / 1000)} s exceeds probe timeout`);
+        this.logger.info(
+          `Mirror readiness attempt ${attempt}: importer is ${Math.round(lagMilliseconds / 1000)} s behind real-time, waiting 5 s`,
+        );
+        await sleep(Duration.ofSeconds(5));
+        continue;
+      }
 
       try {
         const readinessSample: RttSample = await this.measureTransactionRtt(

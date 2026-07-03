@@ -23,6 +23,7 @@ interface RapidFireCommandInternals {
     requestTimeoutMilliseconds: number,
     logger?: unknown,
   ): Promise<boolean>;
+  mirrorImporterLagMilliseconds(port: number, requestTimeoutMilliseconds: number): Promise<number | undefined>;
   mirrorReadinessPollTimeout(config: {rttPollTimeout: number}): number;
 }
 
@@ -178,6 +179,39 @@ describe('RapidFireCommand', (): void => {
       const result: boolean = await internals.mirrorTransactionIsAvailable(38_081, mirrorTransactionId, 1);
 
       expect(result).to.equal(false);
+    });
+  });
+
+  describe('mirrorImporterLagMilliseconds', (): void => {
+    it('returns lag in milliseconds from the latest consensus timestamp', async (): Promise<void> => {
+      const nowSeconds: number = Date.now() / 1000;
+      const fiveSecondsAgo: string = `${(nowSeconds - 5).toFixed(9)}`;
+      globalThis.fetch = (async (): Promise<Response> =>
+        Response.json({transactions: [{consensus_timestamp: fiveSecondsAgo}]}, {status: 200})) as typeof fetch;
+
+      const lag: number | undefined = await internals.mirrorImporterLagMilliseconds(38_081, 1000);
+
+      expect(lag).to.be.greaterThanOrEqual(4000);
+      expect(lag).to.be.lessThan(10_000);
+    });
+
+    it('returns undefined when mirror REST is not reachable', async (): Promise<void> => {
+      globalThis.fetch = (async (): Promise<Response> => {
+        throw new Error('ECONNREFUSED');
+      }) as typeof fetch;
+
+      const lag: number | undefined = await internals.mirrorImporterLagMilliseconds(38_081, 1000);
+
+      expect(lag).to.equal(undefined);
+    });
+
+    it('returns undefined when transactions list is empty', async (): Promise<void> => {
+      globalThis.fetch = (async (): Promise<Response> =>
+        Response.json({transactions: []}, {status: 200})) as typeof fetch;
+
+      const lag: number | undefined = await internals.mirrorImporterLagMilliseconds(38_081, 1000);
+
+      expect(lag).to.equal(undefined);
     });
   });
 
