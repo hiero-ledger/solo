@@ -13,16 +13,10 @@ interface NlgResultForTest {
   durationSeconds?: number;
   tps?: number;
   rttMilliseconds?: number;
-  maxRttMilliseconds?: number;
 }
 
 interface RapidFireCommandInternals {
-  analyzeNlgOutput(
-    output: string,
-    testClass: string,
-    performanceTest: string,
-    maxRttMilliseconds?: number,
-  ): NlgResultForTest;
+  analyzeNlgOutput(output: string, testClass: string, performanceTest: string): NlgResultForTest;
   mirrorTransactionIsAvailable(
     port: number,
     mirrorTransactionId: string,
@@ -47,49 +41,48 @@ describe('RapidFireCommand', (): void => {
   });
 
   describe('analyzeNlgOutput', (): void => {
-    it('returns success when end-to-end mirror RTT is below the configured threshold', (): void => {
+    it('extracts rttMilliseconds from end-to-end mirror RTT output', (): void => {
       const output: string = [
         'Max end-to-end mirror RTT: 499 ms',
         'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10',
       ].join('\n');
 
-      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
+      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest);
 
       expect(result.status).to.equal(NlgResultStatus.SUCCESS);
       expect(result.rttMilliseconds).to.equal(499);
     });
 
-    it('returns rtt-threshold-exceeded when RTT is above the configured threshold', (): void => {
+    it('extracts rttMilliseconds from verbose end-to-end RTT output', (): void => {
       const output: string = [
         'End to end mirror round trip time: 501 milliseconds',
         'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10',
       ].join('\n');
 
-      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
+      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest);
 
-      expect(result.status).to.equal(NlgResultStatus.RTT_THRESHOLD_EXCEEDED);
+      expect(result.status).to.equal(NlgResultStatus.SUCCESS);
       expect(result.rttMilliseconds).to.equal(501);
-      expect(result.maxRttMilliseconds).to.equal(500);
     });
 
-    it('returns no-rtt-result when a threshold is configured and no RTT is reported', (): void => {
+    it('returns undefined rttMilliseconds when no RTT line is present', (): void => {
       const output: string = 'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10';
 
-      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
+      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest);
 
-      expect(result.status).to.equal(NlgResultStatus.NO_RTT_RESULT);
-      expect(result.maxRttMilliseconds).to.equal(500);
+      expect(result.status).to.equal(NlgResultStatus.SUCCESS);
+      expect(result.rttMilliseconds).to.equal(undefined);
     });
 
-    it('converts seconds to milliseconds before comparing RTT', (): void => {
+    it('converts seconds to milliseconds before storing rttMilliseconds', (): void => {
       const output: string = [
         'P95 end-to-end mirror round trip time: 0.6 seconds',
         'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10',
       ].join('\n');
 
-      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
+      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest);
 
-      expect(result.status).to.equal(NlgResultStatus.RTT_THRESHOLD_EXCEEDED);
+      expect(result.status).to.equal(NlgResultStatus.SUCCESS);
       expect(result.rttMilliseconds).to.equal(600);
     });
 
@@ -99,25 +92,25 @@ describe('RapidFireCommand', (): void => {
         'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10',
       ].join('\n');
 
-      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
+      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest);
 
-      expect(result.status).to.equal(NlgResultStatus.RTT_THRESHOLD_EXCEEDED);
+      expect(result.status).to.equal(NlgResultStatus.SUCCESS);
       expect(result.rttMilliseconds).to.equal(501);
     });
 
-    it('does not accept a consensus-only RTT as the roadmap RTT result', (): void => {
+    it('does not parse consensus-only RTT lines as mirror RTT', (): void => {
       const output: string = [
         'Consensus RTT: 499 ms',
         'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10',
       ].join('\n');
 
-      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest, 500);
+      const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest);
 
-      expect(result.status).to.equal(NlgResultStatus.NO_RTT_RESULT);
-      expect(result.maxRttMilliseconds).to.equal(500);
+      expect(result.status).to.equal(NlgResultStatus.SUCCESS);
+      expect(result.rttMilliseconds).to.equal(undefined);
     });
 
-    it('keeps existing success behavior when no RTT threshold is configured', (): void => {
+    it('returns success when no RTT threshold is configured', (): void => {
       const output: string = 'Finished TokenTransferLoadTest: 100 transferred in 10 sec, TPS: 10';
 
       const result: NlgResultForTest = internals.analyzeNlgOutput(output, testClass, performanceTest);

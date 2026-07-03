@@ -10,6 +10,5 @@ export interface NlgResult {
   durationSeconds?: number;
   tps?: number;
   rttMilliseconds?: number;
-  maxRttMilliseconds?: number;
   hint?: string;
 }

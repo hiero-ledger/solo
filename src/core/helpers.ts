@@ -806,11 +806,14 @@ export class Helpers {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
 
-    // Disable Wrapped Record Block (WRB) generation. When streamMode=BOTH the CN produces WRB
-    // blocks (first item: ROUND_HEADER) alongside regular block-stream blocks (BLOCK_HEADER).
-    // Both reach the block node; the mirror importer rejects ROUND_HEADER and its rapid retries
-    // trigger the block node's "rapid reset attack" protection, cutting off all block ingestion.
-    if (!lines.some((line): boolean => line.startsWith('blockStream.streamWrappedRecordBlocks='))) {
+    // streamMode=BOTH (used by performance tests) produces both native block-stream blocks
+    // (BLOCK_HEADER) and Wrapped Record Blocks (ROUND_HEADER). The mirror importer rejects
+    // ROUND_HEADER; its rapid retries trigger the block node's HTTP/2 rapid-reset protection,
+    // cutting off block ingestion. Disable WRBs only when BOTH mode is active.
+    if (
+      blockStreamMode === 'BOTH' &&
+      !lines.some((line): boolean => line.startsWith('blockStream.streamWrappedRecordBlocks='))
+    ) {
       lines.push('blockStream.streamWrappedRecordBlocks=false');
     }
 

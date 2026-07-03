@@ -250,10 +250,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         }).timeout(Duration.ofSeconds(duration * 6 + mirrorImporterWarmupSeconds).toMillis());
 
         async function runLoadTest(performanceTest: string, argumentsString: string): Promise<void> {
-          // The mirror importer receives blocks via gRPC from the block node. On startup the block
-          // node has a ~46-second gap before PUBLISHER_CONNECTED, which creates a backlog of ~200
-          // blocks (at ~4 blocks/sec). Waiting here lets the importer drain that backlog and reach
-          // near-real-time before we start the RTT probe, preventing spurious readiness timeouts.
+          // Wait for the mirror importer to drain the block backlog created during the deploy
+          // stage. The block node takes ~46 s to reach PUBLISHER_CONNECTED, accumulating ~200
+          // blocks (at ~4 blocks/sec). This sleep lets the importer catch up to near-real-time
+          // so the RTT probe does not spend its entire readiness window on stale blocks.
           await sleep(Duration.ofSeconds(60));
           // rapid-fire enforces the TPS!=0 + "Finished" check internally and throws
           // on degraded runs (proxy backpressure, NFT-vs-fungible token mismatch, etc.).

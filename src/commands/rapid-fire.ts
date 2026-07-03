@@ -471,7 +471,6 @@ export class RapidFireCommand extends BaseCommand {
 
     return {
       transactionId: mirrorTransactionId,
-      submitToMirrorMilliseconds: Math.round(mirrorMilliseconds - startMilliseconds),
       endToEndMilliseconds: Math.round(mirrorMilliseconds - startMilliseconds),
     };
   }
@@ -711,12 +710,7 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly NLG_FINISHED_PATTERN: RegExp =
     /Finished\s+([\w.]+):.*?(\d+)\s+(?:\w+\s+)+in\s+(\d+)\s+sec,\s+TPS:\s+(\d+)/;
 
-  private static analyzeNlgOutput(
-    output: string,
-    testClass: string,
-    performanceTest: string,
-    maxRttMilliseconds: number = 0,
-  ): NlgResult {
+  private static analyzeNlgOutput(output: string, testClass: string, performanceTest: string): NlgResult {
     const lines: string[] = output.split('\n');
     let lastMatch: RegExpMatchArray | undefined;
     const longevityMatches: RegExpMatchArray[] = [];
@@ -772,33 +766,6 @@ export class RapidFireCommand extends BaseCommand {
         durationSeconds,
         tps,
         rttMilliseconds,
-        hint: RapidFireCommand.classifyFailure(output),
-      };
-    }
-
-    if (maxRttMilliseconds > 0 && rttMilliseconds === undefined) {
-      return {
-        status: NlgResultStatus.NO_RTT_RESULT,
-        testClass,
-        performanceTest,
-        transactionCount,
-        durationSeconds,
-        tps,
-        maxRttMilliseconds,
-        hint: RapidFireCommand.classifyFailure(output),
-      };
-    }
-
-    if (maxRttMilliseconds > 0 && rttMilliseconds !== undefined && rttMilliseconds > maxRttMilliseconds) {
-      return {
-        status: NlgResultStatus.RTT_THRESHOLD_EXCEEDED,
-        testClass,
-        performanceTest,
-        transactionCount,
-        durationSeconds,
-        tps,
-        rttMilliseconds,
-        maxRttMilliseconds,
         hint: RapidFireCommand.classifyFailure(output),
       };
     }
@@ -910,18 +877,6 @@ export class RapidFireCommand extends BaseCommand {
         );
         break;
       }
-      case NlgResultStatus.NO_RTT_RESULT: {
-        lines.push(
-          `${result.testClass} produced no RTT result while --max-rtt=${result.maxRttMilliseconds} ms was configured.`,
-        );
-        break;
-      }
-      case NlgResultStatus.RTT_THRESHOLD_EXCEEDED: {
-        lines.push(
-          `${result.testClass} completed with RTT ${result.rttMilliseconds} ms, exceeding the configured maximum of ${result.maxRttMilliseconds} ms.`,
-        );
-        break;
-      }
       // success case handled by caller
       default: {
         break;
@@ -1007,9 +962,6 @@ export class RapidFireCommand extends BaseCommand {
     }
     if (diagnostics.result.rttMilliseconds !== undefined) {
       headerLines.push(`rtt:         ${diagnostics.result.rttMilliseconds}ms`);
-    }
-    if (diagnostics.result.maxRttMilliseconds !== undefined) {
-      headerLines.push(`maxRtt:      ${diagnostics.result.maxRttMilliseconds}ms`);
     }
     if (diagnostics.result.hint) {
       headerLines.push(`hint:        ${diagnostics.result.hint}`);
