@@ -295,7 +295,7 @@ export class RapidFireCommand extends BaseCommand {
     port: number,
     mirrorTransactionId: string,
     requestTimeoutMilliseconds: number,
-    logger: SoloLogger,
+    logger?: SoloLogger,
   ): Promise<boolean> {
     const url: string = `http://localhost:${port}/api/v1/transactions/${mirrorTransactionId}`;
     const abortController: AbortController = new AbortController();
@@ -315,7 +315,7 @@ export class RapidFireCommand extends BaseCommand {
       });
 
       if (!response.ok) {
-        logger.debug(`Mirror REST returned HTTP ${response.status} for transaction ${mirrorTransactionId}`);
+        logger?.debug(`Mirror REST returned HTTP ${response.status} for transaction ${mirrorTransactionId}`);
         return false;
       }
 
@@ -325,7 +325,7 @@ export class RapidFireCommand extends BaseCommand {
       );
     } catch (error: unknown) {
       // Port-forward may have dropped or request timed out — log so we can diagnose in CI artifacts.
-      logger.debug(
+      logger?.debug(
         `Mirror REST request failed for transaction ${mirrorTransactionId}: ${error instanceof Error ? error.message : String(error)}`,
       );
       return false;

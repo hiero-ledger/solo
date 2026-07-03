@@ -27,6 +27,7 @@ interface RapidFireCommandInternals {
     port: number,
     mirrorTransactionId: string,
     requestTimeoutMilliseconds: number,
+    logger?: unknown,
   ): Promise<boolean>;
   mirrorReadinessPollTimeout(config: {rttPollTimeout: number}): number;
 }
