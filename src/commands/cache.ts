@@ -500,9 +500,11 @@ export class CacheCommand extends BaseCommand {
         const clusterName: string = this.prepareClusterName(this.k8Factory.getK8(context).clusters().readCurrent());
         const subTasks: SoloListrTask<CacheLoadContext>[] = await imageCacheHandler.load(clusterName);
 
-        // Sequential: every archive must be loaded into the container engine before the single
-        // `kind load docker-image` call that pushes them all into the cluster.
-        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
+        // Load images concurrently (bounded) and keep each step visible after it completes.
+        return task.newListr(subTasks, {
+          ...constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+          concurrent: constants.CACHE_IMAGE_MAX_CONCURRENCY,
+        });
       },
     };
   }

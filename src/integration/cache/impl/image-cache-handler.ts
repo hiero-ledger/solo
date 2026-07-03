@@ -12,7 +12,7 @@ import {type ContainerEngineClient} from '../../container-engine/container-engin
 import {type CacheTargetProvider} from '../target-providers/cache-target-provider.js';
 import {type CacheHealthInspector} from '../api/cache-health-inspector.js';
 import {type CacheTarget} from '../models/impl/cache-target.js';
-import {type SoloListr, type SoloListrTask} from '../../../types/index.js';
+import {type SoloListrTask} from '../../../types/index.js';
 import {type AnyListrContext} from '../../../types/aliases.js';
 import chalk from 'chalk';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
@@ -107,14 +107,11 @@ export class ImageCacheHandler implements CacheOperationHandler {
   public async load(target: string): Promise<SoloListrTask<AnyListrContext>[]> {
     const items: readonly CachedItem[] = await this.resolveExpectedCachedItems();
 
-    // Loaded across phase one (docker load) and consumed by phase two (single kind load docker-image).
-    const loadedImageReferences: string[] = [];
-
-    const engineLoadSubTasks: SoloListrTask<AnyListrContext>[] = items.map((item): SoloListrTask<AnyListrContext> => {
+    return items.map((item): SoloListrTask<AnyListrContext> => {
       const name: string = `${item.target.name}:${item.target.version}`;
 
       return {
-        title: `Loading ${name} into the container engine`,
+        title: `Loading ${name} into ${target}`,
         task: async (_, task): Promise<void> => {
           if (!(await this.inspector.exists(item.localPath))) {
             // Not cached (surfaced by pull / `cache image status`); keep it visible but non-fatal.
@@ -123,52 +120,18 @@ export class ImageCacheHandler implements CacheOperationHandler {
           }
 
           try {
-            const references: readonly string[] = await this.engine.loadImage(item.localPath);
-            loadedImageReferences.push(...references);
+            await this.engine.loadImageArchiveIntoCluster(item.localPath, target);
           } catch (error) {
             // best-effort: skip archives that fail to load so the remaining images still load
             const message: string = ImageCacheHandler.getErrorMessage(error);
-            task.title += ' - ' + chalk.red(`failed to load into engine: ${name}`);
-            this.logger.showUser(`Failed to load image into container engine: ${name}. ${message}`);
-            this.logger.error('Failed to load image archive into engine:', error);
-            this.recordFailure(`Failed to load into engine: ${name}: ${message}`);
+            task.title += ' - ' + chalk.red(`failed to load: ${name}`);
+            this.logger.showUser(`Failed to load image into cluster: ${name}. ${message}`);
+            this.logger.error('Failed to load image archive into cluster:', error);
+            this.recordFailure(`Failed to load into cluster: ${name}: ${message}`);
           }
         },
       };
     });
-
-    return [
-      {
-        title: 'Load image archives into the container engine',
-        // WITH_CONCURRENCY (not the collapsable variant) so each image's load step stays visible
-        // after it completes, for easier inspection.
-        task: (_, task): SoloListr<AnyListrContext> =>
-          task.newListr(engineLoadSubTasks, {
-            ...constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
-            concurrent: constants.CACHE_IMAGE_MAX_CONCURRENCY,
-          }),
-      },
-      {
-        title: `Load images into cluster ${target}`,
-        task: async (_, task): Promise<void> => {
-          if (loadedImageReferences.length === 0) {
-            task.title += ' - ' + chalk.yellow('no images available to load');
-            return;
-          }
-
-          try {
-            await this.engine.loadImagesIntoCluster(loadedImageReferences, target);
-          } catch (error) {
-            // best-effort: keep going, but make the failure visible instead of silently dropping it
-            const message: string = ImageCacheHandler.getErrorMessage(error);
-            task.title += ' - ' + chalk.red('failed to load images into cluster');
-            this.logger.showUser(`Failed to load images into cluster ${target}. ${message}`);
-            this.logger.error('Failed to load images into cluster:', error);
-            this.recordFailure(`Failed to load images into cluster ${target}: ${message}`);
-          }
-        },
-      },
-    ];
   }
 
   public async clear(): Promise<void> {
@@ -243,7 +206,7 @@ export class ImageCacheHandler implements CacheOperationHandler {
 
     for (const imageCandidate of imageCandidates) {
       try {
-        await this.engine.saveImage(imageCandidate, archivePath);
+        await this.engine.saveImageArchive(imageCandidate, archivePath);
         if (imageCandidate !== image) {
           this.logger.info(`Saved image archive for ${image} using mirror image ${imageCandidate}`);
         }

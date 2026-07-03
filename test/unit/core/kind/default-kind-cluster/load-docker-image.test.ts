@@ -90,7 +90,7 @@ describe('DefaultKindClient.loadDockerImage', (): void => {
   it('should pass nodes parameter when provided in options', async (): Promise<void> => {
     const imageName: string = 'test-image:latest';
     const nodes: string = 'control-plane,worker1,worker2';
-    const options: LoadDockerImageOptions = new LoadDockerImageOptions([], undefined, nodes);
+    const options: LoadDockerImageOptions = new LoadDockerImageOptions(undefined, undefined, nodes);
     const mockOutput: string = `Image: "${imageName}" with ID "sha256:1234567890abcdef"`;
 
     executionStub.responseAs.callsFake((responseClass: any): Promise<LoadDockerImageResponse> => {
@@ -107,7 +107,7 @@ describe('DefaultKindClient.loadDockerImage', (): void => {
     const imageName: string = 'test-image:latest';
     const clusterName: string = 'custom-cluster';
     const nodes: string = 'worker1,worker2';
-    const options: LoadDockerImageOptions = new LoadDockerImageOptions([imageName], clusterName, nodes);
+    const options: LoadDockerImageOptions = new LoadDockerImageOptions(imageName, clusterName, nodes);
     const mockOutput: string = `Image: "${imageName}" with ID "sha256:1234567890abcdef"`;
 
     executionStub.responseAs.callsFake((responseClass: any): Promise<LoadDockerImageResponse> => {

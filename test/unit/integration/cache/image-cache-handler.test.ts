@@ -16,25 +16,12 @@ import {type ContainerEngineClient} from '../../../../src/integration/container-
 import {type SoloListrTask} from '../../../../src/types/index.js';
 import {type AnyListrContext} from '../../../../src/types/aliases.js';
 
-// Drives the two returned load tasks the way the command's Listr does: phase one (per-archive engine
-// loads, run concurrently) followed by phase two (the single batched cluster load).
+// Runs the per-image load subtasks the way the command's Listr does.
 async function runReturnedLoadTasks(handler: ImageCacheHandler, clusterName: string): Promise<void> {
   const tasks: readonly SoloListrTask<AnyListrContext>[] = await handler.load(clusterName);
-
-  let engineLoadSubTasks: readonly SoloListrTask<AnyListrContext>[] = [];
-  const taskWrapper: {newListr: (subtasks: readonly SoloListrTask<AnyListrContext>[]) => unknown} = {
-    newListr: (subtasks: readonly SoloListrTask<AnyListrContext>[]): unknown => {
-      engineLoadSubTasks = subtasks;
-      return {};
-    },
-  };
-
-  await tasks[0].task({} as never, taskWrapper as never);
-  for (const subtask of engineLoadSubTasks) {
+  for (const subtask of tasks) {
     await subtask.task({} as never, {title: subtask.title} as never);
   }
-
-  await tasks[1].task({} as never, {} as never);
 }
 
 describe('ImageCacheHandler pull', (): void => {
@@ -117,9 +104,10 @@ describe('ImageCacheHandler pull', (): void => {
     const saveImageStub: SinonStub = sinon.stub().rejects(rateLimitError);
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
-      saveImage: saveImageStub,
-      loadImage: async (): Promise<readonly string[]> => [],
-      loadImagesIntoCluster: async (): Promise<void> => undefined,
+      saveImage: async (): Promise<void> => undefined,
+      saveImageArchive: saveImageStub,
+      loadImage: async (): Promise<void> => undefined,
+      loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     };
@@ -143,9 +131,10 @@ describe('ImageCacheHandler pull', (): void => {
     const saveImageStub: SinonStub = sinon.stub().rejects(new Error('temporary network failure'));
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
-      saveImage: saveImageStub,
-      loadImage: async (): Promise<readonly string[]> => [],
-      loadImagesIntoCluster: async (): Promise<void> => undefined,
+      saveImage: async (): Promise<void> => undefined,
+      saveImageArchive: saveImageStub,
+      loadImage: async (): Promise<void> => undefined,
+      loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     };
@@ -168,9 +157,10 @@ describe('ImageCacheHandler pull', (): void => {
     const saveImageStub: SinonStub = sinon.stub().resolves();
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
-      saveImage: saveImageStub,
-      loadImage: async (): Promise<readonly string[]> => [],
-      loadImagesIntoCluster: async (): Promise<void> => undefined,
+      saveImage: async (): Promise<void> => undefined,
+      saveImageArchive: saveImageStub,
+      loadImage: async (): Promise<void> => undefined,
+      loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     };
@@ -194,9 +184,10 @@ describe('ImageCacheHandler pull', (): void => {
     const saveImageStub: SinonStub = sinon.stub().resolves();
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
-      saveImage: saveImageStub,
-      loadImage: async (): Promise<readonly string[]> => [],
-      loadImagesIntoCluster: async (): Promise<void> => undefined,
+      saveImage: async (): Promise<void> => undefined,
+      saveImageArchive: saveImageStub,
+      loadImage: async (): Promise<void> => undefined,
+      loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     };
@@ -252,14 +243,14 @@ describe('ImageCacheHandler load', (): void => {
     sinon.restore();
   });
 
-  it('loads each archive into the engine then batches a single cluster load', async (): Promise<void> => {
-    const loadImageStub: SinonStub = sinon.stub().resolves(['docker.io/library/busybox:1.36.1']);
-    const loadImagesIntoClusterStub: SinonStub = sinon.stub().resolves();
+  it('loads each cached archive into the cluster', async (): Promise<void> => {
+    const loadArchiveStub: SinonStub = sinon.stub().resolves();
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
       saveImage: async (): Promise<void> => undefined,
-      loadImage: loadImageStub,
-      loadImagesIntoCluster: loadImagesIntoClusterStub,
+      saveImageArchive: async (): Promise<void> => undefined,
+      loadImage: async (): Promise<void> => undefined,
+      loadImageArchiveIntoCluster: loadArchiveStub,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     };
@@ -274,20 +265,16 @@ describe('ImageCacheHandler load', (): void => {
 
     await runReturnedLoadTasks(handler, 'my-cluster');
 
-    expect(loadImageStub).to.have.been.calledOnceWithExactly('/tmp/busybox.tar');
-    expect(loadImagesIntoClusterStub).to.have.been.calledOnceWithExactly(
-      ['docker.io/library/busybox:1.36.1'],
-      'my-cluster',
-    );
+    expect(loadArchiveStub).to.have.been.calledOnceWithExactly('/tmp/busybox.tar', 'my-cluster');
   });
 
-  it('skips the cluster load and never throws when the engine load fails', async (): Promise<void> => {
-    const loadImagesIntoClusterStub: SinonStub = sinon.stub().resolves();
+  it('records a failure and never throws when a load fails', async (): Promise<void> => {
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
       saveImage: async (): Promise<void> => undefined,
-      loadImage: sinon.stub().rejects(new Error('docker load failed')),
-      loadImagesIntoCluster: loadImagesIntoClusterStub,
+      saveImageArchive: async (): Promise<void> => undefined,
+      loadImage: async (): Promise<void> => undefined,
+      loadImageArchiveIntoCluster: sinon.stub().rejects(new Error('unrecognized image format')),
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     };
@@ -302,7 +289,6 @@ describe('ImageCacheHandler load', (): void => {
 
     await runReturnedLoadTasks(handler, 'my-cluster');
 
-    expect(loadImagesIntoClusterStub).to.not.have.been.called;
     // The failure is recorded for the end-of-run summary rather than thrown.
     expect(loggerStub.addMessageGroupMessage).to.have.been.called;
   });

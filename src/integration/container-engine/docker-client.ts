@@ -12,8 +12,10 @@ import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {DefaultKindClientBuilder} from '../kind/impl/default-kind-client-builder.js';
 import {DependencyManager} from '../../core/dependency-managers/index.js';
 import * as constants from '../../core/constants.js';
-import {LoadDockerImageOptionsBuilder} from '../kind/model/load-docker-image/load-docker-image-options-builder.js';
+import {LoadImageArchiveOptionsBuilder} from '../kind/model/load-image-archive/load-image-archive-options-builder.js';
+import {LoadImageArchiveOptions} from '../kind/model/load-image-archive/load-image-archive-options.js';
 import {Architecture} from '../../business/utils/architecture.js';
+import {create as createTarball} from 'tar';
 
 @injectable()
 export class DockerClient implements ContainerEngineClient {
@@ -55,33 +57,51 @@ export class DockerClient implements ContainerEngineClient {
     });
   }
 
-  public async loadImage(archivePath: string): Promise<readonly string[]> {
-    const output: string[] = await this.shellRunner.run('docker', ['load', '--input', archivePath]);
-    return DockerClient.parseLoadedImageReferences(output);
+  public async saveImageArchive(image: string, archivePath: string): Promise<void> {
+    await fs.mkdir(path.dirname(archivePath), {recursive: true});
+
+    const platform: string = Architecture.getLinuxPlatform();
+    const craneExecutable: string = await this.dependencyManager.getExecutable(constants.CRANE);
+
+    // crane's default docker tarball omits manifest.json for OCI-media images, producing an archive
+    // neither docker nor containerd can load. The OCI layout is always valid; we pull it to a temp
+    // directory and pack it into the single-file archive that `kind load image-archive` (ctr import) expects.
+    // --annotate-ref records the image reference in the layout so ctr import restores the name:tag
+    // (without it the image imports untagged and is unusable by the cluster).
+    const layoutDirectory: string = `${archivePath}.oci-layout`;
+    await fs.rm(layoutDirectory, {recursive: true, force: true});
+
+    try {
+      await this.shellRunner.run(
+        craneExecutable,
+        ['pull', '--format', 'oci', '--annotate-ref', '--platform', platform, image, layoutDirectory],
+        {
+          verbose: true,
+          timeoutMs: DockerClient.IMAGE_PULL_TIMEOUT_MS,
+          idleTimeoutMs: DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
+        },
+      );
+
+      await createTarball({file: archivePath, cwd: layoutDirectory, portable: true}, ['.']);
+    } finally {
+      await fs.rm(layoutDirectory, {recursive: true, force: true});
+    }
   }
 
-  public async loadImagesIntoCluster(images: readonly string[], clusterReference?: string): Promise<void> {
-    if (images.length === 0) {
-      return;
-    }
+  public async loadImage(archivePath: string): Promise<void> {
+    await this.shellRunner.run('docker', ['load', '--input', archivePath]);
+  }
+
+  public async loadImageArchiveIntoCluster(archivePath: string, clusterReference?: string): Promise<void> {
+    const options: LoadImageArchiveOptions = LoadImageArchiveOptionsBuilder.builder()
+      .archivePath(archivePath)
+      .name(clusterReference)
+      .build();
 
     const kindExecutable: string = await this.dependencyManager.getExecutable(constants.KIND);
     const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build(true);
 
-    await kindClient.loadDockerImages(images, LoadDockerImageOptionsBuilder.builder().name(clusterReference).build());
-  }
-
-  /**
-   * Extracts the image references reported by `docker load` (lines of the form `Loaded image: <ref>`).
-   */
-  private static parseLoadedImageReferences(output: readonly string[]): readonly string[] {
-    const loadedImagePrefix: string = 'Loaded image: ';
-
-    return output
-      .map((line: string): string => line.trim())
-      .filter((line: string): boolean => line.startsWith(loadedImagePrefix))
-      .map((line: string): string => line.slice(loadedImagePrefix.length).trim())
-      .filter((reference: string): boolean => reference.length > 0);
+    await kindClient.loadImageArchive(archivePath, options);
   }
 
   public async removeImage(image: string): Promise<void> {

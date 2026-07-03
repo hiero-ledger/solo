@@ -10,8 +10,9 @@ describe('ImageCacheHandlerBuilder', (): void => {
   const engine: Partial<ContainerEngineClient> = {
     pullImage: async (): Promise<void> => undefined,
     saveImage: async (): Promise<void> => undefined,
-    loadImage: async (): Promise<readonly string[]> => [],
-    loadImagesIntoCluster: async (): Promise<void> => undefined,
+    saveImageArchive: async (): Promise<void> => undefined,
+    loadImage: async (): Promise<void> => undefined,
+    loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
     removeImage: async (): Promise<void> => undefined,
   };
 
