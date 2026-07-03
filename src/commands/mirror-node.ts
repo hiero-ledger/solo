@@ -2164,7 +2164,8 @@ export class MirrorNodeCommand extends BaseCommand {
     return {
       title: 'Download Java Flight Recorder logs from mirror node importer pod',
       task: async ({config}, task): Promise<void> => {
-        const labels: string[] = Templates.renderMirrorNodeLabels(config.id);
+        // Select the importer by name+component only so both modern (mirror-<id>) and legacy (mirror) release names match.
+        const labels: string[] = [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL, 'app.kubernetes.io/component=importer'];
         const importerPods: Pod[] = await this.k8Factory
           .getK8(config.clusterContext)
           .pods()
