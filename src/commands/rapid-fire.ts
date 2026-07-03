@@ -51,6 +51,7 @@ import {
   type TransactionReceipt,
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
+import {type SoloLogger} from '../core/logging/solo-logger.js';
 import {type MirrorTransactionResponse} from './rapid-fire/mirror-transaction-response.js';
 import {type NlgResult} from './rapid-fire/nlg-result.js';
 import {NlgResultStatus} from './rapid-fire/nlg-result-status.js';
@@ -294,6 +295,7 @@ export class RapidFireCommand extends BaseCommand {
     port: number,
     mirrorTransactionId: string,
     requestTimeoutMilliseconds: number,
+    logger: SoloLogger,
   ): Promise<boolean> {
     const url: string = `http://localhost:${port}/api/v1/transactions/${mirrorTransactionId}`;
     const abortController: AbortController = new AbortController();
@@ -313,6 +315,7 @@ export class RapidFireCommand extends BaseCommand {
       });
 
       if (!response.ok) {
+        logger.debug(`Mirror REST returned HTTP ${response.status} for transaction ${mirrorTransactionId}`);
         return false;
       }
 
@@ -320,7 +323,11 @@ export class RapidFireCommand extends BaseCommand {
       return !!responseBody.transactions?.some(
         (transaction: {transaction_id?: string}): boolean => transaction.transaction_id === mirrorTransactionId,
       );
-    } catch {
+    } catch (error: unknown) {
+      // Port-forward may have dropped or request timed out — log so we can diagnose in CI artifacts.
+      logger.debug(
+        `Mirror REST request failed for transaction ${mirrorTransactionId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return false;
     } finally {
       clearTimeout(abortTimeout);
@@ -340,7 +347,14 @@ export class RapidFireCommand extends BaseCommand {
         RapidFireCommand.MIRROR_REST_REQUEST_TIMEOUT_MS,
       );
 
-      if (await RapidFireCommand.mirrorTransactionIsAvailable(port, mirrorTransactionId, requestTimeoutMilliseconds)) {
+      if (
+        await RapidFireCommand.mirrorTransactionIsAvailable(
+          port,
+          mirrorTransactionId,
+          requestTimeoutMilliseconds,
+          this.logger,
+        )
+      ) {
         return;
       }
 
@@ -386,24 +400,26 @@ export class RapidFireCommand extends BaseCommand {
     const mirrorNamespace: NamespaceName = NamespaceName.of(config.mirrorNamespace || config.namespace.name);
     const port: number = await PortUtilities.findAvailablePort(constants.MIRROR_NODE_PORT, 30_000, this.logger);
 
-    const ingressPods: Pod[] = await this.k8Factory
+    // Forward directly to the mirror REST pod rather than through the HAProxy ingress.
+    // This eliminates the ingress hop and makes the port-forward more reliable in CI.
+    const restPods: Pod[] = await this.k8Factory
       .getK8(config.context)
       .pods()
-      .list(mirrorNamespace, [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]);
-    const mirrorIngressPod: Pod | undefined =
-      ingressPods.find((pod: Pod): boolean =>
-        pod.podReference.name.name.startsWith(constants.MIRROR_INGRESS_CONTROLLER),
-      ) ?? ingressPods[0];
+      .list(mirrorNamespace, [constants.SOLO_MIRROR_REST_NAME_LABEL]);
+    const mirrorRestPod: Pod | undefined = restPods[0];
 
-    if (!mirrorIngressPod) {
-      throw new Error(`No mirror ingress pod found in namespace ${mirrorNamespace.name}`);
+    if (!mirrorRestPod) {
+      throw new Error(`No mirror REST pod found in namespace ${mirrorNamespace.name}`);
     }
 
+    this.logger.info(
+      `Forwarding localhost:${port} → ${mirrorRestPod.podReference.name.name}:${constants.MIRROR_REST_CONTAINER_PORT}`,
+    );
     const portForwarder: number = await this.k8Factory
       .getK8(config.context)
       .pods()
-      .readByReference(mirrorIngressPod.podReference)
-      .portForward(port, 80, true);
+      .readByReference(mirrorRestPod.podReference)
+      .portForward(port, constants.MIRROR_REST_CONTAINER_PORT, true);
     await sleep(Duration.ofSeconds(2));
 
     return {port, portForwarder};
