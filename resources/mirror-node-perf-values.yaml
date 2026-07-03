@@ -1,0 +1,25 @@
+# JFR-enabling overlay for the mirror node importer, used to capture JVM metrics during performance tests.
+# The importer runs with a read-only root filesystem, so the recording is written under its writable /tmp
+# emptyDir at constants.MIRROR_NODE_JFR_REPOSITORY_DIRECTORY ("/tmp/jfr"); enforced by mirror-node-values.test.ts.
+# maxchunksize is kept small so chunks rotate often under load, keeping each collection close to live.
+# settings=profile uses the JVM built-in JFR profile, so no .jfc file needs to be staged into the pod.
+# Apply with:
+#   npm run solo -- mirror node add --deployment one-shot --values-file <this file>
+# then collect the recording during or after the run with:
+#   npm run solo -- mirror node collect-jfr --deployment one-shot
+importer:
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  env:
+    JAVA_TOOL_OPTIONS: >-
+      -Xms256m
+      -Xmx1g
+      -XX:+HeapDumpOnOutOfMemoryError
+      -XX:HeapDumpPath=/tmp/dump.hprof
+      -XX:FlightRecorderOptions=repository=/tmp/jfr,maxchunksize=1m
+      -XX:StartFlightRecording=name=mirror-importer,settings=profile,disk=true,maxsize=100m,maxage=30m,dumponexit=true,filename=/tmp/jfr/recording.jfr

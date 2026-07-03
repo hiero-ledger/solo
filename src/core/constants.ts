@@ -143,6 +143,15 @@ export const MIRROR_NODE_CHART_URL: string =
 export const MIRROR_NODE_CHART: string = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME: string = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
+
+// Container name of the mirror node importer pod (the importer subchart's `.Chart.Name`), which
+// `solo mirror node collect-jfr` execs into to consolidate Java Flight Recorder chunks.
+export const MIRROR_NODE_IMPORTER_CONTAINER_NAME: ContainerName = ContainerName.of('hedera-mirror-importer');
+
+// In-pod JFR disk-repository path `solo mirror node collect-jfr` reads from. The importer runs with a
+// read-only root filesystem, so JFR must write under its writable `/tmp` emptyDir. The repository path in
+// resources/mirror-node-perf-values.yaml is kept in sync with this constant by mirror-node-values.test.ts.
+export const MIRROR_NODE_JFR_REPOSITORY_DIRECTORY: string = '/tmp/jfr';
 export const PROMETHEUS_STACK_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';

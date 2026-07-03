@@ -15,6 +15,8 @@ import {getEnvironmentVariable} from '../../../../src/core/constants.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {BlockCommandDefinition} from '../../../../src/commands/command-definitions/block-command-definition.js';
 import type BlockNodeCommand from '../../../../src/commands/block-node.js';
+import {MirrorCommandDefinition} from '../../../../src/commands/command-definitions/mirror-command-definition.js';
+import {type MirrorNodeCommand} from '../../../../src/commands/mirror-node.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {type NodeAlias} from '../../../../src/types/aliases.js';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
@@ -143,6 +145,35 @@ export class BaseCommandTest {
     }
   }
 
+  public static async collectMirrorNodeJavaFlightRecorderLogs(
+    testName: string,
+    testLogger: SoloLogger,
+    deployment: string,
+  ): Promise<void> {
+    try {
+      testLogger.info(`${testName}: Collecting mirror node jfr logs...`);
+
+      const argv: Argv = Argv.getDefaultArgv(NamespaceName.of(testName), testName);
+      argv.setArg(Flags.deployment, deployment);
+      argv.setCommand(
+        MirrorCommandDefinition.COMMAND_NAME,
+        MirrorCommandDefinition.NODE_SUBCOMMAND_NAME,
+        MirrorCommandDefinition.NODE_COLLECT_JFR,
+      );
+
+      const mirrorNodeCommand: MirrorNodeCommand = container.resolve<MirrorNodeCommand>(InjectTokens.MirrorNodeCommand);
+      await mirrorNodeCommand.collectJfr(argv.build());
+
+      testLogger.info(`${testName}: Mirror node Java Flight Recorder logs collected successfully`);
+    } catch (error: unknown) {
+      // Best-effort: a run without a JFR-enabled mirror node should not fail teardown.
+      testLogger.error(`${testName}: Error collecting mirror node Java Flight Recorder logs: ${error}`);
+      if (error instanceof Error && error.stack) {
+        testLogger.error(`${testName}: Stack trace:\n${error.stack}`);
+      }
+    }
+  }
+
   /**
    * Sets up an after() hook for diagnostic log collection in E2E tests.
    * Call this within your test suite describe block.
@@ -167,6 +198,10 @@ export class BaseCommandTest {
 
     if (process.env.PERFORMANCE_TEST_WITH_BLOCK_NODE === 'true') {
       await BaseCommandTest.collectBlockNodeJavaFlightRecorderLogs(testName, testLogger, deployment);
+    }
+
+    if (process.env.PERFORMANCE_TEST_WITH_MIRROR_NODE_JFR === 'true') {
+      await BaseCommandTest.collectMirrorNodeJavaFlightRecorderLogs(testName, testLogger, deployment);
     }
   }
 

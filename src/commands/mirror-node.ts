@@ -33,6 +33,8 @@ import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {type Pods} from '../integration/kube/resources/pod/pods.js';
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {type Container} from '../integration/kube/resources/container/container.js';
 import chalk from 'chalk';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
@@ -185,6 +187,20 @@ interface MirrorNodeDestroyContext {
   config: MirrorNodeDestroyConfigClass;
 }
 
+interface MirrorNodeCollectJfrConfigClass {
+  namespace: NamespaceName;
+  clusterContext: Context;
+  clusterReference: ClusterReferenceName;
+  deployment: DeploymentName;
+  devMode: boolean;
+  quiet: boolean;
+  id: ComponentId;
+}
+
+interface MirrorNodeCollectJfrContext {
+  config: MirrorNodeCollectJfrConfigClass;
+}
+
 interface InferredData {
   id: ComponentId;
   releaseName: string;
@@ -228,6 +244,11 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
+
+  private static readonly COLLECT_JFR_CONFIGS_NAME: string = 'collectJfrConfigs';
+
+  // Sentinel printed by the in-pod consolidation script when no JFR recording is present.
+  private static readonly NO_JFR_MARKER: string = 'SOLO_NO_JFR_RECORDING';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
@@ -310,6 +331,11 @@ export class MirrorNodeCommand extends BaseCommand {
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode, flags.id],
+  };
+
+  public static readonly COLLECT_JFR_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.clusterRef, flags.devMode, flags.quiet, flags.id],
   };
 
   private prepareBlockNodeIntegrationValues(
@@ -2125,6 +2151,141 @@ export class MirrorNodeCommand extends BaseCommand {
     } else {
       this.taskList.registerCloseFunction(async (): Promise<void> => {
         await this.accountManager?.close().catch();
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
+      });
+    }
+
+    return true;
+  }
+
+  private downloadMirrorNodeJavaFlightRecorderLogs(): SoloListrTask<MirrorNodeCollectJfrContext> {
+    return {
+      title: 'Download Java Flight Recorder logs from mirror node importer pod',
+      task: async ({config}, task): Promise<void> => {
+        const labels: string[] = Templates.renderMirrorNodeLabels(config.id);
+        const importerPods: Pod[] = await this.k8Factory
+          .getK8(config.clusterContext)
+          .pods()
+          .list(config.namespace, labels);
+
+        if (importerPods.length === 0) {
+          throw new SoloErrors.system.mirrorNodePodsNotFound(this.renderReleaseName(config.id), config.namespace.name);
+        }
+
+        const podReference: PodReference = importerPods[0].podReference;
+        const containerReference: ContainerReference = ContainerReference.of(
+          podReference,
+          constants.MIRROR_NODE_IMPORTER_CONTAINER_NAME,
+        );
+        const k8Container: Container = this.k8Factory
+          .getK8(config.clusterContext)
+          .containers()
+          .readByRef(containerReference);
+
+        const repositoryDirectory: string = constants.MIRROR_NODE_JFR_REPOSITORY_DIRECTORY;
+        const collectedRecordingPath: string = `${repositoryDirectory}/collected-recording.jfr`;
+
+        // The importer is a JRE image without `jcmd`, so JFR runs as a continuous on-disk recording that
+        // rotates chunk files. Concatenate every finalized chunk (all but the still-open last one) into a
+        // single readable recording. This is non-destructive and can be run repeatedly during a test.
+        const consolidateScript: string =
+          'set -e; ' +
+          `finalized=$(ls -1 ${repositoryDirectory}/*/*.jfr 2>/dev/null | sort | sed '$d'); ` +
+          `if [ -z "$finalized" ]; then echo "${MirrorNodeCommand.NO_JFR_MARKER}"; exit 0; fi; ` +
+          `cat $finalized > ${collectedRecordingPath}`;
+
+        let consolidateResult: string;
+        try {
+          consolidateResult = await k8Container.execContainer(['bash', '-c', consolidateScript]);
+        } catch (error) {
+          throw new SoloErrors.component.mirrorNodeJfrCollectionFailed(error);
+        }
+
+        if (consolidateResult.includes(MirrorNodeCommand.NO_JFR_MARKER)) {
+          const reason: string = `no finalized Java Flight Recorder chunk found in ${repositoryDirectory} on mirror node importer pod ${podReference.name}; the mirror node may not have been deployed with Java Flight Recorder enabled, or the recording is still shorter than one chunk`;
+          this.logger.warn(reason);
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey(reason)}`);
+          return;
+        }
+
+        const localJfrLogsDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, config.deployment);
+        fs.mkdirSync(localJfrLogsDirectory, {recursive: true});
+
+        await k8Container.copyFrom(collectedRecordingPath, localJfrLogsDirectory);
+
+        const downloadedRecordingPath: string = PathEx.join(localJfrLogsDirectory, 'collected-recording.jfr');
+        this.logger.showUser(`Downloaded Java Flight Recorder recording to ${downloadedRecordingPath}`);
+      },
+    };
+  }
+
+  public async collectJfr(argv: ArgvStruct): Promise<boolean> {
+    let lease: Lock;
+
+    const tasks: SoloListr<MirrorNodeCollectJfrContext> = this.taskList.newTaskList<MirrorNodeCollectJfrContext>(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_, task): Promise<Listr<AnyListrContext>> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            if (!this.oneShotState.isActive()) {
+              lease = await this.leaseManager.create();
+            }
+
+            this.configManager.update(argv);
+
+            flags.disablePrompts(MirrorNodeCommand.COLLECT_JFR_FLAGS_LIST.optional);
+
+            const allFlags: CommandFlag[] = [
+              ...MirrorNodeCommand.COLLECT_JFR_FLAGS_LIST.required,
+              ...MirrorNodeCommand.COLLECT_JFR_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            const config: MirrorNodeCollectJfrConfigClass = this.configManager.getConfig(
+              MirrorNodeCommand.COLLECT_JFR_CONFIGS_NAME,
+              allFlags,
+            ) as MirrorNodeCollectJfrConfigClass;
+
+            context_.config = config;
+
+            config.namespace = await this.getNamespace(task);
+            config.clusterReference = this.getClusterReference();
+            config.clusterContext = this.getClusterContext(config.clusterReference);
+
+            config.id = this.inferMirrorNodeId();
+
+            await this.throwIfNamespaceIsMissing(config.clusterContext, config.namespace);
+
+            if (!this.oneShotState.isActive()) {
+              return ListrLock.newAcquireLockTask(lease, task);
+            }
+            return ListrLock.newSkippedLockTask(task);
+          },
+        },
+        this.downloadMirrorNodeJavaFlightRecorderLogs(),
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'mirror node collect-jfr',
+    );
+
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw new SoloErrors.component.mirrorNodeJfrCollectionFailed(error);
+      } finally {
+        if (!this.oneShotState.isActive()) {
+          await lease?.release();
+        }
+      }
+    } else {
+      this.taskList.registerCloseFunction(async (): Promise<void> => {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
         }
