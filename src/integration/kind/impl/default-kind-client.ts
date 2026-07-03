@@ -150,6 +150,11 @@ export class DefaultKindClient implements KindClient {
     return this.executeAsync(new LoadDockerImageRequest(builder.build()), LoadDockerImageResponse);
   }
 
+  public async loadDockerImages(imageNames: readonly string[], options?: LoadDockerImageOptions): Promise<void> {
+    const builder: LoadDockerImageOptionsBuilder = LoadDockerImageOptionsBuilder.from(options).imageNames(imageNames);
+    await this.executeCall(new LoadDockerImageRequest(builder.build()));
+  }
+
   public async loadImageArchive(
     archivePath: string,
     options?: LoadImageArchiveOptions,

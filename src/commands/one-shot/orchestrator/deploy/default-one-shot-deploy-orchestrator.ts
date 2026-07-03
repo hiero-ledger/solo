@@ -97,6 +97,7 @@ import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {SINGLE_DESTROY_COMMAND} from '../../one-shot-command-paths.js';
 import {MINIMUM_CN_VERSION_FOR_SMALL_MEMORY, MINIMUM_CN_VERSION_FOR_STATE_ON_DISK} from '../../../../../version.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
+import {MessageLevel} from '../../../../core/logging/message-level.js';
 import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase-helper.js';
 import {SpinnerListrOptions} from '../../../../core/spinner-listr-options.js';
 
@@ -457,7 +458,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         }),
       }),
       OrchestratorPipelinePhase.composite(
-        'Prepare cluster and deployment',
+        'Cache container images',
         [
           new OrchestratorPipelinePhase('Pull docker images', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
@@ -466,7 +467,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 CacheCommandDefinition.IMAGE_PULL_COMMAND,
                 (): string[] => DeployArgvBuilders.buildImagePullArgv(getConfig()),
                 this.taskList,
-                (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
               ),
           }),
           new OrchestratorPipelinePhase('Load docker images', {
@@ -476,9 +476,21 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 CacheCommandDefinition.IMAGE_LOAD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildImageLoadArgv(getConfig()),
                 this.taskList,
-                (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
               ),
           }),
+        ],
+        OrchestratorPipelinePhase.EXECUTION_MODE.SEQUENTIAL,
+        true,
+        undefined,
+        // Skip the whole group when the image cache is disabled.
+        (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
+        // Never collapse: keep the pull/load steps visible so cache activity can be inspected live,
+        // even in parallel-deploy mode.
+        false,
+      ),
+      OrchestratorPipelinePhase.composite(
+        'Prepare cluster and deployment',
+        [
           new OrchestratorPipelinePhase('Cluster connect', {
             asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
               invokeSoloCommand(
@@ -761,6 +773,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.showOneShotUserNotes(context_, PathEx.join(outputDirectory, 'notes'));
             this.showVersions(PathEx.join(outputDirectory, 'versions'), deployConfig);
             this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
+            this.showCacheImageFailures();
             this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
             this.cacheDeploymentName(context_, PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'));
           },
@@ -1008,6 +1021,14 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       createDirectoryIfNotExists(outputFile);
       fs.writeFileSync(outputFile, fileData);
       this.logger.showUser(chalk.green(`Versions used saved to file: ${outputFile}`));
+    }
+  }
+
+  // Surfaces any images that failed to cache or load during the run. Only shown when there were
+  // failures, so a clean run prints nothing.
+  private showCacheImageFailures(): void {
+    if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP)) {
+      this.logger.showMessageGroup(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP, MessageLevel.WARN);
     }
   }
 

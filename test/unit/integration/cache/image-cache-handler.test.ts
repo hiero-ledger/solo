@@ -11,9 +11,31 @@ import {CacheArtifactEnum} from '../../../../src/integration/cache/enums/cache-a
 import {type CacheCatalogStore} from '../../../../src/integration/cache/api/cache-catalog-store.js';
 import {type CacheHealthInspector} from '../../../../src/integration/cache/api/cache-health-inspector.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
+import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {type ContainerEngineClient} from '../../../../src/integration/container-engine/container-engine-client.js';
 import {type SoloListrTask} from '../../../../src/types/index.js';
 import {type AnyListrContext} from '../../../../src/types/aliases.js';
+
+// Drives the two returned load tasks the way the command's Listr does: phase one (per-archive engine
+// loads, run concurrently) followed by phase two (the single batched cluster load).
+async function runReturnedLoadTasks(handler: ImageCacheHandler, clusterName: string): Promise<void> {
+  const tasks: readonly SoloListrTask<AnyListrContext>[] = await handler.load(clusterName);
+
+  let engineLoadSubTasks: readonly SoloListrTask<AnyListrContext>[] = [];
+  const taskWrapper: {newListr: (subtasks: readonly SoloListrTask<AnyListrContext>[]) => unknown} = {
+    newListr: (subtasks: readonly SoloListrTask<AnyListrContext>[]): unknown => {
+      engineLoadSubTasks = subtasks;
+      return {};
+    },
+  };
+
+  await tasks[0].task({} as never, taskWrapper as never);
+  for (const subtask of engineLoadSubTasks) {
+    await subtask.task({} as never, {title: subtask.title} as never);
+  }
+
+  await tasks[1].task({} as never, {} as never);
+}
 
 describe('ImageCacheHandler pull', (): void => {
   const mirrorRegistryEnvironmentVariable: string = 'KIND_DOCKER_REGISTRY_MIRRORS';
@@ -96,8 +118,8 @@ describe('ImageCacheHandler pull', (): void => {
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
       saveImage: saveImageStub,
-      loadImage: async (): Promise<void> => undefined,
-      loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
+      loadImage: async (): Promise<readonly string[]> => [],
+      loadImagesIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     };
@@ -122,8 +144,8 @@ describe('ImageCacheHandler pull', (): void => {
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
       saveImage: saveImageStub,
-      loadImage: async (): Promise<void> => undefined,
-      loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
+      loadImage: async (): Promise<readonly string[]> => [],
+      loadImagesIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     };
@@ -147,8 +169,8 @@ describe('ImageCacheHandler pull', (): void => {
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
       saveImage: saveImageStub,
-      loadImage: async (): Promise<void> => undefined,
-      loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
+      loadImage: async (): Promise<readonly string[]> => [],
+      loadImagesIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     };
@@ -173,8 +195,8 @@ describe('ImageCacheHandler pull', (): void => {
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,
       saveImage: saveImageStub,
-      loadImage: async (): Promise<void> => undefined,
-      loadImageArchiveIntoCluster: async (): Promise<void> => undefined,
+      loadImage: async (): Promise<readonly string[]> => [],
+      loadImagesIntoCluster: async (): Promise<void> => undefined,
       removeImage: async (): Promise<void> => undefined,
       listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
     };
@@ -192,5 +214,96 @@ describe('ImageCacheHandler pull', (): void => {
       '/tmp/busybox.tar',
     );
     expect(context.config.results).to.have.lengthOf(1);
+  });
+});
+
+describe('ImageCacheHandler load', (): void => {
+  const target: {type: CacheArtifactEnum; name: string; version: string; source: string | undefined} = {
+    type: CacheArtifactEnum.IMAGE,
+    name: 'docker.io/library/busybox',
+    version: '1.36.1',
+    source: undefined,
+  };
+
+  const store: CacheCatalogStore = {
+    save: async (): Promise<void> => undefined,
+    load: async (): Promise<never> => ({items: []}) as never,
+    exists: async (): Promise<boolean> => true,
+    clear: async (): Promise<void> => undefined,
+    resolvePath: (): string => '/tmp/busybox.tar',
+  };
+
+  const inspector: CacheHealthInspector = {
+    exists: async (): Promise<boolean> => true,
+    getSize: async (): Promise<number> => 0,
+    filterExisting: async (paths: readonly string[]): Promise<readonly string[]> => paths,
+  };
+
+  let loggerStub: sinon.SinonStubbedInstance<SoloPinoLogger>;
+  let logger: SoloLogger;
+
+  beforeEach((): void => {
+    loggerStub = sinon.createStubInstance(SoloPinoLogger);
+    loggerStub.getMessageGroupKeys.returns([]);
+    logger = loggerStub as unknown as SoloLogger;
+  });
+
+  afterEach((): void => {
+    sinon.restore();
+  });
+
+  it('loads each archive into the engine then batches a single cluster load', async (): Promise<void> => {
+    const loadImageStub: SinonStub = sinon.stub().resolves(['docker.io/library/busybox:1.36.1']);
+    const loadImagesIntoClusterStub: SinonStub = sinon.stub().resolves();
+    const engine: ContainerEngineClient = {
+      pullImage: async (): Promise<void> => undefined,
+      saveImage: async (): Promise<void> => undefined,
+      loadImage: loadImageStub,
+      loadImagesIntoCluster: loadImagesIntoClusterStub,
+      removeImage: async (): Promise<void> => undefined,
+      listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+    };
+
+    const handler: ImageCacheHandler = new ImageCacheHandler(
+      engine,
+      new StaticCacheTargetProvider([target]),
+      store,
+      inspector,
+      logger,
+    );
+
+    await runReturnedLoadTasks(handler, 'my-cluster');
+
+    expect(loadImageStub).to.have.been.calledOnceWithExactly('/tmp/busybox.tar');
+    expect(loadImagesIntoClusterStub).to.have.been.calledOnceWithExactly(
+      ['docker.io/library/busybox:1.36.1'],
+      'my-cluster',
+    );
+  });
+
+  it('skips the cluster load and never throws when the engine load fails', async (): Promise<void> => {
+    const loadImagesIntoClusterStub: SinonStub = sinon.stub().resolves();
+    const engine: ContainerEngineClient = {
+      pullImage: async (): Promise<void> => undefined,
+      saveImage: async (): Promise<void> => undefined,
+      loadImage: sinon.stub().rejects(new Error('docker load failed')),
+      loadImagesIntoCluster: loadImagesIntoClusterStub,
+      removeImage: async (): Promise<void> => undefined,
+      listLoadedImagesInCluster: async (): Promise<readonly string[]> => [],
+    };
+
+    const handler: ImageCacheHandler = new ImageCacheHandler(
+      engine,
+      new StaticCacheTargetProvider([target]),
+      store,
+      inspector,
+      logger,
+    );
+
+    await runReturnedLoadTasks(handler, 'my-cluster');
+
+    expect(loadImagesIntoClusterStub).to.not.have.been.called;
+    // The failure is recorded for the end-of-run summary rather than thrown.
+    expect(loggerStub.addMessageGroupMessage).to.have.been.called;
   });
 });

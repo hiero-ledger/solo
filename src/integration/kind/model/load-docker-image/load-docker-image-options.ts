@@ -18,12 +18,12 @@ export class LoadDockerImageOptions implements Options {
   private readonly _nodes: string;
 
   /**
-   * The Docker image to load.
+   * The Docker images to load. `kind load docker-image` accepts one or more image references.
    */
-  private readonly _imageName: string;
+  private readonly _imageNames: readonly string[];
 
-  public constructor(imageName: string, name?: string, nodes?: string) {
-    this._imageName = imageName;
+  public constructor(imageNames: readonly string[] = [], name?: string, nodes?: string) {
+    this._imageNames = imageNames;
     if (name) {
       this._name = name;
     }
@@ -37,7 +37,9 @@ export class LoadDockerImageOptions implements Options {
    * @param builder The KindExecutionBuilder to apply options to.
    */
   public apply(builder: KindExecutionBuilder): void {
-    builder.positional(this._imageName);
+    for (const imageName of this._imageNames) {
+      builder.positional(imageName);
+    }
     if (this._name) {
       builder.argument('name', this._name);
     }
@@ -58,5 +60,12 @@ export class LoadDockerImageOptions implements Options {
    */
   public get nodes(): string {
     return this._nodes;
+  }
+
+  /**
+   * The Docker images to load.
+   */
+  public get imageNames(): readonly string[] {
+    return this._imageNames;
   }
 }

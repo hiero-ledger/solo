@@ -106,6 +106,14 @@ export interface KindClient {
   loadDockerImage(imageName: string, options?: LoadDockerImageOptions): Promise<LoadDockerImageResponse>;
 
   /**
+   * Loads one or more docker images from the host engine into the Kind cluster in a single invocation.
+   *
+   * @param imageNames the names of the images to load.
+   * @param options the options to use for loading the images
+   */
+  loadDockerImages(imageNames: readonly string[], options?: LoadDockerImageOptions): Promise<void>;
+
+  /**
    * Loads an image archive into the Kind cluster.
    *
    * @param archivePath the path to the image archive to load.

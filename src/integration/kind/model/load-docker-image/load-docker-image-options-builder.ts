@@ -6,7 +6,7 @@ export class LoadDockerImageOptionsBuilder {
   private constructor(
     private _name?: string,
     private _nodes?: string,
-    private _imageName?: string,
+    private _imageNames?: readonly string[],
   ) {}
 
   public static builder(): LoadDockerImageOptionsBuilder {
@@ -32,25 +32,34 @@ export class LoadDockerImageOptionsBuilder {
   }
 
   /**
-   * Set the image name to load.
+   * Set a single image name to load.
    * @param imageName
    */
   public imageName(imageName: string): LoadDockerImageOptionsBuilder {
-    this._imageName = imageName;
+    this._imageNames = [imageName];
     return this;
   }
 
   /**
-   * Build the ExportLogsOptions instance.
+   * Set the image names to load (`kind load docker-image` accepts one or more).
+   * @param imageNames
+   */
+  public imageNames(imageNames: readonly string[]): LoadDockerImageOptionsBuilder {
+    this._imageNames = imageNames;
+    return this;
+  }
+
+  /**
+   * Build the LoadDockerImageOptions instance.
    */
   public build(): LoadDockerImageOptions {
-    return new LoadDockerImageOptions(this._imageName, this._name, this._nodes);
+    return new LoadDockerImageOptions(this._imageNames ?? [], this._name, this._nodes);
   }
 
   public static from(options: LoadDockerImageOptions): LoadDockerImageOptionsBuilder {
     if (!options) {
       return new LoadDockerImageOptionsBuilder();
     }
-    return new LoadDockerImageOptionsBuilder(options.name, options.nodes);
+    return new LoadDockerImageOptionsBuilder(options.name, options.nodes, options.imageNames);
   }
 }

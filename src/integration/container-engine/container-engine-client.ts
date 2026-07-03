@@ -19,13 +19,16 @@ export interface ContainerEngineClient {
 
   /**
    * Loads an image archive into the local container engine.
+   *
+   * @returns the image references that were loaded into the engine (as reported by the engine).
    */
-  loadImage(archivePath: string): Promise<void>;
+  loadImage(archivePath: string): Promise<readonly string[]>;
 
   /**
-   * Loads an image archive into a cluster runtime, such as Kind.
+   * Loads the given images from the local container engine into a cluster runtime, such as Kind,
+   * in a single invocation.
    */
-  loadImageArchiveIntoCluster(archivePath: string, clusterName?: string): Promise<void>;
+  loadImagesIntoCluster(images: readonly string[], clusterName?: string): Promise<void>;
 
   /**
    * Removes an image from the local container engine.
