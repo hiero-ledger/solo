@@ -123,6 +123,9 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly MIRROR_REST_POLL_INTERVAL_MS: number = 100;
   private static readonly MIRROR_REST_REQUEST_TIMEOUT_MS: number = 1000;
   private static readonly MIRROR_READINESS_POLL_TIMEOUT_MULTIPLIER: number = 15;
+  // Three consecutive readings where lag does not decrease (5 s each = 15 s total) is sufficient
+  // to distinguish a fully-stuck importer (processing 0 blocks/s) from a slow-but-recovering one.
+  private static readonly MIRROR_IMPORTER_STUCK_READING_THRESHOLD: number = 3;
   private static readonly RTT_PROBE_RECIPIENT_ACCOUNT_NUMBER: number = 98;
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
@@ -513,6 +516,8 @@ export class RapidFireCommand extends BaseCommand {
     const startedAtMilliseconds: number = Date.now();
     let attempt: number = 0;
     let lastError: Error | undefined;
+    let consecutiveHighLagReadings: number = 0;
+    let previousHighLagMilliseconds: number = 0;
 
     while (Date.now() - startedAtMilliseconds < readinessTimeoutMilliseconds) {
       attempt++;
@@ -531,6 +536,24 @@ export class RapidFireCommand extends BaseCommand {
         attemptTimeoutMilliseconds,
       );
       if (lagMilliseconds !== undefined && lagMilliseconds > config.rttPollTimeout) {
+        // Track consecutive high-lag readings to detect a stuck importer.  A stuck importer
+        // (e.g. blocked on an unserviceable historical block from the block node) processes zero
+        // blocks per second so its lag grows by exactly 1 s per real second — it will never
+        // recover within the readiness window.  Three consecutive non-decreasing readings
+        // (≈ 15 s) are enough to distinguish this from a slow-but-recovering importer.
+        consecutiveHighLagReadings =
+          lagMilliseconds >= previousHighLagMilliseconds ? consecutiveHighLagReadings + 1 : 1;
+        previousHighLagMilliseconds = lagMilliseconds;
+
+        if (consecutiveHighLagReadings >= RapidFireCommand.MIRROR_IMPORTER_STUCK_READING_THRESHOLD) {
+          const stuckError: Error = new Error(
+            `mirror importer appears stuck: lag ${Math.round(lagMilliseconds / 1000)} s did not decrease over ` +
+              `${consecutiveHighLagReadings} consecutive readings`,
+          );
+          stuckError.name = 'MirrorImporterStuckError';
+          throw stuckError;
+        }
+
         lastError = new Error(`mirror importer lag ${Math.round(lagMilliseconds / 1000)} s exceeds probe timeout`);
         this.logger.info(
           `Mirror readiness attempt ${attempt}: importer is ${Math.round(lagMilliseconds / 1000)} s behind real-time, waiting 5 s`,
@@ -538,6 +561,11 @@ export class RapidFireCommand extends BaseCommand {
         await sleep(Duration.ofSeconds(5));
         continue;
       }
+
+      // Lag is acceptable (or unknown) — reset the stuck detector so a brief spike after
+      // recovery does not count against the new steady state.
+      consecutiveHighLagReadings = 0;
+      previousHighLagMilliseconds = 0;
 
       try {
         const readinessSample: RttSample = await this.measureTransactionRtt(
@@ -660,7 +688,13 @@ export class RapidFireCommand extends BaseCommand {
                   rttProbeResult = result;
                 })
                 .catch((error: unknown): void => {
-                  rttProbeError = error instanceof Error ? error : new Error(String(error));
+                  if (error instanceof Error && error.name === 'MirrorImporterStuckError') {
+                    // Importer is stuck on an unserviceable historical block; RTT is not
+                    // measurable this run.  Log a warning and let TPS determine pass/fail.
+                    this.logger.warn(`RTT probe skipped: ${error.message}`);
+                  } else {
+                    rttProbeError = error instanceof Error ? error : new Error(String(error));
+                  }
                 });
             }
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
