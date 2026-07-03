@@ -2187,9 +2187,7 @@ export class MirrorNodeCommand extends BaseCommand {
         const repositoryDirectory: string = constants.MIRROR_NODE_JFR_REPOSITORY_DIRECTORY;
         const collectedRecordingPath: string = `${repositoryDirectory}/collected-recording.jfr`;
 
-        // The importer is a JRE image without `jcmd`, so JFR runs as a continuous on-disk recording that
-        // rotates chunk files. Concatenate every finalized chunk (all but the still-open last one) into a
-        // single readable recording. This is non-destructive and can be run repeatedly during a test.
+        // Concatenate every finalized JFR chunk (all but the still-open last one) into a single readable recording.
         const consolidateScript: string =
           'set -e; ' +
           `finalized=$(ls -1 ${repositoryDirectory}/*/*.jfr 2>/dev/null | sort | sed '$d'); ` +

@@ -12,6 +12,11 @@ interface MirrorNodePerformanceValuesConfig {
     env?: {
       JAVA_TOOL_OPTIONS?: string;
     };
+    volumeMounts?: {
+      jfr?: {
+        mountPath?: string;
+      };
+    };
   };
 }
 
@@ -45,11 +50,23 @@ describe('Mirror node performance (JFR) values', (): void => {
     ) as MirrorNodePerformanceValuesConfig;
     const javaToolOptions: string | undefined = parsedValues.importer?.env?.JAVA_TOOL_OPTIONS;
 
-    // `solo mirror node collect-jfr` reads chunks from constants.MIRROR_NODE_JFR_REPOSITORY_DIRECTORY, so the
-    // repository configured in this overlay must match it exactly.
+    // The overlay's repository must match the path `mirror node collect-jfr` reads from.
     expect(
       javaToolOptions,
       'FlightRecorderOptions repository must match the constant collect-jfr reads from',
     ).to.include(`repository=${constants.MIRROR_NODE_JFR_REPOSITORY_DIRECTORY}`);
+  });
+
+  it('should mount a dedicated writable volume at the JFR repository path', (): void => {
+    const valuesContent: string = fs.readFileSync(performanceValuesFile, 'utf8');
+    const parsedValues: MirrorNodePerformanceValuesConfig = yaml.parse(
+      valuesContent,
+    ) as MirrorNodePerformanceValuesConfig;
+    const jfrMountPath: string | undefined = parsedValues.importer?.volumeMounts?.jfr?.mountPath;
+
+    // The importer's root filesystem is read-only, so JFR must write into a mounted volume at the repository path.
+    expect(jfrMountPath, 'JFR volume must be mounted at the repository collect-jfr reads from').to.equal(
+      constants.MIRROR_NODE_JFR_REPOSITORY_DIRECTORY,
+    );
   });
 });

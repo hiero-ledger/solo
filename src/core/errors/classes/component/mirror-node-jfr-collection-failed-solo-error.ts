@@ -4,11 +4,7 @@ import {SoloError} from '../../solo-error.js';
 import {ErrorOwnership} from '../../error-ownership.js';
 import {ErrorCodeRegistry} from '../../error-code-registry.js';
 
-/**
- * @description Thrown when `solo mirror node collect-jfr` cannot collect the Java Flight Recorder recording from the
- * mirror node importer; the underlying failure is wrapped in `cause`. Retryable, since a transient pod or
- * cluster-API problem often clears on a later attempt.
- */
+/** Thrown when `mirror node collect-jfr` cannot collect the Java Flight Recorder recording from the importer (cause wrapped). */
 export class MirrorNodeJfrCollectionFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;

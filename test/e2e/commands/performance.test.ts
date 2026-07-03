@@ -114,8 +114,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             testLogger.info(`${testName}: finished ${testName}: block node deploy`);
           }
 
-          // Opt-in: re-deploy the mirror node importer with JFR enabled (one-shot already added it without JFR)
-          // so its JVM metrics are recorded and collected at teardown.
+          // Opt-in: re-deploy the mirror node importer with JFR enabled so its JVM metrics are collected at teardown.
           if (process.env.PERFORMANCE_TEST_WITH_MIRROR_NODE_JFR === 'true') {
             testLogger.info(`${testName}: beginning ${testName}: mirror node upgrade (JFR enabled)`);
             await main(soloMirrorNodeJfrUpgrade(testName, deployment));
