@@ -51,7 +51,10 @@ const associations: number = 50;
 const nfts: number = 50;
 const percent: number = 50;
 const stableTransactionPerSecondTarget: number = 100;
-const maxEndToEndRtt: number = 500;
+// Kind clusters poll the block node every 500 ms (set in mirror-node.ts to prevent the HTTP/2
+// rapid-reset threshold from being crossed). Allow generous headroom: 500 ms polling delay +
+// ~2 s block period + mirror processing = ~3 s typical worst case in a shared CI runner.
+const maxEndToEndRtt: number = 5000;
 const nftTransferLoadTestTimeoutMultiplier: number = 6;
 const mirrorImporterWarmupSeconds: number = 60;
 let startTime: Date;
@@ -227,7 +230,9 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             'NftTransferLoadTest',
             `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -t ${duration}`,
           );
-        }).timeout(Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier + mirrorImporterWarmupSeconds).toMillis());
+        }).timeout(
+          Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier + mirrorImporterWarmupSeconds).toMillis(),
+        );
 
         it('CryptoTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting CryptoTransferLoadTest');
