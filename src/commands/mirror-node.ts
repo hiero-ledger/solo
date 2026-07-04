@@ -404,7 +404,6 @@ export class MirrorNodeCommand extends BaseCommand {
         mirror: {
           importer: {
             block?: {
-              frequency?: string;
               nodes: {
                 endpoints: {
                   host: string;
@@ -442,10 +441,6 @@ export class MirrorNodeCommand extends BaseCommand {
 
     if (usesBlockNodeEndpoints) {
       importerConfig[MirrorNodeCommand.MIRROR_CHART_NAMESPACE].mirror.importer.block = {
-        // Slow polling enough to stay below the block node's HTTP/2 rapid-reset threshold
-        // (100 RST_STREAM / 30 s). At 500 ms the importer opens 2 streams/sec (60 in 30 s),
-        // which keeps the CN publisher connection alive so block delivery continues normally.
-        frequency: '500ms',
         nodes: blockNodeFqdnList.map(
           (
             node,
