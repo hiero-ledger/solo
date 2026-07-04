@@ -277,7 +277,7 @@ export class RapidFireCommand extends BaseCommand {
 
   private static summarizeRttSamples(samples: RttSample[]): RttProbeResult {
     const sortedValues: number[] = samples
-      .map((sample: RttSample): number => sample.endToEndMilliseconds)
+      .map((sample: RttSample): number => sample.mirrorLatencyMilliseconds)
       // eslint-disable-next-line unicorn/no-array-sort
       .sort((left: number, right: number): number => left - right);
 
@@ -500,7 +500,7 @@ export class RapidFireCommand extends BaseCommand {
 
     return {
       transactionId: mirrorTransactionId,
-      endToEndMilliseconds: Math.round(mirrorMilliseconds - startMilliseconds),
+      mirrorLatencyMilliseconds: Math.round(mirrorMilliseconds - receiptMilliseconds),
     };
   }
 
@@ -530,10 +530,12 @@ export class RapidFireCommand extends BaseCommand {
         mirrorPort,
         attemptTimeoutMilliseconds,
       );
-      if (lagMilliseconds !== undefined && lagMilliseconds > config.rttPollTimeout) {
-        lastError = new Error(`mirror importer lag ${Math.round(lagMilliseconds / 1000)} s exceeds probe timeout`);
+      if (lagMilliseconds !== undefined && lagMilliseconds > config.maxRtt) {
+        lastError = new Error(
+          `mirror importer lag ${Math.round(lagMilliseconds)} ms exceeds max RTT ${config.maxRtt} ms`,
+        );
         this.logger.info(
-          `Mirror readiness attempt ${attempt}: importer is ${Math.round(lagMilliseconds / 1000)} s behind real-time, waiting 5 s`,
+          `Mirror readiness attempt ${attempt}: importer is ${Math.round(lagMilliseconds)} ms behind real-time, waiting 5 s`,
         );
         await sleep(Duration.ofSeconds(5));
         continue;
@@ -548,7 +550,7 @@ export class RapidFireCommand extends BaseCommand {
         );
         this.logger.info(
           `Mirror REST readiness observed transaction ${readinessSample.transactionId} in ` +
-            `${readinessSample.endToEndMilliseconds} ms after ${attempt} attempt(s); starting measured RTT samples`,
+            `${readinessSample.mirrorLatencyMilliseconds} ms after ${attempt} attempt(s); starting measured RTT samples`,
         );
         return;
       } catch (error: unknown) {

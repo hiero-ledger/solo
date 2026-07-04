@@ -2,5 +2,5 @@
 
 export interface RttSample {
   transactionId: string;
-  endToEndMilliseconds: number;
+  mirrorLatencyMilliseconds: number;
 }
