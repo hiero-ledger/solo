@@ -44,6 +44,7 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {
   Hbar,
   Status,
+  TransactionReceiptQuery,
   TransferTransaction,
   type AccountId,
   type Client,
@@ -120,7 +121,7 @@ export class RapidFireCommand extends BaseCommand {
 
   private static readonly CRYPTO_TRANSFER_START_CONFIG_NAME: string = 'cryptoTransferStartConfig';
   private static readonly STOP_CONFIG_NAME: string = 'stopConfig';
-  private static readonly MIRROR_REST_POLL_INTERVAL_MS: number = 100;
+  private static readonly MIRROR_REST_POLL_INTERVAL_MS: number = 50;
   private static readonly MIRROR_REST_REQUEST_TIMEOUT_MS: number = 1000;
   private static readonly MIRROR_READINESS_POLL_TIMEOUT_MULTIPLIER: number = 15;
   private static readonly RTT_PROBE_RECIPIENT_ACCOUNT_NUMBER: number = 98;
@@ -480,8 +481,14 @@ export class RapidFireCommand extends BaseCommand {
       .execute(client);
 
     const mirrorTransactionId: string = RapidFireCommand.mirrorTransactionId(transactionResponse.transactionId);
+    // Use flat 50 ms receipt polling instead of the SDK default (250 ms minBackoff → 500 ms first
+    // retry) to keep the submission-to-receipt leg within the 500 ms RTT budget.
+    const receiptQuery: TransactionReceiptQuery = transactionResponse
+      .getReceiptQuery(client)
+      .setMinBackoff(50)
+      .setMaxBackoff(50);
     const transactionReceipt: TransactionReceipt = await RapidFireCommand.waitWithTimeout(
-      transactionResponse.getReceipt(client),
+      receiptQuery.execute(client),
       pollTimeoutMilliseconds,
       `Timed out after ${pollTimeoutMilliseconds} ms waiting for transaction ${mirrorTransactionId} receipt`,
     );
