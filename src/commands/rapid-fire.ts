@@ -325,7 +325,7 @@ export class RapidFireCommand extends BaseCommand {
     mirrorTransactionId: string,
     requestTimeoutMilliseconds: number,
     logger?: SoloLogger,
-  ): Promise<string | null> {
+  ): Promise<boolean> {
     const url: string = `http://localhost:${port}/api/v1/transactions/${mirrorTransactionId}`;
     const abortController: AbortController = new AbortController();
     const abortTimeout: NodeJS.Timeout = setTimeout((): void => {
@@ -345,20 +345,19 @@ export class RapidFireCommand extends BaseCommand {
 
       if (!response.ok) {
         logger?.debug(`Mirror REST returned HTTP ${response.status} for transaction ${mirrorTransactionId}`);
-        return null;
+        return false;
       }
 
       const responseBody: MirrorTransactionResponse = (await response.json()) as MirrorTransactionResponse;
-      const match = responseBody.transactions?.find(
+      return !!responseBody.transactions?.some(
         (transaction): boolean => transaction.transaction_id === mirrorTransactionId,
       );
-      return match?.consensus_timestamp ?? null;
     } catch (error: unknown) {
       // Port-forward may have dropped or request timed out — log so we can diagnose in CI artifacts.
       logger?.debug(
         `Mirror REST request failed for transaction ${mirrorTransactionId}: ${error instanceof Error ? error.message : String(error)}`,
       );
-      return null;
+      return false;
     } finally {
       clearTimeout(abortTimeout);
     }
@@ -368,7 +367,7 @@ export class RapidFireCommand extends BaseCommand {
     port: number,
     mirrorTransactionId: string,
     timeoutMilliseconds: number,
-  ): Promise<string> {
+  ): Promise<void> {
     const startedAt: number = Date.now();
     while (Date.now() - startedAt < timeoutMilliseconds) {
       const remainingMilliseconds: number = Math.max(1, timeoutMilliseconds - (Date.now() - startedAt));
@@ -377,14 +376,15 @@ export class RapidFireCommand extends BaseCommand {
         RapidFireCommand.MIRROR_REST_REQUEST_TIMEOUT_MS,
       );
 
-      const consensusTimestamp: string | null = await RapidFireCommand.mirrorTransactionIsAvailable(
-        port,
-        mirrorTransactionId,
-        requestTimeoutMilliseconds,
-        this.logger,
-      );
-      if (consensusTimestamp !== null) {
-        return consensusTimestamp;
+      if (
+        await RapidFireCommand.mirrorTransactionIsAvailable(
+          port,
+          mirrorTransactionId,
+          requestTimeoutMilliseconds,
+          this.logger,
+        )
+      ) {
+        return;
       }
 
       const sleepMilliseconds: number = Math.min(
@@ -472,7 +472,8 @@ export class RapidFireCommand extends BaseCommand {
       config.deployment,
       RapidFireCommand.RTT_PROBE_RECIPIENT_ACCOUNT_NUMBER,
     );
-    const startMilliseconds: number = performance.now();
+    // Capture wall-clock submission time: RTT is defined as submission → mirror availability.
+    const submissionEpochMs: number = Date.now();
     const transactionResponse: TransactionResponse = await new TransferTransaction()
       .addHbarTransfer(operatorAccountId, Hbar.fromTinybars(-1))
       .addHbarTransfer(recipientAccountId, Hbar.fromTinybars(1))
@@ -490,21 +491,16 @@ export class RapidFireCommand extends BaseCommand {
       );
     }
 
-    const receiptMilliseconds: number = performance.now();
+    const receiptEpochMs: number = Date.now();
     const remainingPollTimeoutMilliseconds: number = Math.max(
       1,
-      pollTimeoutMilliseconds - Math.round(receiptMilliseconds - startMilliseconds),
+      pollTimeoutMilliseconds - Math.round(receiptEpochMs - submissionEpochMs),
     );
-    const consensusTimestamp: string = await this.waitForMirrorTransaction(
-      mirrorPort,
-      mirrorTransactionId,
-      remainingPollTimeoutMilliseconds,
-    );
+    await this.waitForMirrorTransaction(mirrorPort, mirrorTransactionId, remainingPollTimeoutMilliseconds);
 
-    // consensus_timestamp is "seconds.nanos" (e.g. "1783095394.287777868"); multiply by 1000 to get epoch ms.
     return {
       transactionId: mirrorTransactionId,
-      mirrorLatencyMilliseconds: Math.round(Date.now() - Number.parseFloat(consensusTimestamp) * 1000),
+      mirrorLatencyMilliseconds: Math.round(Date.now() - submissionEpochMs),
     };
   }
 

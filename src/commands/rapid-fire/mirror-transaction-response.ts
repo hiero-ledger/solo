@@ -2,7 +2,6 @@
 
 interface MirrorTransaction {
   transaction_id?: string;
-  consensus_timestamp?: string;
 }
 
 export interface MirrorTransactionResponse {
