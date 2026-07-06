@@ -203,7 +203,15 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
             metricsError = error;
           }
 
-          await preDestroy(endToEndTestSuite);
+          try {
+            await preDestroy(endToEndTestSuite);
+          } catch (error: unknown) {
+            // Defer so destroy still runs, but do not let a failed JFR collection pass silently.
+            testLogger.error(
+              `${testName}: pre-destroy (diagnostics/JFR collection) failed; destroy will still run: ${error}`,
+            );
+            metricsError ??= error;
+          }
 
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
           await main(soloOneShotDestroy(testName));

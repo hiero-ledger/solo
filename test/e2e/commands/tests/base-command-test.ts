@@ -166,11 +166,14 @@ export class BaseCommandTest {
 
       testLogger.info(`${testName}: Mirror node Java Flight Recorder logs collected successfully`);
     } catch (error: unknown) {
-      // Best-effort: a run without a JFR-enabled mirror node should not fail teardown.
+      // A run without a JFR-enabled mirror node (or a recording still shorter than one chunk) is handled
+      // inside collectJfr as a non-throwing task.skip(), so any error reaching here is a genuine collection
+      // failure. Surface it instead of swallowing it, otherwise the opted-in performance test passes silently.
       testLogger.error(`${testName}: Error collecting mirror node Java Flight Recorder logs: ${error}`);
       if (error instanceof Error && error.stack) {
         testLogger.error(`${testName}: Stack trace:\n${error.stack}`);
       }
+      throw error;
     }
   }
 
