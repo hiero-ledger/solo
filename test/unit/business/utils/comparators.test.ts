@@ -5,25 +5,25 @@ import {Comparators} from '../../../../src/business/utils/comparators.js';
 import {type ConfigSource} from '../../../../src/data/configuration/spi/config-source.js';
 import {SimpleConfigSourceFixture} from '../../fixtures/simple-config-source.fixture.js';
 
-describe('Comparators', () => {
-  describe('number comparator', () => {
-    it('should return -1 when the first number is less than the second', () => {
+describe('Comparators', (): void => {
+  describe('number comparator', (): void => {
+    it('should return -1 when the first number is less than the second', (): void => {
       expect(Comparators.number(1, 2)).to.equal(-1);
     });
 
-    it('should return 1 when the first number is greater than the second', () => {
+    it('should return 1 when the first number is greater than the second', (): void => {
       expect(Comparators.number(3, 2)).to.equal(1);
     });
 
-    it('should return 0 when the numbers are equal', () => {
+    it('should return 0 when the numbers are equal', (): void => {
       expect(Comparators.number(2, 2)).to.equal(0);
     });
   });
 
-  describe('configSource comparator', () => {
+  describe('configSource comparator', (): void => {
     let configSource1: ConfigSource, configSource2: ConfigSource;
 
-    before(() => {
+    before((): void => {
       configSource1 = new SimpleConfigSourceFixture(
         'simpleConfigSource1',
         1,
@@ -41,15 +41,15 @@ describe('Comparators', () => {
       );
     });
 
-    it('should return -1 when the first configSource ordinal is less than the second', () => {
+    it('should return -1 when the first configSource ordinal is less than the second', (): void => {
       expect(Comparators.configSource(configSource1, configSource2)).to.equal(-1);
     });
 
-    it('should return 1 when the first configSource ordinal is greater than the second', () => {
+    it('should return 1 when the first configSource ordinal is greater than the second', (): void => {
       expect(Comparators.configSource(configSource2, configSource1)).to.equal(1);
     });
 
-    it('should return 0 when the configSource ordinals are equal', () => {
+    it('should return 0 when the configSource ordinals are equal', (): void => {
       expect(Comparators.configSource(configSource1, configSource1)).to.equal(0);
     });
   });

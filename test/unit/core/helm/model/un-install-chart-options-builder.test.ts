@@ -5,10 +5,11 @@ import sinon from 'sinon';
 import {describe, it} from 'mocha';
 import {type HelmExecutionBuilder} from '../../../../../src/integration/helm/execution/helm-execution-builder.js';
 import {UnInstallChartOptionsBuilder} from '../../../../../src/integration/helm/model/install/un-install-chart-options-builder.js';
+import {type UnInstallChartOptions} from '../../../../../src/integration/helm/model/install/un-install-chart-options.js';
 
-describe('UnInstallChartOptionsBuilder Tests', () => {
-  it('Test UnInstallChartOptionsBuilder', () => {
-    const options = UnInstallChartOptionsBuilder.builder()
+describe('UnInstallChartOptionsBuilder Tests', (): void => {
+  it('Test UnInstallChartOptionsBuilder', (): void => {
+    const options: UnInstallChartOptions = UnInstallChartOptionsBuilder.builder()
       .namespace('test-namespace')
       .kubeContext('test-context')
       .build();
@@ -19,8 +20,8 @@ describe('UnInstallChartOptionsBuilder Tests', () => {
     expect(options.kubeContext).to.equal('test-context');
   });
 
-  it('Test apply method', () => {
-    const options = UnInstallChartOptionsBuilder.builder()
+  it('Test apply method', (): void => {
+    const options: UnInstallChartOptions = UnInstallChartOptionsBuilder.builder()
       .namespace('test-namespace')
       .kubeContext('test-context')
       .build();
@@ -31,7 +32,7 @@ describe('UnInstallChartOptionsBuilder Tests', () => {
       positional: sinon.SinonStub;
     };
 
-    const builderMock = {
+    const builderMock: MockBuilder = {
       flag: sinon.stub().returnsThis(),
       argument: sinon.stub().returnsThis(),
       positional: sinon.stub().returnsThis(),
@@ -44,8 +45,8 @@ describe('UnInstallChartOptionsBuilder Tests', () => {
     expect(builderMock.argument.calledWith('kube-context', 'test-context')).to.be.true;
   });
 
-  it('Test builder with default values', () => {
-    const options = UnInstallChartOptionsBuilder.builder().build();
+  it('Test builder with default values', (): void => {
+    const options: UnInstallChartOptions = UnInstallChartOptionsBuilder.builder().build();
 
     // Verify default values
     expect(options).to.not.be.null;

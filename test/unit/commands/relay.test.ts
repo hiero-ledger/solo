@@ -15,7 +15,10 @@ interface RelayCommandInternal {
   prepareHelmChartValuesForRelay: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
 }
 
-const prepareRelayValueArguments = async (
+const prepareRelayValueArguments: (
+  relayCommandInternal: RelayCommandInternal,
+  configuration: Record<string, unknown>,
+) => Promise<string[]> = async (
   relayCommandInternal: RelayCommandInternal,
   configuration: Record<string, unknown>,
   // eslint-disable-next-line unicorn/no-await-expression-member
