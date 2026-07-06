@@ -20,6 +20,14 @@ function clone_smart_contract_repo ()
     echo "Directory hedera-smart-contracts does not exist."
     git clone https://github.com/hashgraph/hedera-smart-contracts --branch only-erc20-tests-v4
   fi
+
+  echo "Increase ERC20 smoke test timeout for block stream mirror propagation"
+  if ! grep -q "const DEFAULT_TIMEOUT = 120000;" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    echo "Expected ERC20 smoke test timeout constant was not found"
+    log_and_exit 1
+  fi
+  sed -i.bak 's/const DEFAULT_TIMEOUT = 120000;/const DEFAULT_TIMEOUT = 360000;/' hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
+  rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
 }
 
 function setup_smart_contract_test ()
