@@ -697,32 +697,30 @@ export class NetworkCommand extends BaseCommand {
     valueName: string,
   ): void {
     if (records) {
+      const nodeIndexByClusterAndName: Map<string, number> = new Map();
+      const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
+
       for (const consensusNode of consensusNodes) {
-        if (records[consensusNode.name]) {
-          chartValuesMap[consensusNode.cluster].setLiteral(
-            `hedera.nodes[${consensusNode.nodeId}].${valueName}`,
-            records[consensusNode.name],
-          );
+        const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
+        nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
+        nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
+      }
+
+      for (const consensusNode of consensusNodes) {
+        const recordValue: string | undefined = records[consensusNode.name];
+        if (!recordValue) {
+          continue;
         }
+
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
+
+        chartValuesMap[consensusNode.cluster].setLiteral(`hedera.nodes[${nodeIndex}].${valueName}`, recordValue);
       }
-      // The per-cluster index (matching the chart's hedera.nodes[N].name slot) must be
-      // used here. consensusNode.nodeId is the global node id and points at a phantom
-      // hedera.nodes[N] slot without a `name`, which makes downstream templates render
-      // `%!s(<nil>)` for the node name.
-      const perClusterIndex: number | undefined = nodeIndexByClusterAndName.get(
-        `${consensusNode.cluster}:${consensusNode.name}`,
-      );
-      if (perClusterIndex === undefined) {
-        continue;
-      }
-      // Templates use `${nodeId}` / `${recordValue}` placeholders. Replacing only
-      // `{nodeId}` (no `$`) leaves the `$` orphaned in the final --set arg, which
-      // helm's index parser then chokes on (e.g. `[$0]` -> "invalid syntax").
-      const newTemplateString: string = templateString.replace('${nodeId}', perClusterIndex.toString());
-      valuesArguments[consensusNode.cluster] += newTemplateString.replace(
-        '${recordValue}',
-        records[consensusNode.name],
-      );
     }
   }
 

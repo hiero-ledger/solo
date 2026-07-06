@@ -16,6 +16,7 @@ import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {type K8} from '../integration/kube/k8.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
+import {SoloError} from '../core/errors/solo-error.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {type Context, type ClusterReferences, type SoloListrTask, type SoloListr} from '../types/index.js';
 import {Listr} from 'listr2';
@@ -78,6 +79,14 @@ interface ExternalDatabaseParameters {
   ownerUsername: string;
   ownerPassword: string;
 }
+
+const helpers: {
+  sleep: typeof sleep;
+  extractContextFromConsensusNodes: typeof extractContextFromConsensusNodes;
+} = {
+  sleep,
+  extractContextFromConsensusNodes,
+};
 
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {

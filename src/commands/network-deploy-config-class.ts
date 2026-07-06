@@ -35,8 +35,10 @@ export interface NetworkDeployConfigClass {
   resolvedThrottlesFile: string;
   haproxyIps: string;
   envoyIps: string;
+  networkNodeIps: string;
   haproxyIpsParsed?: Record<NodeAlias, IP>;
   envoyIpsParsed?: Record<NodeAlias, IP>;
+  networkNodeIpsParsed?: Record<NodeAlias, IP>;
   storageType: StorageType;
   gcsWriteAccessKey: string;
   gcsWriteSecrets: string;
