@@ -3570,11 +3570,9 @@ export class NodeCommandTasks {
           configTxtPath,
         );
 
-        const extraEnvironmentChartValuesMap: Record<ClusterReferenceName, HelmChartValues> = {};
         const valuesFilesMap: Record<ClusterReferenceName, HelmChartValues> = {};
         const valueFilePathsMap: Record<ClusterReferenceName, string[]> = {};
         for (const [clusterReference] of clusterReferences) {
-          extraEnvironmentChartValuesMap[clusterReference] = new HelmChartValues();
           valuesFilesMap[clusterReference] = new HelmChartValues();
           valueFilePathsMap[clusterReference] = [];
         }
@@ -3648,11 +3646,11 @@ export class NodeCommandTasks {
               },
               constants.SOLO_CACHE_DIR,
             );
-            // Preserve the old effective Helm merge order for node transactions:
-            // generated extraEnv file first, node --set/--set-literal overrides second,
-            // and transaction/profile/user values files last.
-            extraEnvironmentChartValuesMap[clusterReference].file(extraEnvironmentValuesFile);
-            valueFilePathsMap[clusterReference].push(extraEnvironmentValuesFile);
+            // Place the generated extraEnv file last (after user files) so that Solo-injected
+            // env vars like TSS_LIB_WRAPS_ARTIFACTS_PATH are not wiped out by a user-provided
+            // values file that also defines hedera.nodes[*].root.extraEnv. The generated file
+            // already merges the user's extraEnv entries via baseExtraEnvironmentVariables.
+            valuesFilesMap[clusterReference].userFile(extraEnvironmentValuesFile);
           }
         }
 
@@ -3674,9 +3672,8 @@ export class NodeCommandTasks {
               'Solo chart version',
               MINIMUM_SOLO_CHART_VERSION,
             );
-            const chartValues: HelmChartValues = extraEnvironmentChartValuesMap[clusterReference]
+            const chartValues: HelmChartValues = nodeChartValuesMap[clusterReference]
               .clone()
-              .add(nodeChartValuesMap[clusterReference])
               .add(valuesFilesMap[clusterReference]);
 
             await this.chartManager.upgrade(
