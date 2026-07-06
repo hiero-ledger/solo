@@ -761,7 +761,7 @@ BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
 
 wait_for_mirror_block_progress "source deployment after one-shot" -1 90 2 > /dev/null
 source_block_after_one_shot="$(get_latest_mirror_block_number)"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before block node upgrade: ${source_block_after_one_shot}"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before consensus upgrade: ${source_block_after_one_shot}"
 
 echo "::endgroup::"
 
@@ -770,33 +770,11 @@ echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
 
-# For block stream upgrades where the block node chart version changes, the target
-# consensus node must not start before the target block node is ready. Otherwise CN
-# can advance block-stream state while BN still cannot accept those blocks, leaving
-# mirror importer stuck on the gap.
-#
-# When the block node version is unchanged, performing a stop/start cycle around the
-# upgrade is harmful: CN v0.74.0 fails to reconnect to BN v0.36.0 after an explicit
-# service restart (gRPC reconnection failure), which causes mirror to stall.  Skip
-# the stop/start when the chart version is not actually changing.
 CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
 CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
 PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
 
 echo "Block node version: source=${PREV_BLOCK_VERSION_NO_V}, target=${CURRENT_BLOCK_VERSION}"
-
-if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-  echo "Block node version changing — stopping CN before BN upgrade to prevent block gaps"
-  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
-fi
-
-npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
-
-if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-  npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-fi
-
-wait_for_mirror_block_count_progress "source deployment after block node upgrade" "${source_block_after_one_shot}" 3 180 2 > /dev/null
 
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
 cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
@@ -817,8 +795,25 @@ else
   npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
 fi
 
+# Keep the source CN and BN versions paired during the freeze upgrade. Restarting
+# source CN v0.74 against BN v0.37 replays the freeze-boundary block and leaves BN
+# rejecting block 73 as duplicate/bad proof. Once target CN is installed, stop it
+# around the BN chart recreate so target CN resumes against the target BN version.
+if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  echo "Block node version changing — stopping target CN before BN upgrade"
+  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+fi
+
+npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+
+if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+fi
+
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
+
+wait_for_mirror_block_count_progress "target deployment after component upgrades" "${source_block_after_one_shot}" 3 180 2 > /dev/null
 
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
