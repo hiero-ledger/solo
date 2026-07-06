@@ -144,8 +144,8 @@ export const MIRROR_NODE_CHART: string = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME: string = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
 
-// Importer container name (the importer subchart's `.Chart.Name`) that `mirror node collect-jfr` execs into.
-export const MIRROR_NODE_IMPORTER_CONTAINER_NAME: ContainerName = ContainerName.of('hedera-mirror-importer');
+// Importer container name (the importer subchart's alias in the parent chart) that `mirror node collect-jfr` execs into.
+export const MIRROR_NODE_IMPORTER_CONTAINER_NAME: ContainerName = ContainerName.of('importer');
 
 // In-pod JFR repository path `mirror node collect-jfr` reads from (a dedicated volume, mirrors the block node output dir); enforced by mirror-node-values.test.ts.
 export const MIRROR_NODE_JFR_REPOSITORY_DIRECTORY: string = '/opt/hiero/mirror-node/output/jfr';
