@@ -2691,8 +2691,6 @@ export class BackupRestoreCommand extends BaseCommand {
                         argv.push(optionFromFlag(flags.relayVersion), context_.versions.jsonRpcRelayChart.toString());
                       }
                     }
-                    // Skip relay readiness checks — CN is not running during restore-network
-                    argv.push(CommandHelpers.optionFromFlag(flags.skipRelayReadiness));
                     return CommandHelpers.argvPushGlobalFlags(argv);
                   },
                   this.taskList,

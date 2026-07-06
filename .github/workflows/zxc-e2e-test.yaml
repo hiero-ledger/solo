@@ -209,11 +209,6 @@ on:
         description: "Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):"
         type: number
         required: false
-        default: false
-      dual-cluster-node-count:
-        description: "Dual Cluster Node Count (SOLO_DUAL_CLUSTER_NODE_COUNT):"
-        type: number
-        required: false
         default: 3
       test-timeout-minutes:
         description: "Test Timeout (minutes):"

@@ -15,14 +15,6 @@
       "timeout_minutes": 10
     },
     {
-      "name": "flow-performance-test",
-      "type": "workflow",
-      "path": ".github/workflows/flow-performance-test.yaml",
-      "description": "Performance test workflow",
-      "timeout_minutes": 90,
-      "workflow_inputs_json": "{\"consensus-node-version\":\"v0.74.0-rc1\"}"
-    },
-    {
       "name": "mirror-node-endpoints",
       "type": "script",
       "path": ".github/workflows/script/test-mirror-node-endpoints.sh",

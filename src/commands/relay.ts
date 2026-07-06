@@ -184,7 +184,6 @@ export class RelayCommand extends BaseCommand {
       flags.externalAddress,
       flags.cacheDir,
       flags.devMode,
-      flags.skipRelayReadiness,
 
       // Mirror Node
       flags.mirrorNodeId,
@@ -505,7 +504,6 @@ export class RelayCommand extends BaseCommand {
   private checkRelayIsReadyTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check relay is ready',
-      skip: (): boolean => this.configManager.getFlag<boolean>(flags.skipRelayReadiness),
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
         try {
           await this.k8Factory

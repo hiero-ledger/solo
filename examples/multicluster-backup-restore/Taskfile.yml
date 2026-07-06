@@ -237,18 +237,11 @@ tasks:
       - cmd: echo "🔑 Generating consensus keys..."
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
-<<<<<<< HEAD
-=======
       # Deploy Block Node on Cluster 2
->>>>>>> main
       - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
       - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
 
       # Deploy consensus network
-      # application.properties sets blockStream.streamMode=BOTH so CN streams blocks to the
-      # block node from genesis, allowing it to acquire TSS params (tss-parameters.bin) from
-      # block 0. These are preserved during the block node data reset in restore-config so
-      # TSS verification passes for backed-up blocks after restore.
       # Pin LB IPs into the chart so MetalLB allocates them deterministically and
       # genesis-network.json captures the right gossip endpoints from the start. The
       # same IPs are re-applied during restore-network so destroy+recreate preserves
@@ -256,7 +249,6 @@ tasks:
       - cmd: echo "🚀 Deploying consensus network..."
       - cmd: |
           $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --quiet-mode --dev --load-balancer --pvcs \
-            --application-properties {{ .USER_WORKING_DIR }}/application.properties \
             --haproxy-ips {{ .HAPROXY_IPS }} \
             --envoy-ips {{ .ENVOY_IPS }} \
             --network-node-ips {{ .NETWORK_NODE_IPS }}

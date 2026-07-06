@@ -43,7 +43,6 @@ import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state
 import * as version from '../../version.js';
 import find from 'find-process';
 import type ProcessInfo from 'find-process';
-import {SoloError} from '../core/errors/solo-error.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
 import yaml from 'yaml';
@@ -135,7 +134,7 @@ export class DeploymentCommand extends BaseCommand {
 
   public static REFRESH_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.clusterRef, flags.quiet],
+    optional: [flags.quiet],
   };
 
   public static IMAGES_FLAGS_LIST: CommandFlags = {
@@ -1126,7 +1125,6 @@ export class DeploymentCommand extends BaseCommand {
     interface Config {
       quiet: boolean;
       deployment: DeploymentName;
-      clusterRef: string;
     }
 
     interface RefreshContext {
@@ -1148,7 +1146,6 @@ export class DeploymentCommand extends BaseCommand {
             context_.config = {
               quiet: this.configManager.getFlag<boolean>(flags.quiet),
               deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
-              clusterRef: this.configManager.getFlag<string>(flags.clusterRef),
             } as Config;
 
             // Get namespace from deployment
@@ -1195,14 +1192,7 @@ export class DeploymentCommand extends BaseCommand {
             }
 
             let clusterReference: string = clusterReferences[0];
-            if (context_.config.clusterRef) {
-              if (!clusterReferences.includes(context_.config.clusterRef)) {
-                throw new SoloError(
-                  `Cluster reference '${context_.config.clusterRef}' not found in deployment '${context_.config.deployment}'. Available: ${clusterReferences.join(', ')}`,
-                );
-              }
-              clusterReference = context_.config.clusterRef;
-            } else if (clusterReferences.length > 1) {
+            if (clusterReferences.length > 1) {
               clusterReference = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
                 message: `Multiple clusters found for deployment '${context_.config.deployment}'. Select cluster reference:`,
                 choices: clusterReferences.map((reference): {name: string; value: string} => ({

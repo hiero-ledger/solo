@@ -1441,17 +1441,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly skipRelayReadiness: CommandFlag = {
-    constName: 'skipRelayReadiness',
-    name: 'skip-relay-readiness',
-    definition: {
-      describe: 'Skip waiting for relay pod running and ready checks after deployment',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: undefined,
-  };
-
   public static readonly localBuildPath: CommandFlag = {
     constName: 'localBuildPath',
     name: 'local-build-path',
@@ -3353,7 +3342,6 @@ export class Flags {
     Flags.shard,
     Flags.username,
     Flags.skipNodeAlias,
-    Flags.skipRelayReadiness,
     Flags.id,
     Flags.mirrorNodeId,
     Flags.serviceMonitor,
