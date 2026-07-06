@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/helper.sh"
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MIRROR_NODE_VALUES_FILE=""
+TEMP_BLOCK_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
 
 collect_failure_diagnostics() {
@@ -44,6 +45,10 @@ on_exit() {
 
   if [[ -n "${TEMP_MIRROR_NODE_VALUES_FILE:-}" && -f "${TEMP_MIRROR_NODE_VALUES_FILE}" ]]; then
     rm -f "${TEMP_MIRROR_NODE_VALUES_FILE}"
+  fi
+
+  if [[ -n "${TEMP_BLOCK_NODE_VALUES_FILE:-}" && -f "${TEMP_BLOCK_NODE_VALUES_FILE}" ]]; then
+    rm -f "${TEMP_BLOCK_NODE_VALUES_FILE}"
   fi
 
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
@@ -787,7 +792,19 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
+TEMP_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-migration-block-node-values-XXXX.yaml)"
+cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
+# Generated for the migration workflow. CN 0.75+ streams WRB blocks, and BN 0.37+
+# needs the RSA roster from mirror REST before it can verify those blocks.
+blockNode:
+  config:
+    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-rest:80"
+    ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
+    ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
+EOF
+
 echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+echo "Using temporary block node values override file: ${TEMP_BLOCK_NODE_VALUES_FILE}"
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 if [[ "$(printf '%s\n' "v0.73.0" "${TO_CONSENSUS_NODE_VERSION}" | sort -V | head -n 1)" == "v0.73.0" ]]; then
   npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" -q --dev
@@ -804,9 +821,11 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
 fi
 
-npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  echo "Waiting for block node RSA roster bootstrap before restarting target CN"
+  sleep 10
   npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 fi
 
