@@ -413,7 +413,7 @@ export class BlockNodeCommand extends BaseCommand {
     const serviceName: string = Templates.renderBlockNodeName(blockNode.metadata.id);
     const namespace: string = blockNode.metadata.namespace;
 
-    return [serviceName, Templates.renderSvcFullyQualifiedDomainName(serviceName, namespace, cluster.dnsBaseDomain)];
+    return [Templates.renderSvcFullyQualifiedDomainName(serviceName, namespace, cluster.dnsBaseDomain), serviceName];
   }
 
   private async buildBlockNodeHostAliases(targetBlockNode: BlockNodeStateSchema): Promise<BlockNodeHostAlias[]> {

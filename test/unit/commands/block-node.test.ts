@@ -161,7 +161,7 @@ describe('BlockNodeCommand unit tests', (): void => {
             hostAliases: [
               {
                 ip: '10.96.0.2',
-                hostnames: ['block-node-2', 'block-node-2.solo-ns.svc.cluster.local'],
+                hostnames: ['block-node-2.solo-ns.svc.cluster.local', 'block-node-2'],
               },
             ],
           },
