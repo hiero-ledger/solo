@@ -60,26 +60,28 @@ describe('FilePermissions', (): void => {
   });
 
   describe('restrictTreeToOwner on POSIX', (): void => {
-    it('should clear group-write and all other bits recursively (0755 -> 0750, 0644 -> 0640)', (): void => {
-      isWin32Stub.returns(false);
-      chmodStub.restore(); // exercise the real chmod against a temporary tree
+    if (process.platform !== 'win32') {
+      it('should clear group-write and all other bits recursively (0755 -> 0750, 0644 -> 0640)', (): void => {
+        isWin32Stub.returns(false);
+        chmodStub.restore(); // exercise the real chmod against a temporary tree
 
-      const root: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'file-permissions-'));
-      const nestedDirectory: string = PathEx.join(root, 'templates');
-      const nestedFile: string = PathEx.join(nestedDirectory, 'application.properties');
-      fs.mkdirSync(nestedDirectory);
-      fs.writeFileSync(nestedFile, 'key=value');
-      fs.chmodSync(root, 0o755);
-      fs.chmodSync(nestedDirectory, 0o755);
-      fs.chmodSync(nestedFile, 0o644);
+        const root: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'file-permissions-'));
+        const nestedDirectory: string = PathEx.join(root, 'templates');
+        const nestedFile: string = PathEx.join(nestedDirectory, 'application.properties');
+        fs.mkdirSync(nestedDirectory);
+        fs.writeFileSync(nestedFile, 'key=value');
+        fs.chmodSync(root, 0o755);
+        fs.chmodSync(nestedDirectory, 0o755);
+        fs.chmodSync(nestedFile, 0o644);
 
-      FilePermissions.restrictTreeToOwner(root);
+        FilePermissions.restrictTreeToOwner(root);
 
-      expect(fs.statSync(root).mode & 0o777).to.equal(0o750);
-      expect(fs.statSync(nestedDirectory).mode & 0o777).to.equal(0o750);
-      expect(fs.statSync(nestedFile).mode & 0o777).to.equal(0o640);
+        expect(fs.statSync(root).mode & 0o777).to.equal(0o750);
+        expect(fs.statSync(nestedDirectory).mode & 0o777).to.equal(0o750);
+        expect(fs.statSync(nestedFile).mode & 0o777).to.equal(0o640);
 
-      fs.rmSync(root, {recursive: true, force: true});
-    });
+        fs.rmSync(root, {recursive: true, force: true});
+      });
+    }
   });
 });
