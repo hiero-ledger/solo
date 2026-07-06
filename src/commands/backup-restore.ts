@@ -61,7 +61,7 @@ import {Container} from '../integration/kube/resources/container/container.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {Templates} from '../core/templates.js';
-import {readBlockNodeOnDiskTip, readConsensusBlockStreamTip} from '../core/block-tip-utilities.js';
+import {BlockTipUtilities} from '../core/block-tip-utilities.js';
 import * as Base64 from 'js-base64';
 
 interface ExpectedLbIpAssignment {
@@ -1202,7 +1202,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * a stable signature. Returns -1 when no `.blk*` files exist on disk.
    */
   private async getBlockNodeLatestBlock(blockNodeContainer: Container): Promise<number> {
-    return readBlockNodeOnDiskTip(blockNodeContainer);
+    return BlockTipUtilities.readBlockNodeOnDiskTip(blockNodeContainer);
   }
 
   /**
@@ -1210,7 +1210,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * can pass `undefined` when no CN container could be located.
    */
   private async getConsensusNodeBlockStreamTip(container: Container | undefined): Promise<number> {
-    return container ? readConsensusBlockStreamTip(container) : -1;
+    return container ? BlockTipUtilities.readConsensusBlockStreamTip(container) : -1;
   }
 
   /**
