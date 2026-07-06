@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../errors/solo-errors.js';
 import fs from 'node:fs';
-import * as helpers from '../helpers.js';
+import {Helpers} from '../helpers.js';
 import {type PackageDownloader} from '../package-downloader.js';
 import {Templates} from '../templates.js';
 import {ShellRunner} from '../shell-runner.js';
-import {MissingArgumentError} from '../errors/missing-argument-error.js';
-import {SoloError} from '../errors/solo-error.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 import path from 'node:path';
@@ -36,11 +35,11 @@ export abstract class BaseDependencyManager extends ShellRunner {
     super();
 
     if (!installationDirectory) {
-      throw new MissingArgumentError('installation directory is required');
+      throw new SoloErrors.validation.missingArgument('installation directory is required');
     }
 
     if (!downloader) {
-      throw new MissingArgumentError('package downloader is required');
+      throw new SoloErrors.validation.missingArgument('package downloader is required');
     }
 
     // Normalize architecture naming - many tools use 'amd64' instead of 'x64'
@@ -97,6 +96,15 @@ export abstract class BaseDependencyManager extends ShellRunner {
    * Get the executable to run
    */
   public async getExecutable(): Promise<string> {
+    if (this.isInstalledLocally()) {
+      return this.localExecutableWithPath;
+    }
+
+    const globalExecutablePath: false | string = this.getGlobalExecutableWithPath();
+    if (globalExecutablePath) {
+      return globalExecutablePath;
+    }
+
     return this.executableName;
   }
 
@@ -240,25 +248,21 @@ export abstract class BaseDependencyManager extends ShellRunner {
   /**
    * Install the tool
    */
-  public async install(temporaryDirectory: string = helpers.getTemporaryDirectory()): Promise<boolean> {
+  public async install(temporaryDirectory: string = Helpers.getTemporaryDirectory()): Promise<boolean> {
     if (this.installationDirectory === temporaryDirectory) {
-      throw new SoloError('Installation directory cannot be the same as temporary directory');
+      throw new SoloErrors.system.dependencyInstallDirectoryConflict();
     }
     if (!(await this.shouldInstall())) {
       this.logger.debug(`Skipping installation of ${this.executableName}`);
       return true;
     }
 
-    await this.preInstall();
-
     // Check if it is already installed locally
     if (await this.isInstalledLocallyAndMeetsRequirements()) {
       const localVersion: string = await this.getVersion(this.localExecutableWithPath).catch((): string =>
         this.getRequiredVersion(),
       );
-      this.logger.showUser(
-        `Compatible ${this.executableName} v${localVersion} found at ${this.localExecutableWithPath}`,
-      );
+      this.logger.debug(`Compatible ${this.executableName} v${localVersion} found at ${this.localExecutableWithPath}`);
       return true;
     }
 
@@ -267,12 +271,14 @@ export abstract class BaseDependencyManager extends ShellRunner {
       const globalVersion: string = await this.getVersion(this.globalExecutablePath).catch((): string =>
         this.getRequiredVersion(),
       );
-      this.logger.showUser(`Compatible ${this.executableName} v${globalVersion} found at ${this.globalExecutablePath}`);
+      this.logger.debug(`Compatible ${this.executableName} v${globalVersion} found at ${this.globalExecutablePath}`);
       return true;
     }
 
+    await this.preInstall();
+
     // If not installed, download and install
-    this.logger.showUser(
+    this.logger.debug(
       `Compatible ${this.executableName} ${this.getRequiredVersion()} was not found locally or globally. ` +
         `Downloading and installing it into ${this.installationDirectory}...`,
     );
@@ -301,10 +307,10 @@ export abstract class BaseDependencyManager extends ShellRunner {
         fs.chmodSync(localExecutable, 0o755);
       }
     } catch (error) {
-      throw new SoloError(`Failed to install ${this.executableName}: ${error.message}`);
+      throw new SoloErrors.system.dependencyInstallFailed(this.executableName, error);
     }
 
-    this.logger.showUser(
+    this.logger.debug(
       `Installed ${this.executableName} ${this.getRequiredVersion()} into ${this.installationDirectory}.`,
     );
 

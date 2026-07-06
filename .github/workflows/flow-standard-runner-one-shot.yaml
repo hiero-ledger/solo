@@ -20,6 +20,10 @@ name: "Standard Runner One-Shot Deploy and Destroy"
 # This acts as a compatibility gate: if Solo stops working on standard runners, this job fails.
 
 on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
   pull_request:
     types:
       - opened
@@ -48,12 +52,12 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
@@ -76,9 +80,17 @@ jobs:
 
       - name: One-Shot Single Deploy
         timeout-minutes: 70
+        env:
+          ENABLE_IMAGE_CACHE: 'false'
         run: |
           export PATH=~/.solo/bin:${PATH}
           npm run solo -- one-shot single deploy --dev
+
+      - name: Check Port Forwarding Still Works After Deploy
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          npm run solo -- deployment diagnostics connections -d one-shot --check
 
       - name: Verify Mirror REST API
         timeout-minutes: 10

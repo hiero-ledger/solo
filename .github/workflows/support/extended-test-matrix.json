@@ -8,13 +8,6 @@
       "timeout_minutes": 20
     },
     {
-      "name": "one-shot-timing",
-      "type": "workflow",
-      "path": ".github/workflows/flow-one-shot-timing.yaml",
-      "description": "One-shot timing performance test",
-      "timeout_minutes": 40
-    },
-    {
       "name": "reproduce-stale-config",
       "type": "script",
       "path": ".github/workflows/script/reproduce-stale-config.sh",
@@ -28,6 +21,13 @@
       "description": "Performance test workflow",
       "timeout_minutes": 90,
       "workflow_inputs_json": "{\"consensus-node-version\":\"v0.74.0-rc1\"}"
+    },
+    {
+      "name": "mirror-node-endpoints",
+      "type": "script",
+      "path": ".github/workflows/script/test-mirror-node-endpoints.sh",
+      "description": "Test all major mirror node endpoints (REST, gRPC, Web3, GraphQL)",
+      "timeout_minutes": 40
     }
   ]
 }

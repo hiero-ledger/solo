@@ -35,14 +35,25 @@ tasks:
     silent: true
     cmds:
       - |
-        if [ ! -f build/github-releases.json ]; then
-          echo "Error: build/github-releases.json does not exist. Run github:list:solo:releases first." >&2
+        if [ ! -f build/releases.json ]; then
+          echo "Error: build/releases.json does not exist. Run github:list:solo:releases first, then github:augment:releases." >&2
           exit 1
         fi
         
         echo "Creating directories and downloading assets..."
-        jq -c '.[]' build/github-releases.json | while read -r release; do
+        jq -c '.[]' build/releases.json | while read -r release; do
           tag=$(echo "$release" | jq -r '.tag' | sed 's#[/:]#_#g')
+          # for tag, eg: v0.57.0, set vars major and minor, eg: major=0, minor=57
+          major=$(echo "$tag" | cut -d. -f1 | tr -d 'v')
+          minor=$(echo "$tag" | cut -d. -f2)
+          # get the npmjsLatest field from the release variable, if it's null, set it to false
+          npmjsLatest=$(echo "$release" | jq -r '.npmjsLatest // false')
+        
+          # if major is 0 and minor is less than 57, print a message and skip this release
+          if [[ "$major" -eq 0 && "$minor" -lt 57 ]]; then
+            echo "⚠️ Skipping release $tag (version too old)"
+            continue
+          fi
           mkdir -p "build/$tag"
         
           echo "Processing release: $tag"
@@ -50,16 +61,18 @@ tasks:
             name=$(echo "$asset" | jq -r '.name')
             url=$(echo "$asset" | jq -r '.url')
             dest="build/$tag/$name"
-        
-            if [[ -f "$dest" ]]; then
-              echo "✔ Skipping $name ($dest already exists)"
-            else
-              echo "⬇ Downloading $name, $dest doesn't exist yet"
-              curl -sSL --retry 3 --fail -o "$dest" "$url" || {
-                echo "❌ Failed to download $url" >&2
-                rm -f "$dest"
-              }
+
+            # skip if dest doesn't exist or if the artifact name starts with example- or if the filename is
+            #  docs-latest.tar.gz and npmjsLatest is false
+            if [[ -f "$dest" || "$name" == example-* || ( "$name" == "docs-latest.tar.gz" && "$npmjsLatest" == "false" ) ]]; then
+              # echo "✔ Skipping condition met for $name, not writing $dest, npmjsLatest: $npmjsLatest"
+              continue
             fi
+            echo "⬇ Downloading $name, $dest doesn't exist yet"
+            curl -sSL --retry 3 --fail -o "$dest" "$url" || {
+              echo "❌ Failed to download $url" >&2
+              rm -f "$dest"
+            }
           done
         done
 
@@ -129,6 +142,54 @@ tasks:
           fi
         done
 
+  github:mutate:urls:
+    desc: Update URLs for older versions to point to the new path structure
+    silent: true
+    cmds:
+      - |
+        # The site is published to GitHub Pages under https://hiero-ledger.github.io/solo/, so every
+        #  published URL must carry the /solo path prefix. Docs for older versions were extracted from
+        #  release tarballs that were built before that prefix existed: they reference the retired
+        #  https://solo.hiero.org host and use root-relative links such as /v0.57.0/... (no /solo).
+        #  This task rewrites the already-extracted docs under ./public so that:
+        #    - references to https://solo.hiero.org          -> https://hiero-ledger.github.io/solo
+        #    - root-relative /main, /latest and /<tag> links -> /solo/main, /solo/latest, /solo/<tag>
+        #  Absolute URLs gain /solo from the host rewrite above, so the segment rewrite only needs to
+        #  handle root-relative links. It anchors on a URL-start delimiter (=, ", ', (, comma or
+        #  whitespace) via the \x27-escaped lookbehind, which is why it is safe and idempotent:
+        #    - it only matches a version as the FIRST path segment of a URL, so deeper path components
+        #      such as js/main.min.js or scss/main.min.css (where "main" is a filename, not a version)
+        #      are never touched;
+        #    - links that already start with /solo/<segment> are left alone, because the segment then
+        #      follows a slash rather than a delimiter, so freshly built docs are never double-prefixed.
+        if [ ! -d public ]; then
+          echo "No public directory found, nothing to mutate."
+          exit 0
+        fi
+
+        # Build the alternation of version segments to prefix: main, latest and every release tag.
+        #  Tags (e.g. v0.57.0) contain dots, which are escaped so they are matched literally by perl.
+        ALT="main|latest"
+        if [ -f build/releases.json ]; then
+          for tag in $(jq -r '.[].tag' build/releases.json); do
+            escaped=$(printf '%s' "$tag" | sed 's/\./\\./g')
+            ALT="$ALT|$escaped"
+          done
+        fi
+        export ALT
+
+        echo "Rewriting URLs under ./public to include the /solo path prefix..."
+        # -exec ... {} + batches files into a few perl invocations and is skipped entirely when no
+        #  file matches, so it stays portable across the GitHub (Linux) and local (macOS) runners.
+        find public -type f \
+          \( -name '*.html' -o -name '*.htm' -o -name '*.xml' -o -name '*.json' \
+             -o -name '*.js' -o -name '*.css' -o -name '*.txt' \) \
+          -exec perl -i -pe '
+            s{https://solo\.hiero\.org}{https://hiero-ledger.github.io/solo}g;
+            s{(?<=[="\x27(,\s])/($ENV{ALT})\b}{/solo/$1}g;
+          ' {} +
+        echo "✅ URL mutation complete."
+
   github:update:hugo:config:
     desc: Append versions from releases.json to hugo.yaml
     silent: true
@@ -142,8 +203,27 @@ tasks:
           exit 1
         fi
         
-        jq -r '.[] | select(.npmjsLatest == true or .npmjsLatest == false) | .tag' "$RELEASES" | while read -r VERSION; do
-          LINE="    - {version: $VERSION, url: /$VERSION}"
+        # Only consider releases that actually published a docs-<tag>.tar.gz asset. When a release's
+        #  Hugo docs deploy failed, that asset is missing (e.g. v0.75.0 has only the example-*.zip
+        #  assets), so there is nothing to extract into public/<tag> and a dropdown entry would only
+        #  404. Detecting this from the release metadata (rather than from local extraction) keeps the
+        #  filter correct for both the aggregation build and the standalone versioned build.
+        jq -r '
+          .[]
+          | select(.npmjsLatest == true or .npmjsLatest == false)
+          | . as $release
+          | select(any($release.assets[]; .name == "docs-\($release.tag).tar.gz"))
+          | $release.tag
+        ' "$RELEASES" | while read -r VERSION; do
+          # Skip anything older than v0.57.0: those releases are not downloaded or extracted
+          #  (see github:download:solo:assets), so they must not appear in the versions dropdown.
+          MAJOR=$(echo "$VERSION" | cut -d. -f1 | tr -d 'v')
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          if [[ "$MAJOR" -eq 0 && "$MINOR" -lt 57 ]]; then
+            echo "⚠️ Skipping dropdown entry for $VERSION (version too old)"
+            continue
+          fi
+          LINE="    - {version: $VERSION, url: /solo/$VERSION}"
           if ! grep -q "version: $VERSION," "$CONFIG"; then
             echo "$LINE" >> "$CONFIG"
           fi
@@ -221,6 +301,10 @@ tasks:
         # Define asset paths using the RELEASE_TAG variable
         ASSET_LATEST="./build/${RELEASE_TAG}/docs-latest.tar.gz"
         ASSET_VERSIONED="./build/${RELEASE_TAG}/docs-${RELEASE_TAG}.tar.gz"
+        ASSET_COMMAND_OUTPUT="./build/solo-command-output.json"
+        ASSET_CLI_HELP="./build/solo-cli.md"
+        # Combined archive consumed by solo-docs: solo-cli.md + the SoloError page bodies.
+        ASSET_DOCS_CONTENT="./build/solo-docs-content.tar.gz"
 
         # Check if asset files exist before attempting upload
         if [ ! -f "$ASSET_LATEST" ]; then
@@ -231,15 +315,26 @@ tasks:
           echo "Error: Asset file not found: $ASSET_VERSIONED" >&2
           exit 1
         fi
+        if [ ! -f "$ASSET_DOCS_CONTENT" ]; then
+          echo "Error: Asset file not found: $ASSET_DOCS_CONTENT" >&2
+          exit 1
+        fi
 
         echo "Assets to be uploaded:"
         echo "  - $ASSET_LATEST"
         echo "  - $ASSET_VERSIONED"
-        
+        echo "  - $ASSET_DOCS_CONTENT"
+
         echo "Uploading assets to GitHub release ${RELEASE_TAG}..."
         # gh release upload command. Errors will cause script to exit due to 'set -e'.
         # The --repo flag specifies the target repository.
         # Multiple asset files can be listed at the end of the command.
-        gh release upload "${RELEASE_TAG}" "$ASSET_LATEST" "$ASSET_VERSIONED" --repo hiero-ledger/solo --clobber
+        gh release upload "${RELEASE_TAG}" \
+          "$ASSET_LATEST" \
+          "$ASSET_VERSIONED" \
+          "$ASSET_COMMAND_OUTPUT" \
+          "$ASSET_CLI_HELP" \
+          "$ASSET_DOCS_CONTENT" \
+          --repo hiero-ledger/solo --clobber
 
         echo "Successfully uploaded assets for release ${RELEASE_TAG}."

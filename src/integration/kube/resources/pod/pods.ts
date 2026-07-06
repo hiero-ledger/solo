@@ -80,6 +80,20 @@ export interface Pods {
   ): Promise<Pod[]>;
 
   /**
+   * Wait until no pods remain for the given label selector in the namespace.
+   * @param namespace - namespace
+   * @param labels - pod labels
+   * @param maxAttempts - maximum attempts to check
+   * @param delay - delay between checks in milliseconds
+   */
+  waitForPodsToTerminate(
+    namespace: NamespaceName,
+    labels: string[],
+    maxAttempts?: number,
+    delay?: number,
+  ): Promise<void>;
+
+  /**
    * List all the pods across all namespaces with the given labels
    * @param labels - list of labels
    * @returns list of pods
@@ -115,9 +129,10 @@ export interface Pods {
    * Read logs for the given pod across all containers.
    * @param podReference - the reference to the pod
    * @param timestamps - include timestamps in output
+   * @param previous - if true, get logs from the previous container instance (if it exists)
    * @returns logs as a single string
    */
-  readLogs(podReference: PodReference, timestamps?: boolean): Promise<string>;
+  readLogs(podReference: PodReference, timestamps?: boolean, previous?: boolean): Promise<string>;
 
   /**
    * Build a describe-like textual report for a pod, including pod details and related events.
@@ -148,4 +163,6 @@ export interface Pods {
    * @returns describe-like output string
    */
   readDescribe(podReference: PodReference): Promise<string>;
+
+  detectFatalContainerError(pod: Pod): string | undefined;
 }

@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import * as fs from 'node:fs';
 import {Listr} from 'listr2';
 import * as path from 'node:path';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
-import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
 import {type ConfigManager} from './config-manager.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
@@ -48,17 +46,17 @@ export class PlatformInstaller {
   private _getNamespace(): NamespaceName {
     const ns: NamespaceName = this.configManager.getFlag<NamespaceName>(flags.namespace);
     if (!ns) {
-      throw new MissingArgumentError('namespace is not set');
+      throw new SoloErrors.validation.missingArgument('namespace is not set');
     }
     return ns;
   }
 
   public validatePlatformReleaseDir(releaseDirectory: string): void {
     if (!releaseDirectory) {
-      throw new MissingArgumentError('releaseDirectory is required');
+      throw new SoloErrors.validation.missingArgument('releaseDirectory is required');
     }
     if (!fs.existsSync(releaseDirectory)) {
-      throw new IllegalArgumentError('releaseDirectory does not exists', releaseDirectory);
+      throw new SoloErrors.validation.illegalArgument('releaseDirectory does not exists', releaseDirectory);
     }
 
     const dataDirectory: string = `${releaseDirectory}/data`;
@@ -66,18 +64,21 @@ export class PlatformInstaller {
     const libraryDirectory: string = `${releaseDirectory}/${constants.HEDERA_DATA_LIB_DIR}`;
 
     if (!fs.existsSync(dataDirectory)) {
-      throw new IllegalArgumentError('releaseDirectory does not have data directory', releaseDirectory);
+      throw new SoloErrors.validation.illegalArgument(
+        'releaseDirectory does not have data directory',
+        releaseDirectory,
+      );
     }
 
     if (!fs.existsSync(appsDirectory)) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         `'${constants.HEDERA_DATA_APPS_DIR}' missing in '${releaseDirectory}'`,
         releaseDirectory,
       );
     }
 
     if (!fs.existsSync(libraryDirectory)) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         `'${constants.HEDERA_DATA_LIB_DIR}' missing in '${releaseDirectory}'`,
         releaseDirectory,
       );
@@ -87,7 +88,7 @@ export class PlatformInstaller {
       .readdirSync(appsDirectory)
       .filter((file: string): boolean => file.endsWith('.jar'));
     if (appsJarFiles.length === 0) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         `No jar files found in '${constants.HEDERA_DATA_APPS_DIR}' in releaseDir: ${releaseDirectory}`,
         releaseDirectory,
       );
@@ -97,7 +98,7 @@ export class PlatformInstaller {
       .readdirSync(libraryDirectory)
       .filter((file: string): boolean => file.endsWith('.jar'));
     if (libraryJarFiles.length === 0) {
-      throw new IllegalArgumentError(
+      throw new SoloErrors.validation.illegalArgument(
         `No jar files found in '${constants.HEDERA_DATA_LIB_DIR}' in releaseDir: ${releaseDirectory}`,
         releaseDirectory,
       );
@@ -106,7 +107,7 @@ export class PlatformInstaller {
 
   public async getPlatformRelease(stagingDirectory: string, tag: string): Promise<string[]> {
     if (!tag) {
-      throw new MissingArgumentError('tag is required');
+      throw new SoloErrors.validation.missingArgument('tag is required');
     }
 
     // Download the platform zip client-side into {stagingDir}/build/
@@ -136,16 +137,16 @@ export class PlatformInstaller {
     context?: string,
   ) {
     if (!podReference) {
-      throw new MissingArgumentError('podReference is required');
+      throw new SoloErrors.validation.missingArgument('podReference is required');
     }
     if (!tag) {
-      throw new MissingArgumentError('tag is required');
+      throw new SoloErrors.validation.missingArgument('tag is required');
     }
     if (!zipPath) {
-      throw new IllegalArgumentError('zipPath is required');
+      throw new SoloErrors.validation.illegalArgument('zipPath is required');
     }
     if (!checksumPath) {
-      throw new IllegalArgumentError('checksumPath is required');
+      throw new SoloErrors.validation.illegalArgument('checksumPath is required');
     }
 
     try {
@@ -179,7 +180,7 @@ export class PlatformInstaller {
       this.logger.showUser(`Log file content from ${logFile}:\n${response}`);
 
       const message: string = `failed to extract platform code in this pod '${podReference}' while using the '${context}' context: ${error.message}`;
-      throw new SoloError(message, error);
+      throw new SoloErrors.system.containerOperationFailed(message, error);
     }
   }
 
@@ -206,7 +207,7 @@ export class PlatformInstaller {
       // prepare the file mapping
       for (const sourcePath of sourceFiles) {
         if (!fs.existsSync(sourcePath)) {
-          throw new SoloError(`file does not exist: ${sourcePath}`);
+          throw new SoloErrors.component.platformFileNotFound(sourcePath);
         }
 
         const k8Containers: Containers = this.k8Factory.getK8(context).containers();
@@ -224,8 +225,10 @@ export class PlatformInstaller {
 
       return copiedFiles;
     } catch (error) {
-      throw new SoloError(
-        `failed to copy files: ${sourceFiles.join(', ')}, to ${podReference.name}:${destinationDirectory}: ${error.message}`,
+      throw new SoloErrors.component.platformFileCopyFailed(
+        sourceFiles,
+        podReference.name.toString(),
+        destinationDirectory,
         error,
       );
     }
@@ -237,13 +240,13 @@ export class PlatformInstaller {
     consensusNodes: ConsensusNode[],
   ): Promise<void> {
     if (!consensusNode) {
-      throw new MissingArgumentError('consensusNode is required');
+      throw new SoloErrors.validation.missingArgument('consensusNode is required');
     }
     if (!stagingDirectory) {
-      throw new MissingArgumentError('stagingDirectory is required');
+      throw new SoloErrors.validation.missingArgument('stagingDirectory is required');
     }
     if (!consensusNodes || consensusNodes.length <= 0) {
-      throw new MissingArgumentError('consensusNodes cannot be empty');
+      throw new SoloErrors.validation.missingArgument('consensusNodes cannot be empty');
     }
 
     try {
@@ -287,12 +290,14 @@ export class PlatformInstaller {
         );
 
       if (!secretCreated) {
-        throw new SoloError(`failed to create secret for gossip keys for node '${consensusNode.name}'`);
+        throw new SoloErrors.component.gossipKeySecretCreationFailed(consensusNode.name);
       }
     } catch (error) {
-      const errorMessage: string = error instanceof Error ? error.message : String(error);
-      const message: string = `failed to copy gossip keys to secret '${Templates.renderGossipKeySecretName(consensusNode.name as NodeAlias)}': ${errorMessage}`;
-      throw new SoloError(message, error);
+      throw new SoloErrors.component.gossipKeySecretCreationFailed(
+        consensusNode.name,
+        `failed to copy gossip keys to secret '${Templates.renderGossipKeySecretName(consensusNode.name as NodeAlias)}'`,
+        error,
+      );
     }
   }
 
@@ -302,10 +307,10 @@ export class PlatformInstaller {
     contexts: string[],
   ): Promise<void> {
     if (!consensusNodes || consensusNodes.length <= 0) {
-      throw new MissingArgumentError('consensusNodes cannot be empty');
+      throw new SoloErrors.validation.missingArgument('consensusNodes cannot be empty');
     }
     if (!stagingDirectory) {
-      throw new MissingArgumentError('stagingDirectory is required');
+      throw new SoloErrors.validation.missingArgument('stagingDirectory is required');
     }
 
     try {
@@ -340,27 +345,27 @@ export class PlatformInstaller {
           .createOrReplace(this._getNamespace(), 'network-node-hapi-app-secrets', SecretType.OPAQUE, data);
 
         if (!secretCreated) {
-          throw new SoloError('failed to create secret for TLS keys');
+          throw new SoloErrors.component.tlsKeySecretCreationFailed();
         }
       }
     } catch (error: unknown) {
-      throw new SoloError('failed to copy TLS keys to secret', error);
+      throw new SoloErrors.component.tlsKeySecretCreationFailed(error as Error);
     }
   }
 
   public async setPathPermission(
     podReference: PodReference,
     destinationPath: string,
-    mode: string = '0755',
+    mode: string = '0750',
     recursive: boolean = true,
     container: ContainerName = constants.ROOT_CONTAINER,
     context?: string,
   ): Promise<boolean> {
     if (!podReference) {
-      throw new MissingArgumentError('podReference is required');
+      throw new SoloErrors.validation.missingArgument('podReference is required');
     }
     if (!destinationPath) {
-      throw new MissingArgumentError('destPath is required');
+      throw new SoloErrors.validation.missingArgument('destPath is required');
     }
     const containerReference: ContainerReference = ContainerReference.of(podReference, container);
 
@@ -380,7 +385,7 @@ export class PlatformInstaller {
 
   public async setPlatformDirPermissions(podReference: PodReference, context?: string): Promise<boolean> {
     if (!podReference) {
-      throw new MissingArgumentError('podReference is required');
+      throw new SoloErrors.validation.missingArgument('podReference is required');
     }
 
     try {
@@ -392,7 +397,7 @@ export class PlatformInstaller {
 
       return true;
     } catch (error) {
-      throw new SoloError(`failed to set permission in '${podReference.name}'`, error);
+      throw new SoloErrors.system.containerOperationFailed(`set permission in ${podReference.name}`, error);
     }
   }
 
@@ -441,6 +446,20 @@ export class PlatformInstaller {
         undefined,
         context,
       );
+
+      // Create a persistent archive copy used by `ledger system reset` to restore
+      // genesis-network.json without needing to re-run `consensus node setup`.
+      const archiveDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config/.archive`;
+      await this.k8Factory
+        .getK8(context)
+        .containers()
+        .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
+        .execContainer([
+          'bash',
+          '-c',
+          `mkdir -p ${archiveDirectory} && ` +
+            `cp ${constants.HEDERA_HAPI_PATH}/data/config/genesis-network.json ${archiveDirectory}/genesis-network.json`,
+        ]);
     }
 
     // TODO: temporarily disable this until we add logic to only set this when the user provides the node override gossip endpoints for each node they want to override

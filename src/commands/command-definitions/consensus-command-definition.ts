@@ -98,6 +98,21 @@ export class ConsensusCommandDefinition extends BaseCommandDefinition {
   public static readonly DESTROY_COMMAND: string =
     `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_DESTROY}` as const;
 
+  public static readonly ADD_COMMAND: string =
+    `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_ADD}` as const;
+
+  public static readonly UPDATE_COMMAND: string =
+    `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_UPDATE}` as const;
+
+  public static readonly UPGRADE_COMMAND: string =
+    `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NETWORK_UPGRADE}` as const;
+
+  public static readonly STATES_COMMAND: string =
+    `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_STATES}` as const;
+
+  public static readonly RESTART_COMMAND: string =
+    `${ConsensusCommandDefinition.COMMAND_NAME} ${ConsensusCommandDefinition.NODE_SUBCOMMAND_NAME} ${ConsensusCommandDefinition.NODE_RESTART}` as const;
+
   public getCommandDefinition(): CommandDefinition {
     return (
       new CommandBuilder(ConsensusCommandDefinition.COMMAND_NAME, ConsensusCommandDefinition.DESCRIPTION, this.logger)

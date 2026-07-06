@@ -45,7 +45,9 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.gossipEndpoints,
   flags.grpcEndpoints,
   flags.domainNames,
+  // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
+  flags.consensusNodeVersion,
   flags.wrapsKeyPath,
 ];
 
@@ -134,7 +136,9 @@ const COMMON_DESTROY_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.quiet,
   flags.chartDirectory,
   flags.domainNames,
+  // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
+  flags.consensusNodeVersion,
 ];
 
 const COMMON_ADD_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
@@ -162,7 +166,9 @@ const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.endpointType,
   flags.generateGossipKeys,
   flags.generateTlsKeys,
+  // Keep deprecated legacy flag accepted for backward compatibility.
   flags.releaseTag,
+  flags.consensusNodeVersion,
   flags.blockNodeMapping,
   flags.externalBlockNodeMapping,
   flags.grpcWebEndpoint,
@@ -214,6 +220,11 @@ export const LOGS_FLAGS: CommandFlags = {
   optional: [flags.deployment, flags.quiet, flags.outputDir],
 };
 
+export const REPORT_FLAGS: CommandFlags = {
+  required: [],
+  optional: [flags.deployment, flags.quiet, flags.outputDir],
+};
+
 export const ANALYZE_FLAGS: CommandFlags = {
   required: [],
   optional: [flags.inputDir, flags.quiet],
@@ -232,7 +243,9 @@ export const REFRESH_FLAGS: CommandFlags = {
     flags.devMode,
     flags.quiet,
     flags.nodeAliasesUnparsed,
+    // Keep deprecated legacy flag accepted for backward compatibility.
     flags.releaseTag,
+    flags.consensusNodeVersion,
     flags.cacheDir,
     flags.domainNames,
   ],
@@ -287,7 +300,9 @@ export const SETUP_FLAGS: CommandFlags = {
   required: [flags.deployment],
   optional: [
     flags.cacheDir,
+    // Keep deprecated legacy flag accepted for backward compatibility.
     flags.releaseTag,
+    flags.consensusNodeVersion,
     flags.app,
     flags.appConfig,
     flags.nodeAliasesUnparsed,
@@ -305,6 +320,6 @@ export const COLLECT_JFR_FLAGS: CommandFlags = {
 };
 
 export const DIAGNOSTICS_CONNECTIONS: CommandFlags = {
-  required: [flags.deployment],
-  optional: [flags.quiet, flags.devMode],
+  required: [],
+  optional: [flags.deployment, flags.quiet, flags.devMode, flags.check],
 };

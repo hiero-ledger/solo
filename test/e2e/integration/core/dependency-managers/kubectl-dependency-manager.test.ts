@@ -121,7 +121,7 @@ describe('KubectlDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub.withArgs(`"${fakeGlobalKubectlPath}" version --client`).resolves(mockVersionOutputValid.split('\n'));
+      runStub.withArgs(fakeGlobalKubectlPath, ['version', '--client']).resolves(mockVersionOutputValid.split('\n'));
       existsSyncStub.withArgs(`${localInstallationDirectory}/kubectl`).returns(false);
 
       try {
@@ -131,7 +131,7 @@ describe('KubectlDependencyManager', (): void => {
 
         expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
         // Should return global path since it meets requirements
-        expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
+        expect(await kubectlDependencyManager.getExecutable()).to.equal(fakeGlobalKubectlPath);
       } finally {
         process.env.PATH = originalPath;
       }
@@ -142,7 +142,9 @@ describe('KubectlDependencyManager', (): void => {
       sandbox.stub(fs, 'accessSync').throws(Object.assign(new Error('ENOENT'), {code: 'ENOENT'}));
       expect(await kubectlDependencyManager.install(getTestCacheDirectory())).to.be.true;
       expect(fs.existsSync(PathEx.join(localInstallationDirectory, constants.KUBECTL))).to.be.ok;
-      expect(await kubectlDependencyManager.getExecutable()).to.equal(constants.KUBECTL);
+      expect(await kubectlDependencyManager.getExecutable()).to.equal(
+        PathEx.join(localInstallationDirectory, constants.KUBECTL),
+      );
     });
 
     it('should be able to use local installation on repeated calls without reinstalling given global installation does not meet requirements', async (): Promise<void> => {
@@ -251,7 +253,7 @@ describe('KubectlDependencyManager', (): void => {
         expect.fail('Should have thrown an error');
       } catch (error: unknown) {
         expect(error).to.be.instanceOf(Error);
-        expect((error as Error).message).to.include('Failed to get kubectl version');
+        expect((error as Error).message).to.include('Failed to check kubectl version');
       }
     });
 
@@ -263,7 +265,7 @@ describe('KubectlDependencyManager', (): void => {
         expect.fail('Should have thrown an error');
       } catch (error: unknown) {
         expect(error).to.be.instanceOf(Error);
-        expect((error as Error).message).to.include('Failed to get kubectl version');
+        expect((error as Error).message).to.include('Failed to check kubectl version');
       }
     });
 

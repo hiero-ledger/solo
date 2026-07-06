@@ -12,23 +12,34 @@ import {Duration} from '../../../src/core/time/duration.js';
 import {container} from 'tsyringe-neo';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
+import {type NodeKeyObject} from '../../../src/types/node-key-object.js';
+import {type PrivateKeyAndCertificateObject} from '../../../src/types/private-key-and-certificate-object.js';
 
-describe('KeyManager', () => {
+describe('KeyManager', (): void => {
   const keyManager: KeyManager = container.resolve(InjectTokens.KeyManager);
 
-  it('should generate signing key', async () => {
-    const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'keys-'));
-    const nodeAlias = 'node1' as NodeAlias;
-    const keyPrefix = constants.SIGNING_KEY_PREFIX;
+  it('should generate signing key', async (): Promise<void> => {
+    const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'keys-'));
+    const nodeAlias: NodeAlias = 'node1' as NodeAlias;
+    const keyPrefix: string = constants.SIGNING_KEY_PREFIX;
 
-    const signingKey = await keyManager.generateSigningKey(nodeAlias);
+    const signingKey: NodeKeyObject = await keyManager.generateSigningKey(nodeAlias);
 
-    const nodeKeyFiles = keyManager.prepareNodeKeyFilePaths(nodeAlias, temporaryDirectory);
-    const files = await keyManager.storeNodeKey(nodeAlias, signingKey, temporaryDirectory, nodeKeyFiles, keyPrefix);
+    const nodeKeyFiles: PrivateKeyAndCertificateObject = keyManager.prepareNodeKeyFilePaths(
+      nodeAlias,
+      temporaryDirectory,
+    );
+    const files: PrivateKeyAndCertificateObject = await keyManager.storeNodeKey(
+      nodeAlias,
+      signingKey,
+      temporaryDirectory,
+      nodeKeyFiles,
+      keyPrefix,
+    );
     expect(files.privateKeyFile).not.to.be.null;
     expect(files.certificateFile).not.to.be.null;
 
-    const nodeKey = await keyManager.loadSigningKey(nodeAlias, temporaryDirectory);
+    const nodeKey: NodeKeyObject = await keyManager.loadSigningKey(nodeAlias, temporaryDirectory);
     expect(nodeKey.certificate.rawData.toString()).to.equal(signingKey.certificate.rawData.toString());
     expect(nodeKey.privateKey.algorithm).to.deep.equal(signingKey.privateKey.algorithm);
     expect(nodeKey.privateKey.type).to.deep.equal(signingKey.privateKey.type);
@@ -43,19 +54,19 @@ describe('KeyManager', () => {
     fs.rmSync(temporaryDirectory, {recursive: true});
   });
 
-  it('should generate TLS key', async () => {
-    const temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'keys-'));
-    const nodeAlias = 'node1';
+  it('should generate TLS key', async (): Promise<void> => {
+    const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'keys-'));
+    const nodeAlias: NodeAlias = 'node1';
 
-    const tlsKey = await keyManager.generateGrpcTlsKey(nodeAlias);
+    const tlsKey: NodeKeyObject = await keyManager.generateGrpcTlsKey(nodeAlias);
     expect(tlsKey.certificate.subject).not.to.equal('');
     expect(tlsKey.certificate.issuer).not.to.equal('');
 
-    const files = await keyManager.storeTLSKey(nodeAlias, tlsKey, temporaryDirectory);
+    const files: PrivateKeyAndCertificateObject = await keyManager.storeTLSKey(nodeAlias, tlsKey, temporaryDirectory);
     expect(files.privateKeyFile).not.to.be.null;
     expect(files.certificateFile).not.to.be.null;
 
-    const nodeKey = await keyManager.loadTLSKey(nodeAlias, temporaryDirectory);
+    const nodeKey: NodeKeyObject = await keyManager.loadTLSKey(nodeAlias, temporaryDirectory);
     expect(nodeKey.certificate.subject).to.deep.equal(tlsKey.certificate.subject);
     expect(nodeKey.certificate.issuer).to.deep.equal(tlsKey.certificate.issuer);
     expect(nodeKey.certificate.rawData.toString()).to.deep.equal(tlsKey.certificate.rawData.toString());

@@ -17,6 +17,8 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {type ConfigManager} from '../../../src/core/config-manager.js';
 import {type ConfigProvider} from '../../../src/data/configuration/api/config-provider.js';
 import {type NodeCommandTasks} from '../../../src/commands/node/tasks.js';
+import {type SoloListrTask} from '../../../src/types/index.js';
+import {type NodeAddContext} from '../../../src/commands/node/config-interfaces/node-add-context.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {ValueContainer} from '../../../src/core/dependency-injection/value-container.js';
 import {type InstanceOverrides} from '../../../src/core/dependency-injection/container-init.js';
@@ -35,7 +37,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
 
   beforeEach(async (): Promise<void> => {
     sourceDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'wraps-test-'));
-    extractedDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v0.2.0');
+    extractedDirectory = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps-v1.0.0');
 
     // Ensure parent cache directory exists
     if (!fs.existsSync(constants.SOLO_CACHE_DIR)) {
@@ -93,7 +95,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     argv.setArg(flags.wrapsKeyPath, sourceDirectory);
     configManager.update(argv.build());
 
-    const listrTask = nodeCommandTasks.addWrapsLib();
+    const listrTask: SoloListrTask<NodeAddContext> = nodeCommandTasks.addWrapsLib();
     await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
 
     const copiedFiles: string[] = fs.readdirSync(extractedDirectory);
@@ -115,7 +117,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     argv.setArg(flags.wrapsKeyPath, sourceDirectory);
     configManager.update(argv.build());
 
-    const listrTask = nodeCommandTasks.addWrapsLib();
+    const listrTask: SoloListrTask<NodeAddContext> = nodeCommandTasks.addWrapsLib();
     await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
 
     const copiedFiles: string[] = fs.readdirSync(extractedDirectory);
@@ -130,7 +132,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     argv.setArg(flags.wrapsKeyPath, '/this/path/does/not/exist');
     configManager.update(argv.build());
 
-    const listrTask = nodeCommandTasks.addWrapsLib();
+    const listrTask: SoloListrTask<NodeAddContext> = nodeCommandTasks.addWrapsLib();
 
     try {
       await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
@@ -150,7 +152,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     argv.setArg(flags.wrapsKeyPath, sourceDirectory);
     configManager.update(argv.build());
 
-    const listrTask = nodeCommandTasks.addWrapsLib();
+    const listrTask: SoloListrTask<NodeAddContext> = nodeCommandTasks.addWrapsLib();
     await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
 
     expect(fs.existsSync(extractedDirectory)).to.be.true;
@@ -161,7 +163,7 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
     const argv: Argv = Argv.initializeEmpty();
     configManager.update(argv.build());
 
-    const listrTask = nodeCommandTasks.addWrapsLib();
+    const listrTask: SoloListrTask<NodeAddContext> = nodeCommandTasks.addWrapsLib();
     await listrTask.task({config: {consensusNodes: []}} as any, {} as any);
 
     expect(downloaderStub.fetchPackage.calledOnce).to.be.true;
@@ -172,10 +174,10 @@ describe('NodeCommandTasks.addWrapsLib', (): void => {
 describe('TssSchema WRAPS defaults', (): void => {
   it('allowedKeyFiles default should contain the expected file names', (): void => {
     const wraps: WrapsSchema = new WrapsSchema(
-      'wraps-v0.2.0',
-      'wraps-v0.2.0',
+      'data/keys/wraps-v1.0.0',
+      'wraps-v1.0.0',
       'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin',
-      'https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz',
+      'https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz',
     );
     const tss: TssSchema = new TssSchema(undefined, undefined, undefined, undefined, undefined, wraps);
     const files: string[] = (tss.wraps?.allowedKeyFiles ?? '').split(',');

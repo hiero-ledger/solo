@@ -11,7 +11,7 @@ import {PathEx} from '../../business/utils/path-ex.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import fs from 'node:fs';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const HELM_RELEASE_BASE_URL: string = 'https://get.helm.sh';
@@ -99,21 +99,17 @@ export class HelmDependencyManager extends BaseDependencyManager {
       // Override KUBECONFIG to prevent loading kubeconfig and triggering authentication
       // plugins (e.g., Teleport exec credentials) which can hang in non-interactive environments.
       const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
-      const output: string[] = await this.run(
-        `"${executableWithPath}" version --short`,
-        [],
-        false,
-        false,
-        {KUBECONFIG: nullDevice},
-        30_000,
-      );
+      const output: string[] = await this.run(executableWithPath, ['version', '--short'], {
+        environmentVariablesToAppend: {KUBECONFIG: nullDevice},
+        timeoutMs: 30_000,
+      });
       const parts: string[] = output[0].split('+');
       const versionOnly: string = parts[0];
       this.logger.info(`Helm version: ${versionOnly}`);
       this.logger.debug(`Found ${constants.HELM}:${versionOnly}`);
       return versionOnly;
     } catch (error) {
-      throw new SoloError('Failed to check helm version', error);
+      throw new SoloErrors.system.dependencyVersionCheckFailed('helm', error);
     }
   }
 

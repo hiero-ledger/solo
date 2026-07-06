@@ -3,7 +3,7 @@
 import {inject, injectable} from 'tsyringe-neo';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {patchInject} from './dependency-injection/container-helper.js';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
 import {type Lock} from './lock/lock.js';
 import * as constants from './constants.js';
 import fs from 'node:fs';
@@ -13,10 +13,12 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type AccountManager} from './account-manager.js';
 import {type TaskList} from './task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
+import {SoloListr} from '../types/index.js';
+import {AnyListrContext} from '../types/aliases.js';
 
 @injectable()
 export class CommandHandler {
-  protected readonly _configMaps: Map<string, any> = new Map<string, any>();
+  protected readonly _configMaps: Map<string, any> = new Map();
 
   public constructor(
     @inject(InjectTokens.SoloLogger) public readonly logger?: SoloLogger,
@@ -38,18 +40,23 @@ export class CommandHandler {
     actionTasks: any,
     options: any,
     errorString: string,
-    lease: Lock | null,
+    lease?: Lock,
     commandName?: string,
   ): Promise<void> {
     if (!commandName) {
       commandName = argv._.slice(0, 3).join(' ');
     }
-    const tasks = this.taskList.newTaskList([...actionTasks], options, undefined, commandName);
+    const tasks: SoloListr<AnyListrContext> = this.taskList.newTaskList(
+      [...actionTasks],
+      options,
+      undefined,
+      commandName,
+    );
     if (tasks.isRoot()) {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`${errorString}: ${error.message}`, error);
+        throw new SoloErrors.system.containerOperationFailed(errorString, error);
       } finally {
         const promises: Promise<void>[] = [];
         if (!this.oneShotState.isActive() && lease) {
@@ -89,8 +96,8 @@ export class CommandHandler {
         }
         this.logger.debug(`OK: setup directory: ${directoryPath}`);
       }
-    } catch (error: Error | any) {
-      throw new SoloError(`failed to create directory: ${error.message}`, error);
+    } catch (error) {
+      throw new SoloErrors.system.directoryCreationFailed(error);
     }
 
     return directories;

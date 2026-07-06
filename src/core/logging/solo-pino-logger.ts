@@ -13,6 +13,8 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
+import {OneShotState} from '../one-shot-state.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {SoloError} from '../errors/solo-error.js';
 import {MessageLevel} from './message-level.js';
 
@@ -29,7 +31,9 @@ type ChalkColor = typeof chalk.red;
 export class SoloPinoLogger implements SoloLogger {
   private readonly pinoLogger: PinoLogger;
   private traceId?: string;
+  private readonly logBindings: Record<string, unknown> = {};
   private messageGroupMap: Map<string, string[]> = new Map();
+  private deferredUserOutput: string[] | undefined;
   private readonly MINOR_LINE_SEPARATOR: string =
     '-------------------------------------------------------------------------------';
 
@@ -43,6 +47,7 @@ export class SoloPinoLogger implements SoloLogger {
   public constructor(
     @inject(InjectTokens.LogLevel) logLevel?: string,
     @inject(InjectTokens.DevelopmentMode) private developmentMode?: boolean,
+    @inject(InjectTokens.OneShotState) private readonly oneShotState?: OneShotState,
   ) {
     logLevel = patchInject(logLevel, InjectTokens.LogLevel, this.constructor.name) ?? 'info';
     this.developmentMode = patchInject(developmentMode, InjectTokens.DevelopmentMode, this.constructor.name);
@@ -82,8 +87,11 @@ export class SoloPinoLogger implements SoloLogger {
 
     const baseOptions: LoggerOptions = {
       level: logLevel,
-      // Always include traceId when set via mixin
-      mixin: (): {traceId?: string} => (this.traceId ? {traceId: this.traceId} : {}),
+      // Always include traceId and active log bindings when set via mixin
+      mixin: (): Record<string, unknown> => ({
+        ...this.logBindings,
+        ...(this.traceId ? {traceId: this.traceId} : {}),
+      }),
       // Redact obvious secrets if they sneak into objects
       redact: {
         paths: ['*.authorization', '*.Authorization', '*.accessToken', '*.privateKey', '*.operatorKey'],
@@ -128,6 +136,34 @@ export class SoloPinoLogger implements SoloLogger {
     this.traceId = uuidv4();
   }
 
+  public setLogBinding(key: string, value: unknown): void {
+    if (value === undefined || value === null || value === '') {
+      delete this.logBindings[key];
+      return;
+    }
+
+    this.logBindings[key] = value;
+  }
+
+  public addLogBindings(bindings: Record<string, unknown>): void {
+    for (const [key, value] of Object.entries(bindings)) {
+      this.setLogBinding(key, value);
+    }
+  }
+
+  public clearLogBindings(...keys: string[]): void {
+    if (keys.length === 0) {
+      for (const key of Object.keys(this.logBindings)) {
+        delete this.logBindings[key];
+      }
+      return;
+    }
+
+    for (const key of keys) {
+      delete this.logBindings[key];
+    }
+  }
+
   public prepMeta(meta: Record<string, unknown> = {}): Record<string, unknown> {
     if (this.traceId) {
       (meta as Record<string, unknown>)['traceId'] = this.traceId;
@@ -137,9 +173,47 @@ export class SoloPinoLogger implements SoloLogger {
 
   public showUser(message: unknown, ...arguments_: unknown[]): void {
     const formatted: string = util.format(String(message), ...arguments_.map(String));
-    console.log(formatted);
+    this.writeUser(formatted);
     // Mirror existing behavior: also persist to logs at info level
     this.info(formatted);
+  }
+
+  public showUserUnlessOneShot(message: string): void {
+    if (this.oneShotState?.isActive()) {
+      this.debug(message);
+    } else {
+      this.showUser(message);
+    }
+  }
+
+  /**
+   * Single sink for user-facing terminal output. Honors silent mode and the deferred-output buffer.
+   * Does not write to the structured log file; callers persist to the log separately.
+   */
+  private writeUser(line: string): void {
+    if (constants.SOLO_SILENT_MODE) {
+      return;
+    }
+    if (this.deferredUserOutput) {
+      this.deferredUserOutput.push(line);
+      return;
+    }
+    console.log(line);
+  }
+
+  public beginDeferredUserOutput(): void {
+    this.deferredUserOutput ??= [];
+  }
+
+  public flushDeferredUserOutput(): void {
+    const buffered: string[] | undefined = this.deferredUserOutput;
+    this.deferredUserOutput = undefined;
+    if (!buffered || constants.SOLO_SILENT_MODE) {
+      return;
+    }
+    for (const line of buffered) {
+      console.log(line);
+    }
   }
 
   private stripAnsi(text: string): string {
@@ -268,11 +342,31 @@ export class SoloPinoLogger implements SoloLogger {
     console.log(chalk.red(`╰${'─'.repeat(interiorWidth + 2)}╯`));
   }
 
+  private buildSilentErrorOutput(error: Error, causeChain: Error[]): Record<string, unknown> {
+    return {
+      level: 'ERROR',
+      message: this.getFormattedCode(error) + error.message,
+      stack: error.stack,
+      causes: causeChain.slice(1).map(
+        (cause: Error): Record<string, unknown> => ({
+          message: this.getFormattedCode(cause) + cause.message,
+          stack: cause.stack,
+        }),
+      ),
+    };
+  }
+
   public showUserError(error: unknown): void {
     const normalizedError: Error = error instanceof Error ? error : new Error(String(error));
     const causeChain: Error[] = this.buildCauseChain(normalizedError);
     const lines: string[] = this.buildContentLines(normalizedError, causeChain);
-    this.renderErrorBox(lines);
+
+    if (constants.SOLO_SILENT_MODE) {
+      console.error(JSON.stringify(this.buildSilentErrorOutput(normalizedError, causeChain), undefined, 2));
+    } else {
+      this.renderErrorBox(lines);
+    }
+
     this.toPino('error', error, []);
   }
 
@@ -307,15 +401,23 @@ export class SoloPinoLogger implements SoloLogger {
     return true;
   }
 
+  public showListIfNotEmpty(title: string, items: string[] = []): boolean {
+    if (items.length === 0) {
+      return false;
+    }
+    return this.showList(title, items);
+  }
+
   public showJSON(title: string, object: object): void {
     this.showUser(chalk.green(`\n *** ${title} ***`));
     this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
-    console.log(JSON.stringify(object, undefined, 2));
+    const serialized: string = JSON.stringify(object, undefined, 2);
+    this.writeUser(serialized);
   }
 
   public getMessageGroup(key: string): string[] {
     if (!this.messageGroupMap.has(key)) {
-      throw new SoloError(`Message group with key "${key}" does not exist.`);
+      throw new SoloErrors.internal.loggerMessageGroupNotFound(key);
     }
     return this.messageGroupMap.get(key);
   }
@@ -331,7 +433,7 @@ export class SoloPinoLogger implements SoloLogger {
 
   public addMessageGroupMessage(key: string, message: string): void {
     if (!this.messageGroupMap.has(key)) {
-      throw new SoloError(`Message group with key "${key}" does not exist.`);
+      throw new SoloErrors.internal.loggerMessageGroupNotFound(key);
     }
     this.messageGroupMap.get(key)!.push(message);
     this.debug(`Added message to group "${key}": ${message}`);

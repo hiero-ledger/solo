@@ -19,7 +19,7 @@ vars:
     sh: git rev-parse --show-toplevel
   CN_LOCAL_BUILD_PATH: "{{.ROOT_DIR}}/../hiero-consensus-node/hedera-node/data"
   LOCAL_BUILD_FLAG: "--local-build-path {{.CN_LOCAL_BUILD_PATH}}"
-  CN_VERSION: '{{default "v0.70.0" .CONSENSUS_NODE_VERSION}}'
+  CN_VERSION: '{{default "v0.74.0" .CONSENSUS_NODE_VERSION}}'
   TEMPORARY_DIR: "/tmp/solo-deployment"
   PREPARE_OUTPUT_DIR: "{{ .TEMPORARY_DIR }}/prepare-output"
   APPLICATION_PROPERTIES: "{{ .TEMPORARY_DIR }}/application.properties"
@@ -93,6 +93,8 @@ tasks:
       - cmd: |
           # Solo cluster-ref config setup
           $SOLO_COMMAND cluster-ref config setup -s {{ .SOLO_CLUSTER_SETUP_NAMESPACE }} --dev
+
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .SOLO_DEPLOYMENT }}
 
       - cmd: |
           # Solo consensus network deploy

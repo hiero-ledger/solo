@@ -17,6 +17,7 @@ import {type BaseTestOptions} from './tests/base-test-options.js';
 import {main} from '../../../src/index.js';
 import {BaseCommandTest} from './tests/base-command-test.js';
 import {OneShotCommandDefinition} from '../../../src/commands/command-definitions/one-shot-command-definition.js';
+import {BlockCommandDefinition} from '../../../src/commands/command-definitions/block-command-definition.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {sleep} from '../../../src/core/helpers.js';
@@ -105,6 +106,13 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await main(soloOneShotDeploy(testName, deployment));
           testLogger.info(`${testName}: finished ${testName}: deploy`);
 
+          // Opt-in: deploy a JFR-enabled block node so its JVM metrics are recorded and collected at teardown.
+          if (process.env.PERFORMANCE_TEST_WITH_BLOCK_NODE === 'true') {
+            testLogger.info(`${testName}: beginning ${testName}: block node deploy (JFR enabled)`);
+            await main(soloBlockNodeJfrDeploy(testName, deployment));
+            testLogger.info(`${testName}: finished ${testName}: block node deploy`);
+          }
+
           startTime = new Date();
           metricsInterval = setInterval(async (): Promise<void> => {
             logMetrics(startTime);
@@ -117,115 +125,130 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // restore environment variable for other tests
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
 
-          // read all logged metrics and parse the JSON
-          const namespace: string = await getNamespaceFromDeployment();
-          const tartgetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
-          const files: string[] = fs.readdirSync(tartgetDirectory);
-          const allMetrics: Record<string, AggregatedMetrics> = {};
-          for (const file of files) {
-            const filePath: string = PathEx.join(tartgetDirectory, file);
-            const fileContents: string = fs.readFileSync(filePath, 'utf8');
-            const fileName: string = file.split('.')[0];
-            allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
-          }
-
-          // save the aggregated metrics to a single file
-          const aggregatedMetricsFileName: string = 'timeline-metrics.json';
-          const aggregatedMetricsPath: string = PathEx.join(tartgetDirectory, aggregatedMetricsFileName);
-          fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
-
-          let maxCpuMetrics: number = 0;
-          let maxCpuFile: string = '';
-          let maxMemoryMetrics: number = 0;
-          let maxMemoryFile: string = '';
-          for (const [fileName, metrics] of Object.entries(allMetrics)) {
-            if (metrics.cpuInMillicores > maxCpuMetrics) {
-              maxCpuMetrics = metrics.cpuInMillicores;
-              maxCpuFile = fileName;
+          // Wrap metrics processing so that diagnostics collection and cluster teardown
+          // always run, even when the before() hook's deploy failed and files are absent.
+          let metricsError: unknown;
+          try {
+            // read all logged metrics and parse the JSON
+            const namespace: string = await getNamespaceFromDeployment();
+            const targetDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}`);
+            const files: string[] = fs.readdirSync(targetDirectory);
+            const allMetrics: Record<string, AggregatedMetrics> = {};
+            for (const file of files) {
+              const filePath: string = PathEx.join(targetDirectory, file);
+              const fileContents: string = fs.readFileSync(filePath, 'utf8');
+              const fileName: string = file.split('.')[0];
+              allMetrics[fileName] = JSON.parse(fileContents) as AggregatedMetrics;
             }
-            if (metrics.memoryInMebibytes > maxMemoryMetrics) {
-              maxMemoryMetrics = metrics.memoryInMebibytes;
-              maxMemoryFile = fileName;
+
+            // save the aggregated metrics to a single file
+            const aggregatedMetricsFileName: string = 'timeline-metrics.json';
+            const aggregatedMetricsPath: string = PathEx.join(targetDirectory, aggregatedMetricsFileName);
+            fs.writeFileSync(aggregatedMetricsPath, JSON.stringify(allMetrics), 'utf8');
+
+            let maxCpuMetrics: number = 0;
+            let maxCpuFile: string = '';
+            let maxMemoryMetrics: number = 0;
+            let maxMemoryFile: string = '';
+            for (const [fileName, metrics] of Object.entries(allMetrics)) {
+              if (metrics.cpuInMillicores > maxCpuMetrics) {
+                maxCpuMetrics = metrics.cpuInMillicores;
+                maxCpuFile = fileName;
+              }
+              if (metrics.memoryInMebibytes > maxMemoryMetrics) {
+                maxMemoryMetrics = metrics.memoryInMebibytes;
+                maxMemoryFile = fileName;
+              }
             }
-          }
 
-          // Use the max-memory snapshot as the representative record since memory
-          // pressure reflects actual workload behavior, not startup CPU spikes
-          const representativeFileName: string = `${maxMemoryFile}.json`;
-          const {clusterMetrics: clusterMetricsData, ...summaryFields} = allMetrics[maxMemoryFile];
-          const namespaceJson: PerformanceSummary = {
-            ...summaryFields,
-            peakCpuInMillicores: maxCpuMetrics,
-            peakCpuSnapshot: allMetrics[maxCpuFile]?.snapshotName,
-            peakMemoryInMebibytes: maxMemoryMetrics,
-            peakMemorySnapshot: allMetrics[maxMemoryFile]?.snapshotName,
-            clusterMetrics: clusterMetricsData,
-          };
-          fs.writeFileSync(PathEx.join(tartgetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
+            // Use the max-memory snapshot as the representative record since memory
+            // pressure reflects actual workload behavior, not startup CPU spikes
+            const representativeFileName: string = `${maxMemoryFile}.json`;
+            const {clusterMetrics: clusterMetricsData, ...summaryFields} = allMetrics[maxMemoryFile];
+            const namespaceJson: PerformanceSummary = {
+              ...summaryFields,
+              peakCpuInMillicores: maxCpuMetrics,
+              peakCpuSnapshot: allMetrics[maxCpuFile]?.snapshotName,
+              peakMemoryInMebibytes: maxMemoryMetrics,
+              peakMemorySnapshot: allMetrics[maxMemoryFile]?.snapshotName,
+              clusterMetrics: clusterMetricsData,
+            };
+            fs.writeFileSync(PathEx.join(targetDirectory, `${namespace}.json`), JSON.stringify(namespaceJson), 'utf8');
 
-          // remove all snapshot files except the representative one
-          const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
-          for (const file of files) {
-            if (!filesToKeep.has(file)) {
-              fs.rmSync(PathEx.join(tartgetDirectory, file));
+            // remove all snapshot files except the representative one
+            const filesToKeep: Set<string> = new Set([representativeFileName, aggregatedMetricsFileName]);
+            for (const file of files) {
+              if (!filesToKeep.has(file)) {
+                fs.rmSync(PathEx.join(targetDirectory, file));
+              }
             }
-          }
 
-          // copy the summary to the main solo logs directory to be accessible by existing scripts
-          fs.copyFileSync(
-            PathEx.join(tartgetDirectory, `${namespace}.json`),
-            PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
-          );
+            // copy the summary to the main solo logs directory to be accessible by existing scripts
+            fs.copyFileSync(
+              PathEx.join(targetDirectory, `${namespace}.json`),
+              PathEx.join(constants.SOLO_LOGS_DIR, `${namespace}.json`),
+            );
+          } catch (error: unknown) {
+            testLogger.error(
+              `${testName}: metrics processing failed (deploy may have failed); diagnostics and destroy will still run: ${error}`,
+            );
+            metricsError = error;
+          }
 
           await preDestroy(endToEndTestSuite);
 
           testLogger.info(`${testName}: beginning ${testName}: destroy`);
           await main(soloOneShotDestroy(testName));
           testLogger.info(`${testName}: finished ${testName}: destroy`);
+
+          if (metricsError !== undefined) {
+            throw metricsError;
+          }
         }).timeout(Duration.ofMinutes(8).toMillis());
 
-        it('NftTransferLoadTest', async (): Promise<void> => {
-          logEvent('Starting NftTransferLoadTest');
-          await main(
-            soloRapidFire(
-              testName,
-              'NftTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -R -t ${duration}`,
-              maxTps,
-            ),
-          );
-        }).timeout(Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier).toMillis());
-
+        // NOTE: NLG 0.14.0 expanded -R (reuse) to cover tokens as well as accounts. It reuses
+        // tokens without filtering by type, so if TokenTransferLoadTest ran first and created
+        // fungible tokens, NftTransferLoadTest with -R would load those fungible tokens as NFTs
+        // and produce 0 TPS (and vice versa). To avoid this cross-contamination, NftTransferLoadTest
+        // does NOT use -R so it always creates its own fresh NFT tokens.
         it('TokenTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting TokenTransferLoadTest');
-          await main(
-            soloRapidFire(
-              testName,
-              'TokenTransferLoadTest',
-              `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
-              maxTps,
-            ),
+          await runLoadTest(
+            'TokenTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${tokens} -A ${associations} -R -t ${duration}`,
           );
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
+        it('NftTransferLoadTest', async (): Promise<void> => {
+          logEvent('Starting NftTransferLoadTest');
+          await runLoadTest(
+            'NftTransferLoadTest',
+            `-c ${clients} -a ${accounts} -T ${nfts} -n ${accounts} -S flat -p ${percent} -t ${duration}`,
+          );
+        }).timeout(Duration.ofSeconds(duration * nftTransferLoadTestTimeoutMultiplier).toMillis());
+
         it('CryptoTransferLoadTest', async (): Promise<void> => {
           logEvent('Starting CryptoTransferLoadTest');
-          await main(
-            soloRapidFire(testName, 'CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-          );
+          await runLoadTest('CryptoTransferLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('HCSLoadTest', async (): Promise<void> => {
           logEvent('Starting HCSLoadTest');
-          await main(soloRapidFire(testName, 'HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps));
+          await runLoadTest('HCSLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
         }).timeout(Duration.ofSeconds(duration * 2).toMillis());
 
         it('SmartContractLoadTest', async (): Promise<void> => {
           logEvent('Starting SmartContractLoadTest');
-          await main(
-            soloRapidFire(testName, 'SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`, maxTps),
-          );
-        }).timeout(Duration.ofSeconds(duration * 2).toMillis());
+          await runLoadTest('SmartContractLoadTest', `-c ${clients} -a ${accounts} -R -t ${duration}`);
+        }).timeout(Duration.ofSeconds(duration * 6).toMillis());
+
+        async function runLoadTest(performanceTest: string, argumentsString: string): Promise<void> {
+          // rapid-fire enforces the TPS!=0 + "Finished" check internally and throws
+          // on degraded runs (proxy backpressure, NFT-vs-fungible token mismatch, etc.).
+          await main(soloRapidFire(testName, performanceTest, argumentsString, maxTps));
+          // Cool-down lets haproxy drain tunnel sockets before the next test.
+          await sleep(Duration.ofSeconds(30));
+        }
 
         it('Should write log metrics after NLG tests have completed', async (): Promise<void> => {
           logEvent('Completed all performance tests');
@@ -306,7 +329,29 @@ export function soloOneShotDeploy(testName: string, deployment: string): string[
     OneShotCommandDefinition.SINGLE_DEPLOY,
   );
   argvPushGlobalFlags(argv, testName);
-  argv.push(optionFromFlag(Flags.deployment), deployment, optionFromFlag(Flags.edgeEnabled));
+  argv.push(optionFromFlag(Flags.deployment), deployment, optionFromFlag(Flags.deployMetricsServer));
+  if (process.env.ONE_SHOT_USE_EDGE === 'true') {
+    argv.push(optionFromFlag(Flags.edgeEnabled));
+  }
+  return argv;
+}
+
+export function soloBlockNodeJfrDeploy(testName: string, deployment: string): string[] {
+  const {newArgv, argvPushGlobalFlags, optionFromFlag} = BaseCommandTest;
+
+  const argv: string[] = newArgv();
+  argv.push(
+    BlockCommandDefinition.COMMAND_NAME,
+    BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+    BlockCommandDefinition.NODE_ADD,
+  );
+  argvPushGlobalFlags(argv, testName);
+  argv.push(
+    optionFromFlag(Flags.deployment),
+    deployment,
+    optionFromFlag(Flags.valuesFile),
+    PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'block-node-perf-values.yaml'),
+  );
   return argv;
 }
 

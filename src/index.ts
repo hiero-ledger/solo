@@ -12,7 +12,8 @@ import {CustomProcessOutput} from './core/process-output.js';
 import {type SoloLogger} from './core/logging/solo-logger.js';
 import {Container} from './core/dependency-injection/container-init.js';
 import {InjectTokens} from './core/dependency-injection/inject-tokens.js';
-import {SoloError} from './core/errors/solo-error.js';
+import {SoloErrors} from './core/errors/solo-errors.js';
+import {type SoloError} from './core/errors/solo-error.js';
 import {SilentBreak} from './core/errors/silent-break.js';
 import {ArgumentProcessor} from './argument-processor.js';
 import {getSoloVersion} from '../version.js';
@@ -21,14 +22,22 @@ if (!process.stdout.isTTY) {
   chalk.level = 0;
 }
 
+// eslint-disable-next-line solo/no-exported-function
 export async function main(argv: string[], context?: {logger: SoloLogger}): Promise<any> {
   try {
     const developerMode: boolean = argv.includes('--dev');
     const soloLogLevel: string = developerMode || constants.SOLO_DEV_OUTPUT ? 'debug' : constants.SOLO_LOG_LEVEL;
     Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, soloLogLevel);
-  } catch (error) {
-    console.error(`Error initializing container: ${error?.message}`, error);
-    throw new SoloError('Error initializing container');
+  } catch (incomingError) {
+    const error: SoloError = new SoloErrors.system.initSystemFilesFailed(
+      incomingError instanceof Error ? incomingError : new Error(String(incomingError)),
+    );
+    if (context.logger) {
+      context.logger.showUserError(error);
+    } else {
+      console.error(`Error initializing container: ${error?.message}`, error);
+    }
+    throw error;
   }
 
   const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
@@ -39,14 +48,14 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
   }
   process.on('unhandledRejection', (reason: {error?: Error; target?: {url?: string}}, promise): void => {
     logger.showUserError(
-      new SoloError(
-        `Unhandled Rejection at: ${JSON.stringify(promise)}, reason: ${JSON.stringify(reason)}, target: ${reason.target?.url}`,
-        reason.error,
+      new SoloErrors.internal.commandReturnedFalse(
+        `Unhandled Rejection at: ${JSON.stringify(promise)}`,
+        `reason: ${JSON.stringify(reason)}`,
       ),
     );
   });
   process.on('uncaughtException', (error, origin): void => {
-    logger.showUserError(new SoloError(`Uncaught Exception: ${error}, origin: ${origin}`, error));
+    logger.showUserError(new SoloErrors.internal.commandReturnedFalse('uncaughtException', String(origin)));
   });
 
   logger.debug('Initializing Solo CLI');

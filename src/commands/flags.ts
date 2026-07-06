@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {IllegalArgumentError} from '../core/errors/classes/validation/illegal-argument-error.js';
 import * as constants from '../core/constants.js';
 import * as version from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import fs from 'node:fs';
-import {IllegalArgumentError} from '../core/errors/illegal-argument-error.js';
-import {SoloError} from '../core/errors/solo-error.js';
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {
   select as selectPrompt,
@@ -42,10 +42,14 @@ export class Flags {
         if (!process.stdout.isTTY || !process.stdin.isTTY) {
           // this is to help find issues with prompts running in non-interactive mode, user should supply quite mode,
           // or provide all flags required for command
-          throw new SoloError('Cannot prompt for input in non-interactive mode');
+          throw new SoloErrors.validation.nonInteractivePrompt(Flags.getFormattedFlagKey(Flags.deployment));
         }
 
-        const promptOptions = {default: defaultValue, message: promptMessage};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const promptOptions: {default: Optional<any>; message: string} = {
+          default: defaultValue,
+          message: promptMessage,
+        };
 
         switch (type) {
           case 'input': {
@@ -64,12 +68,12 @@ export class Flags {
       }
 
       if (emptyCheckMessage && !input) {
-        throw new SoloError(emptyCheckMessage);
+        throw new SoloErrors.validation.missingArgument(emptyCheckMessage);
       }
 
       return input;
     } catch (error) {
-      throw new SoloError(`input failed: ${flagName}: ${error.message}`, error);
+      throw new SoloErrors.validation.flagInputFailed(flagName, error);
     }
   }
 
@@ -148,6 +152,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly check: CommandFlag = {
+    constName: 'check',
+    name: 'check',
+    definition: {
+      describe: 'Fail if any configured remote port-forward is not reachable locally',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly predefinedAccounts: CommandFlag = {
     constName: 'predefinedAccounts',
     name: 'predefined-accounts',
@@ -167,7 +182,19 @@ export class Flags {
       defaultValue: true, // always use local port-forwarding by default
       type: 'boolean',
     },
-    prompt: undefined,
+    prompt: async function promptForcePortForward(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: boolean,
+    ): Promise<boolean> {
+      return await Flags.promptToggle(
+        task,
+        input,
+        Flags.forcePortForward.definition.defaultValue as boolean,
+        'Force port forwarding? ',
+        undefined,
+        Flags.forcePortForward.name,
+      );
+    },
   };
 
   public static readonly externalAddress: CommandFlag = {
@@ -309,6 +336,19 @@ export class Flags {
     prompt: async function promptValuesFile(_: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
       return input; // no prompt is needed for values file
     },
+  };
+
+  public static readonly outputValuesFile: CommandFlag = {
+    constName: 'outputValuesFile',
+    name: 'output-values-file',
+    definition: {
+      describe:
+        'Output path for the generated falcon values YAML file. ' +
+        'Defaults to ~/.solo/cache/falcon-values.yaml. Relative paths are resolved against the current working directory.',
+      defaultValue: PathEx.join(constants.SOLO_CACHE_DIR, 'falcon-values.yaml'),
+      type: 'string',
+    },
+    prompt: undefined,
   };
 
   public static readonly networkDeploymentValuesFile: CommandFlag = {
@@ -475,7 +515,7 @@ export class Flags {
     constName: 'releaseTag',
     name: 'release-tag',
     definition: {
-      describe: `Release tag to be used (e.g. ${version.HEDERA_PLATFORM_VERSION})`,
+      describe: `DEPRECATED: use --consensus-node-version (e.g. ${version.HEDERA_PLATFORM_VERSION})`,
       alias: 't',
       defaultValue: version.HEDERA_PLATFORM_VERSION,
       type: 'string',
@@ -510,7 +550,7 @@ export class Flags {
     constName: 'imageTag',
     name: 'image-tag',
     definition: {
-      describe: 'The Docker image tag to override what is in the Helm Chart',
+      describe: '[Deprecated] Use --component-image instead. Overrides the Docker image tag (e.g. 0.36.0-SNAPSHOT).',
       defaultValue: '',
       type: 'string',
     },
@@ -521,7 +561,10 @@ export class Flags {
     constName: 'componentImage',
     name: 'component-image',
     definition: {
-      describe: 'Full Docker image reference override (e.g. ghcr.io/org/image:tag, docker.io/library/redis:7, redis:7)',
+      describe:
+        'Docker image override. Accepts a registry reference (e.g. ghcr.io/hiero-ledger/block-node-server:0.36.0) ' +
+        'or a local reference (e.g. block-node-server:0.36.0-SNAPSHOT). ' +
+        'Local images found in Docker are automatically loaded into the Kind cluster.',
       defaultValue: '',
       type: 'string',
       alias: 'relay-image',
@@ -533,7 +576,7 @@ export class Flags {
     constName: 'relayReleaseTag',
     name: 'relay-release',
     definition: {
-      describe: 'Relay release tag to be used (e.g. v0.48.0)',
+      describe: 'DEPRECATED: use --relay-version (e.g. v0.48.0)',
       defaultValue: version.HEDERA_JSON_RPC_RELAY_VERSION,
       type: 'string',
     },
@@ -671,7 +714,7 @@ export class Flags {
 
         return input;
       } catch (error) {
-        throw new SoloError(`input failed: ${Flags.chartDirectory.name}`, error);
+        throw new SoloErrors.validation.flagInputFailed(Flags.chartDirectory.name, error);
       }
     },
   };
@@ -717,6 +760,28 @@ export class Flags {
         'Force-apply block-node TSS values overlay when deploying block nodes before consensus deployment sets tssEnabled in remote config.',
       defaultValue: false,
       type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeMessageSizeSoftLimitBytes: CommandFlag = {
+    constName: 'blockNodeMessageSizeSoftLimitBytes',
+    name: 'block-node-message-size-soft-limit-bytes',
+    definition: {
+      describe: 'Soft limit, in bytes, for block node connection message size in block-nodes.json',
+      defaultValue: undefined,
+      type: 'number',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeMessageSizeHardLimitBytes: CommandFlag = {
+    constName: 'blockNodeMessageSizeHardLimitBytes',
+    name: 'block-node-message-size-hard-limit-bytes',
+    definition: {
+      describe: 'Hard limit, in bytes, for block node connection message size in block-nodes.json',
+      defaultValue: undefined,
+      type: 'number',
     },
     prompt: undefined,
   };
@@ -860,7 +925,10 @@ export class Flags {
     name: 'chain-id',
     definition: {
       describe: 'Chain ID',
-      defaultValue: constants.HEDERA_CHAIN_ID, // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
+      // Ref: https://github.com/hiero-ledger/hiero-json-rpc-relay#configuration
+      get defaultValue(): string {
+        return constants.getEnvironmentVariable('SOLO_CHAIN_ID') ?? '298';
+      },
       alias: 'l',
       type: 'string',
     },
@@ -1032,7 +1100,7 @@ export class Flags {
 
         return input;
       } catch (error) {
-        throw new SoloError(`input failed: ${Flags.tlsClusterIssuerType.name}`, error);
+        throw new SoloErrors.validation.flagInputFailed(Flags.tlsClusterIssuerType.name, error);
       }
     },
   };
@@ -1192,11 +1260,23 @@ export class Flags {
     constName: 'chartVersion',
     name: 'chart-version',
     definition: {
-      describe: 'Block nodes chart version',
+      describe: 'DEPRECATED: use --block-node-version',
       defaultValue: version.BLOCK_NODE_VERSION,
       type: 'string',
     },
-    prompt: undefined,
+    prompt: async function promptBlockNodeChartVersion(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.blockNodeChartVersion.definition.defaultValue as string,
+        'Enter block node chart version: ',
+        undefined,
+        Flags.blockNodeChartVersion.name,
+      );
+    },
   };
 
   public static readonly priorityMapping: CommandFlag = {
@@ -1251,7 +1331,7 @@ export class Flags {
     constName: 'tssEnabled',
     name: 'tss',
     definition: {
-      describe: 'Enable hinTS/TSS (CN >= v0.72).',
+      describe: 'Enable hinTS/TSS (CN >= v0.74).',
       type: 'boolean',
       defaultValue: true,
     },
@@ -1262,7 +1342,9 @@ export class Flags {
     constName: 'applicationProperties',
     name: 'application-properties',
     definition: {
-      describe: 'application.properties file for node',
+      describe:
+        'application.properties file for node (default merges with Solo defaults; add comment ' +
+        `'${constants.APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER}' in the file to use overwrite mode)`,
       defaultValue: PathEx.join('templates', constants.APPLICATION_PROPERTIES),
       type: 'string',
     },
@@ -1378,7 +1460,19 @@ export class Flags {
       defaultValue: constants.getEnvironmentVariable('SOLO_LOCAL_BUILD_PATH') || '',
       type: 'string',
     },
-    prompt: undefined,
+    prompt: async function promptLocalBuildPath(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.localBuildPath.definition.defaultValue as string,
+        'Enter local build path: ',
+        undefined,
+        Flags.localBuildPath.name,
+      );
+    },
   };
 
   public static readonly newAccountNumber: CommandFlag = {
@@ -1804,7 +1898,19 @@ export class Flags {
       defaultValue: '',
       type: 'string',
     },
-    prompt: undefined,
+    prompt: async function promptDebugNodeAlias(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.debugNodeAlias.definition.defaultValue as string,
+        'Enter debug node alias: ',
+        undefined,
+        Flags.debugNodeAlias.name,
+      );
+    },
   };
 
   public static readonly outputDir: CommandFlag = {
@@ -1986,7 +2092,8 @@ export class Flags {
     name: 'rollback',
     definition: {
       describe:
-        'Automatically clean up resources when deploy fails. Use --no-rollback to skip cleanup and keep partial resources for inspection.',
+        'Opt in to automatic cleanup when deploy fails. By default, ' +
+        'failed one-shot deploys keep partial resources so you can inspect the failure and re-run the same command.',
       defaultValue: false,
       type: 'boolean',
       disablePrompt: true,
@@ -2017,13 +2124,13 @@ export class Flags {
     },
     prompt: async function promptMirrorNodeVersion(
       task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
-      return await Flags.promptToggle(
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
         task,
         input,
-        Flags.mirrorNodeVersion.definition.defaultValue as boolean,
-        'Would you like to choose mirror node version? ',
+        Flags.mirrorNodeVersion.definition.defaultValue as string,
+        'Enter mirror node version: ',
         undefined,
         Flags.mirrorNodeVersion.name,
       );
@@ -2062,13 +2169,13 @@ export class Flags {
     },
     prompt: async function promptExplorerVersion(
       task: SoloListrTaskWrapper<AnyListrContext>,
-      input: boolean,
-    ): Promise<boolean> {
-      return await Flags.promptToggle(
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
         task,
         input,
-        Flags.explorerVersion.definition.defaultValue as boolean,
-        'Would you like to choose explorer version? ',
+        Flags.explorerVersion.definition.defaultValue as string,
+        'Enter explorer version: ',
         undefined,
         Flags.explorerVersion.name,
       );
@@ -2371,7 +2478,7 @@ export class Flags {
       alias: 'u',
     },
     prompt: async function promptUsername(task: SoloListrTaskWrapper<AnyListrContext>, input: string): Promise<string> {
-      const promptForInput = async () => {
+      const promptForInput: () => Promise<string> = async (): Promise<string> => {
         return await task.prompt(ListrInquirerPromptAdapter).run(inputPrompt, {
           message: 'Please enter your username. Can only contain letters and numbers:',
         });
@@ -2784,7 +2891,19 @@ export class Flags {
       defaultValue: false,
       type: 'boolean',
     },
-    prompt: undefined,
+    prompt: async function promptLoadBalancerEnabled(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: boolean,
+    ): Promise<boolean> {
+      return await Flags.promptToggle(
+        task,
+        input,
+        Flags.loadBalancerEnabled.definition.defaultValue as boolean,
+        'Enable load balancer? ',
+        undefined,
+        Flags.loadBalancerEnabled.name,
+      );
+    },
   };
 
   // --------------- Add Cluster --------------- //
@@ -2808,7 +2927,7 @@ export class Flags {
       type: 'number',
     },
     prompt: async function (task: SoloListrTaskWrapper<AnyListrContext>, input: number): Promise<number> {
-      const promptForInput = (): Promise<number> =>
+      const promptForInput: () => Promise<number> = (): Promise<number> =>
         Flags.prompt(
           'number',
           task,
@@ -3017,19 +3136,59 @@ export class Flags {
     prompt: undefined,
   };
 
+  // --------------- One Shot Version Pins --------------- //
+
+  public static readonly consensusNodeVersion: CommandFlag = {
+    constName: 'releaseTag',
+    name: 'consensus-node-version',
+    definition: {
+      describe: 'Consensus node version to deploy (e.g. v0.73.0 or 0.73.0).',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly relayVersion: CommandFlag = {
+    constName: 'relayReleaseTag',
+    name: 'relay-version',
+    definition: {
+      describe: 'JSON-RPC relay version to deploy (e.g. v0.76.2 or 0.76.2). ',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly blockNodeVersion: CommandFlag = {
+    constName: 'chartVersion',
+    name: 'block-node-version',
+    definition: {
+      describe: 'Block node version to deploy for (e.g. v0.31.0 or 0.31.0). ',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
   // ------------------ Edge ---------------- //
 
   public static readonly edgeEnabled: CommandFlag = {
     constName: 'edgeEnabled',
     name: 'edge',
     definition: {
-      describe: 'Use edge component versions (newer than the defaults)',
+      describe:
+        'Use edge component versions (newer than defaults). Also supports version overrides from solo.config.yaml ' +
+        'and solo.config.json, for example: `consensus-node-version: v0.73.0` (YAML) or ' +
+        '`{"consensusNodeVersion":"v0.73.0"}` (JSON).',
       defaultValue: false,
       type: 'boolean',
     },
     prompt: undefined,
   };
 
+  // Every static CommandFlag defined in this class must be listed here.
+  // Helpers derive behavior from allFlags/allFlagsMap, so new flags are incomplete until registered in this array.
   public static readonly allFlags: CommandFlag[] = [
     Flags.accountId,
     Flags.fileId,
@@ -3045,6 +3204,7 @@ export class Flags {
     Flags.bootstrapProperties,
     Flags.cacheDir,
     Flags.chainId,
+    Flags.check,
 
     //* Chart directories
     Flags.chartDirectory,
@@ -3077,6 +3237,7 @@ export class Flags {
     Flags.endpointType,
     Flags.envoyIps,
     Flags.networkNodeIps,
+    Flags.force,
     Flags.forcePortForward,
     Flags.externalAddress,
     Flags.generateEcdsaKey,
@@ -3119,6 +3280,7 @@ export class Flags {
     Flags.operatorKey,
     Flags.optionsFile,
     Flags.outputDir,
+    Flags.outputValuesFile,
     Flags.persistentVolumeClaims,
     Flags.pinger,
     Flags.predefinedAccounts,
@@ -3128,7 +3290,9 @@ export class Flags {
     Flags.imageTag,
     Flags.componentImage,
     Flags.relayReleaseTag,
+    Flags.relayVersion,
     Flags.releaseTag,
+    Flags.consensusNodeVersion,
     Flags.upgradeVersion,
     Flags.replicaCount,
     Flags.setAlias,
@@ -3179,7 +3343,10 @@ export class Flags {
     Flags.domainName,
     Flags.domainNames,
     Flags.blockNodeChartVersion,
+    Flags.blockNodeVersion,
     Flags.blockNodeTssOverlay,
+    Flags.blockNodeMessageSizeSoftLimitBytes,
+    Flags.blockNodeMessageSizeHardLimitBytes,
     Flags.priorityMapping,
     Flags.externalBlockNodeAddress,
     Flags.realm,
@@ -3218,7 +3385,7 @@ export class Flags {
   ];
 
   /** Resets the definition.disablePrompt for all flags */
-  private static resetDisabledPrompts() {
+  private static resetDisabledPrompts(): void {
     for (const f of Flags.allFlags) {
       if (f.definition.disablePrompt) {
         delete f.definition.disablePrompt;
@@ -3226,9 +3393,11 @@ export class Flags {
     }
   }
 
-  public static readonly allFlagsMap = new Map(Flags.allFlags.map(f => [f.name, f]));
+  public static readonly allFlagsMap: Map<string, CommandFlag> = new Map(
+    Flags.allFlags.map((f): [string, CommandFlag] => [f.name, f]),
+  );
 
-  public static readonly nodeConfigFileFlags = new Map(
+  public static readonly nodeConfigFileFlags: Map<string, CommandFlag> = new Map(
     [
       Flags.apiPermissionProperties,
       Flags.applicationEnv,
@@ -3236,10 +3405,14 @@ export class Flags {
       Flags.bootstrapProperties,
       Flags.log4j2Xml,
       Flags.settingTxt,
-    ].map(f => [f.name, f]),
+    ].map((f): [string, CommandFlag] => [f.name, f]),
   );
 
-  public static readonly integerFlags = new Map([Flags.replicaCount].map(f => [f.name, f]));
+  public static readonly integerFlags: Map<string, CommandFlag> = new Map(
+    [Flags.replicaCount, Flags.blockNodeMessageSizeSoftLimitBytes, Flags.blockNodeMessageSizeHardLimitBytes].map(
+      (f): [string, CommandFlag] => [f.name, f],
+    ),
+  );
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],

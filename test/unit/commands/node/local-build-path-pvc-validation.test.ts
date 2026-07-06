@@ -9,11 +9,14 @@ import path from 'node:path';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import * as constants from '../../../../src/core/constants.js';
+import {Helpers} from '../../../../src/core/helpers.js';
 
-function createNodeCommandTasksWithPvcData(
-  persistentVolumeClaimsByContext: Record<string, string[]>,
-): NodeCommandTasks {
+function createNodeCommandTasksWithPvcData(persistentVolumeClaimsByContext: Record<string, string[]>): {
+  tasks: NodeCommandTasks;
+  showUserMessages: string[];
+} {
   const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+  const showUserMessages: string[] = [];
 
   (nodeCommandTasks as unknown as {k8Factory: unknown}).k8Factory = {
     getK8: (context: string): {pvcs: () => {list: () => Promise<string[]>}} => ({
@@ -23,7 +26,20 @@ function createNodeCommandTasksWithPvcData(
     }),
   };
 
-  return nodeCommandTasks;
+  (nodeCommandTasks as unknown as {logger: unknown}).logger = {
+    showUser: (message: string): void => {
+      showUserMessages.push(message);
+    },
+  };
+
+  return {tasks: nodeCommandTasks, showUserMessages};
+}
+
+function invokeParseGossipFqdnRestricted(
+  _nodeCommandTasks: NodeCommandTasks,
+  applicationPropertiesText: string,
+): boolean | undefined {
+  return Helpers.parseGossipFqdnRestricted(applicationPropertiesText);
 }
 
 function invokeValidateNodePvcsForLocalBuildPath(
@@ -38,24 +54,63 @@ function invokeValidateNodePvcsForLocalBuildPath(
 }
 
 describe('NodeCommandTasks local build path PVC validation', (): void => {
-  it('throws when local build path is used without node PVCs', async (): Promise<void> => {
-    const nodeCommandTasks: NodeCommandTasks = createNodeCommandTasksWithPvcData({
+  it('warns when local build path is used without node PVCs', async (): Promise<void> => {
+    const {tasks, showUserMessages} = createNodeCommandTasksWithPvcData({
       'kind-solo': [],
     });
 
-    await expect(invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-solo'])).to.be.rejectedWith(
-      'Redeploy the consensus network with --pvcs true',
-    );
+    await expect(invokeValidateNodePvcsForLocalBuildPath(tasks, ['kind-solo'])).to.eventually.be.fulfilled;
+    expect(showUserMessages).to.have.length(1);
+    expect(showUserMessages[0]).to.include('--pvcs true');
   });
 
   it('passes when node PVCs exist for each context', async (): Promise<void> => {
-    const nodeCommandTasks: NodeCommandTasks = createNodeCommandTasksWithPvcData({
+    const {tasks} = createNodeCommandTasksWithPvcData({
       'kind-alpha': ['data-node1'],
       'kind-beta': ['data-node2'],
     });
 
-    await expect(invokeValidateNodePvcsForLocalBuildPath(nodeCommandTasks, ['kind-alpha', 'kind-beta'])).to.eventually
-      .be.fulfilled;
+    await expect(invokeValidateNodePvcsForLocalBuildPath(tasks, ['kind-alpha', 'kind-beta'])).to.eventually.be
+      .fulfilled;
+  });
+});
+
+describe('NodeCommandTasks platform software fetch routing', (): void => {
+  it('uploads local build software when upgrade version is empty', async (): Promise<void> => {
+    const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+    const uploadResult: object = {};
+    const validateNodePvcsStub: sinon.SinonStub = sinon
+      .stub(nodeCommandTasks as unknown as Record<string, unknown>, 'validateNodePvcsForLocalBuildPath')
+      .resolves();
+    const uploadPlatformSoftwareStub: sinon.SinonStub = sinon
+      .stub(nodeCommandTasks as unknown as Record<string, unknown>, '_uploadPlatformSoftware')
+      .returns(uploadResult);
+
+    try {
+      const fetchPlatformSoftwareTask: ReturnType<NodeCommandTasks['fetchPlatformSoftware']> =
+        nodeCommandTasks.fetchPlatformSoftware('nodeAliases');
+      const result: unknown = await fetchPlatformSoftwareTask.task(
+        {
+          config: {
+            consensusNodes: [{name: 'node1', context: 'kind-solo'}],
+            localBuildPath: '/tmp/local-build/data',
+            namespace: NamespaceName.of('solo'),
+            nodeAliases: ['node1'],
+            podRefs: {},
+            releaseTag: 'v0.74.0',
+            stagingDir: '/tmp/staging',
+            upgradeVersion: '',
+          },
+        } as never,
+        {} as never,
+      );
+
+      expect(result).to.equal(uploadResult);
+      expect(validateNodePvcsStub.calledOnceWith(NamespaceName.of('solo'), ['kind-solo'])).to.equal(true);
+      expect(uploadPlatformSoftwareStub.calledOnce).to.equal(true);
+    } finally {
+      sinon.restore();
+    }
   });
 });
 
@@ -64,16 +119,6 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
     data: {[constants.APPLICATION_PROPERTIES]: 'nodes.gossipFqdnRestricted=false\n'},
   };
   const emptyConfigMapData: {data: Record<string, string>} = {data: {}};
-
-  function invokeParseGossipFqdnRestricted(
-    nodeCommandTasks: NodeCommandTasks,
-    applicationPropertiesText: string,
-  ): boolean | undefined {
-    const parserFunction: (text: string) => boolean | undefined = (
-      nodeCommandTasks as unknown as Record<string, (text: string) => boolean | undefined>
-    ).parseGossipFqdnRestricted;
-    return parserFunction.call(nodeCommandTasks, applicationPropertiesText);
-  }
 
   function invokeGetGossipFqdnRestricted(
     nodeCommandTasks: NodeCommandTasks,
@@ -171,10 +216,11 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
       stagingDir: stagingDirectory,
     };
 
+    // Stub fs.existsSync to return false for all paths (no cache/repo files exist)
     const existsSyncStub: sinon.SinonStub = sinon.stub(fs, 'existsSync').returns(false);
     try {
       expect(await invokeGetGossipFqdnRestricted(nodeCommandTasks, config, k8)).to.equal(true);
-      expect(existsSyncStub.calledOnce).to.equal(true);
+      expect(existsSyncStub.callCount).to.be.greaterThanOrEqual(1);
     } finally {
       sinon.restore();
       fs.rmSync(stagingDirectory, {recursive: true, force: true});

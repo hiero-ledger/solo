@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import {SoloError} from './errors/solo-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
 import {readFile, writeFile} from 'node:fs/promises';
@@ -13,7 +11,7 @@ import {Flags as flags} from '../commands/flags.js';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {type ConfigManager} from './config-manager.js';
-import * as helpers from './helpers.js';
+import {Helpers} from './helpers.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, type DirectoryPath, type NodeAlias, type NodeAliases, type Path} from '../types/aliases.js';
 import {type Optional} from '../types/index.js';
@@ -27,7 +25,6 @@ import {ContainerReference} from '../integration/kube/resources/container/contai
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
-import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {AccountManager} from './account-manager.js';
@@ -40,15 +37,7 @@ import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
-
-export interface ProfileManagerStagingOptions {
-  // These values are intentionally passed from the command's resolved config so profile generation
-  // does not depend on mutable global flags that can be changed by concurrently running subcommands.
-  cacheDir: DirectoryPath;
-  releaseTag: string;
-  appName: string;
-  chainId: string;
-}
+import {type ProfileManagerStagingOptions} from './profile-manager-staging-options.js';
 
 @injectable()
 export class ProfileManager {
@@ -193,7 +182,6 @@ export class ProfileManager {
         accountMap,
         consensusNodes,
         stagingDirectory,
-        resolvedStagingOptions.releaseTag,
         resolvedStagingOptions.appName,
         resolvedStagingOptions.chainId,
         gossipFqdnRestricted,
@@ -215,9 +203,7 @@ export class ProfileManager {
       const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
       const sourceAbsoluteFilePath: string = PathEx.resolve(currentWorkingDirectory, sourceFilePath);
       if (!fs.existsSync(sourceAbsoluteFilePath)) {
-        throw new SoloError(
-          `Configuration file does not exist for: ${flag.name}, absolute path: ${sourceAbsoluteFilePath}, path: ${sourceFilePath}`,
-        );
+        throw new SoloErrors.validation.configFileNotFound(flag.name, sourceAbsoluteFilePath, sourceFilePath);
       }
 
       const destinationFileName: string = path.basename(flag.definition.defaultValue as string);
@@ -235,12 +221,30 @@ export class ProfileManager {
         flagValue !== (flags.applicationProperties.definition.defaultValue as string);
 
       if (isUserSuppliedApplicationProperties) {
-        // Base: Solo's updated default (realm/shard/block-node settings already applied).
-        // Apply user's properties as key-level overrides: existing keys are updated,
-        // new keys are appended.  This avoids duplicates while preserving all Solo defaults
-        // that the user did not explicitly override.
-        fs.cpSync(applicationPropertiesPath, destinationPath, {force: true});
-        await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
+        if (await this.isApplicationPropertiesOverwriteEnabled(sourceAbsoluteFilePath)) {
+          this.logger.debug(
+            `Detected '${constants.APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER}' in '${sourceAbsoluteFilePath}', ` +
+              'using user application.properties as full overwrite',
+          );
+          fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
+        } else {
+          // Base: Solo's updated default (realm/shard/block-node settings already applied).
+          // Apply user's properties as key-level overrides: existing keys are updated,
+          // new keys are appended.  This avoids duplicates while preserving all Solo defaults
+          // that the user did not explicitly override.
+          fs.cpSync(applicationPropertiesPath, destinationPath, {force: true});
+          await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
+
+          // Re-apply Solo-required settings so merged user values cannot override
+          // critical deployment behavior (realm/shard/chainId/block-node settings).
+          await this.updateApplicationPropertiesWithRealmAndShard(
+            destinationPath,
+            this.localConfig.configuration.realmForDeployment(deploymentName),
+            this.localConfig.configuration.shardForDeployment(deploymentName),
+          );
+          await this.updateApplicationPropertiesForBlockNode(destinationPath);
+          await this.updateApplicationPropertiesWithChainId(destinationPath, resolvedStagingOptions.chainId);
+        }
       } else {
         fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
       }
@@ -425,7 +429,7 @@ export class ProfileManager {
       // This must run AFTER the JFR block above, which overwrites defaults.root from solo-values.yaml.
       const stagingDirectory: string = Templates.renderStagingDir(
         this.configManager.getFlag(flags.cacheDir),
-        this.configManager.getFlag(flags.releaseTag),
+        this.configManager.getFlag(flags.consensusNodeVersion),
       );
       const applicationEnvironmentPath: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
       this.applyApplicationEnvToExtraEnv(applicationEnvironmentPath, yamlRoot);
@@ -442,7 +446,7 @@ export class ProfileManager {
     // Newer call sites should pass command-scoped values to avoid cross-command interference.
     return {
       cacheDir: options?.cacheDir ?? this.configManager.getFlag(flags.cacheDir),
-      releaseTag: options?.releaseTag ?? this.configManager.getFlag(flags.releaseTag),
+      releaseTag: options?.releaseTag ?? this.configManager.getFlag(flags.consensusNodeVersion),
       appName: options?.appName ?? this.configManager.getFlag(flags.app),
       chainId: options?.chainId ?? this.configManager.getFlag(flags.chainId),
     };
@@ -521,6 +525,14 @@ export class ProfileManager {
     await writeFile(stagingPath, resultLines.join('\n'));
   }
 
+  private async isApplicationPropertiesOverwriteEnabled(userFilePath: string): Promise<boolean> {
+    const userContent: string = await readFile(userFilePath, 'utf8');
+    return userContent.split('\n').some((line: string): boolean => {
+      const trimmed: string = line.trim();
+      return trimmed.startsWith('#') && trimmed.includes(constants.APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER);
+    });
+  }
+
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
     const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.components.state.blockNodes;
     const hasDeployedBlockNodes: boolean = blockNodes.length > 0;
@@ -532,7 +544,11 @@ export class ProfileManager {
       fileText.split('\n'),
     );
 
-    const streamMode: string = constants.BLOCK_STREAM_STREAM_MODE;
+    const streamMode: string = Helpers.resolveBlockStreamModeForConsensusVersion(
+      Helpers.parseBlockStreamMode(lines.join('\n')),
+      this.remoteConfig.configuration.versions.consensusNode,
+      hasDeployedBlockNodes,
+    );
     const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
 
     let streamModeUpdated: boolean = false;
@@ -706,8 +722,11 @@ export class ProfileManager {
         return undefined;
       }
 
-      const pod: Pod = pods[0];
-      const podReference: PodReference = pod.podReference;
+      const pod: Pod | undefined = pods.find((candidate: Pod): boolean => Boolean(candidate?.podReference)) ?? pods[0];
+      const podReference: PodReference | null | undefined = pod?.podReference;
+      if (!podReference) {
+        return undefined;
+      }
 
       // Get container reference
       const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
@@ -781,7 +800,6 @@ export class ProfileManager {
    * @param nodeAccountMap - the map of node aliases to account IDs
    * @param consensusNodes - the list of consensus nodes
    * @param destinationPath
-   * @param releaseTagOverride - release tag override
    * @param [appName] - the app name (default: HederaNode.jar)
    * @param [chainId] - chain ID (298 for local network)
    * @returns the config.txt file path
@@ -790,22 +808,19 @@ export class ProfileManager {
     nodeAccountMap: Map<NodeAlias, string>,
     consensusNodes: ConsensusNode[],
     destinationPath: string,
-    releaseTagOverride: string,
     appName: string = constants.HEDERA_APP_NAME,
     chainId: string = constants.HEDERA_CHAIN_ID,
     gossipFqdnRestricted: boolean = true,
   ): Promise<string> {
-    let releaseTag: string = releaseTagOverride;
     if (!nodeAccountMap || nodeAccountMap.size === 0) {
-      throw new MissingArgumentError('nodeAccountMap the map of node IDs to account IDs is required');
-    }
-
-    if (!releaseTag) {
-      releaseTag = versions.HEDERA_PLATFORM_VERSION;
+      throw new SoloErrors.validation.missingArgument('nodeAccountMap the map of node IDs to account IDs is required');
     }
 
     if (!fs.existsSync(destinationPath)) {
-      throw new IllegalArgumentError(`config destPath does not exist: ${destinationPath}`, destinationPath);
+      throw new SoloErrors.validation.illegalArgument(
+        `config destPath does not exist: ${destinationPath}`,
+        destinationPath,
+      );
     }
 
     const configFilePath: string = PathEx.join(destinationPath, 'config.txt');
@@ -818,18 +833,12 @@ export class ProfileManager {
     const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
     const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
-    const releaseVersion: SemanticVersion<string> = new SemanticVersion(releaseTag);
-
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
 
       let nodeSeq: number = 0;
       for (const consensusNode of consensusNodes) {
-        const internalIP: string = helpers.getInternalAddress(
-          releaseVersion,
-          NamespaceName.of(consensusNode.namespace),
-          consensusNode.name as NodeAlias,
-        );
+        const internalIP: string = constants.LOCAL_HOST;
 
         // First try to extract endpoint from saved state (migration scenario)
         let address: Address | undefined = await this.extractSavedEndpoint(consensusNode, nodeSeq);
@@ -853,29 +862,13 @@ export class ProfileManager {
         nodeSeq += 1;
       }
 
-      // TODO: remove once we no longer need less than v0.56
-      if (releaseVersion.minor >= 41 && releaseVersion.minor < 56) {
-        configLines.push(`nextNodeId, ${nodeSeq}`);
-      }
-
       fs.writeFileSync(configFilePath, configLines.join('\n'));
       return configFilePath;
     } catch (error: Error | unknown) {
-      throw new SoloError(
-        `failed to generate config.txt, ${error instanceof Error ? (error as Error).message : 'unknown error'}`,
-        error,
+      throw new SoloErrors.component.genesisDataGenerationFailed(
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
-  }
-
-  private parseGossipFqdnRestricted(applicationPropertiesText: string): boolean | undefined {
-    const match: RegExpMatchArray | null = applicationPropertiesText.match(
-      /^\s*nodes\.gossipFqdnRestricted\s*=\s*(true|false)\s*$/m,
-    );
-    if (match?.[1]) {
-      return match[1].toLowerCase() === 'true';
-    }
-    return undefined;
   }
 
   private async getGossipFqdnRestricted(
@@ -883,33 +876,12 @@ export class ProfileManager {
     applicationPropertiesPath: string,
   ): Promise<boolean> {
     const firstNode: ConsensusNode | undefined = consensusNodes[0];
-    if (firstNode) {
-      try {
-        const k8: K8 = this.k8Factory.getK8(firstNode.context);
-        const configMap: ConfigMap = await k8
-          .configMaps()
-          .read(NamespaceName.of(firstNode.namespace), constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
-        const configMapProperties: string | undefined = configMap.data?.[constants.APPLICATION_PROPERTIES];
-        if (configMapProperties) {
-          const parsedFromConfigMap: boolean | undefined = this.parseGossipFqdnRestricted(configMapProperties);
-          if (parsedFromConfigMap !== undefined) {
-            return parsedFromConfigMap;
-          }
-        }
-      } catch {
-        // Fall through to local application.properties
-      }
-    }
-
-    if (fs.existsSync(applicationPropertiesPath)) {
-      const applicationPropertiesContent: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
-      const parsedFromApplicationProperties: boolean | undefined =
-        this.parseGossipFqdnRestricted(applicationPropertiesContent);
-      if (parsedFromApplicationProperties !== undefined) {
-        return parsedFromApplicationProperties;
-      }
-    }
-
-    return true;
+    return await Helpers.resolveGossipFqdnRestricted({
+      k8: firstNode ? this.k8Factory.getK8(firstNode.context) : undefined,
+      namespace: firstNode ? NamespaceName.of(firstNode.namespace) : undefined,
+      applicationPropertiesPath,
+      cacheDir: constants.SOLO_CACHE_DIR,
+      resourcesDir: constants.RESOURCES_DIR,
+    });
   }
 }

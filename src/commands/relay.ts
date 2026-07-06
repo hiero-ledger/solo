@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {Listr} from 'listr2';
-import {SoloError} from '../core/errors/solo-error.js';
-import {MissingArgumentError} from '../core/errors/missing-argument-error.js';
-import * as helpers from '../core/helpers.js';
-import {showVersionBanner} from '../core/helpers.js';
+import {parseNodeAliases, showVersionBanner, sleep} from '../core/helpers.js';
 import * as constants from '../core/constants.js';
 import {type AccountManager} from '../core/account-manager.js';
 import {BaseCommand} from './base.js';
@@ -43,12 +41,11 @@ import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
-import {MIRROR_INGRESS_CONTROLLER} from '../core/constants.js';
-import {OperatingSystem} from '../business/utils/operating-system.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {Duration} from '../core/time/duration.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {optionFromFlag} from './command-helpers.js';
+import {HelmChartValues} from '../integration/helm/model/values.js';
 
 interface RelayDestroyConfigClass {
   chartDirectory: string;
@@ -83,7 +80,7 @@ interface RelayDeployConfigClass {
   isChartInstalled: boolean;
   nodeAliases: NodeAliases;
   releaseName: string;
-  valuesArg: string;
+  relayHelmChartValues: HelmChartValues;
   clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
   context: Optional<string>;
@@ -120,7 +117,7 @@ interface RelayUpgradeConfigClass {
   isChartInstalled: boolean;
   nodeAliases: NodeAliases;
   releaseName: string;
-  valuesArg: string;
+  relayHelmChartValues: HelmChartValues;
   clusterRef: Optional<ClusterReferenceName>;
   domainName: Optional<string>;
   context: Optional<string>;
@@ -158,7 +155,6 @@ enum RelayCommandType {
 export class RelayCommand extends BaseCommand {
   public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
     super();
-
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
   }
 
@@ -177,7 +173,9 @@ export class RelayCommand extends BaseCommand {
       flags.operatorId,
       flags.operatorKey,
       flags.quiet,
+      // Keep legacy flag visible as a separate deprecated option.
       flags.relayReleaseTag,
+      flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
       flags.valuesFile,
@@ -205,7 +203,9 @@ export class RelayCommand extends BaseCommand {
       flags.operatorId,
       flags.operatorKey,
       flags.quiet,
+      // Keep legacy flag visible as a separate deprecated option.
       flags.relayReleaseTag,
+      flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
       flags.valuesFile,
@@ -227,7 +227,7 @@ export class RelayCommand extends BaseCommand {
     optional: [flags.chartDirectory, flags.clusterRef, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode, flags.id],
   };
 
-  private async prepareValuesArgForRelay({
+  private async prepareHelmChartValuesForRelay({
     valuesFile,
     nodeAliases,
     chainId,
@@ -242,99 +242,105 @@ export class RelayCommand extends BaseCommand {
     releaseName,
     deployment,
     mirrorNamespace,
-  }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<string> {
-    let valuesArgument: string = '';
+    mirrorNodeReleaseName,
+  }: RelayDeployConfigClass | RelayUpgradeConfigClass): Promise<HelmChartValues> {
+    const mirrorNodeUrl: string = Templates.renderMirrorNodeIngressControllerUrl(mirrorNamespace);
+    const mirrorNodeWeb3Url: string = Templates.renderMirrorNodeWeb3ServiceUrl(mirrorNodeReleaseName, mirrorNamespace);
 
-    valuesArgument += helpers.prepareValuesFiles(constants.RELAY_VALUES_FILE);
-    valuesArgument += ' --install';
-    valuesArgument += helpers.populateHelmArguments({nameOverride: releaseName});
-
-    valuesArgument += ' --set ws.enabled=true';
-    valuesArgument += ` --set relay.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
-    valuesArgument += ` --set relay.config.MIRROR_NODE_URL_WEB3=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
-
-    valuesArgument += ` --set ws.config.MIRROR_NODE_URL=http://${MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
+    const chartValues: HelmChartValues = new HelmChartValues()
+      .file(constants.RELAY_VALUES_FILE)
+      .set('nameOverride', releaseName)
+      .set('relay.config.MIRROR_NODE_URL', mirrorNodeUrl)
+      .set('relay.config.MIRROR_NODE_URL_WEB3', mirrorNodeWeb3Url)
+      .set('ws.config.MIRROR_NODE_URL', mirrorNodeUrl);
 
     if (chainId) {
-      valuesArgument += ` --set relay.config.CHAIN_ID=${chainId}`;
-      valuesArgument += ` --set ws.config.CHAIN_ID=${chainId}`;
+      chartValues.set('relay.config.CHAIN_ID', chainId).set('ws.config.CHAIN_ID', chainId);
     }
 
     if (relayReleaseTag) {
       relayReleaseTag = SemanticVersion.getValidSemanticVersion(relayReleaseTag, false, 'Relay release');
-      valuesArgument += ` --set relay.image.tag=${relayReleaseTag}`;
-      valuesArgument += ` --set ws.image.tag=${relayReleaseTag}`;
+
+      chartValues.set('relay.image.tag', relayReleaseTag).set('ws.image.tag', relayReleaseTag);
     }
 
     if (componentImage) {
       const parsedImageReference: ParsedImageReference = ImageReference.parseImageReference(componentImage);
-      valuesArgument += ` --set relay.image.registry=${parsedImageReference.registry}`;
-      valuesArgument += ` --set ws.image.registry=${parsedImageReference.registry}`;
-      valuesArgument += ` --set relay.image.repository=${parsedImageReference.repository}`;
-      valuesArgument += ` --set ws.image.repository=${parsedImageReference.repository}`;
-      valuesArgument += ` --set relay.image.tag=${parsedImageReference.tag}`;
-      valuesArgument += ` --set ws.image.tag=${parsedImageReference.tag}`;
+
+      chartValues
+        .set('relay.image.registry', parsedImageReference.registry)
+        .set('ws.image.registry', parsedImageReference.registry)
+        .set('relay.image.repository', parsedImageReference.repository)
+        .set('ws.image.repository', parsedImageReference.repository)
+        .set('relay.image.tag', parsedImageReference.tag)
+        .set('ws.image.tag', parsedImageReference.tag);
+
+      if (this.isLocalImageAvailableInDocker(componentImage)) {
+        chartValues.set('relay.image.pullPolicy', 'Never').set('ws.image.pullPolicy', 'Never');
+      }
     }
 
     if (replicaCount) {
-      valuesArgument += ` --set relay.replicaCount=${replicaCount}`;
-      valuesArgument += ` --set ws.replicaCount=${replicaCount}`;
+      chartValues.set('relay.replicaCount', replicaCount).set('ws.replicaCount', replicaCount);
     }
 
     const operatorIdUsing: string = operatorId || this.accountManager.getOperatorAccountId(deployment).toString();
-    valuesArgument += ` --set relay.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
-    valuesArgument += ` --set ws.config.OPERATOR_ID_MAIN=${operatorIdUsing}`;
+
+    chartValues
+      .set('relay.config.OPERATOR_ID_MAIN', operatorIdUsing)
+      .set('ws.config.OPERATOR_ID_MAIN', operatorIdUsing);
 
     if (operatorKey) {
       // use user provided operatorKey if available
-      valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKey}`;
-      valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKey}`;
+      chartValues.set('relay.config.OPERATOR_KEY_MAIN', operatorKey).set('ws.config.OPERATOR_KEY_MAIN', operatorKey);
     } else {
       try {
         const secrets: Secret[] = await this.k8Factory
           .getK8(context)
           .secrets()
           .list(namespace, [`solo.hedera.com/account-id=${operatorIdUsing}`]);
+
         if (secrets.length === 0) {
           this.logger.info(`No k8s secret found for operator account id ${operatorIdUsing}, use default one`);
-          valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
-          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${constants.OPERATOR_KEY}`;
+
+          chartValues
+            .set('relay.config.OPERATOR_KEY_MAIN', constants.OPERATOR_KEY)
+            .set('ws.config.OPERATOR_KEY_MAIN', constants.OPERATOR_KEY);
         } else {
           this.logger.info('Using operator key from k8s secret');
+
           const operatorKeyFromK8: string = Base64.decode(secrets[0].data.privateKey);
-          valuesArgument += ` --set relay.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
-          valuesArgument += ` --set ws.config.OPERATOR_KEY_MAIN=${operatorKeyFromK8}`;
+
+          chartValues
+            .set('relay.config.OPERATOR_KEY_MAIN', operatorKeyFromK8)
+            .set('ws.config.OPERATOR_KEY_MAIN', operatorKeyFromK8);
         }
       } catch (error) {
-        throw new SoloError(`Error getting operator key: ${error.message}`, error);
+        throw new SoloErrors.component.relayOperatorKeyRetrievalFailed(error);
       }
     }
 
     if (!nodeAliases) {
-      throw new MissingArgumentError('Node IDs must be specified');
+      throw new SoloErrors.validation.missingArgument('Node IDs must be specified');
     }
 
     const networkJsonString: string = await this.prepareNetworkJsonString(nodeAliases, namespace, deployment);
-    const quotedNetworkJsonString: string = OperatingSystem.isWin32()
-      ? `"${networkJsonString.replaceAll('"', String.raw`\"`)}"`
-      : `'${networkJsonString}'`;
-    valuesArgument += ` --set-literal relay.config.HEDERA_NETWORK=${quotedNetworkJsonString}`;
-    valuesArgument += ` --set-literal ws.config.HEDERA_NETWORK=${quotedNetworkJsonString}`;
+
+    chartValues
+      .setLiteral('relay.config.HEDERA_NETWORK', networkJsonString)
+      .setLiteral('ws.config.HEDERA_NETWORK', networkJsonString);
 
     if (domainName) {
-      valuesArgument += helpers.populateHelmArguments({
-        'relay.ingress.enabled': true,
-        'relay.ingress.hosts[0].host': domainName,
-        'relay.ingress.hosts[0].paths[0].path': '/',
-        'relay.ingress.hosts[0].paths[0].pathType': 'ImplementationSpecific',
-      });
+      chartValues
+        .set('relay.ingress.enabled', true)
+        .set('relay.ingress.hosts[0].host', domainName)
+        .set('relay.ingress.hosts[0].paths[0].path', '/')
+        .set('relay.ingress.hosts[0].paths[0].pathType', 'ImplementationSpecific');
     }
 
-    if (valuesFile) {
-      valuesArgument += helpers.prepareValuesFiles(valuesFile);
-    }
+    chartValues.filesFromCommaSeparatedInput(valuesFile);
 
-    return valuesArgument;
+    return chartValues;
   }
 
   /**
@@ -347,7 +353,7 @@ export class RelayCommand extends BaseCommand {
     deployment: DeploymentName,
   ): Promise<string> {
     if (!nodeAliases) {
-      throw new MissingArgumentError('Node IDs must be specified');
+      throw new SoloErrors.validation.missingArgument('Node IDs must be specified');
     }
 
     const networkIds: Record<string, string> = {};
@@ -360,8 +366,13 @@ export class RelayCommand extends BaseCommand {
     );
     for (const nodeAlias of nodeAliases) {
       const haProxyClusterIp: string = networkNodeServicesMap.get(nodeAlias).haProxyClusterIp;
+      const haProxyLoadBalancerIp: string | undefined = networkNodeServicesMap.get(nodeAlias).haProxyLoadBalancerIp;
       const haProxyGrpcPort: string | number = networkNodeServicesMap.get(nodeAlias).haProxyGrpcPort;
-      const networkKey: string = `${haProxyClusterIp}:${haProxyGrpcPort}`;
+      // In multi-cluster deployments the relay may run in a different cluster than some consensus nodes.
+      // ClusterIP addresses are only routable within their own cluster, so prefer the load balancer IP
+      // when one is available and fall back to ClusterIP otherwise.
+      const host: string = haProxyLoadBalancerIp || haProxyClusterIp;
+      const networkKey: string = `${host}:${haProxyGrpcPort}`;
       networkIds[networkKey] = accountMap.get(nodeAlias);
     }
 
@@ -376,7 +387,7 @@ export class RelayCommand extends BaseCommand {
 
   private renderReleaseName(id: ComponentId): string {
     if (typeof id !== 'number') {
-      throw new SoloError(`Invalid component id: ${id}, type: ${typeof id}`);
+      throw new SoloErrors.validation.relayInvalidComponentId(id);
     }
     return `${constants.JSON_RPC_RELAY_RELEASE_NAME}-${id}`;
   }
@@ -406,7 +417,7 @@ export class RelayCommand extends BaseCommand {
     return {
       title: 'Prepare chart values',
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
-        config.valuesArg = await this.prepareValuesArgForRelay(config);
+        config.relayHelmChartValues = await this.prepareHelmChartValuesForRelay(config);
       },
     };
   }
@@ -415,21 +426,29 @@ export class RelayCommand extends BaseCommand {
     return {
       title: 'Deploy JSON RPC Relay',
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
+          await this.kindLoadComponentImage(config.componentImage, config.context);
+        }
+
         await this.chartManager.upgrade(
           config.namespace,
           config.releaseName,
           constants.JSON_RPC_RELAY_CHART,
           config.relayChartDirectory || constants.JSON_RPC_RELAY_CHART,
           config.relayChartDirectory ? '' : config.relayReleaseTag, // pin chart version to match image version
-          config.valuesArg,
+          config.relayHelmChartValues,
           config.context,
+          commandType !== RelayCommandType.ADD,
+          commandType === RelayCommandType.ADD,
+          false,
+          Boolean(config.relayChartDirectory),
         );
 
         showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
 
         // wait for the pod to destroy in case it was an upgrade
         if (commandType === RelayCommandType.UPGRADE) {
-          await helpers.sleep(Duration.ofSeconds(40));
+          await sleep(Duration.ofSeconds(40));
 
           // update relay version in remote config after successful upgrade
           this.remoteConfig.updateComponentVersion(
@@ -446,6 +465,12 @@ export class RelayCommand extends BaseCommand {
             (config as RelayDeployConfigClass).newRelayComponent.metadata.id,
             ComponentTypes.RelayNodes,
             DeploymentPhase.DEPLOYED,
+          );
+
+          // update relay version in remote config after successful deployment
+          this.remoteConfig.updateComponentVersion(
+            ComponentTypes.RelayNodes,
+            new SemanticVersion<string>(config.relayReleaseTag),
           );
 
           await this.remoteConfig.persist();
@@ -469,7 +494,7 @@ export class RelayCommand extends BaseCommand {
               constants.RELAY_PODS_RUNNING_DELAY,
             );
         } catch (error) {
-          throw new SoloError(`Relay ${config.releaseName} is not running: ${error.message}`, error);
+          throw new SoloErrors.component.relayNotRunning(config.releaseName, error);
         }
         // reset nodeAlias
         this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
@@ -493,7 +518,7 @@ export class RelayCommand extends BaseCommand {
               constants.RELAY_PODS_READY_DELAY,
             );
         } catch (error) {
-          throw new SoloError(`Relay ${config.releaseName} is not ready: ${error.message}`, error);
+          throw new SoloErrors.component.relayNotReady(config.releaseName, error);
         }
       },
     };
@@ -514,7 +539,7 @@ export class RelayCommand extends BaseCommand {
           );
 
         if (pods.length === 0) {
-          throw new SoloError('No Relay pod found');
+          throw new SoloErrors.system.relayPodNotFound();
         }
 
         const podReference: PodReference = pods[0].podReference;
@@ -593,7 +618,7 @@ export class RelayCommand extends BaseCommand {
 
             config.namespace = await this.getNamespace(task);
 
-            config.nodeAliases = helpers.parseNodeAliases(
+            config.nodeAliases = parseNodeAliases(
               config.nodeAliasesUnparsed,
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
@@ -656,7 +681,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error deploying relay: ${error.message}`, error);
+        throw new SoloErrors.component.relayDeployFailed(error);
       } finally {
         if (lease && !this.oneShotState.isActive()) {
           await lease.release();
@@ -711,7 +736,7 @@ export class RelayCommand extends BaseCommand {
 
             config.namespace = await this.getNamespace(task);
 
-            config.nodeAliases = helpers.parseNodeAliases(
+            config.nodeAliases = parseNodeAliases(
               config.nodeAliasesUnparsed,
               this.remoteConfig.getConsensusNodes(),
               this.configManager,
@@ -744,7 +769,7 @@ export class RelayCommand extends BaseCommand {
               'Relay',
               config.relayReleaseTag,
               this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
-              optionFromFlag(flags.relayReleaseTag),
+              optionFromFlag(flags.relayVersion),
             );
 
             if (!this.oneShotState.isActive()) {
@@ -768,7 +793,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError(`Error upgrading relay: ${error.message}`, error);
+        throw new SoloErrors.component.relayUpgradeFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -846,10 +871,15 @@ export class RelayCommand extends BaseCommand {
           task: async ({config}): Promise<void> => {
             await this.chartManager.uninstall(config.namespace, config.releaseName, config.context);
 
-            this.logger.showList(
-              'Destroyed Relays',
-              await this.chartManager.getInstalledCharts(config.namespace, config.context),
+            const destroyedRelays: string[] = await this.chartManager.getInstalledCharts(
+              config.namespace,
+              config.context,
             );
+            if (this.oneShotState.isActive()) {
+              this.logger.showListIfNotEmpty('Destroyed Relays', destroyedRelays);
+            } else {
+              this.logger.showList('Destroyed Relays', destroyedRelays);
+            }
 
             // reset nodeAliasesUnparsed
             this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
@@ -867,7 +897,7 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloError('Error uninstalling relays', error);
+        throw new SoloErrors.component.relayDestroyFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -937,7 +967,7 @@ export class RelayCommand extends BaseCommand {
     }
 
     if (this.remoteConfig.configuration.components.state.relayNodes.length === 0) {
-      throw new SoloError('Relay node not found in remote config');
+      throw new SoloErrors.system.relayNotInRemoteConfig();
     }
 
     return this.remoteConfig.configuration.components.state.relayNodes[0].metadata.id;
@@ -946,7 +976,7 @@ export class RelayCommand extends BaseCommand {
   private async inferRelayData(namespace: NamespaceName, context: Context): Promise<InferredData> {
     const id: ComponentId = this.inferRelayId();
 
-    const nodeAliases: NodeAliases = helpers.parseNodeAliases(
+    const nodeAliases: NodeAliases = parseNodeAliases(
       this.configManager.getFlag(flags.nodeAliasesUnparsed),
       this.remoteConfig.getConsensusNodes(),
       this.configManager,

@@ -8,7 +8,7 @@ import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import fs from 'node:fs';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -52,7 +52,7 @@ export class KindDependencyManager extends BaseDependencyManager {
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.run(`"${executableWithPath}" --version`, [], false, false, {}, 30_000);
+        const output: string[] = await this.run(executableWithPath, ['--version'], {timeoutMs: 30_000});
         this.logger.debug(`Attempt ${attempt}: Output from '${executableWithPath} --version': ${output.join('\n')}`);
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
@@ -64,12 +64,10 @@ export class KindDependencyManager extends BaseDependencyManager {
           }
         }
       } catch (error: any) {
-        throw new SoloError(`Failed to check kind version for input ${executableWithPath}`, error);
+        throw new SoloErrors.system.dependencyVersionCheckFailed('kind', error);
       }
     }
-    throw new SoloError(
-      'Failed to check kind version - no output received after multiple attempts for ' + executableWithPath,
-    );
+    throw new SoloErrors.system.dependencyVersionCheckFailed('kind');
   }
 
   protected getDownloadURL(): string {

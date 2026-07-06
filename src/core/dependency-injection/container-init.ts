@@ -70,6 +70,8 @@ import {type SoloConfigSchema} from '../../data/schema/model/solo/solo-config-sc
 import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
 import {DefaultOneShotCommand} from '../../commands/one-shot/default-one-shot.js';
+import {DefaultOneShotDeployOrchestrator} from '../../commands/one-shot/orchestrator/deploy/default-one-shot-deploy-orchestrator.js';
+import {DefaultOneShotDestroyOrchestrator} from '../../commands/one-shot/orchestrator/destroy/default-one-shot-destroy-orchestrator.js';
 import {DefaultTaskList} from '../task-list/default-task-list.js';
 import {Commands} from '../../commands/commands.js';
 import {BlockCommandDefinition} from '../../commands/command-definitions/block-command-definition.js';
@@ -91,13 +93,20 @@ import {RapidFireCommand} from '../../commands/rapid-fire.js';
 import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommand} from '../../commands/backup-restore.js';
 import {BackupRestoreCommandDefinition} from '../../commands/command-definitions/backup-restore-command-definition.js';
-import {BrewPackageManager} from '../package-managers/brew-package-manager.js';
 import {OsPackageManager} from '../package-managers/os-package-manager.js';
-import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.js';
 import {ClusterTaskManager} from '../cluster-task-manager.js';
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
 import {ROOT_DIR} from '../constants.js';
+import {CacheCommandDefinition} from '../../commands/command-definitions/cache-command-definition.js';
+import {CacheCommand} from '../../commands/cache.js';
+import {ImageCacheHandlerBuilder} from '../../integration/cache/impl/image-cache-handler-builder.js';
+import {DockerClient} from '../../integration/container-engine/docker-client.js';
+import {ContainerEngineResourceInspector} from '../../integration/container-engine/container-engine-resource-inspector.js';
+import {DefaultCacheHandlerRegistry} from '../../integration/cache/impl/default-cache-handler-registry.js';
+import {DefaultCacheHealthInspector} from '../../integration/cache/impl/default-cache-health-inspector.js';
+import {FileSystemCacheCatalogStore} from '../../integration/cache/impl/file-system-cache-catalog-store.js';
+import {CraneDependencyManager} from '../dependency-managers/crane-dependency-manager.js';
 
 export type InstanceOverrides = Map<symbol, SingletonContainer | ValueContainer>;
 
@@ -141,6 +150,7 @@ export class Container {
       new SingletonContainer(InjectTokens.PodmanDependencyManager, PodmanDependencyManager),
       new SingletonContainer(InjectTokens.VfkitDependencyManager, VfkitDependencyManager),
       new SingletonContainer(InjectTokens.GvproxyDependencyManager, GvproxyDependencyManager),
+      new SingletonContainer(InjectTokens.CraneDependencyManager, CraneDependencyManager),
       new SingletonContainer(InjectTokens.ChartManager, ChartManager),
       new SingletonContainer(InjectTokens.ConfigManager, ConfigManager),
       new SingletonContainer(InjectTokens.AccountManager, AccountManager),
@@ -167,6 +177,7 @@ export class Container {
       new SingletonContainer(InjectTokens.MirrorNodeCommand, MirrorNodeCommand),
       new SingletonContainer(InjectTokens.NetworkCommand, NetworkCommand),
       new SingletonContainer(InjectTokens.RelayCommand, RelayCommand),
+      new SingletonContainer(InjectTokens.CacheCommand, CacheCommand),
       new SingletonContainer(InjectTokens.BackupRestoreCommand, BackupRestoreCommand),
       new SingletonContainer(InjectTokens.BlockNodeCommand, BlockNodeCommand),
       new SingletonContainer(InjectTokens.RapidFireCommand, RapidFireCommand),
@@ -181,16 +192,24 @@ export class Container {
       new SingletonContainer(InjectTokens.ComponentFactory, ComponentFactory),
       new SingletonContainer(InjectTokens.RemoteConfigValidator, RemoteConfigValidator),
       new SingletonContainer(InjectTokens.OneShotState, OneShotState),
+      new SingletonContainer(InjectTokens.OneShotDeployOrchestrator, DefaultOneShotDeployOrchestrator),
+      new SingletonContainer(InjectTokens.OneShotDestroyOrchestrator, DefaultOneShotDestroyOrchestrator),
       new SingletonContainer(InjectTokens.OneShotCommand, DefaultOneShotCommand),
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
       new SingletonContainer(InjectTokens.MetricsServer, MetricsServerImpl),
-      new SingletonContainer(InjectTokens.BrewPackageManager, BrewPackageManager),
-      new SingletonContainer(InjectTokens.AptGetPackageManager, AptGetPackageManager),
       new SingletonContainer(InjectTokens.OsPackageManager, OsPackageManager),
       new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
       new SingletonContainer(InjectTokens.PostgresSharedResource, PostgresSharedResource),
       new SingletonContainer(InjectTokens.SharedResourceManager, SharedResourceManager),
+
+      // Cache
+      new SingletonContainer(InjectTokens.CacheHandlerRegistry, DefaultCacheHandlerRegistry),
+      new SingletonContainer(InjectTokens.CacheCatalogStore, FileSystemCacheCatalogStore),
+      new SingletonContainer(InjectTokens.CacheHealthInspector, DefaultCacheHealthInspector),
+      new SingletonContainer(InjectTokens.ImageCacheHandlerBuilder, ImageCacheHandlerBuilder),
+      new SingletonContainer(InjectTokens.ContainerEngineClient, DockerClient),
+      new SingletonContainer(InjectTokens.ContainerEngineResourceInspector, ContainerEngineResourceInspector),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),
@@ -203,6 +222,7 @@ export class Container {
       new SingletonContainer(InjectTokens.LedgerCommandDefinition, LedgerCommandDefinition),
       new SingletonContainer(InjectTokens.MirrorCommandDefinition, MirrorCommandDefinition),
       new SingletonContainer(InjectTokens.RelayCommandDefinition, RelayCommandDefinition),
+      new SingletonContainer(InjectTokens.CacheCommandDefinition, CacheCommandDefinition),
       new SingletonContainer(InjectTokens.OneShotCommandDefinition, OneShotCommandDefinition),
       new SingletonContainer(InjectTokens.RapidFireCommandDefinition, RapidFireCommandDefinition),
     ];
@@ -224,6 +244,7 @@ export class Container {
       new ValueContainer(InjectTokens.KindInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.KubectlInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(InjectTokens.PodmanInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
+      new ValueContainer(InjectTokens.CraneInstallationDirectory, PathEx.join(constants.SOLO_HOME_DIR, 'bin')),
       new ValueContainer(
         InjectTokens.PodmanDependenciesInstallationDirectory,
         PathEx.join(constants.SOLO_HOME_DIR, 'bin/podman-helpers'),
@@ -238,6 +259,7 @@ export class Container {
       new ValueContainer(InjectTokens.PodmanVersion, version.PODMAN_VERSION),
       new ValueContainer(InjectTokens.VfkitVersion, version.VFKIT_VERSION),
       new ValueContainer(InjectTokens.GvproxyVersion, version.GVPROXY_VERSION),
+      new ValueContainer(InjectTokens.CraneVersion, version.CRANE_VERSION),
       new ValueContainer(InjectTokens.SystemAccounts, constants.SYSTEM_ACCOUNTS),
       new ValueContainer(InjectTokens.CacheDir, cacheDirectory),
       new ValueContainer(InjectTokens.LocalConfigFileName, constants.DEFAULT_LOCAL_CONFIG_FILE),

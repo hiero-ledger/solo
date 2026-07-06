@@ -37,7 +37,8 @@ defaults:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
+  pull-requests: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -49,13 +50,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
@@ -84,13 +85,13 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Read JSON and Set Matrix Output
@@ -99,12 +100,12 @@ jobs:
           # Install jq (a lightweight and flexible command-line JSON processor)
           sudo apt-get update && sudo apt-get install -y jq
           
-          # Read JSON file
-          JSON_CONTENT=$(cat .github/workflows/support/extended-test-matrix.json | jq -c .)
+          # Read script-only test array for matrix runner.
+          JSON_CONTENT=$(jq -c '.tests | map(select(.type == "script"))' .github/workflows/support/extended-test-matrix.json)
           
           echo "JSON_CONTENT: $JSON_CONTENT"
           
-          # Set the output variable 'matrix' with JSON content
+          # Set workflow outputs.
           echo "matrix=$JSON_CONTENT" >> $GITHUB_OUTPUT
 
   matrix-tests:
@@ -119,13 +120,13 @@ jobs:
         test: ${{ fromJSON(needs.generate_matrix.outputs.matrix) }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
@@ -146,10 +147,34 @@ jobs:
           timeout_minutes: 10
           command: npm ci
 
+      - name: Install jq
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Install Kubectl
+        uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          version: "v1.31.4"
+
+      - name: Setup Kind
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
       - name: Run Test (${{ matrix.test.name }})
         timeout-minutes: ${{ matrix.test.timeout_minutes }}
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN != '' && secrets.GH_ACCESS_TOKEN || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN != '' && secrets.GH_ACCESS_TOKEN || github.token }}
           TEST_NAME: ${{ matrix.test.name }}
           TEST_DESCRIPTION: ${{ matrix.test.description }}
         run: |
@@ -158,38 +183,12 @@ jobs:
           echo "Type: ${{ matrix.test.type }}"
           echo "Path: ${{ matrix.test.path }}"
           
-          if [ "${{ matrix.test.type }}" = "script" ]; then
-            echo "Executing script: ${{ matrix.test.path }}"
-            if [ -f "${{ matrix.test.path }}" ]; then
-              chmod +x "${{ matrix.test.path }}"
-              "${{ matrix.test.path }}"
-            else
-              echo "Error: Script file not found at ${{ matrix.test.path }}"
-              exit 1
-            fi
-          elif [ "${{ matrix.test.type }}" = "workflow" ]; then
-            echo "Triggering workflow: ${{ matrix.test.path }}"
-            # Trigger the workflow using GitHub CLI
-            CMD=(
-              gh workflow run "${{ matrix.test.path }}"
-              --field "triggered-by=nightly-extended-tests"
-              --field "test-name=${{ matrix.test.name }}"
-            )
-
-            INPUTS_JSON='${{ matrix.test.workflow_inputs_json || '' }}'
-            if [ -n "${INPUTS_JSON}" ]; then
-              while IFS= read -r kv; do
-                CMD+=(--field "${kv}")
-              done < <(echo "${INPUTS_JSON}" | jq -r 'to_entries[] | "\(.key)=\(.value)"')
-            fi
-
-            "${CMD[@]}" || {
-              echo "Error: Failed to trigger workflow ${{ matrix.test.path }}"
-              exit 1
-            }
-            echo "Workflow triggered successfully"
+          echo "Executing script: ${{ matrix.test.path }}"
+          if [ -f "${{ matrix.test.path }}" ]; then
+            chmod +x "${{ matrix.test.path }}"
+            "${{ matrix.test.path }}"
           else
-            echo "Error: Unknown test type '${{ matrix.test.type }}'"
+            echo "Error: Script file not found at ${{ matrix.test.path }}"
             exit 1
           fi
 
@@ -206,7 +205,7 @@ jobs:
 
       - name: Send Slack Notification on Failure
         if: ${{ github.ref == 'refs/heads/main' && !cancelled() && failure() }}
-        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}
@@ -234,3 +233,26 @@ jobs:
             /tmp/solo-jdwp-probe.log
             /tmp/solo-${{ matrix.test.name }}*.log
           if-no-files-found: ignore
+
+  one-shot-timing:
+    name: Extended Test (one-shot-timing)
+    needs:
+      - generate_matrix
+    uses: ./.github/workflows/flow-one-shot-timing.yaml
+    secrets: inherit
+
+  ledger-reset-warm-start-timing:
+    name: Extended Test (ledger-reset-warm-start-timing)
+    needs:
+      - generate_matrix
+    uses: ./.github/workflows/flow-ledger-reset-warm-start-timing.yaml
+    secrets: inherit
+
+  flow-performance-test:
+    name: Extended Test (flow-performance-test)
+    needs:
+      - generate_matrix
+    uses: ./.github/workflows/flow-performance-test.yaml
+    with:
+      cn-edge-version: v0.74.0
+    secrets: inherit

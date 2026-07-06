@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import os from 'node:os';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {ShellRunner} from '../shell-runner.js';
 import {HelmDependencyManager} from './helm-dependency-manager.js';
 import {container, inject, injectable} from 'tsyringe-neo';
@@ -13,6 +13,7 @@ import {KubectlDependencyManager} from './kubectl-dependency-manager.js';
 import {PodmanDependencyManager} from './podman-dependency-manager.js';
 import {VfkitDependencyManager} from './vfkit-dependency-manager.js';
 import {GvproxyDependencyManager} from './gvproxy-dependency-manager.js';
+import {CraneDependencyManager} from './crane-dependency-manager.js';
 
 export type DependencyManagerType =
   | HelmDependencyManager
@@ -20,7 +21,8 @@ export type DependencyManagerType =
   | KubectlDependencyManager
   | PodmanDependencyManager
   | VfkitDependencyManager
-  | GvproxyDependencyManager;
+  | GvproxyDependencyManager
+  | CraneDependencyManager;
 
 @injectable()
 export class DependencyManager extends ShellRunner {
@@ -33,6 +35,7 @@ export class DependencyManager extends ShellRunner {
     @inject(InjectTokens.PodmanDependencyManager) podmanDependencyManager?: PodmanDependencyManager,
     @inject(InjectTokens.VfkitDependencyManager) vfkitDependencyManager?: VfkitDependencyManager,
     @inject(InjectTokens.GvproxyDependencyManager) gvproxyDependencyManager?: GvproxyDependencyManager,
+    @inject(InjectTokens.CraneDependencyManager) craneDependencyManager?: CraneDependencyManager,
   ) {
     super();
     this.dependancyManagerMap = new Map();
@@ -66,6 +69,11 @@ export class DependencyManager extends ShellRunner {
       constants.GVPROXY,
       gvproxyDependencyManager || container.resolve(InjectTokens.GvproxyDependencyManager),
     );
+
+    this.dependancyManagerMap.set(
+      constants.CRANE,
+      craneDependencyManager || container.resolve(InjectTokens.CraneDependencyManager),
+    );
   }
 
   public async getDependency(dependency: string): Promise<DependencyManagerType> {
@@ -73,7 +81,7 @@ export class DependencyManager extends ShellRunner {
     if (manager) {
       return manager;
     }
-    throw new SoloError(`Dependency manager for '${dependency}' is not found`);
+    throw new SoloErrors.system.dependencyManagerNotFound(dependency);
   }
 
   /**
@@ -90,7 +98,7 @@ export class DependencyManager extends ShellRunner {
     }
 
     if (!status) {
-      throw new SoloError(`Dependency '${dependency}' is not found`);
+      throw new SoloErrors.system.dependencyNotFound(dependency);
     }
 
     this.logger.debug(`Dependency '${dependency}' is found`);
@@ -126,6 +134,6 @@ export class DependencyManager extends ShellRunner {
     if (manager) {
       return await manager.getExecutable();
     }
-    throw new SoloError(`Dependency manager for '${dependency}' is not found`);
+    throw new SoloErrors.system.dependencyManagerNotFound(dependency);
   }
 }

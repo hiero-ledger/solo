@@ -6,15 +6,18 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {UserBreak} from './errors/user-break.js';
 import {SilentBreak} from './errors/silent-break.js';
+import {KubeErrorTranslator} from './errors/kube-error-translator.js';
+import {CacheErrorTranslator} from './errors/cache-error-translator.js';
+import {HelmErrorTranslator} from './errors/helm-error-translator.js';
 
 @injectable()
 export class ErrorHandler {
-  constructor(@inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger) {
+  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public handle(error: Error | any): void {
-    const error_ = this.extractBreak(error);
+  public handle(error: unknown): void {
+    const error_: UserBreak | SilentBreak | false = this.extractBreak(error);
     if (error_ instanceof UserBreak) {
       this.handleUserBreak(error_);
     } else if (error_ instanceof SilentBreak) {
@@ -33,8 +36,19 @@ export class ErrorHandler {
     this.logger.info(silentBreak.message);
   }
 
-  private handleError(error: Error | any): void {
-    this.logger.showUserError(error);
+  private handleError(error: unknown): void {
+    const translated: unknown =
+      KubeErrorTranslator.tryTranslate(error) ??
+      CacheErrorTranslator.tryTranslate(error) ??
+      HelmErrorTranslator.tryTranslate(error) ??
+      error;
+    this.logger.showUserError(translated);
+    this.logger.showUser(
+      '\n💡 Tip: To collect diagnostic information and help debug this issue, you can run:\n' +
+        '   solo deployment diagnostics logs\n' +
+        'Or to collect logs and create a GitHub issue in one step:\n' +
+        '   solo deployment diagnostics report\n',
+    );
   }
 
   /**
@@ -42,11 +56,11 @@ export class ErrorHandler {
    * Returns the UserBreak or SilentBreak if found, otherwise false
    * @param err
    */
-  private extractBreak(error: Error | any): UserBreak | SilentBreak | false {
+  private extractBreak(error: unknown): UserBreak | SilentBreak | false {
     if (error instanceof UserBreak || error instanceof SilentBreak) {
       return error;
     }
-    if (error?.cause) {
+    if (error instanceof Error && error.cause) {
       return this.extractBreak(error.cause);
     }
     return false;

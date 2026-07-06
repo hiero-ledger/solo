@@ -24,7 +24,23 @@ on:
         type: string
         required: false
         default: ""
+      use-edge:
+        description: "Enable --edge flag for the one-shot deploy"
+        type: boolean
+        required: false
+        default: false
   workflow_call:
+    inputs:
+      cn-edge-version:
+        description: "Consensus node version (leave empty for edge default in version.ts, eg: v0.74.0-rc.1)"
+        type: string
+        required: false
+        default: ""
+      use-edge:
+        description: "Enable --edge flag for the one-shot deploy"
+        type: boolean
+        required: false
+        default: false
   pull_request:
     types:
       - opened
@@ -62,13 +78,13 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Posix Dependencies
@@ -118,15 +134,6 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
-      - name: Setup E2E Tests
-        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
-        with:
-          max_attempts: 3
-          timeout_minutes: 10
-          # Skip metallb for single-cluster perf tests
-          command: |
-            SOLO_CLUSTER_DUALITY=1 SOLO_SKIP_METALLB=1  ./test/e2e/dual-cluster/setup-dual-e2e.sh
-
       - name: Run E2E Tests
         id: run-e2e-tests
         env:
@@ -136,15 +143,28 @@ jobs:
           export PATH=~/.solo/bin:${PATH}
           echo SOLO_TEST_CLUSTER=solo-e2e > .env
           echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
-          CN_EDGE_VERSION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.cn-edge-version || '' }}"
+          CN_EDGE_VERSION="${{ inputs.cn-edge-version || '' }}"
           if [[ -n "${CN_EDGE_VERSION}" ]]; then
             echo "Using consensus node edge version: ${CN_EDGE_VERSION}"
             echo CONSENSUS_NODE_EDGE_VERSION="${CN_EDGE_VERSION}" >> .env
+            export CONSENSUS_NODE_EDGE_VERSION="${CN_EDGE_VERSION}"
           else
             echo "No consensus node edge version specified, using default from version.ts"
           fi
+          USE_EDGE="false"
+          if [[ "${{ github.event_name }}" != "pull_request" && "${{ inputs.use-edge }}" == "true" ]]; then
+            USE_EDGE="true"
+          fi
+          if [[ "${USE_EDGE}" == "true" ]]; then
+            echo ONE_SHOT_USE_EDGE=true >> .env
+          else
+            echo ONE_SHOT_USE_EDGE=false >> .env
+          fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
+          # Workaround: keep BOTH mode so SmartContractLoadTest does not return INVALID_TRANSACTION_BODY.
+          # TODO: remove once https://github.com/hiero-ledger/hiero-consensus-node/issues/25883 is fixed.
+          echo BLOCK_STREAM_STREAM_MODE=BOTH >> .env
           cat .env
 
           # Start resource monitoring in background (30s interval for finer granularity)
@@ -229,7 +249,7 @@ jobs:
           trap - SIGTERM SIGINT
 
           # Stop resource monitoring and display summary
-          ./.github/workflows/script/monitor-resources.sh stop
+          ./.github/workflows/script/monitor-resources.sh stop || true
 
           if [ "${TASK_RC}" -ne 0 ]; then
             echo "task test-e2e-performance failed with exit code ${TASK_RC}. Collecting deployment diagnostics logs..."
@@ -380,13 +400,6 @@ jobs:
           # Include the summary JSON in the metrics artifact
           cp ~/.solo/logs/*.json ~/.solo/metrics/ 2>/dev/null || true
 
-      - name: Collect Deployment Diagnostics Logs
-        if: ${{ !cancelled() && always() }}
-        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-        run: |
-          export PATH=~/.solo/bin:${PATH}
-          npm run solo-test -- deployment diagnostics logs -q --dev || true
-
       - name: Upload E2E Logs to GitHub
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -397,10 +410,20 @@ jobs:
           overwrite: true
           if-no-files-found: error
 
+      - name: Upload Java Flight Recorder Recordings to GitHub
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        with:
+          name: solo-performance-test-jfr
+          path: ~/.solo/logs/**/*.jfr
+          overwrite: true
+          if-no-files-found: warn
+
       - name: Performance Test Verification
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          MAX_MEMORY_MB=11000
+          MAX_MEMORY_MB=4000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"
           MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')

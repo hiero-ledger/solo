@@ -59,6 +59,48 @@ on:
         type: number
         required: false
         default: 3
+  workflow_call:
+    inputs:
+      use-released-solo:
+        description: "Use latest released Solo CLI (true) or build from source (false)"
+        type: boolean
+        required: false
+        default: false
+      use-local-build:
+        description: "Build consensus node from source using --local-build-path"
+        type: boolean
+        required: false
+        default: false
+      consensus-node-version:
+        description: "Consensus node version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      block-node-version:
+        description: "Block node chart version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      mirror-node-version:
+        description: "Mirror node version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      relay-version:
+        description: "JSON RPC Relay version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      explorer-version:
+        description: "Explorer version (leave empty for version.ts default)"
+        type: string
+        required: false
+        default: ""
+      cycles:
+        description: "Number of cold/warm cycles to run"
+        type: number
+        required: false
+        default: 3
 
 defaults:
   run:
@@ -76,13 +118,13 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
@@ -135,11 +177,12 @@ jobs:
         id: versions
         run: |
           # Read defaults from version.ts and allow input overrides
-          DEFAULT_CN=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
-          DEFAULT_BN=$(awk -v RS=';' '/export const BLOCK_NODE_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
-          DEFAULT_MN=$(awk -v RS=';' '/export const MIRROR_NODE_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
-          DEFAULT_RELAY=$(awk -v RS=';' '/export const HEDERA_JSON_RPC_RELAY_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
-          DEFAULT_EXPLORER=$(awk -v RS=';' '/export const EXPLORER_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' version.ts)
+          source .github/workflows/script/helper.sh
+          DEFAULT_CN=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
+          DEFAULT_BN=$(extract_version BLOCK_NODE_VERSION version.ts)
+          DEFAULT_MN=$(extract_version MIRROR_NODE_VERSION version.ts)
+          DEFAULT_RELAY=$(extract_version HEDERA_JSON_RPC_RELAY_VERSION version.ts)
+          DEFAULT_EXPLORER=$(extract_version EXPLORER_VERSION version.ts)
 
           CN_VERSION="${{ inputs.consensus-node-version }}"
           BN_VERSION="${{ inputs.block-node-version }}"
@@ -164,7 +207,7 @@ jobs:
 
       - name: Setup Java and Gradle (for local build)
         if: ${{ inputs.use-local-build == true }}
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: 'temurin'
@@ -429,7 +472,7 @@ jobs:
 
       - name: Send Slack Notification
         if: ${{ !cancelled() }}
-        uses: rtCamp/action-slack-notify@e31e87e03dd19038e411e38ae27cbad084a90661 # v2.3.3
+        uses: rtCamp/action-slack-notify@33ca3be66c6f378fe1610fd1d5258632dbed5e58 # v2.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_TEST_WEBHOOK }}

@@ -6,6 +6,7 @@ import {HelmParserException} from '../helm-parser-exception.js';
 import {type Duration} from '../../../core/time/duration.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {SensitiveDataRedactor} from '../../../core/util/sensitive-data-redactor.js';
+import {type ExternalCommandInvocation} from '../../../core/execution/external-command-invocation.js';
 
 /**
  * Represents the execution of a helm command and is responsible for parsing the response.
@@ -51,23 +52,31 @@ export class HelmExecution {
 
   /**
    * Creates a new HelmExecution instance.
-   * @param command The command array to execute
-   * @param environmentVariables The environment variables to set
-   * @param logger Optional logger for command output
+   * @param invocation The helm command invocation to execute.
+   * @param logger Optional logger for command output.
    */
-  public constructor(command: string[], environmentVariables: Record<string, string>, logger?: SoloLogger) {
+  public constructor(invocation: ExternalCommandInvocation, logger?: SoloLogger) {
+    if (!invocation.commandPathOrName) {
+      throw new Error('Helm executable path or name is required');
+    }
+
     this.logger = logger;
 
-    const redactedCommand: string[] = HelmExecution.redactCommand(command);
+    const redactedCommand: string[] = HelmExecution.redactCommand([
+      invocation.commandPathOrName,
+      ...invocation.commandArguments,
+    ]);
+
     this.commandLine = redactedCommand.join(' ');
 
     if (this.logger) {
       this.logger.info(`Executing helm command: ${this.commandLine}`);
     }
 
-    this.process = spawn(command.join(' '), {
-      shell: true,
-      env: {...process.env, ...environmentVariables},
+    this.process = spawn(invocation.commandPathOrName, invocation.commandArguments, {
+      shell: false,
+      env: {...process.env, ...invocation.environmentVariables},
+      cwd: invocation.workingDirectory,
     });
   }
 
@@ -77,7 +86,6 @@ export class HelmExecution {
    */
   public async waitFor(): Promise<void> {
     return new Promise((resolve, reject): void => {
-      // const output: string[] = [];
       this.process.stdout.on('data', (d): void => {
         const items: string[] = d.toString().split(/\r?\n/);
         for (const item of items) {
@@ -95,6 +103,8 @@ export class HelmExecution {
           }
         }
       });
+
+      this.process.on('error', reject);
 
       this.process.on('close', (code): void => {
         this.exitCodeValue = code;
@@ -157,6 +167,86 @@ export class HelmExecution {
     return this.errOutput.join('');
   }
 
+  private static parseJsonOutput(output: string): unknown {
+    let lastParseError: unknown;
+
+    for (let index: number = 0; index < output.length; index++) {
+      if (output[index] !== '{' && output[index] !== '[') {
+        continue;
+      }
+
+      try {
+        return JSON.parse(HelmExecution.extractJsonOutput(output, index));
+      } catch (error) {
+        lastParseError = error;
+      }
+    }
+
+    if (lastParseError) {
+      throw lastParseError;
+    }
+
+    return JSON.parse(output);
+  }
+
+  private static extractJsonOutput(output: string, jsonStart: number): string {
+    const stack: string[] = [];
+    let inString: boolean = false;
+    let escaped: boolean = false;
+
+    for (let index: number = jsonStart; index < output.length; index++) {
+      const character: string = output[index];
+
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+
+        if (character === '\\') {
+          escaped = true;
+          continue;
+        }
+
+        if (character === '"') {
+          inString = false;
+        }
+
+        continue;
+      }
+
+      if (character === '"') {
+        inString = true;
+        continue;
+      }
+
+      if (character === '{') {
+        stack.push('}');
+        continue;
+      }
+
+      if (character === '[') {
+        stack.push(']');
+        continue;
+      }
+
+      if (character !== '}' && character !== ']') {
+        continue;
+      }
+
+      const expectedCharacter: string | undefined = stack.pop();
+      if (character !== expectedCharacter) {
+        return output.slice(jsonStart);
+      }
+
+      if (stack.length === 0) {
+        return output.slice(jsonStart, index + 1);
+      }
+    }
+
+    return output.slice(jsonStart);
+  }
+
   /**
    * Gets the response as a parsed object.
    * @param responseClass The class to parse the response into
@@ -202,12 +292,15 @@ export class HelmExecution {
 
     const output: string = this.standardOutput();
     try {
-      const parsed: any = JSON.parse(output);
+      const parsed: any = HelmExecution.parseJsonOutput(output);
       const result: T = new responseClass();
       Object.assign(result, parsed);
       return result;
-    } catch {
-      throw new HelmParserException(HelmExecution.MSG_DESERIALIZATION_ERROR.replace('%s', responseClass.name));
+    } catch (error) {
+      throw new HelmParserException(
+        HelmExecution.MSG_DESERIALIZATION_ERROR.replace('%s', responseClass.name),
+        error as Error,
+      );
     }
   }
 
@@ -253,9 +346,12 @@ export class HelmExecution {
 
     const output: string = this.standardOutput();
     try {
-      return JSON.parse(output) as T[];
-    } catch {
-      throw new HelmParserException(HelmExecution.MSG_LIST_DESERIALIZATION_ERROR.replace('%s', responseClass.name));
+      return HelmExecution.parseJsonOutput(output) as T[];
+    } catch (error) {
+      throw new HelmParserException(
+        HelmExecution.MSG_LIST_DESERIALIZATION_ERROR.replace('%s', responseClass.name),
+        error as Error,
+      );
     }
   }
 

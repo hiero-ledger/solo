@@ -5,6 +5,8 @@ import {NamespaceName} from '../../src/types/namespace/namespace-name.js';
 import {type K8ClientFactory} from '../../src/integration/kube/k8-client/k8-client-factory.js';
 import {InjectTokens} from '../../src/core/dependency-injection/inject-tokens.js';
 import {type ChartManager} from '../../src/core/chart-manager.js';
+import {METALLB_CHART_VERSION} from '../../version.js';
+import {HelmChartValues} from '../../src/integration/helm/model/values.js';
 
 export class HelmMetalLoadBalancer {
   public static readonly NAMESPACE: NamespaceName = NamespaceName.of('metallb-system');
@@ -12,8 +14,7 @@ export class HelmMetalLoadBalancer {
   public static readonly CHART_NAME: string = 'metallb';
   public static readonly REPOSITORY_NAME: string = 'metallb';
   public static readonly REPOSITORY_URL: string = 'https://metallb.github.io/metallb/';
-  public static readonly INSTALL_ARGS: string = '--set speaker.frr.enabled=true';
-  public static readonly VERSION: string = ''; // latest version
+  public static readonly VERSION: string = METALLB_CHART_VERSION;
 
   public static async installMetalLoadBalancer(testName: string): Promise<void> {
     try {
@@ -26,7 +27,7 @@ export class HelmMetalLoadBalancer {
         this.CHART_NAME,
         this.REPOSITORY_NAME,
         this.VERSION,
-        this.INSTALL_ARGS,
+        new HelmChartValues().set('speaker.frr.enabled', true),
         k8Factory.default().contexts().readCurrent(),
         true,
         true,

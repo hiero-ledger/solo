@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
-import {DataValidationError} from './errors/data-validation-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
-import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
 import {type AccountId} from '@hiero-ledger/sdk';
 import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
@@ -60,6 +57,32 @@ export class Templates {
     return `https://raw.githubusercontent.com/hiero-ledger/hiero-mirror-node/refs/tags/${release}/importer/src/main/resources/db/scripts/init.sh`;
   }
 
+  public static renderMirrorNodeIngressControllerUrl(mirrorNamespace: NamespaceNameAsString): string {
+    return `http://${constants.MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
+  }
+
+  public static renderMirrorNodeRestServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+  ): string {
+    return Templates.renderMirrorNodeServiceUrl(mirrorNodeReleaseName, mirrorNamespace, 'rest');
+  }
+
+  public static renderMirrorNodeWeb3ServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+  ): string {
+    return Templates.renderMirrorNodeServiceUrl(mirrorNodeReleaseName, mirrorNamespace, 'web3');
+  }
+
+  private static renderMirrorNodeServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+    serviceName: string,
+  ): string {
+    return `http://${mirrorNodeReleaseName}-${serviceName}.${mirrorNamespace}.svc.cluster.local`;
+  }
+
   public static renderGossipPemPrivateKeyFile(nodeAlias: NodeAlias): string {
     return `${constants.SIGNING_KEY_PREFIX}-private-${nodeAlias}.pem`;
   }
@@ -91,14 +114,14 @@ export class Templates {
   public static extractNodeAliasFromPodName(podName: PodName): NodeAlias {
     const parts: string[] = podName.name.split('-');
     if (parts.length !== 3) {
-      throw new DataValidationError(`pod name is malformed : ${podName.name}`, 3, parts.length);
+      throw new SoloErrors.internal.dataValidation(`pod name is malformed : ${podName.name}`, 3, parts.length);
     }
     return parts[1].trim() as NodeAlias;
   }
 
   public static prepareReleasePrefix(tag: string): string {
     if (!tag) {
-      throw new MissingArgumentError('tag cannot be empty');
+      throw new SoloErrors.validation.missingArgument('tag cannot be empty');
     }
 
     const parsed: string[] = tag.split('.');
@@ -152,7 +175,7 @@ export class Templates {
   public static renderStagingDir(cacheDirectory: string, releaseTagOverride: string): string {
     let releaseTag: string = releaseTagOverride;
     if (!cacheDirectory) {
-      throw new IllegalArgumentError('cacheDirectory cannot be empty');
+      throw new SoloErrors.validation.illegalArgument('cacheDirectory cannot be empty');
     }
 
     if (!releaseTag) {
@@ -161,7 +184,7 @@ export class Templates {
 
     const releasePrefix: string = this.prepareReleasePrefix(releaseTag);
     if (!releasePrefix) {
-      throw new IllegalArgumentError('releasePrefix cannot be empty');
+      throw new SoloErrors.validation.illegalArgument('releasePrefix cannot be empty');
     }
 
     return PathEx.resolve(PathEx.join(cacheDirectory, releasePrefix, 'staging', releaseTag));
@@ -177,6 +200,7 @@ export class Templates {
       case constants.PODMAN:
       case constants.VFKIT:
       case constants.GVPROXY:
+      case constants.CRANE:
       case constants.KUBECTL: {
         if (OperatingSystem.isWin32()) {
           return PathEx.join(installationDirectory, `${dependency}.exe`);
@@ -186,7 +210,7 @@ export class Templates {
       }
 
       default: {
-        throw new SoloError(`unknown dependency: ${dependency}`);
+        throw new SoloErrors.validation.unknownTemplateDependency(dependency);
       }
     }
   }
@@ -206,7 +230,7 @@ export class Templates {
       }
     }
 
-    throw new SoloError(`Can't get node id from node ${nodeAlias}`);
+    throw new SoloErrors.validation.unknownNodeAlias(nodeAlias);
   }
 
   public static renderComponentIdFromNodeId(nodeId: NodeId): ComponentId {
@@ -326,7 +350,7 @@ export class Templates {
         : [nodes[index]?.name, data];
 
       if (!nodeAlias) {
-        throw new SoloError(`Node alias for ${addressData} cannot be inferred`);
+        throw new SoloErrors.validation.nodeAliasInferenceFailed(addressData);
       }
 
       const [address, port] = addressData.includes(':') ? addressData.split(':') : [addressData, '8080'];
@@ -344,10 +368,10 @@ export class Templates {
       const [nodeAlias, domainName] = data.split('=') as [NodeAlias, string];
 
       if (!nodeAlias || typeof nodeAlias !== 'string') {
-        throw new SoloError(`Can't parse node alias: ${data}`);
+        throw new SoloErrors.validation.nodeAliasParseFailed(data);
       }
       if (!domainName || typeof domainName !== 'string') {
-        throw new SoloError(`Can't parse domain name: ${data}`);
+        throw new SoloErrors.validation.domainNameParseFailed(data);
       }
 
       mapping[nodeAlias] = domainName;

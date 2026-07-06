@@ -40,3 +40,17 @@ export enum DeploymentPhase {
    */
   FROZEN = 'frozen',
 }
+
+/**
+ * Ordinal ranking of {@link DeploymentPhase} values, ordered by deployment progression.
+ * Use this (via {@link isDeploymentPhaseAtLeast}) for any "phase >= X" comparison so the
+ * ordering lives in exactly one place.
+ */
+export const DEPLOYMENT_PHASE_ORDER: Readonly<Record<DeploymentPhase, number>> = {
+  [DeploymentPhase.REQUESTED]: 0,
+  [DeploymentPhase.DEPLOYED]: 1,
+  [DeploymentPhase.CONFIGURED]: 2,
+  [DeploymentPhase.STARTED]: 3,
+  [DeploymentPhase.STOPPED]: 4,
+  [DeploymentPhase.FROZEN]: 5,
+};

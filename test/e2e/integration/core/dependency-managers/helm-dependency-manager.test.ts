@@ -167,7 +167,7 @@ describe('HelmDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub.withArgs(`"${fakeGlobalHelmPath}" version --short`).resolves(['v4.1.3+gc94d381']);
+      runStub.withArgs(fakeGlobalHelmPath, ['version', '--short']).resolves(['v4.1.3+gc94d381']);
 
       try {
         // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
@@ -178,7 +178,7 @@ describe('HelmDependencyManager', (): void => {
         // Should not install locally since global installation meets requirements
         expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.not.ok;
         // Should return global path since it meets requirements
-        expect(await helmDependencyManager.getExecutable()).to.equal(constants.HELM);
+        expect(await helmDependencyManager.getExecutable()).to.equal(fakeGlobalHelmPath);
       } finally {
         process.env.PATH = originalPath;
       }
@@ -195,7 +195,7 @@ describe('HelmDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub.withArgs(`"${fakeGlobalHelmPath}" version --short`).resolves(['v0.1.0+gabcdef']);
+      runStub.withArgs(fakeGlobalHelmPath, ['version', '--short']).resolves(['v0.1.0+gabcdef']);
 
       try {
         // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
@@ -204,7 +204,7 @@ describe('HelmDependencyManager', (): void => {
 
         expect(await helmDependencyManager.install(getTestCacheDirectory())).to.be.true;
         expect(fs.existsSync(PathEx.join(temporaryDirectory, 'helm'))).to.be.ok;
-        expect(await helmDependencyManager.getExecutable()).to.equal(constants.HELM);
+        expect(await helmDependencyManager.getExecutable()).to.equal(PathEx.join(temporaryDirectory, constants.HELM));
       } finally {
         process.env.PATH = originalPath;
       }

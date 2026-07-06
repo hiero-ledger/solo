@@ -27,11 +27,14 @@ import {type HelmClient} from '../../../../src/integration/helm/helm-client.js';
 import {Repository} from '../../../../src/integration/helm/model/repository.js';
 import {Chart} from '../../../../src/integration/helm/model/chart.js';
 import {InstallChartOptionsBuilder} from '../../../../src/integration/helm/model/install/install-chart-options-builder.js';
+import {HelmChartValues} from '../../../../src/integration/helm/model/values.js';
 import {ContainerReference} from '../../../../src/integration/kube/resources/container/container-reference.js';
 import {ContainerName} from '../../../../src/integration/kube/resources/container/container-name.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
+import {MIRROR_NODE_PORT} from '../../../../src/core/constants.js';
+import {PortUtilities} from '../../../../src/business/utils/port-utilities.js';
 
 export class MirrorNodeTest extends BaseCommandTest {
   private static soloMirrorNodeDeployArgv(
@@ -92,26 +95,35 @@ export class MirrorNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static async forwardRestServicePort(contexts: string[], namespace: NamespaceName): Promise<number> {
+  private static async forwardMirrorIngressServicePort(
+    contexts: string[],
+    namespace: NamespaceName,
+    testName: string,
+  ): Promise<number> {
+    if (!(await PortUtilities.isPortAvailable(MIRROR_NODE_PORT))) {
+      return 0;
+    }
+
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
     const lastContext: string = contexts?.length ? contexts[contexts?.length - 1] : undefined;
     const k8: K8 = k8Factory.getK8(lastContext);
-    const mirrorNodeRestPods: Pod[] = await k8
-      .pods()
-      .list(namespace, ['app.kubernetes.io/name=rest', 'app.kubernetes.io/component=rest']);
-    expect(mirrorNodeRestPods).to.have.lengthOf(1);
+    const haproxyPods: Pod[] = await k8.pods().list(namespace, [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]);
+    const mirrorIngressPod: Pod | undefined = haproxyPods.find(
+      (pod: Pod): boolean => !!pod.podReference?.name?.name?.startsWith(`mirror-ingress-controller-${testName}`),
+    );
+    expect(mirrorIngressPod).to.not.be.undefined;
 
     const portForwarder: number = await k8
       .pods()
-      .readByReference(mirrorNodeRestPods[0].podReference)
-      .portForward(5551, 5551);
+      .readByReference(mirrorIngressPod!.podReference)
+      .portForward(MIRROR_NODE_PORT, 80, true);
     await sleep(Duration.ofSeconds(2));
     return portForwarder;
   }
 
   private static async stopPortForward(contexts: string[], portForwarder: number): Promise<void> {
     const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
-    const k8: K8 = k8Factory.getK8(contexts[contexts.length]);
+    const k8: K8 = k8Factory.getK8(contexts.at(-1));
     // eslint-disable-next-line unicorn/no-null
     await k8.pods().readByReference(null).stopPortForward(portForwarder);
   }
@@ -122,10 +134,16 @@ export class MirrorNodeTest extends BaseCommandTest {
     testLogger: SoloLogger,
     createdAccountIds: string[],
     consensusNodesCount: number,
+    testName: string,
   ): Promise<void> {
-    const portForwarder: number = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
+    const createdPortForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(
+      contexts,
+      namespace,
+      testName,
+    );
+    const portForwarder: number = createdPortForwarder || MIRROR_NODE_PORT;
     try {
-      const queryUrl: string = 'http://localhost:5551/api/v1/network/nodes';
+      const queryUrl: string = `http://localhost:${portForwarder}/api/v1/network/nodes`;
 
       let received: boolean = false;
       // wait until the transaction reached consensus and retrievable from the mirror node API
@@ -137,8 +155,14 @@ export class MirrorNodeTest extends BaseCommandTest {
             response.setEncoding('utf8');
 
             response.on('data', (chunk): void => {
-              // convert chunk to json object
-              const object: {nodes: {service_endpoints: unknown[]}[]} = JSON.parse(chunk);
+              testLogger.info(chunk);
+              let object: {nodes: {service_endpoints: unknown[]}[]};
+              try {
+                object = JSON.parse(chunk) as {nodes: {service_endpoints: unknown[]}[]};
+              } catch {
+                testLogger.warn(`Mirror node returned non-JSON response, will retry: ${chunk}`);
+                return;
+              }
               expect(
                 object.nodes?.length,
                 `expect there to be ${consensusNodesCount} nodes in the mirror node's copy of the address book`,
@@ -163,7 +187,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       }
 
       for (const accountId of createdAccountIds) {
-        const accountQueryUrl: string = `http://localhost:5551/api/v1/accounts/${accountId}`;
+        const accountQueryUrl: string = `http://localhost:${portForwarder}/api/v1/accounts/${accountId}`;
 
         received = false;
         // wait until the transaction reached consensus and retrievable from the mirror node API
@@ -175,8 +199,13 @@ export class MirrorNodeTest extends BaseCommandTest {
               response.setEncoding('utf8');
 
               response.on('data', (chunk): void => {
-                // convert chunk to json object
-                const object: {account: string} = JSON.parse(chunk);
+                let object: {account: string};
+                try {
+                  object = JSON.parse(chunk) as {account: string};
+                } catch {
+                  testLogger.warn(`Mirror node returned non-JSON response, will retry: ${chunk}`);
+                  return;
+                }
 
                 expect(
                   object.account,
@@ -199,8 +228,8 @@ export class MirrorNodeTest extends BaseCommandTest {
         await sleep(Duration.ofSeconds(1));
       }
     } finally {
-      if (portForwarder) {
-        await MirrorNodeTest.stopPortForward(contexts, portForwarder);
+      if (createdPortForwarder) {
+        await MirrorNodeTest.stopPortForward(contexts, createdPortForwarder);
       }
     }
   }
@@ -209,10 +238,16 @@ export class MirrorNodeTest extends BaseCommandTest {
     contexts: string[],
     namespace: NamespaceName,
     pingerIsEnabled: boolean,
+    testName: string,
   ): Promise<void> {
-    const portForwarder: number = await MirrorNodeTest.forwardRestServicePort(contexts, namespace);
+    const createdPortForwarder: number = await MirrorNodeTest.forwardMirrorIngressServicePort(
+      contexts,
+      namespace,
+      testName,
+    );
+    const portForwarder: number = createdPortForwarder || MIRROR_NODE_PORT;
     try {
-      const transactionsEndpoint: string = 'http://localhost:5551/api/v1/transactions';
+      const transactionsEndpoint: string = `http://localhost:${portForwarder}/api/v1/transactions`;
       // force to fetch new data instead of using cache
       const fetchOptions: object = {
         cache: 'no-cache' as RequestCache,
@@ -226,16 +261,10 @@ export class MirrorNodeTest extends BaseCommandTest {
       const firstResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const firstData: any = await firstResponse.json();
-      console.log('\r::group::Mirror node verify pinger status first data');
-      console.log(`firstData = ${JSON.stringify(firstData, undefined, 2)}`);
-      console.log('\r::endgroup::');
       await sleep(Duration.ofSeconds(15));
       const secondResponse: Response = await fetch(transactionsEndpoint, fetchOptions);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const secondData: any = await secondResponse.json();
-      console.log('\r::group::Mirror node verify pinger status second data');
-      console.log(`secondData = ${JSON.stringify(secondData, undefined, 2)}`);
-      console.log('\r::endgroup::');
       expect(firstData.transactions).to.not.be.undefined;
       expect(firstData.transactions.length).to.be.gt(0);
       expect(secondData.transactions).to.not.be.undefined;
@@ -263,13 +292,13 @@ export class MirrorNodeTest extends BaseCommandTest {
         expect(firstData.transactions[0]).to.deep.equal(secondData.transactions[0]);
       }
     } finally {
-      if (portForwarder) {
-        await MirrorNodeTest.stopPortForward(contexts, portForwarder);
+      if (createdPortForwarder) {
+        await MirrorNodeTest.stopPortForward(contexts, createdPortForwarder);
       }
     }
   }
 
-  public static add(options: BaseTestOptions): void {
+  public static add(options: BaseTestOptions, clusterReferenceIndex: number = 1): void {
     const {
       testName,
       testLogger,
@@ -285,16 +314,101 @@ export class MirrorNodeTest extends BaseCommandTest {
     const {soloMirrorNodeDeployArgv, verifyMirrorNodeDeployWasSuccessful, verifyPingerStatus} = MirrorNodeTest;
 
     it(`${testName}: mirror node add`, async (): Promise<void> => {
-      await main(soloMirrorNodeDeployArgv(testName, deployment, clusterReferenceNameArray[1], pinger, valuesFile));
+      await main(
+        soloMirrorNodeDeployArgv(
+          testName,
+          deployment,
+          clusterReferenceNameArray[clusterReferenceIndex],
+          pinger,
+          valuesFile,
+        ),
+      );
       await verifyMirrorNodeDeployWasSuccessful(
         contexts,
         namespace,
         testLogger,
         createdAccountIds,
         consensusNodesCount,
+        testName,
       );
-      await verifyPingerStatus(contexts, namespace, pinger);
+      await verifyPingerStatus(contexts, namespace, pinger, testName);
     }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  /**
+   * Fetches the highest block number the mirror node has ingested from the block stream.
+   *
+   * Returns -1 while the mirror node has not yet ingested any block (e.g. the importer is still
+   * catching up), so callers can poll until blocks become available.
+   */
+  private static async getLatestIngestedBlockNumber(portForwarder: number, testLogger: SoloLogger): Promise<number> {
+    const blocksEndpoint: string = `http://localhost:${portForwarder}/api/v1/blocks?limit=1&order=desc`;
+    const fetchOptions: object = {
+      cache: 'no-cache' as RequestCache,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    };
+
+    try {
+      const response: Response = await fetch(blocksEndpoint, fetchOptions);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await response.json();
+      const blocks: {number: number}[] | undefined = data?.blocks;
+      if (!blocks || blocks.length === 0) {
+        return -1;
+      }
+      return blocks[0].number;
+    } catch (error) {
+      testLogger.debug(`problem querying mirror node blocks endpoint: ${(error as Error).message}`, error as Error);
+      return -1;
+    }
+  }
+
+  /**
+   * Confirms WRAPs/TSS is operational by proving the network keeps producing blocks and the mirror
+   * node keeps ingesting them: it waits for the first block to appear, then verifies the latest
+   * ingested block number advances over time. A network that stalled (e.g. broken TSS signing)
+   * would stop producing blocks and fail this check.
+   */
+  public static verifyBlocksAreBeingProduced(options: BaseTestOptions): void {
+    const {testName, testLogger, contexts, namespace} = options;
+    const {forwardMirrorIngressServicePort, stopPortForward, getLatestIngestedBlockNumber} = MirrorNodeTest;
+
+    it(`${testName}: verify blocks are produced and ingested by the mirror node`, async (): Promise<void> => {
+      const createdPortForwarder: number = await forwardMirrorIngressServicePort(contexts, namespace, testName);
+      const portForwarder: number = createdPortForwarder || MIRROR_NODE_PORT;
+      try {
+        // Wait until the mirror node has ingested at least one block from the block stream.
+        let firstBlockNumber: number = -1;
+        const maxAttempts: number = 60;
+        for (let attempt: number = 0; firstBlockNumber < 0 && attempt < maxAttempts; attempt++) {
+          firstBlockNumber = await getLatestIngestedBlockNumber(portForwarder, testLogger);
+          if (firstBlockNumber < 0) {
+            await sleep(Duration.ofSeconds(2));
+          }
+        }
+        expect(firstBlockNumber, 'expected the mirror node to ingest at least one block').to.be.greaterThanOrEqual(0);
+
+        // Give the network time to produce more blocks, then confirm the ingested block number advanced.
+        let secondBlockNumber: number = firstBlockNumber;
+        for (let attempt: number = 0; secondBlockNumber <= firstBlockNumber && attempt < maxAttempts; attempt++) {
+          await sleep(Duration.ofSeconds(2));
+          secondBlockNumber = await getLatestIngestedBlockNumber(portForwarder, testLogger);
+        }
+
+        expect(
+          secondBlockNumber,
+          `expected the latest ingested block number to advance beyond ${firstBlockNumber}, confirming WRAPs/TSS-signed blocks keep flowing to the mirror node`,
+        ).to.be.greaterThan(firstBlockNumber);
+      } finally {
+        if (createdPortForwarder) {
+          await stopPortForward(contexts, createdPortForwarder);
+        }
+      }
+    }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
   public static destroy(options: BaseTestOptions): void {
@@ -419,8 +533,9 @@ export class MirrorNodeTest extends BaseCommandTest {
         testLogger,
         createdAccountIds,
         consensusNodesCount,
+        testName,
       );
-      await verifyPingerStatus(contexts, namespace, pinger);
+      await verifyPingerStatus(contexts, namespace, pinger, testName);
     }).timeout(Duration.ofMinutes(10).toMillis());
 
     it('Enable port-forward for mirror node gRPC', async (): Promise<void> => {
@@ -445,7 +560,12 @@ export class MirrorNodeTest extends BaseCommandTest {
         'my-postgresql',
         new Chart('postgresql', 'postgresql-helm'),
         InstallChartOptionsBuilder.builder()
-          .set(['deploymentType=local', `postgresql.auth.password=${this.postgresPassword}`])
+          .valueArguments(
+            new HelmChartValues()
+              .set('deploymentType', 'local')
+              .set('postgresql.auth.password', this.postgresPassword)
+              .toArguments(),
+          )
           .namespace(this.nameSpace)
           .createNamespace(true)
           .kubeContext(contexts[1])
@@ -486,9 +606,14 @@ export class MirrorNodeTest extends BaseCommandTest {
   public static pullAddressBook(options: BaseTestOptions): void {
     const {consensusNodesCount} = options;
     it('should pull address book from mirror node', async (): Promise<void> => {
-      const srv: number = await MirrorNodeTest.forwardRestServicePort(options.contexts, options.namespace);
+      const createdSrv: number = await MirrorNodeTest.forwardMirrorIngressServicePort(
+        options.contexts,
+        options.namespace,
+        options.testName,
+      );
+      const srv: number = createdSrv || MIRROR_NODE_PORT;
 
-      const stdOut: string[] = await new ShellRunner().run(`curl http://localhost:${srv}/api/v1/network/nodes`);
+      const stdOut: string[] = await new ShellRunner().run('curl', [`http://localhost:${srv}/api/v1/network/nodes`]);
 
       const addressBook: AnyObject = JSON.parse(stdOut.join(''));
 
@@ -505,7 +630,9 @@ export class MirrorNodeTest extends BaseCommandTest {
       expect(betaNode.grpc_proxy_endpoint.domain_name).to.equal(ConsensusNodeTest.betaClusterGrpcWebAddress);
       expect(betaNode.grpc_proxy_endpoint.port).to.equal(ConsensusNodeTest.baseGrpcWebPort + alphaCount);
 
-      await MirrorNodeTest.stopPortForward(options.contexts, srv);
+      if (createdSrv) {
+        await MirrorNodeTest.stopPortForward(options.contexts, createdSrv);
+      }
     });
   }
 }

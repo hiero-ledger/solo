@@ -16,6 +16,7 @@ import {Templates} from '../../../src/core/templates.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from '../../../src/core/model/consensus-node.js';
+// eslint-disable-next-line no-restricted-imports
 import {KubeConfig} from '@kubernetes/client-node';
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
@@ -292,7 +293,6 @@ describe('ProfileManager', (): void => {
         nodeAccountMap,
         [consensusNodes[0]],
         destinationPath,
-        version.HEDERA_PLATFORM_VERSION,
         constants.HEDERA_APP_NAME,
         constants.HEDERA_CHAIN_ID,
         false,
@@ -338,13 +338,22 @@ describe('ProfileManager', (): void => {
       expect(updated).not.to.contain('contracts.chainId=295');
     });
 
-    it('prepareStagingDirectory should update chainId in staged application.properties and bootstrap.properties', async (): Promise<void> => {
+    // eslint-disable-next-line unicorn/consistent-function-scoping
+    async function prepareStagingWithCustomApplicationProperties(
+      baseApplicationPropertiesContent: string,
+      customApplicationPropertiesContent: string,
+    ): Promise<{stagedApplicationProperties: string; yamlRoot: AnyObject}> {
       const yamlRoot: AnyObject = {};
       const nodeAliases: NodeAliases = ['node1', 'node2', 'node3'];
       const sourceDirectory: string = PathEx.join(temporaryDirectory, 'source-files');
+      fs.rmSync(sourceDirectory, {recursive: true, force: true});
       fs.mkdirSync(sourceDirectory, {recursive: true});
 
-      const applicationPropertiesSourcePath: string = PathEx.join(sourceDirectory, constants.APPLICATION_PROPERTIES);
+      const baseApplicationPropertiesPath: string = PathEx.join(sourceDirectory, 'base-application.properties');
+      const customApplicationPropertiesSourcePath: string = PathEx.join(
+        sourceDirectory,
+        'custom-application.properties',
+      );
       const bootstrapPropertiesSourcePath: string = PathEx.join(sourceDirectory, 'bootstrap.properties');
       // eslint-disable-next-line unicorn/prevent-abbreviations
       const applicationEnvSourcePath: string = PathEx.join(sourceDirectory, 'application.env');
@@ -353,11 +362,8 @@ describe('ProfileManager', (): void => {
       const log4j2SourcePath: string = PathEx.join(sourceDirectory, 'log4j2.xml');
       const settingsSourcePath: string = PathEx.join(sourceDirectory, 'settings.txt');
 
-      fs.writeFileSync(
-        applicationPropertiesSourcePath,
-        ['hedera.realm=0', 'hedera.shard=0', 'contracts.chainId=295'].join('\n') + '\n',
-        'utf8',
-      );
+      fs.writeFileSync(baseApplicationPropertiesPath, `${baseApplicationPropertiesContent}\n`, 'utf8');
+      fs.writeFileSync(customApplicationPropertiesSourcePath, `${customApplicationPropertiesContent}\n`, 'utf8');
       fs.writeFileSync(
         bootstrapPropertiesSourcePath,
         ['contracts.chainId=295', 'some.other.value=true'].join('\n') + '\n',
@@ -368,7 +374,7 @@ describe('ProfileManager', (): void => {
       fs.writeFileSync(log4j2SourcePath, '<Configuration />\n', 'utf8');
       fs.writeFileSync(settingsSourcePath, 'swirld, 123\n', 'utf8');
 
-      configManager.setFlag(flags.applicationProperties, applicationPropertiesSourcePath);
+      configManager.setFlag(flags.applicationProperties, customApplicationPropertiesSourcePath);
       configManager.setFlag(flags.bootstrapProperties, bootstrapPropertiesSourcePath);
       configManager.setFlag(flags.applicationEnv, applicationEnvSourcePath);
       configManager.setFlag(flags.apiPermissionProperties, apiPermissionSourcePath);
@@ -376,26 +382,46 @@ describe('ProfileManager', (): void => {
       configManager.setFlag(flags.settingTxt, settingsSourcePath);
       configManager.setFlag(flags.chainId, '296');
 
-      // @ts-expect-error to access private property
-      sinon.stub(profileManager.accountManager, 'getNodeAccountMap').returns(
-        new Map([
-          ['node1', '0.0.3'],
-          ['node2', '0.0.4'],
-          ['node3', '0.0.5'],
-        ]),
-      );
+      const profileManagerAccountManager: {
+        getNodeAccountMap: () => Map<string, string>;
+      } = (profileManager as unknown as {accountManager: {getNodeAccountMap: () => Map<string, string>}})
+        .accountManager;
+      const getNodeAccountMapStub: sinon.SinonStub = sinon
+        .stub(profileManagerAccountManager, 'getNodeAccountMap')
+        .returns(
+          new Map([
+            ['node1', '0.0.3'],
+            ['node2', '0.0.4'],
+            ['node3', '0.0.5'],
+          ]),
+        );
 
-      // @ts-expect-error to access private property
-      sinon.stub(profileManager.localConfig.configuration, 'realmForDeployment').returns(0);
-      // @ts-expect-error to access private property
-      sinon.stub(profileManager.localConfig.configuration, 'shardForDeployment').returns(0);
+      const localConfigConfiguration: {
+        realmForDeployment: (deployment: string) => number;
+        shardForDeployment: (deployment: string) => number;
+      } = (
+        profileManager as unknown as {
+          localConfig: {
+            configuration: {
+              realmForDeployment: (deployment: string) => number;
+              shardForDeployment: (deployment: string) => number;
+            };
+          };
+        }
+      ).localConfig.configuration;
+      const realmForDeploymentStub: sinon.SinonStub = sinon
+        .stub(localConfigConfiguration, 'realmForDeployment')
+        .returns(0);
+      const shardForDeploymentStub: sinon.SinonStub = sinon
+        .stub(localConfigConfiguration, 'shardForDeployment')
+        .returns(0);
 
       await profileManager.prepareStagingDirectory(
         consensusNodes,
         nodeAliases,
         yamlRoot,
         deploymentName,
-        applicationPropertiesSourcePath,
+        baseApplicationPropertiesPath,
         {
           cacheDir: cacheDirectory,
           releaseTag: version.HEDERA_PLATFORM_VERSION,
@@ -414,16 +440,68 @@ describe('ProfileManager', (): void => {
       const stagedApplicationProperties: string = fs.readFileSync(stagedApplicationPropertiesPath, 'utf8');
       const stagedBootstrapProperties: string = fs.readFileSync(stagedBootstrapPropertiesPath, 'utf8');
 
-      expect(stagedApplicationProperties).to.contain('contracts.chainId=296');
-      expect(stagedApplicationProperties).not.to.contain('contracts.chainId=295');
-
       expect(stagedBootstrapProperties).to.contain('contracts.chainId=296');
       expect(stagedBootstrapProperties).not.to.contain('contracts.chainId=295');
-
-      expect(yamlRoot.hedera.configMaps.applicationProperties).to.contain('contracts.chainId=296');
       expect(yamlRoot.hedera.configMaps.bootstrapProperties).to.contain('contracts.chainId=296');
 
-      sinon.restore();
+      getNodeAccountMapStub.restore();
+      realmForDeploymentStub.restore();
+      shardForDeploymentStub.restore();
+
+      return {
+        stagedApplicationProperties,
+        yamlRoot,
+      };
+    }
+
+    it('prepareStagingDirectory should merge custom application.properties into Solo defaults by default', async (): Promise<void> => {
+      const baseApplicationPropertiesContent: string = [
+        'hedera.realm=0',
+        'hedera.shard=0',
+        'contracts.chainId=295',
+        'solo.default.only=value',
+      ].join('\n');
+      const customApplicationPropertiesContent: string = [
+        '# no overwrite marker, should merge',
+        'contracts.chainId=999',
+        'user.custom.only=true',
+      ].join('\n');
+
+      const {stagedApplicationProperties, yamlRoot} = await prepareStagingWithCustomApplicationProperties(
+        baseApplicationPropertiesContent,
+        customApplicationPropertiesContent,
+      );
+
+      expect(stagedApplicationProperties).to.contain('solo.default.only=value');
+      expect(stagedApplicationProperties).to.contain('user.custom.only=true');
+      expect(stagedApplicationProperties).to.contain('contracts.chainId=296');
+      expect(stagedApplicationProperties).not.to.contain('contracts.chainId=999');
+      expect(yamlRoot.hedera.configMaps.applicationProperties).to.contain('contracts.chainId=296');
+    });
+
+    it('prepareStagingDirectory should overwrite when custom application.properties enables overwrite marker', async (): Promise<void> => {
+      const baseApplicationPropertiesContent: string = [
+        'hedera.realm=0',
+        'hedera.shard=0',
+        'contracts.chainId=295',
+        'solo.default.only=value',
+      ].join('\n');
+      const customApplicationPropertiesContent: string = [
+        '# SOLO_ENABLE_OVERWRITE=true',
+        'contracts.chainId=999',
+        'user.custom.only=true',
+      ].join('\n');
+
+      const {stagedApplicationProperties, yamlRoot} = await prepareStagingWithCustomApplicationProperties(
+        baseApplicationPropertiesContent,
+        customApplicationPropertiesContent,
+      );
+
+      expect(stagedApplicationProperties).to.contain('# SOLO_ENABLE_OVERWRITE=true');
+      expect(stagedApplicationProperties).to.contain('user.custom.only=true');
+      expect(stagedApplicationProperties).to.contain('contracts.chainId=999');
+      expect(stagedApplicationProperties).not.to.contain('solo.default.only=value');
+      expect(yamlRoot.hedera.configMaps.applicationProperties).not.to.contain('solo.default.only=value');
     });
   });
 });

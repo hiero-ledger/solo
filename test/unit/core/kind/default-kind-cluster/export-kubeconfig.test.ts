@@ -7,12 +7,12 @@ import {KindExecutionBuilder} from '../../../../../src/integration/kind/executio
 import {KindExecution} from '../../../../../src/integration/kind/execution/kind-execution.js';
 import {ExportKubeConfigResponse} from '../../../../../src/integration/kind/model/export-kubeconfig/export-kubeconfig-response.js';
 
-describe('DefaultKindClient - exportKubeConfig', () => {
+describe('DefaultKindClient - exportKubeConfig', (): void => {
   let client: DefaultKindClient;
   let executionBuilderStub: sinon.SinonStubbedInstance<KindExecutionBuilder>;
   let executionStub: sinon.SinonStubbedInstance<KindExecution>;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     client = new DefaultKindClient('/usr/local/bin/kind');
     executionBuilderStub = sinon.createStubInstance(KindExecutionBuilder);
     executionStub = sinon.createStubInstance(KindExecution);
@@ -22,26 +22,26 @@ describe('DefaultKindClient - exportKubeConfig', () => {
     sinon.stub(KindExecutionBuilder.prototype, 'build').returns(executionStub as any);
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     sinon.restore();
   });
 
-  it('should export kubeconfig and parse the response correctly', async () => {
-    const clusterName = 'test-cluster';
-    const kubeConfigContext = 'kind-test-cluster';
+  it('should export kubeconfig and parse the response correctly', async (): Promise<void> => {
+    const clusterName: string = 'test-cluster';
+    const kubeConfigContext: string = 'kind-test-cluster';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
-      const output = `Set kubectl context to "${kubeConfigContext}"`;
+    executionStub.responseAs.callsFake((responseClass: any): Promise<any> => {
+      const output: string = `Set kubectl context to "${kubeConfigContext}"`;
       return Promise.resolve(new responseClass(output));
     });
 
-    const result = await client.exportKubeConfig(clusterName);
+    const result: ExportKubeConfigResponse = await client.exportKubeConfig(clusterName);
 
     expect(result).to.be.instanceOf(ExportKubeConfigResponse);
     expect(result.kubeConfigContext).to.equal(kubeConfigContext);
   });
 
-  it('should throw if responseAs throws', async () => {
+  it('should throw if responseAs throws', async (): Promise<void> => {
     executionStub.responseAs.rejects(new Error('export kubeconfig failed'));
 
     try {
@@ -52,8 +52,8 @@ describe('DefaultKindClient - exportKubeConfig', () => {
     }
   });
 
-  it('should pass cluster name to execution builder correctly', async () => {
-    const clusterName = 'options-test-cluster';
+  it('should pass cluster name to execution builder correctly', async (): Promise<void> => {
+    const clusterName: string = 'options-test-cluster';
 
     // Create spies to track method calls
     const subcommandsSpy: SinonSpy<string[], KindExecutionBuilder> = sinon.spy(
@@ -74,27 +74,27 @@ describe('DefaultKindClient - exportKubeConfig', () => {
     expect(argumentSpy.calledWith('name', clusterName)).to.be.true;
   });
 
-  it('should work when no cluster name is provided', async () => {
+  it('should work when no cluster name is provided', async (): Promise<void> => {
     // Output with default 'kind' cluster name
-    executionStub.responseAs.callsFake((responseClass: any) => {
-      const output = 'Set kubectl context to "kind-kind"';
+    executionStub.responseAs.callsFake((responseClass: any): Promise<any> => {
+      const output: string = 'Set kubectl context to "kind-kind"';
       return Promise.resolve(new responseClass(output));
     });
 
-    const result = await client.exportKubeConfig();
+    const result: ExportKubeConfigResponse = await client.exportKubeConfig();
 
     // Response should contain default context name
     expect(result.kubeConfigContext).to.equal('kind-kind');
   });
 
-  it('should handle malformed output response', async () => {
-    executionStub.responseAs.callsFake((responseClass: any) => {
+  it('should handle malformed output response', async (): Promise<void> => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<any> => {
       // Output missing the expected format
-      const output = 'KubeConfig exported but no context information provided';
+      const output: string = 'KubeConfig exported but no context information provided';
       return Promise.resolve(new responseClass(output));
     });
 
-    const result = await client.exportKubeConfig('malformed-output');
+    const result: ExportKubeConfigResponse = await client.exportKubeConfig('malformed-output');
 
     expect(result).to.be.instanceOf(ExportKubeConfigResponse);
     expect(result.kubeConfigContext).to.be.undefined;

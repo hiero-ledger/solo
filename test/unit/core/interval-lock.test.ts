@@ -5,7 +5,7 @@ import {describe, it} from 'mocha';
 import {IntervalLock} from '../../../src/core/lock/interval-lock.js';
 import {LockHolder} from '../../../src/core/lock/lock-holder.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
-import {type LockRenewalService} from '../../../src/core/lock/lock.js';
+import {type LockRenewalService} from '../../../src/core/lock/lock-renewal-service.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 import {type K8} from '../../../src/integration/kube/k8.js';
 import {type Namespaces} from '../../../src/types/namespace/namespaces.js';
@@ -14,7 +14,7 @@ import {type Lease} from '../../../src/integration/kube/resources/lease/lease.js
 import {LockAcquisitionError} from '../../../src/core/lock/lock-acquisition-error.js';
 import {StatusCodes} from 'http-status-codes';
 import {Duration} from '../../../src/core/time/duration.js';
-import {type V1Status} from '@kubernetes/client-node';
+import {type ObjectMeta} from '../../../src/integration/kube/resources/object-meta.js';
 
 describe('IntervalLock', (): void => {
   it('should ignore a renew conflict when latest lease is still held by the same lock holder', async (): Promise<void> => {
@@ -44,7 +44,7 @@ describe('IntervalLock', (): void => {
       create: async (): Promise<Lease> => {
         throw new Error('not used');
       },
-      delete: async (): Promise<V1Status> => {
+      delete: async (): Promise<void> => {
         throw new Error('not used');
       },
       read: async (): Promise<Lease> => {
@@ -65,6 +65,7 @@ describe('IntervalLock', (): void => {
       delete: async (): Promise<boolean> => true,
       list: async (): Promise<NamespaceName[]> => [],
       has: async (): Promise<boolean> => true,
+      get: async (): Promise<ObjectMeta> => ({name: ''}),
     };
 
     const k8: K8 = {
@@ -108,7 +109,7 @@ describe('IntervalLock', (): void => {
       create: async (): Promise<Lease> => {
         throw new Error('not used');
       },
-      delete: async (): Promise<V1Status> => {
+      delete: async (): Promise<void> => {
         throw new Error('not used');
       },
       read: async (): Promise<Lease> => {
@@ -128,6 +129,7 @@ describe('IntervalLock', (): void => {
       delete: async (): Promise<boolean> => true,
       list: async (): Promise<NamespaceName[]> => [],
       has: async (): Promise<boolean> => true,
+      get: async (): Promise<ObjectMeta> => ({name: ''}),
     };
 
     const k8: K8 = {
@@ -173,7 +175,7 @@ describe('IntervalLock', (): void => {
         }
         throw createForbiddenError();
       },
-      delete: async (): Promise<V1Status> => {
+      delete: async (): Promise<void> => {
         throw new Error('not used');
       },
       read: async (): Promise<Lease> => undefined as unknown as Lease,
@@ -190,6 +192,7 @@ describe('IntervalLock', (): void => {
       delete: async (): Promise<boolean> => true,
       list: async (): Promise<NamespaceName[]> => [],
       has: async (): Promise<boolean> => true,
+      get: async (): Promise<ObjectMeta> => ({name: ''}),
     };
 
     const k8: K8 = {

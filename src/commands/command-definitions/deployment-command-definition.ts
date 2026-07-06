@@ -64,6 +64,10 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly DIAGNOSTICS_DEBUG: string = 'debug';
   public static readonly DIAGNOSTICS_LOGS: string = 'logs';
   public static readonly DIAGNOSTICS_CONNECTIONS: string = 'connections';
+  public static readonly DIAGNOSTICS_REPORT: string = 'report';
+  public static readonly REFRESH_PORT_FORWARDS: string = 'port-forwards';
+
+  public static readonly STATE_IMAGES: string = 'images';
 
   public static readonly CREATE_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
@@ -78,7 +82,19 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.DIAGNOSTICS_CONNECTIONS}` as const;
 
   public static readonly REFRESH_COMMAND: string =
-    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME} port-forwards` as const;
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.REFRESH_PORT_FORWARDS}` as const;
+
+  public static readonly INFO_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_INFO}` as const;
+
+  public static readonly LIST_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_LIST}` as const;
+
+  public static readonly PORTS_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_PORTS}` as const;
+
+  public static readonly IMAGES_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.STATE_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.STATE_IMAGES}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -159,6 +175,22 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
       )
       .addCommandGroup(
         new CommandGroup(
+          DeploymentCommandDefinition.STATE_SUBCOMMAND_NAME,
+          DeploymentCommandDefinition.STATE_SUBCOMMAND_DESCRIPTION,
+        ).addSubcommand(
+          new Subcommand(
+            DeploymentCommandDefinition.STATE_IMAGES,
+            'Lists every pod in the deployment namespace and shows its running container image. ' +
+              'Useful to verify that a locally-built image was loaded correctly.',
+            this.deploymentCommand,
+            this.deploymentCommand.images,
+            DeploymentCommand.IMAGES_FLAGS_LIST,
+            [constants.KUBECTL],
+          ),
+        ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
           DeploymentCommandDefinition.REFRESH_SUBCOMMAND_NAME,
           DeploymentCommandDefinition.REFRESH_SUBCOMMAND_DESCRIPTION,
         ).addSubcommand(
@@ -220,6 +252,15 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.nodeCommand.handlers,
               this.nodeCommand.handlers.analyze,
               NodeFlags.ANALYZE_FLAGS,
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.DIAGNOSTICS_REPORT,
+              'Collect diagnostic logs and create a GitHub issue using the gh CLI.',
+              this.nodeCommand.handlers,
+              this.nodeCommand.handlers.report,
+              NodeFlags.REPORT_FLAGS,
             ),
           ),
       )

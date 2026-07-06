@@ -3,7 +3,7 @@
 import {BaseCommand} from '../base.js';
 import fs from 'node:fs';
 import * as constants from '../../core/constants.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {Flags as flags} from '../flags.js';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -14,9 +14,6 @@ import {InitContext} from './init-context.js';
 import {Listr, ListrRendererValue} from 'listr2';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
-import {type DefaultKindClientBuilder} from '../../integration/kind/impl/default-kind-client-builder.js';
-import {BrewPackageManager} from '../../core/package-managers/brew-package-manager.js';
-import {OsPackageManager} from '../../core/package-managers/os-package-manager.js';
 import {ClusterTaskManager} from '../../core/cluster-task-manager.js';
 
 /**
@@ -26,18 +23,13 @@ import {ClusterTaskManager} from '../../core/cluster-task-manager.js';
 export class InitCommand extends BaseCommand {
   public static readonly COMMAND_NAME: string = 'init';
   public static readonly INIT_COMMAND_NAME: string = InitCommand.COMMAND_NAME;
+  private static hasShownDevSystemFileLists: boolean = false;
 
   public constructor(
-    @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.PodmanInstallationDirectory) protected readonly podmanInstallationDirectory: string,
-    @inject(InjectTokens.BrewPackageManager) protected readonly brewPackageManager: BrewPackageManager,
-    @inject(InjectTokens.OsPackageManager) protected readonly osPackageManager: OsPackageManager,
     @inject(InjectTokens.ClusterTaskManager) protected readonly clusterTaskManager: ClusterTaskManager,
   ) {
     super();
-    this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, InitCommand.name);
-    this.brewPackageManager = patchInject(brewPackageManager, InjectTokens.BrewPackageManager, InitCommand.name);
-    this.osPackageManager = patchInject(osPackageManager, InjectTokens.OsPackageManager, InitCommand.name);
     this.clusterTaskManager = patchInject(clusterTaskManager, InjectTokens.ClusterTaskManager, InitCommand.name);
     this.podmanInstallationDirectory = patchInject(
       podmanInstallationDirectory,
@@ -55,7 +47,7 @@ export class InitCommand extends BaseCommand {
     return [
       {
         title: 'Setup home directory and cache',
-        task: async (context_, task) => {
+        task: async (context_: InitContext, task): Promise<void> => {
           this.configManager.update(argv);
           context_.dirs = this.setupHomeDirectory();
           let username: string = this.configManager.getFlag<string>(flags.username);
@@ -67,23 +59,26 @@ export class InitCommand extends BaseCommand {
       },
       {
         title: 'Create local configuration',
-        skip: () => this.localConfig.configFileExists(),
+        skip: (): boolean => this.localConfig.configFileExists(),
         task: async (): Promise<void> => {
           await this.localConfig.load();
         },
       },
       {
         title: `Copy templates in '${cacheDirectory}'`,
-        task: context_ => {
+        task: (context_: InitContext): void => {
           let directoryCreated: boolean = false;
-          const resources = ['templates'];
+          const resources: string[] = ['templates'];
           for (const directoryName of resources) {
-            const sourceDirectory = PathEx.safeJoinWithBaseDirConfinement(constants.RESOURCES_DIR, directoryName);
+            const sourceDirectory: string = PathEx.safeJoinWithBaseDirConfinement(
+              constants.RESOURCES_DIR,
+              directoryName,
+            );
             if (!fs.existsSync(sourceDirectory)) {
               continue;
             }
 
-            const destinationDirectory = PathEx.join(cacheDirectory, directoryName);
+            const destinationDirectory: string = PathEx.join(cacheDirectory, directoryName);
             if (!fs.existsSync(destinationDirectory)) {
               directoryCreated = true;
               fs.mkdirSync(destinationDirectory, {recursive: true});
@@ -92,9 +87,10 @@ export class InitCommand extends BaseCommand {
             fs.cpSync(sourceDirectory, destinationDirectory, {recursive: true});
           }
 
-          if (argv.dev) {
+          if (argv.dev && !InitCommand.hasShownDevSystemFileLists) {
             this.logger.showList('Home Directories', context_.dirs);
             this.logger.showList('Chart Repository', context_.repoURLs);
+            InitCommand.hasShownDevSystemFileLists = true;
           }
 
           if (directoryCreated) {
@@ -122,10 +118,13 @@ export class InitCommand extends BaseCommand {
     }
 
     const tasks: SoloListrTask<InitContext>[] = [
+      this.dockerDesktopPreflightTask(),
       {
         title: 'Check dependencies',
         task: (_, task) => {
-          const subTasks = this.depManager.taskCheckDependencies<InitContext>(options.deps);
+          const subTasks: SoloListrTask<InitContext>[] = this.depManager.taskCheckDependencies<InitContext>(
+            options.deps,
+          );
 
           // set up the sub-tasks
           return task.newListr(subTasks, {
@@ -141,14 +140,14 @@ export class InitCommand extends BaseCommand {
     if (options.deps.includes(constants.HELM)) {
       tasks.push({
         title: 'Setup chart manager',
-        task: async context_ => {
+        task: async (context_: InitContext): Promise<void> => {
           context_.repoURLs = await this.chartManager.setup();
         },
       });
     }
 
     if (options.createCluster) {
-      tasks.push(...this.clusterTaskManager.setupLocalClusterTasks());
+      tasks.push(...this.clusterTaskManager.setupLocalClusterTasks(options.useSmallMemoryCluster));
     }
 
     return tasks;
@@ -185,7 +184,7 @@ export class InitCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error: Error | any) {
-        throw new SoloError('Error running init', error);
+        throw new SoloErrors.deployment.initFailed(error);
       }
     }
 
@@ -200,25 +199,25 @@ export class InitCommand extends BaseCommand {
     return {
       command: InitCommand.COMMAND_NAME,
       desc: 'Initialize local environment',
-      builder: (y: any) => {
+      builder: (y: any): void => {
         // set the quiet flag even though it isn't used for consistency across all commands
         flags.setOptionalCommandFlags(y, flags.cacheDir, flags.quiet, flags.username);
       },
-      handler: async (argv: any) => {
+      handler: async (argv: any): Promise<void> => {
         await this.init(argv)
-          .then(r => {
+          .then((r: boolean): void => {
             if (!r) {
-              throw new SoloError('Error running init, expected return value to be true');
+              throw new SoloErrors.deployment.initFailed();
             }
           })
           .catch(error => {
-            throw new SoloError('Error running init', error);
+            throw new SoloErrors.deployment.initFailed(error);
           });
       },
     };
   }
 
-  close(): Promise<void> {
+  public close(): Promise<void> {
     // no-op
     return Promise.resolve();
   }

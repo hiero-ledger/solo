@@ -52,8 +52,9 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               BackupRestoreCommandDefinition.BACKUP_COMMAND,
-              'Display backup plan for all component configurations of a deployment. ' +
-                'Shows what files and configurations would be backed up without performing the actual backup.',
+              'Create a backup for all component configurations of a deployment. ' +
+                'Create a zip file with configuration and log data.' +
+                'Export states, configmaps and secrets',
               this.backupRestoreCommand,
               this.backupRestoreCommand.backup,
               BackupRestoreCommand.BACKUP_FLAGS_LIST,
