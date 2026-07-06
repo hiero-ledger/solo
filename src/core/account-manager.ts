@@ -87,6 +87,8 @@ const DEFAULT_NODE_CLIENT_SELECTION: NodeClientSelection = {type: 'all'};
 export class AccountManager {
   private _portForwards: number[];
   private _forcePortForward: boolean = false;
+  private _portForwardCreationLock: Promise<void> = Promise.resolve();
+  private _nextPortForwardScanStart: number = 0;
   public _nodeClient: Optional<Client>;
 
   public constructor(
@@ -206,7 +208,29 @@ export class AccountManager {
 
     this._nodeClient = undefined;
     this._portForwards = [];
+    this._nextPortForwardScanStart = 0;
     this.logger.debug('node client and port forwards have been closed');
+  }
+
+  /**
+   * Serializes port-forward creation so that concurrent {@link configureNodeAccess} calls cannot race
+   * {@link Pod.portForward}'s available-port scan onto the same local port: a freshly spawned forwarder is not
+   * listening yet, so a concurrent scan would consider its port free and assign it to another node.
+   * @param action - the port-forward mutation to run while holding the lock
+   * @returns the result of the action
+   */
+  private async withPortForwardCreationLock<T>(action: () => Promise<T>): Promise<T> {
+    const previousLock: Promise<void> = this._portForwardCreationLock;
+    let releaseLock: () => void;
+    this._portForwardCreationLock = new Promise<void>((resolve): void => {
+      releaseLock = resolve;
+    });
+    await previousLock;
+    try {
+      return await action();
+    } finally {
+      releaseLock();
+    }
   }
 
   /**
@@ -370,6 +394,15 @@ export class AccountManager {
       });
       this.logger.debug(`configured node access for ${Object.keys(nodes).length} nodes`);
 
+      // a collision would silently drop nodes from the client's network map and route transactions to the wrong node
+      if (Object.keys(nodes).length !== configureNodeAccessPromiseArray.length) {
+        throw new SoloErrors.component.nodeAccessConfigFailed(
+          new Error(
+            `network endpoint collision: configured ${configureNodeAccessPromiseArray.length} nodes but resolved only ${Object.keys(nodes).length} distinct endpoints`,
+          ),
+        );
+      }
+
       let formattedNetworkConnection: string = '';
       for (const key of Object.keys(nodes)) {
         formattedNetworkConnection += `${key}:${nodes[key]}, `;
@@ -434,12 +467,19 @@ export class AccountManager {
 
       let forwardedPort: number = localPort;
       if (this._portForwards.length < totalNodes) {
-        forwardedPort = await this.k8Factory
-          .getK8(networkNodeService.context)
-          .pods()
-          .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
-          .portForward(localPort, port);
-        this._portForwards.push(forwardedPort);
+        forwardedPort = await this.withPortForwardCreationLock(async (): Promise<number> => {
+          // start the available-port scan above every port already handed out, so ports occupied by stale
+          // forwarders from earlier refreshes cannot funnel concurrent creations onto the same fallback port
+          const scanStartPort: number = Math.max(localPort, this._nextPortForwardScanStart);
+          const newPort: number = await this.k8Factory
+            .getK8(networkNodeService.context)
+            .pods()
+            .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
+            .portForward(scanStartPort, port);
+          this._nextPortForwardScanStart = newPort + 1;
+          this._portForwards.push(newPort);
+          return newPort;
+        });
         this.logger.debug(`using local host port forward: ${host}:${forwardedPort}`);
       }
 
@@ -501,22 +541,25 @@ export class AccountManager {
         // if the node itself is healthy and retries remain, the local port-forward tunnel is the likely culprit; recreate it
         if (lastPlatformStatus === NodeStatusEnums[NodeStatusCodes.ACTIVE] && currentRetry < maxRetries) {
           try {
-            const pod: Pod = this.k8Factory
-              .getK8(networkNodeService.context)
-              .pods()
-              .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName));
-            await pod.stopPortForward(currentPort);
-            const newPort: number = await pod.portForward(currentPort, +networkNodeService.haProxyGrpcPort);
-            const index: number = this._portForwards.indexOf(currentPort);
-            if (index === -1) {
-              this._portForwards.push(newPort);
-            } else {
-              this._portForwards[index] = newPort;
-            }
-            if (newPort !== currentPort) {
-              object = {[`127.0.0.1:${newPort}` as SdkNetworkEndpoint]: accountId};
-              currentPort = newPort;
-            }
+            await this.withPortForwardCreationLock(async (): Promise<void> => {
+              const pod: Pod = this.k8Factory
+                .getK8(networkNodeService.context)
+                .pods()
+                .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName));
+              await pod.stopPortForward(currentPort);
+              const newPort: number = await pod.portForward(currentPort, +networkNodeService.haProxyGrpcPort);
+              this._nextPortForwardScanStart = Math.max(this._nextPortForwardScanStart, newPort + 1);
+              const index: number = this._portForwards.indexOf(currentPort);
+              if (index === -1) {
+                this._portForwards.push(newPort);
+              } else {
+                this._portForwards[index] = newPort;
+              }
+              if (newPort !== currentPort) {
+                object = {[`127.0.0.1:${newPort}` as SdkNetworkEndpoint]: accountId};
+                currentPort = newPort;
+              }
+            });
           } catch (recreateError) {
             // best-effort recovery only: a failed port-forward recreation must not abort the remaining ping retries
             this.logger.warn(
