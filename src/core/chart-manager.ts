@@ -30,6 +30,9 @@ import {type CacheHealthInspector} from '../integration/cache/api/cache-health-i
 
 @injectable()
 export class ChartManager {
+  /** Log-message fragment emitted when a chart is installed or upgraded from the local chart cache. */
+  public static readonly INSTALLED_FROM_CACHE_MESSAGE_FRAGMENT: string = 'from cached chart archive';
+
   public constructor(
     @inject(InjectTokens.Helm) private readonly helm?: HelmClient,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
@@ -205,7 +208,9 @@ export class ChartManager {
         const chart: Chart = cachedChartPath ? new Chart(cachedChartPath) : new Chart(chartName, repoName);
 
         if (cachedChartPath) {
-          this.logger.debug(`Installing ${chartName} from cached chart archive: ${cachedChartPath}`);
+          this.logger.debug(
+            `Installing ${chartName} ${ChartManager.INSTALLED_FROM_CACHE_MESSAGE_FRAGMENT}: ${cachedChartPath}`,
+          );
         }
 
         await this.helm.installChart(chartReleaseName, chart, options);
@@ -300,7 +305,9 @@ export class ChartManager {
       const chart: Chart = cachedChartPath ? new Chart(cachedChartPath) : new Chart(chartName, repoName);
 
       if (cachedChartPath) {
-        this.logger.debug(`Upgrading ${chartReleaseName} from cached chart archive: ${cachedChartPath}`);
+        this.logger.debug(
+          `Upgrading ${chartReleaseName} ${ChartManager.INSTALLED_FROM_CACHE_MESSAGE_FRAGMENT}: ${cachedChartPath}`,
+        );
       }
 
       await this.helm.upgradeChart(chartReleaseName, chart, options);

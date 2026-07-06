@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {BaseCommandTest} from './base-command-test.js';
+import {ClusterReferenceTest} from './cluster-reference-test.js';
 import {main} from '../../../../src/index.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {type BaseTestOptions} from './base-test-options.js';
@@ -9,6 +10,10 @@ import {expect} from 'chai';
 import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {CacheCommandDefinition} from '../../../../src/commands/command-definitions/cache-command-definition.js';
+import {CacheArtifactEnum} from '../../../../src/integration/cache/enums/cache-artifact-enum.js';
+import {ChartManager} from '../../../../src/core/chart-manager.js';
+import {SOLO_LOGS_DIR} from '../../../../src/core/constants.js';
+import {sleep} from '../../../../src/core/helpers.js';
 
 /**
  * Adjust these if your command-definition constants use different names,
@@ -169,5 +174,102 @@ export class CacheTest extends BaseCommandTest {
       await main(CacheTest.soloCachePullArgv(testName));
       await main(CacheTest.soloCacheLoadArgv(testName));
     }).timeout(Duration.ofMinutes(15).toMillis());
+  }
+
+  private static soloCacheChartArgv(testName: string, operation: string): string[] {
+    const {newArgv, argvPushGlobalFlags} = CacheTest;
+
+    const argv: string[] = newArgv();
+    argv.push(CacheCommandDefinition.COMMAND_NAME, CacheCommandDefinition.CHART_SUBCOMMAND_NAME, operation);
+    argvPushGlobalFlags(argv, testName, true, false);
+    return argv;
+  }
+
+  private static chartCacheDirectory(testCacheDirectory: string): string {
+    return PathEx.join(testCacheDirectory, 'cache', CacheArtifactEnum.HELM_CHART);
+  }
+
+  private static listChartArchives(testCacheDirectory: string): string[] {
+    const chartDirectory: string = CacheTest.chartCacheDirectory(testCacheDirectory);
+
+    if (!fs.existsSync(chartDirectory)) {
+      return [];
+    }
+
+    return fs.readdirSync(chartDirectory).filter((fileName: string): boolean => fileName.endsWith('.tar'));
+  }
+
+  public static chartPull(options: BaseTestOptions): void {
+    const {testName, testCacheDirectory} = options;
+
+    it(`${testName}: cache chart pull creates chart archives`, async (): Promise<void> => {
+      await main(CacheTest.soloCacheChartArgv(testName, CacheCommandDefinition.CHART_PULL));
+
+      const archives: string[] = CacheTest.listChartArchives(testCacheDirectory);
+      expect(archives.length, 'expected at least one cached chart archive').to.be.greaterThan(0);
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static chartList(options: BaseTestOptions): void {
+    const {testName} = options;
+
+    it(`${testName}: cache chart list`, async (): Promise<void> => {
+      await main(CacheTest.soloCacheChartArgv(testName, CacheCommandDefinition.CHART_LIST));
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  public static chartStatus(options: BaseTestOptions): void {
+    const {testName} = options;
+
+    it(`${testName}: cache chart status`, async (): Promise<void> => {
+      await main(CacheTest.soloCacheChartArgv(testName, CacheCommandDefinition.CHART_STATUS));
+    }).timeout(Duration.ofMinutes(5).toMillis());
+  }
+
+  /**
+   * Validates that chart installs consume the local chart cache and prioritize it over a network
+   * install: runs `cluster-ref config setup` (which installs the MinIO operator chart through
+   * `ChartManager.install`) after `cache chart pull`, then asserts the solo log recorded an
+   * install from the cached chart archive.
+   */
+  public static chartInstallUsesCache(options: BaseTestOptions): void {
+    const {testName, clusterReferenceNameArray} = options;
+
+    it(`${testName}: chart install consumes the chart cache`, async (): Promise<void> => {
+      const logFilePath: string = PathEx.join(SOLO_LOGS_DIR, 'solo.log');
+      const logSizeBefore: number = fs.existsSync(logFilePath) ? fs.statSync(logFilePath).size : 0;
+
+      await main(
+        ClusterReferenceTest.soloClusterReferenceSetup(testName, clusterReferenceNameArray[0], undefined, true),
+      );
+
+      // The log transport writes asynchronously; poll briefly for the cache-hit line to be flushed.
+      let appendedLog: string = '';
+      for (let attempt: number = 0; attempt < 30; attempt++) {
+        if (fs.existsSync(logFilePath)) {
+          const logBuffer: Buffer = fs.readFileSync(logFilePath);
+          appendedLog = logBuffer.subarray(Math.min(logSizeBefore, logBuffer.length)).toString('utf8');
+          if (appendedLog.includes(ChartManager.INSTALLED_FROM_CACHE_MESSAGE_FRAGMENT)) {
+            break;
+          }
+        }
+        await sleep(Duration.ofSeconds(1));
+      }
+
+      expect(appendedLog, 'expected a chart to be installed from the local chart cache').to.include(
+        ChartManager.INSTALLED_FROM_CACHE_MESSAGE_FRAGMENT,
+      );
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
+  public static chartClear(options: BaseTestOptions): void {
+    const {testName, testCacheDirectory} = options;
+
+    it(`${testName}: cache chart clear removes chart archives`, async (): Promise<void> => {
+      await main(CacheTest.soloCacheChartArgv(testName, CacheCommandDefinition.CHART_CLEAR));
+
+      const archives: string[] = CacheTest.listChartArchives(testCacheDirectory);
+      expect(archives.length, 'expected all cached chart archives to be removed').to.equal(0);
+    }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }
