@@ -457,7 +457,7 @@ setup_smart_contract_test
 wait_for_contract_test_accounts
 latest_mirror_block_before_contract_test="$(get_latest_mirror_block_number)"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Mirror block before smart contract test: ${latest_mirror_block_before_contract_test}"
-wait_for_mirror_block_progress "before smart contract test" "${latest_mirror_block_before_contract_test}" 5 120 2
+wait_for_mirror_block_progress "before smart contract test" "${latest_mirror_block_before_contract_test}" "${SMOKE_MIRROR_BLOCK_SETTLE_BLOCKS:-5}" 180 2
 start_contract_test
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"
