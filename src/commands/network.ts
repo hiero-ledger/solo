@@ -675,7 +675,10 @@ export class NetworkCommand extends BaseCommand {
 
     if (config.enableMonitoringSupport) {
       for (const clusterReference of clusterReferences) {
-        chartValuesMap[clusterReference].set('crs.podLog.enabled', true).set('crs.serviceMonitor.enabled', true);
+        chartValuesMap[clusterReference]
+          .set('crs.podLog.enabled', true)
+          .set('crs.serviceMonitor.enabled', true)
+          .set('defaults.sidecars.grafanaAlloy.enabled', true);
       }
     }
 
