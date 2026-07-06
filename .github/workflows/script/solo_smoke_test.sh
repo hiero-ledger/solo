@@ -53,7 +53,7 @@ function start_contract_test ()
   ps -ef | grep port-forward
   echo "Run smart contract test"
   result=0
-  npm run hh:test -- --timeout 300000 || result=$?
+  npm run hh:test || result=$?
   cd -
 
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
