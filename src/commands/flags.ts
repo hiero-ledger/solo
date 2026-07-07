@@ -2952,7 +2952,8 @@ export class Flags {
     constName: 'maxRtt',
     name: 'max-rtt',
     definition: {
-      describe: 'The maximum allowed end-to-end transaction submission to mirror node availability RTT in milliseconds',
+      describe:
+        'Maximum allowed end-to-end round-trip time in milliseconds, from transaction submission to mirror node availability',
       type: 'number',
       defaultValue: 0,
     },

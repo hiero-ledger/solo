@@ -578,12 +578,7 @@ export class ProfileManager {
     // mirror importer on NOT_AVAILABLE.  Set this here so the CN pod reads it at first startup;
     // the post-start ConfigMap update in createAndCopyBlockNodeJsonFileForConsensusNode is too
     // late because the JVM has already cached its configuration by then.
-    if (
-      streamMode === 'BOTH' &&
-      !lines.some((line): boolean => line.startsWith('blockStream.streamWrappedRecordBlocks='))
-    ) {
-      lines.push('blockStream.streamWrappedRecordBlocks=false');
-    }
+    Helpers.ensureWrappedRecordBlocksDisabled(lines, streamMode);
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }

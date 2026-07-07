@@ -35,7 +35,7 @@ import {PassThrough} from 'node:stream';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import fs from 'node:fs';
 import {PathEx} from '../business/utils/path-ex.js';
-import {sleep} from '../core/helpers.js';
+import {Helpers, sleep} from '../core/helpers.js';
 import {Duration} from '../core/time/duration.js';
 import {PortUtilities} from '../business/utils/port-utilities.js';
 import {type AccountManager} from '../core/account-manager.js';
@@ -125,6 +125,14 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly MIRROR_REST_REQUEST_TIMEOUT_MS: number = 1000;
   private static readonly MIRROR_READINESS_POLL_TIMEOUT_MULTIPLIER: number = 15;
   private static readonly RTT_PROBE_RECIPIENT_ACCOUNT_NUMBER: number = 98;
+  private static readonly RTT_SAMPLE_COUNT: number = 5;
+  private static readonly RTT_SAMPLE_INTERVAL_MS: number = 1000;
+  private static readonly RTT_WARMUP_SECONDS: number = 30;
+  private static readonly RTT_POLL_TIMEOUT_MS: number = 30_000;
+  private static readonly RTT_SAMPLE_COUNT_NAME: string = 'rttSampleCount';
+  private static readonly RTT_SAMPLE_INTERVAL_NAME: string = 'rttSampleInterval';
+  private static readonly RTT_POLL_TIMEOUT_NAME: string = 'rttPollTimeout';
+  private static readonly RTT_WARMUP_SECONDS_NAME: string = 'rttWarmupSeconds';
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.nlgArguments, flags.performanceTest],
@@ -353,11 +361,10 @@ export class RapidFireCommand extends BaseCommand {
       return !!responseBody.transactions?.some(
         (transaction): boolean => transaction.transaction_id === mirrorTransactionId,
       );
-    } catch (error: unknown) {
+    } catch (error) {
       // Port-forward may have dropped or request timed out — log so we can diagnose in CI artifacts.
-      logger?.debug(
-        `Mirror REST request failed for transaction ${mirrorTransactionId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      const requestError: Error = error as Error;
+      logger?.debug(`Mirror REST request failed for transaction ${mirrorTransactionId}: ${requestError.message}`);
       return false;
     } finally {
       clearTimeout(abortTimeout);
@@ -397,31 +404,9 @@ export class RapidFireCommand extends BaseCommand {
       }
     }
 
-    throw new Error(
+    throw new SoloErrors.component.rapidFireExecutionFailed(
       `Timed out after ${timeoutMilliseconds} ms waiting for transaction ${mirrorTransactionId} in mirror node`,
     );
-  }
-
-  private static async waitWithTimeout<T>(
-    operation: Promise<T>,
-    timeoutMilliseconds: number,
-    errorMessage: string,
-  ): Promise<T> {
-    let timeout: NodeJS.Timeout | undefined;
-    try {
-      return await Promise.race([
-        operation,
-        new Promise<T>((_resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: unknown) => void): void => {
-          timeout = setTimeout((): void => {
-            reject(new Error(errorMessage));
-          }, timeoutMilliseconds);
-        }),
-      ]);
-    } finally {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-    }
   }
 
   private async forwardMirrorRestPort(
@@ -487,13 +472,13 @@ export class RapidFireCommand extends BaseCommand {
       .getReceiptQuery(client)
       .setMinBackoff(50)
       .setMaxBackoff(50);
-    const transactionReceipt: TransactionReceipt = await RapidFireCommand.waitWithTimeout(
+    const transactionReceipt: TransactionReceipt = await Helpers.withTimeout(
       receiptQuery.execute(client),
-      pollTimeoutMilliseconds,
+      Duration.ofMillis(pollTimeoutMilliseconds),
       `Timed out after ${pollTimeoutMilliseconds} ms waiting for transaction ${mirrorTransactionId} receipt`,
     );
     if (transactionReceipt.status !== Status.Success) {
-      throw new Error(
+      throw new SoloErrors.component.rapidFireExecutionFailed(
         `Transaction ${mirrorTransactionId} reached consensus with status ${transactionReceipt.status.toString()}`,
       );
     }
@@ -538,7 +523,7 @@ export class RapidFireCommand extends BaseCommand {
         attemptTimeoutMilliseconds,
       );
       if (lagMilliseconds !== undefined && lagMilliseconds > config.maxRtt) {
-        lastError = new Error(
+        lastError = new SoloErrors.component.rapidFireExecutionFailed(
           `mirror importer lag ${Math.round(lagMilliseconds)} ms exceeds max RTT ${config.maxRtt} ms`,
         );
         this.logger.info(
@@ -560,8 +545,8 @@ export class RapidFireCommand extends BaseCommand {
             `${readinessSample.mirrorLatencyMilliseconds} ms after ${attempt} attempt(s); starting measured RTT samples`,
         );
         return;
-      } catch (error: unknown) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+      } catch (error) {
+        lastError = error as Error;
         this.logger.info(
           `Mirror REST readiness attempt ${attempt} did not observe a transaction within ` +
             `${attemptTimeoutMilliseconds} ms: ${lastError.message}`,
@@ -570,18 +555,19 @@ export class RapidFireCommand extends BaseCommand {
     }
 
     const lastErrorMessage: string = lastError ? `; last error: ${lastError.message}` : '';
-    throw new Error(
+    throw new SoloErrors.component.rapidFireExecutionFailed(
       `Timed out after ${readinessTimeoutMilliseconds} ms waiting for mirror REST readiness${lastErrorMessage}`,
+      lastError,
     );
   }
 
   private async measureRttDuringLoad(config: RapidFireStartConfigClass): Promise<RttProbeResult> {
-    RapidFireCommand.assertPositiveInteger(config.rttSampleCount, constants.RAPID_FIRE_RTT_SAMPLE_COUNT_ENV);
-    RapidFireCommand.assertPositiveInteger(config.rttSampleInterval, constants.RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS_ENV);
-    RapidFireCommand.assertPositiveInteger(config.rttPollTimeout, constants.RAPID_FIRE_RTT_POLL_TIMEOUT_MS_ENV);
+    RapidFireCommand.assertPositiveInteger(config.rttSampleCount, RapidFireCommand.RTT_SAMPLE_COUNT_NAME);
+    RapidFireCommand.assertPositiveInteger(config.rttSampleInterval, RapidFireCommand.RTT_SAMPLE_INTERVAL_NAME);
+    RapidFireCommand.assertPositiveInteger(config.rttPollTimeout, RapidFireCommand.RTT_POLL_TIMEOUT_NAME);
     if (!Number.isInteger(config.rttWarmupSeconds) || config.rttWarmupSeconds < 0) {
       throw new SoloErrors.validation.illegalArgument(
-        `${constants.RAPID_FIRE_RTT_WARMUP_SECONDS_ENV} must be a non-negative integer`,
+        `${RapidFireCommand.RTT_WARMUP_SECONDS_NAME} must be a non-negative integer`,
         config.rttWarmupSeconds,
       );
     }
@@ -612,7 +598,9 @@ export class RapidFireCommand extends BaseCommand {
 
     const result: RttProbeResult = RapidFireCommand.summarizeRttSamples(samples);
     if (result.maxMilliseconds > config.maxRtt) {
-      throw new Error(`RTT probe max ${result.maxMilliseconds} ms exceeded configured maximum ${config.maxRtt} ms`);
+      throw new SoloErrors.component.rapidFireExecutionFailed(
+        `RTT probe max ${result.maxMilliseconds} ms exceeded configured maximum ${config.maxRtt} ms`,
+      );
     }
 
     return result;
@@ -668,8 +656,8 @@ export class RapidFireCommand extends BaseCommand {
                 .then((result: RttProbeResult): void => {
                   rttProbeResult = result;
                 })
-                .catch((error: unknown): void => {
-                  rttProbeError = error instanceof Error ? error : new Error(String(error));
+                .catch((error): void => {
+                  rttProbeError = error as Error;
                 });
             }
             const tpsSetting: string = context_.config.maxTps ? `-Dbenchmark.maxtps=${context_.config.maxTps}` : '';
@@ -1082,10 +1070,10 @@ export class RapidFireCommand extends BaseCommand {
             config.namespace = await this.getNamespace(task);
             config.clusterRef = this.getClusterReference();
             config.context = this.getClusterContext(config.clusterRef);
-            config.rttSampleCount = constants.RAPID_FIRE_RTT_SAMPLE_COUNT;
-            config.rttSampleInterval = constants.RAPID_FIRE_RTT_SAMPLE_INTERVAL_MS;
-            config.rttWarmupSeconds = constants.RAPID_FIRE_RTT_WARMUP_SECONDS;
-            config.rttPollTimeout = constants.RAPID_FIRE_RTT_POLL_TIMEOUT_MS;
+            config.rttSampleCount = RapidFireCommand.RTT_SAMPLE_COUNT;
+            config.rttSampleInterval = RapidFireCommand.RTT_SAMPLE_INTERVAL_MS;
+            config.rttWarmupSeconds = RapidFireCommand.RTT_WARMUP_SECONDS;
+            config.rttPollTimeout = RapidFireCommand.RTT_POLL_TIMEOUT_MS;
 
             // Parse nlgArguments to remove any surrounding quotes
             config.parsedNlgArguments = config.nlgArguments.replaceAll("'", '').replaceAll('"', '');
