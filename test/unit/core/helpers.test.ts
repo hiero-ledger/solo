@@ -136,6 +136,51 @@ describe('Helpers', (): void => {
   });
 
   describe('generateExtraEnvironmentValuesFile', (): void => {
+    it('should preserve user-provided hedera.nodes root extraEnv entries when wraps injects TSS_LIB_WRAPS_ARTIFACTS_PATH', (): void => {
+      const node: ConsensusNode = makeConsensusNode('node1', 0);
+      const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'test-helpers-'));
+      const userValuesFilePath: string = path.join(temporaryDirectory, 'user-values.yaml');
+      fs.writeFileSync(
+        userValuesFilePath,
+        [
+          'hedera:',
+          '  nodes:',
+          '    - root:',
+          '        extraEnv:',
+          '          - name: USER_ENV',
+          '            value: user-value',
+        ].join('\n'),
+        'utf8',
+      );
+
+      try {
+        const result: {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}}[]}} = generateAndParse(
+          [node],
+          {
+            wrapsEnabled: true,
+            tss: {
+              wraps: {
+                artifactsFolderName: 'data/keys/wraps-v1.0.0',
+              },
+            },
+            baseExtraEnvironmentVariables: helmValuesHelper.extractExtraEnvironmentFromValuesFiles(
+              [userValuesFilePath],
+              [node],
+            ),
+          },
+        );
+        expect(result.hedera.nodes[0].root?.extraEnv).to.deep.equal([
+          {name: 'USER_ENV', value: 'user-value'},
+          {
+            name: 'TSS_LIB_WRAPS_ARTIFACTS_PATH',
+            value: `${constants.HEDERA_HAPI_PATH}/data/keys/wraps-v1.0.0`,
+          },
+        ]);
+      } finally {
+        fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+      }
+    });
+
     it('should sanitize -Xms/-Xmx from JAVA_OPTS coming from baseExtraEnvironmentVariables', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
       const result: {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}}[]}} = generateAndParse(
