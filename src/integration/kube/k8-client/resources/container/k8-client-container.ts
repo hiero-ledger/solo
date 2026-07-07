@@ -183,6 +183,24 @@ export class K8ClientContainer implements Container {
     return path;
   }
 
+  private async verifyCopyTo(sourcePath: string, destinationDirectory: string): Promise<void> {
+    const sourceStat: fs.Stats = fs.statSync(sourcePath);
+    const sourceName: string = path.basename(sourcePath);
+    const remoteDestinationPath: string = `${destinationDirectory}/${sourceName}`;
+
+    if (sourceStat.isDirectory()) {
+      if (!(await this.hasDir(remoteDestinationPath))) {
+        throw new KubeContainerInvalidPathError('copyTo destination verification', remoteDestinationPath);
+      }
+
+      return;
+    }
+
+    if (!(await this.hasFile(remoteDestinationPath, {size: sourceStat.size.toString()}))) {
+      throw new KubeContainerInvalidPathError('copyTo destination verification', remoteDestinationPath);
+    }
+  }
+
   public async copyFrom(sourcePath: string, destinationDirectory: string): Promise<boolean> {
     const namespace: NamespaceName = this.containerReference.parentReference.namespace;
     const podName: string = this.containerReference.parentReference.name.toString();
@@ -294,6 +312,7 @@ export class K8ClientContainer implements Container {
       this.logger.info(`copyTo: beginning copy [container: ${containerName} ${localPathToCopy} ${remoteDestination}]`);
 
       await this.execKubectlCp(localPathToCopy, remoteDestination, containerName, localPathToCopy);
+      await this.verifyCopyTo(localPathToCopy, destinationDirectory);
 
       return true;
     } finally {

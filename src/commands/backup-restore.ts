@@ -70,6 +70,13 @@ interface ExpectedLbIpAssignment {
   expectedIp: string;
 }
 
+interface LoadBalancerIpConflict {
+  context: Context;
+  serviceName: string;
+  conflictingIp: string;
+  replacementIp: string;
+}
+
 interface ExternalDatabaseParameters {
   context: Context;
   namespace: string;
@@ -882,13 +889,22 @@ export class BackupRestoreCommand extends BaseCommand {
       return;
     }
 
+    const restartStartedAt: Date = new Date();
+
     for (const pod of pods) {
       await k8.pods().delete(pod.podReference);
     }
 
     await k8
       .pods()
-      .waitForReadyStatus(namespace, labels, constants.PODS_READY_MAX_ATTEMPTS, constants.PODS_READY_DELAY);
+      .waitForReadyStatus(
+        namespace,
+        labels,
+        constants.PODS_READY_MAX_ATTEMPTS,
+        constants.PODS_READY_DELAY,
+        restartStartedAt,
+        true,
+      );
   }
 
   /**
@@ -1986,21 +2002,16 @@ export class BackupRestoreCommand extends BaseCommand {
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
       const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      // Override BLOCK_NODE_EARLIEST_MANAGED_BLOCK so block node accepts CN's first
-      // post-restore block. Block node's startup logic in LiveStreamPublisherManager
-      // sets nextUnstreamedBlockNumber = EMB when disk is empty. CN resumes producing
-      // at freezeBlock+2 (skipping the unfinishable freeze block). If EMB <= 0, block
-      // node thinks the first block must be 0 and responds BehindPublisher; CN gives
-      // up after 2 responses. Setting EMB above CN's expected first block activates
-      // block node's streamBeforeEmb flex path, which accepts any first block below
-      // EMB as the new tip. The freeze block number is recovered from the captured
-      // CN-side `.pnd` archives; +100 margin guards against CN behavior variance.
+      // Override BLOCK_NODE_EARLIEST_MANAGED_BLOCK so the new, empty block node starts
+      // managing the restored stream at the saved-state edge. Using a value far above
+      // this edge allows the publisher stream to connect, but those below-EMB blocks are
+      // not persisted on disk and mirror importer remains stuck waiting for them.
       const freezePndBlockNumber: number = this.discoverFreezePndBlockNumber(inputDirectory);
       let earliestManagedBlock: string = '0';
       if (freezePndBlockNumber >= 0) {
-        earliestManagedBlock = String(freezePndBlockNumber + 100);
+        earliestManagedBlock = String(freezePndBlockNumber);
         this.logger.info(
-          `Setting block node EMB to ${earliestManagedBlock} (freeze pnd block ${freezePndBlockNumber} + 100 margin)`,
+          `Setting block node EMB to ${earliestManagedBlock} (freeze pnd block ${freezePndBlockNumber})`,
         );
       } else {
         try {
@@ -2232,6 +2243,13 @@ export class BackupRestoreCommand extends BaseCommand {
           task: async (context_, task): Promise<void> => {
             await this.waitForConsensusPods();
             task.title = 'Wait for consensus node pods: completed';
+          },
+        },
+        {
+          title: 'Stop consensus nodes before restoring state',
+          task: async (context_, task): Promise<void> => {
+            await this.nodeCommandTasks.stopNodes('nodeAliases').task(context_, task);
+            task.title = 'Stop consensus nodes before restoring state: completed';
           },
         },
         {
@@ -2646,7 +2664,9 @@ export class BackupRestoreCommand extends BaseCommand {
       {
         title: 'Deploy relay nodes',
         skip: (context_: AnyListrContext): boolean =>
-          !context_.deploymentState?.relayNodes || context_.deploymentState.relayNodes.length === 0,
+          !context_.deploymentState?.relayNodes ||
+          context_.deploymentState.relayNodes.length === 0 ||
+          (Array.isArray(context_.componentOptions?.relay) && context_.componentOptions.relay.length === 0),
         task: async (context_, taskListWrapper) => {
           const relayNodeTasks: SoloListrTask<AnyListrContext>[] = [];
 
@@ -3379,6 +3399,14 @@ export class BackupRestoreCommand extends BaseCommand {
     return service.status?.loadBalancer?.ingress?.[0]?.ip || '';
   }
 
+  private getServiceLoadBalancerAnnotationIp(service: Service): string {
+    return (
+      service.metadata?.annotations?.['metallb.io/loadBalancerIPs'] ||
+      service.metadata?.annotations?.['metallb.universe.tf/loadBalancerIPs'] ||
+      ''
+    );
+  }
+
   /**
    * Find which service currently owns a target LoadBalancer IP in a context.
    * Used to detect conflicting ownership before reassignment.
@@ -3425,7 +3453,7 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Assign an expected LoadBalancer IP to a service via MetalLB annotations.
+   * Assign an expected LoadBalancer IP to a service.
    * This drives deterministic service endpoint restoration after redeploy.
    */
   private async assignServiceLoadBalancerIp(
@@ -3444,11 +3472,69 @@ export class BackupRestoreCommand extends BaseCommand {
           namespace: namespace.name,
           name: serviceName,
           annotations: {
-            'metallb.universe.tf/loadBalancerIPs': expectedIp,
-            'metallb.io/loadBalancerIPs': expectedIp,
+            'metallb.universe.tf/loadBalancerIPs': null,
+            'metallb.io/loadBalancerIPs': null,
           },
         },
+        spec: {
+          loadBalancerIP: expectedIp,
+        },
       });
+  }
+
+  private async findAvailableSiblingLoadBalancerIp(
+    context: Context,
+    namespace: NamespaceName,
+    reservedIps: Set<string>,
+  ): Promise<string> {
+    const firstReservedIp: string = [...reservedIps][0];
+    const match: RegExpMatchArray | null = firstReservedIp.match(/^(\d+)\.(\d+)\.(\d+)\.\d+$/);
+    if (!match) {
+      throw new SoloError(`Unable to derive a replacement LoadBalancer IP from '${firstReservedIp}'.`);
+    }
+
+    const usedIps: Set<string> = new Set<string>(reservedIps);
+    const services: Service[] = await this.k8Factory.getK8(context).services().list(namespace, []);
+    for (const service of services) {
+      const loadBalancerIp: string = this.getServiceLoadBalancerIp(service);
+      if (loadBalancerIp) {
+        usedIps.add(loadBalancerIp);
+      }
+
+      const annotationIp: string = this.getServiceLoadBalancerAnnotationIp(service);
+      if (annotationIp) {
+        usedIps.add(annotationIp);
+      }
+    }
+
+    const prefix: string = `${match[1]}.${match[2]}.${match[3]}`;
+    for (let suffix: number = 3; suffix <= 254; suffix++) {
+      const candidateIp: string = `${prefix}.${suffix}`;
+      if (!usedIps.has(candidateIp)) {
+        reservedIps.add(candidateIp);
+        return candidateIp;
+      }
+    }
+
+    throw new SoloError(`No replacement LoadBalancer IP is available in '${prefix}.0/24'.`);
+  }
+
+  private async hasNoConflictingLoadBalancerIpOwnership(
+    namespace: NamespaceName,
+    assignments: ExpectedLbIpAssignment[],
+  ): Promise<boolean> {
+    for (const assignment of assignments) {
+      const ownerServiceName: string = await this.findServiceOwningLoadBalancerIp(
+        assignment.context,
+        namespace,
+        assignment.expectedIp,
+      );
+      if (ownerServiceName && ownerServiceName !== assignment.serviceName) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -3496,6 +3582,17 @@ export class BackupRestoreCommand extends BaseCommand {
    */
   private async enforceExpectedLoadBalancerIps(namespace: NamespaceName, expectedLbIpsFile: string): Promise<void> {
     const assignments: ExpectedLbIpAssignment[] = this.parseExpectedLbIpAssignments(expectedLbIpsFile);
+    const reservedIpsByContext: Map<Context, Set<string>> = new Map<Context, Set<string>>();
+    for (const assignment of assignments) {
+      let reservedIps: Set<string> | undefined = reservedIpsByContext.get(assignment.context);
+      if (!reservedIps) {
+        reservedIps = new Set<string>();
+        reservedIpsByContext.set(assignment.context, reservedIps);
+      }
+      reservedIps.add(assignment.expectedIp);
+    }
+
+    const conflicts: LoadBalancerIpConflict[] = [];
 
     for (const assignment of assignments) {
       const ownerServiceName: string = await this.findServiceOwningLoadBalancerIp(
@@ -3508,7 +3605,64 @@ export class BackupRestoreCommand extends BaseCommand {
           `LB IP ownership warning: context='${assignment.context}' service='${assignment.serviceName}' ` +
             `expected='${assignment.expectedIp}' currentlyOwnedBy='${ownerServiceName}'`,
         );
+        const reservedIps: Set<string> = reservedIpsByContext.get(assignment.context) as Set<string>;
+        conflicts.push({
+          context: assignment.context,
+          serviceName: ownerServiceName,
+          conflictingIp: assignment.expectedIp,
+          replacementIp: await this.findAvailableSiblingLoadBalancerIp(assignment.context, namespace, reservedIps),
+        });
       }
+    }
+
+    for (const conflict of conflicts) {
+      this.logger.info(
+        `Relocating LoadBalancer IP conflict: context='${conflict.context}' service='${conflict.serviceName}' ` +
+          `from='${conflict.conflictingIp}' to='${conflict.replacementIp}'`,
+      );
+      await this.assignServiceLoadBalancerIp(conflict.context, namespace, conflict.serviceName, conflict.replacementIp);
+    }
+
+    let conflictsCleared: boolean = conflicts.length === 0;
+    for (let attempt: number = 0; attempt < 30; attempt++) {
+      if (await this.hasNoConflictingLoadBalancerIpOwnership(namespace, assignments)) {
+        conflictsCleared = true;
+        break;
+      }
+      await helpers.sleep(Duration.ofSeconds(2));
+    }
+
+    if (!conflictsCleared) {
+      this.logger.info(
+        'LoadBalancer IP conflicts did not relocate after initial retries. Restarting MetalLB controllers...',
+      );
+      await this.restartMetalLbControllers(assignments);
+
+      for (let attempt: number = 0; attempt < 30; attempt++) {
+        if (await this.hasNoConflictingLoadBalancerIpOwnership(namespace, assignments)) {
+          conflictsCleared = true;
+          break;
+        }
+        await helpers.sleep(Duration.ofSeconds(2));
+      }
+    }
+
+    if (!conflictsCleared) {
+      const conflictingOwners: string[] = [];
+      for (const assignment of assignments) {
+        const ownerServiceName: string = await this.findServiceOwningLoadBalancerIp(
+          assignment.context,
+          namespace,
+          assignment.expectedIp,
+        );
+        if (ownerServiceName && ownerServiceName !== assignment.serviceName) {
+          conflictingOwners.push(
+            `${assignment.context}/${assignment.expectedIp}: expected owner ${assignment.serviceName}, current owner ${ownerServiceName}`,
+          );
+        }
+      }
+
+      throw new SoloError(`Failed to relocate conflicting LoadBalancer IP owners:\n${conflictingOwners.join('\n')}`);
     }
 
     for (const assignment of assignments) {

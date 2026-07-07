@@ -28,6 +28,7 @@ vars:
   BACKUP_DIR: "{{ .USER_WORKING_DIR }}/solo-backup"
   ZIP_PASSWORD: "xxxx"
   ZIP_INPUT_FILE: "{{ .BACKUP_DIR }}/solo-backup.zip"
+  EXPECTED_LB_IPS_FILE: "{{ .TASKFILE_DIR }}/expected-lb-ips.env"
   SOLO_USER_DIR: "{{ default (printf \"%s/.solo\" (env \"HOME\")) }}"
   SHARD: "3"
   REALM: "2"
@@ -84,6 +85,37 @@ tasks:
   restart:
     desc: Restart consensus nodes after restore (skips cluster redeployment)
     cmds:
+      # In this two-kind-cluster example the single block node is local to cluster 2.
+      # The restored node in cluster 1 cannot resolve that ClusterIP DNS name, so keep
+      # node1 file-only. Node2 is colocated with block-node and keeps gRPC publishing
+      # enabled so mirror importer can resume from block-node after restore.
+      - cmd: |
+          echo "Setting restored consensus node block stream modes..."
+          for item in "kind-solo-e2e-c1:network-node1-0:FILE" "kind-solo-e2e-c2:network-node2-0:FILE_AND_GRPC"; do
+            context="${item%%:*}"
+            rest="${item#*:}"
+            pod="${rest%%:*}"
+            mode="${rest#*:}"
+            kubectl exec "${pod}" -n {{ .NAMESPACE }} --context "${context}" -c root-container -- sh -c "
+              set -e
+              file=/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
+              if [ -f \"\${file}\" ]; then
+                if grep -q \"^blockStream.writerMode=\" \"\${file}\"; then
+                  sed -i \"s/^blockStream.writerMode=.*/blockStream.writerMode=${mode}/\" \"\${file}\"
+                else
+                  printf \"\nblockStream.writerMode=${mode}\n\" >> \"\${file}\"
+                fi
+              fi
+            "
+          done
+      - cmd: |
+          echo "Resetting block node data before the colocated consensus publisher starts..."
+          kubectl patch configmap block-node-1-config -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+            --type merge -p '{"data":{"VERIFICATION_TYPE":"NO_OP"}}'
+          kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- \
+            sh -c 'rm -rf /opt/hiero/block-node/data/live/* /opt/hiero/block-node/data/historic/* 2>/dev/null || true'
+          kubectl delete pod block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
+          kubectl wait --for=condition=ready pod/block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=180s
       # LB IPs are pinned by the chart via service.spec.loadBalancerIP (set during
       # consensus network deploy / restore-network with --haproxy-ips/--envoy-ips/
       # --network-node-ips), so MetalLB re-allocates the same IPs every time. No
@@ -95,59 +127,45 @@ tasks:
             {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           fi
           {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1
-      # Wait for CN to publish blocks above the importer's gap (freeze block and the
-      # block immediately after are typically missing from block node because CN's saved
-      # state references blocks it never finalized-and-streamed downstream). Once block
-      # node has blocks above importer.MAX(record_file), bridge the gap with synthetic
-      # record_file rows and bounce the importer so it resumes indexing from there.
-      # Workaround for hiero-ledger/hiero-consensus-node#25389 - retire once that lands.
+      # Restore can leave a small imported record_file gap around the saved-state edge.
+      # Wait for block-node to receive post-restore blocks, then bridge the missing rows
+      # before deploying relay so relay/mirror checks do not wait on blocks that will never
+      # exist downstream.
       - cmd: |
           echo "Waiting for block node to receive blocks above importer's MAX..."
           IMPORTER_MAX=$(kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
             env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
             -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -tA -c \
             "SELECT COALESCE(MAX(index),-1) FROM record_file;" 2>/dev/null)
-          TARGET=$((IMPORTER_MAX + 5))
-          for i in $(seq 1 60); do
+          TARGET=$((IMPORTER_MAX + 1))
+          FOUND=0
+          for i in $(seq 1 24); do
             BN_TIP=$(kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- \
               sh -c "find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | tail -1" 2>/dev/null)
-            [ -n "${BN_TIP}" ] && [ "${BN_TIP}" -ge "${TARGET}" ] && { echo "Block node tip ${BN_TIP} >= target ${TARGET}"; break; }
+            if [ -n "${BN_TIP}" ] && [ "${BN_TIP}" -ge "${TARGET}" ]; then
+              echo "Block node tip ${BN_TIP} >= target ${TARGET}"
+              FOUND=1
+              break
+            fi
             echo "  attempt ${i}: bn_tip=${BN_TIP} target=${TARGET}"
             sleep 5
           done
-          {{ .SOLO_COMMAND }} config ops bridge-import-gap --deployment {{ .DEPLOYMENT }} --dev || true
-      # Restart relay to clear any crash-loop backoff caused by mirror-1-rest WRONGPASS
-      # during restore. Even after mirror-1-rest is ready, the relay may be stuck in
-      # exponential backoff and won't recover on its own before the smoke test runs.
+          if [ "${FOUND}" -ne 1 ]; then
+            echo "Block node did not receive block >= ${TARGET}"
+            exit 1
+          fi
+          {{ .SOLO_COMMAND }} config ops bridge-import-gap --deployment {{ .DEPLOYMENT }} --dev
+      # Relay is skipped during restore-network because the external mirror database is
+      # restored later by restore-config. Deploy it now, after mirror state is available.
       - cmd: |
-          kubectl rollout restart deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
-          kubectl rollout status deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s || true
-      # Wait for the mirror importer to be reasonably caught up to the block node tip
-      # before the smoke test runs. CN is actively producing blocks every ~2s post-restart
-      # so "stable for N polls" never converges - we instead require the importer to be
-      # within 5 blocks of the block node tip (≈10s of lag), or to have advanced ≥10
-      # blocks past the bridge-injected synthetic rows. Caps at 60 polls × 3s = 3 min so
-      # we don't blow the CI workflow timeout. If we hit the cap, smoke test runs anyway
-      # and surfaces any actual mismatch loudly.
-      - cmd: |
-          echo "Waiting for mirror importer to be within 5 blocks of block node tip..."
-          for i in $(seq 1 60); do
-            IMP=$(kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-              env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
-              -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -tA -c \
-              "SELECT COALESCE(MAX(index),-1) FROM record_file;" 2>/dev/null | tr -d ' \n')
-            BN=$(kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- \
-              sh -c "find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | tail -1" 2>/dev/null)
-            echo "  importer=${IMP} block-node=${BN}"
-            if [ -n "${IMP}" ] && [ -n "${BN}" ] && [ "${IMP}" != "-1" ]; then
-              LAG=$((BN - IMP))
-              if [ "${LAG}" -le 5 ]; then
-                echo "Importer caught up (lag=${LAG} blocks)"
-                break
-              fi
-            fi
-            sleep 3
-          done
+          if kubectl get deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 >/dev/null 2>&1; then
+            kubectl rollout restart deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
+            kubectl rollout status deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s
+          else
+            kubectl delete configmap relay-1 relay-1-ws -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --ignore-not-found
+            kubectl delete secret relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --ignore-not-found
+            $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+          fi
       - task: verify
 
   initial-deploy:
@@ -311,7 +329,7 @@ tasks:
     cmds:
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 60 $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
+            {{ .TIMEOUT_COMMAND }} 420s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           else
             $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
           fi
@@ -370,17 +388,14 @@ tasks:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
       - task: deploy-external-database
-      # IP pinning lives in command.yaml's `consensus:` block (--haproxy-ips /
-      # --envoy-ips / --network-node-ips). The chart renders service.spec.loadBalancerIP
-      # and MetalLB allocates deterministically, so --skip-ip-tracking is correct here:
-      # there is nothing for restore-network to re-patch post-deploy.
       - cmd: |
-          $SOLO_COMMAND config ops restore-network \
+          BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-network \
             --input-dir {{ .BACKUP_DIR }} \
             --options-file {{ .TASKFILE_DIR }}/command.yaml \
             --shard {{ .SHARD }} \
             --realm {{ .REALM }} \
-            --skip-ip-tracking
+            --expected-lb-ips-file {{ .EXPECTED_LB_IPS_FILE }} \
+            --skip-ip-tracking=false
 
   # ==================== External Database Tasks ====================
 
@@ -422,7 +437,7 @@ tasks:
     desc: Restore configuration and state from backup
     cmds:
       - cmd: |
-          $SOLO_COMMAND config ops restore-config \
+          BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-config \
             --deployment {{ .DEPLOYMENT }} \
             --input-dir {{ .BACKUP_DIR }} \
             --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json
@@ -432,8 +447,13 @@ tasks:
   verify:
     desc: Verify restored network functionality
     cmds:
-      - cmd: echo "🔎 Verifying restored state (checking account {{ .REALM }}.{{ .SHARD }}.3)..."
-      - cmd: $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .REALM }}.{{ .SHARD }}.3 || echo "⚠️  Account verification may have failed"
+      - cmd: echo "🔎 Verifying restored state (checking account {{ .SHARD }}.{{ .REALM }}.3)..."
+      - cmd: |
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 90s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.3
+          else
+            $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.3
+          fi
 
       - cmd: echo "💰 Testing with new transactions..."
       - cmd: |
@@ -458,7 +478,11 @@ tasks:
           elif git rev-parse --show-toplevel >/dev/null 2>&1; then
             REPO_ROOT="$(git rev-parse --show-toplevel)"
             echo "Running solo smoke test from repo root: ${REPO_ROOT}"
-            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
+            if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+              (cd "${REPO_ROOT}" && {{ .TIMEOUT_COMMAND }} 420s .github/workflows/script/solo_smoke_test.sh)
+            else
+              (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
+            fi
           else
             echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
           fi

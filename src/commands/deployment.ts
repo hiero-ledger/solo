@@ -134,7 +134,7 @@ export class DeploymentCommand extends BaseCommand {
 
   public static REFRESH_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.quiet],
+    optional: [flags.clusterRef, flags.quiet],
   };
 
   public static IMAGES_FLAGS_LIST: CommandFlags = {
@@ -1125,6 +1125,7 @@ export class DeploymentCommand extends BaseCommand {
     interface Config {
       quiet: boolean;
       deployment: DeploymentName;
+      clusterRef?: ClusterReferenceName;
     }
 
     interface RefreshContext {
@@ -1146,6 +1147,7 @@ export class DeploymentCommand extends BaseCommand {
             context_.config = {
               quiet: this.configManager.getFlag<boolean>(flags.quiet),
               deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+              clusterRef: this.configManager.getFlag<ClusterReferenceName>(flags.clusterRef),
             } as Config;
 
             // Get namespace from deployment
@@ -1191,8 +1193,16 @@ export class DeploymentCommand extends BaseCommand {
               );
             }
 
-            let clusterReference: string = clusterReferences[0];
-            if (clusterReferences.length > 1) {
+            let clusterReference: string = context_.config.clusterRef || clusterReferences[0];
+            if (!clusterReferences.includes(clusterReference)) {
+              throw new SoloErrors.deployment.clusterRefNotFound(
+                clusterReference,
+                Flags.getFormattedFlagKey(Flags.clusterRef),
+                Flags.getFormattedFlagKey(Flags.context),
+              );
+            }
+
+            if (!context_.config.clusterRef && clusterReferences.length > 1) {
               clusterReference = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
                 message: `Multiple clusters found for deployment '${context_.config.deployment}'. Select cluster reference:`,
                 choices: clusterReferences.map((reference): {name: string; value: string} => ({

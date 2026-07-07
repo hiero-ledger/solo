@@ -563,8 +563,10 @@ export class NodeCommandTasks {
       },
     );
 
+    const runSequentially: boolean = enableDebugger || status === NodeStatusCodes.ACTIVE;
+
     return task.newListr(subTasks, {
-      concurrent: !enableDebugger, // Run sequentially when debugging to avoid multiple prompts
+      concurrent: !runSequentially, // ACTIVE checks include SDK readiness through shared AccountManager state.
       rendererOptions: {
         collapseSubtasks: false,
       },
@@ -659,32 +661,60 @@ export class NodeCommandTasks {
     return podReference;
   }
 
+  private async isNetworkNodeRuntimeReady(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    context?: string,
+  ): Promise<boolean> {
+    if (typeof context !== 'string' || context.trim().length === 0) {
+      context = extractContextFromConsensusNodes(nodeAlias, this.remoteConfig.getConsensusNodes());
+    }
+
+    const rootContainer: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
+    const readinessCommand: string =
+      "ps -ef | grep -q '[c]om.hedera.node.app.ServicesMain' && " +
+      'curl -sf http://localhost:9999/metrics >/dev/null && ' +
+      'true < /dev/tcp/127.0.0.1/50211';
+
+    try {
+      await rootContainer.execContainer(['bash', '-c', readinessCommand]);
+      return true;
+    } catch (error) {
+      this.logger.debug(
+        `Runtime readiness check failed for node '${nodeAlias}' in namespace '${namespace.name}': ${JSON.stringify(error)}`,
+      );
+
+      return false;
+    }
+  }
+
   private async waitForGrpcReadiness(
     namespace: NamespaceName,
     nodeAlias: NodeAlias,
     task: SoloListrTaskWrapper<AnyListrContext>,
     title: string,
   ): Promise<void> {
-    const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
-    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
-
     let attempt: number = 0;
     let consecutiveSuccesses: number = 0;
 
     while (attempt < constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS) {
       try {
-        await this.accountManager.refreshNodeClient(namespace, clusterReferences, deployment, true, {
-          type: 'only',
-          nodeAlias,
-        });
-        consecutiveSuccesses++;
+        if (await this.isNetworkNodeRuntimeReady(namespace, nodeAlias)) {
+          consecutiveSuccesses++;
 
-        task.title =
-          `${title} - gRPC readiness ${chalk.green(`${consecutiveSuccesses}/${constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES}`)}, ` +
-          `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
+          task.title =
+            `${title} - gRPC readiness ${chalk.green(`${consecutiveSuccesses}/${constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES}`)}, ` +
+            `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
 
-        if (consecutiveSuccesses >= constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES) {
-          return;
+          if (consecutiveSuccesses >= constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES) {
+            return;
+          }
+        } else {
+          consecutiveSuccesses = 0;
+
+          task.title =
+            `${title} - gRPC readiness ${chalk.yellow('WAITING')}, ` +
+            `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
         }
       } catch (error) {
         consecutiveSuccesses = 0;
@@ -1510,6 +1540,12 @@ export class NodeCommandTasks {
               targetNodeId.toString(),
             ]);
           }
+
+          await container.execContainer([
+            'bash',
+            '-c',
+            `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+          ]);
         }
       },
       skip,
@@ -2042,6 +2078,18 @@ export class NodeCommandTasks {
       // Fail fast when the helper is missing so callers immediately know the image
       // does not satisfy Solo's lifecycle contract.
       `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
+      [
+        "if ps -ef | grep -q '[c]om.hedera.node.app.ServicesMain'",
+        "then curl -sf http://localhost:9999/metrics | grep 'platform_PlatformStatus' | grep -q ' 2[.]0$' && true < /dev/tcp/127.0.0.1/50211",
+        'else false',
+        'fi',
+      ].join('\n'),
+      // ACTIVE nodes only need the autostart marker restored; the full helper start
+      // path deliberately forces a down/up cycle for transitional or frozen nodes.
+      `if [ $? -eq 0 ]; then "${lifecycleHelperPath}" enable-autostart; exit 0; fi`,
+      // A JVM can remain alive with only background threads after the main platform
+      // exits. Clear any non-ready process before asking the helper to start it.
+      `"${lifecycleHelperPath}" stop-and-disable-autostart`,
       // The helper owns both service control and autostart marker semantics.
       `"${lifecycleHelperPath}" start-and-enable-autostart`,
     ].join('\n');
@@ -4202,14 +4250,19 @@ export class NodeCommandTasks {
 
         const extractCommand: string = `unzip ${PathEx.basename(config.lastStateZipPath)}`;
 
+        const normalizePreconsensusEventsCommand: string = [
+          `cd ${savedStatePath}`,
+          extractCommand,
+          `if [ -d preconsensus-events/0 ] && [ "${nodeId}" != "0" ]; then ` +
+            `rm -rf preconsensus-events/${nodeId} && mv preconsensus-events/0 preconsensus-events/${nodeId}; ` +
+            'fi',
+          `rm -f ${PathEx.basename(config.lastStateZipPath)}`,
+        ].join(' && ');
+
         await k8
           .containers()
           .readByRef(containerReference)
-          .execContainer([
-            'bash',
-            '-c',
-            `cd ${savedStatePath} && ${extractCommand} && mv preconsensus-events/0 preconsensus-events/${nodeId} && rm -f ${PathEx.basename(config.lastStateZipPath)}`,
-          ]);
+          .execContainer(['bash', '-c', normalizePreconsensusEventsCommand]);
       },
     };
   }

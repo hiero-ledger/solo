@@ -27,6 +27,10 @@ block:
   - --quiet-mode
   - --values-file
   - block-node-values.yaml
+# Relay startup requires mirror account data. In this external-database restore
+# flow, restore-network runs before restore-config restores the mirror database,
+# so relay is intentionally deferred to the restart task.
+relay: []
 # Re-applied at restore time so service.spec.loadBalancerIP is rendered into the
 # chart with the same values as the original deploy. MetalLB honors loadBalancerIP,
 # so the new cluster comes up with the same LB IPs the saved roster expects.
@@ -37,8 +41,6 @@ consensus:
   - --dev
   - --load-balancer
   - --pvcs
-  - --application-properties
-  - application.properties
   - --haproxy-ips
   - node1=172.19.1.0,node2=172.19.2.0
   - --envoy-ips

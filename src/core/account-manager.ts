@@ -334,17 +334,15 @@ export class AccountManager {
     const configureNodeAccessPromiseArray: Promise<Record<SdkNetworkEndpoint, AccountId>>[] = [];
 
     try {
-      let localPort: number = constants.LOCAL_NODE_START_PORT;
-
       for (const networkNodeService of networkNodeServicesMap.values()) {
         if (
           networkNodeService.accountId !== IGNORED_NODE_ACCOUNT_ID &&
           networkNodeService.nodeAlias !== skipNodeAlias
         ) {
+          const localPort: number = constants.LOCAL_NODE_START_PORT + networkNodeService.nodeId;
           configureNodeAccessPromiseArray.push(
             this.configureNodeAccess(networkNodeService, localPort, networkNodeServicesMap.size),
           );
-          localPort++;
         }
       }
       this.logger.debug(`configuring node access for ${configureNodeAccessPromiseArray.length} nodes`);

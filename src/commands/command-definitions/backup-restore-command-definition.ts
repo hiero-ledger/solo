@@ -24,18 +24,19 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
   }
 
-  public static override readonly COMMAND_NAME = 'config';
-  protected static override readonly DESCRIPTION =
+  public static override readonly COMMAND_NAME: string = 'config';
+  protected static override readonly DESCRIPTION: string =
     'Backup and restore component configurations for Solo deployments. ' +
     'These commands display what would be backed up or restored without performing actual operations.';
 
-  public static readonly SUBCOMMAND_NAME = 'ops';
-  private static readonly SUBCOMMAND_DESCRIPTION = 'Configuration backup and restore operations';
+  public static readonly SUBCOMMAND_NAME: string = 'ops';
+  private static readonly SUBCOMMAND_DESCRIPTION: string = 'Configuration backup and restore operations';
 
-  public static readonly BACKUP_COMMAND = 'backup';
-  public static readonly RESTORE_CONFIG_COMMAND = 'restore-config';
-  public static readonly RESTORE_CLUSTERS_COMMAND = 'restore-clusters';
-  public static readonly RESTORE_NETWORK_COMMAND = 'restore-network';
+  public static readonly BACKUP_COMMAND: string = 'backup';
+  public static readonly RESTORE_CONFIG_COMMAND: string = 'restore-config';
+  public static readonly RESTORE_CLUSTERS_COMMAND: string = 'restore-clusters';
+  public static readonly RESTORE_NETWORK_COMMAND: string = 'restore-network';
+  public static readonly BRIDGE_IMPORT_GAP_COMMAND: string = 'bridge-import-gap';
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -92,6 +93,16 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
               this.backupRestoreCommand,
               this.backupRestoreCommand.restoreNetwork,
               BackupRestoreCommand.RESTORE_NETWORK_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BackupRestoreCommandDefinition.BRIDGE_IMPORT_GAP_COMMAND,
+              'Bridge a mirror importer record_file gap after restore and restart the importer.',
+              this.backupRestoreCommand,
+              this.backupRestoreCommand.bridgeImportGap,
+              BackupRestoreCommand.BRIDGE_IMPORT_GAP_FLAGS_LIST,
               [],
             ),
           ),
