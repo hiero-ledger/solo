@@ -34,7 +34,9 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {type Pods} from '../integration/kube/resources/pod/pods.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
+import {type EphemeralContainerSpec} from '../integration/kube/resources/pod/ephemeral-container-spec.js';
 import chalk from 'chalk';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
@@ -2176,16 +2178,38 @@ export class MirrorNodeCommand extends BaseCommand {
         }
 
         const podReference: PodReference = importerPods[0].podReference;
-        const containerReference: ContainerReference = ContainerReference.of(
-          podReference,
-          constants.MIRROR_NODE_IMPORTER_CONTAINER_NAME,
-        );
-        const k8Container: Container = this.k8Factory
-          .getK8(config.clusterContext)
-          .containers()
-          .readByRef(containerReference);
-
+        const pods: Pods = this.k8Factory.getK8(config.clusterContext).pods();
         const repositoryDirectory: string = constants.MIRROR_NODE_JFR_REPOSITORY_DIRECTORY;
+
+        // The JFR volume only exists when the importer was deployed with the perf overlay; skip when absent.
+        if (!(await pods.hasVolume(podReference, constants.MIRROR_NODE_JFR_VOLUME_NAME))) {
+          const reason: string = `mirror node importer pod ${podReference.name} has no '${constants.MIRROR_NODE_JFR_VOLUME_NAME}' volume; the mirror node was not deployed with Java Flight Recorder enabled`;
+          this.logger.warn(reason);
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey(reason)}`);
+          return;
+        }
+
+        // The distroless importer has no shell/tar, so collect through an ephemeral helper that shares the JFR volume (unique name allows repeat runs).
+        const collectorName: string = `${constants.MIRROR_NODE_JFR_COLLECTOR_CONTAINER_NAME}-${Date.now()}`;
+        const collectorContainer: EphemeralContainerSpec = {
+          name: collectorName,
+          image: constants.MIRROR_NODE_JFR_COLLECTOR_IMAGE,
+          command: ['sleep', '180'],
+          volumeMounts: [{name: constants.MIRROR_NODE_JFR_VOLUME_NAME, mountPath: repositoryDirectory}],
+        };
+
+        let k8Container: Container;
+        try {
+          await pods.addEphemeralContainer(podReference, collectorContainer);
+          const containerReference: ContainerReference = ContainerReference.of(
+            podReference,
+            ContainerName.of(collectorName),
+          );
+          k8Container = this.k8Factory.getK8(config.clusterContext).containers().readByRef(containerReference);
+        } catch (error) {
+          throw new SoloErrors.component.mirrorNodeJfrCollectionFailed(error);
+        }
+
         const collectedRecordingPath: string = `${repositoryDirectory}/collected-recording.jfr`;
 
         // Concatenate every finalized JFR chunk (all but the still-open last one) into a single readable recording.
@@ -2197,13 +2221,13 @@ export class MirrorNodeCommand extends BaseCommand {
 
         let consolidateResult: string;
         try {
-          consolidateResult = await k8Container.execContainer(['bash', '-c', consolidateScript]);
+          consolidateResult = await k8Container.execContainer(['sh', '-c', consolidateScript]);
         } catch (error) {
           throw new SoloErrors.component.mirrorNodeJfrCollectionFailed(error);
         }
 
         if (consolidateResult.includes(MirrorNodeCommand.NO_JFR_MARKER)) {
-          const reason: string = `no finalized Java Flight Recorder chunk found in ${repositoryDirectory} on mirror node importer pod ${podReference.name}; the mirror node may not have been deployed with Java Flight Recorder enabled, or the recording is still shorter than one chunk`;
+          const reason: string = `no finalized Java Flight Recorder chunk found in ${repositoryDirectory} on mirror node importer pod ${podReference.name}; the recording is still shorter than one chunk`;
           this.logger.warn(reason);
           task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey(reason)}`);
           return;
