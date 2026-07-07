@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {spawnSync} from 'node:child_process';
+import {rmSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -13,8 +14,17 @@ const soloNoCache = process.env.SOLO_NO_CACHE?.toLowerCase() === 'true';
 const isGlobalInstall = process.env.npm_config_global === 'true';
 
 if (!isGlobalInstall) {
-  console.log('Skipping Solo image cache population because this is not a global npm install.');
+  console.log('Skipping Solo home directory reset and image cache population because this is not a global npm install.');
   process.exit(0);
+}
+
+// For global installations remove the Solo home directory on global install so stale config, logs, keys, and other
+// per-deployment state do not carry over.
+const soloHomeDirectory = process.env.SOLO_HOME || join(process.env.HOME || process.env.USERPROFILE, '.solo');
+try {
+  rmSync(soloHomeDirectory, {recursive: true, force: true});
+} catch (error) {
+  console.warn(`Failed to remove Solo home directory ${soloHomeDirectory}: ${error.message}. Continuing install.`);
 }
 
 if (soloNoCache) {
