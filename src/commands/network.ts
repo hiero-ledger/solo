@@ -456,6 +456,20 @@ export class NetworkCommand extends BaseCommand {
         // generated file can include them and avoid Helm array replacement silently dropping
         // env vars set by user-provided values files.
         const existingValuesFilePaths: string[] = valueFilePathsMap[clusterReference] ?? [];
+        const userValueFilePaths: string[] = valuesFiles[clusterReference]?.userValueFilePaths() ?? [];
+        const extraEnvironmentWarnings: string[] = helmValuesHelper.describeUserProvidedExtraEnvironmentWarnings(
+          userValueFilePaths,
+          clusterConsensusNodes,
+          {
+            wrapsEnabled: config.wrapsEnabled,
+            tss: this.soloConfig.tss,
+            debugNodeAlias: config.debugNodeAlias,
+            useJavaMainClass: config.app !== constants.HEDERA_APP_NAME,
+          },
+        );
+        for (const warning of extraEnvironmentWarnings) {
+          this.logger.showUserUnlessOneShot(chalk.yellow(warning));
+        }
 
         const clusterExtraEnvironmentValuesFile: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
           clusterConsensusNodes,
