@@ -171,6 +171,51 @@ describe('Helpers', (): void => {
   });
 
   describe('generateExtraEnvironmentValuesFile', (): void => {
+    it('should preserve user-provided hedera.nodes root extraEnv entries when wraps injects TSS_LIB_WRAPS_ARTIFACTS_PATH', (): void => {
+      const node: ConsensusNode = makeConsensusNode('node1', 0);
+      const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'test-helpers-'));
+      const userValuesFilePath: string = path.join(temporaryDirectory, 'user-values.yaml');
+      fs.writeFileSync(
+        userValuesFilePath,
+        [
+          'hedera:',
+          '  nodes:',
+          '    - root:',
+          '        extraEnv:',
+          '          - name: USER_ENV',
+          '            value: user-value',
+        ].join('\n'),
+        'utf8',
+      );
+
+      try {
+        const result: {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}}[]}} = generateAndParse(
+          [node],
+          {
+            wrapsEnabled: true,
+            tss: {
+              wraps: {
+                artifactsFolderName: 'data/keys/wraps-v1.0.0',
+              },
+            },
+            baseExtraEnvironmentVariables: helmValuesHelper.extractExtraEnvironmentFromValuesFiles(
+              [userValuesFilePath],
+              [node],
+            ),
+          },
+        );
+        expect(result.hedera.nodes[0].root?.extraEnv).to.deep.equal([
+          {name: 'USER_ENV', value: 'user-value'},
+          {
+            name: 'TSS_LIB_WRAPS_ARTIFACTS_PATH',
+            value: `${constants.HEDERA_HAPI_PATH}/data/keys/wraps-v1.0.0`,
+          },
+        ]);
+      } finally {
+        fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+      }
+    });
+
     it('should sanitize -Xms/-Xmx from JAVA_OPTS coming from baseExtraEnvironmentVariables', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
       const result: {hedera: {nodes: {root?: {extraEnv: {name: string; value: string}[]}}[]}} = generateAndParse(
@@ -243,6 +288,82 @@ describe('Helpers', (): void => {
         },
       });
       expect(result.hedera.nodes[0].blockNodesJson).to.be.undefined;
+    });
+  });
+
+  describe('describeUserProvidedExtraEnvironmentWarnings', (): void => {
+    it('warns when Solo overwrites a user-provided extraEnv value during wraps merge', (): void => {
+      const node: ConsensusNode = makeConsensusNode('node1', 0);
+      const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'test-helpers-'));
+      const userValuesFilePath: string = path.join(temporaryDirectory, 'user-values.yaml');
+      fs.writeFileSync(
+        userValuesFilePath,
+        [
+          'hedera:',
+          '  nodes:',
+          '    - root:',
+          '        extraEnv:',
+          '          - name: TSS_LIB_WRAPS_ARTIFACTS_PATH',
+          '            value: /user/path',
+        ].join('\n'),
+        'utf8',
+      );
+
+      try {
+        const warnings: string[] = helmValuesHelper.describeUserProvidedExtraEnvironmentWarnings(
+          [userValuesFilePath],
+          [node],
+          {
+            wrapsEnabled: true,
+            tss: {
+              wraps: {
+                artifactsFolderName: 'data/keys/wraps-v1.0.0',
+              },
+            },
+          },
+        );
+
+        expect(warnings).to.deep.equal([
+          `Warning: User-provided extraEnv TSS_LIB_WRAPS_ARTIFACTS_PATH for node1 was overwritten during Solo's generated extraEnv merge. Final value: ${constants.HEDERA_HAPI_PATH}/data/keys/wraps-v1.0.0`,
+        ]);
+      } finally {
+        fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+      }
+    });
+
+    it('warns when invalid or duplicate user-provided extraEnv entries are ignored', (): void => {
+      const node: ConsensusNode = makeConsensusNode('node1', 0);
+      const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'test-helpers-'));
+      const userValuesFilePath: string = path.join(temporaryDirectory, 'user-values.yaml');
+      fs.writeFileSync(
+        userValuesFilePath,
+        [
+          'hedera:',
+          '  nodes:',
+          '    - root:',
+          '        extraEnv:',
+          '          - name: DUPLICATE_ENV',
+          '            value: first-value',
+          '          - name: DUPLICATE_ENV',
+          '            value: second-value',
+          '          - name: INVALID_ENV',
+        ].join('\n'),
+        'utf8',
+      );
+
+      try {
+        const warnings: string[] = helmValuesHelper.describeUserProvidedExtraEnvironmentWarnings(
+          [userValuesFilePath],
+          [node],
+        );
+
+        expect(warnings).to.deep.equal([
+          'Warning: Ignored 1 invalid extraEnv entry from --values-file input because each entry must contain string name and value fields.',
+          'Warning: User-provided extraEnv DUPLICATE_ENV for node1 is defined multiple times across --values-file inputs; the last value wins.',
+        ]);
+      } finally {
+        fs.rmSync(temporaryDirectory, {recursive: true, force: true});
+      }
     });
   });
 
