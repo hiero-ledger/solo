@@ -427,7 +427,12 @@ jobs:
       - name: Performance Test Verification
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          MAX_MEMORY_MB=4000
+          # Block-node runs with ZGC + 3 Gi heap (-Xms2g -Xmx3g) to prevent GC-pause-driven
+          # ring-buffer overflows.  Measured peak is ~5 500 MB (block-node 3 323 MB +
+          # other pods ~2 175 MB).  Block-node container limit is 4 Gi so the theoretical
+          # ceiling is ~6 270 MB; 7 000 MB leaves room for JVM growth while still catching
+          # real memory leaks.
+          MAX_MEMORY_MB=7000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"
           MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')
