@@ -457,6 +457,20 @@ export class NetworkCommand extends BaseCommand {
         // generated file can include them and avoid Helm array replacement silently dropping
         // env vars set by user-provided values files.
         const existingValuesFilePaths: string[] = valueFilePathsMap[clusterReference] ?? [];
+        const userValueFilePaths: string[] = valuesFiles[clusterReference]?.userValueFilePaths() ?? [];
+        const extraEnvironmentWarnings: string[] = helmValuesHelper.describeUserProvidedExtraEnvironmentWarnings(
+          userValueFilePaths,
+          clusterConsensusNodes,
+          {
+            wrapsEnabled: config.wrapsEnabled,
+            tss: this.soloConfig.tss,
+            debugNodeAlias: config.debugNodeAlias,
+            useJavaMainClass: config.app !== constants.HEDERA_APP_NAME,
+          },
+        );
+        for (const warning of extraEnvironmentWarnings) {
+          this.logger.showUserUnlessOneShot(chalk.yellow(warning));
+        }
 
         const clusterExtraEnvironmentValuesFile: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
           clusterConsensusNodes,
@@ -487,12 +501,16 @@ export class NetworkCommand extends BaseCommand {
       // values file can replace array elements and drop fields like node labels/account IDs.
       const chartValues: HelmChartValues = valuesFiles[clusterReference].clone();
 
-      // Add per-cluster extraEnv values file if any extraEnv customizations are needed
-      if (perClusterExtraEnvironmentValuesFiles[clusterReference]) {
-        chartValues.file(perClusterExtraEnvironmentValuesFiles[clusterReference]);
-      }
-
       chartValues.add(clusterChartValues[clusterReference] ?? new HelmChartValues());
+
+      // Add per-cluster extraEnv values file last (after user files) so that Solo-injected
+      // env vars like TSS_LIB_WRAPS_ARTIFACTS_PATH are not wiped out by a user-provided
+      // values file that also defines hedera.nodes[*].root.extraEnv. The generated file
+      // already contains the user's extraEnv entries merged in via baseExtraEnvironmentVariables,
+      // so placing it last is safe.
+      if (perClusterExtraEnvironmentValuesFiles[clusterReference]) {
+        chartValues.userFile(perClusterExtraEnvironmentValuesFiles[clusterReference]);
+      }
 
       chartValuesMap[clusterReference] = chartValues;
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
