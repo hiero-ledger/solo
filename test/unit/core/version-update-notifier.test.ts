@@ -110,14 +110,13 @@ describe('VersionUpdateNotifier', (): void => {
     expect(bannerText()).to.include(NEWER_VERSION);
   });
 
-  it('includes the install command and package link in the banner', async (): Promise<void> => {
+  it('includes the upgrade guide and release notes links in the banner', async (): Promise<void> => {
     seedCache(NEWER_VERSION, 0);
 
     await notify();
 
     const output: string = bannerText();
-    expect(output).to.include(`npm install -g ${PACKAGE_NAME}@latest`);
-    expect(output).to.include('https://hiero-ledger.github.io/solo/latest/');
+    expect(output).to.include('https://solo.hiero.org/docs/simple-solo-setup/upgrading-solo/');
     expect(output).to.include('https://github.com/hiero-ledger/solo/releases');
   });
 
