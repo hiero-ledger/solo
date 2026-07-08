@@ -1195,6 +1195,8 @@ export class NodeCommandTasks {
 
         const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
 
+        fs.mkdirSync(stagingDir, {recursive: true});
+
         // found all files under ${constants.HEDERA_HAPI_PATH}/data/upgrade/current/
         const upgradeDirectories: string[] = [
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`,
