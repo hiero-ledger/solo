@@ -104,13 +104,22 @@ export class DeployArgvBuilders {
     // Build a local copy with the dev image values file appended, without mutating
     // config.blockNodeConfiguration — it may be an alias for another section's object
     // (e.g. via YAML anchors), causing the values file to leak into other commands.
+    // When ONE_SHOT_BLOCK_NODE_PERF=true, also inject the performance values (larger
+    // disruptor ring buffer + memory headroom) before the solo-dev image override so
+    // that the perf settings apply but the image is still the solo-dev image.
     const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
+    const perfValuesFile: string | undefined =
+      constants.ONE_SHOT_BLOCK_NODE_PERF.toLowerCase() === 'true' ? constants.BLOCK_NODE_PERF_VALUES_FILE : undefined;
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
       ...blockNodeConfiguration,
-      [Flags.getFormattedFlagKey(Flags.valuesFile)]: blockExistingValuesFile
-        ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
-        : constants.BLOCK_NODE_SOLO_DEV_FILE,
+      [Flags.getFormattedFlagKey(Flags.valuesFile)]: [
+        blockExistingValuesFile,
+        perfValuesFile,
+        constants.BLOCK_NODE_SOLO_DEV_FILE,
+      ]
+        .filter(Boolean)
+        .join(','),
     };
     appendConfigToArgv(argv, blockLocalConfig);
     return argvPushGlobalFlags(argv);

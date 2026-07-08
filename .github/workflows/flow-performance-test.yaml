@@ -165,6 +165,10 @@ jobs:
           # Workaround: keep BOTH mode so SmartContractLoadTest does not return INVALID_TRANSACTION_BODY.
           # TODO: remove once https://github.com/hiero-ledger/hiero-consensus-node/issues/25883 is fixed.
           echo BLOCK_STREAM_STREAM_MODE=BOTH >> .env
+          # Workaround for hiero-block-node#3150: enlarge disruptor ring buffer + memory so mirror
+          # reconnect storms under high-TPS load do not fill the ring buffer and cause NOT_AVAILABLE.
+          # TODO: remove once block node @todo(1673) is fully fixed.
+          echo ONE_SHOT_BLOCK_NODE_PERF=true >> .env
           cat .env
 
           # Start resource monitoring in background (30s interval for finer granularity)
