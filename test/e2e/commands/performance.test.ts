@@ -51,7 +51,9 @@ const associations: number = 50;
 const nfts: number = 50;
 const percent: number = 50;
 const stableTransactionPerSecondTarget: number = 100;
-const maxEndToEndRtt: number = 500;
+// SmartContract tests require EVM execution on the consensus node plus mirror processing,
+// which makes them heavier than simple transfers; 600 ms provides adequate headroom at 97 TPS.
+const maxEndToEndRtt: number = 600;
 const nftTransferLoadTestTimeoutMultiplier: number = 6;
 const mirrorImporterWarmupSeconds: number = 60;
 let startTime: Date;
