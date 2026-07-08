@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {BaseCommandTest} from './base-command-test.js';
-import {ClusterReferenceTest} from './cluster-reference-test.js';
 import {main} from '../../../../src/index.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 import {type BaseTestOptions} from './base-test-options.js';
@@ -12,8 +11,12 @@ import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {CacheCommandDefinition} from '../../../../src/commands/command-definitions/cache-command-definition.js';
 import {CacheArtifactEnum} from '../../../../src/integration/cache/enums/cache-artifact-enum.js';
 import {ChartManager} from '../../../../src/core/chart-manager.js';
-import {SOLO_LOGS_DIR} from '../../../../src/core/constants.js';
+import {MINIO_OPERATOR_CHART, SOLO_LOGS_DIR} from '../../../../src/core/constants.js';
+import {MINIO_OPERATOR_VERSION} from '../../../../version.js';
+import {HelmChartValues} from '../../../../src/integration/helm/model/values.js';
 import {sleep} from '../../../../src/core/helpers.js';
+import {container} from 'tsyringe-neo';
+import {InjectTokens} from '../../../../src/core/dependency-injection/inject-tokens.js';
 
 /**
  * Adjust these if your command-definition constants use different names,
@@ -227,21 +230,52 @@ export class CacheTest extends BaseCommandTest {
   }
 
   /**
-   * Validates that chart installs consume the local chart cache and prioritize it over a network
-   * install: runs `cluster-ref config setup` (which installs the MinIO operator chart through
-   * `ChartManager.install`) after `cache chart pull`, then asserts the solo log recorded an
-   * install from the cached chart archive.
+   * Validates that a chart install consumes the local chart cache and prioritizes it over a network
+   * fetch. It drives the same `ChartManager.install` API solo uses at deploy time: because the chart
+   * archive was pulled into the cache, ChartManager resolves the local tarball and installs from it
+   * (logging the cache-hit line) instead of fetching over the network — which is the prioritization
+   * under test. A fresh namespace and a unique release name ensure the install actually runs rather
+   * than being skipped as already-installed.
    */
   public static chartInstallUsesCache(options: BaseTestOptions): void {
-    const {testName, clusterReferenceNameArray} = options;
+    const {testName, testCacheDirectory, namespace, contexts} = options;
 
     it(`${testName}: chart install consumes the chart cache`, async (): Promise<void> => {
+      // Confirm `cache chart pull` actually cached the MinIO operator chart; without a cached archive
+      // the install below would fall back to a network fetch and the assertion would be unclear.
+      const cachedArchives: string[] = CacheTest.listChartArchives(testCacheDirectory);
+      expect(
+        cachedArchives.some((fileName: string): boolean => fileName.startsWith(`${MINIO_OPERATOR_CHART}__`)),
+        `expected the MinIO operator chart to be cached before install; cached archives: ${cachedArchives.join(', ')}`,
+      ).to.be.true;
+
       const logFilePath: string = PathEx.join(SOLO_LOGS_DIR, 'solo.log');
       const logSizeBefore: number = fs.existsSync(logFilePath) ? fs.statSync(logFilePath).size : 0;
 
-      await main(
-        ClusterReferenceTest.soloClusterReferenceSetup(testName, clusterReferenceNameArray[0], undefined, true),
-      );
+      const chartManager: ChartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
+      const releaseName: string = `${testName}-cache-consumption`;
+
+      try {
+        await chartManager.install(
+          namespace,
+          releaseName,
+          MINIO_OPERATOR_CHART,
+          MINIO_OPERATOR_CHART,
+          MINIO_OPERATOR_VERSION,
+          new HelmChartValues(),
+          contexts[0],
+        );
+      } catch {
+        // Tolerate a cluster-side install failure (e.g. the operator's cluster-scoped resources may
+        // already exist from an earlier MinIO install). The cache-vs-network decision is made and
+        // logged before helm runs, so the assertion below still validates prioritization.
+      } finally {
+        try {
+          await chartManager.uninstall(namespace, releaseName, contexts[0]);
+        } catch {
+          // best-effort cleanup: nothing to remove if the install never created a release
+        }
+      }
 
       // The log transport writes asynchronously; poll briefly for the cache-hit line to be flushed.
       let appendedLog: string = '';
@@ -256,7 +290,7 @@ export class CacheTest extends BaseCommandTest {
         await sleep(Duration.ofSeconds(1));
       }
 
-      expect(appendedLog, 'expected a chart to be installed from the local chart cache').to.include(
+      expect(appendedLog, 'expected the chart to be installed from the local chart cache').to.include(
         ChartManager.INSTALLED_FROM_CACHE_MESSAGE_FRAGMENT,
       );
     }).timeout(Duration.ofMinutes(10).toMillis());

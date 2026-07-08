@@ -67,7 +67,6 @@ export class ClusterReferenceTest extends BaseCommandTest {
     testName: string,
     clusterReference: ClusterReferenceName,
     clusterSetupNamespace?: string,
-    deployMinio: boolean = false,
   ): string[] {
     const {newArgv, optionFromFlag, argvPushGlobalFlags} = ClusterReferenceTest;
 
@@ -78,16 +77,14 @@ export class ClusterReferenceTest extends BaseCommandTest {
       ClusterReferenceCommandDefinition.CONFIG_SETUP,
       optionFromFlag(Flags.clusterRef),
       clusterReference,
+      negatedOptionFromFlag(Flags.deployMinio),
     );
-
-    if (!deployMinio) {
-      argv.push(negatedOptionFromFlag(Flags.deployMinio));
-    }
 
     if (clusterSetupNamespace) {
       argv.push(optionFromFlag(Flags.clusterSetupNamespace), clusterSetupNamespace);
     }
 
+    argv.push(negatedOptionFromFlag(Flags.deployMinio));
     argvPushGlobalFlags(argv, testName, false, true);
     return argv;
   }
