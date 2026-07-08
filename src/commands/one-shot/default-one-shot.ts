@@ -41,9 +41,7 @@ import {type OneShotDeployOrchestrator} from './orchestrator/deploy/one-shot-dep
 import {type OneShotDestroyOrchestrator} from './orchestrator/destroy/one-shot-destroy-orchestrator.js';
 import {type OrchestratorPipeline} from './orchestrator/orchestrator-pipeline.js';
 import {type OneShotSingleDestroyContext} from './one-shot-single-destroy-context.js';
-import {type DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
-import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
 import {type DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {OneShotInfoContext} from './one-shot-info-context.js';
@@ -362,7 +360,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     const tasks: SoloListr<OneShotInfoContext> = new Listr(
       [
         {
-          title: 'Check for cached deployment',
+          title: 'Determine deployment name',
           task: async (context_): Promise<void> => {
             const deploymentFromFlag: DeploymentName = this.configManager.getFlag(flags.deployment);
             if (deploymentFromFlag) {
@@ -371,42 +369,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return;
             }
 
-            const cacheFile: string = PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt');
-
-            if (fs.existsSync(cacheFile)) {
-              const deploymentName: string = fs.readFileSync(cacheFile, 'utf8').trim();
-              if (deploymentName) {
-                context_.deploymentName = deploymentName;
-                this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(deploymentName)} (from cache)`));
-                return;
-              }
-            }
-
-            await this.localConfig.load();
-            const deployments: MutableFacadeArray<Deployment, DeploymentSchema> =
-              this.localConfig.configuration.deployments;
-            if (deployments.length === 1) {
-              context_.deploymentName = deployments.get(0).name;
-              this.logger.showUser(
-                chalk.cyan(`\nDeployment Name: ${chalk.bold(context_.deploymentName)} (single local deployment)`),
-              );
-              return;
-            }
-
-            if (deployments.length > 1) {
-              const deploymentNames: string = deployments.map((d): string => d.name).join(', ');
-              throw new SoloErrors.validation.oneShotCachedDeploymentNotFound(
-                'No cached deployment found and multiple local deployments exist.\n' +
-                  `Please specify ${optionFromFlag(flags.deployment)}.\n` +
-                  `Available deployments: ${deploymentNames}`,
-              );
-            }
-
-            throw new SoloErrors.validation.oneShotCachedDeploymentNotFound(
-              'No cached deployment found. Please run a one-shot deployment first or pass ' +
-                `${optionFromFlag(flags.deployment)}.\n` +
-                `Expected cache file: ${cacheFile}`,
-            );
+            context_.deploymentName = constants.ONE_SHOT_DEPLOYMENT_NAME;
+            this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(context_.deploymentName)} (default)`));
           },
         },
         {
