@@ -19,12 +19,12 @@ blockNode:
     # 200ms window after a mid-block reconnect (a known block node subscriber bug, @todo(1673)).
     # Raise the threshold so brief reconnect bursts don't trigger connection termination.
     SERVER_HTTP2_MAX_RAPID_RESETS: "500"
-    # The @todo(1673) reconnect storm leaks LiveBlockHandler gating sequences in the disruptor.
-    # With the default ring buffer of 512 entries, the publisher blocks in ~2.5 s (at ~200
-    # batches/sec), halting block storage and leaving mirror stuck in a NOT_AVAILABLE loop.
-    # Enlarging to 65536 gives ~80 s before saturation — enough time for the in-flight block to
-    # complete and be persisted, which stops the reconnect storm before the buffer fills.
-    # See: https://github.com/hiero-ledger/hiero-block-node/issues/3150
+    # The @todo(1673) bug in BlockStreamSubscriberSession caused LiveBlockHandler gating sequences
+    # to leak in the Disruptor ring buffer on every mirror reconnect (hiero-block-node #3150).
+    # With the default 512-entry ring buffer the publisher blocked in ~2.5 s, halting block
+    # storage and leaving mirror stuck in a NOT_AVAILABLE loop.  The root cause is fixed in
+    # block node v0.37.0 (LiveBlockHandler is now a non-gating consumer and never pins the
+    # publisher).  65536 is kept as headroom for the remaining gating consumers under load.
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "65536"
     JAVA_OPTS: >-
       -Xms256m
