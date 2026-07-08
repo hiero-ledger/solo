@@ -1,18 +1,29 @@
 # SPDX-License-Identifier: Apache-2.0
 
-# Workaround for hiero-block-node#3150: enlarge the Disruptor ring buffer and raise the
-# HTTP/2 rapid-reset threshold so mirror-node reconnect storms under high-TPS load do not
-# fill the ring buffer and cause NOT_AVAILABLE.  Also increases JVM heap and container
-# memory limits to support the larger ring buffer without OOM.  Applied automatically when
-# ONE_SHOT_BLOCK_NODE_PERF=true; kept separate from block-node-perf-values.yaml so JFR
-# profiling (which OOMs the pod under the default 1 Gi memory limit) is opt-in.
-# TODO: remove once hiero-block-node @todo(1673) is fully fixed.
+# Workaround for hiero-block-node#3150 and a related 0.37.1 issue where
+# VerificationServicePlugin (a gating Disruptor consumer) cannot keep up with incoming
+# block items at high TPS (~100 TPS SmartContract), causing the ring buffer to fill, the
+# consensus-node gRPC stream to time out, and block N to be permanently absent from
+# historic storage → NOT_AVAILABLE for all mirror subscriber reconnects on that block.
+#
+# Root cause in 0.37.1: VerificationServicePlugin.isGating() returns true (via the
+# BlockItemHandler→GatingHandler default).  At 97 TPS with 1 CPU core, TSS signature
+# verification cannot drain the 65536-entry ring buffer fast enough.  The ring buffer fills
+# ~4 minutes into the SmartContract load test.
+#
+# Workaround: give the block-node container 4 CPU cores so verification keeps up with the
+# publisher at high TPS; keep the enlarged ring buffer and raised HTTP/2 limits as secondary
+# safeguards against the @todo(1673) reconnect storm.
+#
+# Applied automatically when ONE_SHOT_BLOCK_NODE_PERF=true; kept separate from
+# block-node-perf-values.yaml so JFR profiling is opt-in.
+# TODO: remove once hiero-block-node fixes VerificationServicePlugin gating backpressure.
 resources:
   requests:
-    cpu: "250m"
+    cpu: "2"
     memory: "512Mi"
   limits:
-    cpu: "1"
+    cpu: "4"
     memory: "1Gi"
 
 blockNode:
@@ -22,10 +33,11 @@ blockNode:
     # 200ms window after a mid-block reconnect (a known block node subscriber bug, @todo(1673)).
     # Raise the threshold so brief reconnect bursts don't trigger connection termination.
     SERVER_HTTP2_MAX_RAPID_RESETS: "500"
-    # Enlarge the Disruptor ring buffer from the default 128 (solo) to 65536 to delay saturation
-    # under the mirror reconnect storm caused by @todo(1673).
+    # Enlarge the Disruptor ring buffer from the default 128 (solo) to 65536 to provide a
+    # larger buffer between the publisher (consensus-node gRPC stream) and the slowest gating
+    # consumer (VerificationServicePlugin) under high-TPS load.
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "65536"
-    # Larger heap to accommodate the 65536-entry ring buffer and its pre-allocated event objects.
+    # Heap sized for the 65536-entry ring buffer plus verification overhead.
     JAVA_OPTS: >-
       -Xms256m
       -Xmx512m
