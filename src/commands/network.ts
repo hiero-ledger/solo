@@ -1814,10 +1814,13 @@ export class NetworkCommand extends BaseCommand {
                     const container: Container = await new K8Helper(
                       consensusNode.context,
                     ).getConsensusNodeRootContainer(NamespaceName.of(consensusNode.namespace), consensusNode.name);
-                    await container.copyTo(
-                      javaFlightRecorderConfiguration,
-                      `${constants.HEDERA_HAPI_PATH}/data/config`,
-                    );
+                    const destinationDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
+                    await container.copyTo(javaFlightRecorderConfiguration, destinationDirectory);
+                    await container.execContainer([
+                      'bash',
+                      '-c',
+                      `chown hedera:hedera ${destinationDirectory}/${path.basename(javaFlightRecorderConfiguration)} 2>/dev/null || true`,
+                    ]);
                   } catch (error) {
                     throw new SoloErrors.component.blockNodeConfigFailed(error);
                   }

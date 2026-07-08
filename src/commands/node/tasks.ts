@@ -2516,6 +2516,11 @@ export class NodeCommandTasks {
             const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
 
             await container.copyTo(sourcePath, destinationPath);
+            await container.execContainer([
+              'bash',
+              '-c',
+              `chown hedera:hedera ${destinationPath}/log4j2.xml 2>/dev/null || true`,
+            ]);
           }
 
           if (!this.isDefaultFlagValue(flags.settingTxt)) {
@@ -2523,6 +2528,11 @@ export class NodeCommandTasks {
             const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
 
             await container.copyTo(sourcePath, destinationPath);
+            await container.execContainer([
+              'bash',
+              '-c',
+              `chown hedera:hedera ${destinationPath}/settings.txt 2>/dev/null || true`,
+            ]);
           }
 
           if (!this.isDefaultFlagValue(flags.applicationProperties)) {
@@ -2530,6 +2540,11 @@ export class NodeCommandTasks {
             const destinationPath: string = ConsensusNodePathTemplates.DATA_CONFIG;
 
             await container.copyTo(sourcePath, destinationPath);
+            await container.execContainer([
+              'bash',
+              '-c',
+              `chown hedera:hedera ${destinationPath}/${constants.APPLICATION_PROPERTIES} 2>/dev/null || true`,
+            ]);
           }
         }
 
