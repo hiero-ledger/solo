@@ -586,7 +586,9 @@ export class RapidFireCommand extends BaseCommand {
       await this.waitForMirrorReadiness(client, config, port);
 
       for (let index: number = 0; index < config.rttSampleCount; index++) {
-        samples.push(await this.measureTransactionRtt(client, config, port));
+        const sample: RttSample = await this.measureTransactionRtt(client, config, port);
+        samples.push(sample);
+        this.logger.debug(`RTT sample ${index + 1}/${config.rttSampleCount}: ${sample.mirrorLatencyMilliseconds} ms`);
         if (index < config.rttSampleCount - 1) {
           await sleep(Duration.ofMillis(config.rttSampleInterval));
         }
@@ -597,7 +599,13 @@ export class RapidFireCommand extends BaseCommand {
     }
 
     const result: RttProbeResult = RapidFireCommand.summarizeRttSamples(samples);
+    const sampleValues: string = samples
+      .map((sample: RttSample): number => sample.mirrorLatencyMilliseconds)
+      .join(', ');
     if (result.maxMilliseconds > config.maxRtt) {
+      this.logger.warn(
+        `RTT probe failed — samples: [${sampleValues}] ms, max ${result.maxMilliseconds} ms exceeds limit ${config.maxRtt} ms`,
+      );
       throw new SoloErrors.component.rapidFireExecutionFailed(
         `RTT probe max ${result.maxMilliseconds} ms exceeded configured maximum ${config.maxRtt} ms`,
       );
