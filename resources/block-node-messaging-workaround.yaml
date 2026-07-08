@@ -7,12 +7,17 @@
 # historic storage → NOT_AVAILABLE for all mirror subscriber reconnects on that block.
 #
 # Root cause in 0.37.1: VerificationServicePlugin.isGating() returns true (via the
-# BlockItemHandler→GatingHandler default).  At 97 TPS with 1 CPU core, TSS signature
-# verification cannot drain the 65536-entry ring buffer fast enough.  The ring buffer fills
-# ~4 minutes into the SmartContract load test.
+# BlockItemHandler→GatingHandler default).  At 97 TPS, SmartContract blocks are larger
+# (more EVM state-change items per block) than simple transfers, and the ExtendedMerkleTree
+# session hashes every item — so per-item CPU work is higher.  G1GC (default) triggers
+# multi-second stop-the-world pauses at 512 m heap; during a pause the verification thread
+# stalls, the ring buffer fills, and the gRPC publisher times out → block N permanently
+# absent from historic storage.
 #
-# Workaround: give the block-node container 4 CPU cores so verification keeps up with the
-# publisher at high TPS; keep the enlarged ring buffer and raised HTTP/2 limits as secondary
+# Workaround: switch to ZGC (sub-millisecond concurrent GC in Java 21+) and raise the heap
+# to 3 g so GC fires infrequently and never stalls the verification thread long enough for
+# the ring buffer to fill.  Keep 4 CPU cores so ZGC concurrent threads do not compete with
+# the verification thread.  Enlarged ring buffer and raised HTTP/2 limits remain as secondary
 # safeguards against the @todo(1673) reconnect storm.
 #
 # Applied automatically when ONE_SHOT_BLOCK_NODE_PERF=true; kept separate from
@@ -21,10 +26,10 @@
 resources:
   requests:
     cpu: "2"
-    memory: "512Mi"
+    memory: "3Gi"
   limits:
     cpu: "4"
-    memory: "1Gi"
+    memory: "4Gi"
 
 blockNode:
   config:
@@ -37,10 +42,13 @@ blockNode:
     # larger buffer between the publisher (consensus-node gRPC stream) and the slowest gating
     # consumer (VerificationServicePlugin) under high-TPS load.
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "65536"
-    # Heap sized for the 65536-entry ring buffer plus verification overhead.
+    # ZGC (Java 21+ Generational ZGC) eliminates multi-second G1GC stop-the-world pauses.
+    # Sub-millisecond GC pauses allow the verification thread to drain the ring buffer
+    # consistently at ~97 TPS SmartContract load.  Heap raised to 3 g so GC fires rarely.
     JAVA_OPTS: >-
-      -Xms256m
-      -Xmx512m
+      -Xms2g
+      -Xmx3g
+      -XX:+UseZGC
       -XX:MaxDirectMemorySize=64m
       -XX:MaxMetaspaceSize=128m
       -XX:+HeapDumpOnOutOfMemoryError
