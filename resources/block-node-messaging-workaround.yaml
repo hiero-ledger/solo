@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Workaround for hiero-block-node#3150: enlarge the Disruptor ring buffer and raise the
+# HTTP/2 rapid-reset threshold so mirror-node reconnect storms under high-TPS load do not
+# fill the ring buffer and cause NOT_AVAILABLE.  Also increases JVM heap and container
+# memory limits to support the larger ring buffer without OOM.  Applied automatically when
+# ONE_SHOT_BLOCK_NODE_PERF=true; kept separate from block-node-perf-values.yaml so JFR
+# profiling (which OOMs the pod under the default 1 Gi memory limit) is opt-in.
+# TODO: remove once hiero-block-node @todo(1673) is fully fixed.
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+blockNode:
+  config:
+    # The block node's Helidon HTTP/2 server fires rapid-reset protection at 50 RST_STREAM per 10s.
+    # The mirror importer's default 100ms reconnect interval generates ~10 RST_STREAM/s during the
+    # 200ms window after a mid-block reconnect (a known block node subscriber bug, @todo(1673)).
+    # Raise the threshold so brief reconnect bursts don't trigger connection termination.
+    SERVER_HTTP2_MAX_RAPID_RESETS: "500"
+    # Enlarge the Disruptor ring buffer from the default 128 (solo) to 65536 to delay saturation
+    # under the mirror reconnect storm caused by @todo(1673).
+    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "65536"
+    # Larger heap to accommodate the 65536-entry ring buffer and its pre-allocated event objects.
+    JAVA_OPTS: >-
+      -Xms256m
+      -Xmx512m
+      -XX:MaxDirectMemorySize=64m
+      -XX:MaxMetaspaceSize=128m
+      -XX:+HeapDumpOnOutOfMemoryError
+      -XX:HeapDumpPath="/tmp/dump.hprof"

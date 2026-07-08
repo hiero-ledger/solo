@@ -316,6 +316,10 @@ export const BLOCK_NODE_PERF_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'block-node-perf-values.yaml',
 );
+export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'block-node-messaging-workaround.yaml',
+);
 export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-postgres-truncate.sql',
