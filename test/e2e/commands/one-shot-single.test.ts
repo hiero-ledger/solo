@@ -115,8 +115,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
       DeploymentTest.verifyDeploymentConfigPorts(options);
 
-      // one-shot single always deploys into the 'one-shot' namespace regardless of the test namespace.
-      KeysAndPermissionsTest.verifyConsensusNodeKeysMatchSecrets(options, NamespaceName.of('one-shot'));
+      // one-shot single always deploys into the 'one-shot' namespace regardless of the test namespace,
+      // and against the current kube context (which may be 'kind-kind' for the Podman job), not the
+      // SOLO_TEST_CLUSTER-derived contexts.
+      KeysAndPermissionsTest.verifyConsensusNodeKeysMatchSecrets(options, NamespaceName.of('one-shot'), true);
       KeysAndPermissionsTest.verifySoloHomeFilePermissions(options);
 
       it('Should perform a simple TransferTransaction', async (): Promise<void> => {

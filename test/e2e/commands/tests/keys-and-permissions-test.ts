@@ -23,7 +23,7 @@ import {type NodeAlias} from '../../../../src/types/aliases.js';
 
 /**
  * End-to-end verifications for the SOLO_HOME key/permission hardening:
- * - every file solo writes under SOLO_HOME is restricted to 0750 or stricter (SA8), and
+ * - every file solo writes under SOLO_HOME is restricted to 0750 or stricter, and
  * - each consensus node's on-disk gossip keys match the material stored in the cluster secret.
  */
 export class KeysAndPermissionsTest {
@@ -69,7 +69,7 @@ export class KeysAndPermissionsTest {
         }
 
         const mode: number = stats.mode & 0o777;
-        // SA8: reject any group-write (0o020) or "other" (0o007) access.
+        // reject any group-write (0o020) or "other" (0o007) access.
         if ((mode & 0o027) !== 0) {
           looseFiles.push(`${relativePath} (0${mode.toString(8)})`);
         }
@@ -97,7 +97,11 @@ export class KeysAndPermissionsTest {
    * @param options - the shared e2e test options
    * @param namespaceOverride - namespace to inspect when it differs from options.namespace (e.g. one-shot)
    */
-  public static verifyConsensusNodeKeysMatchSecrets(options: BaseTestOptions, namespaceOverride?: NamespaceName): void {
+  public static verifyConsensusNodeKeysMatchSecrets(
+    options: BaseTestOptions,
+    namespaceOverride?: NamespaceName,
+    useDefaultContext: boolean = false,
+  ): void {
     const {testName, testLogger, contexts, namespace} = options;
     const targetNamespace: NamespaceName = namespaceOverride ?? namespace;
 
@@ -105,8 +109,14 @@ export class KeysAndPermissionsTest {
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
       let verifiedNodeCount: number = 0;
 
-      for (const context_ of contexts) {
-        const k8: K8 = k8Factory.getK8(context_);
+      // one-shot deploys to a single cluster whose context is the current kube-config context, which
+      // does not necessarily match the SOLO_TEST_CLUSTER-derived names in options.contexts (the Podman
+      // one-shot job uses the default "kind-kind" context). Use the default context in that case.
+      const k8List: K8[] = useDefaultContext
+        ? [k8Factory.default()]
+        : contexts.map((context_: string): K8 => k8Factory.getK8(context_));
+
+      for (const k8 of k8List) {
         const pods: Pod[] = await k8.pods().list(targetNamespace, ['solo.hedera.com/type=network-node']);
 
         for (const pod of pods) {
