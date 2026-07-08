@@ -674,6 +674,14 @@ export class NetworkCommand extends BaseCommand {
     // Iterate over each node and set static IPs for Envoy Proxy
     this.addValueForEachRecord(config.envoyIpsParsed, config.consensusNodes, chartValuesMap, 'envoyProxyStaticIP');
 
+    // Iterate over each node and set static IPs for consensus node services
+    this.addValueForEachRecord(
+      config.networkNodeIpsParsed,
+      config.consensusNodes,
+      chartValuesMap,
+      'networkNodeStaticIP',
+    );
+
     if (config.resolvedThrottlesFile) {
       // repairing the path, this avoid helm failing when running on windows
       const throttlesFilePath: string = config.resolvedThrottlesFile.replaceAll('\\', '/');
