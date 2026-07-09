@@ -886,8 +886,13 @@ cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
 # /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
 # An init container pre-writes rsa-bootstrap-roster.json from local gossip certs so
 # BN does not have to wait for mirror to index RSA keys after the freeze upgrade.
+#
+# VERIFICATION_TYPE: NO_OP — CN v0.75 with streamWrappedRecordBlocks=false sends
+# TSS-signed blocks that lack a block_footer item. BN v0.37.1 requires block_footer
+# and silently fails without it. Disable verification until CN/BN align on WRB blocks.
 blockNode:
   config:
+    VERIFICATION_TYPE: "NO_OP"
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
     ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
     ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
@@ -933,8 +938,13 @@ else
 cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
 # Generated for the migration workflow.
 # /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
+#
+# VERIFICATION_TYPE: NO_OP — CN v0.75 with streamWrappedRecordBlocks=false sends
+# TSS-signed blocks that lack a block_footer item. BN v0.37.1 requires block_footer
+# and silently fails without it. Disable verification until CN/BN align on WRB blocks.
 blockNode:
   config:
+    VERIFICATION_TYPE: "NO_OP"
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
     ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
     ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
