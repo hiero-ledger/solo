@@ -794,11 +794,12 @@ chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 TEMP_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-migration-block-node-values-XXXX.yaml)"
 cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
-# Generated for the migration workflow. CN 0.75+ streams WRB blocks, and BN 0.37+
-# needs the RSA roster from mirror REST before it can verify those blocks. The
-# RSA bootstrap plugin queries both /api/v1/network/nodes and /api/v1/blocks.
+# Generated for the migration workflow. The 0.36 -> 0.37 block-node recreate can
+# start BN before mirror REST is serving the RSA roster, so keep this test focused
+# on CN block streaming and mirror import continuity instead of RSA verification.
 blockNode:
   config:
+    VERIFICATION_TYPE: "NO_OP"
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-rest:80"
     ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
     ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
@@ -825,7 +826,7 @@ fi
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-  echo "Waiting for block node RSA roster bootstrap before restarting target CN"
+  echo "Waiting briefly for block node rollout after recreate before restarting target CN"
   sleep 10
   npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 fi
