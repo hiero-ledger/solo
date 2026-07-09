@@ -412,9 +412,9 @@ export const LISTR_DEFAULT_OPTIONS: {
   },
 };
 
-// Maximum number of image cache operations (load into engine) that run concurrently.
-// Bounded to avoid saturating the network/disk and amplifying Docker Hub rate limits when pulling ~30 images,
-// while staying wide enough to keep a cold pull responsive. Override with CACHE_IMAGE_MAX_CONCURRENCY.
+// Maximum number of image cache operations that run concurrently, applied to both the pull path
+// and the load path. Bounded to avoid amplifying Docker Hub rate limits when fetching images and to avoid
+// saturating the network/disk, while staying wide enough to keep a cold pull responsive.
 export const CACHE_IMAGE_MAX_CONCURRENCY: number = +getEnvironmentVariable('CACHE_IMAGE_MAX_CONCURRENCY') || 12;
 
 export const SIGNING_KEY_PREFIX: string = 's';

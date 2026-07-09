@@ -45,10 +45,7 @@ export class DockerClient implements ContainerEngineClient {
   }
 
   public async saveImage(image: string, archivePath: string): Promise<void> {
-    await fs.mkdir(path.dirname(archivePath), {recursive: true});
-
-    const platform: string = Architecture.getLinuxPlatform();
-    const craneExecutable: string = await this.dependencyManager.getExecutable(constants.CRANE);
+    const {platform, craneExecutable} = await this.prepareCranePull(archivePath);
 
     await this.shellRunner.run(craneExecutable, ['pull', '--platform', platform, image, archivePath], {
       verbose: true,
@@ -57,11 +54,17 @@ export class DockerClient implements ContainerEngineClient {
     });
   }
 
-  public async saveImageArchive(image: string, archivePath: string): Promise<void> {
+  private async prepareCranePull(archivePath: string): Promise<{platform: string; craneExecutable: string}> {
     await fs.mkdir(path.dirname(archivePath), {recursive: true});
 
-    const platform: string = Architecture.getLinuxPlatform();
-    const craneExecutable: string = await this.dependencyManager.getExecutable(constants.CRANE);
+    return {
+      platform: Architecture.getLinuxPlatform(),
+      craneExecutable: await this.dependencyManager.getExecutable(constants.CRANE),
+    };
+  }
+
+  public async saveImageArchive(image: string, archivePath: string): Promise<void> {
+    const {platform, craneExecutable} = await this.prepareCranePull(archivePath);
 
     // crane's default docker tarball omits manifest.json for OCI-media images, producing an archive
     // neither docker nor containerd can load. The OCI layout is always valid; we pull it to a temp
