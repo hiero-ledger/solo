@@ -794,13 +794,12 @@ chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 TEMP_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-migration-block-node-values-XXXX.yaml)"
 cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
-# Generated for the migration workflow. The 0.36 -> 0.37 block-node recreate can
-# start BN before mirror REST is serving the RSA roster, so keep this test focused
-# on CN block streaming and mirror import continuity instead of RSA verification.
+# Generated for the migration workflow.
+# /api/v1/network/nodes was moved from Node.js REST (mirror-1-rest) to Java REST
+# (mirror-1-restjava) in mirror v0.156.0+, so point BN's RSA bootstrap there.
 blockNode:
   config:
-    VERIFICATION_TYPE: "NO_OP"
-    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-rest:80"
+    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
     ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
     ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
 EOF
