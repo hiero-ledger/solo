@@ -8,6 +8,7 @@ import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {KindClient} from '../kind/kind-client.js';
 import {ShellRunner} from '../../core/shell-runner.js';
+import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
 import {DefaultKindClientBuilder} from '../kind/impl/default-kind-client-builder.js';
 import {DependencyManager} from '../../core/dependency-managers/index.js';
@@ -40,6 +41,7 @@ export class DockerClient implements ContainerEngineClient {
       verbose: true,
       timeoutMs: DockerClient.IMAGE_PULL_TIMEOUT_MS,
       idleTimeoutMs: DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
+      commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
     });
   }
 
@@ -53,11 +55,14 @@ export class DockerClient implements ContainerEngineClient {
       verbose: true,
       timeoutMs: DockerClient.IMAGE_PULL_TIMEOUT_MS,
       idleTimeoutMs: DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
+      commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
     });
   }
 
   public async loadImage(archivePath: string): Promise<void> {
-    await this.shellRunner.run('docker', ['load', '--input', archivePath]);
+    await this.shellRunner.run('docker', ['load', '--input', archivePath], {
+      commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
+    });
   }
 
   public async loadImageArchiveIntoCluster(archivePath: string, clusterReference?: string): Promise<void> {
@@ -73,22 +78,19 @@ export class DockerClient implements ContainerEngineClient {
   }
 
   public async removeImage(image: string): Promise<void> {
-    await this.shellRunner.run('docker', ['image', 'rm', image]);
+    await this.shellRunner.run('docker', ['image', 'rm', image], {
+      commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
+    });
   }
 
   public async listLoadedImagesInCluster(clusterName: string): Promise<readonly string[]> {
     const nodeName: string = `${clusterName}-control-plane`;
 
-    const output: string[] = await this.shellRunner.run('docker', [
-      'exec',
-      '--privileged',
-      nodeName,
-      'ctr',
-      '--namespace=k8s.io',
-      'images',
-      'ls',
-      '-q',
-    ]);
+    const output: string[] = await this.shellRunner.run(
+      'docker',
+      ['exec', '--privileged', nodeName, 'ctr', '--namespace=k8s.io', 'images', 'ls', '-q'],
+      {commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE},
+    );
 
     return output
       .map((line): string => line.trim())
