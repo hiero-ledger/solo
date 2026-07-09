@@ -135,14 +135,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
     required: [flags.inputDir],
-    optional: [
-      flags.quiet,
-      flags.optionsFile,
-      flags.shard,
-      flags.realm,
-      flags.expectedLbIpsFile,
-      flags.skipIpTracking,
-    ],
+    optional: [flags.quiet, flags.optionsFile, flags.shard, flags.realm, flags.expectedLbIpsFile, flags.skipIpTracking],
   };
 
   public static RESTORE_DB_FLAGS_LIST: CommandFlags = {
@@ -1496,7 +1489,10 @@ export class BackupRestoreCommand extends BaseCommand {
     // roles here. Flyway then finds them already in place when each component deploys
     // (skipping migration re-run because flyway_schema_history is also in the dump),
     // so role passwords remain consistent with the K8s secrets.
-    const rolesToCreate: Map<string, string> = this.readRolesFromBackupSecrets(inputDirectory, credentials.ownerUsername);
+    const rolesToCreate: Map<string, string> = this.readRolesFromBackupSecrets(
+      inputDirectory,
+      credentials.ownerUsername,
+    );
     if (rolesToCreate.size > 0) {
       this.logger.info(
         `Pre-creating ${rolesToCreate.size} role(s) from backup secrets: ${[...rolesToCreate.keys()].join(', ')}`,
@@ -1554,12 +1550,10 @@ export class BackupRestoreCommand extends BaseCommand {
 
     let clusterDirectories: string[];
     try {
-      clusterDirectories = fs
-        .readdirSync(inputDirectory)
-        .filter((name: string): boolean => {
-          const fullPath: string = PathEx.join(inputDirectory, name);
-          return fs.statSync(fullPath).isDirectory() && name !== 'states';
-        });
+      clusterDirectories = fs.readdirSync(inputDirectory).filter((name: string): boolean => {
+        const fullPath: string = PathEx.join(inputDirectory, name);
+        return fs.statSync(fullPath).isDirectory() && name !== 'states';
+      });
     } catch {
       // best-effort: return empty map when input directory cannot be listed
       return roles;
@@ -1567,7 +1561,9 @@ export class BackupRestoreCommand extends BaseCommand {
 
     for (const clusterDirectory of clusterDirectories) {
       const secretsDirectory: string = PathEx.join(inputDirectory, clusterDirectory, 'secrets');
-      if (!fs.existsSync(secretsDirectory)) continue;
+      if (!fs.existsSync(secretsDirectory)) {
+        continue;
+      }
 
       let secretFiles: string[];
       try {
@@ -1594,10 +1590,14 @@ export class BackupRestoreCommand extends BaseCommand {
         const data: Record<string, string> = (secretObject as {data: Record<string, string>}).data;
 
         for (const [key, encodedUsername] of Object.entries(data)) {
-          if (!key.toUpperCase().endsWith('USERNAME')) continue;
+          if (!key.toUpperCase().endsWith('USERNAME')) {
+            continue;
+          }
           const passwordKey: string = key.slice(0, -'USERNAME'.length) + 'PASSWORD';
           const encodedPassword: string | undefined = data[passwordKey];
-          if (!encodedPassword) continue;
+          if (!encodedPassword) {
+            continue;
+          }
 
           let username: string;
           let password: string;
@@ -1608,9 +1608,15 @@ export class BackupRestoreCommand extends BaseCommand {
             continue;
           }
 
-          if (!username || !password) continue;
-          if (builtInRoles.has(username.toLowerCase())) continue;
-          if (username.toLowerCase().startsWith('pg_')) continue;
+          if (!username || !password) {
+            continue;
+          }
+          if (builtInRoles.has(username.toLowerCase())) {
+            continue;
+          }
+          if (username.toLowerCase().startsWith('pg_')) {
+            continue;
+          }
           roles.set(username, password);
         }
       }
@@ -2251,7 +2257,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const inputDirectory: string = this.configManager.getFlag<string>(flags.inputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
     const deployment: string = this.configManager.getFlag<string>(flags.deployment);
-    const skipDbRestore: boolean = (this.configManager.getFlag<boolean>(flags.skipDbRestore) as boolean) ?? false;
+    const skipDatabaseRestore: boolean = (this.configManager.getFlag<boolean>(flags.skipDbRestore) as boolean) ?? false;
 
     // Get configuration data
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
@@ -2345,7 +2351,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Restore external database dump (if present)',
-          skip: (): boolean => skipDbRestore,
+          skip: (): boolean => skipDatabaseRestore,
           task: async (context_, task): Promise<void> => {
             await this.restoreDatabaseDumpIfPresent(inputDirectory);
             task.title = 'Restore external database dump (if present): completed';
@@ -3087,9 +3093,9 @@ export class BackupRestoreCommand extends BaseCommand {
    * empty string.
    */
   private interpolateEnvVariables(content: string): string {
-    return content.replace(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (match, braced: string, unbraced: string) => {
+    return content.replaceAll(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (match, braced: string, unbraced: string) => {
       const variableName: string = braced ?? unbraced;
-      const value: string | undefined = process.env[variableName];
+      const value: string | undefined = constants.getEnvironmentVariable(variableName);
       if (value === undefined) {
         this.logger.warn(`Options file references undefined environment variable: ${variableName}`);
         return match;
