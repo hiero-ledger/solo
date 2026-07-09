@@ -2145,10 +2145,10 @@ export class BackupRestoreCommand extends BaseCommand {
       const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
       // data/ is intentionally left empty after restore (see below), so the block node
-      // starts with lastPersistedBlockNumber = -1 and accepts whatever CN publishes first.
-      // Set EMB=0 and disable TSS verification so the Taskfile's post-restore seeding step
-      // can plant all historical blocks without rejection.  The freeze block gap is handled
-      // separately by `solo config ops bridge-import-gap` (synthetic record_file rows).
+      // starts with lastPersistedBlockNumber = -1 and accepts whatever block CN publishes
+      // first — no historical seeding needed. The mirror importer's DB already holds all
+      // pre-restore blocks and resumes from MAX(index)+1 naturally. The freeze-boundary
+      // gap is closed by `solo config ops bridge-import-gap` (synthetic record_file rows).
       await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
         BLOCK_NODE_EARLIEST_MANAGED_BLOCK: '0',
         VERIFICATION_TYPE: 'NO_OP',

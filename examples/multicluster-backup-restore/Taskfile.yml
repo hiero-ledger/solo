@@ -84,33 +84,16 @@ tasks:
       - cmd: |
           {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1
-      # Restart both block nodes so they pick up the restore-config changes.
+      # Block nodes were already restarted by restore-config (applyBlockNodeRestoreFixes
+      # deletes each pod and waits for ready after patching the ConfigMap). No manual
+      # pod restart is needed here.
       #
-      # DO NOT seed historical block files into the block nodes here. Here is why:
+      # DO NOT add block node seeding here. restore-config leaves data/ EMPTY so
+      # lastPersistedBlockNumber = -1 and the block node accepts whatever block CN
+      # publishes first. The mirror importer's DB already holds blocks 0..N from the
+      # backup and resumes from N+1 naturally. bridge-import-gap below closes the one
+      # freeze-boundary gap (hiero-consensus-node#25389).
       #
-      #   restore-config (solo config ops restore-config) calls applyBlockNodeRestoreFixes,
-      #   which deliberately leaves each block node's data/ directory EMPTY. An empty data/
-      #   means lastPersistedBlockNumber = -1, which causes the block node to accept whatever
-      #   block the CN publishes first — no need to backfill from block 0.
-      #
-      #   restore-config also sets BLOCK_NODE_EARLIEST_MANAGED_BLOCK=0 and
-      #   VERIFICATION_TYPE=NO_OP on the block node ConfigMap; these settings remain in
-      #   effect after the pod restart below.
-      #
-      #   The mirror importer's database already contains blocks 0..N from the backup, so
-      #   it naturally resumes requesting from block N+1 onward. The bridge-import-gap step
-      #   below synthesises the one freeze-boundary block that CN never finishes producing
-      #   (see hiero-consensus-node#25389), closing the only gap that remains.
-      #
-      #   Block node IDs are assigned in the order they were added during initial-deploy:
-      #     block-node-1 → c1 (node1's local block node)
-      #     block-node-2 → c2 (node2's local block node; mirror importer reads from this one)
-      - cmd: |
-          echo "Restarting block nodes to pick up restore-config changes..."
-          kubectl delete pod block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1
-          kubectl delete pod block-node-2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
-          kubectl wait --for=condition=ready pod/block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1 --timeout=180s
-          kubectl wait --for=condition=ready pod/block-node-2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=180s
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for block-node to receive post-restore blocks, then bridge the missing rows
       # so mirror importer can chain from the first live block without a gap.
