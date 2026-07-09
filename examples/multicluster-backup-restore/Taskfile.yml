@@ -9,14 +9,7 @@ env:
         echo "npm run solo-test --"
       fi
   TIMEOUT_COMMAND:
-    sh: |
-      if command -v gtimeout >/dev/null 2>&1; then
-        echo "gtimeout"
-      elif command -v timeout >/dev/null 2>&1; then
-        echo "timeout"
-      else
-        echo ""
-      fi
+    sh: command -v gtimeout >/dev/null 2>&1 && echo "gtimeout" || echo "timeout"
 
 vars:
   # Network Configuration
@@ -69,32 +62,26 @@ tasks:
       - task: restore-db
       - task: restore-network
       - cmd: |
-          echo "=== [DEBUG] block-node-1-config after restore-network ==="
-          kubectl get configmap block-node-1-config -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+          echo "=== [DEBUG] block-node-2-config after restore-network ==="
+          kubectl get configmap block-node-2-config -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
             -o jsonpath='{.data}' 2>/dev/null | python3 -m json.tool || true
       - task: restore-config
       - cmd: |
-          echo "=== [DEBUG] block-node-1-config after restore-config ==="
-          kubectl get configmap block-node-1-config -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
+          echo "=== [DEBUG] block-node-2-config after restore-config ==="
+          kubectl get configmap block-node-2-config -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
             -o jsonpath='{.data}' 2>/dev/null | python3 -m json.tool || true
       - task: restart
       - cmd: |
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
-          else
-            {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
-          fi
+          {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
   restart:
     desc: Restart consensus nodes after restore (skips cluster redeployment)
     cmds:
-      # In this two-kind-cluster example the single block node is local to cluster 2.
-      # The restored node in cluster 1 cannot resolve that ClusterIP DNS name, so keep
-      # node1 file-only. Node2 is colocated with block-node and keeps gRPC publishing
-      # enabled so mirror importer can resume from block-node after restore.
+      # Each consensus node publishes FILE_AND_GRPC to its cluster-local block node.
+      # The c2 block node (colocated with the mirror importer) is what mirror reads from.
       - cmd: |
           echo "Setting restored consensus node block stream modes..."
-          for item in "kind-solo-e2e-c1:network-node1-0:FILE" "kind-solo-e2e-c2:network-node2-0:FILE_AND_GRPC"; do
+          for item in "kind-solo-e2e-c1:network-node1-0:FILE_AND_GRPC" "kind-solo-e2e-c2:network-node2-0:FILE_AND_GRPC"; do
             context="${item%%:*}"
             rest="${item#*:}"
             pod="${rest%%:*}"
@@ -124,19 +111,78 @@ tasks:
       # --network-node-ips), so MetalLB re-allocates the same IPs every time. No
       # pre-start enforcement or roster-vs-LB verification needed.
       - cmd: |
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
-          else
-            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
-          fi
+          {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1
-      # Seed the restored block node from node2's local FILE stream. The archived
-      # block-node data is intentionally empty, and a fresh block node asks the
-      # publisher for block -1/0, which restored consensus cannot backfill from its
-      # in-memory buffer. Node2 has the completed local block files on disk, so seed
-      # them into block-node's live store and restart block-node to scan them.
+      # Seed each restored block node from its consensus node's local FILE stream.
+      # The archived block-node data is intentionally empty, and a fresh block node
+      # asks the publisher for block -1/0, which restored consensus cannot backfill from
+      # its in-memory buffer. Each CN has the completed local block files on disk, so
+      # seed them into each block-node's live store and restart the block node to scan them.
+      #
+      # Block node IDs are assigned in the order they were added during initial-deploy:
+      #   block-node-1 → c1 (node1's local block node)
+      #   block-node-2 → c2 (node2's local block node; mirror importer reads from this one)
       - cmd: |
-          echo "Seeding block node from restored consensus block stream files..."
+          echo "Seeding c1 block node (block-node-1) from node1's local FILE stream..."
+          TMP_DIR="$(mktemp -d /tmp/solo-cn-block-seed.XXXXXX)"
+          SEED_DIR="$(mktemp -d /tmp/solo-bn-seed.XXXXXX)"
+          trap 'rm -rf "${TMP_DIR}" "${SEED_DIR}"' EXIT
+
+          kubectl cp {{ .NAMESPACE }}/network-node1-0:/opt/hgcapp/blockStreams \
+            "${TMP_DIR}/blockStreams" \
+            --context kind-solo-e2e-c1 \
+            -c root-container
+
+          mkdir -p "${SEED_DIR}/live"
+          find "${TMP_DIR}/blockStreams" -type f -name '*.blk.gz' | while read -r file; do
+            if ! gzip -t "${file}" >/dev/null 2>&1; then
+              echo "  Skipping partial block file: ${file}"
+              continue
+            fi
+
+            base="$(basename "${file}")"
+            raw_block_number="${base%%.blk.gz}"
+            numeric_block_number="$(printf '%s' "${raw_block_number}" | sed 's/^0*//')"
+            if [ -z "${numeric_block_number}" ]; then
+              numeric_block_number=0
+            fi
+            block_number="$(printf '%019d' "${numeric_block_number}")"
+            block_dir="${block_number%???}"
+            out_dir="${SEED_DIR}/live"
+            i=1
+            while [ "${i}" -le "${#block_dir}" ]; do
+              segment="$(printf '%s' "${block_dir}" | cut -c "${i}-$((i + 2))")"
+              out_dir="${out_dir}/${segment}"
+              i=$((i + 3))
+            done
+
+            mkdir -p "${out_dir}"
+            gunzip -c "${file}" > "${out_dir}/${block_number}.blk"
+          done
+
+          count="$(find "${SEED_DIR}/live" -type f -name '*.blk' | wc -l | tr -d ' ')"
+          tip="$(find "${SEED_DIR}/live" -type f -name '*.blk' | sed 's|.*/0*\([0-9][0-9]*\)\.blk$|\1|' | sort -n | tail -1)"
+          echo "Seeded ${count} completed block file(s) into block-node-1, tip=${tip}"
+          if [ "${count}" -eq 0 ]; then
+            echo "No completed block files found to seed block-node-1"
+            exit 1
+          fi
+
+          kubectl cp "${SEED_DIR}/live" {{ .NAMESPACE }}/block-node-1-0:/tmp/seed-live \
+            --context kind-solo-e2e-c1 \
+            -c block-node-server
+          kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1 -c block-node-server -- sh -c '
+            set -e
+            rm -rf /opt/hiero/block-node/data/live/* /opt/hiero/block-node/data/historic/*
+            mkdir -p /opt/hiero/block-node/data/live /opt/hiero/block-node/data/historic
+            cp -R /tmp/seed-live/. /opt/hiero/block-node/data/live/
+            chown -R hedera:hedera /opt/hiero/block-node/data/live /opt/hiero/block-node/data/historic
+            rm -rf /tmp/seed-live
+          '
+          kubectl delete pod block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1
+          kubectl wait --for=condition=ready pod/block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1 --timeout=180s
+      - cmd: |
+          echo "Seeding c2 block node (block-node-2) from node2's local FILE stream..."
           TMP_DIR="$(mktemp -d /tmp/solo-cn-block-seed.XXXXXX)"
           SEED_DIR="$(mktemp -d /tmp/solo-bn-seed.XXXXXX)"
           trap 'rm -rf "${TMP_DIR}" "${SEED_DIR}"' EXIT
@@ -185,16 +231,16 @@ tasks:
 
           count="$(find "${SEED_DIR}/live" -type f -name '*.blk' | wc -l | tr -d ' ')"
           tip="$(find "${SEED_DIR}/live" -type f -name '*.blk' | sed 's|.*/0*\([0-9][0-9]*\)\.blk$|\1|' | sort -n | tail -1)"
-          echo "Seeded ${count} completed block file(s), tip=${tip}"
+          echo "Seeded ${count} completed block file(s) into block-node-2, tip=${tip}"
           if [ "${count}" -eq 0 ]; then
-            echo "No completed block files found to seed block node"
+            echo "No completed block files found to seed block-node-2"
             exit 1
           fi
 
-          kubectl cp "${SEED_DIR}/live" {{ .NAMESPACE }}/block-node-1-0:/tmp/seed-live \
+          kubectl cp "${SEED_DIR}/live" {{ .NAMESPACE }}/block-node-2-0:/tmp/seed-live \
             --context kind-solo-e2e-c2 \
             -c block-node-server
-          kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- sh -c '
+          kubectl exec block-node-2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- sh -c '
             set -e
             rm -rf /opt/hiero/block-node/data/live/* /opt/hiero/block-node/data/historic/*
             mkdir -p /opt/hiero/block-node/data/live /opt/hiero/block-node/data/historic
@@ -202,8 +248,8 @@ tasks:
             chown -R hedera:hedera /opt/hiero/block-node/data/live /opt/hiero/block-node/data/historic
             rm -rf /tmp/seed-live
           '
-          kubectl delete pod block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
-          kubectl wait --for=condition=ready pod/block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=180s
+          kubectl delete pod block-node-2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
+          kubectl wait --for=condition=ready pod/block-node-2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=180s
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for block-node to receive post-restore blocks, then bridge the missing rows
       # so mirror importer can chain from the first live block without a gap.
@@ -216,7 +262,7 @@ tasks:
           TARGET=$((IMPORTER_MAX + 1))
           FOUND=0
           for i in $(seq 1 96); do
-            BN_TIP=$(kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- \
+            BN_TIP=$(kubectl exec block-node-2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- \
               sh -c "find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | tail -1" 2>/dev/null)
             if [ -n "${BN_TIP}" ] && [ "${BN_TIP}" -ge "${TARGET}" ]; then
               echo "Block node tip ${BN_TIP} >= target ${TARGET}"
@@ -327,9 +373,13 @@ tasks:
       - cmd: echo "🔑 Generating consensus keys..."
       - cmd: $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
-      # Deploy Block Node on Cluster 2
-      - cmd: echo "🧱 Deploying Block Node on Cluster 2..."
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --quiet-mode --dev
+      # One block node per cluster, local to the consensus node on that cluster.
+      # Sharing a single block node across clusters lets multiple publishers contend
+      # on the same stream and stall block finalization (see external-database.test.ts).
+      - cmd: echo "🧱 Deploying Block Node on Cluster 1 (node1's local block node)..."
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1 --priority-mapping node1=1 --quiet-mode --dev
+      - cmd: echo "🧱 Deploying Block Node on Cluster 2 (node2's local block node)..."
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --priority-mapping node2=1 --quiet-mode --dev
 
       # Deploy consensus network
       # Pin LB IPs into the chart so MetalLB allocates them deterministically and
@@ -350,11 +400,7 @@ tasks:
       # Start nodes
       - cmd: echo "▶️  Starting consensus nodes..."
       - cmd: |
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --dev
-          else
-            {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
-          fi
+          {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --dev
 
       # Install PostgreSQL on Cluster 2
       - cmd: kubectl config use-context kind-solo-e2e-c2
@@ -382,7 +428,8 @@ tasks:
 
       - cmd: echo "✅ Initial deployment completed successfully!"
       - cmd: echo "   - Cluster 1 (solo-e2e-c1) - node1"
-      - cmd: echo "   - Cluster 2 (solo-e2e-c2) - node2, block node, mirror node, explorer, relay"
+      - cmd: echo "   - Cluster 1 (solo-e2e-c1) - node1, block-node-1"
+      - cmd: echo "   - Cluster 2 (solo-e2e-c2) - node2, block-node-2, mirror node, explorer, relay"
 
   generate-transactions:
     desc: Generate test transactions to create network state
@@ -404,11 +451,7 @@ tasks:
     desc: Freeze network and create complete backup (ConfigMaps, Secrets, Logs, State)
     cmds:
       - cmd: |
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 420s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-          else
-            $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
-          fi
+          {{ .TIMEOUT_COMMAND }} 420s $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
 
       - cmd: |
           $SOLO_COMMAND config ops backup --deployment {{ .DEPLOYMENT }} --output-dir {{ .BACKUP_DIR }} \
@@ -438,15 +481,9 @@ tasks:
      - cmd: |
           rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
           $SOLO_COMMAND init
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
-              --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
-              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
-          else
-            $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
-              --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
-              --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
-          fi
+          {{ .TIMEOUT_COMMAND }} 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
+            --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
+            --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
           # keep a copy of zip file for debugging
           cp {{ .ZIP_INPUT_FILE }} ~/.solo/logs
 
@@ -532,29 +569,17 @@ tasks:
     cmds:
       - cmd: echo "🔎 Verifying restored state (checking system account {{ .SHARD }}.{{ .REALM }}.3)..."
       - cmd: |
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 90s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.3
-          else
-            $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.3
-          fi
+          {{ .TIMEOUT_COMMAND }} 90s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.3
 
       - cmd: echo "🔎 Verifying pre-restore account exists (state was correctly restored)..."
       - cmd: |
-          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-            {{ .TIMEOUT_COMMAND }} 90s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.1001
-          else
-            $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.1001
-          fi
+          {{ .TIMEOUT_COMMAND }} 90s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.1001
 
       - cmd: echo "💰 Testing with new transactions..."
       - cmd: |
           for i in 1 2 3; do
             echo "  Creating new account $i/3 on restored network..."
-            if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-              {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
-            else
-              $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
-            fi
+            {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
             sleep 3
           done
 
@@ -574,11 +599,7 @@ tasks:
           elif git rev-parse --show-toplevel >/dev/null 2>&1; then
             REPO_ROOT="$(git rev-parse --show-toplevel)"
             echo "Running solo smoke test from repo root: ${REPO_ROOT}"
-            if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
-              (cd "${REPO_ROOT}" && {{ .TIMEOUT_COMMAND }} 420s .github/workflows/script/solo_smoke_test.sh)
-            else
-              (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
-            fi
+            (cd "${REPO_ROOT}" && {{ .TIMEOUT_COMMAND }} 420s .github/workflows/script/solo_smoke_test.sh)
           else
             echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
           fi
