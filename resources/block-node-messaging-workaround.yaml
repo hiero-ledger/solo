@@ -16,9 +16,13 @@
 # a mirror node URL, peer BN, or bootstrap file.  Without any source configured, the map
 # stays empty for the entire run; the first WRB block (~block 7621, ~30 min into the test)
 # triggers BAD_BLOCK_PROOF, causing the CN to evict its streaming buffer and deadlock.
-# Workaround: ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL is injected dynamically with the
-# mirror node in-cluster URL by deploy-argv-builders.ts; it is NOT in this file because it
-# requires the namespace, which is only known at deploy time.
+# Fix: DefaultOneShotDeployOrchestrator injects an rsa-bootstrap-roster.json file (containing
+# the node's RSA SPKI hex extracted from s-public-node*.pem) into the block node's
+# application-state PVC and restarts the pod.  BlockNodeApp.loadApplicationState() reads
+# the file on startup, populating keyByNodeId before any WRB block arrives.
+# The mirror node URL (ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL) is also set by
+# deploy-argv-builders.ts as a belt-and-suspenders fallback, but solo genesis nodes have
+# null public_key in the mirror's /api/v1/network/nodes response, so the file is required.
 #
 # Applied automatically when ONE_SHOT_BLOCK_NODE_PERF=true; kept separate from
 # block-node-perf-values.yaml so JFR profiling is opt-in.
