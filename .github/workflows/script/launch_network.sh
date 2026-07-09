@@ -567,21 +567,37 @@ build_bn_rsa_bootstrap_base64() {
   local namespace="${SOLO_NAMESPACE:-one-shot}"
   local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
 
-  # Kind cluster networks are routable from the Linux CI host, same approach used
-  # elsewhere in this script for getting node service IPs.
-  local svc_ip
-  svc_ip=$(kubectl get svc -n "${namespace}" mirror-1-restjava \
-    -o jsonpath='{.spec.clusterIP}' --context "${context}" 2>/dev/null || echo "")
+  # Kind service ClusterIPs are not routable from outside the cluster, so tunnel
+  # via kubectl port-forward. Use a random port in the 38000-38999 range.
+  local pf_port=$((38000 + RANDOM % 1000))
+  kubectl port-forward -n "${namespace}" svc/mirror-1-restjava "${pf_port}":80 \
+    --context "${context}" >/dev/null 2>&1 &
+  local pf_pid=$!
 
-  if [[ -z "${svc_ip}" ]]; then
-    echo "WARNING: Could not get ClusterIP for mirror-1-restjava in namespace ${namespace}" >&2
-    return 1
-  fi
+  # Wait up to 10 s for the port-forward to accept connections.
+  local retries=0
+  while ! curl -sf --max-time 2 \
+      "http://localhost:${pf_port}/api/v1/network/nodes?limit=1" >/dev/null 2>&1; do
+    ((retries++)) || true
+    if [[ ${retries} -ge 10 ]]; then
+      kill "${pf_pid}" 2>/dev/null || true
+      wait "${pf_pid}" 2>/dev/null || true
+      echo "WARNING: Timed out waiting for port-forward to mirror-1-restjava" >&2
+      return 1
+    fi
+    sleep 1
+  done
 
   local api_response
-  if ! api_response=$(curl -sf --max-time 30 \
-      "http://${svc_ip}:80/api/v1/network/nodes?limit=100" 2>&1); then
-    echo "WARNING: Failed to query mirror for RSA keys (${svc_ip}): ${api_response}" >&2
+  api_response=$(curl -sf --max-time 30 \
+    "http://localhost:${pf_port}/api/v1/network/nodes?limit=100" 2>&1)
+  local query_rc=$?
+
+  kill "${pf_pid}" 2>/dev/null || true
+  wait "${pf_pid}" 2>/dev/null || true
+
+  if [[ ${query_rc} -ne 0 ]]; then
+    echo "WARNING: Failed to query mirror for RSA keys: ${api_response}" >&2
     return 1
   fi
 
