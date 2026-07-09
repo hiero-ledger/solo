@@ -283,6 +283,7 @@ import {RemoteConfigDeploymentNotSetError} from './classes/internal/remote-confi
 import {RemoteConfigContextUnavailableError} from './classes/internal/remote-config-context-unavailable-error.js';
 import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-template-undeclared-error.js';
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
+import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -876,6 +877,7 @@ export class SoloErrors {
     readonly remoteConfigContextUnavailable: typeof RemoteConfigContextUnavailableError;
     readonly cacheImageTemplateUndeclared: typeof CacheImageTemplateUndeclaredError;
     readonly injectedFailure: typeof InjectedFailureSoloError;
+    readonly pipelineCancelled: typeof PipelineCancelledSoloError;
   } = Object.freeze({
     unsupportedOperation: UnsupportedOperationError,
     readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
@@ -888,5 +890,6 @@ export class SoloErrors {
     remoteConfigContextUnavailable: RemoteConfigContextUnavailableError,
     cacheImageTemplateUndeclared: CacheImageTemplateUndeclaredError,
     injectedFailure: InjectedFailureSoloError,
+    pipelineCancelled: PipelineCancelledSoloError,
   });
 }
