@@ -123,7 +123,11 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly STOP_CONFIG_NAME: string = 'stopConfig';
   private static readonly MIRROR_REST_POLL_INTERVAL_MS: number = 50;
   private static readonly MIRROR_REST_REQUEST_TIMEOUT_MS: number = 1000;
-  private static readonly MIRROR_READINESS_POLL_TIMEOUT_MULTIPLIER: number = 15;
+  // SmartContract load at 97 TPS leaves ~64 500-item backlog in the block-node ring buffer
+  // at NLG end; verification drains it at ~270 items/sec (~239 s post-NLG drain time).
+  // 30× gives a 15-minute window (vs 7.5 min at 15×), comfortably covering the drain + mirror
+  // catch-up without allowing the probe to hang indefinitely on a genuine block-loss failure.
+  private static readonly MIRROR_READINESS_POLL_TIMEOUT_MULTIPLIER: number = 30;
   private static readonly RTT_PROBE_RECIPIENT_ACCOUNT_NUMBER: number = 98;
   private static readonly RTT_SAMPLE_COUNT: number = 5;
   private static readonly RTT_SAMPLE_INTERVAL_MS: number = 1000;
