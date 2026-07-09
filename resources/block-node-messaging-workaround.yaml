@@ -2,34 +2,36 @@
 
 # Workaround for hiero-block-node#3150 and a related 0.37.1 issue where
 # VerificationServicePlugin (a gating Disruptor consumer) cannot keep up with incoming
-# block items at high TPS (~100 TPS SmartContract), causing the ring buffer to fill, the
-# consensus-node gRPC stream to time out, and block N to be permanently absent from
-# historic storage → NOT_AVAILABLE for all mirror subscriber reconnects on that block.
+# block items, causing the ring buffer to fill, the consensus-node gRPC stream to time
+# out, and block N to be permanently absent from historic storage → NOT_AVAILABLE for all
+# mirror subscriber reconnects on that block.
 #
 # Root cause in 0.37.1: VerificationServicePlugin.isGating() returns true (via the
-# BlockItemHandler→GatingHandler default).  At 97 TPS, SmartContract blocks are larger
-# (more EVM state-change items per block) than simple transfers, and the ExtendedMerkleTree
-# session hashes every item — so per-item CPU work is higher.  G1GC (default) triggers
-# multi-second stop-the-world pauses at 512 m heap; during a pause the verification thread
-# stalls, the ring buffer fills, and the gRPC publisher times out → block N permanently
-# absent from historic storage.
+# BlockItemHandler→GatingHandler default).  The ring buffer fills CUMULATIVELY across
+# all 5 performance load tests: by the end of test 4 (HCS) the block-node JVM is using
+# ~2.3 GB memory and the ring buffer is ~98% full (observed in run 28988949642, where
+# block-node memory peaked at 2 259 MB against a 1M ring buffer).  When SmartContract
+# (test 5) starts, its larger EVM blocks generate a higher publication rate than the
+# simple-transfer tests, and the remaining 2% capacity is exhausted in ~8 seconds.
 #
-# Workaround: switch to ZGC (sub-millisecond concurrent GC in Java 21+) and raise the heap
-# to 3 g so GC fires infrequently and never stalls the verification thread long enough for
-# the ring buffer to fill.  Keep 4 CPU cores so ZGC concurrent threads do not compete with
-# the verification thread.  Enlarged ring buffer and raised HTTP/2 limits remain as secondary
-# safeguards against the @todo(1673) reconnect storm.
+# Workaround: double the ring buffer to 2 M (2^21) AND double the CPU allocation to
+# 8 cores so the verification thread has more scheduling headroom.  With 2× faster
+# verification the net fill rate during simple tests drops from ~680 slots/sec to ~360,
+# leaving only ~27% (544 K/2 M) of the ring buffer occupied at SmartContract start;
+# at the SmartContract net fill rate (~1 300 slots/sec with 8 CPUs) the remaining
+# 1.5 M capacity lasts > 1 100 s >> 300 s NLG.  Heap raised to 4 g to accommodate
+# the larger pre-allocated ring buffer (2 M × 304 bytes ≈ 608 MB pre-allocation).
 #
 # Applied automatically when ONE_SHOT_BLOCK_NODE_PERF=true; kept separate from
 # block-node-perf-values.yaml so JFR profiling is opt-in.
 # TODO: remove once hiero-block-node fixes VerificationServicePlugin gating backpressure.
 resources:
   requests:
-    cpu: "2"
-    memory: "3Gi"
-  limits:
     cpu: "4"
     memory: "4Gi"
+  limits:
+    cpu: "8"
+    memory: "5Gi"
 
 blockNode:
   config:
@@ -38,19 +40,21 @@ blockNode:
     # 200ms window after a mid-block reconnect (a known block node subscriber bug, @todo(1673)).
     # Raise the threshold so brief reconnect bursts don't trigger connection termination.
     SERVER_HTTP2_MAX_RAPID_RESETS: "500"
-    # Enlarge the Disruptor ring buffer to 1 048 576 (2^20, power-of-2 per Disruptor requirement).
-    # Runner-dependent conditions drive the net fill rate anywhere from ~215 to ~2 400+ slots/sec.
-    # At the worst observed rate (2 427/sec, run 28985075195) the 262 144 buffer was exhausted in
-    # only ~108 s, causing a block to be permanently lost.  1 048 576 provides enough capacity for
-    # the full 300 s NLG at up to ~3 400 slots/sec net fill (1 048 576/300 ≈ 3 495) before the
-    # gRPC publisher blocks — well above any observed rate even on the slowest CI runners.
-    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "1048576"
+    # Enlarge the Disruptor ring buffer to 2 097 152 (2^21, power-of-2 per Disruptor requirement).
+    # The ring buffer fills cumulatively across all 5 load tests (not just SmartContract).
+    # Observed in run 28988949642: ring buffer was ~98% full (980 K/1 M) when SmartContract
+    # started; the remaining 2% capacity was exhausted in ~8 s, losing block 7 644 permanently.
+    # 2 097 152 provides ~4× the buffer capacity and, combined with 8 CPUs (2× faster
+    # verification), leaves only ~27% filled at SmartContract start with > 1 100 s remaining
+    # capacity — well beyond the 300 s NLG window on any observed CI runner configuration.
+    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "2097152"
     # ZGC (Java 21+ Generational ZGC) eliminates multi-second G1GC stop-the-world pauses.
     # Sub-millisecond GC pauses allow the verification thread to drain the ring buffer
-    # consistently at ~97 TPS SmartContract load.  Heap raised to 3 g so GC fires rarely.
+    # consistently at high TPS load.  Heap raised to 4 g to accommodate the 2 M ring buffer
+    # pre-allocation (~608 MB) plus live block item data without triggering aggressive GC.
     JAVA_OPTS: >-
       -Xms2g
-      -Xmx3g
+      -Xmx4g
       -XX:+UseZGC
       -XX:MaxDirectMemorySize=64m
       -XX:MaxMetaspaceSize=128m
