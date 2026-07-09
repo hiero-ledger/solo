@@ -38,12 +38,13 @@ blockNode:
     # 200ms window after a mid-block reconnect (a known block node subscriber bug, @todo(1673)).
     # Raise the threshold so brief reconnect bursts don't trigger connection termination.
     SERVER_HTTP2_MAX_RAPID_RESETS: "500"
-    # Enlarge the Disruptor ring buffer to 262144 (power-of-2 per Disruptor requirement).
-    # At ~97 TPS SmartContract, verification falls behind by ~215 items/sec even with ZGC.
-    # Over the 300-second NLG test this accumulates ~64 500 items of backlog; 262144 provides
-    # 4× headroom so the buffer never fills mid-test even under adverse runner conditions.
-    # (The previous 65536 filled within 5 s of NLG end in run 28982729130.)
-    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "262144"
+    # Enlarge the Disruptor ring buffer to 1 048 576 (2^20, power-of-2 per Disruptor requirement).
+    # Runner-dependent conditions drive the net fill rate anywhere from ~215 to ~2 400+ slots/sec.
+    # At the worst observed rate (2 427/sec, run 28985075195) the 262 144 buffer was exhausted in
+    # only ~108 s, causing a block to be permanently lost.  1 048 576 provides enough capacity for
+    # the full 300 s NLG at up to ~3 400 slots/sec net fill (1 048 576/300 ≈ 3 495) before the
+    # gRPC publisher blocks — well above any observed rate even on the slowest CI runners.
+    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "1048576"
     # ZGC (Java 21+ Generational ZGC) eliminates multi-second G1GC stop-the-world pauses.
     # Sub-millisecond GC pauses allow the verification thread to drain the ring buffer
     # consistently at ~97 TPS SmartContract load.  Heap raised to 3 g so GC fires rarely.
