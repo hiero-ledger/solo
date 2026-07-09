@@ -1191,16 +1191,10 @@ export class DeploymentCommand extends BaseCommand {
               );
             }
 
-            let clusterReference: string = clusterReferences[0];
-            if (clusterReferences.length > 1) {
-              clusterReference = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
-                message: `Multiple clusters found for deployment '${context_.config.deployment}'. Select cluster reference:`,
-                choices: clusterReferences.map((reference): {name: string; value: string} => ({
-                  name: `${reference} (${this.localConfig.configuration.clusterRefs.get(reference)?.toString() ?? 'no-context'})`,
-                  value: reference,
-                })),
-              })) as string;
-            }
+            // Remote config is replicated across all clusters; load from the first one.
+            // Port-forwards are refreshed for every component in the deployment regardless
+            // of which cluster's remote config is loaded here.
+            const clusterReference: string = clusterReferences[0];
 
             const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
             if (!contextValue) {

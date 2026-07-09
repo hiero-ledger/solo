@@ -61,15 +61,7 @@ tasks:
       - task: deploy-external-database
       - task: restore-db
       - task: restore-network
-      - cmd: |
-          echo "=== [DEBUG] block-node-2-config after restore-network ==="
-          kubectl get configmap block-node-2-config -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
-            -o jsonpath='{.data}' 2>/dev/null | python3 -m json.tool || true
       - task: restore-config
-      - cmd: |
-          echo "=== [DEBUG] block-node-2-config after restore-config ==="
-          kubectl get configmap block-node-2-config -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
-            -o jsonpath='{.data}' 2>/dev/null | python3 -m json.tool || true
       - task: restart
       - cmd: |
           {{ .TIMEOUT_COMMAND }} 60s {{ .SOLO_COMMAND }} deployment diagnostics logs --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
