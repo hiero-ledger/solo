@@ -557,6 +557,59 @@ auto_recover_importer_hash_chain() {
   fi
 }
 
+# Builds a base64-encoded NodeAddressBook JSON string for the BN RSA bootstrap file.
+# After a CN freeze upgrade, file 0.0.101 loses the RSA_PubKey entries; mirror then
+# serves empty public_key. BN v0.37+ can pre-load RSA keys from a local file
+# (app.state.rsaBootstrapFilePath) so it does not depend on mirror having indexed them.
+# We extract the SPKI hex from each node's gossip signing cert (s-public-<alias>.pem).
+build_bn_rsa_bootstrap_base64() {
+  local keys_dir="${HOME}/.solo/cache/keys"
+  local node_entries=()
+  local node_id=0
+
+  for alias in node1 node2; do
+    local pem_file="${keys_dir}/s-public-${alias}.pem"
+    if [[ ! -f "${pem_file}" ]]; then
+      echo "WARNING: Missing gossip cert for ${alias}: ${pem_file}" >&2
+      ((node_id++)) || true
+      continue
+    fi
+    # Extract SubjectPublicKeyInfo (SPKI) DER bytes as lowercase hex, no prefix, no newlines.
+    # BN RsaKeyDecoder expects X509EncodedKeySpec (SPKI), not the full cert DER.
+    local hex_key
+    hex_key=$(openssl x509 -in "${pem_file}" -pubkey -noout 2>/dev/null |
+              openssl pkey -pubin -outform DER 2>/dev/null |
+              python3 -c "import sys; print(sys.stdin.buffer.read().hex(), end='')")
+    if [[ -z "${hex_key}" ]]; then
+      echo "WARNING: Could not extract public key from ${pem_file}" >&2
+      ((node_id++)) || true
+      continue
+    fi
+    # PBJ JSON codec renders NodeAddress.RSA_PubKey as "RSAPubKey" (underscore removed).
+    node_entries+=("{\"nodeId\":${node_id},\"RSAPubKey\":\"${hex_key}\"}")
+    ((node_id++)) || true
+  done
+
+  if [[ ${#node_entries[@]} -eq 0 ]]; then
+    echo "ERROR: No gossip certs found for RSA bootstrap" >&2
+    return 1
+  fi
+
+  # Build NodeAddressBook JSON (backward-compatible format accepted by BN BlockNodeApp).
+  local json='{"nodeAddress":['
+  local first=true
+  for entry in "${node_entries[@]}"; do
+    if [[ "${first}" != "true" ]]; then
+      json+=","
+    fi
+    json+="${entry}"
+    first=false
+  done
+  json+=']}'
+
+  printf '%s' "${json}" | base64 -w0
+}
+
 fromSoloVersion="${1}"
 toConsensusNodeVersion="${2}"
 if [[ -z "${fromSoloVersion}" ]]; then
@@ -793,16 +846,77 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNod
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 TEMP_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-migration-block-node-values-XXXX.yaml)"
+
+# After a CN freeze upgrade, file 0.0.101 loses RSA_PubKey so mirror serves empty
+# public_key. Pre-populate BN's rsa-bootstrap-roster.json via an init container so
+# BN can verify WRB blocks immediately without waiting for mirror to index RSA keys.
+BN_RSA_BOOTSTRAP_B64=""
+if BN_RSA_BOOTSTRAP_B64="$(build_bn_rsa_bootstrap_base64)"; then
+  echo "RSA bootstrap data generated for block node init container (${#BN_RSA_BOOTSTRAP_B64} chars)"
+else
+  echo "WARNING: RSA bootstrap generation failed; BN will query mirror REST for RSA keys"
+fi
+
+if [[ -n "${BN_RSA_BOOTSTRAP_B64}" ]]; then
 cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
 # Generated for the migration workflow.
-# /api/v1/network/nodes was moved from Node.js REST (mirror-1-rest) to Java REST
-# (mirror-1-restjava) in mirror v0.156.0+, so point BN's RSA bootstrap there.
+# /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
+# An init container pre-writes rsa-bootstrap-roster.json from local gossip certs so
+# BN does not have to wait for mirror to index RSA keys after the freeze upgrade.
+blockNode:
+  config:
+    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
+    ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
+    ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
+  initContainers:
+    - name: init-storage-dirs
+      image: busybox
+      command:
+        - sh
+        - -c
+        - |
+          mkdir -p /application-state-pvc && \
+          chown 2000:2000 /application-state-pvc && \
+          chmod 700 /application-state-pvc && \
+          mkdir -p /archive-pvc/archive-data && \
+          chown 2000:2000 /archive-pvc/archive-data && \
+          chmod 700 /archive-pvc/archive-data && \
+          mkdir -p /live-pvc/live-data && \
+          chown 2000:2000 /live-pvc/live-data && \
+          chmod 700 /live-pvc/live-data
+      volumeMounts:
+        - name: application-state-storage
+          mountPath: /application-state-pvc
+        - name: archive-storage
+          mountPath: /archive-pvc
+        - name: live-storage
+          mountPath: /live-pvc
+        - name: logging-storage
+          mountPath: /logging-pvc
+    - name: init-rsa-bootstrap
+      image: busybox
+      command:
+        - sh
+        - -c
+        - |
+          printf '%s' '${BN_RSA_BOOTSTRAP_B64}' | base64 -d > /application-state-pvc/rsa-bootstrap-roster.json && \
+          chown 2000:2000 /application-state-pvc/rsa-bootstrap-roster.json && \
+          chmod 600 /application-state-pvc/rsa-bootstrap-roster.json
+      volumeMounts:
+        - name: application-state-storage
+          mountPath: /application-state-pvc
+EOF
+else
+cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
+# Generated for the migration workflow.
+# /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
 blockNode:
   config:
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
     ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
     ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
 EOF
+fi
 
 echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 echo "Using temporary block node values override file: ${TEMP_BLOCK_NODE_VALUES_FILE}"
