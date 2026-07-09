@@ -37,6 +37,7 @@ import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.
 import {type K8} from '../../integration/kube/k8.js';
 import {Templates} from '../../core/templates.js';
 import {type Lock} from '../../core/lock/lock.js';
+import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {type OneShotDeployOrchestrator} from './orchestrator/deploy/one-shot-deploy-orchestrator.js';
 import {type OneShotDestroyOrchestrator} from './orchestrator/destroy/one-shot-destroy-orchestrator.js';
 import {type OrchestratorPipeline} from './orchestrator/orchestrator-pipeline.js';
@@ -165,6 +166,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     private readonly deployOrchestrator: OneShotDeployOrchestrator,
     @inject(InjectTokens.OneShotDestroyOrchestrator)
     private readonly destroyOrchestrator: OneShotDestroyOrchestrator,
+    @inject(InjectTokens.SoloEventBus)
+    private readonly eventBus: SoloEventBus,
   ) {
     super();
     this.deployOrchestrator = patchInject(
@@ -177,6 +180,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       InjectTokens.OneShotDestroyOrchestrator,
       this.constructor.name,
     );
+    this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
   }
 
   public async deploy(argv: ArgvStruct): Promise<boolean> {
@@ -270,10 +274,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     if (deferUserOutput) {
       this.logger.beginDeferredUserOutput();
     }
+    this.eventBus.reset();
     try {
       await this.deployOrchestrator.buildDeployPipeline(argv, flagsList, leaseReference, configReference).run();
     } catch (error) {
-      await this.performRollback(error, configReference.value);
+      const rootError: Error = this.eventBus.abortReason() ?? error;
+      await this.performRollback(rootError, configReference.value);
     } finally {
       if (deferUserOutput) {
         this.logger.flushDeferredUserOutput();
