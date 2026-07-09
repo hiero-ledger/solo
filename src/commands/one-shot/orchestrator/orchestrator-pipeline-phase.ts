@@ -131,13 +131,14 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
     }
 
     if (this.waitConditions.length === 0) {
-      const innerTask: SoloListrTask<TContext> = (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(
-        getConfig,
+      const innerTask: SoloListrTask<TContext> = this.wrapWithAbort(
+        (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(getConfig),
+        eventBus,
       );
       if (!shouldInjectFailure) {
         return innerTask;
       }
-      const failureTask: SoloListrTask<TContext> = this.buildFailureInjectionTask();
+      const failureTask: SoloListrTask<TContext> = this.wrapWithAbort(this.buildFailureInjectionTask(), eventBus);
       return {
         ...innerTask,
         task: (_: TContext, taskWrapper: SoloListrTaskWrapper<TContext>): SoloListr<TContext> =>
@@ -145,8 +146,9 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
       };
     }
 
-    const innerTask: SoloListrTask<TContext> = (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(
-      getConfig,
+    const innerTask: SoloListrTask<TContext> = this.wrapWithAbort(
+      (this.step as OrchestratorStep<TConfig, TContext>).asListrTask(getConfig),
+      eventBus,
     );
     return {
       title: this.title,
@@ -161,11 +163,30 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
         }
         const subTasks: SoloListrTask<TContext>[] = [innerTask];
         if (shouldInjectFailure) {
-          subTasks.push(this.buildFailureInjectionTask());
+          subTasks.push(this.wrapWithAbort(this.buildFailureInjectionTask(), eventBus));
         }
         return taskWrapper.newListr(subTasks);
       },
     };
+  }
+
+  /**
+   * Wraps a leaf task so that a failure in its body aborts the shared event bus before propagating.
+   * Aborting fails-fast any sibling phase blocked in {@link SoloEventBus.waitFor} (so it does not
+   * hang until its own timeout) and records the first-in error as the pipeline's root cause. The
+   * error is then re-thrown unchanged so Listr2's {@code exitOnError} still stops the group.
+   */
+  private wrapWithAbort(task: SoloListrTask<TContext>, eventBus: SoloEventBus): SoloListrTask<TContext> {
+    const originalTask: SoloListrTask<TContext>['task'] = task.task;
+    task.task = async (context: TContext, taskWrapper: SoloListrTaskWrapper<TContext>): Promise<unknown> => {
+      try {
+        return await originalTask(context, taskWrapper);
+      } catch (error) {
+        eventBus.abort(error as Error);
+        throw error;
+      }
+    };
+    return task;
   }
 
   private buildFailureInjectionTask(): SoloListrTask<TContext> {
