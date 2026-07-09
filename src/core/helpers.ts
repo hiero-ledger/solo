@@ -121,7 +121,13 @@ export class Helpers {
     Helpers.upsertApplicationProperty(lines, 'blockStream.writerMode', writerMode);
 
     if (streamMode === 'BLOCKS') {
-      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'false');
+      // Preserve an explicit streamWrappedRecordBlocks=true from the caller (e.g. migration upgrades
+      // that need RSA/WRB blocks for BN v0.37.1+ verification). Only default to false when the
+      // property is absent or already disabled.
+      const wrappedRecordBlocksEnabled: boolean = lines.includes('blockStream.streamWrappedRecordBlocks=true');
+      if (!wrappedRecordBlocksEnabled) {
+        Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'false');
+      }
     } else if (streamMode === 'BOTH') {
       Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'true');
     }

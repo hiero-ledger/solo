@@ -140,7 +140,23 @@ describe('Helpers', (): void => {
   });
 
   describe('updateBlockStreamPropertiesForMode', (): void => {
-    it('sets pure block-node streaming to use normal block stream publishing', (): void => {
+    it('sets wrappedRecordBlocks=false in BLOCKS mode when not explicitly enabled', (): void => {
+      const lines: string[] = [
+        'blockStream.streamMode=RECORDS',
+        'blockStream.writerMode=FILE',
+        'blockStream.streamMode=BOTH',
+      ];
+
+      Helpers.updateBlockStreamPropertiesForMode(lines, 'BLOCKS');
+
+      expect(lines).to.deep.equal([
+        'blockStream.streamMode=BLOCKS',
+        'blockStream.writerMode=FILE_AND_GRPC',
+        'blockStream.streamWrappedRecordBlocks=false',
+      ]);
+    });
+
+    it('preserves explicit wrappedRecordBlocks=true in BLOCKS mode for WRB/RSA verification', (): void => {
       const lines: string[] = [
         'blockStream.streamMode=RECORDS',
         'blockStream.writerMode=FILE',
@@ -153,7 +169,7 @@ describe('Helpers', (): void => {
       expect(lines).to.deep.equal([
         'blockStream.streamMode=BLOCKS',
         'blockStream.writerMode=FILE_AND_GRPC',
-        'blockStream.streamWrappedRecordBlocks=false',
+        'blockStream.streamWrappedRecordBlocks=true',
       ]);
     });
 
