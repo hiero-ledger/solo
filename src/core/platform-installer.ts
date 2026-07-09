@@ -518,16 +518,6 @@ export class PlatformInstaller {
   }
 
   /**
-   * Resolve the base64-encoded contents of a key file needed to (re)build a Kubernetes secret.
-   *
-   * Prefers the on-disk copy in the keys directory; when that is absent (e.g. the keys were removed
-   * after `network deploy` ran without --debug) it falls back to the value already stored in the
-   * owning node's Kubernetes secret, which keeps each entry base64-encoded under its file basename.
-   * @param keysDirectory - the directory that may contain the key file
-   * @param fileName - the key file basename (also the secret data key)
-   * @param readSecretData - reads the fallback secret's data map for the node that owns this file
-   */
-  /**
    * Read a secret's data map, returning an empty map when the secret does not exist yet. This lets the
    * key-file resolver fall through to a clear "key file missing" error (rather than a confusing
    * "failed to read Secret") on a fresh deploy where the keys must come from disk.
