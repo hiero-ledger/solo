@@ -135,7 +135,9 @@ export class DeployArgvBuilders {
   }
 
   private static writeRosterBootstrapValuesFile(namespaceName: string): string {
-    const mirrorRestUrl: string = `http://mirror-${MIRROR_NODE_ID}-rest.${namespaceName}.svc.cluster.local`;
+    // Use mirror-restjava (Java REST, port 80) — it exposes /api/v1/network/nodes (200).
+    // mirror-rest (Node.js REST) always returns 404 for that endpoint in solo networks.
+    const mirrorRestUrl: string = `http://mirror-${MIRROR_NODE_ID}-restjava.${namespaceName}.svc.cluster.local`;
     const content: string = yaml.stringify({
       blockNode: {config: {ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: mirrorRestUrl}},
     });
