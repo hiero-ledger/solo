@@ -558,55 +558,62 @@ auto_recover_importer_hash_chain() {
 }
 
 # Builds a base64-encoded NodeAddressBook JSON string for the BN RSA bootstrap file.
-# After a CN freeze upgrade, file 0.0.101 loses the RSA_PubKey entries; mirror then
-# serves empty public_key. BN v0.37+ can pre-load RSA keys from a local file
-# (app.state.rsaBootstrapFilePath) so it does not depend on mirror having indexed them.
-# We extract the SPKI hex from each node's gossip signing cert (s-public-<alias>.pem).
+# Queries mirror's /api/v1/network/nodes BEFORE the CN upgrade to capture RSA public
+# keys while the address book still has them. After a CN freeze upgrade, file 0.0.101
+# is rebuilt without RSA_PubKey entries, so mirror serves empty public_key afterward.
+# BN v0.37+ reads rsa-bootstrap-roster.json at startup (app.state.rsaBootstrapFilePath)
+# so it can verify WRB blocks without waiting for mirror to re-index RSA keys.
 build_bn_rsa_bootstrap_base64() {
-  local keys_dir="${HOME}/.solo/cache/keys"
-  local node_entries=()
-  local node_id=0
+  local namespace="${SOLO_NAMESPACE:-one-shot}"
+  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
 
-  for alias in node1 node2; do
-    local pem_file="${keys_dir}/s-public-${alias}.pem"
-    if [[ ! -f "${pem_file}" ]]; then
-      echo "WARNING: Missing gossip cert for ${alias}: ${pem_file}" >&2
-      ((node_id++)) || true
-      continue
-    fi
-    # Extract SubjectPublicKeyInfo (SPKI) DER bytes as lowercase hex, no prefix, no newlines.
-    # BN RsaKeyDecoder expects X509EncodedKeySpec (SPKI), not the full cert DER.
-    local hex_key
-    hex_key=$(openssl x509 -in "${pem_file}" -pubkey -noout 2>/dev/null |
-              openssl pkey -pubin -outform DER 2>/dev/null |
-              python3 -c "import sys; print(sys.stdin.buffer.read().hex(), end='')")
-    if [[ -z "${hex_key}" ]]; then
-      echo "WARNING: Could not extract public key from ${pem_file}" >&2
-      ((node_id++)) || true
-      continue
-    fi
-    # PBJ JSON codec renders NodeAddress.RSA_PubKey as "RSAPubKey" (underscore removed).
-    node_entries+=("{\"nodeId\":${node_id},\"RSAPubKey\":\"${hex_key}\"}")
-    ((node_id++)) || true
-  done
+  # Kind cluster networks are routable from the Linux CI host, same approach used
+  # elsewhere in this script for getting node service IPs.
+  local svc_ip
+  svc_ip=$(kubectl get svc -n "${namespace}" mirror-1-restjava \
+    -o jsonpath='{.spec.clusterIP}' --context "${context}" 2>/dev/null || echo "")
 
-  if [[ ${#node_entries[@]} -eq 0 ]]; then
-    echo "ERROR: No gossip certs found for RSA bootstrap" >&2
+  if [[ -z "${svc_ip}" ]]; then
+    echo "WARNING: Could not get ClusterIP for mirror-1-restjava in namespace ${namespace}" >&2
     return 1
   fi
 
-  # Build NodeAddressBook JSON (backward-compatible format accepted by BN BlockNodeApp).
-  local json='{"nodeAddress":['
-  local first=true
-  for entry in "${node_entries[@]}"; do
-    if [[ "${first}" != "true" ]]; then
-      json+=","
-    fi
-    json+="${entry}"
-    first=false
-  done
-  json+=']}'
+  local api_response
+  if ! api_response=$(curl -sf --max-time 30 \
+      "http://${svc_ip}:80/api/v1/network/nodes?limit=100" 2>&1); then
+    echo "WARNING: Failed to query mirror for RSA keys (${svc_ip}): ${api_response}" >&2
+    return 1
+  fi
 
+  # Build NodeAddressBook JSON for BN RSA bootstrap.
+  # Mirror returns public_key as hex (possibly with "0x" prefix).
+  # BN RsaKeyDecoder expects hex-encoded DER SubjectPublicKeyInfo without "0x" prefix.
+  local json
+  json=$(echo "${api_response}" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+nodes = data.get('nodes', [])
+entries = []
+for node in nodes:
+    nid = node.get('node_id', 0)
+    pk = (node.get('public_key', '') or '').strip()
+    if pk and pk not in ('0x', ''):
+        if pk.startswith('0x'):
+            pk = pk[2:]
+        entries.append({'nodeId': nid, 'RSAPubKey': pk})
+print(json.dumps({'nodeAddress': entries}))
+" 2>&1)
+
+  local entry_count
+  entry_count=$(echo "${json}" | python3 -c \
+    "import sys, json; d = json.load(sys.stdin); print(len(d['nodeAddress']))" 2>/dev/null || echo "0")
+
+  if [[ "${entry_count}" == "0" ]]; then
+    echo "WARNING: No valid RSA keys found in mirror response" >&2
+    return 1
+  fi
+
+  echo "Captured RSA keys for ${entry_count} nodes from mirror before CN upgrade" >&2
   printf '%s' "${json}" | base64 -w0
 }
 
