@@ -83,7 +83,7 @@ tasks:
       # pre-start enforcement or roster-vs-LB verification needed.
       - cmd: |
           {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
-          {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1
+          {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
       # Block nodes were already restarted by restore-config (applyBlockNodeRestoreFixes
       # deletes each pod and waits for ready after patching the ConfigMap). No manual
       # pod restart is needed here.
