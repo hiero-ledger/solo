@@ -77,35 +77,6 @@ tasks:
   restart:
     desc: Restart consensus nodes after restore (skips cluster redeployment)
     cmds:
-      # Each consensus node publishes FILE_AND_GRPC to its cluster-local block node.
-      # The c2 block node (colocated with the mirror importer) is what mirror reads from.
-      - cmd: |
-          echo "Setting restored consensus node block stream modes..."
-          for item in "kind-solo-e2e-c1:network-node1-0:FILE_AND_GRPC" "kind-solo-e2e-c2:network-node2-0:FILE_AND_GRPC"; do
-            context="${item%%:*}"
-            rest="${item#*:}"
-            pod="${rest%%:*}"
-            mode="${rest#*:}"
-            kubectl exec "${pod}" -n {{ .NAMESPACE }} --context "${context}" -c root-container -- sh -c "
-              set -e
-              file=/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties
-              set_prop() {
-                key=\"\$1\"
-                value=\"\$2\"
-                if grep -q \"^\${key}=\" \"\${file}\"; then
-                  sed -i \"s|^\${key}=.*|\${key}=\${value}|\" \"\${file}\"
-                else
-                  printf \"\n%s=%s\n\" \"\${key}\" \"\${value}\" >> \"\${file}\"
-                fi
-              }
-              if [ -f \"\${file}\" ]; then
-                set_prop blockStream.streamMode BLOCKS
-                set_prop blockStream.writerMode ${mode}
-                set_prop blockStream.streamWrappedRecordBlocks false
-                set_prop blockStream.enableCutover false
-              fi
-            "
-          done
       # LB IPs are pinned by the chart via service.spec.loadBalancerIP (set during
       # consensus network deploy / restore-network with --haproxy-ips/--envoy-ips/
       # --network-node-ips), so MetalLB re-allocates the same IPs every time. No
