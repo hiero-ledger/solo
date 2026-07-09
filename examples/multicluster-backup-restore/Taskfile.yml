@@ -394,6 +394,10 @@ tasks:
             $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 100 || true
             sleep 2
           done
+      - cmd: |
+          echo "⏳ Waiting 90s for consensus node to write a periodic signed state that includes the new accounts..."
+          echo "   (The CN saves state every ~60s; without this wait the backup freeze captures a pre-account state)"
+          sleep 90
       - cmd: echo "✅ Test transactions generated"
 
   backup:

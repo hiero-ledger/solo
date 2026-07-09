@@ -1485,21 +1485,138 @@ export class BackupRestoreCommand extends BaseCommand {
     );
     const databaseContainer: Container = databaseK8.containers().readByRef(databaseContainerReference);
 
-    await databaseContainer.copyTo(databaseDumpPath, '/tmp');
     await this.resetExternalDatabaseSchema(databaseContainer, credentials);
-    // pg_dump only captures database-level objects; cluster-level roles (e.g. mirror_rest)
-    // are created by component Helm chart Flyway migrations and are absent from the dump.
-    // When restore-db runs before those components are deployed the GRANT statements in
-    // the dump reference non-existent roles and would abort with ON_ERROR_STOP=1. Omit
-    // that flag so the data + schema load cleanly and role-grant failures are non-fatal;
-    // Flyway creates the roles with proper passwords when each component deploys and
-    // re-applies the same grants at that time.
+
+    // pg_dump omits cluster-level roles that component Helm chart Flyway migrations
+    // normally create (e.g. mirror_rest). When restore-db runs before those components
+    // are deployed the GRANT statements in the dump reference non-existent roles and
+    // abort with ON_ERROR_STOP=1. The backup directory contains the component secrets
+    // placed there by restore-clusters; we derive each role name and its original
+    // password from the USERNAME/PASSWORD key pairs in those secrets and pre-create the
+    // roles here. Flyway then finds them already in place when each component deploys
+    // (skipping migration re-run because flyway_schema_history is also in the dump),
+    // so role passwords remain consistent with the K8s secrets.
+    const rolesToCreate: Map<string, string> = this.readRolesFromBackupSecrets(inputDirectory, credentials.ownerUsername);
+    if (rolesToCreate.size > 0) {
+      this.logger.info(
+        `Pre-creating ${rolesToCreate.size} role(s) from backup secrets: ${[...rolesToCreate.keys()].join(', ')}`,
+      );
+      const createRolesSQL: string = [...rolesToCreate.entries()]
+        .map(([username, password]: [string, string]): string => {
+          const safeUsername: string = username.replaceAll('"', '""');
+          const safePassword: string = password.replaceAll("'", "''");
+          const safeRoleName: string = username.replaceAll("'", "''");
+          return (
+            `DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${safeRoleName}') ` +
+            `THEN ALTER ROLE "${safeUsername}" WITH LOGIN PASSWORD '${safePassword}'; ` +
+            `ELSE CREATE ROLE "${safeUsername}" WITH LOGIN PASSWORD '${safePassword}'; END IF; END $$;`
+          );
+        })
+        .join('\n');
+      await databaseContainer.execContainer([
+        'psql',
+        `postgresql://${credentials.ownerUsername}:${credentials.ownerPassword}@localhost:5432/${credentials.dbName}`,
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-c',
+        createRolesSQL,
+      ]);
+    }
+
+    await databaseContainer.copyTo(databaseDumpPath, '/tmp');
     await databaseContainer.execContainer([
       'psql',
       `postgresql://${credentials.ownerUsername}:${credentials.ownerPassword}@localhost:5432/${credentials.dbName}`,
+      '-v',
+      'ON_ERROR_STOP=1',
       '-f',
       '/tmp/database-dump.sql',
     ]);
+  }
+
+  /**
+   * Scan backup cluster secret YAML files for USERNAME/PASSWORD key pairs and return a
+   * map of role-name → password for roles that are not built-in PostgreSQL accounts.
+   * Called before loading the dump so component-managed roles (e.g. mirror_rest) can be
+   * pre-created with the correct passwords that match the K8s secrets already restored
+   * into the cluster by restore-clusters.
+   */
+  private readRolesFromBackupSecrets(inputDirectory: string, ownerUsername: string): Map<string, string> {
+    const builtInRoles: Set<string> = new Set([
+      'postgres',
+      ownerUsername.toLowerCase(),
+      'readonly',
+      'readonlyuser',
+      'readwrite',
+      'temporary_admin',
+    ]);
+    const roles: Map<string, string> = new Map();
+
+    let clusterDirectories: string[];
+    try {
+      clusterDirectories = fs
+        .readdirSync(inputDirectory)
+        .filter((name: string): boolean => {
+          const fullPath: string = PathEx.join(inputDirectory, name);
+          return fs.statSync(fullPath).isDirectory() && name !== 'states';
+        });
+    } catch {
+      // best-effort: return empty map when input directory cannot be listed
+      return roles;
+    }
+
+    for (const clusterDirectory of clusterDirectories) {
+      const secretsDirectory: string = PathEx.join(inputDirectory, clusterDirectory, 'secrets');
+      if (!fs.existsSync(secretsDirectory)) continue;
+
+      let secretFiles: string[];
+      try {
+        secretFiles = fs.readdirSync(secretsDirectory).filter((name: string): boolean => name.endsWith('.yaml'));
+      } catch {
+        continue;
+      }
+
+      for (const secretFile of secretFiles) {
+        let secretObject: unknown;
+        try {
+          secretObject = yaml.parse(fs.readFileSync(PathEx.join(secretsDirectory, secretFile), 'utf8'));
+        } catch {
+          continue;
+        }
+        if (
+          !secretObject ||
+          typeof secretObject !== 'object' ||
+          !('data' in secretObject) ||
+          typeof (secretObject as Record<string, unknown>).data !== 'object'
+        ) {
+          continue;
+        }
+        const data: Record<string, string> = (secretObject as {data: Record<string, string>}).data;
+
+        for (const [key, encodedUsername] of Object.entries(data)) {
+          if (!key.toUpperCase().endsWith('USERNAME')) continue;
+          const passwordKey: string = key.slice(0, -'USERNAME'.length) + 'PASSWORD';
+          const encodedPassword: string | undefined = data[passwordKey];
+          if (!encodedPassword) continue;
+
+          let username: string;
+          let password: string;
+          try {
+            username = Buffer.from(encodedUsername, 'base64').toString('utf8').trim();
+            password = Buffer.from(encodedPassword, 'base64').toString('utf8').trim();
+          } catch {
+            continue;
+          }
+
+          if (!username || !password) continue;
+          if (builtInRoles.has(username.toLowerCase())) continue;
+          if (username.toLowerCase().startsWith('pg_')) continue;
+          roles.set(username, password);
+        }
+      }
+    }
+
+    return roles;
   }
 
   /**
