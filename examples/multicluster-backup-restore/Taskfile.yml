@@ -113,142 +113,32 @@ tasks:
       - cmd: |
           {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }}
           {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1
-      # Seed each restored block node from its consensus node's local FILE stream.
-      # The archived block-node data is intentionally empty, and a fresh block node
-      # asks the publisher for block -1/0, which restored consensus cannot backfill from
-      # its in-memory buffer. Each CN has the completed local block files on disk, so
-      # seed them into each block-node's live store and restart the block node to scan them.
+      # Restart both block nodes so they pick up the restore-config changes.
       #
-      # Block node IDs are assigned in the order they were added during initial-deploy:
-      #   block-node-1 → c1 (node1's local block node)
-      #   block-node-2 → c2 (node2's local block node; mirror importer reads from this one)
+      # DO NOT seed historical block files into the block nodes here. Here is why:
+      #
+      #   restore-config (solo config ops restore-config) calls applyBlockNodeRestoreFixes,
+      #   which deliberately leaves each block node's data/ directory EMPTY. An empty data/
+      #   means lastPersistedBlockNumber = -1, which causes the block node to accept whatever
+      #   block the CN publishes first — no need to backfill from block 0.
+      #
+      #   restore-config also sets BLOCK_NODE_EARLIEST_MANAGED_BLOCK=0 and
+      #   VERIFICATION_TYPE=NO_OP on the block node ConfigMap; these settings remain in
+      #   effect after the pod restart below.
+      #
+      #   The mirror importer's database already contains blocks 0..N from the backup, so
+      #   it naturally resumes requesting from block N+1 onward. The bridge-import-gap step
+      #   below synthesises the one freeze-boundary block that CN never finishes producing
+      #   (see hiero-consensus-node#25389), closing the only gap that remains.
+      #
+      #   Block node IDs are assigned in the order they were added during initial-deploy:
+      #     block-node-1 → c1 (node1's local block node)
+      #     block-node-2 → c2 (node2's local block node; mirror importer reads from this one)
       - cmd: |
-          echo "Seeding c1 block node (block-node-1) from node1's local FILE stream..."
-          TMP_DIR="$(mktemp -d /tmp/solo-cn-block-seed.XXXXXX)"
-          SEED_DIR="$(mktemp -d /tmp/solo-bn-seed.XXXXXX)"
-          trap 'rm -rf "${TMP_DIR}" "${SEED_DIR}"' EXIT
-
-          kubectl cp {{ .NAMESPACE }}/network-node1-0:/opt/hgcapp/blockStreams \
-            "${TMP_DIR}/blockStreams" \
-            --context kind-solo-e2e-c1 \
-            -c root-container
-
-          mkdir -p "${SEED_DIR}/live"
-          find "${TMP_DIR}/blockStreams" -type f -name '*.blk.gz' | while read -r file; do
-            if ! gzip -t "${file}" >/dev/null 2>&1; then
-              echo "  Skipping partial block file: ${file}"
-              continue
-            fi
-
-            base="$(basename "${file}")"
-            raw_block_number="${base%%.blk.gz}"
-            numeric_block_number="$(printf '%s' "${raw_block_number}" | sed 's/^0*//')"
-            if [ -z "${numeric_block_number}" ]; then
-              numeric_block_number=0
-            fi
-            block_number="$(printf '%019d' "${numeric_block_number}")"
-            block_dir="${block_number%???}"
-            out_dir="${SEED_DIR}/live"
-            i=1
-            while [ "${i}" -le "${#block_dir}" ]; do
-              segment="$(printf '%s' "${block_dir}" | cut -c "${i}-$((i + 2))")"
-              out_dir="${out_dir}/${segment}"
-              i=$((i + 3))
-            done
-
-            mkdir -p "${out_dir}"
-            gunzip -c "${file}" > "${out_dir}/${block_number}.blk"
-          done
-
-          count="$(find "${SEED_DIR}/live" -type f -name '*.blk' | wc -l | tr -d ' ')"
-          tip="$(find "${SEED_DIR}/live" -type f -name '*.blk' | sed 's|.*/0*\([0-9][0-9]*\)\.blk$|\1|' | sort -n | tail -1)"
-          echo "Seeded ${count} completed block file(s) into block-node-1, tip=${tip}"
-          if [ "${count}" -eq 0 ]; then
-            echo "No completed block files found to seed block-node-1"
-            exit 1
-          fi
-
-          kubectl cp "${SEED_DIR}/live" {{ .NAMESPACE }}/block-node-1-0:/tmp/seed-live \
-            --context kind-solo-e2e-c1 \
-            -c block-node-server
-          kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1 -c block-node-server -- sh -c '
-            set -e
-            rm -rf /opt/hiero/block-node/data/live/* /opt/hiero/block-node/data/historic/*
-            mkdir -p /opt/hiero/block-node/data/live /opt/hiero/block-node/data/historic
-            cp -R /tmp/seed-live/. /opt/hiero/block-node/data/live/
-            chown -R hedera:hedera /opt/hiero/block-node/data/live /opt/hiero/block-node/data/historic
-            rm -rf /tmp/seed-live
-          '
+          echo "Restarting block nodes to pick up restore-config changes..."
           kubectl delete pod block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1
-          kubectl wait --for=condition=ready pod/block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1 --timeout=180s
-      - cmd: |
-          echo "Seeding c2 block node (block-node-2) from node2's local FILE stream..."
-          TMP_DIR="$(mktemp -d /tmp/solo-cn-block-seed.XXXXXX)"
-          SEED_DIR="$(mktemp -d /tmp/solo-bn-seed.XXXXXX)"
-          trap 'rm -rf "${TMP_DIR}" "${SEED_DIR}"' EXIT
-
-          kubectl cp {{ .NAMESPACE }}/network-node2-0:/opt/hgcapp/blockStreams \
-            "${TMP_DIR}/blockStreams" \
-            --context kind-solo-e2e-c2 \
-            -c root-container
-
-          IMPORTER_MAX="$({ kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
-            env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
-            -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -tA -c \
-            "SELECT COALESCE(MAX(index),-1) FROM record_file;"; } 2>/dev/null || printf -- '-1')"
-          SKIP_BLOCK="$((IMPORTER_MAX + 1))"
-          echo "Skipping block ${SKIP_BLOCK}; bridge-import-gap will synthesize it from the next available block"
-
-          mkdir -p "${SEED_DIR}/live"
-          find "${TMP_DIR}/blockStreams" -type f -name '*.blk.gz' | while read -r file; do
-            if ! gzip -t "${file}" >/dev/null 2>&1; then
-              echo "  Skipping partial block file: ${file}"
-              continue
-            fi
-
-            base="$(basename "${file}")"
-            raw_block_number="${base%%.blk.gz}"
-            numeric_block_number="$(printf '%s' "${raw_block_number}" | sed 's/^0*//')"
-            if [ -z "${numeric_block_number}" ]; then
-              numeric_block_number=0
-            fi
-            if [ "${numeric_block_number}" -eq "${SKIP_BLOCK}" ]; then
-              continue
-            fi
-            block_number="$(printf '%019d' "${numeric_block_number}")"
-            block_dir="${block_number%???}"
-            out_dir="${SEED_DIR}/live"
-            i=1
-            while [ "${i}" -le "${#block_dir}" ]; do
-              segment="$(printf '%s' "${block_dir}" | cut -c "${i}-$((i + 2))")"
-              out_dir="${out_dir}/${segment}"
-              i=$((i + 3))
-            done
-
-            mkdir -p "${out_dir}"
-            gunzip -c "${file}" > "${out_dir}/${block_number}.blk"
-          done
-
-          count="$(find "${SEED_DIR}/live" -type f -name '*.blk' | wc -l | tr -d ' ')"
-          tip="$(find "${SEED_DIR}/live" -type f -name '*.blk' | sed 's|.*/0*\([0-9][0-9]*\)\.blk$|\1|' | sort -n | tail -1)"
-          echo "Seeded ${count} completed block file(s) into block-node-2, tip=${tip}"
-          if [ "${count}" -eq 0 ]; then
-            echo "No completed block files found to seed block-node-2"
-            exit 1
-          fi
-
-          kubectl cp "${SEED_DIR}/live" {{ .NAMESPACE }}/block-node-2-0:/tmp/seed-live \
-            --context kind-solo-e2e-c2 \
-            -c block-node-server
-          kubectl exec block-node-2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- sh -c '
-            set -e
-            rm -rf /opt/hiero/block-node/data/live/* /opt/hiero/block-node/data/historic/*
-            mkdir -p /opt/hiero/block-node/data/live /opt/hiero/block-node/data/historic
-            cp -R /tmp/seed-live/. /opt/hiero/block-node/data/live/
-            chown -R hedera:hedera /opt/hiero/block-node/data/live /opt/hiero/block-node/data/historic
-            rm -rf /tmp/seed-live
-          '
           kubectl delete pod block-node-2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
+          kubectl wait --for=condition=ready pod/block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c1 --timeout=180s
           kubectl wait --for=condition=ready pod/block-node-2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=180s
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for block-node to receive post-restore blocks, then bridge the missing rows
