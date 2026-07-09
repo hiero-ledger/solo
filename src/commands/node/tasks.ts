@@ -661,60 +661,32 @@ export class NodeCommandTasks {
     return podReference;
   }
 
-  private async isNetworkNodeRuntimeReady(
-    namespace: NamespaceName,
-    nodeAlias: NodeAlias,
-    context?: string,
-  ): Promise<boolean> {
-    if (typeof context !== 'string' || context.trim().length === 0) {
-      context = extractContextFromConsensusNodes(nodeAlias, this.remoteConfig.getConsensusNodes());
-    }
-
-    const rootContainer: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
-    const readinessCommand: string =
-      "ps -ef | grep -q '[c]om.hedera.node.app.ServicesMain' && " +
-      'curl -sf http://localhost:9999/metrics >/dev/null && ' +
-      'true < /dev/tcp/127.0.0.1/50211';
-
-    try {
-      await rootContainer.execContainer(['bash', '-c', readinessCommand]);
-      return true;
-    } catch (error) {
-      this.logger.debug(
-        `Runtime readiness check failed for node '${nodeAlias}' in namespace '${namespace.name}': ${JSON.stringify(error)}`,
-      );
-
-      return false;
-    }
-  }
-
   private async waitForGrpcReadiness(
     namespace: NamespaceName,
     nodeAlias: NodeAlias,
     task: SoloListrTaskWrapper<AnyListrContext>,
     title: string,
   ): Promise<void> {
+    const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+
     let attempt: number = 0;
     let consecutiveSuccesses: number = 0;
 
     while (attempt < constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS) {
       try {
-        if (await this.isNetworkNodeRuntimeReady(namespace, nodeAlias)) {
-          consecutiveSuccesses++;
+        await this.accountManager.refreshNodeClient(namespace, clusterReferences, deployment, true, {
+          type: 'only',
+          nodeAlias,
+        });
+        consecutiveSuccesses++;
 
-          task.title =
-            `${title} - gRPC readiness ${chalk.green(`${consecutiveSuccesses}/${constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES}`)}, ` +
-            `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
+        task.title =
+          `${title} - gRPC readiness ${chalk.green(`${consecutiveSuccesses}/${constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES}`)}, ` +
+          `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
 
-          if (consecutiveSuccesses >= constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES) {
-            return;
-          }
-        } else {
-          consecutiveSuccesses = 0;
-
-          task.title =
-            `${title} - gRPC readiness ${chalk.yellow('WAITING')}, ` +
-            `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
+        if (consecutiveSuccesses >= constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES) {
+          return;
         }
       } catch (error) {
         consecutiveSuccesses = 0;
