@@ -300,116 +300,6 @@ export class BackupRestoreCommand extends BaseCommand {
    * node knows its tip is N-1 and tells CN `Behind(N-1)`; CN can then re-stream from N
    * using its locally recovered pending blocks.
    */
-  private async downloadBlockNodeData(outputDirectory: string): Promise<void> {
-    const blockNodes: any[] = this.remoteConfig.configuration?.state?.blockNodes || [];
-    if (blockNodes.length === 0) {
-      this.logger.info('No block node in deployment; skipping block node data backup');
-      return;
-    }
-
-    for (const blockNode of blockNodes) {
-      const blockNodeId: number = Number(blockNode.metadata.id);
-      const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
-      const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
-      const k8: K8 = this.k8Factory.getK8(blockNodeContext);
-
-      const pods: Pod[] = await k8.pods().list(blockNodeNamespace, Templates.renderBlockNodeLabels(blockNodeId));
-      if (pods.length === 0) {
-        this.logger.info(`Skipping block node data backup for id ${blockNodeId}: no pod found`);
-        continue;
-      }
-
-      const pod: Pod = pods[0];
-      const podName: string = pod.podReference.name.toString();
-      const containerReference: ContainerReference = ContainerReference.of(
-        pod.podReference,
-        constants.BLOCK_NODE_CONTAINER_NAME,
-      );
-      const container: Container = k8.containers().readByRef(containerReference);
-
-      const targetDirectory: string = PathEx.join(outputDirectory, blockNode.metadata.cluster, 'blockNodeData');
-      if (!fs.existsSync(targetDirectory)) {
-        fs.mkdirSync(targetDirectory, {recursive: true});
-      }
-
-      const archiveInPod: string = `/tmp/${podName}-blockNodeData.tar.gz`;
-      try {
-        // Capture data/ and verification/ together. The block-node-server image ships with
-        // tar+gzip but not zip/unzip, so use tar.gz for cross-step compatibility. Empty
-        // subdirectories are still archived so restore can rebuild the expected layout.
-        await container.execContainer([
-          'sh',
-          '-c',
-          `rm -f "${archiveInPod}" && cd /opt/hiero/block-node && tar czf "${archiveInPod}" data verification && sync && test -f "${archiveInPod}"`,
-        ]);
-        await helpers.sleep(Duration.ofSeconds(1));
-        await container.copyFrom(archiveInPod, targetDirectory);
-        await container.execContainer(['sh', '-c', `rm -f "${archiveInPod}"`]);
-        this.logger.info(`Captured block node data for ${podName} -> ${targetDirectory}`);
-      } catch (error: any) {
-        this.logger.showUser(
-          chalk.yellow(`    ⚠ Failed to download block node data from ${podName}: ${error.message || error}`),
-        );
-      }
-    }
-  }
-
-  /**
-   * Download `/opt/hgcapp/blockStreams/` from each consensus node into the backup
-   * directory. Files are zipped inside the pod (lossless, fast) then copied out. Layout:
-   *   <outputDirectory>/<cluster-ref>/blockStreams/<podName>-blockStreams.zip
-   * The corresponding restore step plants this content back on each new CN's disk so the
-   * freeze block (and any other pending blocks) are available for back-fill once the new
-   * CN starts and the block node responds Behind.
-   */
-  private async downloadConsensusBlockStreams(
-    outputDirectory: string,
-    namespace: NamespaceName,
-    consensusNodes: ConsensusNode[],
-  ): Promise<void> {
-    for (const node of consensusNodes) {
-      const nodeAlias: NodeAlias = node.name as NodeAlias;
-      const k8Context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
-      const k8: K8 = this.k8Factory.getK8(k8Context);
-      const pods: Pod[] = await k8
-        .pods()
-        .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
-      if (pods.length === 0) {
-        this.logger.info(`Skipping CN block stream backup for ${nodeAlias}: no pod found`);
-        continue;
-      }
-
-      const pod: Pod = pods[0];
-      const podName: string = pod.podReference.name.toString();
-      const containerReference: ContainerReference = ContainerReference.of(pod.podReference, constants.ROOT_CONTAINER);
-      const container: Container = k8.containers().readByRef(containerReference);
-
-      const targetDirectory: string = PathEx.join(outputDirectory, node.cluster, 'blockStreams');
-      if (!fs.existsSync(targetDirectory)) {
-        fs.mkdirSync(targetDirectory, {recursive: true});
-      }
-
-      const zipFileInPod: string = `${constants.HEDERA_HAPI_PATH}/${podName}-blockStreams.zip`;
-      try {
-        // Empty directory is acceptable; create the zip even when there's nothing inside so the
-        // restore step always finds something predictable to inspect.
-        await container.execContainer([
-          'sh',
-          '-c',
-          `mkdir -p /opt/hgcapp/blockStreams && (cd /opt/hgcapp/blockStreams && zip -rX "${zipFileInPod}" . >/dev/null && sync && test -f "${zipFileInPod}")`,
-        ]);
-        await helpers.sleep(Duration.ofSeconds(1));
-        await container.copyFrom(zipFileInPod, targetDirectory);
-        await container.execContainer(['sh', '-c', `rm -f "${zipFileInPod}"`]);
-        this.logger.info(`Captured CN block streams for ${podName} -> ${targetDirectory}`);
-      } catch (error: any) {
-        this.logger.showUser(
-          chalk.yellow(`    ⚠ Failed to download blockStreams from ${podName}: ${error.message || error}`),
-        );
-      }
-    }
-  }
-
   /**
    * Backup all component configurations
    */
@@ -508,31 +398,6 @@ export class BackupRestoreCommand extends BaseCommand {
               await networkNodes.getStatesFromPod(namespace, nodeAlias, context, statesDirectory);
             }
             task.title = `Download Node State Files: ${consensusNodes.length} node(s) completed`;
-          },
-        },
-        {
-          // CN keeps every finalized block in /opt/hgcapp/blockStreams/ as `.pnd.gz` until it
-          // is sealed and acknowledged by a downstream consumer. The freeze block routinely
-          // never gets streamed to the block node before solo's stopNodes kills the JVM, so
-          // the saved state references a block that never made it downstream. Capture CN's
-          // local block stream so the matching restore step can plant those blocks back on
-          // the new CN's disk; on first start the new CN can back-fill the block node from
-          // local storage when the block node responds Behind.
-          title: 'Download CN block streams',
-          task: async (context_, task): Promise<void> => {
-            await this.downloadConsensusBlockStreams(outputDirectory, namespace, consensusNodes);
-            task.title = `Download CN block streams: ${consensusNodes.length} node(s) completed`;
-          },
-        },
-        {
-          // Capture the block node's persisted blocks and verification artifacts so the
-          // post-restore block node starts with the same tip it had at backup time. Without
-          // this, a fresh block node responds `Behind(-1)` to every publisher attempt and
-          // CN cannot satisfy the implied "send block 0" because it long since rolled past.
-          title: 'Download block node data',
-          task: async (context_, task): Promise<void> => {
-            await this.downloadBlockNodeData(outputDirectory);
-            task.title = 'Download block node data: completed';
           },
         },
         {
@@ -724,53 +589,6 @@ export class BackupRestoreCommand extends BaseCommand {
    * node responds Behind to a publish attempt, CN can back-fill the missing block from
    * its local store.
    */
-  private async restoreConsensusBlockStreams(inputDirectory: string): Promise<void> {
-    const namespace: NamespaceName = this.remoteConfig.getNamespace();
-    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
-
-    for (const node of consensusNodes) {
-      const nodeAlias: NodeAlias = node.name as NodeAlias;
-      const sourceDirectory: string = PathEx.join(inputDirectory, node.cluster, 'blockStreams');
-      if (!fs.existsSync(sourceDirectory)) {
-        this.logger.showUser(chalk.gray(`    No blockStreams backup for ${nodeAlias} (${sourceDirectory}); skipping`));
-        continue;
-      }
-
-      const k8Context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
-      const k8: K8 = this.k8Factory.getK8(k8Context);
-      const pods: Pod[] = await k8
-        .pods()
-        .list(namespace, [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node']);
-      if (pods.length === 0) {
-        this.logger.showUser(chalk.yellow(`    No CN pod found for ${nodeAlias}; skipping blockStreams restore`));
-        continue;
-      }
-
-      const pod: Pod = pods[0];
-      const podName: string = pod.podReference.name.toString();
-      const expectedZipName: string = `${podName}-blockStreams.zip`;
-      const localZipPath: string = PathEx.join(sourceDirectory, expectedZipName);
-      if (!fs.existsSync(localZipPath)) {
-        this.logger.showUser(chalk.gray(`    No blockStreams zip for ${nodeAlias} at ${localZipPath}; skipping`));
-        continue;
-      }
-
-      const containerReference: ContainerReference = ContainerReference.of(pod.podReference, constants.ROOT_CONTAINER);
-      const container: Container = k8.containers().readByRef(containerReference);
-
-      const zipInPod: string = `${constants.HEDERA_HAPI_PATH}/${expectedZipName}`;
-      this.logger.showUser(chalk.gray(`    Restoring blockStreams to ${podName}`));
-      await container.copyTo(localZipPath, constants.HEDERA_HAPI_PATH);
-      await helpers.sleep(Duration.ofSeconds(1));
-      await container.execContainer([
-        'sh',
-        '-c',
-        `mkdir -p /opt/hgcapp/blockStreams && unzip -o "${zipInPod}" -d /opt/hgcapp/blockStreams >/dev/null && rm -f "${zipInPod}" && chown -R hedera:hedera /opt/hgcapp/blockStreams`,
-      ]);
-      this.logger.showUser(chalk.green(`    ✓ Restored blockStreams for ${podName}`));
-    }
-  }
-
   /**
    * Restore logs and configs to consensus nodes
    * @param inputDirectory - directory containing logs
@@ -2384,17 +2202,6 @@ export class BackupRestoreCommand extends BaseCommand {
           task: async (context_, task): Promise<void> => {
             await this.restoreLogsAndConfigs(inputDirectory);
             task.title = 'Restore Logs and Configs: completed';
-          },
-        },
-        {
-          // Plant CN's pre-stop block stream files (including the freeze block held in
-          // .pnd form) onto the new CN's disk so back-fill can satisfy the block node on
-          // first publish attempt. Must run before uploadStateFiles to land alongside the
-          // restored saved state.
-          title: 'Restore CN block streams',
-          task: async (context_, task): Promise<void> => {
-            await this.restoreConsensusBlockStreams(inputDirectory);
-            task.title = 'Restore CN block streams: completed';
           },
         },
         this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),
