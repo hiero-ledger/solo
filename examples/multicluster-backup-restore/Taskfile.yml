@@ -65,6 +65,8 @@ tasks:
           $SOLO_COMMAND deployment diagnostics debug --deployment {{ .DEPLOYMENT }} --dev || true
       - task: destroy-cluster
       - task: restore-clusters
+      - task: deploy-external-database
+      - task: restore-db
       - task: restore-network
       - cmd: |
           echo "=== [DEBUG] block-node-1-config after restore-network ==="
@@ -117,14 +119,6 @@ tasks:
               fi
             "
           done
-      - cmd: |
-          echo "Resetting block node data before the colocated consensus publisher starts..."
-          kubectl patch configmap block-node-1-config -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 \
-            --type merge -p '{"data":{"VERIFICATION_TYPE":"NO_OP","FILES_RECENT_COMPRESSION":"NONE","FILES_HISTORIC_COMPRESSION":"NONE","BLOCK_NODE_EARLIEST_MANAGED_BLOCK":"0"}}'
-          kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- \
-            sh -c 'rm -rf /opt/hiero/block-node/data/live/* /opt/hiero/block-node/data/historic/* 2>/dev/null || true'
-          kubectl delete pod block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
-          kubectl wait --for=condition=ready pod/block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=180s
       # LB IPs are pinned by the chart via service.spec.loadBalancerIP (set during
       # consensus network deploy / restore-network with --haproxy-ips/--envoy-ips/
       # --network-node-ips), so MetalLB re-allocates the same IPs every time. No
@@ -212,8 +206,7 @@ tasks:
           kubectl wait --for=condition=ready pod/block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=180s
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for block-node to receive post-restore blocks, then bridge the missing rows
-      # before deploying relay so relay/mirror checks do not wait on blocks that will never
-      # exist downstream.
+      # so mirror importer can chain from the first live block without a gap.
       - cmd: |
           echo "Waiting for block node to receive blocks above importer's MAX..."
           IMPORTER_MAX="$({ kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
@@ -244,22 +237,6 @@ tasks:
             {{ .SOLO_COMMAND }} config ops bridge-import-gap --deployment {{ .DEPLOYMENT }} --dev
           else
             echo "Skipping bridge-import-gap; mirror record_file table is not present"
-          fi
-      # Relay needs mirror endpoints. The default restore path skips mirror/relay because
-      # native mirror block import is currently blocked upstream, so keep relay gated with
-      # the optional full smoke test.
-      - cmd: |
-          if [ "{{ .RUN_RESTORE_SMOKE_TEST }}" != "true" ]; then
-            echo "Skipping relay deploy; set RUN_RESTORE_SMOKE_TEST=true to enable full relay/mirror smoke."
-            exit 0
-          fi
-          if kubectl get deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 >/dev/null 2>&1; then
-            kubectl rollout restart deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2
-            kubectl rollout status deployment relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --timeout=120s
-          else
-            kubectl delete configmap relay-1 relay-1-ws -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --ignore-not-found
-            kubectl delete secret relay-1 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 --ignore-not-found
-            $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
           fi
       - task: verify
 
@@ -442,16 +419,6 @@ tasks:
           echo "  Logs and States: {{ .BACKUP_DIR }}/{{ .NAMESPACE }}"
           ls -lh {{ .BACKUP_DIR }} 2>/dev/null || true
           ls -lh "{{ .BACKUP_DIR }}/{{ .NAMESPACE }}" 2>/dev/null || true
-      # Back up tss-parameters.bin from the block node.
-      # This file is derived from block 0 (LedgerIdPublicationTransactionBody) and is
-      # required for TSS verification.  After cluster destroy + restore, CN resumes at
-      # the backed-up block height and never re-streams block 0, so the block node
-      # can only acquire this file if we restore it explicitly.
-      - cmd: |
-          kubectl cp block-node-1-0:/opt/hiero/block-node/verification/tss-parameters.bin \
-            {{ .BACKUP_DIR }}/tss-parameters.bin \
-            -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 || true
-          echo "✅ tss-parameters.bin backed up"
 
   # ==================== Destroy and Redeploy Tasks ====================
 
@@ -480,9 +447,17 @@ tasks:
           cp {{ .ZIP_INPUT_FILE }} ~/.solo/logs
 
   restore-network:
-    desc: Redeploy complete network infrastructure (after cluster deletion)
+    desc: Deploy network components to existing clusters from backup (DB already populated by restore-db)
+    env:
+      DEPLOYMENT: "{{ .DEPLOYMENT }}"
+      NAMESPACE: "{{ .NAMESPACE }}"
+      NODE_ALIASES: "{{ .NODE_ALIASES }}"
+      POSTGRES_HOST_FQDN: "{{ .POSTGRES_HOST_FQDN }}"
+      POSTGRES_USERNAME: "{{ .POSTGRES_USERNAME }}"
+      POSTGRES_PASSWORD: "{{ .POSTGRES_PASSWORD }}"
+      POSTGRES_READONLY_USERNAME: "{{ .POSTGRES_READONLY_USERNAME }}"
+      POSTGRES_READONLY_PASSWORD: "{{ .POSTGRES_READONLY_PASSWORD }}"
     cmds:
-      - task: deploy-external-database
       - cmd: |
           BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-network \
             --input-dir {{ .BACKUP_DIR }} \
@@ -528,26 +503,43 @@ tasks:
           -- /bin/bash /tmp/init.sh "{{ .POSTGRES_USERNAME }}" "{{ .POSTGRES_READONLY_USERNAME }}" "{{ .POSTGRES_READONLY_PASSWORD }}"
 
   # ==================== Restore Tasks ====================
+
+  restore-db:
+    desc: Restore external database dump from backup (run after deploy-external-database, before restore-network)
+    cmds:
+      - cmd: |
+          $SOLO_COMMAND config ops restore-db \
+            --input-dir {{ .BACKUP_DIR }}
+
   restore-config:
-    desc: Restore configuration and state from backup
+    desc: Restore configuration and state from backup (DB already populated by restore-db)
     cmds:
       - cmd: |
           BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-config \
             --deployment {{ .DEPLOYMENT }} \
             --input-dir {{ .BACKUP_DIR }} \
-            --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json
+            --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json \
+            --skip-db-restore
 
   # ==================== Verification Tasks ====================
 
   verify:
     desc: Verify restored network functionality
     cmds:
-      - cmd: echo "🔎 Verifying restored state (checking account {{ .SHARD }}.{{ .REALM }}.3)..."
+      - cmd: echo "🔎 Verifying restored state (checking system account {{ .SHARD }}.{{ .REALM }}.3)..."
       - cmd: |
           if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
             {{ .TIMEOUT_COMMAND }} 90s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.3
           else
             $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.3
+          fi
+
+      - cmd: echo "🔎 Verifying pre-restore account exists (state was correctly restored)..."
+      - cmd: |
+          if [ -n "{{ .TIMEOUT_COMMAND }}" ]; then
+            {{ .TIMEOUT_COMMAND }} 90s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.1001
+          else
+            $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.1001
           fi
 
       - cmd: echo "💰 Testing with new transactions..."

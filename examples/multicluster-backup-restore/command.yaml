@@ -1,23 +1,63 @@
-# Mirror startup is intentionally deferred for this restore flow. The restored
-# consensus nodes are verified directly, while mirror native block import is
-# blocked upstream for the current mirror image.
-mirror: []
+# Options file for restore-network.
+# Called after restore-db has populated the external database, so mirror, relay,
+# and explorer can be deployed in the same pass as consensus and block — they will
+# start with a fully populated database.
+#
+# ${VAR} references are substituted from the process environment at runtime
+# (see the env: block in the Taskfile restore-network task).
 block:
   - --deployment
-  - external-database-test-deployment
+  - ${DEPLOYMENT}
   - --cluster-ref
   - solo-e2e-c2
   - --dev
   - --quiet-mode
   - --values-file
   - block-node-values.yaml
-# Relay startup requires mirror account data. In this external-database restore
-# flow, restore-network runs before restore-config restores the mirror database,
-# so relay is intentionally deferred to the restart task.
-relay: []
-# Explorer depends on the skipped mirror path and is not needed for the restore
-# verification. Keep restore-network focused on consensus and block services.
-explorer: []
+mirror:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --cluster-ref
+  - solo-e2e-c2
+  - --use-external-database
+  - --enable-ingress
+  - --external-database-host
+  - ${POSTGRES_HOST_FQDN}
+  - --external-database-owner-username
+  - ${POSTGRES_USERNAME}
+  - --external-database-owner-password
+  - ${POSTGRES_PASSWORD}
+  - --external-database-read-username
+  - ${POSTGRES_READONLY_USERNAME}
+  - --external-database-read-password
+  - ${POSTGRES_READONLY_PASSWORD}
+  - --pinger
+  - -q
+  - --dev
+  - --values-file
+  - mirror-node-values-dual-cluster-minimal.yaml
+explorer:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --cluster-ref
+  - solo-e2e-c2
+  - --mirrorNamespace
+  - ${NAMESPACE}
+  - --enable-explorer-tls
+  - --tls-cluster-issuer-type
+  - acme-staging
+  - --enable-ingress
+  - -q
+  - --dev
+relay:
+  - --deployment
+  - ${DEPLOYMENT}
+  - --cluster-ref
+  - solo-e2e-c2
+  - --node-aliases
+  - ${NODE_ALIASES}
+  - --quiet-mode
+  - --dev
 # Re-applied at restore time so service.spec.loadBalancerIP is rendered into the
 # chart with the same values as the original deploy. MetalLB honors loadBalancerIP,
 # so the new cluster comes up with the same LB IPs the saved roster expects.

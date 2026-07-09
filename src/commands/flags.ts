@@ -2040,6 +2040,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly skipDbRestore: CommandFlag = {
+    constName: 'skipDbRestore',
+    name: 'skip-db-restore',
+    definition: {
+      describe:
+        'Skip the external database dump restore. Use when restore-db has already restored the dump in a prior step.',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly adminKey: CommandFlag = {
     constName: 'adminKey',
     name: 'admin-key',
@@ -3251,6 +3263,7 @@ export class Flags {
     Flags.externalDbParamsFile,
     Flags.expectedLbIpsFile,
     Flags.skipIpTracking,
+    Flags.skipDbRestore,
     Flags.loadBalancerEnabled,
     Flags.localAddressBook,
     Flags.localBuildPath,

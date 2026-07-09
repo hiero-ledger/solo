@@ -36,6 +36,7 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
   public static readonly RESTORE_CONFIG_COMMAND: string = 'restore-config';
   public static readonly RESTORE_CLUSTERS_COMMAND: string = 'restore-clusters';
   public static readonly RESTORE_NETWORK_COMMAND: string = 'restore-network';
+  public static readonly RESTORE_DB_COMMAND: string = 'restore-db';
   public static readonly BRIDGE_IMPORT_GAP_COMMAND: string = 'bridge-import-gap';
 
   public getCommandDefinition(): CommandDefinition {
@@ -93,6 +94,17 @@ export class BackupRestoreCommandDefinition extends BaseCommandDefinition {
               this.backupRestoreCommand,
               this.backupRestoreCommand.restoreNetwork,
               BackupRestoreCommand.RESTORE_NETWORK_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              BackupRestoreCommandDefinition.RESTORE_DB_COMMAND,
+              'Restore the external database dump independently of restore-config. ' +
+                'Run this before restore-network so mirror, relay, and explorer deploy against an already-populated database.',
+              this.backupRestoreCommand,
+              this.backupRestoreCommand.restoreDb,
+              BackupRestoreCommand.RESTORE_DB_FLAGS_LIST,
               [],
             ),
           )

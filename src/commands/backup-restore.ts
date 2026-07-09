@@ -10,7 +10,6 @@ import yaml from 'yaml';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import AdmZip from 'adm-zip';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type Secret} from '../integration/kube/resources/secret/secret.js';
 import {type SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -126,7 +125,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_CONFIG_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.quiet, flags.inputDir, flags.externalDbParamsFile],
+    optional: [flags.quiet, flags.inputDir, flags.externalDbParamsFile, flags.skipDbRestore],
   };
 
   public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
@@ -136,7 +135,19 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_NETWORK_FLAGS_LIST: CommandFlags = {
     required: [flags.inputDir],
-    optional: [flags.quiet, flags.optionsFile, flags.shard, flags.realm, flags.expectedLbIpsFile, flags.skipIpTracking],
+    optional: [
+      flags.quiet,
+      flags.optionsFile,
+      flags.shard,
+      flags.realm,
+      flags.expectedLbIpsFile,
+      flags.skipIpTracking,
+    ],
+  };
+
+  public static RESTORE_DB_FLAGS_LIST: CommandFlags = {
+    required: [flags.inputDir],
+    optional: [flags.quiet, flags.externalDbParamsFile],
   };
 
   public static BRIDGE_IMPORT_GAP_FLAGS_LIST: CommandFlags = {
@@ -1442,8 +1453,59 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
+   * Restore an external DB SQL dump directly from the backup params file.
+   * Reads external-database-params.json to locate the database pod, resets the schema,
+   * and loads the dump. Does NOT scale the mirror importer or restart mirror services —
+   * call this standalone (via restore-db) before mirror components are deployed.
+   */
+  private async restoreDatabaseDump(inputDirectory: string): Promise<void> {
+    const databaseDumpPath: string = PathEx.join(inputDirectory, 'database-dump.sql');
+    if (!fs.existsSync(databaseDumpPath)) {
+      this.logger.info(`No database dump found at ${databaseDumpPath}; skipping database restore`);
+      return;
+    }
+
+    const parametersFromFile: ExternalDatabaseParameters = this.readExternalDatabaseParameters(inputDirectory, true);
+    const databaseContext: Context = parametersFromFile.context;
+    const databaseNamespace: NamespaceName = NamespaceName.of(parametersFromFile.namespace);
+    const databasePodName: string =
+      parametersFromFile.podName || (await this.resolveExternalDbPodName(databaseNamespace, databaseContext));
+    const databaseContainerName: string = parametersFromFile.containerName || 'postgresql';
+    const credentials: {dbName: string; ownerUsername: string; ownerPassword: string} = {
+      dbName: parametersFromFile.databaseName,
+      ownerUsername: parametersFromFile.ownerUsername,
+      ownerPassword: parametersFromFile.ownerPassword,
+    };
+
+    const databaseK8: K8 = this.k8Factory.getK8(databaseContext);
+    const databasePodReference: PodReference = PodReference.of(databaseNamespace, PodName.of(databasePodName));
+    const databaseContainerReference: ContainerReference = ContainerReference.of(
+      databasePodReference,
+      ContainerName.of(databaseContainerName),
+    );
+    const databaseContainer: Container = databaseK8.containers().readByRef(databaseContainerReference);
+
+    await databaseContainer.copyTo(databaseDumpPath, '/tmp');
+    await this.resetExternalDatabaseSchema(databaseContainer, credentials);
+    // pg_dump only captures database-level objects; cluster-level roles (e.g. mirror_rest)
+    // are created by component Helm chart Flyway migrations and are absent from the dump.
+    // When restore-db runs before those components are deployed the GRANT statements in
+    // the dump reference non-existent roles and would abort with ON_ERROR_STOP=1. Omit
+    // that flag so the data + schema load cleanly and role-grant failures are non-fatal;
+    // Flyway creates the roles with proper passwords when each component deploys and
+    // re-applies the same grants at that time.
+    await databaseContainer.execContainer([
+      'psql',
+      `postgresql://${credentials.ownerUsername}:${credentials.ownerPassword}@localhost:5432/${credentials.dbName}`,
+      '-f',
+      '/tmp/database-dump.sql',
+    ]);
+  }
+
+  /**
    * Restore an external DB SQL dump when backup artifacts are present.
    * Importer is scaled down during restore, then runtime services are restarted.
+   * Use this when mirror is already deployed. For pre-deploy restores use restoreDatabaseDump.
    */
   private async restoreDatabaseDumpIfPresent(inputDirectory: string): Promise<void> {
     const databaseDumpPath: string = PathEx.join(inputDirectory, 'database-dump.sql');
@@ -1468,56 +1530,20 @@ export class BackupRestoreCommand extends BaseCommand {
     );
     const importerDeploymentName: string = `${mirrorReleaseName}-importer`;
 
-    const parametersFromFile: ExternalDatabaseParameters = this.readExternalDatabaseParameters(inputDirectory, true);
-    const databaseContext: Context = parametersFromFile.context || mirrorContext;
-    const databaseNamespace: NamespaceName = NamespaceName.of(parametersFromFile.namespace || 'database');
-    const explicitDatabasePodName: string = parametersFromFile.podName || '';
-    const databasePodName: string =
-      explicitDatabasePodName || (await this.resolveExternalDbPodName(databaseNamespace, databaseContext));
-    const databaseContainerName: string = parametersFromFile.containerName || 'postgresql';
-
-    const explicitDatabaseName: string = parametersFromFile.databaseName || '';
-    const explicitOwnerUsername: string = parametersFromFile.ownerUsername || '';
-    const explicitOwnerPassword: string = parametersFromFile.ownerPassword || '';
-
-    const credentials: {dbName: string; ownerUsername: string; ownerPassword: string} =
-      explicitDatabaseName && explicitOwnerUsername && explicitOwnerPassword
-        ? {
-            dbName: explicitDatabaseName,
-            ownerUsername: explicitOwnerUsername,
-            ownerPassword: explicitOwnerPassword,
-          }
-        : await this.resolveMirrorDatabaseCredentials(mirrorNamespace, mirrorContext);
-
     const mirrorK8: K8 = this.k8Factory.getK8(mirrorContext);
-    const databaseK8: K8 = this.k8Factory.getK8(databaseContext);
 
     let importerScaledDown: boolean = false;
     try {
       await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 0);
       importerScaledDown = true;
     } catch (error: any) {
+      // best-effort: log and continue; the restore still runs, importer just was not paused
       this.logger.info(
         `Skipping importer scale-down for '${importerDeploymentName}' in ${mirrorNamespace.name}: ${error.message || error}`,
       );
     }
     try {
-      const databasePodReference: PodReference = PodReference.of(databaseNamespace, PodName.of(databasePodName));
-      const databaseContainerReference: ContainerReference = ContainerReference.of(
-        databasePodReference,
-        ContainerName.of(databaseContainerName),
-      );
-      const databaseContainer: Container = databaseK8.containers().readByRef(databaseContainerReference);
-      await databaseContainer.copyTo(databaseDumpPath, '/tmp');
-      await this.resetExternalDatabaseSchema(databaseContainer, credentials);
-      await databaseContainer.execContainer([
-        'psql',
-        `postgresql://${credentials.ownerUsername}:${credentials.ownerPassword}@localhost:5432/${credentials.dbName}`,
-        '-v',
-        'ON_ERROR_STOP=1',
-        '-f',
-        '/tmp/database-dump.sql',
-      ]);
+      await this.restoreDatabaseDump(inputDirectory);
     } finally {
       if (importerScaledDown) {
         await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 1);
@@ -1561,6 +1587,38 @@ export class BackupRestoreCommand extends BaseCommand {
         constants.PODS_READY_MAX_ATTEMPTS,
         constants.PODS_READY_DELAY,
       );
+  }
+
+  /**
+   * Restore the external database dump independently of restore-config.
+   * Run this BEFORE restore-network so mirror/relay/explorer deploy against
+   * an already-populated database.
+   * Command: solo config ops restore-db
+   */
+  public async restoreDb(argv: ArgvStruct): Promise<boolean> {
+    await this.localConfig.load();
+    this.configManager.update(argv);
+    const inputDirectory: string = this.configManager.getFlag<string>(flags.inputDir) || './solo-backup';
+
+    const tasks: SoloListr<Record<string, never>> = new Listr(
+      [
+        {
+          title: 'Restore external database dump',
+          task: async (_, task): Promise<void> => {
+            await this.restoreDatabaseDump(inputDirectory);
+            task.title = 'Restore external database dump: completed';
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error: unknown) {
+      throw new SoloError('restore-db failed', error);
+    }
+    return true;
   }
 
   /**
@@ -1946,45 +2004,6 @@ export class BackupRestoreCommand extends BaseCommand {
   // (e.g. `000...142.pnd.gz`). The block number is the last 36-digit numeric segment of the
   // entry path. Returns the max block number found across all clusters, or -1 if no `.pnd`
   // entries are present (no freeze gap to bridge).
-  private discoverFreezePndBlockNumber(inputDirectory: string): number {
-    let maxPndBlockNumber: number = -1;
-    if (!fs.existsSync(inputDirectory)) {
-      return maxPndBlockNumber;
-    }
-    const pndPattern: RegExp = /(\d+)\.pnd(\.|$)/;
-    try {
-      const clusterEntries: fs.Dirent[] = fs.readdirSync(inputDirectory, {withFileTypes: true});
-      for (const clusterEntry of clusterEntries) {
-        if (!clusterEntry.isDirectory()) {
-          continue;
-        }
-        const blockStreamsDirectory: string = path.join(inputDirectory, clusterEntry.name, 'blockStreams');
-        if (!fs.existsSync(blockStreamsDirectory)) {
-          continue;
-        }
-        const archiveFiles: string[] = fs
-          .readdirSync(blockStreamsDirectory)
-          .filter((fileName: string): boolean => fileName.endsWith('-blockStreams.zip'));
-        for (const archiveFile of archiveFiles) {
-          const archivePath: string = path.join(blockStreamsDirectory, archiveFile);
-          const zip: AdmZip = new AdmZip(archivePath);
-          for (const zipEntry of zip.getEntries()) {
-            const match: RegExpMatchArray | null = zipEntry.entryName.match(pndPattern);
-            if (match) {
-              const blockNumber: number = Number.parseInt(match[1], 10);
-              if (blockNumber > maxPndBlockNumber) {
-                maxPndBlockNumber = blockNumber;
-              }
-            }
-          }
-        }
-      }
-    } catch (error: any) {
-      this.logger.info(`Failed to scan captured CN block streams for freeze pnd block: ${error.message || error}`);
-    }
-    return maxPndBlockNumber;
-  }
-
   private async applyBlockNodeRestoreFixes(inputDirectory: string, _namespace: NamespaceName): Promise<void> {
     const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
     if (blockNodes.length === 0) {
@@ -2002,33 +2021,16 @@ export class BackupRestoreCommand extends BaseCommand {
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
       const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      // Override BLOCK_NODE_EARLIEST_MANAGED_BLOCK so the new, empty block node starts
-      // managing the restored stream at the saved-state edge. Using a value far above
-      // this edge allows the publisher stream to connect, but those below-EMB blocks are
-      // not persisted on disk and mirror importer remains stuck waiting for them.
-      const freezePndBlockNumber: number = this.discoverFreezePndBlockNumber(inputDirectory);
-      let earliestManagedBlock: string = '0';
-      if (freezePndBlockNumber >= 0) {
-        earliestManagedBlock = String(freezePndBlockNumber);
-        this.logger.info(
-          `Setting block node EMB to ${earliestManagedBlock} (freeze pnd block ${freezePndBlockNumber})`,
-        );
-      } else {
-        try {
-          const blockNodeConfigMap: ConfigMap = await k8.configMaps().read(blockNodeNamespace, blockNodeConfigMapName);
-          const configuredEarliestManagedBlock: string = blockNodeConfigMap.data?.BLOCK_NODE_EARLIEST_MANAGED_BLOCK;
-          if (configuredEarliestManagedBlock && configuredEarliestManagedBlock.trim().length > 0) {
-            earliestManagedBlock = configuredEarliestManagedBlock.trim();
-          }
-        } catch (error: any) {
-          this.logger.info(
-            `Unable to read ${blockNodeConfigMapName} in ${blockNodeNamespace.toString()} (${blockNodeContext}); defaulting earliest block to 0. Error: ${error.message || error}`,
-          );
-        }
-      }
-
+      // data/ is intentionally left empty after restore (see below), so the block node
+      // starts with lastPersistedBlockNumber = -1 and accepts whatever CN publishes first.
+      // Set EMB=0 and disable TSS verification so the Taskfile's post-restore seeding step
+      // can plant all historical blocks without rejection.  The freeze block gap is handled
+      // separately by `solo config ops bridge-import-gap` (synthetic record_file rows).
       await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
-        BLOCK_NODE_EARLIEST_MANAGED_BLOCK: earliestManagedBlock,
+        BLOCK_NODE_EARLIEST_MANAGED_BLOCK: '0',
+        VERIFICATION_TYPE: 'NO_OP',
+        FILES_RECENT_COMPRESSION: 'NONE',
+        FILES_HISTORIC_COMPRESSION: 'NONE',
       });
 
       const pods: Pod[] = await k8.pods().list(blockNodeNamespace, Templates.renderBlockNodeLabels(blockNodeId));
@@ -2132,6 +2134,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const inputDirectory: string = this.configManager.getFlag<string>(flags.inputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
     const deployment: string = this.configManager.getFlag<string>(flags.deployment);
+    const skipDbRestore: boolean = (this.configManager.getFlag<boolean>(flags.skipDbRestore) as boolean) ?? false;
 
     // Get configuration data
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
@@ -2225,6 +2228,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Restore external database dump (if present)',
+          skip: (): boolean => skipDbRestore,
           task: async (context_, task): Promise<void> => {
             await this.restoreDatabaseDumpIfPresent(inputDirectory);
             task.title = 'Restore external database dump (if present): completed';
@@ -2960,6 +2964,24 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
+   * Substitute ${VAR} and $VAR references in an options-file string from the
+   * current process environment.  Unknown variables are left as-is with a
+   * warning so that a typo surfaces clearly instead of silently producing an
+   * empty string.
+   */
+  private interpolateEnvVariables(content: string): string {
+    return content.replace(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (match, braced: string, unbraced: string) => {
+      const variableName: string = braced ?? unbraced;
+      const value: string | undefined = process.env[variableName];
+      if (value === undefined) {
+        this.logger.warn(`Options file references undefined environment variable: ${variableName}`);
+        return match;
+      }
+      return value;
+    });
+  }
+
+  /**
    * Build shared initialization task for restore commands
    */
   private buildInitializationTask(argv: ArgvStruct): SoloListrTask<any> {
@@ -2985,7 +3007,8 @@ export class BackupRestoreCommand extends BaseCommand {
           }
 
           try {
-            const optionsContent: string = fs.readFileSync(optionsFile, 'utf8');
+            const rawContent: string = fs.readFileSync(optionsFile, 'utf8');
+            const optionsContent: string = this.interpolateEnvVariables(rawContent);
             const parsedOptions: any = yaml.parse(optionsContent);
             this.normalizeComponentOptionsFilePaths(parsedOptions, optionsFile);
             context_.componentOptions = parsedOptions;

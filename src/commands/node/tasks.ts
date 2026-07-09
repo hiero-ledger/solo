@@ -1398,9 +1398,6 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass & {stateFile?: string} = context_.config;
 
-        // Get the source node ID from the first consensus node (the state file's original node)
-        const sourceNodeId: NodeId = config.consensusNodes[0].nodeId;
-
         for (const nodeAlias of context_.config.nodeAliases) {
           const kubeContext: Optional<string> = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
@@ -1431,8 +1428,16 @@ export class NodeCommandTasks {
 
           stateInputPath = PathEx.resolve(stateInputPath);
 
+          // sourceNodeId tracks which node's state directory is inside the zip so the
+          // rename-state-node-id script can move it to the right place.
+          let sourceNodeId: NodeId;
+
           if (fs.statSync(stateInputPath).isDirectory()) {
-            // It's a directory - find the state file for this specific pod
+            // Directory restore: each pod has its own zip that was captured from that same
+            // pod.  The zip therefore already contains the correct node-ID directory for the
+            // target pod, so no rename is required.
+            sourceNodeId = targetNodeId;
+
             const podName: string = podReference.name.name;
             const statesDirectory: string = PathEx.join(
               stateInputPath,
@@ -1459,7 +1464,9 @@ export class NodeCommandTasks {
             zipFile = PathEx.join(statesDirectory, stateFiles[0]);
             this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
           } else {
-            // It's a single file or use default from config
+            // Single-file restore (e.g. node add): the zip is from the first consensus node
+            // and needs to be renamed to match each target node.
+            sourceNodeId = config.consensusNodes[0].nodeId;
             zipFile = stateInputPath;
           }
 
