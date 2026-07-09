@@ -803,19 +803,12 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
               .execContainer(['sh', '-c', `printf '%s' '${bootstrapJson}' > ${bootstrapFilePath}`]);
 
             // Restart the pod so BlockNodeApp.loadApplicationState() picks up the file on startup.
+            // Record deletion time before issuing the delete so waitForReadyStatus(createdAfter)
+            // can distinguish the new pod from the old one. The block node runs as a StatefulSet,
+            // so Kubernetes immediately creates a replacement pod with the same label selector;
+            // waitForPodsToTerminate would never see zero pods and would time out.
+            const podDeletionTime: Date = new Date();
             await k8.pods().delete(blockNodePod.podReference);
-            // Wait for old pod to fully terminate before waiting for the new pod.
-            // Without this, waitForReadyStatus returns immediately seeing the still-Ready old pod,
-            // completing deployment before the new pod exists and causing the consensus node to
-            // exhaust its gRPC publisher reconnect attempts against a non-existent endpoint.
-            await k8
-              .pods()
-              .waitForPodsToTerminate(
-                namespace,
-                blockNodeLabels,
-                constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
-                constants.BLOCK_NODE_PODS_RUNNING_DELAY,
-              );
             await k8
               .pods()
               .waitForReadyStatus(
@@ -823,6 +816,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 blockNodeLabels,
                 constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
                 constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+                podDeletionTime,
               );
           },
         }),
