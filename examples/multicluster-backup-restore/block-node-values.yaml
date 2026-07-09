@@ -2,4 +2,4 @@ blockNode:
   config:
     BLOCK_NODE_EARLIEST_MANAGED_BLOCK: "100000000"
 plugins:
-  names: facility-messaging,block-access-service,health,server-status,stream-publisher,stream-subscriber,blocks-file-historic,blocks-file-recent,backfill
+  names: facility-messaging,block-access-service,health,server-status,stream-publisher,stream-subscriber,blocks-file-historic,blocks-file-recent,backfill,block-verification

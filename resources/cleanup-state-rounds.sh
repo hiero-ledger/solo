@@ -28,9 +28,9 @@ for nodeid in */; do
     
     # Find all numeric round directories and keep a fully signed, non-freeze
     # state when available. If the newest archived state is a freeze state, use
-    # the earliest signed non-freeze candidate to avoid restoring a state where
-    # the freeze has already been scheduled but not yet snapshotted as a freeze
-    # state.
+    # the signed non-freeze checkpoint before the latest non-freeze candidate.
+    # This avoids restoring a freeze-adjacent state while keeping the selected
+    # state new enough for the retained PCES files.
     rounds=$(find . -maxdepth 1 -type d -name '[0-9]*' | sed 's|./||' | sort -n)
     
     if [ -n "$rounds" ]; then
@@ -63,12 +63,11 @@ for nodeid in */; do
         fi
       done
 
-      if [ "$highest_round_freeze_state" = "true" ] && [ -n "$earliest_signed_non_freeze_round" ]; then
-        latest_round="$earliest_signed_non_freeze_round"
+      if [ "$highest_round_freeze_state" = "true" ] && [ -n "$latest_signed_non_freeze_round" ]; then
         if [ -n "$previous_signed_non_freeze_round" ]; then
-          pces_source_round="$previous_signed_non_freeze_round"
+          latest_round="$previous_signed_non_freeze_round"
         else
-          pces_source_round="$latest_signed_non_freeze_round"
+          latest_round="$latest_signed_non_freeze_round"
         fi
       fi
 

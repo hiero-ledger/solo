@@ -2593,7 +2593,9 @@ export class BackupRestoreCommand extends BaseCommand {
       {
         title: 'Deploy mirror nodes',
         skip: (context_: AnyListrContext): boolean =>
-          !context_.deploymentState?.mirrorNodes || context_.deploymentState.mirrorNodes.length === 0,
+          !context_.deploymentState?.mirrorNodes ||
+          context_.deploymentState.mirrorNodes.length === 0 ||
+          (Array.isArray(context_.componentOptions?.mirror) && context_.componentOptions.mirror.length === 0),
         task: async (context_, taskListWrapper) => {
           const mirrorNodeTasks: SoloListrTask<AnyListrContext>[] = [];
 
@@ -2736,7 +2738,9 @@ export class BackupRestoreCommand extends BaseCommand {
       {
         title: 'Deploy explorers',
         skip: (context_: AnyListrContext): boolean =>
-          !context_.deploymentState?.explorers || context_.deploymentState.explorers.length === 0,
+          !context_.deploymentState?.explorers ||
+          context_.deploymentState.explorers.length === 0 ||
+          (Array.isArray(context_.componentOptions?.explorer) && context_.componentOptions.explorer.length === 0),
         task: async (context_, taskListWrapper) => {
           const explorerTasks: SoloListrTask<AnyListrContext>[] = [];
 

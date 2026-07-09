@@ -1,23 +1,7 @@
-mirror:
-  - --deployment
-  - external-database-test-deployment
-  - --cluster-ref
-  - solo-e2e-c2
-  - --enable-ingress
-  - --pinger
-  - --dev
-  - --quiet-mode
-  - --use-external-database
-  - --external-database-host
-  - my-postgresql.database.svc.cluster.local
-  - --external-database-owner-username
-  - postgres
-  - --external-database-owner-password
-  - XXXXXXX
-  - --external-database-read-username
-  - readonlyuser
-  - --external-database-read-password
-  - XXXXXXXX
+# Mirror startup is intentionally deferred for this restore flow. The restored
+# consensus nodes are verified directly, while mirror native block import is
+# blocked upstream for the current mirror image.
+mirror: []
 block:
   - --deployment
   - external-database-test-deployment
@@ -31,6 +15,9 @@ block:
 # flow, restore-network runs before restore-config restores the mirror database,
 # so relay is intentionally deferred to the restart task.
 relay: []
+# Explorer depends on the skipped mirror path and is not needed for the restore
+# verification. Keep restore-network focused on consensus and block services.
+explorer: []
 # Re-applied at restore time so service.spec.loadBalancerIP is rendered into the
 # chart with the same values as the original deploy. MetalLB honors loadBalancerIP,
 # so the new cluster comes up with the same LB IPs the saved roster expects.
@@ -42,8 +29,8 @@ consensus:
   - --load-balancer
   - --pvcs
   - --haproxy-ips
-  - node1=172.19.1.0,node2=172.19.2.0
+  - node1=172.19.1.0,node2=172.19.2.1
   - --envoy-ips
   - node1=172.19.1.2,node2=172.19.2.2
   - --network-node-ips
-  - node1=172.19.1.1,node2=172.19.2.1
+  - node1=172.19.1.1,node2=172.19.2.0
