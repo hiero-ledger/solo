@@ -25,6 +25,7 @@ import {type AnyObject, type ArgvStruct} from '../../../../types/aliases.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
 import {SINGLE_DESTROY_COMMAND} from '../../one-shot-command-paths.js';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import yaml from 'yaml';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
@@ -108,16 +109,22 @@ export class DeployArgvBuilders {
     // (larger Disruptor ring buffer + memory, no JFR) before the solo-dev image override
     // so the settings apply but the image is still the solo-dev image.
     const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
-    const perfValuesFile: string | undefined =
-      constants.ONE_SHOT_BLOCK_NODE_PERF.toLowerCase() === 'true'
-        ? constants.BLOCK_NODE_MESSAGING_WORKAROUND_FILE
-        : undefined;
+    const isPerfMode: boolean = constants.ONE_SHOT_BLOCK_NODE_PERF.toLowerCase() === 'true';
+    const perfValuesFile: string | undefined = isPerfMode ? constants.BLOCK_NODE_MESSAGING_WORKAROUND_FILE : undefined;
+    // In perf mode, configure RsaRosterBootstrapPlugin with the mirror node URL so that
+    // VerificationServicePlugin can verify WRB/RSA-signed blocks. Without this, keyByNodeId
+    // stays empty and any block carrying a SignedRecordFileProof triggers BAD_BLOCK_PROOF
+    // (BN 0.37.1 bug: address book is never delivered, rejecting all WRB blocks).
+    const rosterBootstrapValuesFile: string | undefined = isPerfMode
+      ? DeployArgvBuilders.writeRosterBootstrapValuesFile(config.namespace.name)
+      : undefined;
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
       ...blockNodeConfiguration,
       [Flags.getFormattedFlagKey(Flags.valuesFile)]: [
         blockExistingValuesFile,
         perfValuesFile,
+        rosterBootstrapValuesFile,
         constants.BLOCK_NODE_SOLO_DEV_FILE,
       ]
         .filter(Boolean)
@@ -125,6 +132,16 @@ export class DeployArgvBuilders {
     };
     appendConfigToArgv(argv, blockLocalConfig);
     return argvPushGlobalFlags(argv);
+  }
+
+  private static writeRosterBootstrapValuesFile(namespaceName: string): string {
+    const mirrorRestUrl: string = `http://mirror-${MIRROR_NODE_ID}-rest.${namespaceName}.svc.cluster.local`;
+    const content: string = yaml.stringify({
+      blockNode: {config: {ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: mirrorRestUrl}},
+    });
+    const filePath: string = path.join(os.tmpdir(), 'bn-roster-bootstrap-perf.yaml');
+    fs.writeFileSync(filePath, content, 'utf8');
+    return filePath;
   }
 
   public static buildMirrorNodeArgv(config: OneShotSingleDeployConfigClass, deployPinger: boolean = true): string[] {

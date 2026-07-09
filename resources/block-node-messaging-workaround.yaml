@@ -1,26 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
-# Workaround for hiero-block-node#3150 and a related 0.37.1 issue where
+# Workaround for hiero-block-node#3150 and two related 0.37.1 issues:
+#
+# Issue 1 — Ring buffer overflow (hiero-block-node#3150):
 # VerificationServicePlugin (a gating Disruptor consumer) cannot keep up with incoming
-# block items, causing the ring buffer to fill, the consensus-node gRPC stream to time
-# out, and block N to be permanently absent from historic storage → NOT_AVAILABLE for all
-# mirror subscriber reconnects on that block.
+# block items, causing the ring buffer to fill cumulatively across all 5 performance load
+# tests.  Observed in run 28988949642: ring buffer was ~98% full (980 K/1 M) when
+# SmartContract started; the remaining 2% capacity exhausted in ~8 s.
+# Workaround: 2 M ring buffer + 8 CPUs + ZGC (see config below).
 #
-# Root cause in 0.37.1: VerificationServicePlugin.isGating() returns true (via the
-# BlockItemHandler→GatingHandler default).  The ring buffer fills CUMULATIVELY across
-# all 5 performance load tests: by the end of test 4 (HCS) the block-node JVM is using
-# ~2.3 GB memory and the ring buffer is ~98% full (observed in run 28988949642, where
-# block-node memory peaked at 2 259 MB against a 1M ring buffer).  When SmartContract
-# (test 5) starts, its larger EVM blocks generate a higher publication rate than the
-# simple-transfer tests, and the remaining 2% capacity is exhausted in ~8 seconds.
-#
-# Workaround: double the ring buffer to 2 M (2^21) AND double the CPU allocation to
-# 8 cores so the verification thread has more scheduling headroom.  With 2× faster
-# verification the net fill rate during simple tests drops from ~680 slots/sec to ~360,
-# leaving only ~27% (544 K/2 M) of the ring buffer occupied at SmartContract start;
-# at the SmartContract net fill rate (~1 300 slots/sec with 8 CPUs) the remaining
-# 1.5 M capacity lasts > 1 100 s >> 300 s NLG.  Heap raised to 4 g to accommodate
-# the larger pre-allocated ring buffer (2 M × 304 bytes ≈ 608 MB pre-allocation).
+# Issue 2 — BAD_BLOCK_PROOF for WRB blocks (observed in runs 28988949642 and 28991564151):
+# ExtendedMerkleTreeSession.verifyRsaProof() rejects all SignedRecordFileProof (WRB/RSA)
+# blocks immediately when keyByNodeId is empty.  keyByNodeId is populated only when
+# RsaRosterBootstrapPlugin delivers a NodeAddressBook via onContextUpdate, which requires
+# a mirror node URL, peer BN, or bootstrap file.  Without any source configured, the map
+# stays empty for the entire run; the first WRB block (~block 7621, ~30 min into the test)
+# triggers BAD_BLOCK_PROOF, causing the CN to evict its streaming buffer and deadlock.
+# Workaround: ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL is injected dynamically with the
+# mirror node in-cluster URL by deploy-argv-builders.ts; it is NOT in this file because it
+# requires the namespace, which is only known at deploy time.
 #
 # Applied automatically when ONE_SHOT_BLOCK_NODE_PERF=true; kept separate from
 # block-node-perf-values.yaml so JFR profiling is opt-in.
