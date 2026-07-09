@@ -21,13 +21,15 @@ import {
 } from '../../../command-helpers.js';
 import * as constants from '../../../../core/constants.js';
 import * as version from '../../../../../version.js';
-import {type AnyObject, type ArgvStruct} from '../../../../types/aliases.js';
+import {type AnyObject, type ArgvStruct, type NodeAlias} from '../../../../types/aliases.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
 import {SINGLE_DESTROY_COMMAND} from '../../one-shot-command-paths.js';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import yaml from 'yaml';
+import {Templates} from '../../../../core/templates.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 const MIRROR_NODE_ID: number = 1;
@@ -111,12 +113,12 @@ export class DeployArgvBuilders {
     const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     const isPerfMode: boolean = constants.ONE_SHOT_BLOCK_NODE_PERF.toLowerCase() === 'true';
     const perfValuesFile: string | undefined = isPerfMode ? constants.BLOCK_NODE_MESSAGING_WORKAROUND_FILE : undefined;
-    // In perf mode, configure RsaRosterBootstrapPlugin with the mirror node URL so that
-    // VerificationServicePlugin can verify WRB/RSA-signed blocks. Without this, keyByNodeId
-    // stays empty and any block carrying a SignedRecordFileProof triggers BAD_BLOCK_PROOF
-    // (BN 0.37.1 bug: address book is never delivered, rejecting all WRB blocks).
-    const rosterBootstrapValuesFile: string | undefined = isPerfMode
-      ? DeployArgvBuilders.writeRosterBootstrapValuesFile(config.namespace.name)
+    // In perf mode, inject the RSA bootstrap roster directly into the block node's
+    // application-state PVC via a Helm init-container override. This writes the file
+    // before the block node container ever starts, so no pod restart is needed and the
+    // consensus node's gRPC publisher stream is never interrupted.
+    const rsaBootstrapValuesFile: string | undefined = isPerfMode
+      ? DeployArgvBuilders.writeRsaBootstrapInitContainerValuesFile(config.cacheDir, config.numberOfConsensusNodes)
       : undefined;
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
@@ -124,7 +126,7 @@ export class DeployArgvBuilders {
       [Flags.getFormattedFlagKey(Flags.valuesFile)]: [
         blockExistingValuesFile,
         perfValuesFile,
-        rosterBootstrapValuesFile,
+        rsaBootstrapValuesFile,
         constants.BLOCK_NODE_SOLO_DEV_FILE,
       ]
         .filter(Boolean)
@@ -134,14 +136,70 @@ export class DeployArgvBuilders {
     return argvPushGlobalFlags(argv);
   }
 
-  private static writeRosterBootstrapValuesFile(namespaceName: string): string {
-    // Use mirror-restjava (Java REST, port 80) — it exposes /api/v1/network/nodes (200).
-    // mirror-rest (Node.js REST) always returns 404 for that endpoint in solo networks.
-    const mirrorRestUrl: string = `http://mirror-${MIRROR_NODE_ID}-restjava.${namespaceName}.svc.cluster.local`;
+  /**
+   * Writes a Helm values YAML that overrides the block node's init container to also write the
+   * RSA bootstrap roster file into the application-state PVC before the block node starts.
+   *
+   * Writing the file in the init container means the block node loads the RSA keys on its very
+   * first startup — no pod restart is needed and the consensus node's gRPC publisher stream is
+   * never interrupted by a restart.
+   */
+  private static writeRsaBootstrapInitContainerValuesFile(
+    cacheDirectory: string,
+    numberOfConsensusNodes: number,
+  ): string {
+    const keysDirectory: string = path.join(cacheDirectory, 'keys');
+    const nodeAliases: NodeAlias[] = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, 0);
+    const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = nodeAliases.map(
+      (alias: NodeAlias): {RSAPubKey: string; nodeId: number} => {
+        const certPem: string = fs.readFileSync(
+          path.join(keysDirectory, Templates.renderGossipPemPublicKeyFile(alias)),
+          'utf8',
+        );
+        const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
+          format: 'der',
+          type: 'spki',
+        }) as Buffer;
+        return {RSAPubKey: spkiDer.toString('hex'), nodeId: Templates.nodeIdFromNodeAlias(alias)};
+      },
+    );
+    const bootstrapJson: string = JSON.stringify({nodeAddress: nodeAddresses});
+
+    // Reconstruct the full init-storage-dirs init container, extending its command to also write
+    // the RSA bootstrap file. Helm replaces list values entirely, so we must include all mounts.
     const content: string = yaml.stringify({
-      blockNode: {config: {ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: mirrorRestUrl}},
+      blockNode: {
+        initContainers: [
+          {
+            name: 'init-storage-dirs',
+            image: 'busybox',
+            command: [
+              'sh',
+              '-c',
+              [
+                'mkdir -p /application-state-pvc',
+                'chown 2000:2000 /application-state-pvc',
+                'chmod 700 /application-state-pvc',
+                `printf '%s' '${bootstrapJson}' > /application-state-pvc/rsa-bootstrap-roster.json`,
+                'mkdir -p /archive-pvc/archive-data',
+                'chown 2000:2000 /archive-pvc/archive-data',
+                'chmod 700 /archive-pvc/archive-data',
+                'mkdir -p /live-pvc/live-data',
+                'chown 2000:2000 /live-pvc/live-data',
+                'chmod 700 /live-pvc/live-data',
+              ].join(' && \\\n'),
+            ],
+            volumeMounts: [
+              {name: 'application-state-storage', mountPath: '/application-state-pvc'},
+              {name: 'archive-storage', mountPath: '/archive-pvc'},
+              {name: 'live-storage', mountPath: '/live-pvc'},
+              {name: 'logging-storage', mountPath: '/logging-pvc'},
+            ],
+          },
+        ],
+      },
     });
-    const filePath: string = path.join(os.tmpdir(), 'bn-roster-bootstrap-perf.yaml');
+    const filePath: string = path.join(os.tmpdir(), 'bn-rsa-bootstrap-init-container.yaml');
     fs.writeFileSync(filePath, content, 'utf8');
     return filePath;
   }

@@ -79,7 +79,7 @@ import {Templates} from '../../../../core/templates.js';
 import {PathEx} from '../../../../business/utils/path-ex.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
-import {type NodeAlias, type NodeId} from '../../../../types/aliases.js';
+import {type NodeId} from '../../../../types/aliases.js';
 import {type CommandFlag, type CommandFlags} from '../../../../types/flag-types.js';
 import {type ArgvStruct} from '../../../../types/aliases.js';
 import {BlockNodeStateSchema} from '../../../../data/schema/model/remote/state/block-node-state-schema.js';
@@ -90,14 +90,9 @@ import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-p
 import {ComponentTypes} from '../../../../core/config/remote/enumerations/component-types.js';
 import {ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
 import chalk from 'chalk';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'yaml';
-import {type K8} from '../../../../integration/kube/k8.js';
-import {type Pod} from '../../../../integration/kube/resources/pod/pod.js';
-import {ContainerReference} from '../../../../integration/kube/resources/container/container-reference.js';
-import {SoloError} from '../../../../core/errors/solo-error.js';
 import {DeployArgvBuilders} from './deploy-argv-builders.js';
 import {OrchestratorPipeline} from '../orchestrator-pipeline.js';
 import {SINGLE_DESTROY_COMMAND} from '../../one-shot-command-paths.js';
@@ -753,74 +748,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         // single collapsed line so their concurrent subtrees do not overwrite one another.
         (getConfig: () => OneShotSingleDeployConfigClass): boolean => getConfig()?.parallelDeploy === true,
       ),
-      new OrchestratorPipelinePhase('Inject RSA bootstrap roster', {
-        asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
-          title: 'Inject RSA bootstrap roster into block node',
-          // Only needed in perf mode; skipped for standard deployments.
-          skip: (): boolean => constants.ONE_SHOT_BLOCK_NODE_PERF.toLowerCase() !== 'true',
-          task: async (): Promise<void> => {
-            const deployConfig: OneShotSingleDeployConfigClass = getConfig();
-            const namespace: NamespaceName = deployConfig.namespace;
-            const keysDirectory: string = PathEx.join(deployConfig.cacheDir, 'keys');
-            const nodeAliases: NodeAlias[] = Templates.renderNodeAliasesFromCount(
-              deployConfig.numberOfConsensusNodes,
-              0,
-            );
-            const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = nodeAliases.map(
-              (alias: NodeAlias): {RSAPubKey: string; nodeId: number} => {
-                const certFilePath: string = PathEx.join(keysDirectory, Templates.renderGossipPemPublicKeyFile(alias));
-                const certPem: string = fs.readFileSync(certFilePath, 'utf8');
-                return {
-                  RSAPubKey: DefaultOneShotDeployOrchestrator.extractRsaSpkiHex(certPem),
-                  nodeId: Templates.nodeIdFromNodeAlias(alias),
-                };
-              },
-            );
-            const bootstrapJson: string = JSON.stringify({nodeAddress: nodeAddresses});
-
-            const k8: K8 = this.k8Factory.default();
-            const blockNodeLabels: string[] = Templates.renderBlockNodeLabels(1);
-            const blockNodePods: Pod[] = await k8.pods().list(namespace, blockNodeLabels);
-
-            if (blockNodePods.length === 0) {
-              throw new SoloError('Block node pod not found; cannot inject RSA bootstrap roster');
-            }
-
-            const blockNodePod: Pod = blockNodePods[0];
-            const containerReference: ContainerReference = ContainerReference.of(
-              blockNodePod.podReference,
-              constants.BLOCK_NODE_CONTAINER_NAME,
-            );
-            const bootstrapFilePath: string = '/opt/hiero/block-node/application-state/rsa-bootstrap-roster.json';
-            // Write RSA public keys (SPKI hex) into the block node's application-state PVC so that
-            // RsaRosterBootstrapPlugin loads them at startup. Without this file, the plugin relies
-            // on mirror-1-restjava's /api/v1/network/nodes response, which has null public_key for
-            // solo genesis nodes, leaving keyByNodeId empty and causing BAD_BLOCK_PROOF for all WRB
-            // blocks (~block 7 634, ~30 min into the performance run).
-            await k8
-              .containers()
-              .readByRef(containerReference)
-              .execContainer(['sh', '-c', `printf '%s' '${bootstrapJson}' > ${bootstrapFilePath}`]);
-
-            // Restart the pod so BlockNodeApp.loadApplicationState() picks up the file on startup.
-            // Record deletion time before issuing the delete so waitForReadyStatus(createdAfter)
-            // can distinguish the new pod from the old one. The block node runs as a StatefulSet,
-            // so Kubernetes immediately creates a replacement pod with the same label selector;
-            // waitForPodsToTerminate would never see zero pods and would time out.
-            const podDeletionTime: Date = new Date();
-            await k8.pods().delete(blockNodePod.podReference);
-            await k8
-              .pods()
-              .waitForReadyStatus(
-                namespace,
-                blockNodeLabels,
-                constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
-                constants.BLOCK_NODE_PODS_RUNNING_DELAY,
-                podDeletionTime,
-              );
-          },
-        }),
-      }),
       new OrchestratorPipelinePhase('Finish', {
         asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> => ({
           title: 'Finish',
@@ -1294,11 +1221,5 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       'may install Solo charts, CRDs, namespaces, and other resources into that cluster.\n\n' +
       'Continue?'
     );
-  }
-
-  private static extractRsaSpkiHex(certPem: string): string {
-    const cert: crypto.X509Certificate = new crypto.X509Certificate(certPem);
-    const spkiDer: Buffer = cert.publicKey.export({format: 'der', type: 'spki'}) as Buffer;
-    return spkiDer.toString('hex');
   }
 }
