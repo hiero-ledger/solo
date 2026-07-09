@@ -8,6 +8,7 @@ import {container} from 'tsyringe-neo';
 import {ListrLogger} from 'listr2';
 
 import * as constants from './core/constants.js';
+import {type AnyObject} from './types/aliases.js';
 import {CustomProcessOutput} from './core/process-output.js';
 import {type SoloLogger} from './core/logging/solo-logger.js';
 import {Container} from './core/dependency-injection/container-init.js';
@@ -16,6 +17,7 @@ import {SoloErrors} from './core/errors/solo-errors.js';
 import {type SoloError} from './core/errors/solo-error.js';
 import {SilentBreak} from './core/errors/silent-break.js';
 import {ArgumentProcessor} from './argument-processor.js';
+import {VersionUpdateNotifier} from './core/version-update-notifier.js';
 import {getSoloVersion} from '../version.js';
 
 if (!process.stdout.isTTY) {
@@ -109,5 +111,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
     throw new SilentBreak('displayed version information, exiting');
   }
 
-  return await ArgumentProcessor.process(argv);
+  const result: AnyObject = await ArgumentProcessor.process(argv);
+  await VersionUpdateNotifier.notifyIfUpdateAvailable(logger);
+  return result;
 }
