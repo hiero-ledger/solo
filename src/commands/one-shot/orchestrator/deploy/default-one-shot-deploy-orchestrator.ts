@@ -804,6 +804,18 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
 
             // Restart the pod so BlockNodeApp.loadApplicationState() picks up the file on startup.
             await k8.pods().delete(blockNodePod.podReference);
+            // Wait for old pod to fully terminate before waiting for the new pod.
+            // Without this, waitForReadyStatus returns immediately seeing the still-Ready old pod,
+            // completing deployment before the new pod exists and causing the consensus node to
+            // exhaust its gRPC publisher reconnect attempts against a non-existent endpoint.
+            await k8
+              .pods()
+              .waitForPodsToTerminate(
+                namespace,
+                blockNodeLabels,
+                constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
+                constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+              );
             await k8
               .pods()
               .waitForReadyStatus(
