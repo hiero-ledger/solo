@@ -226,10 +226,13 @@ tasks:
       # One block node per cluster, local to the consensus node on that cluster.
       # Sharing a single block node across clusters lets multiple publishers contend
       # on the same stream and stall block finalization (see external-database.test.ts).
-      - cmd: echo "🧱 Deploying Block Node on Cluster 1 (node1's local block node)..."
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1 --priority-mapping node1=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml
-      - cmd: echo "🧱 Deploying Block Node on Cluster 2 (node2's local block node)..."
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --priority-mapping node2=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml
+      # Both deployments target different clusters so they can run in parallel.
+      - cmd: |
+          echo "🧱 Deploying Block Nodes on both clusters in parallel..."
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1 --priority-mapping node1=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml &
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --priority-mapping node2=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml &
+          wait
+          echo "✅ Both block nodes deployed"
 
       # Deploy consensus network
       # Pin LB IPs into the chart so MetalLB allocates them deterministically and
@@ -260,15 +263,15 @@ tasks:
             --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
             --enable-ingress --pinger -q --dev --values-file examples/multicluster-backup-restore/mirror-node-values-dual-cluster-minimal.yaml
 
-      # Deploy Explorer on Cluster 2
-      - cmd: echo "🔍 Deploying Explorer on Cluster 2..."
+      # Deploy Explorer and Relay on Cluster 2 in parallel (both use the distributed lease
+      # lock when writing to remote config, so the ConfigMap writes are serialized safely).
       - cmd: |
+          echo "🔍📡 Deploying Explorer and Relay on Cluster 2 in parallel..."
           $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --mirrorNamespace {{ .NAMESPACE }} \
-            --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
-
-      # Deploy Relay on Cluster 2
-      - cmd: echo "📡 Deploying Relay on Cluster 2..."
-      - cmd: $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+            --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev &
+          $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev &
+          wait
+          echo "✅ Explorer and Relay deployed"
 
       - cmd: echo "✅ Initial deployment completed successfully!"
       - cmd: echo "   - Cluster 1 (solo-e2e-c1) - node1"
@@ -356,6 +359,13 @@ tasks:
       POSTGRES_READONLY_USERNAME: "{{ .POSTGRES_READONLY_USERNAME }}"
       POSTGRES_READONLY_PASSWORD: "{{ .POSTGRES_READONLY_PASSWORD }}"
     cmds:
+      # BLOCK_STREAM_WRITER_MODE=FILE: prevents CN from gRPC-streaming blocks to block nodes
+      # during this intermediate phase. Block nodes are fresh at this point — tss-bootstrap-roster.json
+      # and the stub block are not planted until restore-config runs applyBlockNodeRestoreFixes.
+      # Without FILE mode, CN (default FILE_AND_GRPC) would immediately try to stream to block nodes
+      # that have no TSS state and would reject every block. After restore-config completes, the
+      # restart task calls "consensus node start" without this env var, so the default FILE_AND_GRPC
+      # takes effect and CN streams to the now-initialized block nodes.
       - cmd: |
           BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-network \
             --input-dir {{ .BACKUP_DIR }} \
@@ -413,6 +423,9 @@ tasks:
   restore-config:
     desc: Restore configuration and state from backup (DB already populated by restore-db)
     cmds:
+      # BLOCK_STREAM_WRITER_MODE=FILE: keeps CN in file-only mode while restore-config uploads
+      # node state and applies block node fixes (TSS file + stub block). The block nodes are not
+      # ready to accept gRPC streams until applyBlockNodeRestoreFixes completes.
       - cmd: |
           BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-config \
             --deployment {{ .DEPLOYMENT }} \

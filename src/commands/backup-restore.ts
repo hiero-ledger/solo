@@ -2574,9 +2574,14 @@ export class BackupRestoreCommand extends BaseCommand {
           );
         },
       },
-      ...this.buildMirrorNodeTasks(),
-      ...this.buildRelayNodeTasks(),
-      ...this.buildExplorerTasks(),
+      {
+        title: 'Deploy mirror nodes, relay nodes, and explorers',
+        task: (_, taskListWrapper) =>
+          taskListWrapper.newListr(
+            [...this.buildMirrorNodeTasks(), ...this.buildRelayNodeTasks(), ...this.buildExplorerTasks()],
+            constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+          ),
+      },
     ];
   }
 
@@ -2647,7 +2652,7 @@ export class BackupRestoreCommand extends BaseCommand {
           }
 
           return taskListWrapper.newListr(blockNodeTasks, {
-            concurrent: false,
+            concurrent: true,
             rendererOptions: {collapseSubtasks: false},
           });
         },
