@@ -509,6 +509,8 @@ export class RapidFireCommand extends BaseCommand {
     const startedAtMilliseconds: number = Date.now();
     let attempt: number = 0;
     let lastError: Error | undefined;
+    // Tracks whether we already tried a block node pod restart this wait cycle.
+    let blockNodeRestartAttempted: boolean = false;
 
     while (Date.now() - startedAtMilliseconds < readinessTimeoutMilliseconds) {
       attempt++;
@@ -533,6 +535,48 @@ export class RapidFireCommand extends BaseCommand {
         this.logger.info(
           `Mirror readiness attempt ${attempt}: importer is ${Math.round(lagMilliseconds)} ms behind real-time, waiting 5 s`,
         );
+
+        // When lag exceeds 60 s the mirror importer is likely pinned at a block the block node
+        // never stored (BAD_BLOCK_PROOF on the first SignedRecordFileProof / WRB block, ~block
+        // 7621, ~30 min into the performance test).  Live RSA verification fails for that block
+        // while backfill verification succeeds.  Restarting the block node pod causes CN to
+        // resend the missing block as backfill, which passes verification, allowing the importer
+        // to advance.  We attempt this recovery only once per readiness window.
+        if (!blockNodeRestartAttempted && lagMilliseconds > 60_000) {
+          blockNodeRestartAttempted = true;
+          this.logger.info('Mirror lag > 60 s: restarting block node pod to recover from any missing WRB block');
+          try {
+            const k8: ReturnType<typeof this.k8Factory.getK8> = this.k8Factory.getK8(config.context);
+            const blockNodePods: Pod[] = await k8.pods().list(config.namespace, [constants.SOLO_BLOCK_NODE_NAME_LABEL]);
+            if (blockNodePods.length > 0) {
+              const restartedAfter: Date = new Date();
+              await Promise.all(
+                blockNodePods.map((pod: Pod): Promise<void> => k8.pods().readByReference(pod.podReference).killPod(0)),
+              );
+              this.logger.info(`Killed ${blockNodePods.length} block node pod(s), waiting for replacement pod`);
+              await k8
+                .pods()
+                .waitForRunningPhase(
+                  config.namespace,
+                  [constants.SOLO_BLOCK_NODE_NAME_LABEL],
+                  constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
+                  constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+                  undefined,
+                  restartedAfter,
+                );
+              this.logger.info('Block node pod restart complete; resuming mirror readiness wait');
+            } else {
+              this.logger.info('No block node pods found; skipping restart');
+            }
+          } catch (restartError) {
+            // best-effort: the block node may not be deployed in all test configurations
+            this.logger.warn(
+              `Block node restart failed (non-fatal, continuing wait): ${(restartError as Error).message}`,
+            );
+          }
+          continue;
+        }
+
         await sleep(Duration.ofSeconds(5));
         continue;
       }
