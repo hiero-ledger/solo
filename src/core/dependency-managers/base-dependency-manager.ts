@@ -304,7 +304,7 @@ export abstract class BaseDependencyManager extends ShellRunner {
         const fileName: string = path.basename(processedFile);
         const localExecutable: string = PathEx.join(this.installationDirectory, fileName);
         fs.cpSync(processedFile, localExecutable);
-        fs.chmodSync(localExecutable, 0o755);
+        fs.chmodSync(localExecutable, 0o750);
       }
     } catch (error) {
       throw new SoloErrors.system.dependencyInstallFailed(this.executableName, error);
