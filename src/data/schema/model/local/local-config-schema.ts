@@ -9,6 +9,10 @@ import {type ClusterReferences} from '../../../../types/index.js';
 
 @Exclude()
 export class LocalConfigSchema {
+  // TODO(config-checks #4 — schema version constant): SCHEMA_VERSION (1) lags the latest local
+  //   migration (2), so fresh configs are written at a stale version. Reconcile to a single source
+  //   of truth (derive from the migration list, or assert they match at startup). Prerequisite for #3.
+  //   See docs/design/architecture/system/config-checks-to-add.md
   public static readonly SCHEMA_VERSION: SemanticVersion<number> = new SemanticVersion(1);
   public static readonly EMPTY: LocalConfigSchema = new LocalConfigSchema(
     LocalConfigSchema.SCHEMA_VERSION.major,

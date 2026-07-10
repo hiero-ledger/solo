@@ -47,6 +47,10 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
   // This skips components that are requested, because they are not yet deployed.
   // This is needed to avoid errors during the deployment of the requested components.
   // Especially during one-shot deployments.
+  // TODO(config-checks #13 — STOPPED non-consensus components): unlike consensus (which also skips
+  //   STOPPED), this skips only REQUESTED, so a legitimately STOPPED relay/mirror/explorer/block
+  //   still requires live pods and throws. Include STOPPED in the skip set for all groups.
+  //   DECISION: confirm exact skip set per phase. See docs/design/architecture/system/config-checks-to-add.md
   private static componentSkipConditionCallback(component: BaseStateSchema): boolean {
     return component.metadata.phase === DeploymentPhase.REQUESTED;
   }
@@ -163,6 +167,13 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
         : getLabelsCallback(component.metadata.id);
 
       try {
+        // TODO(config-checks #10 — component health, not just existence): this checks pod EXISTENCE
+        //   only, so a CrashLoopBackOff/NotReady pod passes validation (drift C). Assert readiness/
+        //   phase, not just count. DECISION: fail-fast on unhealthy vs warn+continue (CI flakiness).
+        // TODO(config-checks #11 — reverse reconciliation): validation only iterates components
+        //   recorded in the config, so cluster pods/helm releases NOT in the config (drift B) are
+        //   never detected. Diff live pods/releases against the inventory. DECISION: adopt / warn / ignore.
+        //   See docs/design/architecture/system/config-checks-to-add.md
         const pods: Pod[] = await this.k8Factory.getK8(context).pods().list(namespace, labels);
 
         if (pods.length === 0) {
@@ -188,6 +199,12 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     error: Error | unknown,
     labels?: string[],
   ): SoloError {
+    // TODO(config-checks #12 — reclassify drift ownership): drift A (config has it, cluster missing
+    //   it) surfaces as DataValidationError with ownership=Solo ("file a bug") though the cause is
+    //   user/cluster drift. Use a drift-oriented error (ownership User/Infrastructure) with drift
+    //   remediation, and pass the kube error as `cause` (today it is passed as the `found` arg).
+    //   DECISION: heal (prune entry) / warn+continue / fail-fast.
+    //   See docs/design/architecture/system/config-checks-to-add.md
     return new SoloErrors.internal.dataValidation(
       RemoteConfigValidator.buildValidationErrorMessage(displayName, component, labels),
       component,
