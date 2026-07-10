@@ -47,10 +47,23 @@ vars:
 
 tasks:
   # ==================== Main Workflow Tasks ====================
+  image_pull:
+    desc: Pull the latest Docker images for the solo deployment
+    cmds:
+      - cmd: |
+          $SOLO_COMMAND cache image pull
+
+  image_load:
+    desc: Load Docker images for the solo deployment from cache
+    cmds:
+      - cmd: |
+          # Running in background so that the restore-clusters task can continue without waiting for image load to complete
+          $SOLO_COMMAND cache image load --cluster-ref solo-e2e-c2 &
 
   default:
     desc: Run complete backup/restore workflow - deploy, backup, destroy, restore, and verify
     cmds:
+      - task: image_pull
       - task: initial-deploy
       - task: generate-transactions
       - task: backup
@@ -339,13 +352,15 @@ tasks:
     desc: Redeploy complete network infrastructure (after cluster deletion)
     cmds:
      - cmd: |
-          rm -rf ~/.solo/*; rm -rf test/data/tmp/*;
+          rm -rf ~/.solo/local-config.yaml;
           $SOLO_COMMAND init
           {{ .TIMEOUT_COMMAND }} 700s $SOLO_COMMAND config ops restore-clusters --input-dir {{ .BACKUP_DIR }} \
             --metallb-config {{ .TASKFILE_DIR }}/metallb-cluster-{index}.yaml \
             --zip-password {{ .ZIP_PASSWORD }} --zip-file {{ .ZIP_INPUT_FILE }}
           # keep a copy of zip file for debugging
           cp {{ .ZIP_INPUT_FILE }} ~/.solo/logs
+     - task: image_load
+       async: true
 
   restore-network:
     desc: Deploy network components to existing clusters from backup (DB already populated by restore-db)
