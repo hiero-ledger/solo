@@ -162,13 +162,13 @@ jobs:
           fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
-          # Use ONLY_BLOCK_STREAM to eliminate Wrapped Record Blocks (WRBs). In BOTH mode,
+          # Use BLOCKS mode to eliminate Wrapped Record Blocks (WRBs). In BOTH mode,
           # CN v0.74 produces WRBs despite streamWrappedRecordBlocks=false. WRBs trigger RSA
           # verification in the block node; the address-book update that clears keyByNodeId
           # and the WRB arrive in the same Disruptor batch, causing BAD_BLOCK_PROOF at ~block
           # 7,627 (~30 min into the test) before SmartContractLoadTest even runs.
           # Previously BOTH due to https://github.com/hiero-ledger/hiero-consensus-node/issues/25883.
-          echo BLOCK_STREAM_STREAM_MODE=ONLY_BLOCK_STREAM >> .env
+          echo BLOCK_STREAM_STREAM_MODE=BLOCKS >> .env
           # Workaround for hiero-block-node#3150: enlarge disruptor ring buffer + memory so mirror
           # reconnect storms under high-TPS load do not fill the ring buffer and cause NOT_AVAILABLE.
           # TODO: remove once block node @todo(1673) is fully fixed.
