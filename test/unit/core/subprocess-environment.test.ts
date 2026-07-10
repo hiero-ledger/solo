@@ -78,6 +78,32 @@ describe('SubprocessEnvironment', (): void => {
     }
   });
 
+  it('forwards DOCKER_CONFIG to helm (OCI registry auth) and the container-engine/kind profiles', (): void => {
+    setTemporaryEnvironmentVariable('DOCKER_CONFIG', '/home/user/.docker');
+
+    const dockerConfigProfiles: SubprocessCommandProfile[] = [
+      SubprocessCommandProfile.HELM,
+      SubprocessCommandProfile.KIND,
+      SubprocessCommandProfile.CONTAINER_ENGINE,
+    ];
+    for (const profile of dockerConfigProfiles) {
+      expect(SubprocessEnvironment.forCommand(profile), `profile ${profile}`).to.have.property('DOCKER_CONFIG');
+    }
+    expect(SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL)).to.not.have.property('DOCKER_CONFIG');
+  });
+
+  it('forwards CONTAINERS_STORAGE_CONF to kind (podman-backed) and the container-engine profile', (): void => {
+    setTemporaryEnvironmentVariable('CONTAINERS_STORAGE_CONF', '/home/user/.config/containers/storage.conf');
+
+    expect(SubprocessEnvironment.forCommand(SubprocessCommandProfile.KIND)).to.have.property('CONTAINERS_STORAGE_CONF');
+    expect(SubprocessEnvironment.forCommand(SubprocessCommandProfile.CONTAINER_ENGINE)).to.have.property(
+      'CONTAINERS_STORAGE_CONF',
+    );
+    expect(SubprocessEnvironment.forCommand(SubprocessCommandProfile.HELM)).to.not.have.property(
+      'CONTAINERS_STORAGE_CONF',
+    );
+  });
+
   it('matches HELM_ prefixed variables only for the helm profile', (): void => {
     setTemporaryEnvironmentVariable('HELM_REPOSITORY_CONFIG', '/home/user/.config/helm/repositories.yaml');
 

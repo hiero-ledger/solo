@@ -72,15 +72,21 @@ export class SubprocessEnvironment {
   private static readonly COMMAND_ALLOWLIST: Record<SubprocessCommandProfile, readonly string[]> = {
     [SubprocessCommandProfile.GENERIC]: [],
     [SubprocessCommandProfile.KUBECTL]: ['KUBECONFIG', 'KUBERNETES_SERVICE_HOST', 'KUBERNETES_SERVICE_PORT'],
-    [SubprocessCommandProfile.HELM]: ['KUBECONFIG'],
+    // DOCKER_CONFIG: helm consults the Docker/OCI registry credential file
+    // ($DOCKER_CONFIG/config.json) when pulling OCI charts.
+    [SubprocessCommandProfile.HELM]: ['KUBECONFIG', 'DOCKER_CONFIG'],
     [SubprocessCommandProfile.KIND]: [
       'KUBECONFIG',
       'KIND_EXPERIMENTAL_PROVIDER',
       'DOCKER_HOST',
       'DOCKER_TLS_VERIFY',
       'DOCKER_CERT_PATH',
+      // Kind delegates image operations to the container engine (docker/podman), which reads
+      // these registry/storage config locations; forward them so a podman-backed kind works.
+      'DOCKER_CONFIG',
       'CONTAINER_HOST',
       'CONTAINERS_CONF',
+      'CONTAINERS_STORAGE_CONF',
       'XDG_RUNTIME_DIR',
     ],
     [SubprocessCommandProfile.CONTAINER_ENGINE]: [
