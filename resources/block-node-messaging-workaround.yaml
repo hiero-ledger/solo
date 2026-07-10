@@ -50,6 +50,12 @@ blockNode:
     # verification), leaves only ~27% filled at SmartContract start with > 1 100 s remaining
     # capacity — well beyond the 300 s NLG window on any observed CI runner configuration.
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "2097152"
+    # Solo genesis nodes have null public_key in /api/v1/network/nodes; a periodic mirror-node
+    # query that overwrites the bootstrap RSA key with null would cause BAD_BLOCK_PROOF at the
+    # first WRB block (~block 7621, ~30 min into the test).  Setting both intervals to 1 hour
+    # ensures no mirror-node query runs within the ~35 min test window.
+    ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "3600000"
+    ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "3600000"
     # ZGC (Java 21+ Generational ZGC) eliminates multi-second G1GC stop-the-world pauses.
     # Sub-millisecond GC pauses allow the verification thread to drain the ring buffer
     # consistently at high TPS load.  Heap raised to 4 g to accommodate the 2 M ring buffer
