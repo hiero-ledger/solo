@@ -239,12 +239,13 @@ tasks:
       # One block node per cluster, local to the consensus node on that cluster.
       # Sharing a single block node across clusters lets multiple publishers contend
       # on the same stream and stall block finalization (see external-database.test.ts).
-      # Both deployments target different clusters so they can run in parallel.
+      # Sequential: both commands share the Solo distributed lock (same namespace ConfigMap)
+      # so running them in parallel causes one to starve and fail after max retries.
       - cmd: |
-          echo "🧱 Deploying Block Nodes on both clusters in parallel..."
-          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1 --priority-mapping node1=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml &
-          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --priority-mapping node2=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml &
-          wait
+          echo "🧱 Deploying Block Node on cluster 1..."
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1 --priority-mapping node1=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml
+          echo "🧱 Deploying Block Node on cluster 2..."
+          $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --priority-mapping node2=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml
           echo "✅ Both block nodes deployed"
 
       # Deploy consensus network
