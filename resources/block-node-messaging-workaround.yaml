@@ -7,7 +7,12 @@
 # block items, causing the ring buffer to fill cumulatively across all 5 performance load
 # tests.  Observed in run 28988949642: ring buffer was ~98% full (980 K/1 M) when
 # SmartContract started; the remaining 2% capacity exhausted in ~8 s.
-# Workaround: 2 M ring buffer + 8 CPUs + ZGC (see config below).
+# Raised to 2 M (run 29115871280): ring buffer filled to ~100% across tests 1–4
+# (overflowing 8 s before SmartContract started), freezing the mirror importer.
+# Net production rate ≈ 1 667 ring items/s.  SmartContract contributes at most
+# ~500 K more items (300 s × 1 667/s); peak fill is therefore ≈ 2.5 M < 4 M, so
+# no overflow occurs during the SmartContract test window.
+# Workaround: 4 M ring buffer + 8 CPUs + ZGC (see config below).
 #
 # Issue 2 — BAD_BLOCK_PROOF for WRB blocks (observed in runs 28988949642 and 28991564151):
 # ExtendedMerkleTreeSession.verifyRsaProof() rejects all SignedRecordFileProof (WRB/RSA)
@@ -45,18 +50,20 @@ blockNode:
     # 200ms window after a mid-block reconnect (a known block node subscriber bug, @todo(1673)).
     # Raise the threshold so brief reconnect bursts don't trigger connection termination.
     SERVER_HTTP2_MAX_RAPID_RESETS: "500"
-    # Enlarge the Disruptor ring buffer to 2 097 152 (2^21, power-of-2 per Disruptor requirement).
+    # Enlarge the Disruptor ring buffer to 4 194 304 (2^22, power-of-2 per Disruptor requirement).
     # The ring buffer fills cumulatively across all 5 load tests (not just SmartContract).
     # Observed in run 28988949642: ring buffer was ~98% full (980 K/1 M) when SmartContract
     # started; the remaining 2% capacity was exhausted in ~8 s, losing block 7 644 permanently.
-    # 2 097 152 provides ~4× the buffer capacity and, combined with 8 CPUs (2× faster
-    # verification), leaves only ~27% filled at SmartContract start with > 1 100 s remaining
-    # capacity — well beyond the 300 s NLG window on any observed CI runner configuration.
-    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "2097152"
+    # Raised to 2 M (run 29115871280): net ring-item production rate ≈ 1 667/s; ring buffer
+    # filled to 100 % across tests 1–4 (overflowed 8 s before SmartContract started).
+    # 4 M (this value) provides 4× the original capacity: at SmartContract start the ring is
+    # ~50 % full (2 M items); SmartContract adds at most ~500 K more items (300 s × 1 667/s)
+    # → peak fill ≈ 2.5 M < 4 M, keeping the mirror importer current throughout all 5 tests.
+    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "4194304"
     # ZGC (Java 21+ Generational ZGC) eliminates multi-second G1GC stop-the-world pauses.
     # Sub-millisecond GC pauses allow the verification thread to drain the ring buffer
-    # consistently at high TPS load.  Heap raised to 4 g to accommodate the 2 M ring buffer
-    # pre-allocation (~608 MB) plus live block item data without triggering aggressive GC.
+    # consistently at high TPS load.  Heap kept at 4 g: 4 M ring pre-allocation (~1.2 GB)
+    # + live data (~2 GB) + JVM overhead (~0.5 GB) ≈ 3.7 GB — within the 4 g ceiling.
     JAVA_OPTS: >-
       -Xms2g
       -Xmx4g
