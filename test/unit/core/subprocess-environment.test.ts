@@ -6,6 +6,7 @@ import {expect} from 'chai';
 import {describe, it, afterEach} from 'mocha';
 import {SubprocessEnvironment} from '../../../src/core/subprocess-environment.js';
 import {SubprocessCommandProfile} from '../../../src/core/subprocess-command-profile.js';
+import {type AnyObject} from '../../../src/types/aliases.js';
 
 describe('SubprocessEnvironment', (): void => {
   const temporaryKeys: string[] = [];
@@ -119,7 +120,7 @@ describe('SubprocessEnvironment', (): void => {
     setTemporaryEnvironmentVariable('SystemRoot', String.raw`C:\Windows`);
     setTemporaryEnvironmentVariable('PATHEXT', '.COM;.EXE;.BAT');
 
-    const windowsStub: SinonStub = sinon.stub(SubprocessEnvironment as any, 'isWindowsPlatform').returns(true);
+    const windowsStub: SinonStub = sinon.stub(SubprocessEnvironment as AnyObject, 'isWindowsPlatform').returns(true);
     const onWindows: Record<string, string> = SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL);
     expect(onWindows).to.have.property('SystemRoot');
     expect(onWindows).to.have.property('PATHEXT');
