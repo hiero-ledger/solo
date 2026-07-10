@@ -862,7 +862,11 @@ cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPER
 
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "fees.simpleFeesEnabled" "false"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
+# Keep TSS mode (false) during the BN version transition. BN v0.36 cannot process WRB
+# blocks, so producing block 73 in WRB format would leave it unverifiable by the old BN.
+# BN v0.36 stores TSS block 73 to its live/archive PVCs; the RECREATE to BN v0.37
+# preserves those PVCs, so block 73 is available when CN restarts at block 74.
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
@@ -872,7 +876,7 @@ TEMP_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-migration-block-node-values-XXXX.y
 
 # After a CN freeze upgrade, file 0.0.101 loses RSA_PubKey so mirror serves empty
 # public_key. Pre-populate BN's rsa-bootstrap-roster.json via an init container so
-# BN can verify WRB blocks immediately without waiting for mirror to index RSA keys.
+# BN v0.37 has RSA keys ready if WRB mode is enabled later.
 BN_RSA_BOOTSTRAP_B64=""
 if BN_RSA_BOOTSTRAP_B64="$(build_bn_rsa_bootstrap_base64)"; then
   echo "RSA bootstrap data generated for block node init container (${#BN_RSA_BOOTSTRAP_B64} chars)"
@@ -885,8 +889,7 @@ cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
 # Generated for the migration workflow.
 # /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
 # An init container pre-writes rsa-bootstrap-roster.json from local gossip certs so
-# BN can verify WRB blocks immediately (streamWrappedRecordBlocks=true) without
-# waiting for mirror to index RSA keys after the freeze upgrade.
+# BN v0.37 has RSA keys ready if WRB mode is enabled after the migration.
 blockNode:
   config:
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
@@ -951,10 +954,10 @@ else
   npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
 fi
 
-# Keep the source CN and BN versions paired during the freeze upgrade. Restarting
-# source CN v0.74 against BN v0.37 replays the freeze-boundary block and leaves BN
-# rejecting block 73 as duplicate/bad proof. Once target CN is installed, stop it
-# around the BN chart recreate so target CN resumes against the target BN version.
+# Stop the upgraded CN around the BN RECREATE so BN v0.37 inherits the live/archive
+# PVCs (containing blocks 0-N in TSS format) before CN resumes at block N+1. This
+# prevents a gap: CN committed block N before the stop, BN v0.37 starts with 0-N,
+# and CN begins at N+1 — no missing blocks for mirror.
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   echo "Block node version changing — stopping target CN before BN upgrade"
   npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
