@@ -549,22 +549,19 @@ export class RapidFireCommand extends BaseCommand {
             const k8: ReturnType<typeof this.k8Factory.getK8> = this.k8Factory.getK8(config.context);
             const blockNodePods: Pod[] = await k8.pods().list(config.namespace, [constants.SOLO_BLOCK_NODE_NAME_LABEL]);
             if (blockNodePods.length > 0) {
-              const restartedAfter: Date = new Date();
               await Promise.all(
                 blockNodePods.map((pod: Pod): Promise<void> => k8.pods().readByReference(pod.podReference).killPod(0)),
               );
-              this.logger.info(`Killed ${blockNodePods.length} block node pod(s), waiting for replacement pod`);
-              await k8
-                .pods()
-                .waitForRunningPhase(
-                  config.namespace,
-                  [constants.SOLO_BLOCK_NODE_NAME_LABEL],
-                  constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
-                  constants.BLOCK_NODE_PODS_RUNNING_DELAY,
-                  undefined,
-                  restartedAfter,
-                );
-              this.logger.info('Block node pod restart complete; resuming mirror readiness wait');
+              // Wait 120 s for the StatefulSet to restart the pod, CN to reconnect, and CN to
+              // resend the missing WRB block as backfill.  We do not call waitForRunningPhase
+              // here because its createdAfter filter can miss the replacement pod, blocking for
+              // its full 15-minute timeout and exhausting the readiness window before any further
+              // lag checks can confirm that the mirror importer has resumed.
+              this.logger.info(
+                `Killed ${blockNodePods.length} block node pod(s); waiting 120 s for CN reconnect and backfill`,
+              );
+              await sleep(Duration.ofSeconds(120));
+              this.logger.info('Block node restart wait complete; resuming mirror readiness wait');
             } else {
               this.logger.info('No block node pods found; skipping restart');
             }
