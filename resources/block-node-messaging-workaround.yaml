@@ -17,9 +17,11 @@
 # the node's RSA SPKI hex extracted from s-public-node*.pem) into the block node's
 # application-state PVC via an init container, so BlockNodeApp.loadApplicationState() can
 # read the file on startup as a safety net.
-# The block node's default 500 ms mirror-node query interval also populates keyByNodeId
-# continuously from the on-chain network address book (which always contains RSA keys for
-# genesis nodes), making the query the primary source of the RSA key during the test.
+# DeployArgvBuilders.writeRsaBootstrapInitContainerValuesFile() also sets
+# ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL to the in-cluster mirror-restjava service URL
+# so the RsaRosterBootstrapPlugin can re-populate keyByNodeId continuously via 500 ms
+# periodic queries. Without that URL the plugin never queries, and keyByNodeId stays empty
+# after block-stream address-book updates clear it — causing BAD_BLOCK_PROOF on the WRB block.
 # NOTE: do NOT override ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS or
 # ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS here; disabling that query
 # (runs 29059494192–29065180887) prevents the mirror from providing the correct RSA key

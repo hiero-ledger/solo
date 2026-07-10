@@ -118,7 +118,11 @@ export class DeployArgvBuilders {
     // before the block node container ever starts, so no pod restart is needed and the
     // consensus node's gRPC publisher stream is never interrupted.
     const rsaBootstrapValuesFile: string | undefined = isPerfMode
-      ? DeployArgvBuilders.writeRsaBootstrapInitContainerValuesFile(config.cacheDir, config.numberOfConsensusNodes)
+      ? DeployArgvBuilders.writeRsaBootstrapInitContainerValuesFile(
+          config.cacheDir,
+          config.numberOfConsensusNodes,
+          config.namespace.name,
+        )
       : undefined;
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
@@ -147,6 +151,7 @@ export class DeployArgvBuilders {
   private static writeRsaBootstrapInitContainerValuesFile(
     cacheDirectory: string,
     numberOfConsensusNodes: number,
+    namespaceName: string,
   ): string {
     const keysDirectory: string = path.join(cacheDirectory, 'keys');
     const nodeAliases: NodeAlias[] = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, 0);
@@ -167,8 +172,16 @@ export class DeployArgvBuilders {
 
     // Reconstruct the full init-storage-dirs init container, extending its command to also write
     // the RSA bootstrap file. Helm replaces list values entirely, so we must include all mounts.
+    const mirrorRestUrl: string = `http://mirror-${MIRROR_NODE_ID}-restjava.${namespaceName}.svc.cluster.local`;
     const content: string = yaml.stringify({
       blockNode: {
+        config: {
+          // Point the RsaRosterBootstrapPlugin at the in-cluster mirror-restjava service so it
+          // continuously re-populates keyByNodeId via 500ms periodic queries. Without this URL the
+          // plugin never queries the mirror, and keyByNodeId stays empty after block-stream address
+          // book updates clear it — causing BAD_BLOCK_PROOF on the first WRB block.
+          ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: mirrorRestUrl,
+        },
         initContainers: [
           {
             name: 'init-storage-dirs',
