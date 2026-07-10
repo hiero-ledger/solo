@@ -1922,18 +1922,12 @@ export class BackupRestoreCommand extends BaseCommand {
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
       const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      // EMB=100000000: when the block node has no data (no blockStreams archives),
-      // LiveStreamPublisherManager.streamBeforeEmbOrElse() fires an edge-case path that
-      // accepts the first block from CN and sets nextUnstreamedBlockNumber = CN's block.
-      // This avoids the SEND_BEHIND loop that EMB=0 triggers (EMB=0 sets nextUnstreamed=0;
-      // CN's first post-restore block ~197 > 0 → SEND_BEHIND; CN can't replay from 0).
-      // When blockStreams archives are planted, nextUnstreamedBlockNumber is derived from
-      // lastPersistedBlockNumber and EMB has no effect on streaming.
-      // FILES_RECENT_COMPRESSION=NONE: the blockStreams .blk.gz files are decompressed to
-      // .blk before being planted so the recent-file plugin's ".blk" extension scan finds them.
       // VERIFICATION_TYPE=NO_OP: TSS state is already restored; skip re-verification overhead.
+      // FILES_RECENT_COMPRESSION=NONE: the blockStreams .blk.gz files are decompressed to .blk
+      // before being planted so the recent-file plugin's ".blk" extension scan finds them.
+      // BLOCK_NODE_EARLIEST_MANAGED_BLOCK is already 100000000 from the Helm values file and
+      // from the imported backup ConfigMap — no need to set it here.
       await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
-        BLOCK_NODE_EARLIEST_MANAGED_BLOCK: '100000000',
         VERIFICATION_TYPE: 'NO_OP',
         FILES_RECENT_COMPRESSION: 'NONE',
         FILES_HISTORIC_COMPRESSION: 'NONE',
