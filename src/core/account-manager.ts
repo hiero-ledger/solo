@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from './errors/solo-errors.js';
-import fs from 'node:fs';
 import * as Base64 from 'js-base64';
 import * as constants from './constants.js';
 import {IGNORED_NODE_ACCOUNT_ID} from './constants.js';
@@ -46,7 +45,7 @@ import {entityId, resolveGossipFqdnRestricted, sleep} from './helpers.js';
 import {Duration} from './time/duration.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
-import {type NamespaceName} from '../types/namespace/namespace-name.js';
+import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
@@ -141,6 +140,43 @@ export class AccountManager {
       privateKey: constants.GENESIS_KEY,
       publicKey: PrivateKey.fromStringED25519(constants.GENESIS_KEY).publicKey.toString(),
     };
+  }
+
+  /**
+   * Read a consensus node's gossip signing public certificate (PEM) from its Kubernetes secret.
+   *
+   * This is the source of truth for the gossip public certificate after `network deploy` removes the
+   * on-disk keys (when `--debug` is off). The gossip secret stores each key file under its original
+   * basename, so the public certificate lives under the `s-public-<node>.pem` data key.
+   * @param consensusNode - the node whose gossip public certificate is needed
+   */
+  public async getGossipPublicKeyPem(consensusNode: ConsensusNode): Promise<string> {
+    const secretName: string = Templates.renderGossipKeySecretName(consensusNode.name);
+    const dataKey: string = Templates.renderGossipPemPublicKeyFile(consensusNode.name);
+
+    let secret: Secret;
+    try {
+      secret = await this.k8Factory
+        .getK8(consensusNode.context)
+        .secrets()
+        .read(NamespaceName.of(consensusNode.namespace), secretName);
+    } catch (error) {
+      throw new SoloErrors.component.gossipKeySecretRestoreFailed(
+        consensusNode.name,
+        `failed to read secret '${secretName}'`,
+        error,
+      );
+    }
+
+    const encodedCertificate: string | undefined = secret?.data?.[dataKey];
+    if (!encodedCertificate) {
+      throw new SoloErrors.component.gossipKeySecretRestoreFailed(
+        consensusNode.name,
+        `secret '${secretName}' is missing data key '${dataKey}'`,
+      );
+    }
+
+    return Base64.decode(encodedCertificate);
   }
 
   /**
@@ -1124,14 +1160,13 @@ export class AccountManager {
   }
 
   /**
-   * Build and prepare address book as a base64 string by reading gossip signing keys from the
-   * local keys directory and node topology from RemoteConfig.
-   * This method does not require Kubernetes services or secrets to exist yet, making it suitable
-   * for use during simultaneous consensus node + mirror node deployment.
-   * @param keysDirectory - path to the directory containing gossip key PEM files (e.g. ~/.solo/cache/keys)
+   * Build and prepare the address book as a base64 string, reading each node's gossip signing public
+   * certificate from its Kubernetes secret and the node topology from RemoteConfig. The gossip secrets
+   * are created during `network deploy`, which also removes the on-disk keys when `--debug` is off, so
+   * the secret is the source of truth for the certificate.
    * @param deployment - deployment name, used to derive per-node account IDs
    */
-  public async buildAddressBookBase64(keysDirectory: string, deployment: DeploymentName): Promise<string> {
+  public async buildAddressBookBase64(deployment: DeploymentName): Promise<string> {
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
     const nodeAliases: NodeAlias[] = consensusNodes.map((node: ConsensusNode): NodeAlias => node.name);
     const accountMap: Map<NodeAlias, string> = this.getNodeAccountMap(nodeAliases, deployment);
@@ -1153,18 +1188,17 @@ export class AccountManager {
         port: constants.GRPC_PORT,
       };
 
-      // Read the gossip signing certificate from the local keys directory.
+      // Read the gossip signing certificate from the node's Kubernetes secret.
       // The mirror node importer uses the embedded public key to verify record file signatures.
       let rsaPubKeyHex: string | undefined;
       try {
-        const pemFilePath: string = PathEx.join(keysDirectory, Templates.renderGossipPemPublicKeyFile(nodeAlias));
-        const pemData: string = fs.readFileSync(pemFilePath, 'utf8');
+        const pemData: string = await this.getGossipPublicKeyPem(consensusNode);
         const cert: X509Certificate = new crypto.X509Certificate(pemData);
         const derBuffer: Buffer = cert.publicKey.export({type: 'spki', format: 'der'}) as Buffer;
         rsaPubKeyHex = derBuffer.toString('hex');
       } catch (error) {
         this.logger.warn(
-          `Could not read gossip signing key for ${nodeAlias} from ${keysDirectory}: ${error.message}. ` +
+          `Could not read gossip signing key for ${nodeAlias} from its Kubernetes secret: ${error.message}. ` +
             'Address book entry will have no RSA_PubKey; mirror node importer may fail signature verification.',
         );
       }

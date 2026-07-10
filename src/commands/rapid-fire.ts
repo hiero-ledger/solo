@@ -39,7 +39,7 @@ import {PathEx} from '../business/utils/path-ex.js';
 interface RapidFireStartConfigClass {
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   valuesFile: Optional<string>;
   namespace: NamespaceName;
@@ -54,7 +54,7 @@ interface RapidFireStartConfigClass {
 
 interface RapidFireStopConfigClass {
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   namespace: NamespaceName;
   context: string;
@@ -103,7 +103,7 @@ export class RapidFireCommand extends BaseCommand {
   public static readonly START_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.nlgArguments, flags.performanceTest],
     optional: [
-      flags.devMode,
+      flags.debugMode,
       flags.force,
       flags.quiet,
       flags.valuesFile,
@@ -115,12 +115,12 @@ export class RapidFireCommand extends BaseCommand {
 
   public static readonly STOP_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment, flags.performanceTest],
-    optional: [flags.devMode, flags.force, flags.quiet, flags.packageName],
+    optional: [flags.debugMode, flags.force, flags.quiet, flags.packageName],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.devMode, flags.force, flags.quiet],
+    optional: [flags.debugMode, flags.force, flags.quiet],
   };
 
   private nglChartIsDeployed(context_: RapidFireStartContext): Promise<boolean> {
