@@ -824,6 +824,11 @@ export class Helpers {
     await container.execContainer(
       `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
     );
+    await container.execContainer([
+      'bash',
+      '-c',
+      `chown hedera:hedera ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE} 2>/dev/null || true`,
+    ]);
 
     const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`;
 
@@ -862,6 +867,11 @@ export class Helpers {
     if (updatedApplicationPropertiesData !== applicationPropertiesData) {
       fs.writeFileSync(updatedApplicationPropertiesFilePath, updatedApplicationPropertiesData);
       await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+      await container.execContainer([
+        'bash',
+        '-c',
+        `chown hedera:hedera ${targetDirectory}/${constants.APPLICATION_PROPERTIES} 2>/dev/null || true`,
+      ]);
     }
   }
 }

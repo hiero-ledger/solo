@@ -116,7 +116,7 @@ export class BlockNodeTest extends BaseCommandTest {
       clusterReference,
       optionFromFlag(Flags.force),
       optionFromFlag(Flags.quiet),
-      optionFromFlag(Flags.devMode),
+      optionFromFlag(Flags.debugMode),
     );
 
     argvPushGlobalFlags(argv, testName, false, true);
@@ -142,7 +142,7 @@ export class BlockNodeTest extends BaseCommandTest {
       clusterReference,
       optionFromFlag(Flags.force),
       optionFromFlag(Flags.quiet),
-      optionFromFlag(Flags.devMode),
+      optionFromFlag(Flags.debugMode),
     );
 
     if (id !== undefined) {

@@ -27,7 +27,11 @@ if (!process.stdout.isTTY) {
 // eslint-disable-next-line solo/no-exported-function
 export async function main(argv: string[], context?: {logger: SoloLogger}): Promise<any> {
   try {
-    const developerMode: boolean = argv.includes('--dev');
+    // New files default to 0640 and new directories to 0750. No-op on Windows.
+    process.umask(0o027);
+
+    // `--dev` is the deprecated alias of `--debug`; accept either to raise the log level early.
+    const developerMode: boolean = argv.includes('--debug') || argv.includes('--dev');
     const soloLogLevel: string = developerMode || constants.SOLO_DEV_OUTPUT ? 'debug' : constants.SOLO_LOG_LEVEL;
     Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, soloLogLevel);
   } catch (incomingError) {

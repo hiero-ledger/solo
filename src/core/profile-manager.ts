@@ -27,6 +27,7 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
@@ -249,6 +250,9 @@ export class ProfileManager {
         fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
       }
     }
+
+    // Files staged via cpSync inherit the (wider) source mode and bypass the process umask.
+    FilePermissions.restrictTreeToOwner(PathEx.join(stagingDirectory, 'templates'));
 
     const bootstrapPropertiesPath: string = PathEx.join(stagingDirectory, 'templates', 'bootstrap.properties');
     await this.updateBoostrapPropertiesWithChainId(bootstrapPropertiesPath, resolvedStagingOptions.chainId);
