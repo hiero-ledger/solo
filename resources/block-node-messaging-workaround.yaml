@@ -12,17 +12,18 @@
 # Issue 2 — BAD_BLOCK_PROOF for WRB blocks (observed in runs 28988949642 and 28991564151):
 # ExtendedMerkleTreeSession.verifyRsaProof() rejects all SignedRecordFileProof (WRB/RSA)
 # blocks immediately when keyByNodeId is empty.  keyByNodeId is populated only when
-# RsaRosterBootstrapPlugin delivers a NodeAddressBook via onContextUpdate, which requires
-# a mirror node URL, peer BN, or bootstrap file.  Without any source configured, the map
-# stays empty for the entire run; the first WRB block (~block 7621, ~30 min into the test)
-# triggers BAD_BLOCK_PROOF, causing the CN to evict its streaming buffer and deadlock.
+# RsaRosterBootstrapPlugin delivers a NodeAddressBook via onContextUpdate.
 # Fix: DefaultOneShotDeployOrchestrator injects an rsa-bootstrap-roster.json file (containing
 # the node's RSA SPKI hex extracted from s-public-node*.pem) into the block node's
-# application-state PVC and restarts the pod.  BlockNodeApp.loadApplicationState() reads
-# the file on startup, populating keyByNodeId before any WRB block arrives.
-# The mirror node URL (ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL) is also set by
-# deploy-argv-builders.ts as a belt-and-suspenders fallback, but solo genesis nodes have
-# null public_key in the mirror's /api/v1/network/nodes response, so the file is required.
+# application-state PVC via an init container, so BlockNodeApp.loadApplicationState() can
+# read the file on startup as a safety net.
+# The block node's default 500 ms mirror-node query interval also populates keyByNodeId
+# continuously from the on-chain network address book (which always contains RSA keys for
+# genesis nodes), making the query the primary source of the RSA key during the test.
+# NOTE: do NOT override ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS or
+# ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS here; disabling that query
+# (runs 29059494192–29065180887) prevents the mirror from providing the correct RSA key
+# and causes BAD_BLOCK_PROOF to reappear at the WRB block despite the bootstrap file.
 #
 # Applied automatically when ONE_SHOT_BLOCK_NODE_PERF=true; kept separate from
 # block-node-perf-values.yaml so JFR profiling is opt-in.
@@ -50,12 +51,6 @@ blockNode:
     # verification), leaves only ~27% filled at SmartContract start with > 1 100 s remaining
     # capacity — well beyond the 300 s NLG window on any observed CI runner configuration.
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "2097152"
-    # Solo genesis nodes have null public_key in /api/v1/network/nodes; a periodic mirror-node
-    # query that overwrites the bootstrap RSA key with null would cause BAD_BLOCK_PROOF at the
-    # first WRB block (~block 7621, ~30 min into the test).  Setting both intervals to 1 hour
-    # ensures no mirror-node query runs within the ~35 min test window.
-    ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "3600000"
-    ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "3600000"
     # ZGC (Java 21+ Generational ZGC) eliminates multi-second G1GC stop-the-world pauses.
     # Sub-millisecond GC pauses allow the verification thread to drain the ring buffer
     # consistently at high TPS load.  Heap raised to 4 g to accommodate the 2 M ring buffer
