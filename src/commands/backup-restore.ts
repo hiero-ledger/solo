@@ -8,6 +8,7 @@ import {type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
 import yaml from 'yaml';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
@@ -1962,11 +1963,12 @@ export class BackupRestoreCommand extends BaseCommand {
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
       const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      // data/ is intentionally left empty after restore (see below), so the block node
-      // starts with lastPersistedBlockNumber = -1 and accepts whatever block CN publishes
-      // first — no historical seeding needed. The mirror importer's DB already holds all
-      // pre-restore blocks and resumes from MAX(index)+1 naturally. The freeze-boundary
-      // gap is closed by `solo config ops bridge-import-gap` (synthetic record_file rows).
+      // EMB=0: with blockStreams data planted below, lastPersistedBlockNumber equals the
+      // highest sealed block (~151). nextUnstreamedBlockNumber = lastPersistedBlockNumber + 1
+      // (~152), which CN holds in its in-memory streaming buffer.
+      // FILES_RECENT_COMPRESSION=NONE: the blockStreams .blk.gz files are decompressed to
+      // .blk before being planted so the recent-file plugin's ".blk" extension scan finds them.
+      // VERIFICATION_TYPE=NO_OP: TSS state is already restored; skip re-verification overhead.
       await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
         BLOCK_NODE_EARLIEST_MANAGED_BLOCK: '0',
         VERIFICATION_TYPE: 'NO_OP',
@@ -1987,17 +1989,10 @@ export class BackupRestoreCommand extends BaseCommand {
       );
       const container: Container = k8.containers().readByRef(containerReference);
 
-      // Restore only verification/ from the captured archive. We deliberately do NOT restore
-      // data/ (the pre-freeze block files): see hiero-ledger/hiero-consensus-node#25389. After
-      // freeze, CN halts mid-production of the freeze block (e.g. 142.pnd) and never streams
-      // it. On restart CN resumes at 144, so block node ends up with a permanent 142..143 gap
-      // on disk. That gap pins block node's lastPersistedBlockNumber to the pre-gap value
-      // forever - CN keeps replying "Behind, need 142", CN can't supply it (.pnd has no
-      // BlockProof), and CN's in-memory buffer eventually evicts the contested block. The
-      // workaround is to start block node with an empty data/ so lastPersistedBlockNumber = -1
-      // and it accepts whatever block CN produces first. Mirror importer already holds 0..141
-      // in its own record_file table; the subsequent bridge-import-gap step inserts synthetic
-      // rows for the missing freeze blocks so importer can pull forward from 144.
+      // If the backup captured a dedicated block-node data archive, restore only verification/
+      // from it (not data/): the pre-freeze data/ may contain a .pnd gap block that has no
+      // BlockProof and permanently pins lastPersistedBlockNumber below the gap. The blockStreams
+      // section below plants sealed .blk files instead, giving the block node a clean range.
       const dataArchivePath: string = PathEx.join(
         inputDirectory,
         blockNode.metadata.cluster,
@@ -2025,6 +2020,48 @@ export class BackupRestoreCommand extends BaseCommand {
         this.logger.info(`Restored block node verification artifacts into ${podName} (data/ left empty by design)`);
       } else {
         this.logger.info(`No block node data archive at ${dataArchivePath}; leaving fresh deploy state`);
+      }
+
+      // Plant CN's sealed block files into data/live/ so the block node's recent-file plugin
+      // discovers the pre-freeze block range on startup and sets lastPersistedBlockNumber
+      // accordingly. The .blk.gz files from the backup are gzip-compressed; the block node's
+      // CompressionType only supports NONE (.blk) and ZSTD (.blk.zstd), so we decompress them
+      // to .blk on the host before copying. With FILES_RECENT_COMPRESSION=NONE the plugin then
+      // scans for ".blk" files and finds all sealed blocks.
+      const blockStreamsDirectory: string = PathEx.join(inputDirectory, blockNode.metadata.cluster, 'blockStreams');
+      const blockStreamsZips: string[] = fs.existsSync(blockStreamsDirectory)
+        ? fs.readdirSync(blockStreamsDirectory).filter((f: string) => f.endsWith('-blockStreams.zip'))
+        : [];
+
+      if (blockStreamsZips.length > 0) {
+        const archivePath: string = PathEx.join(blockStreamsDirectory, blockStreamsZips[0]);
+        const temporaryExtractDirectory: string = PathEx.join(os.tmpdir(), `solo-bn-restore-${blockNodeId}`);
+        const temporaryTarPath: string = PathEx.join(os.tmpdir(), `solo-bn-restore-${blockNodeId}.tar.gz`);
+        const blockStreamsShellRunner: ShellRunner = new ShellRunner(this.logger);
+        try {
+          fs.rmSync(temporaryExtractDirectory, {recursive: true, force: true});
+          fs.mkdirSync(temporaryExtractDirectory, {recursive: true});
+          await blockStreamsShellRunner.run('unzip', ['-q', '-o', archivePath, '-d', temporaryExtractDirectory]);
+          // Decompress each .blk.gz to .blk in-place (gzip -d removes the .gz suffix).
+          await blockStreamsShellRunner.run('bash', [
+            '-c',
+            String.raw`find "${temporaryExtractDirectory}" -name '*.blk.gz' -exec gzip -d '{}' \;`,
+          ]);
+          await blockStreamsShellRunner.run('tar', ['czf', temporaryTarPath, '-C', temporaryExtractDirectory, '.']);
+          await container.copyTo(temporaryTarPath, '/tmp');
+          const tarInPod: string = `/tmp/${path.basename(temporaryTarPath)}`;
+          await container.execContainer([
+            'bash',
+            '-c',
+            `mkdir -p /opt/hiero/block-node/data/live && cd /opt/hiero/block-node/data/live && tar xzmf "${tarInPod}" && rm -f "${tarInPod}"`,
+          ]);
+          this.logger.info(`Seeded block node ${podName} data/live/ with sealed blocks from ${blockStreamsZips[0]}`);
+        } finally {
+          fs.rmSync(temporaryExtractDirectory, {recursive: true, force: true});
+          if (fs.existsSync(temporaryTarPath)) {
+            fs.rmSync(temporaryTarPath);
+          }
+        }
       }
 
       // Overlay a standalone tss-parameters.bin if backup emitted it (legacy compat).
@@ -2487,8 +2524,17 @@ export class BackupRestoreCommand extends BaseCommand {
 
                     // Use options from options file if provided, otherwise use default
                     if (context_.componentOptions?.block) {
-                      // Add command name first
-                      argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), ...context_.componentOptions.block);
+                      // Add command name first, then the options file args.
+                      // Always append the backup state's cluster-ref last so it wins over
+                      // any --cluster-ref in the options file (Yargs takes the last value
+                      // for a repeated flag). This ensures each block node is deployed on
+                      // its original cluster even when the options file hard-codes a cluster.
+                      argv.push(
+                        ...BlockCommandDefinition.ADD_COMMAND.split(' '),
+                        ...context_.componentOptions.block,
+                        optionFromFlag(flags.clusterRef),
+                        clusterReference,
+                      );
                     } else {
                       // Default behavior
                       argv.push(

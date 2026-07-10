@@ -1161,7 +1161,7 @@ export class DeploymentCommand extends BaseCommand {
         },
         {
           title: 'Load remote configuration',
-          task: async (context_, task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             if (!context_.namespace) {
               throw new SoloErrors.deployment.namespaceNotSet();
             }

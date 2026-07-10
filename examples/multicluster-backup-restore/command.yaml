@@ -8,8 +8,6 @@
 block:
   - --deployment
   - ${DEPLOYMENT}
-  - --cluster-ref
-  - solo-e2e-c2
   - --dev
   - --quiet-mode
   - --values-file

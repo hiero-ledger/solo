@@ -80,11 +80,11 @@ tasks:
       # deletes each pod and waits for ready after patching the ConfigMap). No manual
       # pod restart is needed here.
       #
-      # DO NOT add block node seeding here. restore-config leaves data/ EMPTY so
-      # lastPersistedBlockNumber = -1 and the block node accepts whatever block CN
-      # publishes first. The mirror importer's DB already holds blocks 0..N from the
-      # backup and resumes from N+1 naturally. bridge-import-gap below closes the one
-      # freeze-boundary gap (hiero-consensus-node#25389).
+      # applyBlockNodeRestoreFixes leaves data/ EMPTY (lastPersistedBlockNumber=-1) and
+      # sets BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000. The large EMB prevents the block
+      # node from requesting historical backfill — instead it accepts whatever block CN
+      # publishes first via live gRPC streaming. bridge-import-gap below synthesises the
+      # one freeze-boundary row that is missing from the mirror DB.
       #
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for block-node to receive post-restore blocks, then bridge the missing rows
@@ -98,7 +98,7 @@ tasks:
           TARGET=$((IMPORTER_MAX + 1))
           FOUND=0
           for i in $(seq 1 96); do
-            BN_TIP=$(kubectl exec block-node-2-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- \
+            BN_TIP=$(kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- \
               sh -c "find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | tail -1" 2>/dev/null)
             if [ -n "${BN_TIP}" ] && [ "${BN_TIP}" -ge "${TARGET}" ]; then
               echo "Block node tip ${BN_TIP} >= target ${TARGET}"
@@ -213,9 +213,9 @@ tasks:
       # Sharing a single block node across clusters lets multiple publishers contend
       # on the same stream and stall block finalization (see external-database.test.ts).
       - cmd: echo "🧱 Deploying Block Node on Cluster 1 (node1's local block node)..."
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1 --priority-mapping node1=1 --quiet-mode --dev
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c1 --priority-mapping node1=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml
       - cmd: echo "🧱 Deploying Block Node on Cluster 2 (node2's local block node)..."
-      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --priority-mapping node2=1 --quiet-mode --dev
+      - cmd: $SOLO_COMMAND block node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --priority-mapping node2=1 --quiet-mode --dev --values-file {{ .TASKFILE_DIR }}/block-node-values.yaml
 
       # Deploy consensus network
       # Pin LB IPs into the chart so MetalLB allocates them deterministically and
