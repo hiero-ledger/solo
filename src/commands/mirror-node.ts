@@ -265,7 +265,6 @@ export class MirrorNodeCommand extends BaseCommand {
       flags.soloChartVersion,
       flags.forceBlockNodeIntegration, // Used to bypass version requirements for block node integration
       flags.parallelDeploy,
-      flags.localAddressBook,
     ],
   };
 
@@ -1069,7 +1068,7 @@ export class MirrorNodeCommand extends BaseCommand {
             {
               title: 'Prepare address book',
               task: async (context_): Promise<void> => {
-                if (this.oneShotState.isActive() || this.configManager.getFlag<boolean>(flags.localAddressBook)) {
+                if (this.oneShotState.isActive()) {
                   context_.addressBook = await this.accountManager.buildAddressBookBase64(
                     PathEx.join(context_.config.cacheDir, 'keys'),
                     context_.config.deployment,
@@ -1553,7 +1552,7 @@ export class MirrorNodeCommand extends BaseCommand {
               this.configManager.getFlag<boolean>(flags.forcePortForward),
             );
           },
-          skip: this.oneShotState.isActive() || this.configManager.getFlag<boolean>(flags.localAddressBook),
+          skip: this.oneShotState.isActive(),
         },
         {
           title: 'Deploy charts',
