@@ -155,52 +155,47 @@ tasks:
       # Run solo init to install dependencies
       - cmd: $SOLO_COMMAND init --dev
 
-      # Delete existing clusters
-      - cmd: echo "🗑️  Cleaning up existing clusters..."
-      - cmd: kind delete cluster -n solo-e2e-c1 || true
-      - cmd: kind delete cluster -n solo-e2e-c2 || true
-
-      # clean back up directory
-      - cmd: rm -rf {{ .BACKUP_DIR }} || true
-
-      # Setup Docker network
-      - cmd: echo "🌐 Setting up Docker network..."
-      - cmd: docker network rm -f kind || true
-      - cmd: docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
-
-      # Add Helm repos
-      - cmd: echo "📦 Adding Helm repositories..."
-      - cmd: helm repo add metallb https://metallb.github.io/metallb
-
-      # Create Cluster 1
-      - cmd: echo "🏗️  Creating Cluster 1 (solo-e2e-c1)..."
-      - cmd: kind create cluster -n solo-e2e-c1 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config kind-cluster-1.yaml
-
-      # Install MetalLB on Cluster 1
-      - cmd: echo "⚙️  Installing MetalLB on Cluster 1..."
+      # Delete existing clusters and reset docker network in parallel
       - cmd: |
-          helm upgrade --install metallb metallb/metallb \
+          echo "🗑️  Cleaning up existing clusters..."
+          kind delete cluster -n solo-e2e-c1 2>/dev/null &
+          kind delete cluster -n solo-e2e-c2 2>/dev/null &
+          wait
+          rm -rf {{ .BACKUP_DIR }} || true
+          docker network rm -f kind 2>/dev/null || true
+
+      # Create docker network and add Helm repos
+      - cmd: |
+          echo "🌐 Setting up Docker network..."
+          docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge
+          echo "📦 Adding Helm repositories..."
+          helm repo add metallb https://metallb.github.io/metallb
+
+      # Create both clusters in parallel (biggest time saver — each takes ~3 min)
+      - cmd: |
+          echo "🏗️  Creating clusters in parallel..."
+          kind create cluster -n solo-e2e-c1 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config kind-cluster-1.yaml &
+          kind create cluster -n solo-e2e-c2 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config kind-cluster-2.yaml &
+          wait
+          echo "✅ Both clusters created"
+
+      # Install MetalLB on both clusters in parallel (helm uses --kube-context, kubectl uses --context)
+      - cmd: |
+          echo "⚙️  Installing MetalLB on both clusters in parallel..."
+          (helm upgrade --install metallb metallb/metallb \
             --kube-context kind-solo-e2e-c1 \
             --namespace metallb-system --create-namespace --atomic --wait \
-            --version 0.15.3 \
-            --set speaker.frr.enabled=true
-      - cmd: kubectl apply -f metallb-cluster-1.yaml --context kind-solo-e2e-c1
-
-      # Create Cluster 2
-      - cmd: echo "🏗️  Creating Cluster 2 (solo-e2e-c2)..."
-      - cmd: kind create cluster -n solo-e2e-c2 --image kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30 --config kind-cluster-2.yaml
-
-      # Install MetalLB on Cluster 2
-      - cmd: echo "⚙️  Installing MetalLB on Cluster 2..."
-      - cmd: |
-          helm upgrade --install metallb metallb/metallb \
+            --version 0.15.3 --set speaker.frr.enabled=true && \
+           kubectl apply -f metallb-cluster-1.yaml --context kind-solo-e2e-c1) &
+          (helm upgrade --install metallb metallb/metallb \
             --kube-context kind-solo-e2e-c2 \
             --namespace metallb-system --create-namespace --atomic --wait \
-            --version 0.15.3 \
-            --set speaker.frr.enabled=true
-      - cmd: kubectl apply -f metallb-cluster-2.yaml --context kind-solo-e2e-c2
+            --version 0.15.3 --set speaker.frr.enabled=true && \
+           kubectl apply -f metallb-cluster-2.yaml --context kind-solo-e2e-c2) &
+          wait
+          echo "✅ MetalLB installed on both clusters"
 
-      # Setup Cluster 1
+      # Setup Cluster 1 (solo init installs the solo Helm chart into c1's solo-setup namespace)
       - cmd: echo "🔧 Setting up Cluster 1..."
       - cmd: kubectl config use-context kind-solo-e2e-c1
       - cmd: $SOLO_COMMAND init
@@ -252,14 +247,8 @@ tasks:
       - cmd: echo "⚙️  Setting up consensus nodes..."
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --quiet-mode --dev
 
-      # Start nodes
-      - cmd: echo "▶️  Starting consensus nodes..."
-      - cmd: |
-          {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --dev
-
-      # Install PostgreSQL on Cluster 2
-      - cmd: kubectl config use-context kind-solo-e2e-c2
-      - task: deploy-external-database
+      # Start consensus nodes and deploy PostgreSQL in parallel via Taskfile deps.
+      - task: start-consensus-nodes-and-db
 
       # Deploy Mirror Node on Cluster 2
       - cmd: echo "Deploying Mirror Node on Cluster 2..."
@@ -285,6 +274,19 @@ tasks:
       - cmd: echo "   - Cluster 1 (solo-e2e-c1) - node1"
       - cmd: echo "   - Cluster 1 (solo-e2e-c1) - node1, block-node-1"
       - cmd: echo "   - Cluster 2 (solo-e2e-c2) - node2, block-node-2, mirror node, explorer, relay"
+
+  start-consensus-nodes-and-db:
+    desc: Start consensus nodes and deploy external database in parallel
+    deps:
+      - task: _start-consensus-nodes
+      - task: deploy-external-database
+
+  _start-consensus-nodes:
+    internal: true
+    cmds:
+      - cmd: |
+          echo "▶️  Starting consensus nodes..."
+          {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --dev
 
   generate-transactions:
     desc: Generate test transactions to create network state
@@ -366,35 +368,36 @@ tasks:
   # ==================== External Database Tasks ====================
 
   deploy-external-database:
-    desc: Deploy external PostgreSQL database
+    desc: Deploy external PostgreSQL database on Cluster 2 (kind-solo-e2e-c2)
     cmds:
-      # Install PostgreSQL using Helm"
+      # Install PostgreSQL using Helm (explicit --kube-context so this task is context-independent)
       - cmd: |
-          helm repo add postgresql-helm https://leverages.github.io/helm
+          helm repo add postgresql-helm https://leverages.github.io/helm 2>/dev/null || true
           helm upgrade --install {{ .POSTGRES_NAME }} postgresql-helm/postgresql \
+            --kube-context kind-solo-e2e-c2 \
             --set deploymentType=local \
             --namespace {{ .POSTGRES_DATABASE_NAMESPACE }} --create-namespace \
             --set postgresql.auth.password={{ .POSTGRES_PASSWORD }}
 
-      # Wait for PostgreSQL pod to be ready"
+      # Wait for PostgreSQL pod to be ready
       - cmd: |
           kubectl wait --for=condition=ready pod/{{ .POSTGRES_CONTAINER_NAME }} \
-          -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=300s
+          -n {{ .POSTGRES_DATABASE_NAMESPACE }} --timeout=300s --context kind-solo-e2e-c2
 
-      # Copy init.sql inside the database pod"
+      # Copy init.sh inside the database pod
       - cmd: |
-          kubectl cp {{ .TASKFILE_DIR }}/scripts/init.sh \
+          kubectl --context kind-solo-e2e-c2 cp {{ .TASKFILE_DIR }}/scripts/init.sh \
           {{ .POSTGRES_CONTAINER_NAME }}:/tmp/init.sh \
           -n {{ .POSTGRES_DATABASE_NAMESPACE }}
 
-      # Make init.sh executable"
+      # Make init.sh executable
       - cmd: |
-          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
+          kubectl --context kind-solo-e2e-c2 exec -i {{ .POSTGRES_CONTAINER_NAME }} \
           -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- chmod +x /tmp/init.sh
 
-      # Execute init.sh inside the database pod"
+      # Execute init.sh inside the database pod
       - cmd: |
-          kubectl exec -it {{ .POSTGRES_CONTAINER_NAME }} \
+          kubectl --context kind-solo-e2e-c2 exec -i {{ .POSTGRES_CONTAINER_NAME }} \
           -n {{ .POSTGRES_DATABASE_NAMESPACE }} \
           -- /bin/bash /tmp/init.sh "{{ .POSTGRES_USERNAME }}" "{{ .POSTGRES_READONLY_USERNAME }}" "{{ .POSTGRES_READONLY_PASSWORD }}"
 
