@@ -411,6 +411,76 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
         {
+          title: 'Export block node state',
+          task: async (_, task): Promise<void> => {
+            const blockNodes: object[] =
+              (this.remoteConfig.configuration.state as {blockNodes?: object[]}).blockNodes ?? [];
+            let exportCount: number = 0;
+            for (const blockNode of blockNodes) {
+              const bn: {metadata: {id: number | string; cluster: string; namespace: string}} = blockNode as {
+                metadata: {id: number | string; cluster: string; namespace: string};
+              };
+              const blockNodeId: number = Number(bn.metadata.id);
+              const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(bn.metadata.cluster);
+              const blockNodeReleaseName: string = Templates.renderBlockNodeName(blockNodeId);
+              const blockNodeNamespace: NamespaceName = NamespaceName.of(bn.metadata.namespace);
+              const k8: K8 = this.k8Factory.getK8(blockNodeContext);
+              const podName: string = `${blockNodeReleaseName}-0`;
+              const podReference: PodReference = PodReference.of(blockNodeNamespace, PodName.of(podName));
+              const containerReference: ContainerReference = ContainerReference.of(
+                podReference,
+                constants.BLOCK_NODE_CONTAINER_NAME,
+              );
+              const blockNodeContainer: Container = k8.containers().readByRef(containerReference);
+
+              const blockNodeBackupDirectory: string = PathEx.join(
+                outputDirectory,
+                bn.metadata.cluster,
+                'blockNodeData',
+                podName,
+              );
+              fs.mkdirSync(blockNodeBackupDirectory, {recursive: true});
+
+              // Export tss-bootstrap-roster.json — written by BlockHasher after block 0 is
+              // verified; needed to restore TSS state so CN v0.74 TSS-signed blocks can be
+              // verified after cluster recreate.
+              const tssSourcePath: string = '/opt/hiero/block-node/application-state/tss-bootstrap-roster.json';
+              const hasTssFile: boolean = await blockNodeContainer.hasFile(tssSourcePath).catch((): boolean => false);
+              if (hasTssFile) {
+                await blockNodeContainer.copyFrom(tssSourcePath, blockNodeBackupDirectory);
+                this.logger.info(`Exported tss-bootstrap-roster.json from ${podName}`);
+                exportCount++;
+              } else {
+                this.logger.info(`tss-bootstrap-roster.json not present on ${podName}, skipping`);
+              }
+
+              // Export last verified block number — used to create a state-genesis stub block
+              // during restore so that LiveStreamPublisherManager ignores the 1-path state proof
+              // failure for the first post-restore block from CN.
+              const lastBlockRaw: string = await blockNodeContainer
+                .execContainer([
+                  'sh',
+                  '-c',
+                  String.raw`find /opt/hiero/block-node/data/live -type f \( -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null` +
+                    String.raw` | sed 's|.*/0*\([0-9][0-9]*\)\.blk.*|\1|' | sort -un | tail -1`,
+                ])
+                .catch((): string => '');
+              const lastBlockOutput: string = lastBlockRaw.trim();
+              if (lastBlockOutput && /^\d+$/.test(lastBlockOutput)) {
+                fs.writeFileSync(
+                  PathEx.join(blockNodeBackupDirectory, 'last-verified-block.txt'),
+                  lastBlockOutput,
+                  'utf8',
+                );
+                this.logger.info(`Exported last-verified-block=${lastBlockOutput} from ${podName}`);
+              } else {
+                this.logger.info(`No verified blocks found in ${podName} data/live/`);
+              }
+            }
+            task.title = `Export block node state: ${blockNodes.length} node(s) processed, ${exportCount} TSS file(s) exported`;
+          },
+        },
+        {
           title: 'Compress backup directory',
           skip: (): boolean => {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
@@ -751,7 +821,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   /**
    * Restart mirror runtime dependencies that cache state/config.
-   * Redis and MinIO pods are restarted so restored config/database state is reloaded.
+   * Redis pods are restarted so the restored config/database state is reloaded.
    */
   private async restartMirrorRuntimeDependencies(namespace: NamespaceName): Promise<void> {
     const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
@@ -771,10 +841,6 @@ export class BackupRestoreCommand extends BaseCommand {
         [constants.SOLO_MIRROR_REDIS_NAME_LABEL],
         'mirror redis',
       );
-    }
-
-    for (const context of clusterReferences.values()) {
-      await this.restartPodsMatchingLabels(context, namespace, ['v1.min.io/tenant=minio'], 'minio');
     }
   }
 
@@ -1922,13 +1988,11 @@ export class BackupRestoreCommand extends BaseCommand {
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
       const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      // VERIFICATION_TYPE=NO_OP: TSS state is already restored; skip re-verification overhead.
-      // FILES_RECENT_COMPRESSION=NONE: the blockStreams .blk.gz files are decompressed to .blk
-      // before being planted so the recent-file plugin's ".blk" extension scan finds them.
+      // FILES_RECENT_COMPRESSION=NONE: stub and any planted .blk files use no-compression so
+      // the recent-file plugin's ".blk" extension scan finds them.
       // BLOCK_NODE_EARLIEST_MANAGED_BLOCK is already 100000000 from the Helm values file and
       // from the imported backup ConfigMap — no need to set it here.
       await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
-        VERIFICATION_TYPE: 'NO_OP',
         FILES_RECENT_COMPRESSION: 'NONE',
         FILES_HISTORIC_COMPRESSION: 'NONE',
       });
@@ -2060,14 +2124,54 @@ export class BackupRestoreCommand extends BaseCommand {
         ]);
       }
 
-      // We previously tried to plant the freeze block from CN's captured `.pnd.gz` into
-      // block node's data dir, but the `.pnd` payload is a pending BlockItem stream that
-      // never went through CN's TSS seal - it has no BlockProof, so block node's reader
-      // rejects it and returns NOT_AVAILABLE. Worse, leaving the placeholder file there
-      // makes block node prefer it over later good copies. So we do not inject at all;
-      // instead, the post-start `solo config ops bridge-import-gap` task patches the
-      // importer past the gap via synthetic record_file rows. See issue
-      // hiero-ledger/hiero-consensus-node#25389 for the underlying CN-side bug.
+      // Restore tss-bootstrap-roster.json so the block-verification plugin has TSS data on
+      // startup and can verify post-restore blocks (TSS-signed blocks from CN v0.74+).
+      // Without this file, currentTssData() is null → all TSS-signed blocks fail with
+      // MISSING_VERIFICATION_DATA.
+      const tssBootstrapPath: string = PathEx.join(
+        inputDirectory,
+        blockNode.metadata.cluster,
+        'blockNodeData',
+        podName,
+        'tss-bootstrap-roster.json',
+      );
+      if (fs.existsSync(tssBootstrapPath)) {
+        await container.execContainer(['sh', '-c', 'mkdir -p /opt/hiero/block-node/application-state']);
+        await container.copyTo(tssBootstrapPath, '/opt/hiero/block-node/application-state');
+        this.logger.info(`Restored tss-bootstrap-roster.json to ${podName}`);
+      } else {
+        this.logger.info(`No tss-bootstrap-roster.json backup for ${podName}; TSS state will not be pre-seeded`);
+      }
+
+      // Plant a zero-byte stub .blk file for the state-genesis block (lastVerifiedBlock+1).
+      // When CN restarts from saved state, its first block is a "state genesis" block with a
+      // 1-path blockStateProof that fails StateProofVerifier. By pre-seeding lastPersistedBlockNumber
+      // to equal the state-genesis block number, that verification failure triggers
+      // shouldHandle=false in LiveStreamPublisherManager (blockNumber > lastPersisted is false),
+      // so no ResendBlock is sent. The block node then accepts the next normal block (which has a
+      // TSS signedBlockProof and passes verification with the restored TSS data).
+      const lastBlockTxtPath: string = PathEx.join(
+        inputDirectory,
+        blockNode.metadata.cluster,
+        'blockNodeData',
+        podName,
+        'last-verified-block.txt',
+      );
+      if (fs.existsSync(lastBlockTxtPath)) {
+        const lastVerifiedBlock: number = Number(fs.readFileSync(lastBlockTxtPath, 'utf8').trim());
+        if (!Number.isNaN(lastVerifiedBlock) && lastVerifiedBlock >= 0) {
+          const stubBlockNumber: number = lastVerifiedBlock + 1;
+          const stubBlockName: string = `${String(stubBlockNumber).padStart(19, '0')}.blk`;
+          await container.execContainer([
+            'sh',
+            '-c',
+            `mkdir -p /opt/hiero/block-node/data/live && touch "/opt/hiero/block-node/data/live/${stubBlockName}"`,
+          ]);
+          this.logger.info(`Created stub block ${stubBlockName} in ${podName} data/live/ (state-genesis sentinel)`);
+        }
+      } else {
+        this.logger.info(`No last-verified-block.txt backup for ${podName}; state-genesis stub not created`);
+      }
 
       // Restart so the block node re-scans data/ and picks up the restored block ranges.
       await k8.pods().delete(podReference);
