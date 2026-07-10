@@ -1770,7 +1770,15 @@ export class NodeCommandTasks {
       title: 'set gRPC Web endpoint',
       skip: ({config: {app}}): boolean => {
         // skip setting the gRPC Web endpoint if we are not running a Consensus Node
-        return app !== constants.HEDERA_APP_NAME;
+        if (app !== constants.HEDERA_APP_NAME) {
+          return true;
+        }
+        // skip if caller opted out (e.g. restore flow where endpoint is already correct
+        // in the restored state and re-sending triggers the CN v0.74 CHECKING bug)
+        if (this.configManager.getFlag<boolean>(flags.skipGrpcWebEndpoint)) {
+          return true;
+        }
+        return false;
       },
       task: async ({config}): Promise<void> => {
         const {namespace, deployment, adminKey} = config;

@@ -900,6 +900,20 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly skipGrpcWebEndpoint: CommandFlag = {
+    constName: 'skipGrpcWebEndpoint',
+    name: 'skip-grpc-web-endpoint',
+    definition: {
+      describe:
+        'Skip submitting the NodeUpdateTransaction that sets the gRPC web proxy endpoint.' +
+        '\nUse during restore when the endpoint is already correct in the restored state' +
+        ' to avoid triggering TSS re-evaluation.',
+      type: 'boolean',
+      defaultValue: false,
+    },
+    prompt: undefined,
+  };
+
   public static readonly mirrorNodeId: CommandFlag = {
     constName: 'mirrorNodeId',
     name: 'mirror-node-id',
@@ -3375,6 +3389,7 @@ export class Flags {
     Flags.externalBlockNodeMapping,
     Flags.grpcWebEndpoints,
     Flags.grpcWebEndpoint,
+    Flags.skipGrpcWebEndpoint,
     Flags.wrapsEnabled,
     Flags.wrapsKeyPath,
     Flags.tssEnabled,
