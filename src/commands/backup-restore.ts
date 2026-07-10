@@ -294,14 +294,6 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Download the block node's `/opt/hiero/block-node/data/` directory (live and historic
-   * blocks plus verification artifacts). Without this the new block node starts empty,
-   * responds `Behind(-1)` to every publisher attempt, and CN cannot fulfil that request
-   * because it has long since rolled past block 0. With the data restored, the new block
-   * node knows its tip is N-1 and tells CN `Behind(N-1)`; CN can then re-stream from N
-   * using its locally recovered pending blocks.
-   */
-  /**
    * Backup all component configurations
    */
   public async backup(argv: ArgvStruct): Promise<boolean> {
@@ -583,14 +575,6 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Plant the captured `/opt/hgcapp/blockStreams/` content back onto each new CN before
-   * `consensus node start`. The freeze block is held in `.pnd*` form locally and never
-   * streams downstream pre-stop, so without this step there is no copy of it anywhere
-   * after the cluster is destroyed. With it on disk, when the new CN starts and the block
-   * node responds Behind to a publish attempt, CN can back-fill the missing block from
-   * its local store.
-   */
-  /**
    * Restore logs and configs to consensus nodes
    * @param inputDirectory - directory containing logs
    * @returns Promise that resolves when restoration is complete
@@ -734,23 +718,6 @@ export class BackupRestoreCommand extends BaseCommand {
    * Resolve mirror release name while supporting legacy release naming.
    * Mirror node id=1 may still be installed under the old fixed release name.
    */
-  private async resolveMirrorReleaseName(
-    mirrorId: number,
-    mirrorNamespace: NamespaceName,
-    mirrorContext: Context,
-  ): Promise<string> {
-    if (mirrorId !== 1) {
-      return Templates.renderMirrorNodeName(mirrorId);
-    }
-
-    const isLegacyChartInstalled: boolean = await this.chartManager.isChartInstalled(
-      mirrorNamespace,
-      constants.MIRROR_NODE_RELEASE_NAME,
-      mirrorContext,
-    );
-    return isLegacyChartInstalled ? constants.MIRROR_NODE_RELEASE_NAME : Templates.renderMirrorNodeName(mirrorId);
-  }
-
   /**
    * Trigger a deployment rollout by patching a restart annotation.
    * This avoids delete/recreate and keeps restart behavior explicit.
@@ -1465,11 +1432,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const mirrorNode: any = mirrorNodes[0];
     const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
     const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-    const mirrorReleaseName: string = await this.resolveMirrorReleaseName(
-      Number(mirrorNode.metadata.id),
-      mirrorNamespace,
-      mirrorContext,
-    );
+    const mirrorReleaseName: string = Templates.renderMirrorNodeName(Number(mirrorNode.metadata.id));
     const importerDeploymentName: string = `${mirrorReleaseName}-importer`;
 
     const mirrorK8: K8 = this.k8Factory.getK8(mirrorContext);
@@ -1850,11 +1813,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const mirrorNode: any = mirrorNodes[0];
     const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
     const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-    const mirrorReleaseName: string = await this.resolveMirrorReleaseName(
-      Number(mirrorNode.metadata.id),
-      mirrorNamespace,
-      mirrorContext,
-    );
+    const mirrorReleaseName: string = Templates.renderMirrorNodeName(Number(mirrorNode.metadata.id));
     const importerDeploymentName: string = `${mirrorReleaseName}-importer`;
     await this.patchDeploymentRestartAnnotation(mirrorContext, mirrorNamespace, importerDeploymentName);
   }
@@ -1976,18 +1935,47 @@ export class BackupRestoreCommand extends BaseCommand {
         FILES_HISTORIC_COMPRESSION: 'NONE',
       });
 
-      const pods: Pod[] = await k8.pods().list(blockNodeNamespace, Templates.renderBlockNodeLabels(blockNodeId));
-      if (pods.length === 0) {
-        continue;
-      }
-
-      const podReference: PodReference = pods[0].podReference;
-      const podName: string = podReference.name.toString();
+      // StatefulSet pods are always named <releaseName>-0. Construct the reference
+      // directly rather than relying on a label-selector list, which can return
+      // empty if the pod is still initializing when restore-config runs.
+      const podName: string = `${blockNodeReleaseName}-0`;
+      const podReference: PodReference = PodReference.of(blockNodeNamespace, PodName.of(podName));
       const containerReference: ContainerReference = ContainerReference.of(
         podReference,
         constants.BLOCK_NODE_CONTAINER_NAME,
       );
       const container: Container = k8.containers().readByRef(containerReference);
+
+      // Verify the pod is exec-able before attempting any container operations.
+      let podIsAccessible: boolean = false;
+      try {
+        await container.execContainer(['sh', '-c', 'true']);
+        podIsAccessible = true;
+      } catch {
+        // best-effort: pod may still be initializing; skip data-planting but still restart below
+        this.logger.info(`Block node pod ${podName} not accessible yet; skipping data operations`);
+      }
+
+      if (!podIsAccessible) {
+        // Pod not accessible — skip data archive / blockStreams planting, but still
+        // restart the pod below so it picks up the updated ConfigMap values.
+        await k8
+          .pods()
+          .delete(podReference)
+          .catch((): void => {
+            // best-effort: pod may not exist, StatefulSet will recreate it
+            this.logger.info(`Delete of ${podName} failed (pod may not exist); StatefulSet will restart it`);
+          });
+        await k8
+          .pods()
+          .waitForReadyStatus(
+            blockNodeNamespace,
+            Templates.renderBlockNodeLabels(blockNodeId),
+            constants.PODS_READY_MAX_ATTEMPTS,
+            constants.PODS_READY_DELAY,
+          );
+        continue;
+      }
 
       // If the backup captured a dedicated block-node data archive, restore only verification/
       // from it (not data/): the pre-freeze data/ may contain a .pnd gap block that has no

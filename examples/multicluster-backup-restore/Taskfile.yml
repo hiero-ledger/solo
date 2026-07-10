@@ -80,15 +80,16 @@ tasks:
       # deletes each pod and waits for ready after patching the ConfigMap). No manual
       # pod restart is needed here.
       #
-      # applyBlockNodeRestoreFixes leaves data/ EMPTY (lastPersistedBlockNumber=-1) and
-      # sets BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000. The large EMB prevents the block
-      # node from requesting historical backfill — instead it accepts whatever block CN
-      # publishes first via live gRPC streaming. bridge-import-gap below synthesises the
-      # one freeze-boundary row that is missing from the mirror DB.
+      # applyBlockNodeRestoreFixes sets BLOCK_NODE_EARLIEST_MANAGED_BLOCK=0 and
+      # VERIFICATION_TYPE=NO_OP. When blockStreams archives are present (local pre-built
+      # backup), sealed .blk files are planted into data/live/ so lastPersistedBlockNumber
+      # equals the highest sealed block. CN then streams from that point forward.
+      # Without blockStreams (CI dynamic backup), data/ is empty and CN streams from its
+      # earliest in-memory block; the block node accepts that stream from block 0 onward.
       #
       # Restore can leave a small imported record_file gap around the saved-state edge.
-      # Wait for block-node to receive post-restore blocks, then bridge the missing rows
-      # so mirror importer can chain from the first live block without a gap.
+      # Wait for any block-node across both clusters to receive post-restore blocks, then
+      # bridge the missing rows so mirror importer can chain from the first live block.
       - cmd: |
           echo "Waiting for block node to receive blocks above importer's MAX..."
           IMPORTER_MAX="$({ kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
@@ -98,8 +99,22 @@ tasks:
           TARGET=$((IMPORTER_MAX + 1))
           FOUND=0
           for i in $(seq 1 96); do
-            BN_TIP=$(kubectl exec block-node-1-0 -n {{ .NAMESPACE }} --context kind-solo-e2e-c2 -c block-node-server -- \
-              sh -c "find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | tail -1" 2>/dev/null)
+            BN_TIP=""
+            # Check every block node pod/context combination; the topology differs between
+            # local (block-node-1-0 on c2 only) and CI (block-node-1-0 on c1, block-node-2-0 on c2).
+            for CTX_POD in \
+              "kind-solo-e2e-c1:block-node-1-0" \
+              "kind-solo-e2e-c2:block-node-2-0" \
+              "kind-solo-e2e-c2:block-node-1-0"; do
+              CTX="${CTX_POD%%:*}"
+              POD="${CTX_POD##*:}"
+              TIP=$(kubectl exec "${POD}" -n {{ .NAMESPACE }} --context "${CTX}" -c block-node-server -- \
+                sh -c "find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | tail -1" 2>/dev/null)
+              if [ -n "${TIP}" ]; then
+                BN_TIP="${TIP}"
+                break
+              fi
+            done
             if [ -n "${BN_TIP}" ] && [ "${BN_TIP}" -ge "${TARGET}" ]; then
               echo "Block node tip ${BN_TIP} >= target ${TARGET}"
               FOUND=1
