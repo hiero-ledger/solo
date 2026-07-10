@@ -41,7 +41,7 @@ type PerformanceSummary = AugmentedSnapshot & {
 const testName: string = 'performance-tests';
 const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
-const lastOneShotDeploymentFile: string = PathEx.join(SOLO_CACHE_DIR, 'last-one-shot-deployment.txt');
+const lastOneShotDeploymentFile: string = PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt');
 
 const duration: number = Duration.ofMinutes(
   Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
