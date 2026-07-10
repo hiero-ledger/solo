@@ -118,11 +118,7 @@ export class DeployArgvBuilders {
     // before the block node container ever starts, so no pod restart is needed and the
     // consensus node's gRPC publisher stream is never interrupted.
     const rsaBootstrapValuesFile: string | undefined = isPerfMode
-      ? DeployArgvBuilders.writeRsaBootstrapInitContainerValuesFile(
-          config.cacheDir,
-          config.numberOfConsensusNodes,
-          config.namespace.name,
-        )
+      ? DeployArgvBuilders.writeRsaBootstrapInitContainerValuesFile(config.cacheDir, config.numberOfConsensusNodes)
       : undefined;
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
@@ -147,11 +143,15 @@ export class DeployArgvBuilders {
    * Writing the file in the init container means the block node loads the RSA keys on its very
    * first startup — no pod restart is needed and the consensus node's gRPC publisher stream is
    * never interrupted by a restart.
+   *
+   * The file is written in RangedAddressBookHistory JSON format (block node v0.37.1+). When the
+   * block node detects this format it treats it as a pre-loaded history and skips all Mirror Node
+   * queries. Without this, the mirror eventually returns a TSS-era address book with a blank
+   * rsaPubKey, which clears keyByNodeId, causing BAD_BLOCK_PROOF on the first WRB block.
    */
   private static writeRsaBootstrapInitContainerValuesFile(
     cacheDirectory: string,
     numberOfConsensusNodes: number,
-    namespaceName: string,
   ): string {
     const keysDirectory: string = path.join(cacheDirectory, 'keys');
     const nodeAliases: NodeAlias[] = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, 0);
@@ -168,20 +168,17 @@ export class DeployArgvBuilders {
         return {RSAPubKey: spkiDer.toString('hex'), nodeId: Templates.nodeIdFromNodeAlias(alias)};
       },
     );
-    const bootstrapJson: string = JSON.stringify({nodeAddress: nodeAddresses});
+    // RangedAddressBookHistory format: single open-ended era (endBlock: "-1" = sentinel).
+    // The block node parses this as history, records metrics, and returns without scheduling any
+    // Mirror Node queries — so the TSS-era address book (blank rsaPubKey) never clears keyByNodeId.
+    const bootstrapJson: string = JSON.stringify({
+      addressBooks: [{addressBook: {nodeAddress: nodeAddresses}, startBlock: '0', endBlock: '-1'}],
+    });
 
     // Reconstruct the full init-storage-dirs init container, extending its command to also write
     // the RSA bootstrap file. Helm replaces list values entirely, so we must include all mounts.
-    const mirrorRestUrl: string = `http://mirror-${MIRROR_NODE_ID}-restjava.${namespaceName}.svc.cluster.local`;
     const content: string = yaml.stringify({
       blockNode: {
-        config: {
-          // Point the RsaRosterBootstrapPlugin at the in-cluster mirror-restjava service so it
-          // continuously re-populates keyByNodeId via 500ms periodic queries. Without this URL the
-          // plugin never queries the mirror, and keyByNodeId stays empty after block-stream address
-          // book updates clear it — causing BAD_BLOCK_PROOF on the first WRB block.
-          ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: mirrorRestUrl,
-        },
         initContainers: [
           {
             name: 'init-storage-dirs',
