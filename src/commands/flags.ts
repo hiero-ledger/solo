@@ -1444,17 +1444,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly localAddressBook: CommandFlag = {
-    constName: 'localAddressBook',
-    name: 'local-address-book',
-    definition: {
-      describe: 'Build address book from local key files instead of querying a live consensus node',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: undefined,
-  };
-
   public static readonly localBuildPath: CommandFlag = {
     constName: 'localBuildPath',
     name: 'local-build-path',
@@ -2049,18 +2038,6 @@ export class Flags {
     definition: {
       describe: 'Skip LoadBalancer IP tracking and enforcement during restore-network',
       defaultValue: true,
-      type: 'boolean',
-    },
-    prompt: undefined,
-  };
-
-  public static readonly skipDbRestore: CommandFlag = {
-    constName: 'skipDbRestore',
-    name: 'skip-db-restore',
-    definition: {
-      describe:
-        'Skip the external database dump restore. Use when restore-db has already restored the dump in a prior step.',
-      defaultValue: false,
       type: 'boolean',
     },
     prompt: undefined,
@@ -3277,9 +3254,8 @@ export class Flags {
     Flags.externalDbParamsFile,
     Flags.expectedLbIpsFile,
     Flags.skipIpTracking,
-    Flags.skipDbRestore,
+
     Flags.loadBalancerEnabled,
-    Flags.localAddressBook,
     Flags.localBuildPath,
     Flags.log4j2Xml,
     Flags.metallbConfig,

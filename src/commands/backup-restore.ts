@@ -126,7 +126,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_CONFIG_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.quiet, flags.inputDir, flags.externalDbParamsFile, flags.skipDbRestore],
+    optional: [flags.quiet, flags.inputDir, flags.externalDbParamsFile],
   };
 
   public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
@@ -766,12 +766,12 @@ export class BackupRestoreCommand extends BaseCommand {
       return;
     }
 
-    const restartStartedAt: Date = new Date();
-
     for (const pod of pods) {
       await k8.pods().delete(pod.podReference);
     }
 
+    // No createdAfter filter: Kubernetes sets deletionTimestamp synchronously on delete(),
+    // so excludeMarkedForDeletion=true reliably excludes the old pod without a timestamp race.
     await k8
       .pods()
       .waitForReadyStatus(
@@ -779,7 +779,7 @@ export class BackupRestoreCommand extends BaseCommand {
         labels,
         constants.PODS_READY_MAX_ATTEMPTS,
         constants.PODS_READY_DELAY,
-        restartStartedAt,
+        undefined,
         true,
       );
   }
@@ -821,7 +821,9 @@ export class BackupRestoreCommand extends BaseCommand {
 
   /**
    * Restart mirror runtime dependencies that cache state/config.
-   * Redis pods are restarted so the restored config/database state is reloaded.
+   * Redis is restarted first so it picks up restored credentials. Once Redis is ready,
+   * grpc and importer pods are deleted and recreated so they authenticate to Redis with
+   * the restored (old) password rather than the password set during restore-network.
    */
   private async restartMirrorRuntimeDependencies(namespace: NamespaceName): Promise<void> {
     const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
@@ -835,11 +837,27 @@ export class BackupRestoreCommand extends BaseCommand {
       }
 
       processedContexts.add(mirrorContext);
+
       await this.restartPodsMatchingLabels(
         mirrorContext,
         namespace,
         [constants.SOLO_MIRROR_REDIS_NAME_LABEL],
         'mirror redis',
+      );
+
+      // grpc and importer may be in CrashLoopBackOff after Redis restarted with the restored
+      // password. Delete their pods now so they start fresh with the restored secret credentials.
+      await this.restartPodsMatchingLabels(
+        mirrorContext,
+        namespace,
+        [constants.SOLO_MIRROR_GRPC_NAME_LABEL],
+        'mirror grpc',
+      );
+      await this.restartPodsMatchingLabels(
+        mirrorContext,
+        namespace,
+        [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL],
+        'mirror importer',
       );
     }
   }
@@ -1482,84 +1500,6 @@ export class BackupRestoreCommand extends BaseCommand {
    * Importer is scaled down during restore, then runtime services are restarted.
    * Use this when mirror is already deployed. For pre-deploy restores use restoreDatabaseDump.
    */
-  private async restoreDatabaseDumpIfPresent(inputDirectory: string): Promise<void> {
-    const databaseDumpPath: string = PathEx.join(inputDirectory, 'database-dump.sql');
-    if (!fs.existsSync(databaseDumpPath)) {
-      this.logger.info(`No database dump found at ${databaseDumpPath}; skipping database restore`);
-      return;
-    }
-
-    const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
-    if (mirrorNodes.length === 0) {
-      this.logger.info('No mirror node found in deployment state; skipping database restore');
-      return;
-    }
-
-    const mirrorNode: any = mirrorNodes[0];
-    const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
-    const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-    const mirrorReleaseName: string = Templates.renderMirrorNodeName(Number(mirrorNode.metadata.id));
-    const importerDeploymentName: string = `${mirrorReleaseName}-importer`;
-
-    const mirrorK8: K8 = this.k8Factory.getK8(mirrorContext);
-
-    let importerScaledDown: boolean = false;
-    try {
-      await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 0);
-      importerScaledDown = true;
-    } catch (error: any) {
-      // best-effort: log and continue; the restore still runs, importer just was not paused
-      this.logger.info(
-        `Skipping importer scale-down for '${importerDeploymentName}' in ${mirrorNamespace.name}: ${error.message || error}`,
-      );
-    }
-    try {
-      await this.restoreDatabaseDump(inputDirectory);
-    } finally {
-      if (importerScaledDown) {
-        await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 1);
-        try {
-          await mirrorK8
-            .pods()
-            .waitForReadyStatus(
-              mirrorNamespace,
-              [
-                'app.kubernetes.io/name=importer',
-                'app.kubernetes.io/component=importer',
-                `app.kubernetes.io/instance=${mirrorReleaseName}`,
-              ],
-              constants.PODS_READY_MAX_ATTEMPTS,
-              constants.PODS_READY_DELAY,
-            );
-        } catch (error: any) {
-          this.logger.showUser(
-            chalk.yellow(
-              'Importer is not ready yet after database restore; continuing with restore flow. ' +
-                `Reason: ${error.message || error}`,
-            ),
-          );
-        }
-      }
-    }
-
-    const grpcDeploymentName: string = `${mirrorReleaseName}-grpc`;
-    const restDeploymentName: string = `${mirrorReleaseName}-rest`;
-    await this.patchDeploymentRestartAnnotation(mirrorContext, mirrorNamespace, grpcDeploymentName);
-    await this.patchDeploymentRestartAnnotation(mirrorContext, mirrorNamespace, restDeploymentName);
-    await mirrorK8
-      .pods()
-      .waitForReadyStatus(
-        mirrorNamespace,
-        [
-          'app.kubernetes.io/name=rest',
-          'app.kubernetes.io/component=rest',
-          `app.kubernetes.io/instance=${mirrorReleaseName}`,
-        ],
-        constants.PODS_READY_MAX_ATTEMPTS,
-        constants.PODS_READY_DELAY,
-      );
-  }
-
   /**
    * Restore the external database dump independently of restore-config.
    * Run this BEFORE restore-network so mirror/relay/explorer deploy against
@@ -1768,7 +1708,8 @@ export class BackupRestoreCommand extends BaseCommand {
     const output: string = await blockNodeContainer.execContainer([
       'sh',
       '-c',
-      String.raw`find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | awk -v f=${floor} '$1 > f { print $1; exit }'`,
+      // -size +0c excludes the zero-byte stub sentinel planted by applyBlockNodeRestoreFixes
+      String.raw`find /opt/hiero/block-node/data -type f -name '*.blk*' -size +0c 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | awk -v f=${floor} '$1 > f { print $1; exit }'`,
     ]);
     const trimmed: string = (output || '').trim();
     const parsed: number = Number.parseInt(trimmed, 10);
@@ -2143,13 +2084,24 @@ export class BackupRestoreCommand extends BaseCommand {
         this.logger.info(`No tss-bootstrap-roster.json backup for ${podName}; TSS state will not be pre-seeded`);
       }
 
-      // Plant a zero-byte stub .blk file for the state-genesis block (lastVerifiedBlock+1).
-      // When CN restarts from saved state, its first block is a "state genesis" block with a
-      // 1-path blockStateProof that fails StateProofVerifier. By pre-seeding lastPersistedBlockNumber
-      // to equal the state-genesis block number, that verification failure triggers
-      // shouldHandle=false in LiveStreamPublisherManager (blockNumber > lastPersisted is false),
-      // so no ResendBlock is sent. The block node then accepts the next normal block (which has a
-      // TSS signedBlockProof and passes verification with the restored TSS data).
+      // Plant a zero-byte stub .blk file so that block-node's recent-file scanner sets
+      // lastPersistedBlockNumber = stubBlockNumber. When CN restarts from saved state, it queries
+      // block-node for its latest persisted block and sets firstBlock = tip + 1. Without any stub,
+      // lastPersistedBlockNumber = -1 (nothing in data/), CN gets tip = -1 and connects with
+      // firstBlock = -1; block-node then sees -1 <= -1 → NODE_BEHIND_PUBLISHER loop.
+      //
+      // Two paths:
+      //
+      //   LOCAL (blockStreams.zip seeded real blocks 0..N):
+      //     data/live/ already contains real .blk files → lastPersistedBlockNumber = N.
+      //     Stub at N+1 makes tip = N+1 so CN sends firstBlock = N+2, skipping the state-genesis
+      //     block (N+1, 1-path blockStateProof that fails StateProofVerifier). EMB=100000000
+      //     accepts N+2 onward without strict TSS verification.
+      //
+      //   CI dynamic-backup (no blockStreams.zip; no blockNodeData.tar.gz):
+      //     data/live/ is empty. Stub at N (lastVerifiedBlock) makes tip = N so CN sends
+      //     firstBlock = N+1 (state-genesis block). EMB=100000000 accepts N+1 onward via
+      //     streamBeforeEmbOrElse without strict TSS verification.
       const lastBlockTxtPath: string = PathEx.join(
         inputDirectory,
         blockNode.metadata.cluster,
@@ -2160,14 +2112,19 @@ export class BackupRestoreCommand extends BaseCommand {
       if (fs.existsSync(lastBlockTxtPath)) {
         const lastVerifiedBlock: number = Number(fs.readFileSync(lastBlockTxtPath, 'utf8').trim());
         if (!Number.isNaN(lastVerifiedBlock) && lastVerifiedBlock >= 0) {
-          const stubBlockNumber: number = lastVerifiedBlock + 1;
+          // LOCAL path: skip state-genesis by placing stub one block ahead of real files.
+          // CI path: place stub at lastVerifiedBlock so CN can advance to the state-genesis block.
+          const stubBlockNumber: number = blockStreamsZips.length > 0 ? lastVerifiedBlock + 1 : lastVerifiedBlock;
           const stubBlockName: string = `${String(stubBlockNumber).padStart(19, '0')}.blk`;
           await container.execContainer([
             'sh',
             '-c',
             `mkdir -p /opt/hiero/block-node/data/live && touch "/opt/hiero/block-node/data/live/${stubBlockName}"`,
           ]);
-          this.logger.info(`Created stub block ${stubBlockName} in ${podName} data/live/ (state-genesis sentinel)`);
+          this.logger.info(
+            `Created stub block ${stubBlockName} in ${podName} data/live/ (tip sentinel, ` +
+              `${blockStreamsZips.length > 0 ? 'LOCAL: skips state-genesis' : 'CI: EMB handles state-genesis'})`,
+          );
         }
       } else {
         this.logger.info(`No last-verified-block.txt backup for ${podName}; state-genesis stub not created`);
@@ -2202,8 +2159,6 @@ export class BackupRestoreCommand extends BaseCommand {
     const inputDirectory: string = this.configManager.getFlag<string>(flags.inputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
     const deployment: string = this.configManager.getFlag<string>(flags.deployment);
-    const skipDatabaseRestore: boolean = (this.configManager.getFlag<boolean>(flags.skipDbRestore) as boolean) ?? false;
-
     // Get configuration data
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
@@ -2273,78 +2228,124 @@ export class BackupRestoreCommand extends BaseCommand {
             }
           },
         },
+        // Phase 2: import ConfigMaps and Secrets in parallel — they target independent
+        // cluster resources and have no ordering dependency between them.
         {
-          title: 'Import ConfigMaps',
-          task: async (context_, task): Promise<void> => {
-            context_.configMapCount = await this.importConfigMaps(inputDirectory);
-            task.title = `Import ConfigMaps: ${context_.configMapCount} imported`;
-          },
+          title: 'Import ConfigMaps and Secrets',
+          task: (_, tw) =>
+            tw.newListr(
+              [
+                {
+                  title: 'Import ConfigMaps',
+                  task: async (context_, task): Promise<void> => {
+                    context_.configMapCount = await this.importConfigMaps(inputDirectory);
+                    task.title = `Import ConfigMaps: ${context_.configMapCount} imported`;
+                  },
+                },
+                {
+                  title: 'Import Secrets',
+                  task: async (context_, task): Promise<void> => {
+                    context_.secretCount = await this.importSecrets(inputDirectory);
+                    task.title = `Import Secrets: ${context_.secretCount} imported`;
+                  },
+                },
+              ],
+              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+            ),
         },
+        // Phase 3: three independent branches run in parallel after imports complete.
+        //
+        // Branch A: restart Redis so it picks up restored secret credentials (~3m41s).
+        // Branch B: restart CN pods (to mount restored ConfigMaps), wait for ready,
+        //           stop the process, then upload state files sequentially.
+        // Branch C: relay patch + block node fixes + DB restore — none depend on A or B.
+        //
+        // Total wall time = max(A, B, C) ≈ Redis restart time, instead of A + B + C.
         {
-          title: 'Import Secrets',
-          task: async (context_, task): Promise<void> => {
-            context_.secretCount = await this.importSecrets(inputDirectory);
-            task.title = `Import Secrets: ${context_.secretCount} imported`;
-          },
-        },
-        {
-          title: 'Restart mirror runtime dependencies',
-          task: async (context_, task): Promise<void> => {
-            await this.restartMirrorRuntimeDependencies(namespace);
-            task.title = 'Restart mirror runtime dependencies: completed';
-          },
-        },
-        {
-          title: 'Restore external database dump (if present)',
-          skip: (): boolean => skipDatabaseRestore,
-          task: async (context_, task): Promise<void> => {
-            await this.restoreDatabaseDumpIfPresent(inputDirectory);
-            task.title = 'Restore external database dump (if present): completed';
-          },
-        },
-        {
-          title: 'Restart consensus pods to pick up restored ConfigMaps/Secrets',
-          task: async (context_, task): Promise<void> => {
-            await this.restartConsensusPods(namespace, consensusNodes);
-            context_.config.podRefs = await this.buildConsensusPodReferences(namespace, consensusNodes, nodeAliases);
-            task.title = 'Restart consensus pods to pick up restored ConfigMaps/Secrets: completed';
-          },
-        },
-        {
-          title: 'Wait for consensus node pods',
-          task: async (context_, task): Promise<void> => {
-            await this.waitForConsensusPods();
-            task.title = 'Wait for consensus node pods: completed';
-          },
-        },
-        {
-          title: 'Stop consensus nodes before restoring state',
-          task: async (context_, task): Promise<void> => {
-            await this.nodeCommandTasks.stopNodes('nodeAliases').task(context_, task);
-            task.title = 'Stop consensus nodes before restoring state: completed';
-          },
-        },
-        {
-          title: 'Restore Logs and Configs',
-          task: async (context_, task): Promise<void> => {
-            await this.restoreLogsAndConfigs(inputDirectory);
-            task.title = 'Restore Logs and Configs: completed';
-          },
-        },
-        this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),
-        {
-          title: 'Patch relay HEDERA_NETWORK from live services',
-          task: async (context_, task): Promise<void> => {
-            await this.patchRelayHederaNetworkFromLiveServices(namespace, consensusNodes);
-            task.title = 'Patch relay HEDERA_NETWORK from live services: completed';
-          },
-        },
-        {
-          title: 'Apply block node restore fixes',
-          task: async (context_, task): Promise<void> => {
-            await this.applyBlockNodeRestoreFixes(inputDirectory, namespace);
-            task.title = 'Apply block node restore fixes: completed';
-          },
+          title: 'Restore state',
+          task: (_, tw) =>
+            tw.newListr(
+              [
+                // Branch A: Redis restart
+                {
+                  title: 'Restart mirror runtime dependencies',
+                  task: async (_, task): Promise<void> => {
+                    await this.restartMirrorRuntimeDependencies(namespace);
+                    task.title = 'Restart mirror runtime dependencies: completed';
+                  },
+                },
+                // Branch B: CN restart → wait → stop → restore logs → upload state (sequential)
+                {
+                  title: 'Restore consensus node state',
+                  task: (_, tw2) =>
+                    tw2.newListr(
+                      [
+                        {
+                          title: 'Restart consensus pods to pick up restored ConfigMaps/Secrets',
+                          task: async (context_, task): Promise<void> => {
+                            await this.restartConsensusPods(namespace, consensusNodes);
+                            context_.config.podRefs = await this.buildConsensusPodReferences(
+                              namespace,
+                              consensusNodes,
+                              nodeAliases,
+                            );
+                            task.title = 'Restart consensus pods to pick up restored ConfigMaps/Secrets: completed';
+                          },
+                        },
+                        {
+                          title: 'Wait for consensus node pods',
+                          task: async (_, task): Promise<void> => {
+                            await this.waitForConsensusPods();
+                            task.title = 'Wait for consensus node pods: completed';
+                          },
+                        },
+                        {
+                          title: 'Stop consensus nodes before restoring state',
+                          task: async (context_, task): Promise<void> => {
+                            await this.nodeCommandTasks.stopNodes('nodeAliases').task(context_, task);
+                            task.title = 'Stop consensus nodes before restoring state: completed';
+                          },
+                        },
+                        {
+                          title: 'Restore Logs and Configs',
+                          task: async (_, task): Promise<void> => {
+                            await this.restoreLogsAndConfigs(inputDirectory);
+                            task.title = 'Restore Logs and Configs: completed';
+                          },
+                        },
+                        this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),
+                      ],
+                      {concurrent: false, rendererOptions: {collapseSubtasks: false}},
+                    ),
+                },
+                // Branch C: relay patch, block node fixes, and DB restore are mutually
+                // independent and independent of A and B — run all three in parallel.
+                {
+                  title: 'Patch components and restore database',
+                  task: (_, tw2) =>
+                    tw2.newListr(
+                      [
+                        {
+                          title: 'Patch relay HEDERA_NETWORK from live services',
+                          task: async (_, task): Promise<void> => {
+                            await this.patchRelayHederaNetworkFromLiveServices(namespace, consensusNodes);
+                            task.title = 'Patch relay HEDERA_NETWORK from live services: completed';
+                          },
+                        },
+                        {
+                          title: 'Apply block node restore fixes',
+                          task: async (_, task): Promise<void> => {
+                            await this.applyBlockNodeRestoreFixes(inputDirectory, namespace);
+                            task.title = 'Apply block node restore fixes: completed';
+                          },
+                        },
+                      ],
+                      constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+                    ),
+                },
+              ],
+              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+            ),
         },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
@@ -2709,8 +2710,6 @@ export class BackupRestoreCommand extends BaseCommand {
                         );
                       }
                     }
-                    // Build address book from local keys — CN is not running during restore-network
-                    argv.push(CommandHelpers.optionFromFlag(flags.localAddressBook));
                     return CommandHelpers.argvPushGlobalFlags(argv);
                   },
                   this.taskList,

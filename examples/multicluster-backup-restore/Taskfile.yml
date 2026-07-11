@@ -96,13 +96,14 @@ tasks:
       # deletes each pod and waits for ready after patching the ConfigMap). No manual
       # pod restart is needed here.
       #
-      # applyBlockNodeRestoreFixes sets BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000 and
-      # VERIFICATION_TYPE=NO_OP. When blockStreams archives are present (local pre-built
-      # backup), sealed .blk files are planted into data/live/ so lastPersistedBlockNumber
-      # equals the highest sealed block; EMB has no effect on streaming in that case.
-      # Without blockStreams (CI dynamic backup), data/ is empty; the EMB=100000000 sentinel
-      # triggers a block-node edge case that accepts CN's first post-restore block directly
-      # (see LiveStreamPublisherManager.streamBeforeEmbOrElse).
+      # applyBlockNodeRestoreFixes plants a zero-byte .blk stub so block-node's
+      # lastPersistedBlockNumber is set correctly before CN connects:
+      #   LOCAL path (blockStreams.zip present): real .blk files 0..N seeded + stub at N+1,
+      #     so CN skips the state-genesis block and sends block N+2 onward.
+      #   CI path (no blockStreams.zip): stub at N (lastVerifiedBlock), so CN queries
+      #     tip=N and connects with firstBlock=N+1 (state-genesis block).
+      # In both cases EMB=100000000 (from Helm values) causes block-node to accept all
+      # blocks below 100000000 without strict verification via streamBeforeEmbOrElse.
       #
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for any block-node across both clusters to receive post-restore blocks, then
@@ -126,7 +127,7 @@ tasks:
               CTX="${CTX_POD%%:*}"
               POD="${CTX_POD##*:}"
               TIP=$(kubectl exec "${POD}" -n {{ .NAMESPACE }} --context "${CTX}" -c block-node-server -- \
-                sh -c "find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | tail -1" 2>/dev/null) || true
+                sh -c "find /opt/hiero/block-node/data -type f -name '*.blk*' -size +0c 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | tail -1" 2>/dev/null) || true
               if [ -n "${TIP}" ]; then
                 BN_TIP="${TIP}"
                 break
@@ -446,8 +447,7 @@ tasks:
           BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-config \
             --deployment {{ .DEPLOYMENT }} \
             --input-dir {{ .BACKUP_DIR }} \
-            --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json \
-            --skip-db-restore
+            --external-db-params-file {{ .BACKUP_DIR }}/external-database-params.json
 
   # ==================== Verification Tasks ====================
 
@@ -462,12 +462,28 @@ tasks:
       - cmd: |
           {{ .TIMEOUT_COMMAND }} 90s $SOLO_COMMAND ledger account info --deployment {{ .DEPLOYMENT }} --account-id {{ .SHARD }}.{{ .REALM }}.1001
 
-      - cmd: echo "💰 Testing with new transactions..."
       - cmd: |
+          echo "💰 Testing new transactions and verifying mirror ingest..."
+          START_TIME=$(date +%s)
           for i in 1 2 3; do
             echo "  Creating new account $i/3 on restored network..."
             {{ .TIMEOUT_COMMAND }} 60s $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
-            sleep 3
+          done
+          echo "🔎 Waiting for new transactions to appear in mirror REST API..."
+          MAX_ATTEMPTS=30
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            RESPONSE=$(curl -sf "http://localhost:38081/api/v1/transactions?timestamp=gt:${START_TIME}.0&limit=1" 2>/dev/null || true)
+            if echo "$RESPONSE" | grep -q '"transactionId"'; then
+              echo "✅ Transaction confirmed in mirror REST API"
+              break
+            fi
+            if [ "$i" = "$MAX_ATTEMPTS" ]; then
+              echo "❌ Transactions not found in mirror REST API after $((MAX_ATTEMPTS * 10))s"
+              curl -v "http://localhost:38081/api/v1/transactions?timestamp=gt:${START_TIME}.0&limit=1" 2>&1 || true
+              exit 1
+            fi
+            echo "  attempt $i/$MAX_ATTEMPTS: mirror not yet ingested, retrying in 10s..."
+            sleep 10
           done
 
       - cmd: |
