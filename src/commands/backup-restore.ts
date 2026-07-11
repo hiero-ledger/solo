@@ -2084,24 +2084,23 @@ export class BackupRestoreCommand extends BaseCommand {
         this.logger.info(`No tss-bootstrap-roster.json backup for ${podName}; TSS state will not be pre-seeded`);
       }
 
-      // Plant a zero-byte stub .blk file so that block-node's recent-file scanner sets
-      // lastPersistedBlockNumber = stubBlockNumber. When CN restarts from saved state, it queries
-      // block-node for its latest persisted block and sets firstBlock = tip + 1. Without any stub,
-      // lastPersistedBlockNumber = -1 (nothing in data/), CN gets tip = -1 and connects with
-      // firstBlock = -1; block-node then sees -1 <= -1 → NODE_BEHIND_PUBLISHER loop.
+      // Plant a zero-byte stub .blk file at lastVerifiedBlock+1. This sets
+      // lastPersistedBlockNumber = lastVerifiedBlock+1 so that:
+      //   1. When CN reconnects (sending its latest block, e.g. 321), block-node responds
+      //      NODE_BEHIND_PUBLISHER requesting CN to resend from lastVerifiedBlock+1.
+      //   2. CN's in-memory buffer starts at lastVerifiedBlock+1 (earliestBlock = N+1), so
+      //      it CAN comply with the resend request.
+      //   3. Block-node receives block N+1 (the state-genesis block with a 1-path blockStateProof
+      //      that fails normal TSS verification). Because blockNumber (N+1) > lastPersisted (N+1)
+      //      is FALSE, LiveStreamPublisherManager.shouldHandle returns false → the block is skipped
+      //      without triggering a ResendBlock. CN then sends block N+2 onward.
+      //   4. Block N+2 and later are processed normally. With EMB=100000000, all blocks < 100000000
+      //      bypass strict TSS verification so the restored TSS state is not needed immediately.
       //
-      // Two paths:
-      //
-      //   LOCAL (blockStreams.zip seeded real blocks 0..N):
-      //     data/live/ already contains real .blk files → lastPersistedBlockNumber = N.
-      //     Stub at N+1 makes tip = N+1 so CN sends firstBlock = N+2, skipping the state-genesis
-      //     block (N+1, 1-path blockStateProof that fails StateProofVerifier). EMB=100000000
-      //     accepts N+2 onward without strict TSS verification.
-      //
-      //   CI dynamic-backup (no blockStreams.zip; no blockNodeData.tar.gz):
-      //     data/live/ is empty. Stub at N (lastVerifiedBlock) makes tip = N so CN sends
-      //     firstBlock = N+1 (state-genesis block). EMB=100000000 accepts N+1 onward via
-      //     streamBeforeEmbOrElse without strict TSS verification.
+      // This applies to both LOCAL (blockStreams.zip seeds real blocks 0..N) and CI dynamic-backup
+      // (no blockStreams.zip; data/ would otherwise be empty) paths. Without any stub, the CI path
+      // has lastPersistedBlockNumber = -1, block-node requests resend from -1, and CN has no
+      // buffer entry for -1 → permanent BLOCK_NODE_BEHIND → connection never recovers.
       const lastBlockTxtPath: string = PathEx.join(
         inputDirectory,
         blockNode.metadata.cluster,
@@ -2112,19 +2111,14 @@ export class BackupRestoreCommand extends BaseCommand {
       if (fs.existsSync(lastBlockTxtPath)) {
         const lastVerifiedBlock: number = Number(fs.readFileSync(lastBlockTxtPath, 'utf8').trim());
         if (!Number.isNaN(lastVerifiedBlock) && lastVerifiedBlock >= 0) {
-          // LOCAL path: skip state-genesis by placing stub one block ahead of real files.
-          // CI path: place stub at lastVerifiedBlock so CN can advance to the state-genesis block.
-          const stubBlockNumber: number = blockStreamsZips.length > 0 ? lastVerifiedBlock + 1 : lastVerifiedBlock;
+          const stubBlockNumber: number = lastVerifiedBlock + 1;
           const stubBlockName: string = `${String(stubBlockNumber).padStart(19, '0')}.blk`;
           await container.execContainer([
             'sh',
             '-c',
             `mkdir -p /opt/hiero/block-node/data/live && touch "/opt/hiero/block-node/data/live/${stubBlockName}"`,
           ]);
-          this.logger.info(
-            `Created stub block ${stubBlockName} in ${podName} data/live/ (tip sentinel, ` +
-              `${blockStreamsZips.length > 0 ? 'LOCAL: skips state-genesis' : 'CI: EMB handles state-genesis'})`,
-          );
+          this.logger.info(`Created stub block ${stubBlockName} in ${podName} data/live/ (state-genesis sentinel)`);
         }
       } else {
         this.logger.info(`No last-verified-block.txt backup for ${podName}; state-genesis stub not created`);

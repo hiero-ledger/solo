@@ -96,14 +96,12 @@ tasks:
       # deletes each pod and waits for ready after patching the ConfigMap). No manual
       # pod restart is needed here.
       #
-      # applyBlockNodeRestoreFixes plants a zero-byte .blk stub so block-node's
-      # lastPersistedBlockNumber is set correctly before CN connects:
-      #   LOCAL path (blockStreams.zip present): real .blk files 0..N seeded + stub at N+1,
-      #     so CN skips the state-genesis block and sends block N+2 onward.
-      #   CI path (no blockStreams.zip): stub at N (lastVerifiedBlock), so CN queries
-      #     tip=N and connects with firstBlock=N+1 (state-genesis block).
-      # In both cases EMB=100000000 (from Helm values) causes block-node to accept all
-      # blocks below 100000000 without strict verification via streamBeforeEmbOrElse.
+      # applyBlockNodeRestoreFixes plants a zero-byte .blk stub at lastVerifiedBlock+1 so
+      # block-node's lastPersistedBlockNumber = N+1 before CN connects. When CN streams its
+      # latest block (e.g. 321), block-node replies NODE_BEHIND_PUBLISHER asking CN to resend
+      # from N+1. CN's buffer starts at N+1 (earliestBlock=N+1) so it complies; block-node
+      # skips block N+1 (shouldHandle=false) since blockNumber == lastPersisted, then stores
+      # N+2 onward normally. EMB=100000000 bypasses strict TSS verification for all restored blocks.
       #
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for any block-node across both clusters to receive post-restore blocks, then
