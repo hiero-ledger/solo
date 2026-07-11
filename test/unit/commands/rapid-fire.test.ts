@@ -217,7 +217,7 @@ describe('RapidFireCommand', (): void => {
 
   describe('mirrorReadinessPollTimeout', (): void => {
     it('uses a longer catch-up timeout before measured RTT samples start', (): void => {
-      expect(internals.mirrorReadinessPollTimeout({rttPollTimeout: 30_000})).to.equal(450_000);
+      expect(internals.mirrorReadinessPollTimeout({rttPollTimeout: 30_000})).to.equal(900_000);
     });
   });
 });
