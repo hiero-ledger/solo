@@ -1955,13 +1955,13 @@ export class BackupRestoreCommand extends BaseCommand {
         await container.execContainer(['sh', '-c', 'true']);
         podIsAccessible = true;
       } catch {
-        // best-effort: pod may still be initializing; skip data-planting but still restart below
-        this.logger.info(`Block node pod ${podName} not accessible yet; skipping data operations`);
+        // best-effort: pod may still be initializing; restart it first, then retry operations below
+        this.logger.info(`Block node pod ${podName} not accessible yet; will restart and retry`);
       }
 
       if (!podIsAccessible) {
-        // Pod not accessible — skip data archive / blockStreams planting, but still
-        // restart the pod below so it picks up the updated ConfigMap values.
+        // Pod not accessible — restart it first so it picks up the updated ConfigMap,
+        // then fall through to seed tss-bootstrap-roster.json into the now-ready pod.
         await k8
           .pods()
           .delete(podReference)
@@ -1977,7 +1977,7 @@ export class BackupRestoreCommand extends BaseCommand {
             constants.PODS_READY_MAX_ATTEMPTS,
             constants.PODS_READY_DELAY,
           );
-        continue;
+        // Pod is now ready — proceed to data/TSS operations below.
       }
 
       // If the backup captured a dedicated block-node data archive, restore only verification/
