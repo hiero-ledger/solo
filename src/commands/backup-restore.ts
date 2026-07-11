@@ -8,7 +8,6 @@ import {type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
 import yaml from 'yaml';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
@@ -1929,10 +1928,11 @@ export class BackupRestoreCommand extends BaseCommand {
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
       const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      // FILES_RECENT_COMPRESSION=NONE: stub and any planted .blk files use no-compression so
-      // the recent-file plugin's ".blk" extension scan finds them.
-      // BLOCK_NODE_EARLIEST_MANAGED_BLOCK is already 100000000 from the Helm values file and
-      // from the imported backup ConfigMap — no need to set it here.
+      // FILES_RECENT_COMPRESSION=NONE: block-node writes incoming blocks as plain .blk files so the
+      // Taskfile bn_tip finder and the recent-file plugin agree on file-name extensions.
+      // BLOCK_NODE_EARLIEST_MANAGED_BLOCK is already 100000000 from the Helm values file and from
+      // the imported backup ConfigMap. With data/ empty at startup, streamBeforeEmbOrElse() fires and
+      // block-node accepts CN's first post-restore block directly, regardless of its block number.
       await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
         FILES_RECENT_COMPRESSION: 'NONE',
         FILES_HISTORIC_COMPRESSION: 'NONE',
@@ -1981,9 +1981,8 @@ export class BackupRestoreCommand extends BaseCommand {
       }
 
       // If the backup captured a dedicated block-node data archive, restore only verification/
-      // from it (not data/): the pre-freeze data/ may contain a .pnd gap block that has no
-      // BlockProof and permanently pins lastPersistedBlockNumber below the gap. The blockStreams
-      // section below plants sealed .blk files instead, giving the block node a clean range.
+      // from it (not data/): keep data/ empty so block-node starts with lastPersistedBlockNumber=-1
+      // and streamBeforeEmbOrElse() accepts CN's first post-restore block directly.
       const dataArchivePath: string = PathEx.join(
         inputDirectory,
         blockNode.metadata.cluster,
@@ -2013,48 +2012,6 @@ export class BackupRestoreCommand extends BaseCommand {
         this.logger.info(`No block node data archive at ${dataArchivePath}; leaving fresh deploy state`);
       }
 
-      // Plant CN's sealed block files into data/live/ so the block node's recent-file plugin
-      // discovers the pre-freeze block range on startup and sets lastPersistedBlockNumber
-      // accordingly. The .blk.gz files from the backup are gzip-compressed; the block node's
-      // CompressionType only supports NONE (.blk) and ZSTD (.blk.zstd), so we decompress them
-      // to .blk on the host before copying. With FILES_RECENT_COMPRESSION=NONE the plugin then
-      // scans for ".blk" files and finds all sealed blocks.
-      const blockStreamsDirectory: string = PathEx.join(inputDirectory, blockNode.metadata.cluster, 'blockStreams');
-      const blockStreamsZips: string[] = fs.existsSync(blockStreamsDirectory)
-        ? fs.readdirSync(blockStreamsDirectory).filter((f: string) => f.endsWith('-blockStreams.zip'))
-        : [];
-
-      if (blockStreamsZips.length > 0) {
-        const archivePath: string = PathEx.join(blockStreamsDirectory, blockStreamsZips[0]);
-        const temporaryExtractDirectory: string = PathEx.join(os.tmpdir(), `solo-bn-restore-${blockNodeId}`);
-        const temporaryTarPath: string = PathEx.join(os.tmpdir(), `solo-bn-restore-${blockNodeId}.tar.gz`);
-        const blockStreamsShellRunner: ShellRunner = new ShellRunner(this.logger);
-        try {
-          fs.rmSync(temporaryExtractDirectory, {recursive: true, force: true});
-          fs.mkdirSync(temporaryExtractDirectory, {recursive: true});
-          await blockStreamsShellRunner.run('unzip', ['-q', '-o', archivePath, '-d', temporaryExtractDirectory]);
-          // Decompress each .blk.gz to .blk in-place (gzip -d removes the .gz suffix).
-          await blockStreamsShellRunner.run('bash', [
-            '-c',
-            String.raw`find "${temporaryExtractDirectory}" -name '*.blk.gz' -exec gzip -d '{}' \;`,
-          ]);
-          await blockStreamsShellRunner.run('tar', ['czf', temporaryTarPath, '-C', temporaryExtractDirectory, '.']);
-          await container.copyTo(temporaryTarPath, '/tmp');
-          const tarInPod: string = `/tmp/${path.basename(temporaryTarPath)}`;
-          await container.execContainer([
-            'bash',
-            '-c',
-            `mkdir -p /opt/hiero/block-node/data/live && cd /opt/hiero/block-node/data/live && tar xzmf "${tarInPod}" && rm -f "${tarInPod}"`,
-          ]);
-          this.logger.info(`Seeded block node ${podName} data/live/ with sealed blocks from ${blockStreamsZips[0]}`);
-        } finally {
-          fs.rmSync(temporaryExtractDirectory, {recursive: true, force: true});
-          if (fs.existsSync(temporaryTarPath)) {
-            fs.rmSync(temporaryTarPath);
-          }
-        }
-      }
-
       // Overlay a standalone tss-parameters.bin if backup emitted it (legacy compat).
       if (hasStandaloneTssParameters) {
         await container.copyTo(standaloneTssParametersPath, '/opt/hiero/block-node/verification');
@@ -2082,46 +2039,6 @@ export class BackupRestoreCommand extends BaseCommand {
         this.logger.info(`Restored tss-bootstrap-roster.json to ${podName}`);
       } else {
         this.logger.info(`No tss-bootstrap-roster.json backup for ${podName}; TSS state will not be pre-seeded`);
-      }
-
-      // Plant a zero-byte stub .blk file at lastVerifiedBlock+1. This sets
-      // lastPersistedBlockNumber = lastVerifiedBlock+1 so that:
-      //   1. When CN reconnects (sending its latest block, e.g. 321), block-node responds
-      //      NODE_BEHIND_PUBLISHER requesting CN to resend from lastVerifiedBlock+1.
-      //   2. CN's in-memory buffer starts at lastVerifiedBlock+1 (earliestBlock = N+1), so
-      //      it CAN comply with the resend request.
-      //   3. Block-node receives block N+1 (the state-genesis block with a 1-path blockStateProof
-      //      that fails normal TSS verification). Because blockNumber (N+1) > lastPersisted (N+1)
-      //      is FALSE, LiveStreamPublisherManager.shouldHandle returns false → the block is skipped
-      //      without triggering a ResendBlock. CN then sends block N+2 onward.
-      //   4. Block N+2 and later are processed normally. With EMB=100000000, all blocks < 100000000
-      //      bypass strict TSS verification so the restored TSS state is not needed immediately.
-      //
-      // This applies to both LOCAL (blockStreams.zip seeds real blocks 0..N) and CI dynamic-backup
-      // (no blockStreams.zip; data/ would otherwise be empty) paths. Without any stub, the CI path
-      // has lastPersistedBlockNumber = -1, block-node requests resend from -1, and CN has no
-      // buffer entry for -1 → permanent BLOCK_NODE_BEHIND → connection never recovers.
-      const lastBlockTxtPath: string = PathEx.join(
-        inputDirectory,
-        blockNode.metadata.cluster,
-        'blockNodeData',
-        podName,
-        'last-verified-block.txt',
-      );
-      if (fs.existsSync(lastBlockTxtPath)) {
-        const lastVerifiedBlock: number = Number(fs.readFileSync(lastBlockTxtPath, 'utf8').trim());
-        if (!Number.isNaN(lastVerifiedBlock) && lastVerifiedBlock >= 0) {
-          const stubBlockNumber: number = lastVerifiedBlock + 1;
-          const stubBlockName: string = `${String(stubBlockNumber).padStart(19, '0')}.blk`;
-          await container.execContainer([
-            'sh',
-            '-c',
-            `mkdir -p /opt/hiero/block-node/data/live && touch "/opt/hiero/block-node/data/live/${stubBlockName}"`,
-          ]);
-          this.logger.info(`Created stub block ${stubBlockName} in ${podName} data/live/ (state-genesis sentinel)`);
-        }
-      } else {
-        this.logger.info(`No last-verified-block.txt backup for ${podName}; state-genesis stub not created`);
       }
 
       // Restart so the block node re-scans data/ and picks up the restored block ranges.

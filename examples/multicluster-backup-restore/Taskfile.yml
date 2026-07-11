@@ -96,12 +96,10 @@ tasks:
       # deletes each pod and waits for ready after patching the ConfigMap). No manual
       # pod restart is needed here.
       #
-      # applyBlockNodeRestoreFixes plants a zero-byte .blk stub at lastVerifiedBlock+1 so
-      # block-node's lastPersistedBlockNumber = N+1 before CN connects. When CN streams its
-      # latest block (e.g. 321), block-node replies NODE_BEHIND_PUBLISHER asking CN to resend
-      # from N+1. CN's buffer starts at N+1 (earliestBlock=N+1) so it complies; block-node
-      # skips block N+1 (shouldHandle=false) since blockNumber == lastPersisted, then stores
-      # N+2 onward normally. EMB=100000000 bypasses strict TSS verification for all restored blocks.
+      # applyBlockNodeRestoreFixes leaves block-node data/ empty so that BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000
+      # causes block-node's streamBeforeEmbOrElse() to accept CN's first post-restore block directly,
+      # regardless of its block number. No stub or blockStreams seeding is needed; EMB bypasses TSS
+      # verification for all blocks below 100000000 so the restored TSS state is not required immediately.
       #
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for any block-node across both clusters to receive post-restore blocks, then
@@ -376,7 +374,7 @@ tasks:
     cmds:
       # BLOCK_STREAM_WRITER_MODE=FILE: prevents CN from gRPC-streaming blocks to block nodes
       # during this intermediate phase. Block nodes are fresh at this point — tss-bootstrap-roster.json
-      # and the stub block are not planted until restore-config runs applyBlockNodeRestoreFixes.
+      # is not planted until restore-config runs applyBlockNodeRestoreFixes.
       # Without FILE mode, CN (default FILE_AND_GRPC) would immediately try to stream to block nodes
       # that have no TSS state and would reject every block. After restore-config completes, the
       # restart task calls "consensus node start" without this env var, so the default FILE_AND_GRPC
@@ -439,8 +437,8 @@ tasks:
     desc: Restore configuration and state from backup (DB already populated by restore-db)
     cmds:
       # BLOCK_STREAM_WRITER_MODE=FILE: keeps CN in file-only mode while restore-config uploads
-      # node state and applies block node fixes (TSS file + stub block). The block nodes are not
-      # ready to accept gRPC streams until applyBlockNodeRestoreFixes completes.
+      # node state and applies block node fixes (TSS file). The block nodes are not ready to
+      # accept gRPC streams until applyBlockNodeRestoreFixes completes.
       - cmd: |
           BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-config \
             --deployment {{ .DEPLOYMENT }} \
