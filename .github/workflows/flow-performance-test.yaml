@@ -425,11 +425,12 @@ jobs:
       - name: Performance Test Verification
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          # Block-node runs with ZGC + 4 g heap (-Xms2g -Xmx4g) and a 4 M Disruptor ring
+          # Block-node runs with ZGC + 4 g heap ceiling (-Xms512m -Xmx4g) and a 4 M Disruptor ring
           # buffer to prevent cumulative ring-buffer overflow across 5 load tests.
-          # Measured peak (run 29115871280): block-node 3 066 MB + other pods ~2 558 MB
-          # = 5 624 MB.  4 M ring buffer adds ~608 MB pre-allocation → expected peak
-          # ≈ 6 232 MB; 7 000 MB leaves headroom while still catching real memory leaks.
+          # -Xms512m lets the JVM commit heap on demand; peak RSS only reaches ~3 g when
+          # the ring buffer is near-full (2.5 M items × ~1 KB ≈ 2.5 GB live heap).
+          # Measured peak (run 29115871280): block-node 3 066 MB + other pods ~2 558 MB = 5 624 MB.
+          # 7 000 MB leaves headroom for variation while still catching real memory leaks.
           MAX_MEMORY_MB=7000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"

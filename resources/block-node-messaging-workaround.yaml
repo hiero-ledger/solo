@@ -62,10 +62,12 @@ blockNode:
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "4194304"
     # ZGC (Java 21+ Generational ZGC) eliminates multi-second G1GC stop-the-world pauses.
     # Sub-millisecond GC pauses allow the verification thread to drain the ring buffer
-    # consistently at high TPS load.  Heap kept at 4 g: 4 M ring pre-allocation (~1.2 GB)
+    # consistently at high TPS load.  Heap ceiling at 4 g: 4 M ring pre-allocation (~1.2 GB)
     # + live data (~2 GB) + JVM overhead (~0.5 GB) ≈ 3.7 GB — within the 4 g ceiling.
+    # -Xms kept low (512 m) so the JVM only commits heap on demand; RSS rises to ~3.7 GB
+    # only at peak ring-buffer fill, not at startup.
     JAVA_OPTS: >-
-      -Xms2g
+      -Xms512m
       -Xmx4g
       -XX:+UseZGC
       -XX:MaxDirectMemorySize=64m
