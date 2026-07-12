@@ -331,39 +331,24 @@ export class AccountManager {
     skipAssignment: boolean = false,
   ): Promise<Client> {
     let nodes: Record<SdkNetworkEndpoint, AccountId> = {};
-    const configureNodeAccessPromiseArray: Promise<Record<SdkNetworkEndpoint, AccountId>>[] = [];
 
     try {
       let localPort: number = constants.LOCAL_NODE_START_PORT;
 
+      // Configure nodes sequentially: configureNodeAccess() confirms each port-forward is bound before
+      // returning, so concurrent runs can no longer hand two nodes the same port and alias their endpoints.
       for (const networkNodeService of networkNodeServicesMap.values()) {
         if (
           networkNodeService.accountId !== IGNORED_NODE_ACCOUNT_ID &&
           networkNodeService.nodeAlias !== skipNodeAlias
         ) {
-          configureNodeAccessPromiseArray.push(
-            this.configureNodeAccess(networkNodeService, localPort, networkNodeServicesMap.size),
-          );
+          nodes = {
+            ...nodes,
+            ...(await this.configureNodeAccess(networkNodeService, localPort, networkNodeServicesMap.size)),
+          };
           localPort++;
         }
       }
-      this.logger.debug(`configuring node access for ${configureNodeAccessPromiseArray.length} nodes`);
-
-      await Promise.allSettled(configureNodeAccessPromiseArray).then((results): void => {
-        for (const result of results) {
-          switch (result.status) {
-            case REJECTED: {
-              throw new SoloErrors.component.nodeAccessConfigFailed(
-                new Error(String((result as PromiseRejectedResult).reason)),
-              );
-            }
-            case FULFILLED: {
-              nodes = {...nodes, ...(result as PromiseFulfilledResult<Record<NodeAlias, AccountId>>).value};
-              break;
-            }
-          }
-        }
-      });
       this.logger.debug(`configured node access for ${Object.keys(nodes).length} nodes`);
 
       let formattedNetworkConnection: string = '';
