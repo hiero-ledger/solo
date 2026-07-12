@@ -93,13 +93,13 @@ tasks:
           {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --skip-grpc-web-endpoint
           {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
       # Block nodes were already restarted by restore-config (applyBlockNodeRestoreFixes
-      # deletes each pod and waits for ready after patching the ConfigMap). No manual
-      # pod restart is needed here.
+      # restores the backed-up data/ archive and tss-bootstrap-roster.json, then deletes each
+      # pod and waits for ready). No manual pod restart is needed here.
       #
-      # applyBlockNodeRestoreFixes leaves block-node data/ empty so that BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000
-      # causes block-node's streamBeforeEmbOrElse() to accept CN's first post-restore block directly,
-      # regardless of its block number. No stub or blockStreams seeding is needed; EMB bypasses TSS
-      # verification for all blocks below 100000000 so the restored TSS state is not required immediately.
+      # applyBlockNodeRestoreFixes restores the backed-up block data/ archive so block-node
+      # resumes at the backed-up tip (e.g. block 138). CN then only needs to stream post-backup
+      # blocks (fully TSS-signed) to block-node, bypassing the TSS-transition block that would
+      # cause BAD_BLOCK_PROOF if block-node started empty and CN replayed from its earliest block.
       #
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for any block-node across both clusters to receive post-restore blocks, then

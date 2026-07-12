@@ -1929,17 +1929,14 @@ export class BackupRestoreCommand extends BaseCommand {
       const blockNodeReleaseName: string = Templates.renderBlockNodeName(blockNodeId);
       const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
-      const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      // FILES_RECENT_COMPRESSION=NONE: block-node writes incoming blocks as plain .blk files so the
-      // Taskfile bn_tip finder and the recent-file plugin agree on file-name extensions.
       // BLOCK_NODE_EARLIEST_MANAGED_BLOCK is already 100000000 from the Helm values file and from
-      // the imported backup ConfigMap. With data/ empty at startup, streamBeforeEmbOrElse() fires and
-      // block-node accepts CN's first post-restore block directly, regardless of its block number.
-      await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
-        FILES_RECENT_COMPRESSION: 'NONE',
-        FILES_HISTORIC_COMPRESSION: 'NONE',
-      });
+      // the imported backup ConfigMap — no ConfigMap patching needed here.
+      // Do NOT override FILES_RECENT_COMPRESSION: the backup archive was created with the
+      // chart-default compression (ZSTD → .blk.zstd files). Setting NONE here would cause a
+      // format mismatch: block-node would scan data/live/ for .blk files and find nothing,
+      // forcing lastPersistedBlockNumber=-1 and triggering streamBeforeEmbOrElse() which makes
+      // CN replay the TSS-transition block and hit BAD_BLOCK_PROOF.
 
       // StatefulSet pods are always named <releaseName>-0. Construct the reference
       // directly rather than relying on a label-selector list, which can return
