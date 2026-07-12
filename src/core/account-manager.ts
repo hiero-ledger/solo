@@ -427,18 +427,23 @@ export class AccountManager {
       }
       // if the load balancer IP is not set or the test connection fails, then we should use the local host port forward
       const host: string = '127.0.0.1';
-      const endpoint: SdkNetworkEndpoint = `${host}:${localPort}`;
+      // Default to the requested local port; if we actually create a forward below, use the port it was
+      // bound to. portForward() may bind a different port than requested when the requested one is
+      // transiently held (findAvailablePort climbs), and pointing the SDK at the requested port would
+      // route it to a stale/other forward -> INVALID_NODE_ACCOUNT.
+      let localForwardPort: number = localPort;
 
       if (this._portForwards.length < totalNodes) {
-        const portForward: number = await this.k8Factory
+        localForwardPort = await this.k8Factory
           .getK8(networkNodeService.context)
           .pods()
           .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
           .portForward(localPort, port);
-        this._portForwards.push(portForward);
-        this.logger.debug(`using local host port forward: ${host}:${portForward}`);
+        this._portForwards.push(localForwardPort);
+        this.logger.debug(`using local host port forward: ${host}:${localForwardPort}`);
       }
 
+      const endpoint: SdkNetworkEndpoint = `${host}:${localForwardPort}`;
       const object: Record<SdkNetworkEndpoint, AccountId> = {[endpoint]: accountId};
 
       await this.testNodeClientConnection(object, accountId);
