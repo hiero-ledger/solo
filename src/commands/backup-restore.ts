@@ -1914,7 +1914,7 @@ export class BackupRestoreCommand extends BaseCommand {
   // (e.g. `000...142.pnd.gz`). The block number is the last 36-digit numeric segment of the
   // entry path. Returns the max block number found across all clusters, or -1 if no `.pnd`
   // entries are present (no freeze gap to bridge).
-  private async applyBlockNodeRestoreFixes(inputDirectory: string, _namespace: NamespaceName): Promise<void> {
+  private async applyBlockNodeRestoreFixes(_namespace: NamespaceName): Promise<void> {
     const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
     if (blockNodes.length === 0) {
       return;
@@ -1977,45 +1977,28 @@ export class BackupRestoreCommand extends BaseCommand {
         // Pod is now ready — proceed to data/TSS operations below.
       }
 
-      // If the backup captured a data archive, restore it so block-node resumes at the backed-up
-      // block tip. Otherwise wipe data/ so block-node starts empty and EMB logic applies.
-      const dataArchivePath: string = PathEx.join(
-        inputDirectory,
-        blockNode.metadata.cluster,
-        'blockNodeData',
-        `${podName}-blockNodeData.tar.gz`,
+      // Always wipe data/ so block-node starts with lastPersistedBlockNumber=-1, which triggers
+      // streamBeforeEmbOrElse (EMB=100000000).  In that mode block-node accepts every incoming
+      // block from CN without TSS verification, exactly matching initial-deploy behaviour.
+      // BlockHasher then writes tss-bootstrap-roster.json from the first TSS-signed block, and
+      // all subsequent blocks are verified normally.
+      //
+      // DO NOT restore the data archive.  Restoring it sets lastPersistedBlockNumber=149, which
+      // disables streamBeforeEmbOrElse.  Block 153 (the first TSS-signed block after CN's
+      // post-restore re-keying) then fails with MISSING_VERIFICATION_DATA because the
+      // application-state PVC is new and empty — there is no tss-bootstrap-roster.json for
+      // block-node to verify against.
+      //
+      // DO NOT restore tss-bootstrap-roster.json.  CN re-keys TSS unconditionally at the first
+      // staking-period boundary after restore (hiero-consensus-node#26299), so the backed-up
+      // roster is always stale and causes BAD_BLOCK_PROOF for the first re-keyed block.
+      //
+      // TODO(hiero-consensus-node#26299): Once CN stops re-keying TSS unconditionally, both the
+      // archive and the roster file can be restored so block-node resumes at the backed-up tip.
+      await container.execContainer(['sh', '-c', 'rm -rf /opt/hiero/block-node/data/* 2>/dev/null || true']);
+      this.logger.info(
+        `Wiped block node data/ for ${podName}; streamBeforeEmbOrElse will bootstrap TSS from CN's first post-restore blocks`,
       );
-      const hasDataArchive: boolean = fs.existsSync(dataArchivePath);
-      if (hasDataArchive) {
-        const archiveInPod: string = `/tmp/${podName}-blockNodeData.tar.gz`;
-        // Wipe data/ so the restore is clean, then extract the archive so block-node resumes
-        // at the backed-up block tip. CN then only needs to send post-backup blocks, avoiding
-        // the TSS-transition block that causes BAD_BLOCK_PROOF when block-node starts empty.
-        await container.execContainer(['sh', '-c', 'rm -rf /opt/hiero/block-node/data/* 2>/dev/null || true']);
-        await container.copyTo(dataArchivePath, '/tmp');
-        await container.execContainer([
-          'sh',
-          '-c',
-          `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}" --no-same-owner && rm -f "${archiveInPod}"`,
-        ]);
-        this.logger.info(`Restored block node data/ from archive into ${podName}`);
-      } else {
-        // No data archive — explicitly wipe data/ so block-node starts with
-        // lastPersistedBlockNumber=-1.  CN may have streamed blocks into data/ while
-        // running in FILE_AND_GRPC mode before this restore step ran; leaving those
-        // blocks in place prevents streamBeforeEmbOrElse() from firing because it
-        // only triggers when the data/ directory is empty (latestBlock=-1 < EMB).
-        await container.execContainer(['sh', '-c', 'rm -rf /opt/hiero/block-node/data/* 2>/dev/null || true']);
-        this.logger.info(
-          `Wiped block node data/ for ${podName}; streamBeforeEmbOrElse will accept CN's first post-restore block`,
-        );
-      }
-
-      // Do NOT restore tss-bootstrap-roster.json. When the file is absent, block-node runs
-      // without TSS signature verification, matching initial-deploy behaviour (block-node starts
-      // before CN has established TSS keys). Seeding the backed-up roster causes BAD_BLOCK_PROOF
-      // at CN's post-restore TSS re-keying block, putting block-node in an unrecoverable RESEND
-      // loop. CN pushes fresh TSS state to block-node in-band once re-keying completes.
 
       // Restart so the block node re-scans data/ and picks up the restored block ranges.
       await k8.pods().delete(podReference);
@@ -2222,7 +2205,7 @@ export class BackupRestoreCommand extends BaseCommand {
                         {
                           title: 'Apply block node restore fixes',
                           task: async (_, task): Promise<void> => {
-                            await this.applyBlockNodeRestoreFixes(inputDirectory, namespace);
+                            await this.applyBlockNodeRestoreFixes(namespace);
                             task.title = 'Apply block node restore fixes: completed';
                           },
                         },

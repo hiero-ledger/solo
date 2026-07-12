@@ -93,13 +93,17 @@ tasks:
           {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --skip-grpc-web-endpoint
           {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
       # Block nodes were already restarted by restore-config (applyBlockNodeRestoreFixes
-      # restores the backed-up data/ archive, deletes each pod, and waits for ready).
+      # wipes data/, deletes each pod, and waits for ready).
       # No manual pod restart is needed here.
       #
-      # applyBlockNodeRestoreFixes restores the block data/ archive so block-node resumes at
-      # the backed-up tip. CN then only needs to stream post-backup blocks. tss-bootstrap-roster.json
-      # is intentionally NOT restored: seeding the old roster causes BAD_BLOCK_PROOF at CN's
-      # post-restore TSS re-keying block; without it block-node accepts all blocks (as in initial-deploy).
+      # applyBlockNodeRestoreFixes intentionally starts block-node with empty data/ so
+      # lastPersistedBlockNumber=-1 activates streamBeforeEmbOrElse (EMB=100000000).
+      # In that mode all incoming blocks are accepted without TSS verification, exactly
+      # matching initial-deploy behaviour.  BlockHasher then writes tss-bootstrap-roster.json
+      # from the first TSS-signed block received from CN, and subsequent blocks are
+      # verified normally.  The backed-up data archive and roster file are NOT restored
+      # because CN unconditionally re-keys TSS after restore (hiero-consensus-node#26299),
+      # which makes the backed-up roster stale and causes BAD_BLOCK_PROOF.
       #
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for any block-node across both clusters to receive post-restore blocks, then
@@ -373,12 +377,11 @@ tasks:
       POSTGRES_READONLY_PASSWORD: "{{ .POSTGRES_READONLY_PASSWORD }}"
     cmds:
       # BLOCK_STREAM_WRITER_MODE=FILE: prevents CN from gRPC-streaming blocks to block nodes
-      # during this intermediate phase. Block nodes are fresh at this point — tss-bootstrap-roster.json
-      # is not planted until restore-config runs applyBlockNodeRestoreFixes.
-      # Without FILE mode, CN (default FILE_AND_GRPC) would immediately try to stream to block nodes
-      # that have no TSS state and would reject every block. After restore-config completes, the
-      # restart task calls "consensus node start" without this env var, so the default FILE_AND_GRPC
-      # takes effect and CN streams to the now-initialized block nodes.
+      # during this intermediate phase.  Block nodes start with empty data (streamBeforeEmbOrElse
+      # mode) but the applyBlockNodeRestoreFixes pod restart hasn't happened yet, so accepting
+      # blocks now would create live data that gets wiped.  After restore-config completes, the
+      # restart task calls "consensus node start" without this env var, so the default
+      # FILE_AND_GRPC takes effect and CN streams to the fully-initialised block nodes.
       - cmd: |
           BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-network \
             --input-dir {{ .BACKUP_DIR }} \
@@ -437,8 +440,8 @@ tasks:
     desc: Restore configuration and state from backup (DB already populated by restore-db)
     cmds:
       # BLOCK_STREAM_WRITER_MODE=FILE: keeps CN in file-only mode while restore-config uploads
-      # node state and applies block node fixes (TSS file). The block nodes are not ready to
-      # accept gRPC streams until applyBlockNodeRestoreFixes completes.
+      # node state and applies block node fixes (wipe data/, pod restart).  Block nodes are not
+      # ready to accept gRPC streams until applyBlockNodeRestoreFixes completes.
       - cmd: |
           BLOCK_STREAM_WRITER_MODE=FILE $SOLO_COMMAND config ops restore-config \
             --deployment {{ .DEPLOYMENT }} \
