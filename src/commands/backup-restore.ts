@@ -8,6 +8,7 @@ import {type CommandFlags} from '../types/flag-types.js';
 import chalk from 'chalk';
 import yaml from 'yaml';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
@@ -1914,6 +1915,80 @@ export class BackupRestoreCommand extends BaseCommand {
   // (e.g. `000...142.pnd.gz`). The block number is the last 36-digit numeric segment of the
   // entry path. Returns the max block number found across all clusters, or -1 if no `.pnd`
   // entries are present (no freeze gap to bridge).
+  /**
+   * Creates a one-shot busybox pod that mounts the block-node's plugins-storage PVC (read-write)
+   * and deletes the block-verification JAR from it.
+   *
+   * Without this plugin, block-node skips all block signature verification, which is necessary
+   * during restore because CN unconditionally re-keys TSS at the first staking-period boundary
+   * after restore (hiero-consensus-node#26299).  Re-keying produces TRANSITION blocks whose state
+   * proofs have only 1 path; StateProofVerifier hardcodes paths.size()!=3 → BAD_BLOCK_PROOF for
+   * every such block, stalling block-node permanently.
+   *
+   * The resolve-plugins init container hashes its configuration (version + plugin names) into
+   * .resolved-hash.  As long as the Helm release values are unchanged (which they are — we never
+   * touch the chart after initial-deploy), DESIRED_HASH == STORED_HASH on pod restart and the
+   * init container exits early without re-downloading.  The deleted JAR therefore stays deleted
+   * across all subsequent pod restarts.
+   */
+  private async removeBlockVerificationPlugin(k8: K8, namespace: NamespaceName, releaseName: string): Promise<void> {
+    const pvcName: string = `plugins-storage-${releaseName}-0`;
+    const cleanupPodName: string = `bn-bvclean-${Date.now()}`;
+    const podReference: PodReference = PodReference.of(namespace, PodName.of(cleanupPodName));
+
+    const podManifest: object = {
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: {
+        name: cleanupPodName,
+        namespace: namespace.toString(),
+      },
+      spec: {
+        restartPolicy: 'Never',
+        containers: [
+          {
+            name: 'cleanup',
+            image: 'busybox:stable',
+            command: ['sh', '-c', 'rm -f /plugins/block-verification*.jar && echo "block-verification JAR removed"'],
+            volumeMounts: [{name: 'plugins', mountPath: '/plugins'}],
+          },
+        ],
+        volumes: [{name: 'plugins', persistentVolumeClaim: {claimName: pvcName}}],
+      },
+    };
+
+    const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'solo-bn-cleanup-'));
+    const temporaryFile: string = path.join(temporaryDirectory, 'pod.yaml');
+    fs.writeFileSync(temporaryFile, yaml.stringify(podManifest));
+
+    try {
+      await k8.manifests().applyManifest(temporaryFile);
+      this.logger.info(`Created cleanup pod ${cleanupPodName} to remove block-verification JAR from ${pvcName}`);
+
+      // Poll until the cleanup pod reaches a terminal phase (max ~2 min)
+      for (let attempt: number = 0; attempt < 60; attempt++) {
+        await sleep(Duration.ofSeconds(2));
+        const pods: Pod[] = await k8.pods().list(namespace, []);
+        const cleanupPod: Pod | undefined = pods.find(
+          (pod: Pod): boolean => pod.podReference?.name.toString() === cleanupPodName,
+        );
+        if (!cleanupPod || cleanupPod.phase === 'Succeeded' || cleanupPod.phase === 'Failed') {
+          this.logger.info(`Cleanup pod ${cleanupPodName} completed with phase: ${cleanupPod?.phase ?? 'gone'}`);
+          break;
+        }
+      }
+    } finally {
+      await k8
+        .pods()
+        .delete(podReference)
+        .catch((): void => {
+          // best-effort: pod may have already completed and been deleted
+        });
+      fs.unlinkSync(temporaryFile);
+      fs.rmdirSync(temporaryDirectory);
+    }
+  }
+
   private async applyBlockNodeRestoreFixes(_namespace: NamespaceName): Promise<void> {
     const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
     if (blockNodes.length === 0) {
@@ -1977,27 +2052,28 @@ export class BackupRestoreCommand extends BaseCommand {
         // Pod is now ready — proceed to data/TSS operations below.
       }
 
-      // Always wipe data/ so block-node starts with lastPersistedBlockNumber=-1, which triggers
-      // streamBeforeEmbOrElse (EMB=100000000).  In that mode block-node accepts every incoming
-      // block from CN without TSS verification, exactly matching initial-deploy behaviour.
-      // BlockHasher then writes tss-bootstrap-roster.json from the first TSS-signed block, and
-      // all subsequent blocks are verified normally.
+      // Remove the block-verification plugin before restarting.  CN unconditionally re-keys TSS
+      // at the first staking-period boundary after restore (hiero-consensus-node#26299), producing
+      // TRANSITION blocks whose state proofs have only 1 path.  StateProofVerifier (inside the
+      // block-verification JAR) hardcodes paths.size()!=3 → BAD_BLOCK_PROOF for every such block,
+      // permanently stalling block-node.  Removing the JAR bypasses all signature verification so
+      // block-node stores blocks unconditionally until CN completes its TSS re-keying.
+      // The resolve-plugins init container hashes its config into .resolved-hash; as long as the
+      // Helm release values are unchanged the hash matches on every pod restart and the init
+      // container skips re-downloading, keeping the JAR absent.
+      // TODO(hiero-consensus-node#26299): Once CN no longer re-keys TSS after restore, remove this
+      // call and restore both the data archive and tss-bootstrap-roster.json instead.
+      await this.removeBlockVerificationPlugin(k8, blockNodeNamespace, blockNodeReleaseName);
+
+      // Wipe data/ so block-node starts with lastPersistedBlockNumber=-1 (streamBeforeEmbOrElse
+      // mode with EMB=100000000).  Block-node then streams all incoming blocks from CN via gRPC
+      // and stores them without verification (plugin is absent).
       //
-      // DO NOT restore the data archive.  Restoring it sets lastPersistedBlockNumber=149, which
-      // disables streamBeforeEmbOrElse.  Block 153 (the first TSS-signed block after CN's
-      // post-restore re-keying) then fails with MISSING_VERIFICATION_DATA because the
-      // application-state PVC is new and empty — there is no tss-bootstrap-roster.json for
-      // block-node to verify against.
-      //
-      // DO NOT restore tss-bootstrap-roster.json.  CN re-keys TSS unconditionally at the first
-      // staking-period boundary after restore (hiero-consensus-node#26299), so the backed-up
-      // roster is always stale and causes BAD_BLOCK_PROOF for the first re-keyed block.
-      //
-      // TODO(hiero-consensus-node#26299): Once CN stops re-keying TSS unconditionally, both the
-      // archive and the roster file can be restored so block-node resumes at the backed-up tip.
+      // DO NOT restore the data archive or tss-bootstrap-roster.json — both are stale after CN's
+      // unconditional TSS re-keying (hiero-consensus-node#26299).
       await container.execContainer(['sh', '-c', 'rm -rf /opt/hiero/block-node/data/* 2>/dev/null || true']);
       this.logger.info(
-        `Wiped block node data/ for ${podName}; streamBeforeEmbOrElse will bootstrap TSS from CN's first post-restore blocks`,
+        `Wiped block node data/ for ${podName}; block-verification plugin removed, blocks will be accepted without TSS verification`,
       );
 
       // Restart so the block node re-scans data/ and picks up the restored block ranges.

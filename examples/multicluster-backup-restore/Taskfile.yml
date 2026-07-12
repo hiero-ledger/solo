@@ -278,14 +278,16 @@ tasks:
             --external-database-read-password {{ .POSTGRES_READONLY_PASSWORD }} \
             --enable-ingress --pinger -q --dev --values-file examples/multicluster-backup-restore/mirror-node-values-dual-cluster-minimal.yaml
 
-      # Deploy Explorer and Relay on Cluster 2 in parallel (both use the distributed lease
-      # lock when writing to remote config, so the ConfigMap writes are serialized safely).
+      # Deploy Explorer and Relay on Cluster 2 sequentially. Both commands acquire the
+      # Solo distributed lock (ConfigMap-backed IntervalLock) when writing remote config.
+      # Running them in parallel causes a LockRelinquishmentError when one command's
+      # heartbeat lags and the other process reclaims the lock before release.
       - cmd: |
-          echo "🔍📡 Deploying Explorer and Relay on Cluster 2 in parallel..."
+          echo "🔍 Deploying Explorer on Cluster 2..."
           $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --mirrorNamespace {{ .NAMESPACE }} \
-            --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev &
-          $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev &
-          wait
+            --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
+          echo "📡 Deploying Relay on Cluster 2..."
+          $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
           echo "✅ Explorer and Relay deployed"
 
       - cmd: echo "✅ Initial deployment completed successfully!"
