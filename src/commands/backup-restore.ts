@@ -1980,9 +1980,9 @@ export class BackupRestoreCommand extends BaseCommand {
         // Pod is now ready — proceed to data/TSS operations below.
       }
 
-      // If the backup captured a dedicated block-node data archive, restore only verification/
-      // from it (not data/): keep data/ empty so block-node starts with lastPersistedBlockNumber=-1
-      // and streamBeforeEmbOrElse() accepts CN's first post-restore block directly.
+      // data/ is always wiped below so block-node starts with lastPersistedBlockNumber=-1 and
+      // streamBeforeEmbOrElse() accepts CN's first post-restore block directly.
+      // If the backup captured a dedicated data archive, verification/ is also restored from it.
       const dataArchivePath: string = PathEx.join(
         inputDirectory,
         blockNode.metadata.cluster,
@@ -2009,7 +2009,15 @@ export class BackupRestoreCommand extends BaseCommand {
         ]);
         this.logger.info(`Restored block node verification artifacts into ${podName} (data/ left empty by design)`);
       } else {
-        this.logger.info(`No block node data archive at ${dataArchivePath}; leaving fresh deploy state`);
+        // No data archive — explicitly wipe data/ so block-node starts with
+        // lastPersistedBlockNumber=-1.  CN may have streamed blocks into data/ while
+        // running in FILE_AND_GRPC mode before this restore step ran; leaving those
+        // blocks in place prevents streamBeforeEmbOrElse() from firing because it
+        // only triggers when the data/ directory is empty (latestBlock=-1 < EMB).
+        await container.execContainer(['sh', '-c', 'rm -rf /opt/hiero/block-node/data/* 2>/dev/null || true']);
+        this.logger.info(
+          `Wiped block node data/ for ${podName}; streamBeforeEmbOrElse will accept CN's first post-restore block`,
+        );
       }
 
       // Overlay a standalone tss-parameters.bin if backup emitted it (legacy compat).
