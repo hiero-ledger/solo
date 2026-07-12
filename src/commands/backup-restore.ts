@@ -63,6 +63,7 @@ import {type Service} from '../integration/kube/resources/service/service.js';
 import {Templates} from '../core/templates.js';
 import {BlockTipUtilities} from '../core/block-tip-utilities.js';
 import * as Base64 from 'js-base64';
+import {K8Helper} from '../business/utils/k8-helper.js';
 
 interface ExpectedLbIpAssignment {
   context: Context;
@@ -1916,6 +1917,60 @@ export class BackupRestoreCommand extends BaseCommand {
   // entry path. Returns the max block number found across all clusters, or -1 if no `.pnd`
   // entries are present (no freeze gap to bridge).
   /**
+   * Resets blockStream.writerMode=FILE_AND_GRPC in every CN's application.properties ConfigMap
+   * and pod filesystem.
+   *
+   * restore-config runs with BLOCK_STREAM_WRITER_MODE=FILE so CN does not stream to block-node
+   * while the restore is in progress.  After applyBlockNodeRestoreFixes wipes the block-node's
+   * data/ and removes the verification plugin, CN must stream in FILE_AND_GRPC mode so the
+   * freshly-started block-node receives blocks.  consensus node start does NOT call
+   * updateBlockNodesJson, so writerMode would remain FILE without this explicit reset.
+   */
+  private async resetConsensusNodeWriterModeForStreaming(
+    namespace: NamespaceName,
+    consensusNodes: ConsensusNode[],
+  ): Promise<void> {
+    const applicationPropertiesFileName: string = constants.APPLICATION_PROPERTIES;
+    const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${applicationPropertiesFileName}`;
+    const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
+
+    for (const consensusNode of consensusNodes) {
+      const context: Context = extractContextFromConsensusNodes(consensusNode.name as NodeAlias, consensusNodes);
+      const k8: K8 = this.k8Factory.getK8(context);
+      const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
+        namespace,
+        consensusNode.name as NodeAlias,
+      );
+
+      const original: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
+      const updated: string = original
+        .split('\n')
+        .map((line: string): string =>
+          line.startsWith('blockStream.writerMode=') ? 'blockStream.writerMode=FILE_AND_GRPC' : line,
+        )
+        .join('\n');
+
+      if (updated === original) {
+        continue;
+      }
+
+      await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
+        [applicationPropertiesFileName]: updated,
+      });
+
+      const temporaryFile: string = path.join(os.tmpdir(), applicationPropertiesFileName);
+      fs.writeFileSync(temporaryFile, updated);
+      try {
+        await container.copyTo(temporaryFile, targetDirectory);
+      } finally {
+        fs.unlinkSync(temporaryFile);
+      }
+
+      this.logger.info(`Reset blockStream.writerMode to FILE_AND_GRPC for ${consensusNode.name}`);
+    }
+  }
+
+  /**
    * Creates a one-shot busybox pod that mounts the block-node's plugins-storage PVC (read-write)
    * and deletes the block-verification JAR from it.
    *
@@ -2292,6 +2347,13 @@ export class BackupRestoreCommand extends BaseCommand {
               ],
               constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             ),
+        },
+        {
+          title: 'Reset consensus node blockStream.writerMode to FILE_AND_GRPC',
+          task: async (_, task): Promise<void> => {
+            await this.resetConsensusNodeWriterModeForStreaming(namespace, consensusNodes);
+            task.title = 'Reset consensus node blockStream.writerMode to FILE_AND_GRPC: completed';
+          },
         },
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
