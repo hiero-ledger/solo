@@ -1920,9 +1920,6 @@ export class BackupRestoreCommand extends BaseCommand {
       return;
     }
 
-    const standaloneTssParametersPath: string = PathEx.join(inputDirectory, 'tss-parameters.bin');
-    const hasStandaloneTssParameters: boolean = fs.existsSync(standaloneTssParametersPath);
-
     for (const blockNode of blockNodes) {
       const blockNodeId: number = Number(blockNode.metadata.id);
       const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
@@ -1980,9 +1977,8 @@ export class BackupRestoreCommand extends BaseCommand {
         // Pod is now ready — proceed to data/TSS operations below.
       }
 
-      // data/ is always wiped below so block-node starts with lastPersistedBlockNumber=-1 and
-      // streamBeforeEmbOrElse() accepts CN's first post-restore block directly.
-      // If the backup captured a dedicated data archive, verification/ is also restored from it.
+      // If the backup captured a data archive, restore it so block-node resumes at the backed-up
+      // block tip. Otherwise wipe data/ so block-node starts empty and EMB logic applies.
       const dataArchivePath: string = PathEx.join(
         inputDirectory,
         blockNode.metadata.cluster,
@@ -1992,12 +1988,9 @@ export class BackupRestoreCommand extends BaseCommand {
       const hasDataArchive: boolean = fs.existsSync(dataArchivePath);
       if (hasDataArchive) {
         const archiveInPod: string = `/tmp/${podName}-blockNodeData.tar.gz`;
-        // Wipe data/ so the restore is clean (no stale blocks mixed with backed-up ones).
-        // Extract the full archive (contains data/) so block-node resumes at the backed-up
-        // block position. CN then only needs to send post-backup blocks, which are fully
-        // TSS-signed (TSS quorum was established before backup) and pass verification.
-        // This avoids the BAD_BLOCK_PROOF loop that occurs when block-node starts empty and
-        // CN replays the TSS-transition block (~108) with an incomplete TSS proof.
+        // Wipe data/ so the restore is clean, then extract the archive so block-node resumes
+        // at the backed-up block tip. CN then only needs to send post-backup blocks, avoiding
+        // the TSS-transition block that causes BAD_BLOCK_PROOF when block-node starts empty.
         await container.execContainer(['sh', '-c', 'rm -rf /opt/hiero/block-node/data/* 2>/dev/null || true']);
         await container.copyTo(dataArchivePath, '/tmp');
         await container.execContainer([
@@ -2018,34 +2011,11 @@ export class BackupRestoreCommand extends BaseCommand {
         );
       }
 
-      // Overlay a standalone tss-parameters.bin if backup emitted it (legacy compat).
-      if (hasStandaloneTssParameters) {
-        await container.copyTo(standaloneTssParametersPath, '/opt/hiero/block-node/verification');
-        await container.execContainer([
-          'sh',
-          '-c',
-          'chown hedera:hedera /opt/hiero/block-node/verification/tss-parameters.bin || true',
-        ]);
-      }
-
-      // Restore tss-bootstrap-roster.json so the block-verification plugin has TSS data on
-      // startup and can verify post-restore blocks (TSS-signed blocks from CN v0.74+).
-      // Without this file, currentTssData() is null → all TSS-signed blocks fail with
-      // MISSING_VERIFICATION_DATA.
-      const tssBootstrapPath: string = PathEx.join(
-        inputDirectory,
-        blockNode.metadata.cluster,
-        'blockNodeData',
-        podName,
-        'tss-bootstrap-roster.json',
-      );
-      if (fs.existsSync(tssBootstrapPath)) {
-        await container.execContainer(['sh', '-c', 'mkdir -p /opt/hiero/block-node/application-state']);
-        await container.copyTo(tssBootstrapPath, '/opt/hiero/block-node/application-state');
-        this.logger.info(`Restored tss-bootstrap-roster.json to ${podName}`);
-      } else {
-        this.logger.info(`No tss-bootstrap-roster.json backup for ${podName}; TSS state will not be pre-seeded`);
-      }
+      // Do NOT restore tss-bootstrap-roster.json. When the file is absent, block-node runs
+      // without TSS signature verification, matching initial-deploy behaviour (block-node starts
+      // before CN has established TSS keys). Seeding the backed-up roster causes BAD_BLOCK_PROOF
+      // at CN's post-restore TSS re-keying block, putting block-node in an unrecoverable RESEND
+      // loop. CN pushes fresh TSS state to block-node in-band once re-keying completes.
 
       // Restart so the block node re-scans data/ and picks up the restored block ranges.
       await k8.pods().delete(podReference);

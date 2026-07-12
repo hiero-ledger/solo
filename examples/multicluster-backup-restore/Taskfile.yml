@@ -93,13 +93,13 @@ tasks:
           {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --skip-grpc-web-endpoint
           {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
       # Block nodes were already restarted by restore-config (applyBlockNodeRestoreFixes
-      # restores the backed-up data/ archive and tss-bootstrap-roster.json, then deletes each
-      # pod and waits for ready). No manual pod restart is needed here.
+      # restores the backed-up data/ archive, deletes each pod, and waits for ready).
+      # No manual pod restart is needed here.
       #
-      # applyBlockNodeRestoreFixes restores the backed-up block data/ archive so block-node
-      # resumes at the backed-up tip (e.g. block 138). CN then only needs to stream post-backup
-      # blocks (fully TSS-signed) to block-node, bypassing the TSS-transition block that would
-      # cause BAD_BLOCK_PROOF if block-node started empty and CN replayed from its earliest block.
+      # applyBlockNodeRestoreFixes restores the block data/ archive so block-node resumes at
+      # the backed-up tip. CN then only needs to stream post-backup blocks. tss-bootstrap-roster.json
+      # is intentionally NOT restored: seeding the old roster causes BAD_BLOCK_PROOF at CN's
+      # post-restore TSS re-keying block; without it block-node accepts all blocks (as in initial-deploy).
       #
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for any block-node across both clusters to receive post-restore blocks, then
