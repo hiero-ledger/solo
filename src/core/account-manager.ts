@@ -55,6 +55,7 @@ import {type ClusterReferences, type DeploymentName, Realm, Shard} from './../ty
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {SoloService} from './model/solo-service.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {PortUtilities} from '../business/utils/port-utilities.js';
 import {type NodeServiceMapping} from '../types/mappings/node-service-mapping.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {NetworkNodeServicesBuilder} from './network-node-services-builder.js';
@@ -412,13 +413,26 @@ export class AccountManager {
       }
       // if the load balancer IP is not set or the test connection fails, then we should use the local host port forward
       const host: string = '127.0.0.1';
-      // Default to the requested local port; if we actually create a forward below, use the port it was
-      // bound to. portForward() may bind a different port than requested when the requested one is
-      // transiently held (findAvailablePort climbs), and pointing the SDK at the requested port would
-      // route it to a stale/other forward -> INVALID_NODE_ACCOUNT.
+      // Reclaim this node's port if a leaked/orphaned forward is holding it, so portForward() binds the
+      // requested port instead of climbing; the SDK is pointed at the actually-bound port either way.
       let localForwardPort: number = localPort;
 
       if (this._portForwards.length < totalNodes) {
+        let portHeld: boolean = false;
+        try {
+          portHeld = !(await PortUtilities.isPortAvailable(localPort));
+        } catch {
+          // best-effort probe; if availability is unknown, skip reclaim and let portForward() choose the port
+          portHeld = false;
+        }
+        if (portHeld) {
+          await this.k8Factory
+            .getK8(networkNodeService.context)
+            .pods()
+            .readByReference(null)
+            .stopPortForward(localPort);
+        }
+
         localForwardPort = await this.k8Factory
           .getK8(networkNodeService.context)
           .pods()
