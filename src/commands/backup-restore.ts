@@ -453,28 +453,31 @@ export class BackupRestoreCommand extends BaseCommand {
                 this.logger.info(`tss-bootstrap-roster.json not present on ${podName}, skipping`);
               }
 
-              // Export last verified block number — used to create a state-genesis stub block
-              // during restore so that LiveStreamPublisherManager ignores the 1-path state proof
-              // failure for the first post-restore block from CN.
-              const lastBlockRaw: string = await blockNodeContainer
+              // Export block data archive. Restoring data/ lets block-node resume at the
+              // backed-up block position and ask CN only for post-backup blocks. Those blocks
+              // are fully TSS-signed (TSS quorum was established well before backup) and pass
+              // verification. Without this archive, block-node restarts with empty data/ and
+              // asks CN to replay from block 0; CN replays the TSS-transition block (block ~108)
+              // which has an incomplete TSS proof → BAD_BLOCK_PROOF loop.
+              const blockDataArchiveName: string = `${podName}-blockNodeData.tar.gz`;
+              const blockDataArchiveInPod: string = `/tmp/${blockDataArchiveName}`;
+              const blockNodeDataBackupDirectory: string = PathEx.join(
+                outputDirectory,
+                bn.metadata.cluster,
+                'blockNodeData',
+              );
+              await blockNodeContainer
                 .execContainer([
                   'sh',
                   '-c',
-                  String.raw`find /opt/hiero/block-node/data/live -type f \( -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null` +
-                    String.raw` | sed 's|.*/0*\([0-9][0-9]*\)\.blk.*|\1|' | sort -un | tail -1`,
+                  `cd /opt/hiero/block-node && tar czf "${blockDataArchiveInPod}" data/ 2>/dev/null && echo ok || echo skip`,
                 ])
                 .catch((): string => '');
-              const lastBlockOutput: string = lastBlockRaw.trim();
-              if (lastBlockOutput && /^\d+$/.test(lastBlockOutput)) {
-                fs.writeFileSync(
-                  PathEx.join(blockNodeBackupDirectory, 'last-verified-block.txt'),
-                  lastBlockOutput,
-                  'utf8',
-                );
-                this.logger.info(`Exported last-verified-block=${lastBlockOutput} from ${podName}`);
-              } else {
-                this.logger.info(`No verified blocks found in ${podName} data/live/`);
-              }
+              await blockNodeContainer.copyFrom(blockDataArchiveInPod, blockNodeDataBackupDirectory);
+              await blockNodeContainer
+                .execContainer(['sh', '-c', `rm -f "${blockDataArchiveInPod}"`])
+                .catch((): void => undefined);
+              this.logger.info(`Exported block data archive from ${podName}`);
             }
             task.title = `Export block node state: ${blockNodes.length} node(s) processed, ${exportCount} TSS file(s) exported`;
           },
@@ -1992,22 +1995,20 @@ export class BackupRestoreCommand extends BaseCommand {
       const hasDataArchive: boolean = fs.existsSync(dataArchivePath);
       if (hasDataArchive) {
         const archiveInPod: string = `/tmp/${podName}-blockNodeData.tar.gz`;
-        // Wipe both data/ and verification/ so the extract doesn't merge with the fresh chart
-        // deploy seed. We then extract only verification/ - data/ stays empty. Pass `-m` and
-        // `--no-same-owner` because the block-node-server runs as a non-root user that lacks
-        // chown/utime capability on pre-existing directory entries.
-        await container.execContainer([
-          'sh',
-          '-c',
-          'rm -rf /opt/hiero/block-node/data/* /opt/hiero/block-node/verification/* 2>/dev/null || true',
-        ]);
+        // Wipe data/ so the restore is clean (no stale blocks mixed with backed-up ones).
+        // Extract the full archive (contains data/) so block-node resumes at the backed-up
+        // block position. CN then only needs to send post-backup blocks, which are fully
+        // TSS-signed (TSS quorum was established before backup) and pass verification.
+        // This avoids the BAD_BLOCK_PROOF loop that occurs when block-node starts empty and
+        // CN replays the TSS-transition block (~108) with an incomplete TSS proof.
+        await container.execContainer(['sh', '-c', 'rm -rf /opt/hiero/block-node/data/* 2>/dev/null || true']);
         await container.copyTo(dataArchivePath, '/tmp');
         await container.execContainer([
           'sh',
           '-c',
-          `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}" --no-same-owner verification && rm -f "${archiveInPod}"`,
+          `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}" --no-same-owner && rm -f "${archiveInPod}"`,
         ]);
-        this.logger.info(`Restored block node verification artifacts into ${podName} (data/ left empty by design)`);
+        this.logger.info(`Restored block node data/ from archive into ${podName}`);
       } else {
         // No data archive — explicitly wipe data/ so block-node starts with
         // lastPersistedBlockNumber=-1.  CN may have streamed blocks into data/ while
