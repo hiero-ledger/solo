@@ -166,27 +166,27 @@ export class CacheCommand extends BaseCommand {
 
   public static readonly CHART_PULL_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   public static readonly CHART_LIST_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   public static readonly CHART_CLEAR_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   public static readonly CHART_PRUNE_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   public static readonly CHART_STATUS_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   // ----- Handlers ------- //
