@@ -41,7 +41,6 @@ type PerformanceSummary = AugmentedSnapshot & {
 const testName: string = 'performance-tests';
 const deploymentName: string = `${testName}-deployment`;
 const testTitle: string = 'E2E Performance Tests';
-const lastOneShotDeploymentFile: string = PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt');
 
 const duration: number = Duration.ofMinutes(
   Number.parseInt(process.env.ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES) || 5,
@@ -125,7 +124,11 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
           startTime = new Date();
           metricsInterval = setInterval(async (): Promise<void> => {
-            logMetrics(startTime);
+            try {
+              await logMetrics(startTime);
+            } catch (error: unknown) {
+              testLogger.warn(`${testName}: failed to log interval metrics: ${error}`);
+            }
           }, Duration.ofSeconds(5).toMillis());
         }).timeout(Duration.ofMinutes(25).toMillis());
 
@@ -136,7 +139,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           process.env.JAVA_FLIGHT_RECORDER_CONFIGURATION = defaultJFREnvironmentValue;
 
           let metricsError: unknown;
-          if (oneShotDeployCompleted && fs.existsSync(lastOneShotDeploymentFile)) {
+          if (oneShotDeployCompleted) {
             // Wrap metrics processing so that diagnostics collection and cluster teardown
             // always run, even when the before() hook's deploy failed and files are absent.
             try {
@@ -321,7 +324,6 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 endToEndTestSuite.runTestSuite();
 
 async function getNamespaceFromDeployment(): Promise<string> {
-  const deploymentName: string = fs.readFileSync(lastOneShotDeploymentFile, 'utf8');
   const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
     InjectTokens.LocalConfigRuntimeState,
   );
