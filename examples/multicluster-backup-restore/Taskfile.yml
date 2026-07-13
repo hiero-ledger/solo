@@ -93,20 +93,20 @@ tasks:
           {{ .TIMEOUT_COMMAND }} 300s {{ .SOLO_COMMAND }} consensus node start --deployment {{ .DEPLOYMENT }} --skip-grpc-web-endpoint
           {{ .SOLO_COMMAND }} deployment refresh port-forwards --deployment {{ .DEPLOYMENT }}
       # Block nodes were already restarted by restore-config (applyBlockNodeRestoreFixes
-      # wipes data/, deletes each pod, and waits for ready).
+      # restores the backed-up block data archive, deletes each pod, and waits for ready).
       # No manual pod restart is needed here.
       #
-      # applyBlockNodeRestoreFixes intentionally starts block-node with empty data/ so
-      # lastPersistedBlockNumber=-1 activates streamBeforeEmbOrElse (EMB=100000000).
-      # In that mode all incoming blocks are accepted without TSS verification, exactly
-      # matching initial-deploy behaviour.  BlockHasher then writes tss-bootstrap-roster.json
-      # from the first TSS-signed block received from CN, and subsequent blocks are
-      # verified normally.  The backed-up data archive and roster file are NOT restored
-      # because CN unconditionally re-keys TSS after restore (hiero-consensus-node#26299),
-      # which makes the backed-up roster stale and causes BAD_BLOCK_PROOF.
+      # applyBlockNodeRestoreFixes extracts the backup's blockNodeData.tar.gz into
+      # /opt/hiero/block-node/ so data/live/ already contains the backed-up blocks (0-158).
+      # On restart, BlockFileRecentPlugin.init() scans data/live/ → availableBlocks.max()=158;
+      # VerificationServicePlugin.start() sets lastVerifiedBlock=158; nextExpectedBlock=159.
+      # CN's post-restore blocks (~145-158) satisfy blockNumber ≤ 158 so ResultOrderingManager
+      # does not park them — they proceed normally and bn_tip reflects the backed-up maximum.
+      # Without this restore, lastVerifiedBlock=-1 and CN's first block (~145) parks waiting
+      # for blocks 0-144 that never arrive, leaving bn_tip empty forever.
       #
       # Restore can leave a small imported record_file gap around the saved-state edge.
-      # Wait for any block-node across both clusters to receive post-restore blocks, then
+      # Wait for any block-node across both clusters to have blocks above importer's MAX, then
       # bridge the missing rows so mirror importer can chain from the first live block.
       - cmd: |
           echo "Waiting for block node to receive blocks above importer's MAX..."

@@ -455,12 +455,12 @@ export class BackupRestoreCommand extends BaseCommand {
                 this.logger.info(`tss-bootstrap-roster.json not present on ${podName}, skipping`);
               }
 
-              // Export block data archive. Restoring data/ lets block-node resume at the
-              // backed-up block position and ask CN only for post-backup blocks. Those blocks
-              // are fully TSS-signed (TSS quorum was established well before backup) and pass
-              // verification. Without this archive, block-node restarts with empty data/ and
-              // asks CN to replay from block 0; CN replays the TSS-transition block (block ~108)
-              // which has an incomplete TSS proof → BAD_BLOCK_PROOF loop.
+              // Export block data archive. applyBlockNodeRestoreFixes() extracts this archive
+              // into /opt/hiero/block-node/ on the restored pod so data/live/ already holds
+              // blocks 0-N before BN starts. That sets lastVerifiedBlock=N on startup.
+              // Without the archive, lastVerifiedBlock=-1 and CN's first post-restore block
+              // (~145) parks in ResultOrderingManager waiting for blocks 0-144 that never
+              // arrive — bn_tip stays empty and the verify step times out.
               const blockDataArchiveName: string = `${podName}-blockNodeData.tar.gz`;
               const blockDataArchiveInPod: string = `/tmp/${blockDataArchiveName}`;
               const blockNodeDataBackupDirectory: string = PathEx.join(
@@ -1712,7 +1712,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const output: string = await blockNodeContainer.execContainer([
       'sh',
       '-c',
-      // -size +0c excludes the zero-byte stub sentinel planted by applyBlockNodeRestoreFixes
+      // -size +0c excludes any zero-byte placeholder files
       String.raw`find /opt/hiero/block-node/data -type f -name '*.blk*' -size +0c 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | awk -v f=${floor} '$1 > f { print $1; exit }'`,
     ]);
     const trimmed: string = (output || '').trim();
@@ -1921,10 +1921,10 @@ export class BackupRestoreCommand extends BaseCommand {
    * and pod filesystem.
    *
    * restore-config runs with BLOCK_STREAM_WRITER_MODE=FILE so CN does not stream to block-node
-   * while the restore is in progress.  After applyBlockNodeRestoreFixes wipes the block-node's
-   * data/ and removes the verification plugin, CN must stream in FILE_AND_GRPC mode so the
-   * freshly-started block-node receives blocks.  consensus node start does NOT call
-   * updateBlockNodesJson, so writerMode would remain FILE without this explicit reset.
+   * while the restore is in progress.  After applyBlockNodeRestoreFixes restores block data and
+   * restarts the block-node, CN must stream in FILE_AND_GRPC mode so the freshly-started
+   * block-node receives blocks.  consensus node start does NOT call updateBlockNodesJson, so
+   * writerMode would remain FILE without this explicit reset.
    */
   private async resetConsensusNodeWriterModeForStreaming(
     namespace: NamespaceName,
@@ -1971,14 +1971,26 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Makes block-node identical to a fresh pod by resetting EMB=100000000 in the ConfigMap and
-   * wiping data/ plus all TSS application-state files.  This puts BN into streamBeforeEmbOrElse
-   * mode (lastPersistedBlockNumber=-1, no TSS key material) so it accepts and persists all
-   * incoming blocks from CN without running StateProofVerifier.  Without wiping tss-parameters.bin
-   * and block-ranges.json, StateProofVerifier fires with the backup's TSS keys and rejects
-   * CN's post-restore TRANSITION blocks (BAD_BLOCK_PROOF, hiero-consensus-node#26299).
+   * Restores backed-up block data to each BN pod so block-verification's
+   * lastVerifiedBlock initialises to the backed-up maximum (e.g. 158) rather than -1.
+   *
+   * Root cause of the empty-data failure: with lastVerifiedBlock=-1 the plugin's
+   * nextExpectedBlock is 0.  CN's first post-restore block (~145) satisfies
+   * blockNumber > nextExpectedBlock AND source == PUBLISHER, so ResultOrderingManager
+   * parks it waiting for blocks 0-144 that will never arrive — bn_tip stays empty forever.
+   *
+   * Fix: extract the backup's blockNodeData.tar.gz into /opt/hiero/block-node/ so
+   * data/live/ already contains blocks 0-158.  On restart, BlockFileRecentPlugin.init()
+   * scans data/live/ and sets availableBlocks.max()=158; VerificationServicePlugin.start()
+   * sets lastVerifiedBlock=158; nextExpectedBlock=159.  CN's post-restore blocks (145-158)
+   * satisfy blockNumber ≤ 158, so shouldPark() returns false and they proceed normally.
+   * Blocks already in data/ from the backup guarantee bn_tip ≥ IMPORTER_MAX, which is
+   * what the verify step checks.
+   *
+   * importConfigMaps() runs before this method and already restored the correct EMB from
+   * backup — do NOT overwrite it here.
    */
-  private async applyBlockNodeRestoreFixes(_namespace: NamespaceName): Promise<void> {
+  private async applyBlockNodeRestoreFixes(inputDirectory: string): Promise<void> {
     const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
     if (blockNodes.length === 0) {
       return;
@@ -1990,17 +2002,6 @@ export class BackupRestoreCommand extends BaseCommand {
       const blockNodeReleaseName: string = Templates.renderBlockNodeName(blockNodeId);
       const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
-      const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
-
-      // The backup ConfigMap captures the real epoch-minimum-block (e.g. 139), NOT 100000000.
-      // Reset it to 100000000 so BN enters streamBeforeEmbOrElse mode after the data wipe
-      // (lastPersistedBlockNumber=-1 < EMB=100000000).  That mode bypasses TSS verification for
-      // all incoming blocks, exactly like initial-deploy.  Without this, TRANSITION blocks from
-      // CN's TSS re-keying (hiero-consensus-node#26299) fail StateProofVerifier with
-      // BAD_BLOCK_PROOF and no blocks reach disk.
-      await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
-        BLOCK_NODE_EARLIEST_MANAGED_BLOCK: '100000000',
-      });
 
       // StatefulSet pods are always named <releaseName>-0. Construct the reference
       // directly rather than relying on a label-selector list, which can return
@@ -2024,8 +2025,6 @@ export class BackupRestoreCommand extends BaseCommand {
       }
 
       if (!podIsAccessible) {
-        // Pod not accessible — restart it first so it picks up the updated ConfigMap
-        // (EMB=100000000 already patched above), then fall through to data/TSS operations below.
         await k8
           .pods()
           .delete(podReference)
@@ -2041,45 +2040,34 @@ export class BackupRestoreCommand extends BaseCommand {
             constants.PODS_READY_MAX_ATTEMPTS,
             constants.PODS_READY_DELAY,
           );
-        // Pod is now ready — proceed to data/TSS operations below.
       }
 
-      // Wipe data/ AND the stale TSS roster so block-node starts with lastPersistedBlockNumber=-1
-      // (streamBeforeEmbOrElse mode with EMB=100000000).  In streamBeforeEmbOrElse, block-node
-      // accepts all incoming blocks from CN without TSS verification — identical to the initial-deploy
-      // startup where block-node also starts with empty data and no TSS state.  The verification
-      // plugin remains present so block-node writes blocks to disk (removing it causes blocks to be
-      // processed in memory only and never persisted).  BlockHasher writes a fresh
-      // tss-bootstrap-roster.json from the first properly TSS-signed block CN sends; subsequent
-      // blocks are then verified normally.
-      //
-      // All application-state TSS files are wiped so BN is truly identical to a fresh pod:
-      //   tss-bootstrap-roster.json — stale after CN's unconditional TSS re-keying (CN#26299)
-      //   tss-parameters.bin       — provides TSS key material to StateProofVerifier; present
-      //                              after restore (exported from backup), absent on initial deploy;
-      //                              with it present StateProofVerifier runs and rejects TRANSITION
-      //                              blocks (paths.size()=1) with BAD_BLOCK_PROOF
-      //   block-ranges.json        — persists lastPersistedBlockNumber; after restore it records
-      //                              the pre-wipe lastBlock (e.g. 162), preventing streamBefore-
-      //                              EmbOrElse from treating the node as truly empty
-      //   rootHashOfAllPreviousBlocks.bin — cumulative hash; stale after data wipe
-      await container.execContainer([
-        'sh',
-        '-c',
-        [
-          'rm -rf /opt/hiero/block-node/data/*',
-          '/opt/hiero/block-node/application-state/tss-bootstrap-roster.json',
-          '/opt/hiero/block-node/application-state/tss-parameters.bin',
-          '/opt/hiero/block-node/application-state/block-ranges.json',
-          '/opt/hiero/block-node/application-state/rootHashOfAllPreviousBlocks.bin',
-          '2>/dev/null || true',
-        ].join(' '),
-      ]);
-      this.logger.info(
-        `Wiped block node data/ and TSS application-state for ${podName}; BN is now identical to a fresh pod, streamBeforeEmbOrElse mode will activate`,
+      // Copy the backup block data archive into the pod and extract it.
+      // The archive path matches what backupBlockNodeState() created:
+      //   {inputDirectory}/{cluster}/blockNodeData/{podName}-blockNodeData.tar.gz
+      const blockDataArchiveName: string = `${podName}-blockNodeData.tar.gz`;
+      const localArchivePath: string = PathEx.join(
+        inputDirectory,
+        blockNode.metadata.cluster,
+        'blockNodeData',
+        blockDataArchiveName,
       );
+      if (fs.existsSync(localArchivePath)) {
+        const archiveInPod: string = `/tmp/${blockDataArchiveName}`;
+        await container.copyTo(localArchivePath, '/tmp/');
+        await container.execContainer([
+          'sh',
+          '-c',
+          `cd /opt/hiero/block-node && tar xzf "${archiveInPod}" && rm -f "${archiveInPod}"`,
+        ]);
+        this.logger.info(
+          `Restored block data archive to ${podName}; lastVerifiedBlock will initialise to the backed-up maximum`,
+        );
+      } else {
+        this.logger.info(`No block data archive found at ${localArchivePath}; BN will start with empty data/`);
+      }
 
-      // Restart so the block node re-scans data/ and picks up the restored block ranges.
+      // Restart so block-node re-scans data/ and initialises lastVerifiedBlock correctly.
       await k8.pods().delete(podReference);
       await k8
         .pods()
@@ -2284,7 +2272,7 @@ export class BackupRestoreCommand extends BaseCommand {
                         {
                           title: 'Apply block node restore fixes',
                           task: async (_, task): Promise<void> => {
-                            await this.applyBlockNodeRestoreFixes(namespace);
+                            await this.applyBlockNodeRestoreFixes(inputDirectory);
                             task.title = 'Apply block node restore fixes: completed';
                           },
                         },
