@@ -637,13 +637,16 @@ export class BackupRestoreCommand extends BaseCommand {
             // match the currently deployed image → the pod crashes with "No such file or directory".
             // Overwrite VERSION with the currently deployed BLOCK_NODE_VERSION so the entrypoint
             // always resolves to the correct binary path regardless of backup age.
-            if (resourceType === 'configmaps' && /^block-node-\d+-config$/.test(resource.metadata?.name as string)) {
-              if (resource.data && resource.data['VERSION'] !== BLOCK_NODE_VERSION) {
-                this.logger.info(
-                  `Patching VERSION from ${resource.data['VERSION']} to ${BLOCK_NODE_VERSION} in ${resource.metadata?.name}`,
-                );
-                resource.data['VERSION'] = BLOCK_NODE_VERSION;
-              }
+            if (
+              resourceType === 'configmaps' &&
+              /^block-node-\d+-config$/.test(resource.metadata?.name as string) &&
+              resource.data &&
+              resource.data['VERSION'] !== BLOCK_NODE_VERSION
+            ) {
+              this.logger.info(
+                `Patching VERSION from ${resource.data['VERSION']} to ${BLOCK_NODE_VERSION} in ${resource.metadata?.name}`,
+              );
+              resource.data['VERSION'] = BLOCK_NODE_VERSION;
             }
 
             await (resourceType === 'configmaps'
@@ -2142,6 +2145,7 @@ export class BackupRestoreCommand extends BaseCommand {
         }
 
         if (!podIsAccessible) {
+          const beforeInaccessibleDelete: Date = new Date();
           await k8
             .pods()
             .delete(podReference)
@@ -2156,6 +2160,7 @@ export class BackupRestoreCommand extends BaseCommand {
               Templates.renderBlockNodeLabels(blockNodeId),
               constants.PODS_READY_MAX_ATTEMPTS,
               constants.PODS_READY_DELAY,
+              beforeInaccessibleDelete,
             );
         }
 
@@ -2199,6 +2204,7 @@ export class BackupRestoreCommand extends BaseCommand {
         }
 
         // Restart so block-node re-scans data/ and initialises lastVerifiedBlock correctly.
+        const beforeBlockNodeDelete: Date = new Date();
         await k8.pods().delete(podReference);
         await k8
           .pods()
@@ -2207,16 +2213,20 @@ export class BackupRestoreCommand extends BaseCommand {
             Templates.renderBlockNodeLabels(blockNodeId),
             constants.PODS_READY_MAX_ATTEMPTS,
             constants.PODS_READY_DELAY,
+            beforeBlockNodeDelete,
           );
       }
     }
+  }
 
-    // Part 3: Restore CN TSS key files so tss-bootstrap-roster.json remains valid.
-    // After cluster recreate, KIND PVs are deleted (reclaim policy=Delete), so CN runs a fresh
-    // DKG and produces a new wrapsVerificationKey.  BN's backed-up tss-bootstrap-roster.json
-    // holds the OLD key → BAD_BLOCK_PROOF for every WRAPS block.
-    // Fix: extract the backed-up tss-keys.tar.gz into data/keys/ on each CN pod and restart the
-    // pod so CN reuses the original DKG material before streaming begins.
+  /**
+   * Copy backed-up CN TSS key archives into each running CN pod (data/keys/tss/) without
+   * restarting.  The pod restart is deferred to restartConsensusPods so TSS keys land on the
+   * PVC before the pods are cycled, eliminating any race between this restore and Branch B's
+   * concurrent pod restart.
+   */
+  private async restoreConsensusNodeTssKeys(inputDirectory: string): Promise<void> {
+    const namespace: NamespaceName = this.remoteConfig.getNamespace();
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
     for (const consensusNode of consensusNodes) {
       const tssArchivePath: string = PathEx.join(
@@ -2227,7 +2237,7 @@ export class BackupRestoreCommand extends BaseCommand {
         'tss-keys.tar.gz',
       );
       if (!fs.existsSync(tssArchivePath)) {
-        this.logger.info(`No TSS key backup for ${consensusNode.name}; CN will run DKG on start`);
+        this.logger.info(`No TSS key backup for ${consensusNode.name}; CN will run fresh DKG on start`);
         continue;
       }
       const cnContext: Context = extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
@@ -2246,26 +2256,9 @@ export class BackupRestoreCommand extends BaseCommand {
         ])
         .catch((): void => {
           // best-effort: keys are likely extracted even with minor utime warnings on PVC mounts
-          this.logger.info(`TSS key extraction had warnings for ${consensusNode.name}; continuing with restart`);
+          this.logger.info(`TSS key extraction had warnings for ${consensusNode.name}; continuing`);
         });
-      this.logger.info(`Restored TSS keys for ${consensusNode.name}; CN will reuse original DKG keys`);
-
-      // Restart CN pod so it loads the restored key files before streaming begins.
-      const cnK8: K8 = this.k8Factory.getK8(cnContext);
-      const cnPodReference: PodReference = await new K8Helper(cnContext).getConsensusNodePodReference(
-        namespace,
-        consensusNode.name,
-      );
-      await cnK8.pods().delete(cnPodReference);
-      await cnK8
-        .pods()
-        .waitForReadyStatus(
-          namespace,
-          Templates.renderNodeLabelsFromNodeAlias(consensusNode.name),
-          constants.PODS_READY_MAX_ATTEMPTS,
-          constants.PODS_READY_DELAY,
-        );
-      this.logger.info(`CN pod restarted for ${consensusNode.name} with restored TSS keys`);
+      this.logger.info(`Restored TSS keys for ${consensusNode.name} to PVC; pod restart will load them`);
     }
   }
 
@@ -2382,9 +2375,11 @@ export class BackupRestoreCommand extends BaseCommand {
         // Phase 3: three independent branches run in parallel after imports complete.
         //
         // Branch A: restart Redis so it picks up restored secret credentials (~3m41s).
-        // Branch B: restart CN pods (to mount restored ConfigMaps), wait for ready,
-        //           stop the process, then upload state files sequentially.
-        // Branch C: relay patch + block node fixes + DB restore — none depend on A or B.
+        // Branch B: restore CN TSS keys to PVC → restart CN pods (to mount restored
+        //           ConfigMaps/Secrets and pick up TSS keys) → wait → stop → upload state.
+        //           TSS key restore runs first so the keys are on the PVC before pod restart,
+        //           eliminating any race with Branch C's block-node fixes.
+        // Branch C: relay patch + block node fixes — none depend on A or B.
         //
         // Total wall time = max(A, B, C) ≈ Redis restart time, instead of A + B + C.
         {
@@ -2400,12 +2395,19 @@ export class BackupRestoreCommand extends BaseCommand {
                     task.title = 'Restart mirror runtime dependencies: completed';
                   },
                 },
-                // Branch B: CN restart → wait → stop → restore logs → upload state (sequential)
+                // Branch B: restore CN TSS keys → CN restart → wait → stop → restore logs → upload state (sequential)
                 {
                   title: 'Restore consensus node state',
                   task: (_, tw2) =>
                     tw2.newListr(
                       [
+                        {
+                          title: 'Restore consensus node TSS keys to PVC',
+                          task: async (_, task): Promise<void> => {
+                            await this.restoreConsensusNodeTssKeys(inputDirectory);
+                            task.title = 'Restore consensus node TSS keys to PVC: completed';
+                          },
+                        },
                         {
                           title: 'Restart consensus pods to pick up restored ConfigMaps/Secrets',
                           task: async (context_, task): Promise<void> => {
