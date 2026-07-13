@@ -79,6 +79,26 @@ set_application_property() {
   rm -f "${file_path}.bak"
 }
 
+apply_application_properties_to_consensus_nodes() {
+  local file_path="${1}"
+  local namespace="${2}"
+  local node_aliases_csv="${3}"
+  local target_path="/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties"
+  local node_aliases=()
+
+  IFS=',' read -r -a node_aliases <<< "${node_aliases_csv}"
+
+  for node_alias in "${node_aliases[@]}"; do
+    node_alias="${node_alias//[[:space:]]/}"
+    local pod_name="network-${node_alias}-0"
+
+    echo "Applying application.properties to ${pod_name}"
+    kubectl cp "${file_path}" "${namespace}/${pod_name}:${target_path}" -c root-container
+    kubectl exec -n "${namespace}" "${pod_name}" -c root-container -- bash -lc \
+      "chown hedera:hedera '${target_path}' 2>/dev/null || true; chmod 644 '${target_path}'; grep -E '^(blockStream.streamMode|blockStream.streamWrappedRecordBlocks|blockStream.writerMode)=' '${target_path}'"
+  done
+}
+
 is_tss_supported_consensus_version() {
   local consensus_version="${1#v}"
   local minimum_tss_version="0.74.0"
@@ -892,7 +912,6 @@ cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
 # BN v0.37 has RSA keys ready if WRB mode is enabled after the migration.
 blockNode:
   config:
-    VERIFICATION_TYPE: "NO_OP"
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
     ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
     ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
@@ -940,7 +959,6 @@ cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
 # /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
 blockNode:
   config:
-    VERIFICATION_TYPE: "NO_OP"
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
     ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
     ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
@@ -968,6 +986,9 @@ fi
 npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  echo "Switching target CN to WRB streaming before restarting against BN ${CURRENT_BLOCK_VERSION}"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
+  apply_application_properties_to_consensus_nodes "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "${SOLO_NAMESPACE}" "node1,node2"
   echo "Waiting briefly for block node rollout after recreate before restarting target CN"
   sleep 10
   npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
