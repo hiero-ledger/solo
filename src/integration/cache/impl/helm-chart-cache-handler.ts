@@ -9,7 +9,7 @@ import {patchInject} from '../../../core/dependency-injection/container-helper.j
 import {CacheArtifactEnum} from '../enums/cache-artifact-enum.js';
 import {CachedItem} from '../models/impl/cached-item.js';
 import {ArtifactHealthResult} from '../models/impl/artifact-health-result.js';
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {HelmChartPullNoArchiveSoloError} from '../../../core/errors/classes/system/helm-chart-pull-no-archive-solo-error.js';
 import {PathEx} from '../../../business/utils/path-ex.js';
 import {Chart} from '../../helm/model/chart.js';
 import {type CacheOperationHandler} from '../api/cache-operation-handler.js';
@@ -185,7 +185,7 @@ export class HelmChartCacheHandler implements CacheOperationHandler {
     const produced: string | undefined = currentTarballs.find((file): boolean => !before.has(file));
 
     if (!produced) {
-      throw new SoloError(`helm pull did not produce a chart archive for ${HelmChartCacheHandler.describe(target)}`);
+      throw new HelmChartPullNoArchiveSoloError(HelmChartCacheHandler.describe(target));
     }
 
     await fs.rename(PathEx.join(chartsDirectory, produced), archivePath);
