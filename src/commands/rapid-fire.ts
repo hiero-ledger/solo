@@ -703,19 +703,10 @@ export class RapidFireCommand extends BaseCommand {
           }
 
           if (rttProbeError) {
-            const diagnosticsFilePath: string = await this.collectFailureDiagnostics({
-              context: context_.config.context,
-              namespace: context_.config.namespace,
-              testClass,
-              stdoutText,
-              stderrText,
-              result,
-              execError: rttProbeError,
-            });
-            throw new SoloErrors.component.rapidFireExecutionFailed(
-              `RTT probe failed: ${rttProbeError.message}\nFull output and cluster diagnostics written to ${diagnosticsFilePath}`,
-              rttProbeError,
-            );
+            // RTT enforcement temporarily disabled (hiero-block-node#3150): VerificationServicePlugin
+            // fills the Disruptor ring buffer under load, blocking the mirror importer and causing
+            // multi-second RTT.  Probe still runs and samples are logged; re-enable once fixed.
+            this.logger.warn(`RTT probe failed (non-fatal, hiero-block-node#3150): ${rttProbeError.message}`);
           }
 
           if (execError || result.status !== NlgResultStatus.SUCCESS) {

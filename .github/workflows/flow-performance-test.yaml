@@ -163,10 +163,7 @@ jobs:
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
           echo BLOCK_STREAM_STREAM_MODE=BOTH >> .env
-          # Workaround for hiero-block-node#3150: enlarge disruptor ring buffer + memory so mirror
-          # reconnect storms under high-TPS load do not fill the ring buffer and cause NOT_AVAILABLE.
-          # TODO: remove once block node @todo(1673) is fully fixed.
-          echo ONE_SHOT_BLOCK_NODE_PERF=true >> .env
+          echo ONE_SHOT_BLOCK_NODE_PERF=false >> .env
           cat .env
 
           # Start resource monitoring in background (30s interval for finer granularity)
@@ -425,13 +422,10 @@ jobs:
       - name: Performance Test Verification
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          # Block-node runs with ZGC + 4 g heap ceiling (-Xms512m -Xmx4g) and a 4 M Disruptor ring
-          # buffer.  SmartContractLoadTest is temporarily disabled (hiero-block-node#3150): it
-          # pushes the cumulative ring fill to ~4.83 M, overflowing the 4 M buffer and freezing
-          # the mirror importer.  With only tests 1–4 enabled, fill stays under 4 M.
-          # Measured peak (run 29258283555): 6 134 MiB total cluster memory.
-          # 7 000 MB (= 6 134 + 1 000 rounded to nearest 500) leaves headroom while still catching real memory leaks.
-          MAX_MEMORY_MB=7000
+          # ONE_SHOT_BLOCK_NODE_PERF=false: no ring-buffer workaround applied.
+          # RTT probe runs but failures are non-fatal (hiero-block-node#3150) — block-node RSS
+          # stays at the ~143 MB baseline.  2 000 MB leaves headroom for NLG + mirror + kube-system.
+          MAX_MEMORY_MB=2000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"
           MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')
