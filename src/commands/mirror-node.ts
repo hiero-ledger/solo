@@ -11,7 +11,7 @@ import {BaseCommand} from './base.js';
 import {Flags as flags} from './flags.js';
 import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import * as helpers from '../core/helpers.js';
-import {prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
+import {entityId, prepareValuesFiles, showVersionBanner} from '../core/helpers.js';
 import {type StorageClassHelper} from '../core/storage-class-helper.js';
 import {type AnyListrContext, type ArgvStruct} from '../types/aliases.js';
 import {type Rbacs} from '../integration/kube/resources/rbac/rbacs.js';
@@ -68,6 +68,7 @@ import {optionFromFlag} from './command-helpers.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {K8} from '../integration/kube/k8.js';
+import {HelmSchedulingValues} from '../core/util/helm-scheduling-values.js';
 // Port forwarding is now a method on the components object
 
 interface MirrorNodeDeployConfigClass {
@@ -204,6 +205,7 @@ enum MirrorNodeCommandType {
 export class MirrorNodeCommand extends BaseCommand {
   private static readonly MIRROR_ENVIRONMENT_VARIABLE_PREFIX: string = 'HIERO';
   private static readonly MIRROR_CHART_NAMESPACE: string = 'hiero';
+  private static readonly MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS: string = '0.157.0-0';
   public constructor(
     @inject(InjectTokens.PostgresSharedResource) private readonly postgresSharedResource: PostgresSharedResource,
     @inject(InjectTokens.SharedResourceManager) private readonly sharedResourceManager: SharedResourceManager,
@@ -311,7 +313,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode, flags.id],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.debugMode, flags.id],
   };
 
   private prepareBlockNodeIntegrationValues(
@@ -342,22 +344,12 @@ export class MirrorNodeCommand extends BaseCommand {
       this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
       shouldConfigureMirrorNodeToPullFromBlockNode = true;
     } else {
-      const isConsensusNodeVersionSupported: boolean =
+      // Block node integration requires a consensus node new enough to support TSS. The block node chart
+      // and mirror node are always recent enough within the supported version window.
+      shouldConfigureMirrorNodeToPullFromBlockNode =
         this.remoteConfig.configuration.versions.consensusNode.greaterThanOrEqual(
           versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
         );
-
-      const isBlockNodeChartVersionSupported: boolean =
-        this.remoteConfig.configuration.versions.blockNodeChart.greaterThanOrEqual(
-          versions.MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION,
-        );
-
-      const isMirrorNodeVersionSupported: boolean = new SemanticVersion<string>(
-        config.mirrorNodeVersion,
-      ).greaterThanOrEqual(versions.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION);
-
-      shouldConfigureMirrorNodeToPullFromBlockNode =
-        isConsensusNodeVersionSupported && isBlockNodeChartVersionSupported && isMirrorNodeVersionSupported;
     }
 
     if (!shouldConfigureMirrorNodeToPullFromBlockNode) {
@@ -398,6 +390,9 @@ export class MirrorNodeCommand extends BaseCommand {
     }
 
     const data: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number> = {};
+    const usesBlockNodeEndpoints: boolean = new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
+      MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
+    );
 
     if (config.forceBlockNodeIntegration || !constants.DISABLE_IMPORTER_SPRING_PROFILES) {
       if (config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
@@ -408,20 +403,90 @@ export class MirrorNodeCommand extends BaseCommand {
       data.SPRING_PROFILES_ACTIVE = constants.SPRING_PROFILES_ACTIVE;
     }
 
+    const importerConfig: {
+      [key: string]: {
+        mirror: {
+          importer: {
+            block?: {
+              nodes: {
+                endpoints: {
+                  host: string;
+                  port: number;
+                }[];
+              }[];
+            };
+            downloader: {
+              balance: {
+                enabled: boolean;
+              };
+              record: {
+                enabled: boolean;
+              };
+            };
+          };
+        };
+      };
+    } = {
+      [MirrorNodeCommand.MIRROR_CHART_NAMESPACE]: {
+        mirror: {
+          importer: {
+            downloader: {
+              balance: {
+                enabled: false,
+              },
+              record: {
+                enabled: false,
+              },
+            },
+          },
+        },
+      },
+    };
+
+    if (usesBlockNodeEndpoints) {
+      importerConfig[MirrorNodeCommand.MIRROR_CHART_NAMESPACE].mirror.importer.block = {
+        nodes: blockNodeFqdnList.map(
+          (
+            node,
+          ): {
+            endpoints: {
+              host: string;
+              port: number;
+            }[];
+          } => ({
+            endpoints: [
+              {
+                host: node.host,
+                port: node.port,
+              },
+            ],
+          }),
+        ),
+      };
+    }
+
     for (const [index, node] of blockNodeFqdnList.entries()) {
-      data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_HOST`] = node.host;
+      if (usesBlockNodeEndpoints) {
+        continue;
+      }
+
+      const blockNodeVariablePrefix: string = `HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}`;
+
+      data[`${blockNodeVariablePrefix}_HOST`] = node.host;
       if (node.port !== constants.BLOCK_NODE_PORT) {
-        data[`HIERO_MIRROR_IMPORTER_BLOCK_NODES_${index}_PORT`] = node.port;
+        data[`${blockNodeVariablePrefix}_PORT`] = node.port;
       }
     }
 
     const mirrorNodeBlockNodeValues: {
       importer: {
         env: {SPRING_PROFILES_ACTIVE?: string} & Record<string, string | number>;
+        config: typeof importerConfig;
       };
     } = {
       importer: {
         env: data,
+        config: importerConfig,
       },
     };
 
@@ -440,6 +505,7 @@ export class MirrorNodeCommand extends BaseCommand {
     const chartValues: HelmChartValues = new HelmChartValues();
 
     chartValues.filesFromCommaSeparatedInput(config.valuesFile);
+    chartValues.add(HelmSchedulingValues.buildSchedulingChartValues(chartValues, 'pinger', 'pinger'));
 
     config.mirrorNodeVersion = SemanticVersion.getValidSemanticVersion(
       config.mirrorNodeVersion,
@@ -471,6 +537,18 @@ export class MirrorNodeCommand extends BaseCommand {
         .setLiteral('restjava.image.tag', parsedImageReference.tag)
         .setLiteral('web3.image.tag', parsedImageReference.tag)
         .setLiteral('monitor.image.tag', parsedImageReference.tag);
+
+      if (this.isLocalImageAvailableInDocker(config.componentImage)) {
+        chartValues
+          .setLiteral('importer.image.pullPolicy', 'Never')
+          .setLiteral('grpc.image.pullPolicy', 'Never')
+          .setLiteral('rest.image.pullPolicy', 'Never')
+          .setLiteral('restjava.image.pullPolicy', 'Never')
+          .setLiteral('web3.image.pullPolicy', 'Never')
+          .setLiteral('monitor.image.pullPolicy', 'Never');
+      }
+    } else {
+      this.addMirrorNodeImageTagOverrides(chartValues, config.mirrorNodeVersion);
     }
 
     if (config.storageBucket) {
@@ -582,42 +660,71 @@ export class MirrorNodeCommand extends BaseCommand {
     return chartValues;
   }
 
+  private addMirrorNodeImageTagOverrides(chartValues: HelmChartValues, mirrorNodeVersion: string): void {
+    const imageTag: string = mirrorNodeVersion.replace(/^v/, '');
+    chartValues
+      .setLiteral('grpc.image.tag', imageTag)
+      .setLiteral('importer.image.tag', imageTag)
+      .setLiteral('monitor.image.tag', imageTag)
+      .setLiteral('pinger.image.tag', imageTag)
+      .setLiteral('rest.image.tag', imageTag)
+      .setLiteral('restjava.image.tag', imageTag)
+      .setLiteral('web3.image.tag', imageTag);
+  }
+
+  private shouldReuseValuesOnUpgrade(
+    currentVersion: SemanticVersion<string> | null,
+    targetVersion: string,
+    commandType: MirrorNodeCommandType,
+  ): boolean {
+    if (commandType === MirrorNodeCommandType.ADD || currentVersion === null) {
+      return false;
+    }
+
+    const targetSemanticVersion: SemanticVersion<string> = new SemanticVersion<string>(targetVersion);
+
+    // Don't reuse values when crossing the shared-resources/memory-improvements boundary
+    // (upgrading from < v0.152.0 to >= v0.152.0). Versions before this boundary used an
+    // embedded chart-managed Redis with sentinel nodes pointed at "<release>-redis".
+    // Reusing those old values would leak stale SPRING_DATA_REDIS_SENTINEL_NODES into the
+    // upgraded pods because --reuse-values merges all old chart values.
+    if (
+      currentVersion.lessThan(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION) &&
+      targetSemanticVersion.greaterThanOrEqual(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION)
+    ) {
+      return false;
+    }
+
+    // Mirror node v0.157.0 changed block node importer properties from nodes[].host/port
+    // to nodes[].endpoints[].host/port. Reusing values across this boundary preserves the
+    // old env vars, and the importer fails strict binding with those stale keys.
+    if (
+      currentVersion.lessThan(MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS) &&
+      targetSemanticVersion.greaterThanOrEqual(
+        MirrorNodeCommand.MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_BLOCK_NODE_ENDPOINTS,
+      )
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
   private async deployMirrorNode(
     {config}: MirrorNodeDeployContext | MirrorNodeUpgradeContext,
     commandType: MirrorNodeCommandType,
   ): Promise<void> {
-    // Determine if we should reuse values based on the currently deployed version from remote config
-    // If upgrading from a version <= MIRROR_NODE_VERSION_BOUNDARY, we need to skip reuseValues
-    // to avoid RegularExpression rules from old version causing relay node request failures
     const currentVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
       ComponentTypes.MirrorNode,
     );
-    let shouldReuseValues: boolean = currentVersion
-      ? currentVersion.greaterThan(constants.MIRROR_NODE_VERSION_BOUNDARY)
-      : false; // If no current version (first install), don't reuse values
+    const shouldReuseValues: boolean = this.shouldReuseValuesOnUpgrade(
+      currentVersion,
+      config.mirrorNodeVersion,
+      commandType,
+    );
 
-    // Don't reuse values when crossing the shared-resources/memory-improvements boundary
-    // (upgrading from < v0.152.0 → >= v0.152.0).  Versions before this boundary used an
-    // embedded chart-managed Redis with sentinel nodes pointed at "<release>-redis".
-    // Reusing those old values would leak the stale "SPRING_DATA_REDIS_SENTINEL_NODES"
-    // configuration into the upgraded pods even though redis.enabled is now set to false,
-    // because --reuse-values merges ALL old chart values (including sentinel node addresses)
-    // and we only explicitly override redis.enabled / redis.host / redis.port — not every
-    // sentinel sub-key.  Forcing a clean value set here prevents pods from failing to
-    // resolve the no-longer-existent "<release>-redis" hostname.
-    if (
-      shouldReuseValues &&
-      currentVersion !== null &&
-      currentVersion.lessThan(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION) &&
-      new SemanticVersion<string>(config.mirrorNodeVersion).greaterThanOrEqual(
-        versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION,
-      )
-    ) {
-      shouldReuseValues = false;
-    }
-
-    if (commandType === MirrorNodeCommandType.ADD) {
-      shouldReuseValues = false;
+    if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
+      await this.kindLoadComponentImage(config.componentImage, config.clusterContext);
     }
 
     await this.chartManager.upgrade(
@@ -630,6 +737,8 @@ export class MirrorNodeCommand extends BaseCommand {
       config.clusterContext,
       shouldReuseValues,
       true,
+      false,
+      Boolean(config.mirrorNodeChartDirectory),
     );
 
     this.eventBus.emit(new MirrorNodeDeployedEvent(config.deployment));
@@ -873,20 +982,10 @@ export class MirrorNodeCommand extends BaseCommand {
           MirrorNodeCommand.MIRROR_ENVIRONMENT_VARIABLE_PREFIX,
         );
       },
-      skip: ({config}: MirrorNodeDeployContext): boolean =>
-        config.useExternalDatabase || !config.installSharedResources,
+      skip: ({config}: MirrorNodeDeployContext): boolean => config.useExternalDatabase,
     };
   }
 
-  /**
-   * Installs the mirror chart with all application components disabled in order to create the
-   * `mirror-passwords` secret.  The init script (run by {@link initializeSharedPostgresDatabaseTask})
-   * reads that secret to obtain the DB user passwords, so the secret must exist before init runs.
-   * The importer must not be running during init (it would hold a session that blocks DROP DATABASE),
-   * so we use this lightweight prime install instead of a full chart install.
-   *
-   * Skipped when the secret already exists (upgrade path) or when using an external database.
-   */
   /**
    * Deletes the `<release>-redis` secret so that the subsequent mirror chart install/upgrade
    * re-creates it cleanly.  This is necessary because Kubernetes strategic-merge-patch does not
@@ -907,6 +1006,13 @@ export class MirrorNodeCommand extends BaseCommand {
     };
   }
 
+  /**
+   * Installs the mirror chart with all application components disabled in order to create the
+   * `mirror-passwords` secret.  The init script (run by {@link initializeSharedPostgresDatabaseTask})
+   * reads that secret to obtain the DB user passwords, so the secret must exist before init runs.
+   * The importer must not be running during init (it would hold a session that blocks DROP DATABASE),
+   * so we use this lightweight prime install instead of a full chart install.
+   */
   private primePostgresSecretTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prime mirror-node postgres secret',
@@ -954,10 +1060,11 @@ export class MirrorNodeCommand extends BaseCommand {
           context_.config.clusterContext,
           false,
           true,
+          false,
+          Boolean(context_.config.mirrorNodeChartDirectory),
         );
       },
-      skip: ({config}: MirrorNodeDeployContext): boolean =>
-        config.useExternalDatabase || !config.installSharedResources,
+      skip: ({config}: MirrorNodeDeployContext): boolean => config.useExternalDatabase,
     };
   }
 
@@ -971,10 +1078,7 @@ export class MirrorNodeCommand extends BaseCommand {
               title: 'Prepare address book',
               task: async (context_): Promise<void> => {
                 if (this.oneShotState.isActive()) {
-                  context_.addressBook = await this.accountManager.buildAddressBookBase64(
-                    PathEx.join(context_.config.cacheDir, 'keys'),
-                    context_.config.deployment,
-                  );
+                  context_.addressBook = await this.accountManager.buildAddressBookBase64(context_.config.deployment);
 
                   context_.config.chartValues.setLiteral('importer.addressBook', context_.addressBook);
                 } else {
@@ -999,6 +1103,9 @@ export class MirrorNodeCommand extends BaseCommand {
 
                 const mirrorIngressControllerChartValues: HelmChartValues = new HelmChartValues().file(
                   constants.INGRESS_CONTROLLER_VALUES_FILE,
+                );
+                mirrorIngressControllerChartValues.add(
+                  HelmSchedulingValues.buildSchedulingChartValues(config.chartValues, 'controller'),
                 );
                 if (config.mirrorStaticIp !== '') {
                   mirrorIngressControllerChartValues.setLiteral(
@@ -1119,24 +1226,80 @@ export class MirrorNodeCommand extends BaseCommand {
           }: {
             title: string;
             labels: string[];
-          }): SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => ({
-            title,
-            task: async (): Promise<Pod[]> =>
-              await this.k8Factory
-                .getK8(context_.config.clusterContext)
-                .pods()
-                .waitForReadyStatus(
-                  context_.config.namespace,
-                  labels,
-                  constants.PODS_READY_MAX_ATTEMPTS,
-                  constants.PODS_READY_DELAY,
-                ),
-          }),
+          }): SoloListrTask<MirrorNodeDeployContext | MirrorNodeUpgradeContext> => {
+            // The pinger is the last component to become ready because it depends on the
+            // consensus network processing transactions and the mirror REST API ingesting
+            // them.  On Windows/WSL2 this can take significantly longer than the default.
+            const isPinger: boolean = labels.includes('app.kubernetes.io/component=pinger');
+            return {
+              title,
+              task: async (): Promise<Pod[]> =>
+                await this.k8Factory
+                  .getK8(context_.config.clusterContext)
+                  .pods()
+                  .waitForReadyStatus(
+                    context_.config.namespace,
+                    labels,
+                    isPinger ? constants.MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS : constants.PODS_READY_MAX_ATTEMPTS,
+                    isPinger ? constants.MIRROR_NODE_PINGER_PODS_READY_DELAY : constants.PODS_READY_DELAY,
+                  ),
+            };
+          },
         );
 
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
+  }
+
+  /**
+   * Enables the mirror node pinger on an already-deployed mirror node via a lightweight
+   * reuse-values helm upgrade: only `pinger.enabled` is flipped on, so the pinger.env.* values
+   * baked in during the initial install are preserved. Used by the one-shot orchestrator to
+   * defer the pinger until {@link SoloEventType.NodesStarted}, so it does not race the consensus
+   * node start during a parallel deploy (which crashes the pinger's SDK client against a network
+   * that is not yet serving transactions). The pinger pod is awaited until ready.
+   */
+  public async enablePinger(namespace: NamespaceName, context: Context, deployment: DeploymentName): Promise<void> {
+    await this.remoteConfig.load(namespace, context);
+
+    const mirrorNodeVersion: SemanticVersion<string> | null = this.remoteConfig.getComponentVersion(
+      ComponentTypes.MirrorNode,
+    );
+
+    if (
+      !mirrorNodeVersion ||
+      mirrorNodeVersion.lessThan(new SemanticVersion<string>(versions.MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION))
+    ) {
+      this.logger.info(`Mirror node version predates the Go pinger for deployment ${deployment}; nothing to enable`);
+      return;
+    }
+
+    const {releaseName} = await this.inferDestroyData(namespace, context);
+
+    this.logger.info(`Enabling mirror node pinger on release ${releaseName} for deployment ${deployment}`);
+
+    await this.chartManager.upgrade(
+      namespace,
+      releaseName,
+      constants.MIRROR_NODE_CHART,
+      constants.MIRROR_NODE_RELEASE_NAME,
+      mirrorNodeVersion?.toString() ?? '',
+      new HelmChartValues().set('pinger.enabled', true),
+      context,
+      true, // reuse existing values so the deferred pinger configuration is retained
+      true,
+    );
+
+    await this.k8Factory
+      .getK8(context)
+      .pods()
+      .waitForReadyStatus(
+        namespace,
+        ['app.kubernetes.io/component=pinger', `app.kubernetes.io/instance=${releaseName}`],
+        constants.PODS_READY_MAX_ATTEMPTS,
+        constants.PODS_READY_DELAY,
+      );
   }
 
   private enablePortForwardingTask(): SoloListrTask<AnyListrContext> {
@@ -1248,6 +1411,7 @@ export class MirrorNodeCommand extends BaseCommand {
               context_.config.soloChartVersion,
               false,
               'Solo chart version',
+              versions.MINIMUM_SOLO_CHART_VERSION,
             );
 
             // predefined values first
@@ -1277,11 +1441,19 @@ export class MirrorNodeCommand extends BaseCommand {
                   `monitor.config.${chartNamespace}.mirror.monitor.publish.scenarios.pinger.tps`,
                   constants.MIRROR_NODE_PINGER_TPS,
                 );
+              } else if (this.oneShotState.isActive() && config.parallelDeploy) {
+                // One-shot parallel deploy: install the mirror node with the pinger fully
+                // configured but disabled, then enable it from the orchestrator once
+                // SoloEventType.NodesStarted fires (see enablePinger()). Bringing the pinger up
+                // concurrently with the consensus node start races its SDK client against a
+                // network that is not yet serving transactions and crashes it once. Standalone
+                // mirror deploys and sequential one-shot deploys deploy the pinger normally.
+                config.chartValues.set('pinger.enabled', false);
               }
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(config.deployment).toString();
-              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
+              const pingerRecipientAccountId: string = entityId(shard, realm, 98);
               config.chartValues.setLiteral(
                 `monitor.config.${chartNamespace}.mirror.monitor.operator.accountId`,
                 operatorId,
@@ -1507,6 +1679,7 @@ export class MirrorNodeCommand extends BaseCommand {
               context_.config.soloChartVersion,
               false,
               'Solo chart version',
+              versions.MINIMUM_SOLO_CHART_VERSION,
             );
 
             const useMirrorNodeLegacyReleaseName: boolean = process.env.USE_MIRROR_NODE_LEGACY_RELEASE_NAME === 'true';
@@ -1565,7 +1738,7 @@ export class MirrorNodeCommand extends BaseCommand {
 
               const operatorId: string =
                 config.operatorId || this.accountManager.getOperatorAccountId(deploymentName).toString();
-              const pingerRecipientAccountId: string = helpers.entityId(shard, realm, 98);
+              const pingerRecipientAccountId: string = entityId(shard, realm, 98);
               config.chartValues.setLiteral(
                 `monitor.config.${chartNamespace}.mirror.monitor.operator.accountId`,
                 operatorId,

@@ -19,7 +19,7 @@ import {type Context, type ClusterReferences, type SoloListrTask, type SoloListr
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
-import * as helpers from '../core/helpers.js';
+import {extractContextFromConsensusNodes, sleep} from '../core/helpers.js';
 import {Duration} from '../core/time/duration.js';
 import {type ConsensusNode} from '../core/model/consensus-node.js';
 import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
@@ -37,13 +37,11 @@ import {ExplorerCommandDefinition} from './command-definitions/explorer-command-
 import {RelayCommandDefinition} from './command-definitions/relay-command-definition.js';
 import {ClusterReferenceCommandDefinition} from './command-definitions/cluster-reference-command-definition.js';
 import {DeploymentCommandDefinition} from './command-definitions/deployment-command-definition.js';
-import * as CommandHelpers from './command-helpers.js';
-import {optionFromFlag, subTaskSoloCommand, invokeSoloCommand} from './command-helpers.js';
+import {CommandHelpers, invokeSoloCommand, optionFromFlag, subTaskSoloCommand} from './command-helpers.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {inject} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
 import {KindClient} from '../integration/kind/kind-client.js';
 import {type ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {ShellRunner} from '../core/shell-runner.js';
@@ -60,11 +58,9 @@ import {Container} from '../integration/kube/resources/container/container.js';
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
   public constructor(
-    @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.KubectlInstallationDirectory) private readonly kubectlInstallationDirectory: string,
   ) {
     super();
-    this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, BackupRestoreCommand.name);
     this.kubectlInstallationDirectory = patchInject(
       kubectlInstallationDirectory,
       InjectTokens.KubectlInstallationDirectory,
@@ -206,7 +202,7 @@ export class BackupRestoreCommand extends BaseCommand {
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
     for (const consensusNode of consensusNodes) {
-      const context: Context = helpers.extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
+      const context: Context = extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
       const k8: K8 = this.k8Factory.getK8(context);
       this.logger.info(
         `Waiting for pod of node ${consensusNode.name} in namespace ${namespace.toString()} (context: ${context})`,
@@ -291,7 +287,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Download Node Logs',
-          task: async (context_, task): Promise<void> => {
+          task: async (_, task): Promise<void> => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const [clusterReference, context] of clusterReferences.entries()) {
               const logsDirectory: string = PathEx.join(outputDirectory, clusterReference, 'logs');
@@ -302,11 +298,11 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Download Node State Files',
-          task: async (context_, task): Promise<void> => {
+          task: async (_, task): Promise<void> => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const node of consensusNodes) {
               const nodeAlias: NodeAlias = node.name;
-              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+              const context: Context = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
               const clusterReference: string = node.cluster; // Get cluster ref from node metadata
               const statesDirectory: string = PathEx.join(outputDirectory, 'states', clusterReference);
               await networkNodes.getStatesFromPod(namespace, nodeAlias, context, statesDirectory);
@@ -323,9 +319,13 @@ export class BackupRestoreCommand extends BaseCommand {
           task: async (): Promise<void> => {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
             const zipFile: string = this.configManager.getFlag<string>(flags.zipFile);
-            const compressionCommand: string = `cd "${outputDirectory}" && zip -rX -P "${zipPassword}" "${zipFile}" .`;
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
-            await shellRunner.run(compressionCommand, [], true, false);
+            // Run zip from the output directory (cwd) with an explicit argument array and no shell, so the
+            // password and file names cannot be interpreted by a shell.
+            await shellRunner.run('zip', ['-rX', '-P', zipPassword, zipFile, '.'], {
+              verbose: true,
+              workingDirectory: outputDirectory,
+            });
             this.logger.showUser(chalk.green(`Backup compressed to ${zipFile}`));
           },
         },
@@ -532,7 +532,7 @@ export class BackupRestoreCommand extends BaseCommand {
         await container.copyTo(logFilePath, `${constants.HEDERA_HAPI_PATH}`);
 
         // Wait for file to sync to the file system
-        await helpers.sleep(Duration.ofSeconds(2));
+        await sleep(Duration.ofSeconds(2));
 
         // Unzip the log file
         this.logger.showUser(chalk.gray(`    Extracting log file in pod: ${podName}`));
@@ -588,7 +588,7 @@ export class BackupRestoreCommand extends BaseCommand {
             const podReferences: Record<string, PodReference> = {};
 
             for (const nodeAlias of nodeAliases) {
-              const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
+              const context: Context = extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
               const k8: K8 = this.k8Factory.getK8(context);
               const pods: Pod[] = await k8
                 .pods()
@@ -1369,9 +1369,9 @@ export class BackupRestoreCommand extends BaseCommand {
       fs.mkdirSync(targetDirectory, {recursive: true});
     }
 
-    const unzipCommand: string = `unzip -o -P "${zipPassword}" "${inputPath}" -d "${targetDirectory}"`;
     const shellRunner: ShellRunner = new ShellRunner(this.logger);
-    await shellRunner.run(unzipCommand, [], true, false);
+    // Explicit argument array, no shell: the password and paths cannot be interpreted by a shell.
+    await shellRunner.run('unzip', ['-o', '-P', zipPassword, inputPath, '-d', targetDirectory], {verbose: true});
 
     this.configManager.setFlag(flags.inputDir, targetDirectory);
 
@@ -1393,14 +1393,28 @@ export class BackupRestoreCommand extends BaseCommand {
     const tasks: SoloListrTask<any>[] = [
       {
         title: 'Setup Docker network for multi-cluster',
-        skip: (context_: any): boolean => !context_.clusters || context_.clusters.length <= 1,
-        task: async (context_: any): Promise<void> => {
+        skip: (context_): boolean => !context_.clusters || context_.clusters.length <= 1,
+        task: async (context_): Promise<void> => {
           this.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
           try {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
-            await shellRunner.run(
-              'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
-            );
+            // Remove any pre-existing network, then create it.
+            try {
+              await shellRunner.run('docker', ['network', 'rm', '-f', 'kind']);
+            } catch {
+              // network may not exist yet; safe to ignore
+            }
+            await shellRunner.run('docker', [
+              'network',
+              'create',
+              'kind',
+              '--scope',
+              'local',
+              '--subnet',
+              '172.19.0.0/16',
+              '--driver',
+              'bridge',
+            ]);
 
             // Add MetalLB Helm repository for multi-cluster load balancing
             this.logger.info('Adding MetalLB Helm repository...');
@@ -1467,7 +1481,7 @@ export class BackupRestoreCommand extends BaseCommand {
             } catch (error: any) {
               attempt++;
               if (attempt < maxAttempts) {
-                await helpers.sleep(Duration.ofSeconds(2));
+                await sleep(Duration.ofSeconds(2));
               } else {
                 throw new SoloErrors.deployment.clusterApiServerTimeout(clusterResponse.context, maxAttempts, error);
               }

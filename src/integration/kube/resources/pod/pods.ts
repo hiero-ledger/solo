@@ -129,9 +129,10 @@ export interface Pods {
    * Read logs for the given pod across all containers.
    * @param podReference - the reference to the pod
    * @param timestamps - include timestamps in output
+   * @param previous - if true, get logs from the previous container instance (if it exists)
    * @returns logs as a single string
    */
-  readLogs(podReference: PodReference, timestamps?: boolean): Promise<string>;
+  readLogs(podReference: PodReference, timestamps?: boolean, previous?: boolean): Promise<string>;
 
   /**
    * Build a describe-like textual report for a pod, including pod details and related events.
@@ -162,4 +163,6 @@ export interface Pods {
    * @returns describe-like output string
    */
   readDescribe(podReference: PodReference): Promise<string>;
+
+  detectFatalContainerError(pod: Pod): string | undefined;
 }

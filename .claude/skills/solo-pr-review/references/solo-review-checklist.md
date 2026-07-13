@@ -57,8 +57,13 @@ namespacing — `export constants and functions instead`. Reconcile: the Solo co
 class-with-static-methods for **behavior** (resolution, computation, orchestration). Pure data — constants, types,
 simple factories — can stay as exports. When in doubt, follow the directory's existing pattern.
 
+**Enforcement:** the `solo/no-exported-function` ESLint rule flags `export function` and
+`export const fn = () => …` — a hard **error** under `src/integration/**`, a warning elsewhere while
+legacy functions migrate. A diff that adds an exported function in `src/integration/**` will fail CI.
+
 **Prior precedent:** PR #4230 (`resolveStorageClass` exported), PR #3870 (`GetSoloRemoteConfigMapTask` had unnecessary
-constructor).
+constructor), PR #4568 (Copilot-authored `export function detectFatalContainerError` + module-scope helpers in
+`k8-client-pods.ts` — should have been static members of `K8ClientPods`).
 
 ---
 
@@ -371,6 +376,88 @@ was updated. See CLAUDE.md "Environment Variable Documentation" for the SOLO_* n
 
 > Caveat: PR #4363 noted env.md is moving to `solo-docs` — but until that move lands, the in-repo file is still the
 > source of truth.
+
+---
+
+## 20. One exported class/interface per file (§3.5)
+
+**What to look for**
+
+- More than one `export class` / `export interface` in a single file — split each into its own file.
+- A file whose name doesn't match the exported class/interface it contains (kebab-case, all lowercase,
+  e.g. `class KubeValidation` → `kube-validation.ts`).
+- Exported behavior functions colocated in the same file as the class that consumes them — usually a
+  symptom of the §2 violation (they should be `static`/`private static` members of that class).
+
+**How to respond**
+
+- "Each exported class/interface should be in its own file named in kebab-case to match it (§3.5). Split
+  `<name>` into `<kebab-name>.ts`."
+- "These module-scope helpers belong inside `<ClassName>` as `private static` members rather than living
+  alongside it in the same file."
+
+**Rationale (cite §3.5):** one type per file prevents circular dependencies and makes items easy to find.
+
+**Note:** there is no off-the-shelf ESLint rule for this yet (`unicorn/filename-case` enforces kebab-case
+but not the one-type-per-file or name-match halves), so it relies on review. Catch it here.
+
+**Prior precedent:** PR #4568 (exported function + helper colocated in `k8-client-pods.ts`).
+
+---
+
+## 21. No @kubernetes/client-node types outside src/integration/kube
+
+**What to look for**
+
+- `import ... from '@kubernetes/client-node'` anywhere outside `src/integration/kube/**`.
+- A public method or interface signature that uses `V1Pod`, `V1ContainerStatus`, `CoreV1Api`, or any
+  other `@kubernetes/client-node` type — even if the file itself is inside `src/integration/kube`.
+- A `Pods` / `Pod` interface method whose parameter or return type is a K8s library type.
+
+**How to respond**
+
+- "the `@kubernetes/client-node` types must stay within `src/integration/kube`. Use the Solo domain
+  types (`Pod`, `ContainerStatus`, etc.) instead — see the `no-restricted-imports` ESLint rule added
+  with this change."
+- "the interface signature leaks a K8s library type. Add the information you need to the `Pod` (or
+  appropriate domain) interface and populate it in `K8ClientPod.fromV1Pod`."
+
+**Enforcement:** the `no-restricted-imports` ESLint rule in `eslint.config.mjs` flags any import of
+`@kubernetes/client-node` in files outside `src/integration/kube` as a hard **error**. This rule was
+added alongside the `ContainerStatus` domain type that made `detectFatalContainerError` K8s-free.
+
+**Prior precedent:** PR #4568 (`pods.ts` interface had `detectFatalContainerError(pod: V1Pod)` — V1Pod
+leaked through the public interface boundary; fixed by adding `ContainerStatus` to the `Pod` domain type
+and changing the signature to `detectFatalContainerError(pod: Pod)`).
+
+---
+
+## 22. No new circular dependencies
+
+**What to look for**
+
+- Any PR that moves an interface or class to a new file, splits a barrel file, or adds a new import
+  between files — these are the most common ways circular dependencies are introduced.
+- A new import where file A already (transitively) imports from file B.
+
+**How to verify**
+
+Run `npx dpdm --no-warning --no-tree --exit-code circular:1 ./solo.ts`. It exits non-zero if any
+cycle is detected and prints the offending chains.
+
+**How to respond**
+
+- "This introduces a circular dependency: `A → B → A`. Extract a minimal shared interface (e.g.
+  `renewable-lock.ts`) that both files can import from without forming a cycle, rather than having
+  them import each other."
+- Tip: two interfaces that are genuinely mutually recursive (each references the other as a type) can
+  often be decoupled by extracting the *minimal shape* one side actually needs — usually a subset of
+  fields and methods — into a third file.
+
+**Prior precedent:** interface-extraction work in PR #4805 introduced two cycles:
+- `flag-types.ts ↔ command-flag.ts` — fixed by moving `PromptFunction` into `command-flag.ts`.
+- `lock.ts ↔ lock-renewal-service.ts` — fixed by extracting `RenewableLock` with only
+  `durationSeconds` and `tryRenew()`, which `LockRenewalService` uses instead of the full `Lock`.
 
 ---
 

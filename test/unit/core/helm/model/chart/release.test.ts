@@ -6,19 +6,19 @@ import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {expect} from 'chai';
 
-describe('Release', () => {
-  it('Test Deserializing JSON Release Response', () => {
+describe('Release', (): void => {
+  it('Test Deserializing JSON Release Response', (): void => {
     // Get the directory name of the current module
-    const __dirname = fileURLToPath(new URL('.', import.meta.url));
+    const __dirname: string = fileURLToPath(new URL('.', import.meta.url));
 
     // Read the test JSON file
-    const jsonContent = readFileSync(
+    const jsonContent: string = readFileSync(
       join(__dirname, '..', '..', '..', '..', 'resources', 'mysql-release.json'),
       'utf8',
     );
 
-    const data = JSON.parse(jsonContent);
-    const release = new Release(undefined, undefined, undefined);
+    const data: Record<string, unknown> = JSON.parse(jsonContent);
+    const release: Release = new Release(undefined, undefined, undefined);
     Object.assign(release, data);
 
     expect(release.name).to.equal('mysql');

@@ -104,7 +104,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Generate Matrix
@@ -167,7 +167,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
@@ -191,14 +191,14 @@ jobs:
             npm ci
 
       - name: Install Task
-        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           go-version: '1.22.3'
@@ -229,7 +229,7 @@ jobs:
 
       - name: Setup Java
         if: ${{ runner.os == 'linux' && matrix.example.local-java-build && !cancelled() && !failure() }}
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        uses: actions/setup-java@1bcf9fb12cf4aa7d266a90ae39939e61372fe520 # v5.4.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           distribution: temurin
@@ -273,7 +273,7 @@ jobs:
         # subsequent run sharing the same version.ts hash. Docker Hub is contacted at most
         # once per version bump — preventing anonymous rate-limit 429s.
         if: ${{ matrix.example.local-java-build }}
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.solo/helm-chart-cache
           key: helm-chart-deps-${{ runner.os }}-${{ hashFiles('version.ts') }}
@@ -369,6 +369,16 @@ jobs:
             export USE_RELEASED_VERSION="${{ inputs.released-or-latest || 'false' }}"
           fi
           echo "USE_RELEASED_VERSION: $USE_RELEASED_VERSION"
+
+          if [ "${{ matrix.example.one-shot-with-block-node }}" != "" ] && [ "${{ matrix.example.one-shot-with-block-node }}" != "null" ]; then
+            export ONE_SHOT_WITH_BLOCK_NODE="${{ matrix.example.one-shot-with-block-node }}"
+            echo "ONE_SHOT_WITH_BLOCK_NODE: ${ONE_SHOT_WITH_BLOCK_NODE}"
+          fi
+
+          if [ "${{ matrix.example.block-node-enabled }}" != "" ] && [ "${{ matrix.example.block-node-enabled }}" != "null" ]; then
+            export BLOCK_NODE_ENABLED="${{ matrix.example.block-node-enabled }}"
+            echo "BLOCK_NODE_ENABLED: ${BLOCK_NODE_ENABLED}"
+          fi
           
           # Check if Taskfile.yml exists
           if [ ! -f "Taskfile.yml" ]; then

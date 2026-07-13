@@ -3,11 +3,10 @@
 import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
 import fs from 'node:fs';
-import path from 'node:path';
 import * as constants from './constants.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {Templates} from './templates.js';
-import * as helpers from './helpers.js';
+import {Helpers} from './helpers.js';
 import chalk from 'chalk';
 import {type NodeAlias, type NodeAliases} from '../types/aliases.js';
 import {type NodeKeyObject, type PrivateKeyAndCertificateObject, type SoloListrTask} from '../types/index.js';
@@ -15,6 +14,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
 import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
@@ -187,7 +187,8 @@ export class KeyManager {
       try {
         this.logger.debug(`Storing ${keyName} key for node: ${nodeAlias}`, {nodeKeyFiles});
 
-        fs.writeFileSync(nodeKeyFiles.privateKeyFile, keyPem);
+        fs.writeFileSync(nodeKeyFiles.privateKeyFile, keyPem, {mode: 0o600});
+        FilePermissions.restrictToOwner(nodeKeyFiles.privateKeyFile, false);
 
         // remove if the certificate file exists already as otherwise we'll keep appending to the last
         if (fs.existsSync(nodeKeyFiles.certificateFile)) {
@@ -436,25 +437,6 @@ export class KeyManager {
     return this.loadNodeKey(nodeAlias, keysDirectory, KeyManager.TLSKeyAlgo, nodeKeyFiles, 'gRPC TLS');
   }
 
-  copyNodeKeysToStaging(nodeKey: PrivateKeyAndCertificateObject, destinationDirectory: string): void {
-    for (const keyFile of [nodeKey.privateKeyFile, nodeKey.certificateFile]) {
-      if (!fs.existsSync(keyFile)) {
-        throw new SoloErrors.component.platformKeyFileMissing(keyFile);
-      }
-
-      const fileName: string = path.basename(keyFile);
-      fs.cpSync(keyFile, PathEx.join(destinationDirectory, fileName));
-    }
-  }
-
-  copyGossipKeysToStaging(keysDirectory: string, stagingKeysDirectory: string, nodeAliases: NodeAliases): void {
-    // copy gossip keys to the staging
-    for (const nodeAlias of nodeAliases) {
-      const signingKeyFiles: PrivateKeyAndCertificateObject = this.prepareNodeKeyFilePaths(nodeAlias, keysDirectory);
-      this.copyNodeKeysToStaging(signingKeyFiles, stagingKeysDirectory);
-    }
-  }
-
   /**
    * Return a list of subtasks to generate gossip keys
    *
@@ -480,7 +462,7 @@ export class KeyManager {
     const subTasks: SoloListrTask<any>[] = [
       {
         title: 'Backup old files',
-        task: (): string => helpers.backupOldPemKeys(nodeAliases, keysDirectory, currentDate),
+        task: (): string => Helpers.backupOldPemKeys(nodeAliases, keysDirectory, currentDate),
       },
     ];
 
@@ -520,7 +502,7 @@ export class KeyManager {
     const subTasks: SoloListrTask<any>[] = [
       {
         title: 'Backup old files',
-        task: (): string => helpers.backupOldTlsKeys(nodeAliases, keysDirectory, currentDate),
+        task: (): string => Helpers.backupOldTlsKeys(nodeAliases, keysDirectory, currentDate),
       },
     ];
 
@@ -546,9 +528,19 @@ export class KeyManager {
    */
   getDerFromPemCertificate(pemCertFullPath: string): Uint8Array<ArrayBuffer> {
     const certPem: string = fs.readFileSync(pemCertFullPath).toString();
+    return this.getDerFromPem(certPem, pemCertFullPath);
+  }
+
+  /**
+   * Convert a PEM certificate (Base64 ASCII) into its DER (raw binary) bytes. Use this when the PEM is
+   * already in memory (e.g. read back from a Kubernetes secret) rather than on disk.
+   * @param certPem - the PEM certificate contents
+   * @param [source] - optional identifier of where the PEM came from, used in error messages
+   */
+  getDerFromPem(certPem: string, source: string = 'in-memory certificate'): Uint8Array<ArrayBuffer> {
     const decodedDers: any = x509.PemConverter.decode(certPem);
     if (!decodedDers || decodedDers.length === 0) {
-      throw new SoloErrors.component.platformKeyFileMissing(pemCertFullPath);
+      throw new SoloErrors.component.platformKeyFileMissing(source);
     }
     return new Uint8Array(decodedDers[0]);
   }
@@ -634,7 +626,8 @@ export class KeyManager {
         },
       );
       fs.writeFileSync(certificatePath, pems.cert);
-      fs.writeFileSync(keyPath, pems.private);
+      fs.writeFileSync(keyPath, pems.private, {mode: 0o600});
+      FilePermissions.restrictToOwner(keyPath, false);
       return {
         certificatePath,
         keyPath,

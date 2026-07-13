@@ -88,7 +88,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       clusterReference,
       optionFromFlag(Flags.force),
       optionFromFlag(Flags.quiet),
-      optionFromFlag(Flags.devMode),
+      optionFromFlag(Flags.debugMode),
     );
 
     argvPushGlobalFlags(argv, testName, false, true);
@@ -613,7 +613,7 @@ export class MirrorNodeTest extends BaseCommandTest {
       );
       const srv: number = createdSrv || MIRROR_NODE_PORT;
 
-      const stdOut: string[] = await new ShellRunner().run(`curl http://localhost:${srv}/api/v1/network/nodes`);
+      const stdOut: string[] = await new ShellRunner().run('curl', [`http://localhost:${srv}/api/v1/network/nodes`]);
 
       const addressBook: AnyObject = JSON.parse(stdOut.join(''));
 

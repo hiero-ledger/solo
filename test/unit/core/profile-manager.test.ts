@@ -16,6 +16,7 @@ import {Templates} from '../../../src/core/templates.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from '../../../src/core/model/consensus-node.js';
+// eslint-disable-next-line no-restricted-imports
 import {KubeConfig} from '@kubernetes/client-node';
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
@@ -292,7 +293,6 @@ describe('ProfileManager', (): void => {
         nodeAccountMap,
         [consensusNodes[0]],
         destinationPath,
-        version.HEDERA_PLATFORM_VERSION,
         constants.HEDERA_APP_NAME,
         constants.HEDERA_CHAIN_ID,
         false,
@@ -474,8 +474,9 @@ describe('ProfileManager', (): void => {
 
       expect(stagedApplicationProperties).to.contain('solo.default.only=value');
       expect(stagedApplicationProperties).to.contain('user.custom.only=true');
-      expect(stagedApplicationProperties).to.contain('contracts.chainId=999');
-      expect(yamlRoot.hedera.configMaps.applicationProperties).to.contain('contracts.chainId=999');
+      expect(stagedApplicationProperties).to.contain('contracts.chainId=296');
+      expect(stagedApplicationProperties).not.to.contain('contracts.chainId=999');
+      expect(yamlRoot.hedera.configMaps.applicationProperties).to.contain('contracts.chainId=296');
     });
 
     it('prepareStagingDirectory should overwrite when custom application.properties enables overwrite marker', async (): Promise<void> => {

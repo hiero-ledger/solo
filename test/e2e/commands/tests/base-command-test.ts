@@ -13,6 +13,8 @@ import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {getEnvironmentVariable} from '../../../../src/core/constants.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
+import {BlockCommandDefinition} from '../../../../src/commands/command-definitions/block-command-definition.js';
+import type BlockNodeCommand from '../../../../src/commands/block-node.js';
 import {Templates} from '../../../../src/core/templates.js';
 import {type NodeAlias} from '../../../../src/types/aliases.js';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
@@ -34,7 +36,7 @@ export class BaseCommandTest {
     shouldSetTestCacheDirectory: boolean = false,
     shouldSetChartDirectory: boolean = false,
   ): string[] {
-    argv.push(BaseCommandTest.optionFromFlag(Flags.devMode), BaseCommandTest.optionFromFlag(Flags.quiet));
+    argv.push(BaseCommandTest.optionFromFlag(Flags.debugMode), BaseCommandTest.optionFromFlag(Flags.quiet));
 
     const soloChartsDirectory: string = getEnvironmentVariable('SOLO_CHARTS_DIR');
     if (shouldSetChartDirectory && soloChartsDirectory && soloChartsDirectory !== '') {
@@ -112,6 +114,35 @@ export class BaseCommandTest {
     }
   }
 
+  public static async collectBlockNodeJavaFlightRecorderLogs(
+    testName: string,
+    testLogger: SoloLogger,
+    deployment: string,
+  ): Promise<void> {
+    try {
+      testLogger.info(`${testName}: Collecting block node jfr logs...`);
+
+      const argv: Argv = Argv.getDefaultArgv(NamespaceName.of(testName), testName);
+      argv.setArg(Flags.deployment, deployment);
+      argv.setCommand(
+        BlockCommandDefinition.COMMAND_NAME,
+        BlockCommandDefinition.NODE_SUBCOMMAND_NAME,
+        BlockCommandDefinition.NODE_COLLECT_JFR,
+      );
+
+      const blockNodeCommand: BlockNodeCommand = container.resolve<BlockNodeCommand>(InjectTokens.BlockNodeCommand);
+      await blockNodeCommand.collectJfr(argv.build());
+
+      testLogger.info(`${testName}: Block node Java Flight Recorder logs collected successfully`);
+    } catch (error: unknown) {
+      // Best-effort: a run without a JFR-enabled block node should not fail teardown.
+      testLogger.error(`${testName}: Error collecting block node Java Flight Recorder logs: ${error}`);
+      if (error instanceof Error && error.stack) {
+        testLogger.error(`${testName}: Stack trace:\n${error.stack}`);
+      }
+    }
+  }
+
   /**
    * Sets up an after() hook for diagnostic log collection in E2E tests.
    * Call this within your test suite describe block.
@@ -125,15 +156,18 @@ export class BaseCommandTest {
    * Sets up an after() hook for diagnostic log collection in E2E tests.
    * Call this within your test suite describe block.
    */
-  public static setupJavaFlightRecorderLogCollection(options: BaseTestOptions): Promise<void[]> {
+  public static async setupJavaFlightRecorderLogCollection(options: BaseTestOptions): Promise<void> {
     const {testName, testLogger, deployment} = options;
     const promises: Promise<void>[] = [];
     for (let index: number = 0; index < options.consensusNodesCount; index++) {
       const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(index + 1);
       promises.push(BaseCommandTest.collectJavaFlightRecorderLogs(testName, testLogger, deployment, nodeAlias));
     }
+    await Promise.all(promises);
 
-    return Promise.all(promises);
+    if (process.env.PERFORMANCE_TEST_WITH_BLOCK_NODE === 'true') {
+      await BaseCommandTest.collectBlockNodeJavaFlightRecorderLogs(testName, testLogger, deployment);
+    }
   }
 
   public static async runMainAndCaptureOutputToJson(

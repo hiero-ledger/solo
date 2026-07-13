@@ -21,15 +21,14 @@ export const GVPROXY_VERSION: string = 'v0.8.7';
 export const KUBECTL_VERSION: string = 'v1.32.2';
 export const CRANE_VERSION: string = 'v0.21.4';
 
-export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.63.4';
+export const SOLO_CHART_VERSION: string = constants.getEnvironmentVariable('SOLO_CHART_VERSION') || '0.64.0';
 export const HEDERA_PLATFORM_VERSION: string = constants.getEnvironmentVariable('CONSENSUS_NODE_VERSION') || 'v0.74.0';
-export const S6_NODE_IMAGE_VERSION: string = constants.getEnvironmentVariable('SOLO_S6_NODE_IMAGE_VERSION') || '0.45.3';
-export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.156.0';
+export const MIRROR_NODE_VERSION: string = constants.getEnvironmentVariable('MIRROR_NODE_VERSION') || 'v0.158.0';
 export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLORER_VERSION') || '26.1.0';
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.77.0';
 export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
-export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || '0.35.0';
+export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || '0.37.1';
 
 export const METALLB_CHART_VERSION: string = constants.getEnvironmentVariable('METALLB_CHART_VERSION') || '0.15.3';
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
@@ -63,22 +62,11 @@ export const BLOCK_NODE_EDGE_VERSION: string =
 
 // -------------------------------------------------------------------- //
 
-export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE_LEGACY_RELEASE: string = 'v0.62.3';
-export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT: SemanticVersion<string> =
-  new SemanticVersion('v0.15.0');
-
-export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_BLOCK_NODE: string = 'v0.64.0';
-export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS: string = 'v0.62.0';
-
-// pre-release specified to allow all other pre-releases
-export const MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE: string = '0.69.0';
 export const LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT: string = 'v0.70.0';
 export const MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION: string = '0.152.0';
 export const MINIMUM_MIRROR_NODE_VERSION_FOR_ARM64_WEB3_NATIVE_IMAGE: string = '0.155.0';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS: string = 'v0.74.0-0';
-export const MINIMUM_BLOCK_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.29.0-0';
-export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_MIRROR_NODE_INTEGRATION: string = '0.150.0-0';
 export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_PINGER_ENV_VARS_UPDATE: string = '0.153.0-0';
 
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR: string = 'v0.72.0-0';
@@ -86,17 +74,13 @@ export const NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72: string = '0.8.0'
 export const NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72: string = '0.14.0';
 export const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
 export const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
-
+export const MINIMUM_SOLO_CHART_VERSION: string = '0.64.0';
 export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
   const versionTag: SemanticVersion<string> = new SemanticVersion(releaseTag || HEDERA_PLATFORM_VERSION);
   return versionTag.lessThanOrEqual(LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
 }
 
 export function getSoloVersion(): Version {
-  if (process.env.npm_package_version) {
-    return process.env.npm_package_version;
-  }
-
   const __filename: string = fileURLToPath(import.meta.url);
   const __dirname: string = path.dirname(__filename);
 

@@ -10,7 +10,7 @@ import {SoloListrTaskWrapper, type DeploymentName, type Optional, type SoloListr
 import {CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
-import {OneShotCommand} from './one-shot.js';
+import {type OneShotCommand} from './one-shot-command.js';
 import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
 import {type OneShotVersionsObject} from './one-shot-versions-object.js';
 import * as version from '../../../version.js';
@@ -21,6 +21,7 @@ import {type FalconPrepareConfig} from './falcon-prepare-config.js';
 import {FALCON_DEPLOY_COMMAND, FALCON_PREPARE_COMMAND} from './one-shot-command-paths.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
+import {UserInput} from '../../core/user-input.js';
 import fs from 'node:fs';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
@@ -36,11 +37,12 @@ import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.
 import {type K8} from '../../integration/kube/k8.js';
 import {Templates} from '../../core/templates.js';
 import {type Lock} from '../../core/lock/lock.js';
+import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
 import {type OneShotDeployOrchestrator} from './orchestrator/deploy/one-shot-deploy-orchestrator.js';
 import {type OneShotDestroyOrchestrator} from './orchestrator/destroy/one-shot-destroy-orchestrator.js';
-import {type DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
+import {type OrchestratorPipeline} from './orchestrator/orchestrator-pipeline.js';
+import {type OneShotSingleDestroyContext} from './one-shot-single-destroy-context.js';
 import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
-import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
 import {type DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {OneShotInfoContext} from './one-shot-info-context.js';
@@ -162,6 +164,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     private readonly deployOrchestrator: OneShotDeployOrchestrator,
     @inject(InjectTokens.OneShotDestroyOrchestrator)
     private readonly destroyOrchestrator: OneShotDestroyOrchestrator,
+    @inject(InjectTokens.SoloEventBus)
+    private readonly eventBus: SoloEventBus,
   ) {
     super();
     this.deployOrchestrator = patchInject(
@@ -174,6 +178,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       InjectTokens.OneShotDestroyOrchestrator,
       this.constructor.name,
     );
+    this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
   }
 
   public async deploy(argv: ArgvStruct): Promise<boolean> {
@@ -263,11 +268,20 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     const leaseReference: {value?: Lock} = {};
     const configReference: {value?: OneShotSingleDeployConfigClass} = {};
+    const deferUserOutput: boolean = argv[flags.parallelDeploy.name] !== false;
+    if (deferUserOutput) {
+      this.logger.beginDeferredUserOutput();
+    }
+    this.eventBus.reset();
     try {
       await this.deployOrchestrator.buildDeployPipeline(argv, flagsList, leaseReference, configReference).run();
     } catch (error) {
-      await this.performRollback(error, configReference.value);
+      const rootError: Error = this.eventBus.abortReason() ?? error;
+      await this.performRollback(rootError, configReference.value);
     } finally {
+      if (deferUserOutput) {
+        this.logger.flushDeferredUserOutput();
+      }
       this.oneShotState.deactivate();
       const cleanupPromises: Promise<void>[] = [];
       if (leaseReference.value) {
@@ -291,7 +305,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   private getOneShotOutputDirectory(deploymentName: string): string {
-    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${deploymentName}`);
+    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${UserInput.safeFilenameComponent(deploymentName)}`);
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
@@ -304,8 +318,27 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private async destroyInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
     const leaseReference: {value?: Lock} = {};
+    const runningNested: boolean = this.oneShotState.isActive();
+    const commandName: string = argv._.slice(0, 3).join(' ');
+    const pipeline: OrchestratorPipeline<OneShotSingleDestroyContext> = this.destroyOrchestrator.buildDestroyPipeline(
+      argv,
+      flagsList,
+      leaseReference,
+      runningNested,
+    );
+    const tasks: SoloListr<OneShotSingleDestroyContext> = this.taskList.newTaskList(
+      pipeline.tasks,
+      pipeline.defaultOptions,
+      undefined,
+      commandName,
+    );
+
+    if (!tasks.isRoot()) {
+      return true;
+    }
+
     try {
-      await this.destroyOrchestrator.buildDestroyPipeline(argv, flagsList, leaseReference).run();
+      await tasks.run();
     } catch (error) {
       throw new SoloErrors.component.oneShotDestroyFailed(error);
     } finally {
@@ -333,7 +366,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     const tasks: SoloListr<OneShotInfoContext> = new Listr(
       [
         {
-          title: 'Check for cached deployment',
+          title: 'Determine deployment name',
           task: async (context_): Promise<void> => {
             const deploymentFromFlag: DeploymentName = this.configManager.getFlag(flags.deployment);
             if (deploymentFromFlag) {
@@ -342,42 +375,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return;
             }
 
-            const cacheFile: string = PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt');
-
-            if (fs.existsSync(cacheFile)) {
-              const deploymentName: string = fs.readFileSync(cacheFile, 'utf8').trim();
-              if (deploymentName) {
-                context_.deploymentName = deploymentName;
-                this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(deploymentName)} (from cache)`));
-                return;
-              }
-            }
-
-            await this.localConfig.load();
-            const deployments: MutableFacadeArray<Deployment, DeploymentSchema> =
-              this.localConfig.configuration.deployments;
-            if (deployments.length === 1) {
-              context_.deploymentName = deployments.get(0).name;
-              this.logger.showUser(
-                chalk.cyan(`\nDeployment Name: ${chalk.bold(context_.deploymentName)} (single local deployment)`),
-              );
-              return;
-            }
-
-            if (deployments.length > 1) {
-              const deploymentNames: string = deployments.map((d): string => d.name).join(', ');
-              throw new SoloErrors.validation.oneShotCachedDeploymentNotFound(
-                'No cached deployment found and multiple local deployments exist.\n' +
-                  `Please specify ${optionFromFlag(flags.deployment)}.\n` +
-                  `Available deployments: ${deploymentNames}`,
-              );
-            }
-
-            throw new SoloErrors.validation.oneShotCachedDeploymentNotFound(
-              'No cached deployment found. Please run a one-shot deployment first or pass ' +
-                `${optionFromFlag(flags.deployment)}.\n` +
-                `Expected cache file: ${cacheFile}`,
-            );
+            context_.deploymentName = constants.ONE_SHOT_DEPLOYMENT_NAME;
+            this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(context_.deploymentName)} (default)`));
           },
         },
         {
@@ -768,7 +767,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     const setupOverrides: FalconOverrideMap = new Map([
       flagEntry(flags.releaseTag, config.releaseTag),
       flagEntry(flags.localBuildPath, config.localBuildPath),
-      flagEntry(flags.devMode, config.enableDevChartMode),
+      flagEntry(flags.debugMode, config.enableDevChartMode),
     ]);
 
     const consensusNodeOverrides: FalconOverrideMap = new Map([
@@ -795,7 +794,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     const blockNodeOverrides: FalconOverrideMap = new Map([
       flagEntry(flags.blockNodeChartVersion, config.chartVersion),
       flagEntry(flags.enableIngress, flags.enableIngress.definition.defaultValue),
-      flagEntry(flags.devMode, config.enableDevChartMode),
+      flagEntry(flags.debugMode, config.enableDevChartMode),
     ]);
 
     const explorerNodeOverrides: FalconOverrideMap = new Map([

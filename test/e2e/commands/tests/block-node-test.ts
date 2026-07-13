@@ -113,7 +113,7 @@ export class BlockNodeTest extends BaseCommandTest {
       clusterReference,
       optionFromFlag(Flags.force),
       optionFromFlag(Flags.quiet),
-      optionFromFlag(Flags.devMode),
+      optionFromFlag(Flags.debugMode),
     );
 
     argvPushGlobalFlags(argv, testName, false, true);
@@ -139,7 +139,7 @@ export class BlockNodeTest extends BaseCommandTest {
       clusterReference,
       optionFromFlag(Flags.force),
       optionFromFlag(Flags.quiet),
-      optionFromFlag(Flags.devMode),
+      optionFromFlag(Flags.debugMode),
     );
 
     if (id !== undefined) {
@@ -150,17 +150,18 @@ export class BlockNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static add(options: BaseTestOptions, nodeAliases?: NodeAliases): void {
+  public static add(options: BaseTestOptions, nodeAliases?: NodeAliases, clusterIndex: number = 0): void {
     const {testName, deployment, clusterReferenceNameArray, localBuildReleaseTag, enableLocalBuildPathTesting} =
       options;
     const {soloBlockNodeDeployArgv} = BlockNodeTest;
+    const clusterReference: string = clusterReferenceNameArray[clusterIndex];
 
-    it(`${testName}: block node add`, async (): Promise<void> => {
+    it(`${testName}: block node add on ${clusterReference}`, async (): Promise<void> => {
       await main(
         soloBlockNodeDeployArgv(
           testName,
           deployment,
-          clusterReferenceNameArray[0],
+          clusterReference,
           enableLocalBuildPathTesting,
           localBuildReleaseTag,
           nodeAliases,

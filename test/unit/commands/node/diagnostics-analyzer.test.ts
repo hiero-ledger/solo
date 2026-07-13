@@ -46,12 +46,16 @@ com.swirlds.platform.system.SystemExitUtils.exitSystem(SystemExitUtils.java:37)
       showUser: sinon.stub().callsFake((message: unknown): void => {
         userMessages.push(String(message));
       }),
+      showUserUnlessOneShot: sinon.stub(),
+      beginDeferredUserOutput: sinon.stub(),
+      flushDeferredUserOutput: sinon.stub(),
       showUserError: sinon.stub(),
       error: sinon.stub(),
       warn: sinon.stub(),
       info: sinon.stub(),
       debug: sinon.stub(),
       showList: sinon.stub(),
+      showListIfNotEmpty: sinon.stub(),
       showJSON: sinon.stub(),
       addMessageGroup: sinon.stub(),
       getMessageGroup: sinon.stub().returns([]),
@@ -182,6 +186,51 @@ events:
     expect(reportText).to.include('message: "Error: ErrImagePull"');
     expect(reportText).to.include('message: "Error: ImagePullBackOff"');
     expect(reportText).to.not.include('Pod not ready/running: network-node1-0');
+  });
+
+  it('includes container termination exit codes in pod readiness findings', (): void => {
+    const describeSample: string = `pod:
+  status:
+    phase: Running
+    conditions:
+      - message: "containers with unready status: [relay]"
+        reason: ContainersNotReady
+        status: "False"
+        type: ContainersReady
+    containerStatuses:
+      - lastState:
+          terminated:
+            exitCode: 137
+            reason: Error
+        name: relay
+        ready: false
+        state:
+          running:
+            startedAt: 2026-06-25T07:42:53.000Z
+containers:
+  relay:
+    Last State: Terminated
+      Reason: Error
+      Exit Code: 137
+    Ready: False
+`;
+
+    const describeDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs', 'kind-solo-e2e');
+    fs.mkdirSync(describeDirectory, {recursive: true});
+    fs.writeFileSync(path.join(describeDirectory, 'relay-1.describe.txt'), describeSample, 'utf8');
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Pod not ready/running: relay-1');
+    expect(reportText).to.include('line 12: exitCode: 137');
+    expect(reportText).to.include('line 23: Exit Code: 137');
+    expect(reportText).to.include('line 13: reason: Error');
+
+    const consoleSummary: string = userMessages.join('\n');
+    expect(consoleSummary).to.include('line 12: exitCode: 137');
+    expect(consoleSummary).to.include('line 23: Exit Code: 137');
   });
 
   it('suppresses known transient postgres migration race errors but keeps other errors', (): void => {
@@ -316,13 +365,70 @@ events:
     const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
     const reportText: string = fs.readFileSync(reportPath, 'utf8');
     expect(reportText).to.include('Application ERROR detected in pod log: mirror-1-rest-7447d9dd48-fzz6t');
-    expect(reportText).to.include('ERROR Startup healthcheck failed NotFoundError: Application readiness check failed');
     expect(reportText).to.include(
       'line 7: 2026-05-16T20:05:10.000Z ERROR Startup healthcheck failed DbError: password authentication failed for user "mirror_rest"',
     );
     expect(reportText).to.not.include(
+      'line 6: 2026-05-16T20:04:13.909Z ERROR Startup healthcheck failed NotFoundError: Application readiness check failed',
+    );
+    expect(reportText).to.not.include(
       'line 3: 2026-05-16T20:04:03.912Z ERROR Startup healthcheck failed DbError: password authentication failed for user "mirror_rest"',
     );
+  });
+
+  it('suppresses split mirror rest readiness failures only during startup', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const restLogPath: string = path.join(componentLogDirectory, 'mirror-1-rest-68c654f85d-xbkw8-1.log');
+    fs.writeFileSync(
+      restLogPath,
+      [
+        '2026-06-29T07:59:03.482Z 2026-06-29T07:59:02.854Z INFO Startup Loaded configuration source: /home/node/app/config/application.yml',
+        '2026-06-29T07:59:05.486Z 2026-06-29T07:59:05.479Z ERROR Startup healthcheck failed',
+        'Error: Application readiness check failed',
+        '    at file:///home/node/app/server.js:778:1872',
+        '    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)',
+        '2026-06-29T08:02:05.486Z 2026-06-29T08:02:05.479Z ERROR Startup healthcheck failed',
+        'Error: Application readiness check failed',
+        '    at file:///home/node/app/server.js:778:1872',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Application ERROR detected in pod log: mirror-1-rest-68c654f85d-xbkw8-1');
+    expect(reportText).to.include('line 6: 2026-06-29T08:02:05.479Z ERROR Startup healthcheck failed');
+    expect(reportText).to.not.include('line 2: 2026-06-29T07:59:05.479Z ERROR Startup healthcheck failed');
+  });
+
+  it('suppresses split mirror rest db auth failures only during startup', (): void => {
+    const componentLogDirectory: string = path.join(temporaryDirectory, 'hiero-components-logs');
+    fs.mkdirSync(componentLogDirectory, {recursive: true});
+    const restLogPath: string = path.join(componentLogDirectory, 'mirror-1-rest-68c654f85d-zlr9q.log');
+    fs.writeFileSync(
+      restLogPath,
+      [
+        '2026-06-28T03:30:43.350Z 2026-06-28T03:30:42.737Z INFO Startup Loaded configuration source: /home/node/app/config/application.yml',
+        '2026-06-28T03:30:44.102Z 2026-06-28T03:30:43.939Z ERROR Startup healthcheck failed',
+        'Error: password authentication failed for user "mirror_rest"',
+        '    at file:///home/node/app/server.js:778:1819',
+        '2026-06-28T03:31:45.103Z 2026-06-28T03:31:44.933Z ERROR Startup healthcheck failed',
+        'Error: password authentication failed for user "mirror_rest"',
+        '    at file:///home/node/app/server.js:778:1819',
+      ].join('\n'),
+      'utf8',
+    );
+
+    new DiagnosticsAnalyzer(loggerStub).analyze(temporaryDirectory, '');
+
+    const reportPath: string = path.join(temporaryDirectory, 'diagnostics-analysis.txt');
+    const reportText: string = fs.readFileSync(reportPath, 'utf8');
+    expect(reportText).to.include('Application ERROR detected in pod log: mirror-1-rest-68c654f85d-zlr9q');
+    expect(reportText).to.include('line 5: 2026-06-28T03:31:44.933Z ERROR Startup healthcheck failed');
+    expect(reportText).to.not.include('line 2: 2026-06-28T03:30:43.939Z ERROR Startup healthcheck failed');
   });
 
   it('keeps non-suppressed continuation-line error matches as evidence', (): void => {

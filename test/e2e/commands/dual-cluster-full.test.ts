@@ -26,6 +26,8 @@ import {RelayTest} from './tests/relay-test.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {BlockNodeTest} from './tests/block-node-test.js';
+import {KeysAndPermissionsTest} from './tests/keys-and-permissions-test.js';
+import {type NodeAlias, type NodeAliases} from '../../../src/types/aliases.js';
 import {destroyEnabled} from '../../test-utility.js';
 
 const testName: string = 'dual-cluster-full';
@@ -94,11 +96,27 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.verifyDeploymentConfigInfo(options);
         ConsensusNodeTest.keys(options);
 
-        BlockNodeTest.add(options);
+        // Deploy one block node per cluster so each cluster's consensus nodes stream
+        // to their local block node and the mirror node (on c2) can pull from c2's block node.
+        const c1NodeCount: number = Math.ceil(consensusNodesCount / 2);
+        const c1NodeAliases: NodeAliases = Array.from(
+          {length: c1NodeCount},
+          (_, index): NodeAlias => `node${index + 1}` as NodeAlias,
+        );
+        const c2NodeAliases: NodeAliases = Array.from(
+          {length: consensusNodesCount - c1NodeCount},
+          (_, index): NodeAlias => `node${c1NodeCount + index + 1}` as NodeAlias,
+        );
+        BlockNodeTest.add(options, c1NodeAliases);
+        BlockNodeTest.add(options, c2NodeAliases, 1);
 
         NetworkTest.deploy(options);
         ConsensusNodeTest.setup(options);
         ConsensusNodeTest.start(options, true);
+
+        // Verify the SA8 hardening and that each node's gossip keys match the cluster secrets.
+        KeysAndPermissionsTest.verifyConsensusNodeKeysMatchSecrets(options);
+        KeysAndPermissionsTest.verifySoloHomeFilePermissions(options);
 
         // Use dual-cluster specific values file with higher memory limits
         MirrorNodeTest.add({...options, valuesFile: dualClusterValuesFile});

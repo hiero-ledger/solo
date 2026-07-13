@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {color, type ListrLogger, type ListrRendererValue, PRESET_TIMER} from 'listr2';
+import {
+  color,
+  type ListrLogger,
+  type ListrRendererValue,
+  type LoggerFormat,
+  PRESET_TIMER,
+  type PresetTimer,
+} from 'listr2';
 import path from 'node:path';
 import url from 'node:url';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
@@ -11,8 +18,11 @@ import 'dotenv/config';
 import {type AnyListrContext, type NodeAlias} from '../types/aliases.js';
 import {type ListrBaseClassOptions} from 'listr2';
 
+export const PACKAGE_NAME: string = '@hiero-ledger/solo';
+
 export const SOLO_SILENT_MODE: boolean = getEnvironmentVariable('SOLO_SILENT_MODE') === 'true' || false;
 
+// eslint-disable-next-line solo/no-exported-function
 export function getEnvironmentVariable(name: string): string | undefined {
   if (process.env[name] && process.env[name].trim() !== '') {
     if (!(process.env.SOLO_SILENT_MODE === 'true')) {
@@ -71,6 +81,10 @@ export const SKIP_NODE_PING: boolean = Boolean(getEnvironmentVariable('SKIP_NODE
 export const DEFAULT_LOCK_ACQUIRE_ATTEMPTS: number = +getEnvironmentVariable('SOLO_LEASE_ACQUIRE_ATTEMPTS') || 10;
 export const DEFAULT_LEASE_DURATION: number = +getEnvironmentVariable('SOLO_LEASE_DURATION') || 20;
 
+// Recommended minimum container-engine (Docker/Podman) resources; used by the pre-flight resource check.
+export const MINIMUM_RECOMMENDED_MEMORY_BYTES: number = 12 * 1024 * 1024 * 1024;
+export const MINIMUM_RECOMMENDED_CPU_CORES: number = 6;
+
 export const SOLO_USER_AGENT_HEADER: string = 'Solo-User-Agent';
 // --------------- Hedera network and node related constants --------------------------------------------------------------------
 export const HEDERA_CHAIN_ID: string = getEnvironmentVariable('SOLO_CHAIN_ID') || '298';
@@ -88,11 +102,6 @@ export const HEDERA_NODE_EXTERNAL_GOSSIP_PORT: string =
   getEnvironmentVariable('SOLO_NODE_EXTERNAL_GOSSIP_PORT') || '50111';
 export const HEDERA_NODE_DEFAULT_STAKE_AMOUNT: number =
   +getEnvironmentVariable('SOLO_NODE_DEFAULT_STAKE_AMOUNT') || 500;
-
-// S6-based consensus node image configuration (overridable via environment)
-export const S6_NODE_IMAGE_REGISTRY: string = getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REGISTRY') || 'ghcr.io';
-export const S6_NODE_IMAGE_REPOSITORY: string =
-  getEnvironmentVariable('SOLO_S6_NODE_IMAGE_REPOSITORY') || 'hashgraph/solo-containers/debian-s6-java25';
 
 // Pods with a name matching one of these strings will be ignored when collecting pod metrics
 const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_METRICS');
@@ -136,9 +145,6 @@ export const MIRROR_NODE_CHART_URL: string =
 export const MIRROR_NODE_CHART: string = 'hedera-mirror';
 export const MIRROR_NODE_RELEASE_NAME: string = 'mirror';
 export const MIRROR_NODE_PINGER_TPS: number = +getEnvironmentVariable('MIRROR_NODE_PINGER_TPS') || 5;
-// Version boundary for mirror node upgrade behavior
-// Versions <= v0.143.0 require skipping reuseValues to avoid RegularExpression rules conflicts
-export const MIRROR_NODE_VERSION_BOUNDARY: string = 'v0.143.0';
 export const PROMETHEUS_STACK_CHART_URL: string =
   getEnvironmentVariable('PROMETHEUS_STACK_CHART_URL') ?? 'https://prometheus-community.github.io/helm-charts';
 export const PROMETHEUS_STACK_CHART: string = 'kube-prometheus-stack';
@@ -180,6 +186,11 @@ export const BLOCK_NODE_CHART_URL: string =
 export const BLOCK_NODE_CHART: string = getEnvironmentVariable('BLOCK_NODE_CHART') ?? 'block-node-server';
 export const BLOCK_NODE_RELEASE_NAME: string = 'block-node';
 export const BLOCK_NODE_CONTAINER_NAME: ContainerName = ContainerName.of(BLOCK_NODE_CHART);
+
+// In-pod JFR disk-repository path `solo block node collect-jfr` reads from; mirrors the consensus node's
+// ${HEDERA_HAPI_PATH}/output convention. The overlay's repository path is kept in sync with this constant by
+// block-node-values.test.ts.
+export const BLOCK_NODE_JFR_REPOSITORY_DIRECTORY: string = '/opt/hiero/block-node/output/jfr';
 
 export const NETWORK_LOAD_GENERATOR_CHART: string = 'network-load-generator';
 export const NETWORK_LOAD_GENERATOR_RELEASE_NAME: string = 'network-load-generator';
@@ -309,6 +320,7 @@ export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOU
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
+export const ONE_SHOT_DEPLOYMENT_NAME: string = 'one-shot';
 export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
 
 export const SOLO_CACHE_IMAGES_TARGET_FILE: string = PathEx.joinWithRealPath(
@@ -329,10 +341,10 @@ export const CHECK_WRAPS_DIRECTORY_BACKOFF_MS: number =
  * Listr related
  * @returns a object that defines the default color options
  */
-export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: any = {
+export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: PresetTimer = {
   ...PRESET_TIMER,
   condition: (duration: number): boolean => duration > 100,
-  format: (duration: number) => {
+  format: (duration: number): LoggerFormat => {
     if (duration > 30_000) {
       return color.red;
     }
@@ -343,12 +355,7 @@ export const LISTR_DEFAULT_RENDERER_TIMER_OPTION: any = {
 
 export const LISTR_DEFAULT_RENDERER_OPTION: {
   collapseSubtasks: boolean;
-  timer: {
-    condition: (duration: number) => boolean;
-    format: (duration: number) => any;
-    field: string | ((arguments_0: number) => string);
-    args?: [number];
-  };
+  timer: PresetTimer;
   logger?: ListrLogger;
   persistentOutput: boolean;
   clearOutput: boolean;
@@ -457,6 +464,10 @@ export const NETWORK_PROXY_MAX_ATTEMPTS: number = +getEnvironmentVariable('NETWO
 export const NETWORK_PROXY_DELAY: number = +getEnvironmentVariable('NETWORK_PROXY_DELAY') || 2000;
 export const PODS_READY_MAX_ATTEMPTS: number = +getEnvironmentVariable('PODS_READY_MAX_ATTEMPTS') || 300;
 export const PODS_READY_DELAY: number = +getEnvironmentVariable('PODS_READY_DELAY') || 2000;
+export const MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS') || 900;
+export const MIRROR_NODE_PINGER_PODS_READY_DELAY: number =
+  +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_DELAY') || 2000;
 export const RELAY_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('RELAY_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const RELAY_PODS_RUNNING_DELAY: number =
@@ -473,7 +484,6 @@ export const BLOCK_NODE_ACTIVE_DELAY: number = +getEnvironmentVariable('BLOCK_NO
 export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('BLOCK_NODE_ACTIVE_TIMEOUT') || 60;
 
 export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT') || 40_840;
-export const BLOCK_NODE_PORT_LEGACY: number = +getEnvironmentVariable('BLOCK_NODE_PORT_LEGACY') || 8080;
 
 export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
 
@@ -503,6 +513,11 @@ export const NETWORK_DESTROY_WAIT_TIMEOUT: number = +getEnvironmentVariable('NET
 
 export const DEFAULT_LOCAL_CONFIG_FILE: string = 'local-config.yaml';
 export const NODE_OVERRIDE_FILE: string = 'node-overrides.yaml';
+
+export const NODES_STARTED_EVENT_TIMEOUT_MINUTES: number =
+  +getEnvironmentVariable('NODES_STARTED_EVENT_TIMEOUT_MINUTES') || 30;
+export const MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES: number =
+  +getEnvironmentVariable('MIRROR_NODE_DEPLOYED_EVENT_TIMEOUT_MINUTES') || 10;
 export const IGNORED_NODE_ACCOUNT_ID: string = '0.0.0';
 
 export const UPLOADER_SECRET_NAME: string = 'uploader-mirror-secrets';
@@ -515,6 +530,8 @@ export const BLOCK_STREAM_STREAM_MODE: string = getEnvironmentVariable('BLOCK_ST
 export const BLOCK_STREAM_WRITER_MODE: string = getEnvironmentVariable('BLOCK_STREAM_WRITER_MODE') || 'FILE_AND_GRPC';
 
 export const BLOCK_NODE_IMAGE_NAME: string = 'block-node-server';
+export const RELAY_IMAGE_NAME: string = 'hiero-json-rpc-relay';
+export const EXPLORER_IMAGE_NAME: string = 'hiero-explorer';
 export const APPLICATION_PROPERTIES: string = 'application.properties';
 export const APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER: string = 'SOLO_ENABLE_OVERWRITE=true';
 export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';

@@ -141,11 +141,15 @@ export class Flags {
     }
   }
 
-  public static readonly devMode: CommandFlag = {
-    constName: 'devMode',
-    name: 'dev',
+  // TODO(#1560): `--dev` was renamed to `--debug` and deprecated on 2026-06-30. The `dev` alias is
+  //  retained only for backwards compatibility and should be removed once the first LTS release that
+  //  ships this deprecation reaches end-of-life (see README "Current Releases" / legacy-versions.md).
+  public static readonly debugMode: CommandFlag = {
+    constName: 'debugMode',
+    name: 'debug',
     definition: {
-      describe: 'Enable developer mode',
+      describe: 'Enable debug mode',
+      alias: 'dev',
       defaultValue: constants.SOLO_DEV_OUTPUT,
       type: 'boolean',
     },
@@ -550,7 +554,7 @@ export class Flags {
     constName: 'imageTag',
     name: 'image-tag',
     definition: {
-      describe: 'The Docker image tag to override what is in the Helm Chart',
+      describe: '[Deprecated] Use --component-image instead. Overrides the Docker image tag (e.g. 0.36.0-SNAPSHOT).',
       defaultValue: '',
       type: 'string',
     },
@@ -561,7 +565,10 @@ export class Flags {
     constName: 'componentImage',
     name: 'component-image',
     definition: {
-      describe: 'Full Docker image reference override (e.g. ghcr.io/org/image:tag, docker.io/library/redis:7, redis:7)',
+      describe:
+        'Docker image override. Accepts a registry reference (e.g. ghcr.io/hiero-ledger/block-node-server:0.36.0) ' +
+        'or a local reference (e.g. block-node-server:0.36.0-SNAPSHOT). ' +
+        'Local images found in Docker are automatically loaded into the Kind cluster.',
       defaultValue: '',
       type: 'string',
       alias: 'relay-image',
@@ -3158,7 +3165,7 @@ export class Flags {
     Flags.deployPrometheusStack,
     Flags.deployment,
     Flags.deploymentClusters,
-    Flags.devMode,
+    Flags.debugMode,
     Flags.ecdsaPrivateKey,
     Flags.ed25519PrivateKey,
     Flags.enableIngress,
@@ -3340,7 +3347,7 @@ export class Flags {
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],
-    optional: [Flags.namespace, Flags.cacheDir, Flags.releaseTag, Flags.devMode, Flags.quiet],
+    optional: [Flags.namespace, Flags.cacheDir, Flags.releaseTag, Flags.debugMode, Flags.quiet],
   };
 
   /**

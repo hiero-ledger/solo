@@ -6,6 +6,8 @@ source "${SCRIPT_DIR}/helper.sh"
 
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 TEMP_ONE_SHOT_VALUES_FILE=""
+TEMP_MIRROR_NODE_VALUES_FILE=""
+TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
 
 collect_failure_diagnostics() {
   local rc="${1}"
@@ -39,6 +41,14 @@ on_exit() {
     rm -f "${TEMP_ONE_SHOT_VALUES_FILE}"
   fi
 
+  if [[ -n "${TEMP_MIRROR_NODE_VALUES_FILE:-}" && -f "${TEMP_MIRROR_NODE_VALUES_FILE}" ]]; then
+    rm -f "${TEMP_MIRROR_NODE_VALUES_FILE}"
+  fi
+
+  if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
+    rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+  fi
+
   if [[ ${rc} -ne 0 ]]; then
     echo "Test failed, current port forward process: "
     ps -ef | grep port-forward
@@ -49,6 +59,37 @@ on_exit() {
 }
 
 trap on_exit EXIT
+
+is_tss_supported_consensus_version() {
+  local consensus_version="${1#v}"
+  local minimum_tss_version="0.74.0-0"
+
+  [[ "$(printf '%s\n' "${minimum_tss_version}" "${consensus_version}" | sort -V | head -n 1)" == "${minimum_tss_version}" ]]
+}
+
+install_minio_operator_for_source_deploy() {
+  local context="kind-${SOLO_CLUSTER_NAME}"
+  local namespace="solo-setup"
+  local release_name="operator"
+  local chart_repo_name="operator"
+  local chart_url="${MINIO_OPERATOR_CHART_URL:-https://operator.min.io/}"
+  local chart_version="${MINIO_OPERATOR_VERSION:-7.1.1}"
+
+  echo "Installing MinIO operator ${chart_version} for released Solo source deploy"
+  helm repo add "${chart_repo_name}" "${chart_url}" --force-update
+  helm repo update "${chart_repo_name}"
+  helm upgrade --install "${release_name}" "${chart_repo_name}/operator" \
+    --create-namespace \
+    --namespace "${namespace}" \
+    --kube-context "${context}" \
+    --version "${chart_version}" \
+    --set operator.replicaCount=1 \
+    --wait \
+    --timeout 5m
+  kubectl wait --for=condition=Established crd/tenants.minio.min.io \
+    --context "${context}" \
+    --timeout=2m
+}
 
 # Function to save current service ClusterIPs
 save_cluster_ips() {
@@ -512,23 +553,44 @@ echo "Consensus Node Version (from): ${FROM_CONSENSUS_NODE_VERSION}"
 echo "Consensus Node Version (to): ${TO_CONSENSUS_NODE_VERSION}"
 
 TEMP_ONE_SHOT_VALUES_FILE="$(mktemp -t falcon-values-migration-XXXX.yaml)"
-# Force mirror importer to use file (record-stream) source for the initial pre-TSS deploy.
-# ONE_SHOT_WITH_BLOCK_NODE=true causes solo to add --force-block-node-integration to mirror,
-# which bypasses the CN version check and activates SPRING_PROFILES_ACTIVE=blocknode.
-# The "blocknode" Spring profile sets block.enabled=true and record.enabled=false.
-# Mirror 0.150.0+ performs mandatory TSS verification on block-node gRPC streams, and
-# CN v0.73.0 blocks have no TSS data, causing the importer to throw and never process blocks.
-# We override both env vars via a values file to neutralise the blocknode profile:
-#   BLOCK_ENABLED=false  → disables block pipeline (overrides profile's block.enabled=true)
-#   RECORD_ENABLED=true  → re-enables record downloader (overrides profile's record.enabled=false)
-# This makes mirror use the traditional record stream path (MinIO) for CN v0.73.0 blocks.
-# The block node is still deployed so that "block node upgrade" in the upgrade step works.
-TEMP_MIRROR_SOURCE_FILE="$(mktemp -t mirror-source-override-XXXX.yaml)"
-cat > "${TEMP_MIRROR_SOURCE_FILE}" <<EOF
+TEMP_MIRROR_NODE_VALUES_FILE="$(mktemp -t mirror-node-migration-XXXX.yaml)"
+TEMP_SOURCE_APPLICATION_PROPERTIES_FILE="$(mktemp -t source-application-properties-XXXX.properties)"
+
+cp resources/templates/application.properties "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+
+if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
+  SOURCE_BLOCK_STREAM_MODE="BLOCKS"
+  SOURCE_MINIO_ENABLED="false"
+  SOURCE_MIRROR_BLOCK_ENABLED="true"
+  SOURCE_MIRROR_RECORD_ENABLED="false"
+else
+  SOURCE_BLOCK_STREAM_MODE="BOTH"
+  SOURCE_MINIO_ENABLED="true"
+  SOURCE_MIRROR_BLOCK_ENABLED="false"
+  SOURCE_MIRROR_RECORD_ENABLED="true"
+fi
+
+if grep -q '^blockStream.streamMode=' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"; then
+  sed -i.bak "s/^blockStream.streamMode=.*/blockStream.streamMode=${SOURCE_BLOCK_STREAM_MODE}/" "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+else
+  echo "blockStream.streamMode=${SOURCE_BLOCK_STREAM_MODE}" >> "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+fi
+rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}.bak"
+
+if grep -q '^blockStream.writerMode=' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"; then
+  sed -i.bak 's/^blockStream.writerMode=.*/blockStream.writerMode=FILE_AND_GRPC/' "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+else
+  echo 'blockStream.writerMode=FILE_AND_GRPC' >> "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+fi
+rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}.bak"
+
+cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<EOF
+# Generated for migration workflow launch.
 importer:
   env:
-    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "false"
-    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "true"
+    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "${SOURCE_MIRROR_BLOCK_ENABLED}"
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "${SOURCE_MIRROR_RECORD_ENABLED}"
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
 EOF
 
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
@@ -536,20 +598,35 @@ cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 network:
   --pvcs: true
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
+  --application-properties: "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
 setup:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
 
+blockNode:
+  --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
+
 mirrorNode:
-  --values-file: "${TEMP_MIRROR_SOURCE_FILE}"
+  --values-file: "${TEMP_MIRROR_NODE_VALUES_FILE}"
 EOF
 
 export ONE_SHOT_WITH_BLOCK_NODE=true
+# The source deploy uses released Solo, so set stream/minio behavior with generated
+# values rather than relying on local source changes.
+export BLOCK_STREAM_STREAM_MODE="${SOURCE_BLOCK_STREAM_MODE}"
+echo "Initial source block stream mode: ${SOURCE_BLOCK_STREAM_MODE}"
+echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
+
+if [[ "${SOURCE_MINIO_ENABLED}" == "true" ]]; then
+  install_minio_operator_for_source_deploy
+fi
+
 BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
-  --values-file "${TEMP_ONE_SHOT_VALUES_FILE}"
+  --values-file "${TEMP_ONE_SHOT_VALUES_FILE}" \
+  --no-parallel-deploy
 
 echo "::endgroup::"
 

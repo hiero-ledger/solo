@@ -27,6 +27,8 @@ import {ContainerName} from '../../../resources/container/container-name.js';
 import {PodName} from '../../../resources/pod/pod-name.js';
 import {K8ClientPodCondition} from './k8-client-pod-condition.js';
 import {type PodCondition} from '../../../resources/pod/pod-condition.js';
+import {K8ClientContainerStatus} from './k8-client-container-status.js';
+import {type ContainerStatus} from '../../../resources/pod/container-status.js';
 import {ShellRunner} from '../../../../../core/shell-runner.js';
 import chalk from 'chalk';
 import http from 'node:http';
@@ -55,16 +57,18 @@ export class K8ClientPod implements Pod {
     public readonly podIp?: string,
     public readonly creationTimestamp?: Date,
     public readonly deletionTimestamp?: Date,
+    public readonly phase?: string,
+    public readonly allContainerStatuses?: ContainerStatus[],
   ) {
     this.logger = container.resolve(InjectTokens.SoloLogger);
   }
 
-  public async killPod(): Promise<void> {
+  public async killPod(gracePeriodSeconds: number = 1): Promise<void> {
     try {
       await this.kubeClient.deleteNamespacedPod({
         name: this.podReference.name.toString(),
         namespace: this.podReference.namespace.toString(),
-        gracePeriodSeconds: 1,
+        gracePeriodSeconds,
       });
 
       let podExists: boolean = true;
@@ -200,7 +204,7 @@ export class K8ClientPod implements Pod {
       availablePort = await PortUtilities.findAvailablePort(localPort, Duration.ofSeconds(30).toMillis(), this.logger);
 
       if (availablePort === localPort) {
-        this.logger.showUser(chalk.yellow(`Using requested port ${localPort}`));
+        this.logger.showUserUnlessOneShot(chalk.yellow(`Using requested port ${localPort}`));
       } else {
         this.logger.showUser(chalk.yellow(`Using available port ${availablePort}`));
       }
@@ -279,17 +283,14 @@ export class K8ClientPod implements Pod {
       // Don't use shell on Windows when doing persist mode to avoid argument parsing issues
       const useShell: boolean = isWindows && persist ? false : true;
 
-      await new ShellRunner().run(
-        cmd,
-        cmdArguments,
-        true,
-        true,
-        {
+      await new ShellRunner().run(cmd, cmdArguments, {
+        verbose: true,
+        detached: true,
+        environmentVariablesToAppend: {
           PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
         },
-        undefined,
         useShell,
-      );
+      });
 
       return availablePort;
     } catch (error) {
@@ -298,7 +299,7 @@ export class K8ClientPod implements Pod {
         // Restarting the WinNAT service can resolve the issue, and then we can retry starting the port forwarder.
         // Example: listen EACCES: permission denied 127.0.0.1:50211
         try {
-          await new ShellRunner().run('net stop winnat');
+          await new ShellRunner().run('net', ['stop', 'winnat']);
         } catch (stopError) {
           const errorMessage: string =
             `Failed to stop WinNAT service: ${stopError.message}. Please open an administrator level terminal on Windows` +
@@ -308,7 +309,7 @@ export class K8ClientPod implements Pod {
           this.logger.error(errorMessage, stopError);
           throw new KubeContainerOperationFailedError(errorMessage, stopError);
         }
-        await new ShellRunner().run('net start winnat');
+        await new ShellRunner().run('net', ['start', 'winnat']);
         this.logger.warn('Restarted WinNAT service to recover from port forwarding failure on Windows');
         await sleep(Duration.ofSeconds(5)); // wait a bit for the service to restart before retrying
         return await this.portForward(localPort, podPort, reuse, persist, externalAddress, true);
@@ -342,7 +343,7 @@ export class K8ClientPod implements Pod {
       return;
     }
 
-    this.logger.showUser(chalk.yellow(`Stopping port-forward for port [${port}]`));
+    this.logger.showUserUnlessOneShot(chalk.yellow(`Stopping port-forward for port [${port}]`));
 
     try {
       let matchedProcesses: ProcessInfo[] = await this.searchProcessListCommandByStrings(['port-forward', `${port}:`]);
@@ -429,6 +430,11 @@ export class K8ClientPod implements Pod {
       return undefined;
     }
 
+    const allContainerStatuses: K8ClientContainerStatus[] = [
+      ...(v1Pod.status?.initContainerStatuses ?? []),
+      ...(v1Pod.status?.containerStatuses ?? []),
+    ].map((status): K8ClientContainerStatus => K8ClientContainerStatus.from(status));
+
     return new K8ClientPod(
       PodReference.of(NamespaceName.of(v1Pod.metadata?.namespace), PodName.of(v1Pod.metadata?.name)),
       pods,
@@ -446,6 +452,8 @@ export class K8ClientPod implements Pod {
       v1Pod.status?.podIP,
       v1Pod.metadata?.creationTimestamp ? new Date(v1Pod.metadata.creationTimestamp) : undefined,
       v1Pod.metadata.deletionTimestamp ? new Date(v1Pod.metadata.deletionTimestamp) : undefined,
+      v1Pod.status?.phase,
+      allContainerStatuses,
     );
   }
 }

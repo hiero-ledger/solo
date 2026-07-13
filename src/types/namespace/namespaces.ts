@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type NamespaceName} from './namespace-name.js';
-import {type V1Namespace} from '@kubernetes/client-node';
+import {type ObjectMeta} from '../../integration/kube/resources/object-meta.js';
 
 export interface Namespaces {
   /**
@@ -14,15 +14,19 @@ export interface Namespaces {
   /**
    * Delete a namespace
    * @param namespace - the name of the namespace
+   * @param gracePeriodSeconds - optional termination grace period in seconds. Pass 0 for a
+   *   non-graceful (forced) deletion that uses background propagation so the call does not block on
+   *   contained resources draining their default grace periods (e.g. during destroy). When omitted,
+   *   the cluster's default graceful deletion is used.
    */
-  delete(namespace: NamespaceName): Promise<boolean>;
+  delete(namespace: NamespaceName, gracePeriodSeconds?: number): Promise<boolean>;
 
   /**
    * Get a namespace
    * @param namespace - the name of the namespace
-   * @returns the Kubernetes namespace object
+   * @returns metadata for the namespace
    */
-  get(namespace: NamespaceName): Promise<V1Namespace>;
+  get(namespace: NamespaceName): Promise<ObjectMeta>;
 
   /**
    * List all namespaces

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Flags as flags} from '../../src/commands/flags.js';
-import * as helpers from '../../src/core/helpers.js';
+import {Helpers} from '../../src/core/helpers.js';
 import {getTestCacheDirectory, getTestCluster} from '../test-utility.js';
 import {type NamespaceName} from '../../src/types/namespace/namespace-name.js';
 import {type CommandFlag} from '../../src/types/flag-types.js';
@@ -38,7 +38,7 @@ export class Argv implements CloneTrait<Argv> {
 
   public build(): ArgvStruct {
     if (this.getArg<string>(flags.nodeAliasesUnparsed)?.split(',')?.length) {
-      const nodeAliases: NodeAliases = helpers.parseNodeAliases(this.getArg(flags.nodeAliasesUnparsed));
+      const nodeAliases: NodeAliases = Helpers.parseNodeAliases(this.getArg(flags.nodeAliasesUnparsed));
       this.setArg(flags.numberOfConsensusNodes, nodeAliases.length);
     }
 

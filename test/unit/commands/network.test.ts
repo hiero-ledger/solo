@@ -141,6 +141,9 @@ describe('NetworkCommand unit tests', (): void => {
         waitForRunningPhase: sinon.stub(),
         waitForReadyStatus: sinon.stub(),
       });
+      options.k8Factory.default().secrets = sinon.stub().returns({
+        createOrReplace: sinon.stub().resolves(true),
+      });
       options.k8Factory.default().leases = sinon.stub().returns({
         read: sinon.stub(),
       });
@@ -155,6 +158,9 @@ describe('NetworkCommand unit tests', (): void => {
       options.k8Factory.getK8().pods = sinon.stub().returns({
         waitForRunningPhase: sinon.stub(),
         waitForReadyStatus: sinon.stub(),
+      });
+      options.k8Factory.getK8().secrets = sinon.stub().returns({
+        createOrReplace: sinon.stub().resolves(true),
       });
       options.k8Factory.getK8().leases = sinon.stub().returns({
         read: sinon.stub(),
@@ -192,8 +198,6 @@ describe('NetworkCommand unit tests', (): void => {
 
       options.keyManager = container.resolve<KeyManager>(InjectTokens.KeyManager);
       options.keyManager.prepareTlsKeyFilePaths = sinon.stub();
-      options.keyManager.copyGossipKeysToStaging = sinon.stub();
-      options.keyManager.copyNodeKeysToStaging = sinon.stub();
 
       options.platformInstaller = platformInstallerStub;
       options.platformInstaller.copyNodeKeys = sinon.stub();
@@ -207,14 +211,26 @@ describe('NetworkCommand unit tests', (): void => {
       container.registerInstance(InjectTokens.CertificateManager, options.certificateManager);
 
       options.chartManager = container.resolve<ChartManager>(InjectTokens.ChartManager);
-      options.chartManager.isChartInstalled = sinon.stub().returns(true);
-      options.chartManager.isChartInstalled.onSecondCall().returns(false);
+      options.chartManager.isChartInstalled = sinon
+        .stub()
+        .callsFake(async (_namespace: NamespaceName, releaseName: string): Promise<boolean> => {
+          if (releaseName === constants.MINIO_OPERATOR_RELEASE_NAME) {
+            return false;
+          }
+
+          if (releaseName === constants.SOLO_DEPLOYMENT_CHART) {
+            return true;
+          }
+
+          return false;
+        });
       options.chartManager.upgrade = sinon.stub().returns(true);
+      options.chartManager.install = sinon.stub().returns(true);
       options.chartManager.uninstall = sinon.stub().returns(true);
 
       options.remoteConfig = container.resolve<RemoteConfigRuntimeState>(InjectTokens.RemoteConfigRuntimeState);
       options.remoteConfig.isLoaded = sinon.stub().returns(true);
-      options.remoteConfig.getConfigMap = sinon.stub().returns(null);
+      options.remoteConfig.getConfigMap = sinon.stub().resolves();
       options.remoteConfig.persist = sinon.stub();
       options.remoteConfig.loadAndValidate = sinon.stub();
       options.remoteConfig.getNamespace = sinon.stub();
@@ -230,7 +246,7 @@ describe('NetworkCommand unit tests', (): void => {
       options.leaseManager = container.resolve<LockManager>(InjectTokens.LockManager);
       options.leaseManager.currentNamespace = sinon.stub().returns(testName);
 
-      GenesisNetworkDataConstructor.initialize = sinon.stub().returns(null);
+      GenesisNetworkDataConstructor.initialize = sinon.stub().resolves();
     });
 
     afterEach((): void => {
@@ -382,7 +398,7 @@ describe('NetworkCommand unit tests', (): void => {
 
         const chartValueArguments: string[] = config.chartValuesMap['cluster'].toArguments();
 
-        const indexOfValueArgumentEndingWith = (suffix: string): number =>
+        const indexOfValueArgumentEndingWith: (suffix: string) => number = (suffix: string): number =>
           chartValueArguments.findIndex((argument: string): boolean => argument.endsWith(suffix));
 
         const soloDeploymentValuesFileIndex: number = indexOfValueArgumentEndingWith(
@@ -415,6 +431,76 @@ describe('NetworkCommand unit tests', (): void => {
         expect(commonValuesFileIndex).to.be.lt(values1FileIndex);
         expect(values1FileIndex).to.be.lt(values2FileIndex);
       } finally {
+        sinon.restore();
+      }
+    });
+
+    it('keeps MinIO enabled for CN 0.74+ when no block node is deployed', async (): Promise<void> => {
+      const originalConsensusNodeVersion: string = argv.getArg<string>(flags.consensusNodeVersion);
+
+      try {
+        argv.setArg(flags.consensusNodeVersion, 'v0.74.0');
+
+        const task: SinonStub = sinon.stub();
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(new Map<string, string>([['cluster', 'context1']]));
+
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // @ts-expect-error - to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+        networkCommand.configManager.update(argv.build());
+
+        // @ts-expect-error - to access private method
+        const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
+        const chartValueArguments: string[] = config.chartValuesMap['cluster'].toArguments();
+
+        expect(config.minioEnabled).to.equal(true);
+        expect(chartValueArguments).to.not.include('cloud.minio.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.recordStreamUploader.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.eventStreamUploader.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.blockstreamUploader.enabled=false');
+      } finally {
+        argv.setArg(flags.consensusNodeVersion, originalConsensusNodeVersion);
+        sinon.restore();
+      }
+    });
+
+    it('disables MinIO for CN 0.74+ when a block node is deployed', async (): Promise<void> => {
+      const originalConsensusNodeVersion: string = argv.getArg<string>(flags.consensusNodeVersion);
+
+      try {
+        argv.setArg(flags.consensusNodeVersion, 'v0.74.0');
+
+        const task: SinonStub = sinon.stub();
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(new Map<string, string>([['cluster', 'context1']]));
+
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // @ts-expect-error - to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([{}]);
+        networkCommand.configManager.update(argv.build());
+
+        // @ts-expect-error - to access private method
+        const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
+        const chartValueArguments: string[] = config.chartValuesMap['cluster'].toArguments();
+
+        expect(config.minioEnabled).to.equal(false);
+        expect(chartValueArguments).to.include('cloud.minio.enabled=false');
+        expect(chartValueArguments).to.include('defaults.sidecars.recordStreamUploader.enabled=false');
+        expect(chartValueArguments).to.include('defaults.sidecars.eventStreamUploader.enabled=false');
+        expect(chartValueArguments).to.include('defaults.sidecars.blockstreamUploader.enabled=false');
+      } finally {
+        argv.setArg(flags.consensusNodeVersion, originalConsensusNodeVersion);
         sinon.restore();
       }
     });

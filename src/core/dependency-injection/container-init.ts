@@ -93,9 +93,7 @@ import {RapidFireCommand} from '../../commands/rapid-fire.js';
 import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommand} from '../../commands/backup-restore.js';
 import {BackupRestoreCommandDefinition} from '../../commands/command-definitions/backup-restore-command-definition.js';
-import {BrewPackageManager} from '../package-managers/brew-package-manager.js';
 import {OsPackageManager} from '../package-managers/os-package-manager.js';
-import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.js';
 import {ClusterTaskManager} from '../cluster-task-manager.js';
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
@@ -105,6 +103,7 @@ import {CacheCommandDefinition} from '../../commands/command-definitions/cache-c
 import {CacheCommand} from '../../commands/cache.js';
 import {ImageCacheHandlerBuilder} from '../../integration/cache/impl/image-cache-handler-builder.js';
 import {DockerClient} from '../../integration/container-engine/docker-client.js';
+import {ContainerEngineResourceInspector} from '../../integration/container-engine/container-engine-resource-inspector.js';
 import {DefaultCacheHandlerRegistry} from '../../integration/cache/impl/default-cache-handler-registry.js';
 import {DefaultCacheHealthInspector} from '../../integration/cache/impl/default-cache-health-inspector.js';
 import {FileSystemCacheCatalogStore} from '../../integration/cache/impl/file-system-cache-catalog-store.js';
@@ -200,8 +199,6 @@ export class Container {
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
       new SingletonContainer(InjectTokens.MetricsServer, MetricsServerImpl),
-      new SingletonContainer(InjectTokens.BrewPackageManager, BrewPackageManager),
-      new SingletonContainer(InjectTokens.AptGetPackageManager, AptGetPackageManager),
       new SingletonContainer(InjectTokens.OsPackageManager, OsPackageManager),
       new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
       new SingletonContainer(InjectTokens.PostgresSharedResource, PostgresSharedResource),
@@ -214,6 +211,7 @@ export class Container {
       new SingletonContainer(InjectTokens.CacheHealthInspector, DefaultCacheHealthInspector),
       new SingletonContainer(InjectTokens.ImageCacheHandlerBuilder, ImageCacheHandlerBuilder),
       new SingletonContainer(InjectTokens.ContainerEngineClient, DockerClient),
+      new SingletonContainer(InjectTokens.ContainerEngineResourceInspector, ContainerEngineResourceInspector),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),

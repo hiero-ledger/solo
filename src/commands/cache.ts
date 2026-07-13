@@ -106,7 +106,7 @@ export class CacheCommand extends BaseCommand {
     optional: [
       flags.quiet,
       flags.cacheDir,
-      flags.devMode,
+      flags.debugMode,
       flags.edgeEnabled,
 
       // Versions
@@ -119,27 +119,27 @@ export class CacheCommand extends BaseCommand {
 
   public static readonly LOAD_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode, flags.clusterRef],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode, flags.clusterRef],
   };
 
   public static readonly LIST_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   public static readonly CLEAR_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   public static readonly PRUNE_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   public static readonly STATUS_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode, flags.clusterRef],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode, flags.clusterRef],
   };
 
   // ----- Handlers ------- //

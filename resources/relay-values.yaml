@@ -2,11 +2,16 @@
 relay:
   config:
     WORKERS_POOL_ENABLED: false
+    NODE_OPTIONS: --max-old-space-size=192
     LOG_LEVEL: error
     PRETTY_LOGS_ENABLED: false
     REDIS_ENABLED: false
     CACHE_MAX: 50
     CACHE_TTL: 300
+    OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS: 600
+    OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS: 1000
+    MIRROR_NODE_STARTUP_MAX_ATTEMPTS: 600
+    MIRROR_NODE_STARTUP_RETRY_DELAY_MS: 1000
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -19,20 +24,28 @@ relay:
   startupProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
-    failureThreshold: 240
+    failureThreshold: 660
     timeoutSeconds: 2
   resources:
     requests:
-      cpu: 0
-      memory: 0
+      cpu: 250m
+      memory: 128Mi
     limits:
       cpu: 500m
       memory: 250Mi
 ws:
+  enabled: true
   config:
     WORKERS_POOL_ENABLED: false
+    NODE_OPTIONS: --max-old-space-size=192
     LOG_LEVEL: error
     PRETTY_LOGS_ENABLED: false
     REDIS_ENABLED: false
     CACHE_MAX: 50
     CACHE_TTL: 300
+    OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS: 600
+    OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS: 1000
+    MIRROR_NODE_STARTUP_MAX_ATTEMPTS: 600
+    MIRROR_NODE_STARTUP_RETRY_DELAY_MS: 1000
+  startupProbe:
+    failureThreshold: 660 # other probe timing fields inherit chart defaults

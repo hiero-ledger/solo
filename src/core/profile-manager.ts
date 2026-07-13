@@ -11,7 +11,7 @@ import {Flags as flags} from '../commands/flags.js';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {type ConfigManager} from './config-manager.js';
-import * as helpers from './helpers.js';
+import {Helpers} from './helpers.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, type DirectoryPath, type NodeAlias, type NodeAliases, type Path} from '../types/aliases.js';
 import {type Optional} from '../types/index.js';
@@ -27,6 +27,7 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
@@ -37,15 +38,7 @@ import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
-
-export interface ProfileManagerStagingOptions {
-  // These values are intentionally passed from the command's resolved config so profile generation
-  // does not depend on mutable global flags that can be changed by concurrently running subcommands.
-  cacheDir: DirectoryPath;
-  releaseTag: string;
-  appName: string;
-  chainId: string;
-}
+import {type ProfileManagerStagingOptions} from './profile-manager-staging-options.js';
 
 @injectable()
 export class ProfileManager {
@@ -190,7 +183,6 @@ export class ProfileManager {
         accountMap,
         consensusNodes,
         stagingDirectory,
-        resolvedStagingOptions.releaseTag,
         resolvedStagingOptions.appName,
         resolvedStagingOptions.chainId,
         gossipFqdnRestricted,
@@ -243,11 +235,24 @@ export class ProfileManager {
           // that the user did not explicitly override.
           fs.cpSync(applicationPropertiesPath, destinationPath, {force: true});
           await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
+
+          // Re-apply Solo-required settings so merged user values cannot override
+          // critical deployment behavior (realm/shard/chainId/block-node settings).
+          await this.updateApplicationPropertiesWithRealmAndShard(
+            destinationPath,
+            this.localConfig.configuration.realmForDeployment(deploymentName),
+            this.localConfig.configuration.shardForDeployment(deploymentName),
+          );
+          await this.updateApplicationPropertiesForBlockNode(destinationPath);
+          await this.updateApplicationPropertiesWithChainId(destinationPath, resolvedStagingOptions.chainId);
         }
       } else {
         fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
       }
     }
+
+    // Files staged via cpSync inherit the (wider) source mode and bypass the process umask.
+    FilePermissions.restrictTreeToOwner(PathEx.join(stagingDirectory, 'templates'));
 
     const bootstrapPropertiesPath: string = PathEx.join(stagingDirectory, 'templates', 'bootstrap.properties');
     await this.updateBoostrapPropertiesWithChainId(bootstrapPropertiesPath, resolvedStagingOptions.chainId);
@@ -543,7 +548,11 @@ export class ProfileManager {
       fileText.split('\n'),
     );
 
-    const streamMode: string = constants.BLOCK_STREAM_STREAM_MODE;
+    const streamMode: string = Helpers.resolveBlockStreamModeForConsensusVersion(
+      Helpers.parseBlockStreamMode(lines.join('\n')),
+      this.remoteConfig.configuration.versions.consensusNode,
+      hasDeployedBlockNodes,
+    );
     const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
 
     let streamModeUpdated: boolean = false;
@@ -717,8 +726,11 @@ export class ProfileManager {
         return undefined;
       }
 
-      const pod: Pod = pods[0];
-      const podReference: PodReference = pod.podReference;
+      const pod: Pod | undefined = pods.find((candidate: Pod): boolean => Boolean(candidate?.podReference)) ?? pods[0];
+      const podReference: PodReference | null | undefined = pod?.podReference;
+      if (!podReference) {
+        return undefined;
+      }
 
       // Get container reference
       const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
@@ -792,7 +804,6 @@ export class ProfileManager {
    * @param nodeAccountMap - the map of node aliases to account IDs
    * @param consensusNodes - the list of consensus nodes
    * @param destinationPath
-   * @param releaseTagOverride - release tag override
    * @param [appName] - the app name (default: HederaNode.jar)
    * @param [chainId] - chain ID (298 for local network)
    * @returns the config.txt file path
@@ -801,18 +812,12 @@ export class ProfileManager {
     nodeAccountMap: Map<NodeAlias, string>,
     consensusNodes: ConsensusNode[],
     destinationPath: string,
-    releaseTagOverride: string,
     appName: string = constants.HEDERA_APP_NAME,
     chainId: string = constants.HEDERA_CHAIN_ID,
     gossipFqdnRestricted: boolean = true,
   ): Promise<string> {
-    let releaseTag: string = releaseTagOverride;
     if (!nodeAccountMap || nodeAccountMap.size === 0) {
       throw new SoloErrors.validation.missingArgument('nodeAccountMap the map of node IDs to account IDs is required');
-    }
-
-    if (!releaseTag) {
-      releaseTag = versions.HEDERA_PLATFORM_VERSION;
     }
 
     if (!fs.existsSync(destinationPath)) {
@@ -832,18 +837,12 @@ export class ProfileManager {
     const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
     const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
-    const releaseVersion: SemanticVersion<string> = new SemanticVersion(releaseTag);
-
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
 
       let nodeSeq: number = 0;
       for (const consensusNode of consensusNodes) {
-        const internalIP: string = helpers.getInternalAddress(
-          releaseVersion,
-          NamespaceName.of(consensusNode.namespace),
-          consensusNode.name as NodeAlias,
-        );
+        const internalIP: string = constants.LOCAL_HOST;
 
         // First try to extract endpoint from saved state (migration scenario)
         let address: Address | undefined = await this.extractSavedEndpoint(consensusNode, nodeSeq);
@@ -867,11 +866,6 @@ export class ProfileManager {
         nodeSeq += 1;
       }
 
-      // TODO: remove once we no longer need less than v0.56
-      if (releaseVersion.minor >= 41 && releaseVersion.minor < 56) {
-        configLines.push(`nextNodeId, ${nodeSeq}`);
-      }
-
       fs.writeFileSync(configFilePath, configLines.join('\n'));
       return configFilePath;
     } catch (error: Error | unknown) {
@@ -886,7 +880,7 @@ export class ProfileManager {
     applicationPropertiesPath: string,
   ): Promise<boolean> {
     const firstNode: ConsensusNode | undefined = consensusNodes[0];
-    return await helpers.resolveGossipFqdnRestricted({
+    return await Helpers.resolveGossipFqdnRestricted({
       k8: firstNode ? this.k8Factory.getK8(firstNode.context) : undefined,
       namespace: firstNode ? NamespaceName.of(firstNode.namespace) : undefined,
       applicationPropertiesPath,
