@@ -8,12 +8,10 @@ import {type KeyManager} from '../key-manager.js';
 import {type ToJSON} from '../../types/index.js';
 import {type JsonString, type NodeAlias} from '../../types/aliases.js';
 import {GenesisNetworkRosterEntryDataWrapper} from './genesis-network-roster-entry-data-wrapper.js';
-import {Templates} from '../templates.js';
 import {SoloErrors} from '../errors/solo-errors.js';
 import {Flags as flags} from '../../commands/flags.js';
 import {type AccountManager} from '../account-manager.js';
 import {type ConsensusNode} from '../model/consensus-node.js';
-import {PathEx} from '../../business/utils/path-ex.js';
 import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {type NetworkNodeServices} from '../network-node-services.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
@@ -30,7 +28,6 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     private readonly consensusNodes: ConsensusNode[],
     private readonly keyManager: KeyManager,
     private readonly accountManager: AccountManager,
-    private readonly keysDirectory: string,
     public networkNodeServiceMap: NodeServiceMapping,
     public adminPublicKeyMap: Map<NodeAlias, string>,
     public domainNamesMapping?: Record<NodeAlias, string>,
@@ -98,7 +95,6 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     consensusNodes: ConsensusNode[],
     keyManager: KeyManager,
     accountManager: AccountManager,
-    keysDirectory: string,
     networkNodeServiceMap: NodeServiceMapping,
     adminPublicKeys: string[],
     domainNamesMapping?: Record<NodeAlias, string>,
@@ -127,7 +123,6 @@ export class GenesisNetworkDataConstructor implements ToJSON {
       consensusNodes,
       keyManager,
       accountManager,
-      keysDirectory,
       networkNodeServiceMap,
       adminPublicKeyMap,
       domainNamesMapping,
@@ -145,9 +140,8 @@ export class GenesisNetworkDataConstructor implements ToJSON {
     await this.initializationPromise;
     await Promise.all(
       this.consensusNodes.map(async consensusNode => {
-        const signingCertFile = Templates.renderGossipPemPublicKeyFile(consensusNode.name as NodeAlias);
-        const signingCertFullPath = PathEx.joinWithRealPath(this.keysDirectory, signingCertFile);
-        const derCertificate = this.keyManager.getDerFromPemCertificate(signingCertFullPath);
+        const signingCertPem: string = await this.accountManager.getGossipPublicKeyPem(consensusNode);
+        const derCertificate = this.keyManager.getDerFromPem(signingCertPem);
 
         //* Assign the DER formatted certificate
         this.rosters[consensusNode.name].gossipCaCertificate = this.nodes[consensusNode.name].gossipCaCertificate =
