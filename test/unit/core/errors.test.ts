@@ -8,6 +8,7 @@ import {ResourceNotFoundError} from '../../../src/core/errors/classes/system/res
 import {MissingArgumentError} from '../../../src/core/errors/classes/validation/missing-argument-error.js';
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import {DataValidationError} from '../../../src/core/errors/classes/internal/data-validation-error.js';
+import {SdkPingFailedSoloError} from '../../../src/core/errors/classes/component/sdk-ping-failed-solo-error.js';
 
 describe('Errors', (): void => {
   const message: string = 'errorMessage';
@@ -63,5 +64,13 @@ describe('Errors', (): void => {
     );
     expect(error.cause).to.deep.equal({});
     expect(error.meta).to.deep.equal({expected, found});
+  });
+
+  it('should include the last consensus node platform status in SdkPingFailedSoloError', (): void => {
+    const error: SdkPingFailedSoloError = new SdkPingFailedSoloError('127.0.0.1:30213', 5, cause, 'STARTING_UP');
+    expect(error).to.be.instanceof(SoloError);
+    expect(error.message).to.equal(
+      'SDK ping to network node 127.0.0.1:30213 failed after 5 retries; last consensus node platform status: STARTING_UP',
+    );
   });
 });
