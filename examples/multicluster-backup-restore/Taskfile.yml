@@ -475,7 +475,7 @@ tasks:
           MAX_ATTEMPTS=30
           for i in $(seq 1 $MAX_ATTEMPTS); do
             RESPONSE=$(curl -sf "http://localhost:38081/api/v1/transactions?timestamp=gt:${START_TIME}.0&limit=1" 2>/dev/null || true)
-            if echo "$RESPONSE" | grep -q '"transactionId"'; then
+            if echo "$RESPONSE" | grep -q '"transaction_id"'; then
               echo "✅ Transaction confirmed in mirror REST API"
               break
             fi
