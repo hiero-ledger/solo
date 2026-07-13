@@ -36,6 +36,8 @@ import {K8ClientManifests} from './resources/manifest/k8-client-manifests.js';
 import {type Rbacs} from '../resources/rbac/rbacs.js';
 import {K8ClientRbacs} from './resources/rbac/k8-client-rbacs.js';
 import {NoKubeConfigContextError} from '../../../business/runtime-state/errors/no-kube-config-context-error.js';
+import {type StorageClasses} from '../resources/storage-class/storage-classes.js';
+import {K8ClientStorageClasses} from './resources/storage-class/k8-client-storage-classes.js';
 
 /**
  * A kubernetes API wrapper class providing custom functionalities required by solo
@@ -51,6 +53,7 @@ export class K8Client implements K8 {
   private networkingApi!: k8s.NetworkingV1Api;
   private rbacApi!: k8s.RbacAuthorizationV1Api;
   private k8sObjectApi!: k8s.KubernetesObjectApi;
+  private storageApi!: k8s.StorageV1Api;
   private k8Leases: Leases;
   private k8Clusters: Clusters;
   private k8ConfigMaps: ConfigMaps;
@@ -66,6 +69,7 @@ export class K8Client implements K8 {
   private k8Crds: Crds;
   private k8Rbacs: Rbacs;
   private k8Manifests: K8ClientManifests;
+  private k8StorageClasses!: StorageClasses;
 
   /**
    * Create a new k8Factory client for the given context, if context is undefined it will use the current context in kubeconfig
@@ -97,6 +101,7 @@ export class K8Client implements K8 {
     this.extensionApi = this.kubeConfig.makeApiClient(k8s.ApiextensionsV1Api);
     this.rbacApi = this.kubeConfig.makeApiClient(k8s.RbacAuthorizationV1Api);
     this.k8sObjectApi = this.kubeConfig.makeApiClient(k8s.KubernetesObjectApi);
+    this.storageApi = this.kubeConfig.makeApiClient(k8s.StorageV1Api);
 
     this.k8Clusters = new K8ClientClusters(this.kubeConfig);
     this.k8ConfigMaps = new K8ClientConfigMaps(this.kubeClient);
@@ -113,6 +118,7 @@ export class K8Client implements K8 {
     this.k8Crds = new K8ClientCrds(this.extensionApi);
     this.k8Rbacs = new K8ClientRbacs(this.rbacApi);
     this.k8Manifests = new K8ClientManifests(this.k8sObjectApi);
+    this.k8StorageClasses = new K8ClientStorageClasses(this.storageApi);
 
     return this;
   }
@@ -206,6 +212,10 @@ export class K8Client implements K8 {
 
   public manifests(): K8ClientManifests {
     return this.k8Manifests;
+  }
+
+  public storageClasses(): StorageClasses {
+    return this.k8StorageClasses;
   }
 
   public getKubectlExecutablePath(): string {

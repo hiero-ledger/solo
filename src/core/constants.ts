@@ -536,6 +536,9 @@ export const APPLICATION_PROPERTIES: string = 'application.properties';
 export const APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER: string = 'SOLO_ENABLE_OVERWRITE=true';
 export const BLOCK_NODES_JSON_FILE: string = 'block-nodes.json';
 export const NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME: string = 'network-node-data-config-cm';
+export const LOCAL_PATH_PROVISIONER: string = 'rancher.io/local-path';
+export const LOCAL_PATH_STORAGE_CLASS: string = 'local-path';
+
 export const enum StorageType {
   MINIO_ONLY = 'minio_only',
   AWS_ONLY = 'aws_only',
