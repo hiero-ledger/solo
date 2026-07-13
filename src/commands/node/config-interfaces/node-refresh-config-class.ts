@@ -7,7 +7,7 @@ import {type NodeCommonConfigWithNodeAliases} from './node-common-config-with-no
 export interface NodeRefreshConfigClass extends NodeCommonConfigWithNodeAliases {
   app: string;
   cacheDir: string;
-  devMode: boolean;
+  debugMode: boolean;
   localBuildPath: string;
   releaseTag: string;
   podRefs: Record<NodeAlias, PodReference>;

@@ -129,6 +129,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   FILE_CONTENT_MISMATCH: 'SOLO-3088',
   NODE_SERVICE_NOT_FOUND: 'SOLO-3089',
   BLOCK_NODE_JFR_COLLECTION_FAILED: 'SOLO-3090',
+  GOSSIP_KEY_SECRET_RESTORE_FAILED: 'SOLO-3091',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -299,4 +300,5 @@ export const ErrorCodeRegistry: Record<string, string> = {
   REMOTE_CONFIG_CONTEXT_UNAVAILABLE: 'SOLO-9010',
   CACHE_IMAGE_TEMPLATE_UNDECLARED: 'SOLO-9011',
   INJECTED_FAILURE: 'SOLO-9012',
+  PIPELINE_CANCELLED: 'SOLO-9013',
 } as const;
