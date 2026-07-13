@@ -429,8 +429,8 @@ jobs:
           # buffer.  SmartContractLoadTest is temporarily disabled (hiero-block-node#3150): it
           # pushes the cumulative ring fill to ~4.83 M, overflowing the 4 M buffer and freezing
           # the mirror importer.  With only tests 1–4 enabled, fill stays under 4 M.
-          # Measured peak (run 29115871280): block-node 3 066 MB + other pods ~2 558 MB = 5 624 MB.
-          # 7 000 MB leaves headroom while still catching real memory leaks.
+          # Measured peak (run 29258283555): 6 134 MiB total cluster memory.
+          # 7 000 MB (= 6 134 + 1 000 rounded to nearest 500) leaves headroom while still catching real memory leaks.
           MAX_MEMORY_MB=7000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"
