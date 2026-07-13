@@ -18,9 +18,9 @@ enforced repeatedly across the project so reviews stay consistent whether they'r
 
 ## When to use
 
-* The user supplies a PR number, PR URL, branch name, commit range, or file list and asks for a review.
-* The user asks "what would you flag in this change?", "review my branch", or similar.
-* The user is the PR author preparing to push and wants a self-review pass.
+- The user supplies a PR number, PR URL, branch name, commit range, or file list and asks for a review.
+- The user asks "what would you flag in this change?", "review my branch", or similar.
+- The user is the PR author preparing to push and wants a self-review pass.
 
 Do **not** use for: greenfield architecture proposals (use `architecture-designer`), security-only audits (use
 `security-review`), or generic non-Solo TypeScript reviews (use `code-reviewer`).
@@ -46,11 +46,11 @@ Open these before writing any feedback. They are the rulebook — the review mus
    DRY violations, exported functions, generic-flag wording, error-handling drift, missing Windows support, etc.) before
    getting into line-by-line nits.
 4. **Line pass.** Read the actual diff. For each finding, decide:
-   * **Critical** — bug, security issue, data loss, broken backwards compatibility, build/CI break.
-   * **Major** — design/architecture issue, DRY/SOLID violation, missing default behavior, cross-platform regression,
+   - **Critical** — bug, security issue, data loss, broken backwards compatibility, build/CI break.
+   - **Major** — design/architecture issue, DRY/SOLID violation, missing default behavior, cross-platform regression,
      drift from existing patterns.
-   * **Minor** — naming, comment hygiene, suggestion-block one-liners.
-   * **Question** — something that looks off but might have a reason. Ask before claiming.
+   - **Minor** — naming, comment hygiene, suggestion-block one-liners.
+   - **Question** — something that looks off but might have a reason. Ask before claiming.
 5. **Test pass.** Are there tests? Are they unit (cheap, fast) or did the author reach for E2E/nightly when a unit test
    would do? Flag missing unit coverage explicitly.
 6. **Write the report.** Use the template in §Output. Lead with the critical/major findings; line-level suggestion
@@ -89,13 +89,13 @@ For URL-only inputs, parse the PR number out of the URL and use `gh pr view` / `
 
 **Token-efficiency tips:**
 
-* `gh pr view --json files` returns the file list with line counts — use it to decide which files to fetch full diffs
+- `gh pr view --json files` returns the file list with line counts — use it to decide which files to fetch full diffs
   for, instead of pulling the whole PR diff up front.
-* For exact line numbers in *inline-comment-anchor positions*, prefer `gh pr diff <num> -- <path>` over fetching the
+- For exact line numbers in *inline-comment-anchor positions*, prefer `gh pr diff <num> -- <path>` over fetching the
   entire file via `gh api .../contents/...`. The diff already shows line numbers on the RIGHT side.
-* Only fetch a full file via `gh api 'repos/<owner>/<repo>/contents/<path>?ref=<sha>' --jq '.content' | base64 -d` when
+- Only fetch a full file via `gh api 'repos/<owner>/<repo>/contents/<path>?ref=<sha>' --jq '.content' | base64 -d` when
   you genuinely need surrounding context the diff doesn't show.
-* When iterating over multiple lookups, batch them into a single Bash call (one shell, multiple `gh api` invocations)
+- When iterating over multiple lookups, batch them into a single Bash call (one shell, multiple `gh api` invocations)
   rather than separate tool calls.
 
 ## How to post the review
@@ -112,7 +112,7 @@ automatically would post a review attributed to the human without giving them a 
 
 POST one review with all inline comments embedded and **no `event` field** — that creates the review
 in `PENDING` state with every comment attached. This is one HTTP call and avoids the
-"user\_id can only have one pending review per pull request" failure that hits the multi-step flow
+"user_id can only have one pending review per pull request" failure that hits the multi-step flow
 when a pending review already exists.
 
 1. **Check for an existing pending review.** If one exists for the current reviewer, delete it
@@ -155,21 +155,21 @@ when a pending review already exists.
 
 4. **Tell the user what to do next.** End the turn with a short message that:
 
-* Links to the pending review (`html_url` from the response).
-* States that the review is queued in PENDING state with N inline comments + summary.
-* Asks them to open it in GitHub, vet/edit the comments, and choose **Comment**,
+- Links to the pending review (`html_url` from the response).
+- States that the review is queued in PENDING state with N inline comments + summary.
+- Asks them to open it in GitHub, vet/edit the comments, and choose **Comment**,
   **Approve**, or **Request changes** themselves.
-* Does **not** call any API to submit, dismiss, or otherwise change the review state.
+- Does **not** call any API to submit, dismiss, or otherwise change the review state.
 
 ### What never to do
 
-* **Never** POST `/reviews/<id>/events` with `event=COMMENT`/`APPROVE`/`REQUEST_CHANGES` —
+- **Never** POST `/reviews/<id>/events` with `event=COMMENT`/`APPROVE`/`REQUEST_CHANGES` —
   that submits the review. The user submits, not the skill.
-* **Never** include an `event` field on the initial review POST for any value other than
+- **Never** include an `event` field on the initial review POST for any value other than
   omitting it. (`event=PENDING` is rejected as an invalid enum value.)
-* **Never** use `gh pr comment`, `gh pr review --body`, or POST to `/issues/<n>/comments` —
+- **Never** use `gh pr comment`, `gh pr review --body`, or POST to `/issues/<n>/comments` —
   those create orphan comments outside the review thread.
-* **Never** start a second pending review when one already exists. Delete the old one first
+- **Never** start a second pending review when one already exists. Delete the old one first
   (step 1) or the POST fails with HTTP 422.
 
 ## Output template
@@ -216,30 +216,30 @@ one-click apply.
 
 ### MUST
 
-* Post the review as a single PR review in **PENDING** state, with every inline finding attached
+- Post the review as a single PR review in **PENDING** state, with every inline finding attached
   as a review comment and the summary verdict as the review body.
-* End the turn by linking the pending review and asking the user to vet and submit it themselves.
-* Cite the rule being applied (style-guide section, eslint rule, or prior PR convention) for every Critical and Major
+- End the turn by linking the pending review and asking the user to vet and submit it themselves.
+- Cite the rule being applied (style-guide section, eslint rule, or prior PR convention) for every Critical and Major
   finding.
-* Prefer fixing existing methods over adding new ones when they overlap (DRY).
-* Push back when a CLI flag description leaks command-specific context — flags belong to the whole CLI.
-* Ask "is this a workaround?" whenever the change adds polling loops, sleep/wait, or `kubectl exec` of imperative shell
+- Prefer fixing existing methods over adding new ones when they overlap (DRY).
+- Push back when a CLI flag description leaks command-specific context — flags belong to the whole CLI.
+- Ask "is this a workaround?" whenever the change adds polling loops, sleep/wait, or `kubectl exec` of imperative shell
   sequences against application state.
-* Flag any `.github/` script that isn't TypeScript or lacks an SPDX header.
-* Flag any binding of `main` to an `alpha` / `rc` / `-snapshot` upstream version.
+- Flag any `.github/` script that isn't TypeScript or lacks an SPDX header.
+- Flag any binding of `main` to an `alpha` / `rc` / `-snapshot` upstream version.
 
 ### MUST NOT
 
-* **Submit the review.** Never POST `/reviews/<id>/events` and never set `event` on the review-create
+- **Submit the review.** Never POST `/reviews/<id>/events` and never set `event` on the review-create
   call. The user submits. Phrasing like "Approve", "Request changes", or "Comment" belongs in the
   summary body for the user to choose from — the skill never makes the submit call itself.
-* Block on personal style preferences when a linter or formatter already enforces (or doesn't enforce) the choice.
-* Repeat the same comment on every occurrence — leave one comment with "applies in N other places" and list them.
-* Demand renames or refactors in files the PR didn't otherwise touch.
-* Wave through an exported **function** just because the module already has others. `export function …`
+- Block on personal style preferences when a linter or formatter already enforces (or doesn't enforce) the choice.
+- Repeat the same comment on every occurrence — leave one comment with "applies in N other places" and list them.
+- Demand renames or refactors in files the PR didn't otherwise touch.
+- Wave through an exported **function** just because the module already has others. `export function …`
   or `export const fn = () => …` at module scope is a Major finding every time — cite §10.3.1 and the
   `solo/no-exported-function` lint rule (a hard **error** under `src/integration/**`, a warning elsewhere).
   The "local pattern" leniency applies **only** to exported **constants, types, and simple factories**
   (pure data), which §3.4.5 explicitly permits — never to behavior functions.
-* Post findings as standalone PR comments (`gh pr comment`), issue comments, or one-off review
+- Post findings as standalone PR comments (`gh pr comment`), issue comments, or one-off review
   comments outside the pending review — every comment must ride along with the single review.

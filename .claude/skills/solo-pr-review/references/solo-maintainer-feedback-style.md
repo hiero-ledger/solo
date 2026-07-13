@@ -2,23 +2,23 @@
 
 How to write comments so they read like the Solo lead wrote them.
 
-***
+---
 
 ## Voice
 
-* **Direct, lowercase-leaning, conversational.** First-person plural ("we should…", "we need to…") when the convention
+- **Direct, lowercase-leaning, conversational.** First-person plural ("we should…", "we need to…") when the convention
   belongs to the team; first-person singular ("I think…", "I'm concerned…", "I could not figure out…") when stating an
   opinion or recounting prior work.
-* **Short.** Most comments are one or two sentences. Long comments are reserved for proposals where the depth is
+- **Short.** Most comments are one or two sentences. Long comments are reserved for proposals where the depth is
   load-bearing.
-* **Specific, not generic.** "this seems like a duplicate of `applyManifest`" beats "this looks duplicated." Always name
+- **Specific, not generic.** "this seems like a duplicate of `applyManifest`" beats "this looks duplicated." Always name
   the existing thing.
-* **No hedging filler.** Drop "perhaps you might want to consider possibly…" in favor of "consider …" or just the
+- **No hedging filler.** Drop "perhaps you might want to consider possibly…" in favor of "consider …" or just the
   suggestion block.
-* **Acknowledge when the author taught you something.** "thank you for a clear explanation, this really helped me
+- **Acknowledge when the author taught you something.** "thank you for a clear explanation, this really helped me
   understand" is real — use it when warranted.
 
-***
+---
 
 ## Format preferences
 
@@ -26,12 +26,12 @@ How to write comments so they read like the Solo lead wrote them.
 
 GitHub suggestion blocks let the author one-click apply. Use them for:
 
-* Naming fixes
-* License-header additions
-* Replacing literals with constants
-* Replacing inline options with `constants.LISTR_DEFAULT_OPTIONS.DEFAULT`-style references
-* Generic-ifying CLI flag descriptions
-* Removing transient comments
+- Naming fixes
+- License-header additions
+- Replacing literals with constants
+- Replacing inline options with `constants.LISTR_DEFAULT_OPTIONS.DEFAULT`-style references
+- Generic-ifying CLI flag descriptions
+- Removing transient comments
 
 Pattern:
 
@@ -54,9 +54,9 @@ If the change makes the diff *smaller* (removing a line), use an empty suggestio
 
 When unsure whether something is wrong:
 
-* "what is the use case scenario for `<X>`?"
-* "did we already `<Y>`? If we did, were we missing some flags that would take care of this for us?"
-* "are there other options that can avoid `<bad pattern>`?"
+- "what is the use case scenario for `<X>`?"
+- "did we already `<Y>`? If we did, were we missing some flags that would take care of this for us?"
+- "are there other options that can avoid `<bad pattern>`?"
 
 This lets the author defend the choice if there's a reason you don't see, instead of forcing them to argue against a
 verdict.
@@ -65,9 +65,9 @@ verdict.
 
 When citing prior work or related PRs, link directly:
 
-* "current main branch will fail, but the changes in my PR should handle
+- "current main branch will fail, but the changes in my PR should handle
   it: https://github.com/hiero-ledger/solo/pull/3427"
-* "You might need some of my changes from this PR merged first: https://github.com/hiero-ledger/solo/pull/3427"
+- "You might need some of my changes from this PR merged first: https://github.com/hiero-ledger/solo/pull/3427"
 
 When citing the style guide, name the section: "Style guide §5.2.6" or "see `typescript-code-style.md` §3.3.4".
 
@@ -87,15 +87,15 @@ the others by file list. Don't paste the same block 17 times — it's noise.
 When a PR is solving the wrong problem (e.g., compensating for a misconfigured upstream image), don't just say "this is
 a workaround." Show the alternative:
 
-* Name the upstream repo and the file to change.
-* Quote relevant docs/specs (with links).
-* Sketch the concrete patch — directory layout, file contents, dockerfile diff.
-* Conclude with the bottom-line recommendation.
+- Name the upstream repo and the file to change.
+- Quote relevant docs/specs (with links).
+- Sketch the concrete patch — directory layout, file contents, dockerfile diff.
+- Conclude with the bottom-line recommendation.
 
 PR #3546's s6-overlay comment is the canonical example. Reserve this depth for changes where the workaround would
 otherwise become permanent.
 
-***
+---
 
 ## Sentence templates by situation
 
@@ -125,17 +125,17 @@ otherwise become permanent.
 | Author explained a non-obvious choice well    | "thank you for a clear explanation, this really helped me understand"                                                                                                                                                                                                                         |
 | Agreeing with a co-reviewer                   | "agreed" (quoting their comment)                                                                                                                                                                                                                                                              |
 
-***
+---
 
 ## What to avoid
 
-* Don't moralize. "this is wrong because clean code…" reads worse than "use `KubeApiResponse.throwError`."
-* Don't pile adjectives. "extremely concerning" and "really problematic" don't add information.
-* Don't end with "happy to discuss" — every comment is implicitly open to discussion.
-* Don't quote the entire diff back at the author. Quote one line, then comment.
-* Don't gate-keep on style choices the linter doesn't catch and the file's own history doesn't establish.
+- Don't moralize. "this is wrong because clean code…" reads worse than "use `KubeApiResponse.throwError`."
+- Don't pile adjectives. "extremely concerning" and "really problematic" don't add information.
+- Don't end with "happy to discuss" — every comment is implicitly open to discussion.
+- Don't quote the entire diff back at the author. Quote one line, then comment.
+- Don't gate-keep on style choices the linter doesn't catch and the file's own history doesn't establish.
 
-***
+---
 
 ## Verdict guidance
 

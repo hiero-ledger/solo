@@ -25,7 +25,6 @@ task -d examples/ledger-reset-smoke
 ```
 
 This runs:
-
 * `ledger account create` + mirror verification (pre/post reset)
 * `solo_smoke_test.sh` (pre/post reset) from `.github/workflows/script/solo_smoke_test.sh`
 
@@ -35,7 +34,6 @@ If you are not running inside a Solo repo checkout, the smoke script path is not
 In that case, validate reset with `ledger account create` + mirror verification only.
 
 Use the same flow, but skip the smoke-script steps:
-
 * deploy
 * pre-reset account create + mirror verify
 * reset
