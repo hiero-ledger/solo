@@ -634,8 +634,8 @@ export class AccountManager {
       for (const [clusterReference, context] of clusterReferences) {
         const serviceList: Service[] = await this.k8Factory.getK8(context).services().list(namespace, [labelSelector]);
         services.push(
-          ...serviceList.map(
-            (service): SoloService => SoloService.getFromK8Service(service, clusterReference, context, deployment),
+          ...serviceList.map((service): SoloService =>
+            SoloService.getFromK8Service(service, clusterReference, context, deployment),
           ),
         );
       }

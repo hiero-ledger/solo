@@ -1567,9 +1567,8 @@ export class NodeCommandTasks {
         const nodeAliases: NodeAliases = context_.config[aliasesField] as NodeAliases;
         const uniqueContexts: Context[] = [
           ...new Set(
-            nodeAliases.map(
-              (nodeAlias: NodeAlias): Context =>
-                extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes),
+            nodeAliases.map((nodeAlias: NodeAlias): Context =>
+              extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes),
             ),
           ),
         ];
@@ -2262,8 +2261,7 @@ export class NodeCommandTasks {
           );
           // TODO: 'ctx.config.stakeAmount' is never initialized in the config
           const stakeAmountConfig: string | undefined = (context_.config as AnyObject).stakeAmount as
-            | string
-            | undefined;
+            string | undefined;
           const stakeAmountParsed: string[] = stakeAmountConfig ? splitFlagInput(stakeAmountConfig) : [];
           let nodeIndex: number = 0;
           for (const nodeAlias of context_.config.nodeAliases) {
@@ -2789,15 +2787,14 @@ export class NodeCommandTasks {
     componentDisplayName: ComponentDisplayName,
     haProxyStates: HaProxyStateSchema[] = [],
   ): Promise<ComponentData>[] {
-    return states.map(
-      (state: BaseStateSchema): Promise<ComponentData> =>
-        this.getComponentData(
-          state,
-          componentDisplayName,
-          haProxyStates.find(
-            (haProxyState: HaProxyStateSchema): boolean => haProxyState.metadata.id === state.metadata.id,
-          ),
+    return states.map((state: BaseStateSchema): Promise<ComponentData> =>
+      this.getComponentData(
+        state,
+        componentDisplayName,
+        haProxyStates.find(
+          (haProxyState: HaProxyStateSchema): boolean => haProxyState.metadata.id === state.metadata.id,
         ),
+      ),
     );
   }
 
@@ -4621,9 +4618,8 @@ export class NodeCommandTasks {
     };
 
     const matches: ProcessInfo[][] = await Promise.all(
-      processNames.map(
-        async (processName): Promise<ProcessInfo[]> =>
-          find('name', processName, findConfig).catch((): ProcessInfo[] => []),
+      processNames.map(async (processName): Promise<ProcessInfo[]> =>
+        find('name', processName, findConfig).catch((): ProcessInfo[] => []),
       ),
     );
 
