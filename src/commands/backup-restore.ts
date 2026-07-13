@@ -1971,13 +1971,12 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Resets BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000 in the BN ConfigMap, wipes block-node
-   * data/ and the stale TSS roster, then restarts the pod so block-node enters
-   * streamBeforeEmbOrElse mode (lastPersistedBlockNumber=-1 < EMB=100000000).
-   * In that mode block-node accepts and persists all blocks from CN without TSS verification,
-   * exactly matching initial-deploy behaviour. BlockHasher writes a fresh
-   * tss-bootstrap-roster.json from the first properly TSS-signed block; subsequent blocks
-   * are then verified normally.
+   * Makes block-node identical to a fresh pod by resetting EMB=100000000 in the ConfigMap and
+   * wiping data/ plus all TSS application-state files.  This puts BN into streamBeforeEmbOrElse
+   * mode (lastPersistedBlockNumber=-1, no TSS key material) so it accepts and persists all
+   * incoming blocks from CN without running StateProofVerifier.  Without wiping tss-parameters.bin
+   * and block-ranges.json, StateProofVerifier fires with the backup's TSS keys and rejects
+   * CN's post-restore TRANSITION blocks (BAD_BLOCK_PROOF, hiero-consensus-node#26299).
    */
   private async applyBlockNodeRestoreFixes(_namespace: NamespaceName): Promise<void> {
     const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
@@ -2048,21 +2047,36 @@ export class BackupRestoreCommand extends BaseCommand {
       // Wipe data/ AND the stale TSS roster so block-node starts with lastPersistedBlockNumber=-1
       // (streamBeforeEmbOrElse mode with EMB=100000000).  In streamBeforeEmbOrElse, block-node
       // accepts all incoming blocks from CN without TSS verification — identical to the initial-deploy
-      // startup where block-node also starts with empty data and no roster.  The verification plugin
-      // remains present so block-node writes blocks to disk (removing it causes blocks to be
+      // startup where block-node also starts with empty data and no TSS state.  The verification
+      // plugin remains present so block-node writes blocks to disk (removing it causes blocks to be
       // processed in memory only and never persisted).  BlockHasher writes a fresh
       // tss-bootstrap-roster.json from the first properly TSS-signed block CN sends; subsequent
       // blocks are then verified normally.
       //
-      // The backed-up roster is stale after CN's unconditional TSS re-keying
-      // (hiero-consensus-node#26299), so it is deleted rather than restored.
+      // All application-state TSS files are wiped so BN is truly identical to a fresh pod:
+      //   tss-bootstrap-roster.json — stale after CN's unconditional TSS re-keying (CN#26299)
+      //   tss-parameters.bin       — provides TSS key material to StateProofVerifier; present
+      //                              after restore (exported from backup), absent on initial deploy;
+      //                              with it present StateProofVerifier runs and rejects TRANSITION
+      //                              blocks (paths.size()=1) with BAD_BLOCK_PROOF
+      //   block-ranges.json        — persists lastPersistedBlockNumber; after restore it records
+      //                              the pre-wipe lastBlock (e.g. 162), preventing streamBefore-
+      //                              EmbOrElse from treating the node as truly empty
+      //   rootHashOfAllPreviousBlocks.bin — cumulative hash; stale after data wipe
       await container.execContainer([
         'sh',
         '-c',
-        'rm -rf /opt/hiero/block-node/data/* /opt/hiero/block-node/application-state/tss-bootstrap-roster.json 2>/dev/null || true',
+        [
+          'rm -rf /opt/hiero/block-node/data/*',
+          '/opt/hiero/block-node/application-state/tss-bootstrap-roster.json',
+          '/opt/hiero/block-node/application-state/tss-parameters.bin',
+          '/opt/hiero/block-node/application-state/block-ranges.json',
+          '/opt/hiero/block-node/application-state/rootHashOfAllPreviousBlocks.bin',
+          '2>/dev/null || true',
+        ].join(' '),
       ]);
       this.logger.info(
-        `Wiped block node data/ and stale roster for ${podName}; streamBeforeEmbOrElse mode active, blocks will be written to disk`,
+        `Wiped block node data/ and TSS application-state for ${podName}; BN is now identical to a fresh pod, streamBeforeEmbOrElse mode will activate`,
       );
 
       // Restart so the block node re-scans data/ and picks up the restored block ranges.
