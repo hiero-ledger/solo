@@ -418,6 +418,11 @@ export class AccountManager {
       let localForwardPort: number = localPort;
 
       if (this._portForwards.length < totalNodes) {
+        const pod: Pod = this.k8Factory
+          .getK8(networkNodeService.context)
+          .pods()
+          .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName));
+
         let portHeld: boolean = false;
         try {
           portHeld = !(await PortUtilities.isPortAvailable(localPort));
@@ -426,18 +431,10 @@ export class AccountManager {
           portHeld = false;
         }
         if (portHeld) {
-          await this.k8Factory
-            .getK8(networkNodeService.context)
-            .pods()
-            .readByReference(null)
-            .stopPortForward(localPort);
+          await pod.stopPortForward(localPort);
         }
 
-        localForwardPort = await this.k8Factory
-          .getK8(networkNodeService.context)
-          .pods()
-          .readByReference(PodReference.of(networkNodeService.namespace, networkNodeService.haProxyPodName))
-          .portForward(localPort, port);
+        localForwardPort = await pod.portForward(localPort, port);
         this._portForwards.push(localForwardPort);
         this.logger.debug(`using local host port forward: ${host}:${localForwardPort}`);
       }
