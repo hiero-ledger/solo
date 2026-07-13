@@ -9,7 +9,7 @@ export interface NodeSetupConfigClass extends NodeCommonConfigWithNodeAliases {
   appConfig: string;
   adminKey: string;
   cacheDir: string;
-  devMode: boolean;
+  debugMode: boolean;
   localBuildPath: string;
   releaseTag: string;
   podRefs: Record<NodeAlias, PodReference>;
