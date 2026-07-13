@@ -485,6 +485,46 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
         {
+          title: 'Export CN TSS keys',
+          task: async (_, task): Promise<void> => {
+            // Back up each consensus node's TSS key directory so that applyBlockNodeRestoreFixes
+            // can restore it after cluster recreate.  After recreate, KIND PVs are deleted, so CN
+            // would run DKG and generate a new wrapsVerificationKey.  BN's backed-up
+            // tss-bootstrap-roster.json holds the OLD key → BAD_BLOCK_PROOF for the first WRAPS
+            // block.  Restoring these key files makes CN reuse the original DKG material so BN's
+            // tss-bootstrap-roster.json remains valid.
+            let exportCount: number = 0;
+            for (const node of consensusNodes) {
+              const context: Context = extractContextFromConsensusNodes(node.name, consensusNodes);
+              const cnContainer: Container = await new K8Helper(context).getConsensusNodeRootContainer(
+                namespace,
+                node.name,
+              );
+              const nodeDataDirectory: string = PathEx.join(outputDirectory, node.cluster, 'nodeData', node.name);
+              fs.mkdirSync(nodeDataDirectory, {recursive: true});
+              const tssKeyPath: string = `${constants.HEDERA_HAPI_PATH}/data/keys/tss`;
+              const archiveInPod: string = '/tmp/tss-keys.tar.gz';
+              await cnContainer
+                .execContainer([
+                  'sh',
+                  '-c',
+                  `test -d "${tssKeyPath}" && tar czf "${archiveInPod}" -C "${constants.HEDERA_HAPI_PATH}/data/keys" tss 2>/dev/null || true`,
+                ])
+                .catch((): string => '');
+              const archiveExists: boolean = await cnContainer.hasFile(archiveInPod).catch((): boolean => false);
+              if (archiveExists) {
+                await cnContainer.copyFrom(archiveInPod, nodeDataDirectory);
+                await cnContainer.execContainer(['sh', '-c', `rm -f "${archiveInPod}"`]).catch((): void => undefined);
+                exportCount++;
+                this.logger.info(`Exported TSS keys for ${node.name}`);
+              } else {
+                this.logger.info(`No TSS key directory for ${node.name}; CN has not completed DKG`);
+              }
+            }
+            task.title = `Export CN TSS keys: ${exportCount} of ${consensusNodes.length} node(s) exported`;
+          },
+        },
+        {
           title: 'Compress backup directory',
           skip: (): boolean => {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
@@ -2020,8 +2060,18 @@ export class BackupRestoreCommand extends BaseCommand {
    *   for every WRAPS block.  Block 159 (the first new block after restore) would then fail,
    *   and block 160 would park forever waiting for 159 to succeed.
    *   Fix: copy the backed-up tss-bootstrap-roster.json into application-state/ before
-   *   restarting.  The TSS ledger ID is deterministic for a fixed node set, so the backed-up
-   *   key is valid for post-restore WRAPS blocks even after CN's TSS re-keying.
+   *   restarting.  See Part 3 below for why the wrapsVerificationKey in the file must also
+   *   match the running CN's DKG output.
+   *
+   * Part 3 — CN TSS key files (tss-keys.tar.gz per node):
+   *   Even after restoring tss-bootstrap-roster.json, BAD_BLOCK_PROOF occurs for the first
+   *   WRAPS block if CN has regenerated its TSS keys.  KIND PVs are deleted when clusters are
+   *   destroyed (reclaim policy=Delete), so CN runs a fresh DKG on startup and produces a new
+   *   wrapsVerificationKey.  BN's backed-up tss-bootstrap-roster.json holds the OLD key →
+   *   TSSVerifier.verify() returns false → BAD_BLOCK_PROOF → lastVerifiedBlock stalls.
+   *   Fix: restore backed-up CN TSS key files (data/keys/tss/) before CN's first post-restore
+   *   start so CN reuses the original DKG material.  BN's tss-bootstrap-roster.json then
+   *   matches and all WRAPS blocks verify successfully.
    *
    * importConfigMaps() already restored the correct EMB from backup — do NOT overwrite it.
    */
@@ -2144,6 +2194,63 @@ export class BackupRestoreCommand extends BaseCommand {
             constants.PODS_READY_DELAY,
           );
       }
+    }
+
+    // Part 3: Restore CN TSS key files so tss-bootstrap-roster.json remains valid.
+    // After cluster recreate, KIND PVs are deleted (reclaim policy=Delete), so CN runs a fresh
+    // DKG and produces a new wrapsVerificationKey.  BN's backed-up tss-bootstrap-roster.json
+    // holds the OLD key → BAD_BLOCK_PROOF for every WRAPS block.
+    // Fix: extract the backed-up tss-keys.tar.gz into data/keys/ on each CN pod and restart the
+    // pod so CN reuses the original DKG material before streaming begins.
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+    for (const consensusNode of consensusNodes) {
+      const tssArchivePath: string = PathEx.join(
+        inputDirectory,
+        consensusNode.cluster,
+        'nodeData',
+        consensusNode.name,
+        'tss-keys.tar.gz',
+      );
+      if (!fs.existsSync(tssArchivePath)) {
+        this.logger.info(`No TSS key backup for ${consensusNode.name}; CN will run DKG on start`);
+        continue;
+      }
+      const cnContext: Context = extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
+      const cnContainer: Container = await new K8Helper(cnContext).getConsensusNodeRootContainer(
+        namespace,
+        consensusNode.name,
+      );
+      const archiveInPod: string = '/tmp/tss-keys.tar.gz';
+      const keysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+      await cnContainer.copyTo(tssArchivePath, '/tmp/');
+      await cnContainer
+        .execContainer([
+          'sh',
+          '-c',
+          `tar xzmf "${archiveInPod}" -C "${keysDirectory}" 2>/dev/null; rm -f "${archiveInPod}"; true`,
+        ])
+        .catch((): void => {
+          // best-effort: keys are likely extracted even with minor utime warnings on PVC mounts
+          this.logger.info(`TSS key extraction had warnings for ${consensusNode.name}; continuing with restart`);
+        });
+      this.logger.info(`Restored TSS keys for ${consensusNode.name}; CN will reuse original DKG keys`);
+
+      // Restart CN pod so it loads the restored key files before streaming begins.
+      const cnK8: K8 = this.k8Factory.getK8(cnContext);
+      const cnPodReference: PodReference = await new K8Helper(cnContext).getConsensusNodePodReference(
+        namespace,
+        consensusNode.name,
+      );
+      await cnK8.pods().delete(cnPodReference);
+      await cnK8
+        .pods()
+        .waitForReadyStatus(
+          namespace,
+          Templates.renderNodeLabelsFromNodeAlias(consensusNode.name),
+          constants.PODS_READY_MAX_ATTEMPTS,
+          constants.PODS_READY_DELAY,
+        );
+      this.logger.info(`CN pod restarted for ${consensusNode.name} with restored TSS keys`);
     }
   }
 
