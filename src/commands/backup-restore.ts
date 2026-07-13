@@ -1598,8 +1598,8 @@ export class BackupRestoreCommand extends BaseCommand {
       .readByRef(ContainerReference.of(pods[0].podReference, constants.BLOCK_NODE_CONTAINER_NAME));
 
     const firstAvailableAbove: number = await this.findLowestAvailableBlockAbove(blockNodeContainer, importerMax);
-    if (firstAvailableAbove < 0 || firstAvailableAbove === importerMax + 1) {
-      // No gap or no future blocks available; nothing to bridge.
+    if (firstAvailableAbove < 0) {
+      // No future blocks available yet; nothing to bridge.
       return false;
     }
 
@@ -1627,6 +1627,32 @@ export class BackupRestoreCommand extends BaseCommand {
       .getK8(externalDatabaseParameters.context)
       .containers()
       .readByRef(databaseContainerReference);
+
+    if (firstAvailableAbove === importerMax + 1) {
+      // No block gap, but post-restore CN TSS re-keying produces replayed blocks with different
+      // hashes from the backup copy in mirror's DB. Block (importerMax+1)'s previousHash diverges
+      // from record_file[importerMax].hash, causing HashMismatchException in the importer.
+      // Patch the boundary row so the chain check passes when mirror reads the first post-restore block.
+      await databaseContainer.execContainer([
+        'env',
+        `PGPASSWORD=${externalDatabaseParameters.ownerPassword}`,
+        'psql',
+        '-U',
+        externalDatabaseParameters.ownerUsername,
+        '-d',
+        externalDatabaseParameters.databaseName,
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-c',
+        `UPDATE record_file SET hash = '${boundaryHash}' WHERE index = ${importerMax};`,
+      ]);
+      this.logger.showUser(
+        chalk.gray(
+          `    Patched record_file[${importerMax}].hash → block ${firstAvailableAbove}'s previousHash (post-restore TSS re-keying)`,
+        ),
+      );
+      return true;
+    }
 
     const placeholderHash: string =
       '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fake';
