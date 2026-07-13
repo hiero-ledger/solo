@@ -2026,72 +2026,82 @@ export class BackupRestoreCommand extends BaseCommand {
    * importConfigMaps() already restored the correct EMB from backup — do NOT overwrite it.
    */
   private async applyBlockNodeRestoreFixes(inputDirectory: string): Promise<void> {
-    const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
-    if (blockNodes.length === 0) {
-      return;
-    }
+    // Discover block nodes from the backup directory rather than remote config state.
+    // state.blockNodes may be empty if the in-memory remote config was loaded before
+    // restore-network's block node add calls persisted to Kubernetes. The backup directory
+    // is the authoritative source: each cluster's blockNodeData/ holds one archive per pod.
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+    const namespace: NamespaceName = this.remoteConfig.getNamespace();
 
-    for (const blockNode of blockNodes) {
-      const blockNodeId: number = Number(blockNode.metadata.id);
-      const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
-      const blockNodeReleaseName: string = Templates.renderBlockNodeName(blockNodeId);
-      const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
+    for (const [clusterReference, blockNodeContext] of clusterReferences.entries()) {
+      const blockNodeDataDirectory: string = PathEx.join(inputDirectory, clusterReference, 'blockNodeData');
+      if (!fs.existsSync(blockNodeDataDirectory)) {
+        continue;
+      }
+
+      const archives: string[] = fs
+        .readdirSync(blockNodeDataDirectory)
+        .filter((fileName: string): boolean => fileName.endsWith('-blockNodeData.tar.gz'));
+
+      if (archives.length === 0) {
+        continue;
+      }
+
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
 
-      // StatefulSet pods are always named <releaseName>-0. Construct the reference
-      // directly rather than relying on a label-selector list, which can return
-      // empty if the pod is still initializing when restore-config runs.
-      const podName: string = `${blockNodeReleaseName}-0`;
-      const podReference: PodReference = PodReference.of(blockNodeNamespace, PodName.of(podName));
-      const containerReference: ContainerReference = ContainerReference.of(
-        podReference,
-        constants.BLOCK_NODE_CONTAINER_NAME,
-      );
-      const container: Container = k8.containers().readByRef(containerReference);
+      for (const archiveName of archives) {
+        // Archive is named {podName}-blockNodeData.tar.gz; the podName encodes the ID.
+        const podName: string = archiveName.slice(0, -'-blockNodeData.tar.gz'.length);
+        const idMatch: RegExpMatchArray | null = podName.match(/^block-node-(\d+)-\d+$/);
+        if (!idMatch) {
+          this.logger.info(`Skipping unexpected archive name: ${archiveName}`);
+          continue;
+        }
+        const blockNodeId: number = Number(idMatch[1]);
 
-      // Verify the pod is exec-able before attempting any container operations.
-      let podIsAccessible: boolean = false;
-      try {
-        await container.execContainer(['sh', '-c', 'true']);
-        podIsAccessible = true;
-      } catch {
-        // best-effort: pod may still be initializing; restart it first, then retry operations below
-        this.logger.info(`Block node pod ${podName} not accessible yet; will restart and retry`);
-      }
+        const podReference: PodReference = PodReference.of(namespace, PodName.of(podName));
+        const containerReference: ContainerReference = ContainerReference.of(
+          podReference,
+          constants.BLOCK_NODE_CONTAINER_NAME,
+        );
+        const container: Container = k8.containers().readByRef(containerReference);
 
-      if (!podIsAccessible) {
-        await k8
-          .pods()
-          .delete(podReference)
-          .catch((): void => {
-            // best-effort: pod may not exist, StatefulSet will recreate it
-            this.logger.info(`Delete of ${podName} failed (pod may not exist); StatefulSet will restart it`);
-          });
-        await k8
-          .pods()
-          .waitForReadyStatus(
-            blockNodeNamespace,
-            Templates.renderBlockNodeLabels(blockNodeId),
-            constants.PODS_READY_MAX_ATTEMPTS,
-            constants.PODS_READY_DELAY,
-          );
-      }
+        // Verify the pod is exec-able before attempting any container operations.
+        let podIsAccessible: boolean = false;
+        try {
+          await container.execContainer(['sh', '-c', 'true']);
+          podIsAccessible = true;
+        } catch {
+          // best-effort: pod may still be initializing; restart it first, then retry operations below
+          this.logger.info(`Block node pod ${podName} not accessible yet; will restart and retry`);
+        }
 
-      // Part 1: Copy the backup block data archive into the pod and extract it.
-      // Archive path: {inputDirectory}/{cluster}/blockNodeData/{podName}-blockNodeData.tar.gz
-      // Use -m (--touch) so tar does not restore modification times on directory entries;
-      // PVC-backed filesystems deny utime() on directories, causing tar to exit non-zero
-      // even though all files were extracted successfully.  The .catch() ensures the pod
-      // restart below always runs even if extraction reports warnings.
-      const blockDataArchiveName: string = `${podName}-blockNodeData.tar.gz`;
-      const localArchivePath: string = PathEx.join(
-        inputDirectory,
-        blockNode.metadata.cluster,
-        'blockNodeData',
-        blockDataArchiveName,
-      );
-      if (fs.existsSync(localArchivePath)) {
-        const archiveInPod: string = `/tmp/${blockDataArchiveName}`;
+        if (!podIsAccessible) {
+          await k8
+            .pods()
+            .delete(podReference)
+            .catch((): void => {
+              // best-effort: pod may not exist, StatefulSet will recreate it
+              this.logger.info(`Delete of ${podName} failed (pod may not exist); StatefulSet will restart it`);
+            });
+          await k8
+            .pods()
+            .waitForReadyStatus(
+              namespace,
+              Templates.renderBlockNodeLabels(blockNodeId),
+              constants.PODS_READY_MAX_ATTEMPTS,
+              constants.PODS_READY_DELAY,
+            );
+        }
+
+        // Part 1: Copy the backup block data archive into the pod and extract it.
+        // Archive path: {inputDirectory}/{cluster}/blockNodeData/{podName}-blockNodeData.tar.gz
+        // Use -m (--touch) so tar does not restore modification times on directory entries;
+        // PVC-backed filesystems deny utime() on directories, causing tar to exit non-zero
+        // even though all files were extracted successfully.  The .catch() ensures the pod
+        // restart below always runs even if extraction reports warnings.
+        const localArchivePath: string = PathEx.join(blockNodeDataDirectory, archiveName);
+        const archiveInPod: string = `/tmp/${archiveName}`;
         await container.copyTo(localArchivePath, '/tmp/');
         await container
           .execContainer([
@@ -2106,42 +2116,34 @@ export class BackupRestoreCommand extends BaseCommand {
         this.logger.info(
           `Restored block data archive to ${podName}; lastVerifiedBlock will initialise to the backed-up maximum`,
         );
-      } else {
-        this.logger.info(`No block data archive found at ${localArchivePath}; BN will start with empty data/`);
-      }
 
-      // Part 2: Copy the backed-up tss-bootstrap-roster.json into application-state/ so
-      // BlockNodeApp.loadApplicationState() provides TssData to all plugins on restart.
-      // Without this file, TSSVerifier returns MISSING_VERIFICATION_DATA for every WRAPS
-      // block and the first new post-restore block (159) can never be written to disk.
-      // Archive path: {inputDirectory}/{cluster}/blockNodeData/{podName}/tss-bootstrap-roster.json
-      const localTssFilePath: string = PathEx.join(
-        inputDirectory,
-        blockNode.metadata.cluster,
-        'blockNodeData',
-        podName,
-        'tss-bootstrap-roster.json',
-      );
-      if (fs.existsSync(localTssFilePath)) {
-        await container.copyTo(localTssFilePath, '/opt/hiero/block-node/application-state/').catch((): void => {
-          // best-effort: tss file copy failed; WRAPS verification may fail but block data restore still helps
-          this.logger.info(`TSS file copy failed for ${podName}; WRAPS blocks may not verify`);
-        });
-        this.logger.info(`Restored tss-bootstrap-roster.json to ${podName}; TSS data will be loaded on restart`);
-      } else {
-        this.logger.info(`No tss-bootstrap-roster.json found at ${localTssFilePath}; WRAPS blocks may not verify`);
-      }
+        // Part 2: Copy the backed-up tss-bootstrap-roster.json into application-state/ so
+        // BlockNodeApp.loadApplicationState() provides TssData to all plugins on restart.
+        // Without this file, TSSVerifier returns MISSING_VERIFICATION_DATA for every WRAPS
+        // block and the first new post-restore block (159) can never be written to disk.
+        // Archive path: {inputDirectory}/{cluster}/blockNodeData/{podName}/tss-bootstrap-roster.json
+        const localTssFilePath: string = PathEx.join(blockNodeDataDirectory, podName, 'tss-bootstrap-roster.json');
+        if (fs.existsSync(localTssFilePath)) {
+          await container.copyTo(localTssFilePath, '/opt/hiero/block-node/application-state/').catch((): void => {
+            // best-effort: tss file copy failed; WRAPS verification may fail but block data restore still helps
+            this.logger.info(`TSS file copy failed for ${podName}; WRAPS blocks may not verify`);
+          });
+          this.logger.info(`Restored tss-bootstrap-roster.json to ${podName}; TSS data will be loaded on restart`);
+        } else {
+          this.logger.info(`No tss-bootstrap-roster.json found at ${localTssFilePath}; WRAPS blocks may not verify`);
+        }
 
-      // Restart so block-node re-scans data/ and initialises lastVerifiedBlock correctly.
-      await k8.pods().delete(podReference);
-      await k8
-        .pods()
-        .waitForReadyStatus(
-          blockNodeNamespace,
-          Templates.renderBlockNodeLabels(blockNodeId),
-          constants.PODS_READY_MAX_ATTEMPTS,
-          constants.PODS_READY_DELAY,
-        );
+        // Restart so block-node re-scans data/ and initialises lastVerifiedBlock correctly.
+        await k8.pods().delete(podReference);
+        await k8
+          .pods()
+          .waitForReadyStatus(
+            namespace,
+            Templates.renderBlockNodeLabels(blockNodeId),
+            constants.PODS_READY_MAX_ATTEMPTS,
+            constants.PODS_READY_DELAY,
+          );
+      }
     }
   }
 
