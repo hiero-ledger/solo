@@ -53,7 +53,7 @@ import {Chart} from '../integration/helm/model/chart.js';
 import {Repository} from '../integration/helm/model/repository.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
-import {METALLB_CHART_VERSION} from '../../version.js';
+import {BLOCK_NODE_VERSION, METALLB_CHART_VERSION} from '../../version.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
@@ -629,6 +629,21 @@ export class BackupRestoreCommand extends BaseCommand {
             if ((resource.metadata?.name as string) === constants.SOLO_REMOTE_CONFIGMAP_NAME) {
               this.logger.showUser(chalk.yellow(`    Skipping ${resourceType} file: ${resource.metadata?.name}`));
               continue;
+            }
+
+            // Block-node configmaps carry a VERSION field that the pod's entrypoint uses to
+            // locate the app binary: /opt/hiero/block-node/app-${VERSION}/bin/app.
+            // If the backup was taken on an older BN release, the backed-up VERSION does not
+            // match the currently deployed image → the pod crashes with "No such file or directory".
+            // Overwrite VERSION with the currently deployed BLOCK_NODE_VERSION so the entrypoint
+            // always resolves to the correct binary path regardless of backup age.
+            if (resourceType === 'configmaps' && /^block-node-\d+-config$/.test(resource.metadata?.name as string)) {
+              if (resource.data && resource.data['VERSION'] !== BLOCK_NODE_VERSION) {
+                this.logger.info(
+                  `Patching VERSION from ${resource.data['VERSION']} to ${BLOCK_NODE_VERSION} in ${resource.metadata?.name}`,
+                );
+                resource.data['VERSION'] = BLOCK_NODE_VERSION;
+              }
             }
 
             await (resourceType === 'configmaps'
