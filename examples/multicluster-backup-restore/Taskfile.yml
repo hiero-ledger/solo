@@ -96,14 +96,15 @@ tasks:
       # restores the backed-up block data archive, deletes each pod, and waits for ready).
       # No manual pod restart is needed here.
       #
-      # applyBlockNodeRestoreFixes extracts the backup's blockNodeData.tar.gz into
-      # /opt/hiero/block-node/ so data/live/ already contains the backed-up blocks (0-158).
-      # On restart, BlockFileRecentPlugin.init() scans data/live/ → availableBlocks.max()=158;
-      # VerificationServicePlugin.start() sets lastVerifiedBlock=158; nextExpectedBlock=159.
-      # CN's post-restore blocks (~145-158) satisfy blockNumber ≤ 158 so ResultOrderingManager
-      # does not park them — they proceed normally and bn_tip reflects the backed-up maximum.
-      # Without this restore, lastVerifiedBlock=-1 and CN's first block (~145) parks waiting
-      # for blocks 0-144 that never arrive, leaving bn_tip empty forever.
+      # applyBlockNodeRestoreFixes performs two restores before restarting each BN pod:
+      # 1. Extracts blockNodeData.tar.gz into /opt/hiero/block-node/ so data/live/ holds
+      #    blocks 0-158. On restart lastVerifiedBlock=158; nextExpectedBlock=159. CN's
+      #    post-restore blocks (145-158) satisfy blockNumber ≤ 158 → no parking. Without
+      #    this, lastVerifiedBlock=-1 and block 145 parks forever waiting for blocks 0-144.
+      # 2. Copies tss-bootstrap-roster.json into application-state/ so BlockNodeApp reads
+      #    it on startup via loadApplicationState() and provides TssData to all plugins.
+      #    Without it, TSSVerifier returns MISSING_VERIFICATION_DATA for every post-restore
+      #    WRAPS block; block 159 never reaches disk and block 160 parks forever.
       #
       # Restore can leave a small imported record_file gap around the saved-state edge.
       # Wait for any block-node across both clusters to have blocks above importer's MAX, then

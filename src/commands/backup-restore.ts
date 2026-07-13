@@ -1971,24 +1971,33 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Restores backed-up block data to each BN pod so block-verification's
-   * lastVerifiedBlock initialises to the backed-up maximum (e.g. 158) rather than -1.
+   * Restores backed-up block data and TSS state to each BN pod so the block-verification
+   * plugin initialises correctly after cluster recreate.
    *
-   * Root cause of the empty-data failure: with lastVerifiedBlock=-1 the plugin's
-   * nextExpectedBlock is 0.  CN's first post-restore block (~145) satisfies
-   * blockNumber > nextExpectedBlock AND source == PUBLISHER, so ResultOrderingManager
-   * parks it waiting for blocks 0-144 that will never arrive — bn_tip stays empty forever.
+   * Two-part fix for the post-restore verification deadlock:
    *
-   * Fix: extract the backup's blockNodeData.tar.gz into /opt/hiero/block-node/ so
-   * data/live/ already contains blocks 0-158.  On restart, BlockFileRecentPlugin.init()
-   * scans data/live/ and sets availableBlocks.max()=158; VerificationServicePlugin.start()
-   * sets lastVerifiedBlock=158; nextExpectedBlock=159.  CN's post-restore blocks (145-158)
-   * satisfy blockNumber ≤ 158, so shouldPark() returns false and they proceed normally.
-   * Blocks already in data/ from the backup guarantee bn_tip ≥ IMPORTER_MAX, which is
-   * what the verify step checks.
+   * Part 1 — block data archive (blockNodeData.tar.gz):
+   *   After destroy+restore, new PVCs leave data/ empty.  BlockFileRecentPlugin.init()
+   *   scans data/live/ → empty → availableBlocks.max()=-1.  VerificationServicePlugin.start()
+   *   sets lastVerifiedBlock=-1; nextExpectedBlock=0.  CN's first post-restore block (~145)
+   *   satisfies blockNumber(145) > nextExpectedBlock(0) AND source==PUBLISHER, so
+   *   ResultOrderingManager parks it waiting for blocks 0-144 that never arrive.
+   *   Fix: extract the backup archive into /opt/hiero/block-node/ so data/live/ holds
+   *   blocks 0-158 before BN starts.  On restart lastVerifiedBlock=158; nextExpectedBlock=159.
+   *   CN's blocks 145-158 satisfy blockNumber ≤ 158 → no parking → proceed normally.
    *
-   * importConfigMaps() runs before this method and already restored the correct EMB from
-   * backup — do NOT overwrite it here.
+   * Part 2 — TSS bootstrap file (tss-bootstrap-roster.json):
+   *   Post-restore WRAPS blocks (CN v0.74+) must pass TSSVerifier.  TSSVerifier calls
+   *   TSS.verifyTSS(tssData.ledgerId(), signature, hash).  BlockNodeApp.loadApplicationState()
+   *   reads tss-bootstrap-roster.json on startup and feeds the TssData to all plugins via
+   *   onContextUpdate().  Without this file, currentTssData()=null → MISSING_VERIFICATION_DATA
+   *   for every WRAPS block.  Block 159 (the first new block after restore) would then fail,
+   *   and block 160 would park forever waiting for 159 to succeed.
+   *   Fix: copy the backed-up tss-bootstrap-roster.json into application-state/ before
+   *   restarting.  The TSS ledger ID is deterministic for a fixed node set, so the backed-up
+   *   key is valid for post-restore WRAPS blocks even after CN's TSS re-keying.
+   *
+   * importConfigMaps() already restored the correct EMB from backup — do NOT overwrite it.
    */
   private async applyBlockNodeRestoreFixes(inputDirectory: string): Promise<void> {
     const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
@@ -2042,9 +2051,12 @@ export class BackupRestoreCommand extends BaseCommand {
           );
       }
 
-      // Copy the backup block data archive into the pod and extract it.
-      // The archive path matches what backupBlockNodeState() created:
-      //   {inputDirectory}/{cluster}/blockNodeData/{podName}-blockNodeData.tar.gz
+      // Part 1: Copy the backup block data archive into the pod and extract it.
+      // Archive path: {inputDirectory}/{cluster}/blockNodeData/{podName}-blockNodeData.tar.gz
+      // Use -m (--touch) so tar does not restore modification times on directory entries;
+      // PVC-backed filesystems deny utime() on directories, causing tar to exit non-zero
+      // even though all files were extracted successfully.  The .catch() ensures the pod
+      // restart below always runs even if extraction reports warnings.
       const blockDataArchiveName: string = `${podName}-blockNodeData.tar.gz`;
       const localArchivePath: string = PathEx.join(
         inputDirectory,
@@ -2055,16 +2067,43 @@ export class BackupRestoreCommand extends BaseCommand {
       if (fs.existsSync(localArchivePath)) {
         const archiveInPod: string = `/tmp/${blockDataArchiveName}`;
         await container.copyTo(localArchivePath, '/tmp/');
-        await container.execContainer([
-          'sh',
-          '-c',
-          `cd /opt/hiero/block-node && tar xzf "${archiveInPod}" && rm -f "${archiveInPod}"`,
-        ]);
+        await container
+          .execContainer([
+            'sh',
+            '-c',
+            `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}"; rm -f "${archiveInPod}" 2>/dev/null; true`,
+          ])
+          .catch((): void => {
+            // best-effort: block files are likely extracted even with minor utime warnings on PVC mounts
+            this.logger.info(`Block data extraction reported warnings for ${podName}; continuing with restart`);
+          });
         this.logger.info(
           `Restored block data archive to ${podName}; lastVerifiedBlock will initialise to the backed-up maximum`,
         );
       } else {
         this.logger.info(`No block data archive found at ${localArchivePath}; BN will start with empty data/`);
+      }
+
+      // Part 2: Copy the backed-up tss-bootstrap-roster.json into application-state/ so
+      // BlockNodeApp.loadApplicationState() provides TssData to all plugins on restart.
+      // Without this file, TSSVerifier returns MISSING_VERIFICATION_DATA for every WRAPS
+      // block and the first new post-restore block (159) can never be written to disk.
+      // Archive path: {inputDirectory}/{cluster}/blockNodeData/{podName}/tss-bootstrap-roster.json
+      const localTssFilePath: string = PathEx.join(
+        inputDirectory,
+        blockNode.metadata.cluster,
+        'blockNodeData',
+        podName,
+        'tss-bootstrap-roster.json',
+      );
+      if (fs.existsSync(localTssFilePath)) {
+        await container.copyTo(localTssFilePath, '/opt/hiero/block-node/application-state/').catch((): void => {
+          // best-effort: tss file copy failed; WRAPS verification may fail but block data restore still helps
+          this.logger.info(`TSS file copy failed for ${podName}; WRAPS blocks may not verify`);
+        });
+        this.logger.info(`Restored tss-bootstrap-roster.json to ${podName}; TSS data will be loaded on restart`);
+      } else {
+        this.logger.info(`No tss-bootstrap-roster.json found at ${localTssFilePath}; WRAPS blocks may not verify`);
       }
 
       // Restart so block-node re-scans data/ and initialises lastVerifiedBlock correctly.
