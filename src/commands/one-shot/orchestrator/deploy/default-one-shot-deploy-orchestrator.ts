@@ -71,6 +71,7 @@ import {
 } from '../../../../core/helpers.js';
 import {Duration} from '../../../../core/time/duration.js';
 import {BlockNodeDeployedEvent} from '../../../../core/events/event-types/block-node-deployed-event.js';
+import {MirrorNodeDeployedEvent} from '../../../../core/events/event-types/mirror-node-deployed-event.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
 import {UserBreak} from '../../../../core/errors/user-break.js';
 import {ConfirmationRequiredSoloError} from '../../../../core/errors/classes/validation/confirmation-required-solo-error.js';
@@ -231,8 +232,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             }
             config.clusterRef ||= 'one-shot';
             config.context ||= this.k8Factory.default().contexts().readCurrent();
-            config.deployment ||= 'one-shot';
-            config.namespace ||= NamespaceName.of('one-shot');
+            config.deployment ||= constants.ONE_SHOT_DEPLOYMENT_NAME;
+            config.namespace ||= NamespaceName.of(constants.ONE_SHOT_DEPLOYMENT_NAME);
             this.configManager.setFlag(flags.namespace, config.namespace);
             config.numberOfConsensusNodes ||= 1;
             config.force = argv.force as boolean;
@@ -625,24 +626,18 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         'Deploy Solo components',
         [
           new OrchestratorPipelinePhase('Deploy block node', {
-            asListrTask: (
-              getConfig: () => OneShotSingleDeployConfigClass,
-            ): SoloListrTask<OneShotSingleDeployContext> => {
-              const skipAndNotify: () => boolean = (): boolean => {
-                const shouldSkip: boolean = !DeployArgvBuilders.shouldDeployBlockNode(getConfig());
-                if (shouldSkip) {
-                  this.eventBus.emit(new BlockNodeDeployedEvent(getConfig().deployment));
-                }
-                return shouldSkip;
-              };
-              return invokeSoloCommand(
+            asListrTask: (getConfig: () => OneShotSingleDeployConfigClass): SoloListrTask<OneShotSingleDeployContext> =>
+              invokeSoloCommand(
                 `solo ${BlockCommandDefinition.ADD_COMMAND}`,
                 BlockCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildBlockNodeArgv(getConfig()),
                 this.taskList,
-                skipAndNotify,
-              );
-            },
+                OrchestratorPipelinePhase.skipAndNotify(
+                  this.eventBus,
+                  (): boolean => !DeployArgvBuilders.shouldDeployBlockNode(getConfig()),
+                  [(): BlockNodeDeployedEvent => new BlockNodeDeployedEvent(getConfig().deployment)],
+                ),
+              ),
           }),
           OrchestratorPipelinePhase.composite('Deploy network node', [
             new OrchestratorPipelinePhase('Deploy consensus node', {
@@ -696,7 +691,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
                 MirrorCommandDefinition.ADD_COMMAND,
                 (): string[] => DeployArgvBuilders.buildMirrorNodeArgv(getConfig(), false),
                 this.taskList,
-                (): boolean => !getConfig().deployMirrorNode,
+                OrchestratorPipelinePhase.skipAndNotify(this.eventBus, (): boolean => !getConfig().deployMirrorNode, [
+                  (): MirrorNodeDeployedEvent => new MirrorNodeDeployedEvent(getConfig().deployment),
+                ]),
               ),
           }),
           new OrchestratorPipelinePhase('Enable mirror pinger', {
@@ -762,7 +759,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.showVersions(PathEx.join(outputDirectory, 'versions'), deployConfig);
             this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
             this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
-            this.cacheDeploymentName(context_, PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'));
           },
         }),
       }),
@@ -1160,11 +1156,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         'For more information on public and private keys see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures',
       );
     }
-  }
-
-  private cacheDeploymentName(context: OneShotSingleDeployContext, outputFile: string): void {
-    fs.writeFileSync(outputFile, context.config.deployment);
-    this.logger.showUser(chalk.green(`Deployment name (${context.config.deployment}) saved to file: ${outputFile}`));
   }
 
   private async confirmNonKindContext(
