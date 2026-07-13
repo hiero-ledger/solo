@@ -1971,8 +1971,9 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   /**
-   * Wipes block-node data/ and stale TSS roster, then restarts the pod so block-node
-   * enters streamBeforeEmbOrElse mode (EMB=100000000, lastPersistedBlockNumber=-1).
+   * Resets BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000 in the BN ConfigMap, wipes block-node
+   * data/ and the stale TSS roster, then restarts the pod so block-node enters
+   * streamBeforeEmbOrElse mode (lastPersistedBlockNumber=-1 < EMB=100000000).
    * In that mode block-node accepts and persists all blocks from CN without TSS verification,
    * exactly matching initial-deploy behaviour. BlockHasher writes a fresh
    * tss-bootstrap-roster.json from the first properly TSS-signed block; subsequent blocks
@@ -1990,9 +1991,17 @@ export class BackupRestoreCommand extends BaseCommand {
       const blockNodeReleaseName: string = Templates.renderBlockNodeName(blockNodeId);
       const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
       const k8: K8 = this.k8Factory.getK8(blockNodeContext);
+      const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
 
-      // BLOCK_NODE_EARLIEST_MANAGED_BLOCK is already 100000000 from the Helm values file and from
-      // the imported backup ConfigMap — no ConfigMap patching needed here.
+      // The backup ConfigMap captures the real epoch-minimum-block (e.g. 139), NOT 100000000.
+      // Reset it to 100000000 so BN enters streamBeforeEmbOrElse mode after the data wipe
+      // (lastPersistedBlockNumber=-1 < EMB=100000000).  That mode bypasses TSS verification for
+      // all incoming blocks, exactly like initial-deploy.  Without this, TRANSITION blocks from
+      // CN's TSS re-keying (hiero-consensus-node#26299) fail StateProofVerifier with
+      // BAD_BLOCK_PROOF and no blocks reach disk.
+      await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
+        BLOCK_NODE_EARLIEST_MANAGED_BLOCK: '100000000',
+      });
 
       // StatefulSet pods are always named <releaseName>-0. Construct the reference
       // directly rather than relying on a label-selector list, which can return
@@ -2016,8 +2025,8 @@ export class BackupRestoreCommand extends BaseCommand {
       }
 
       if (!podIsAccessible) {
-        // Pod not accessible — restart it first so it picks up the updated ConfigMap,
-        // then fall through to seed tss-bootstrap-roster.json into the now-ready pod.
+        // Pod not accessible — restart it first so it picks up the updated ConfigMap
+        // (EMB=100000000 already patched above), then fall through to data/TSS operations below.
         await k8
           .pods()
           .delete(podReference)
