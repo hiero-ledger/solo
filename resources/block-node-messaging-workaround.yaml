@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
-# Workaround for hiero-block-node#3150 and two related 0.37.1 issues:
+# Workaround for hiero-block-node#3150 (VerificationServicePlugin gating backpressure):
 #
 # Issue 1 — Ring buffer overflow (hiero-block-node#3150):
 # VerificationServicePlugin (a gating Disruptor consumer) cannot keep up with incoming
