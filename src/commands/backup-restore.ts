@@ -73,13 +73,13 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   public static BACKUP_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.quiet, flags.outputDir, flags.zipPassword, flags.zipFile],
+    required: [],
+    optional: [flags.deployment, flags.quiet, flags.outputDir, flags.zipPassword, flags.zipFile],
   };
 
   public static RESTORE_CONFIG_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.quiet, flags.inputDir],
+    required: [],
+    optional: [flags.deployment, flags.quiet, flags.inputDir],
   };
 
   public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
