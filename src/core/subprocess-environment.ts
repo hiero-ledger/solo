@@ -141,19 +141,35 @@ export class SubprocessEnvironment {
     profile: SubprocessCommandProfile,
     overrides: Record<string, string> = {},
   ): Record<string, string> {
-    const allowedExactNames: Set<string> = new Set<string>([
-      ...SubprocessEnvironment.COMMON_ALLOWLIST,
-      ...(SubprocessEnvironment.isWindowsPlatform() ? SubprocessEnvironment.WINDOWS_ALLOWLIST : []),
-      ...SubprocessEnvironment.COMMAND_ALLOWLIST[profile],
-    ]);
-    const allowedPrefixes: readonly string[] = SubprocessEnvironment.COMMAND_PREFIX_ALLOWLIST[profile] ?? [];
+    const onWindows: boolean = SubprocessEnvironment.isWindowsPlatform();
+    // Windows environment variable names are case-insensitive, and shells expose them in varying
+    // case (e.g. Git-bash surfaces `SYSTEMROOT` where the allowlist says `SystemRoot`). Compare
+    // case-insensitively on Windows so the intended variables are still forwarded; POSIX names
+    // stay case-sensitive.
+    const normalize: (name: string) => string = (name: string): string => (onWindows ? name.toLowerCase() : name);
+
+    const allowedExactNames: Set<string> = new Set<string>(
+      [
+        ...SubprocessEnvironment.COMMON_ALLOWLIST,
+        ...(onWindows ? SubprocessEnvironment.WINDOWS_ALLOWLIST : []),
+        ...SubprocessEnvironment.COMMAND_ALLOWLIST[profile],
+      ].map((name: string): string => normalize(name)),
+    );
+    const allowedPrefixes: readonly string[] = (SubprocessEnvironment.COMMAND_PREFIX_ALLOWLIST[profile] ?? []).map(
+      (prefix: string): string => normalize(prefix),
+    );
 
     const environment: Record<string, string> = {};
     for (const [name, value] of Object.entries(process.env)) {
       if (value === undefined) {
         continue;
       }
-      if (allowedExactNames.has(name) || allowedPrefixes.some((prefix: string): boolean => name.startsWith(prefix))) {
+      const normalized: string = normalize(name);
+      if (
+        allowedExactNames.has(normalized) ||
+        allowedPrefixes.some((prefix: string): boolean => normalized.startsWith(prefix))
+      ) {
+        // Preserve the original variable name (and its casing) for the child process.
         environment[name] = value;
       }
     }

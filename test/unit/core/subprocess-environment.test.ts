@@ -142,19 +142,34 @@ describe('SubprocessEnvironment', (): void => {
     expect(genericEnvironment).to.not.have.property('GITHUB_TOKEN');
   });
 
+  /** Case-insensitive key lookup — Windows may surface env var names in any case (e.g. SYSTEMROOT). */
+  function hasKeyIgnoreCase(environment: Record<string, string>, key: string): boolean {
+    return Object.keys(environment).some((name: string): boolean => name.toLowerCase() === key.toLowerCase());
+  }
+
   it('includes Windows-only variables only on Windows', (): void => {
     setTemporaryEnvironmentVariable('SystemRoot', String.raw`C:\Windows`);
     setTemporaryEnvironmentVariable('PATHEXT', '.COM;.EXE;.BAT');
 
     const windowsStub: SinonStub = sinon.stub(SubprocessEnvironment as AnyObject, 'isWindowsPlatform').returns(true);
     const onWindows: Record<string, string> = SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL);
-    expect(onWindows).to.have.property('SystemRoot');
-    expect(onWindows).to.have.property('PATHEXT');
+    expect(hasKeyIgnoreCase(onWindows, 'SystemRoot'), 'SystemRoot on windows').to.equal(true);
+    expect(hasKeyIgnoreCase(onWindows, 'PATHEXT'), 'PATHEXT on windows').to.equal(true);
 
     windowsStub.returns(false);
     const onPosix: Record<string, string> = SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL);
-    expect(onPosix).to.not.have.property('SystemRoot');
-    expect(onPosix).to.not.have.property('PATHEXT');
+    expect(hasKeyIgnoreCase(onPosix, 'SystemRoot'), 'SystemRoot on posix').to.equal(false);
+    expect(hasKeyIgnoreCase(onPosix, 'PATHEXT'), 'PATHEXT on posix').to.equal(false);
+  });
+
+  it('matches Windows allowlist entries case-insensitively (e.g. Git-bash SYSTEMROOT)', (): void => {
+    // Git-bash / MSYS surfaces the variable uppercased; the allowlist lists it as 'SystemRoot'.
+    setTemporaryEnvironmentVariable('SYSTEMROOT', String.raw`C:\Windows`);
+
+    sinon.stub(SubprocessEnvironment as AnyObject, 'isWindowsPlatform').returns(true);
+    const onWindows: Record<string, string> = SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL);
+    expect(hasKeyIgnoreCase(onWindows, 'SystemRoot'), 'uppercase SYSTEMROOT is forwarded').to.equal(true);
+    expect(onWindows).to.have.property('SYSTEMROOT'); // original casing preserved for the child
   });
 
   it('applies overrides last, winning over inherited values and bypassing the allowlist', (): void => {
