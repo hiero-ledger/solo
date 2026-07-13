@@ -68,7 +68,7 @@ interface BlockNodeDeployConfigClass {
   blockNodeTssOverlay: boolean;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   domainName: Optional<string>;
   enableIngress: boolean;
   quiet: boolean;
@@ -95,7 +95,7 @@ interface BlockNodeDestroyConfigClass {
   chartDirectory: string;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   namespace: NamespaceName;
   context: string;
@@ -115,7 +115,7 @@ interface BlockNodeUpgradeConfigClass {
   blockNodeTssOverlay: boolean;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   valuesFile: Optional<string>;
   namespace: NamespaceName;
@@ -138,7 +138,7 @@ interface BlockNodeUpgradeContext {
 interface BlockNodeAddExternalConfigClass {
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   context: string;
   externalBlockNodeAddress: string;
@@ -156,7 +156,7 @@ interface BlockNodeAddExternalContext {
 interface BlockNodeDeleteExternalConfigClass {
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   namespace: NamespaceName;
   context: string;
@@ -170,7 +170,7 @@ interface BlockNodeDeleteExternalContext {
 interface BlockNodeCollectJfrConfigClass {
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   namespace: NamespaceName;
   context: string;
@@ -223,7 +223,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.blockNodeMessageSizeHardLimitBytes,
       flags.chartDirectory,
       flags.clusterRef,
-      flags.devMode,
+      flags.debugMode,
       flags.domainName,
       flags.enableIngress,
       flags.quiet,
@@ -241,7 +241,7 @@ export class BlockNodeCommand extends BaseCommand {
     required: [flags.deployment, flags.externalBlockNodeAddress],
     optional: [
       flags.clusterRef,
-      flags.devMode,
+      flags.debugMode,
       flags.quiet,
       flags.priorityMapping,
       flags.blockNodeMessageSizeSoftLimitBytes,
@@ -251,17 +251,17 @@ export class BlockNodeCommand extends BaseCommand {
 
   public static readonly DELETE_EXTERNAL_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.clusterRef, flags.devMode, flags.force, flags.quiet, flags.id],
+    optional: [flags.clusterRef, flags.debugMode, flags.force, flags.quiet, flags.id],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.devMode, flags.force, flags.quiet, flags.id],
+    optional: [flags.chartDirectory, flags.clusterRef, flags.debugMode, flags.force, flags.quiet, flags.id],
   };
 
   public static readonly COLLECT_JFR_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.clusterRef, flags.devMode, flags.quiet, flags.id],
+    optional: [flags.clusterRef, flags.debugMode, flags.quiet, flags.id],
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
@@ -270,7 +270,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.chartDirectory,
       flags.blockNodeChartDirectory,
       flags.clusterRef,
-      flags.devMode,
+      flags.debugMode,
       flags.force,
       flags.quiet,
       flags.valuesFile,

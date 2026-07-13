@@ -441,7 +441,7 @@ export class ClusterCommandTasks {
 
         const result: SoloListr<ClusterReferenceSetupContext> = await task.newListr(subtasks, {concurrent: false});
 
-        if (argv.dev) {
+        if (argv.debug) {
           await this.showInstalledChartList(context_.config.clusterSetupNamespace, context_.config.context);
         }
         return result;
@@ -543,7 +543,7 @@ export class ClusterCommandTasks {
           }
         }
 
-        if (argv.dev) {
+        if (argv.debug) {
           await this.showInstalledChartList(clusterSetupNamespace);
         }
 

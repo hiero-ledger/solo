@@ -24,7 +24,6 @@ export interface NetworkDeployConfigClass {
   keysDir: string;
   nodeAliases: NodeAliases;
   stagingDir: string;
-  stagingKeysDir: string;
   valuesFile: string;
   chartValuesMap: Record<ClusterReferenceName, HelmChartValues>;
   grpcTlsCertificatePath: string;
