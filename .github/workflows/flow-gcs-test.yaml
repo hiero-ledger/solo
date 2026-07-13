@@ -36,7 +36,7 @@ defaults:
 permissions:
   id-token: write
   contents: read
-  actions: read
+  actions: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -108,7 +108,7 @@ jobs:
 
           echo "BUCKET_NAME=${BUCKET_NAME}" >> $GITHUB_ENV
           echo "PREFIX=${PREFIX}" >> $GITHUB_ENV          
-          
+
           export BACKUP_BUCKET_NAME="solo-ci-backups"
           echo "BACKUP_BUCKET_NAME=${BACKUP_BUCKET_NAME}" >> $GITHUB_ENV
 
@@ -146,6 +146,14 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
       - name: Run GCS Test Script for type ${{ matrix.storageType }}
         id: run-gcs-script
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() && !failure() }}
@@ -165,6 +173,13 @@ jobs:
             npm run solo-test -- deployment diagnostics logs --deployment solo-e2e -q --dev || true
             exit ${RC}
           fi
+
+      - name: Save Solo Image Cache
+        if: ${{ steps.check.outputs.run == 'true' && github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Upload Logs to GitHub
         if: ${{ steps.check.outputs.run == 'true' && !cancelled() }}
