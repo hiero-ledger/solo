@@ -1879,7 +1879,8 @@ export class Flags {
     definition: {
       describe:
         'StorageClass name for PersistentVolumeClaims; auto-detected from the cluster when not set ' +
-        '(prefers default StorageClass, then rancher.io/local-path, then installs local-path-provisioner)',
+        '(uses the default StorageClass if one exists, otherwise installs and uses local-path-provisioner ' +
+        'without making it the cluster default)',
       defaultValue: '',
       type: 'string',
     },

@@ -92,7 +92,7 @@ describe('StorageClassHelper.resolveStorageClass', (): void => {
     expect(patchCount.value).to.equal(0);
   });
 
-  it('sets local-path as cluster default and returns its name when no default exists but local-path is present', async (): Promise<void> => {
+  it('reuses an existing local-path class without changing the cluster default when no default exists', async (): Promise<void> => {
     const storageClasses: StorageClass[] = [
       {name: LOCAL_PATH_STORAGE_CLASS, provisioner: LOCAL_PATH_PROVISIONER, isDefault: false},
     ];
@@ -104,10 +104,10 @@ describe('StorageClassHelper.resolveStorageClass', (): void => {
 
     expect(result).to.equal(LOCAL_PATH_STORAGE_CLASS);
     expect(applyCount.value).to.equal(0);
-    expect(patchCount.value).to.equal(1);
+    expect(patchCount.value).to.equal(0);
   });
 
-  it('installs local-path-provisioner, sets it as default, and returns its name when no StorageClass exists', async (): Promise<void> => {
+  it('installs local-path-provisioner without setting it as default when no StorageClass exists', async (): Promise<void> => {
     const storageClasses: StorageClass[] = [];
     const applyCount: {value: number} = {value: 0};
     const patchCount: {value: number} = {value: 0};
@@ -117,6 +117,19 @@ describe('StorageClassHelper.resolveStorageClass', (): void => {
 
     expect(result).to.equal(LOCAL_PATH_STORAGE_CLASS);
     expect(applyCount.value).to.equal(1);
-    expect(patchCount.value).to.equal(1);
+    expect(patchCount.value).to.equal(0);
+  });
+
+  it('installs local-path-provisioner without setting it as default when classes exist but none is default or local-path', async (): Promise<void> => {
+    const storageClasses: StorageClass[] = [{name: 'fast-ssd', provisioner: 'pd.csi.storage.gke.io', isDefault: false}];
+    const applyCount: {value: number} = {value: 0};
+    const patchCount: {value: number} = {value: 0};
+    const helper: StorageClassHelper = buildHelper(storageClasses, applyCount, patchCount);
+
+    const result: string = await helper.resolveStorageClass('test-context', '');
+
+    expect(result).to.equal(LOCAL_PATH_STORAGE_CLASS);
+    expect(applyCount.value).to.equal(1);
+    expect(patchCount.value).to.equal(0);
   });
 });

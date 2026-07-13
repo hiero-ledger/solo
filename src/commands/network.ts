@@ -355,10 +355,9 @@ export class NetworkCommand extends BaseCommand {
     config: NetworkDeployConfigClass,
   ): Promise<Record<ClusterReferenceName, HelmChartValues>> {
     config.resolvedPvcStorageClass = config.persistentVolumeClaims
-      ? await this.resolveStorageClass(config.contexts, config.pvcStorageClass)
-      : '';
+      ? await this.resolveStorageClass(config.clusterRefs, config.pvcStorageClass)
+      : {};
 
-    const valuesArguments: Record<ClusterReferenceName, string> = this.prepareValuesArg(config);
     const clusterChartValues: Record<ClusterReferenceName, HelmChartValues> = this.prepareHelmChartValues(config);
 
     // prepare values files for each cluster
@@ -666,9 +665,14 @@ export class NetworkCommand extends BaseCommand {
         .set('telemetry.prometheus.svcMonitor.enabled', false) // remove after chart version is bumped
         .set('crds.serviceMonitor.enabled', config.singleUseServiceMonitor)
         .set('crds.podLog.enabled', config.singleUsePodLog)
-        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims)
-        .set('defaults.volumeClaims.storageClassName', config.resolvedPvcStorageClass ? config.resolvedPvcStorageClass : '')
-        .set('minio-server.tenant.pools[0].storageClassName', config.resolvedPvcStorageClass ? config.resolvedPvcStorageClass : '');
+        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims);
+
+      const resolvedStorageClass: string = config.resolvedPvcStorageClass[clusterReference];
+      if (resolvedStorageClass) {
+        chartValuesMap[clusterReference]
+          .set('defaults.volumeClaims.storageClassName', resolvedStorageClass)
+          .set('minio-server.tenant.pools[0].storageClassName', resolvedStorageClass);
+      }
     }
 
     config.singleUseServiceMonitor = 'false';
@@ -1349,10 +1353,14 @@ export class NetworkCommand extends BaseCommand {
     );
   }
 
-  private async resolveStorageClass(contexts: string[], userSuppliedClass: string): Promise<string> {
-    let resolved: string = '';
-    for (const context of contexts) {
-      resolved = await this.storageClassHelper.resolveStorageClass(context, userSuppliedClass);
+  /** Resolve the PVC StorageClass to use for each cluster-ref, since each cluster may resolve differently. */
+  private async resolveStorageClass(
+    clusterReferences: ClusterReferences,
+    userSuppliedClass: string,
+  ): Promise<Record<ClusterReferenceName, string>> {
+    const resolved: Record<ClusterReferenceName, string> = {};
+    for (const [clusterReference, context] of clusterReferences) {
+      resolved[clusterReference] = await this.storageClassHelper.resolveStorageClass(context, userSuppliedClass);
     }
     return resolved;
   }

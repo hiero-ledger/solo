@@ -24,12 +24,13 @@ export class StorageClassHelper {
   /**
    * Resolves the StorageClass name to use for PersistentVolumeClaims.
    *
-   * Always returns a concrete class name. When userSuppliedClass is non-empty it is validated
-   * against the cluster and returned. When empty, the cluster is inspected in order:
+   * Always returns a concrete class name, and never changes the cluster's default StorageClass.
+   * When userSuppliedClass is non-empty it is validated against the cluster and returned.
+   * When empty, the cluster is inspected in order:
    * 1. Cluster default StorageClass (annotated with is-default-class=true).
    * 2. A StorageClass backed by LOCAL_PATH_PROVISIONER (common on Kind clusters).
-   * 3. Install LOCAL_PATH_PROVISIONER from the bundled manifest, mark it as the cluster default,
-   *    then return LOCAL_PATH_STORAGE_CLASS.
+   * 3. Install LOCAL_PATH_PROVISIONER from the bundled manifest, without marking it as the
+   *    cluster default, then return LOCAL_PATH_STORAGE_CLASS.
    */
   public async resolveStorageClass(context: string, userSuppliedClass: string): Promise<string> {
     const k8: K8 = this.k8Factory.getK8(context);
@@ -51,16 +52,11 @@ export class StorageClassHelper {
       (storageClass: StorageClass): boolean => storageClass.provisioner === constants.LOCAL_PATH_PROVISIONER,
     );
     if (localPathClass) {
-      this.logger.debug(
-        `Setting existing ${constants.LOCAL_PATH_PROVISIONER} StorageClass as cluster default: ${localPathClass.name}`,
-      );
-      await this.setAsClusterDefault(k8, localPathClass.name);
+      this.logger.debug(`Using existing ${constants.LOCAL_PATH_PROVISIONER} StorageClass: ${localPathClass.name}`);
       return localPathClass.name;
     }
 
-    const installedName: string = await this.installLocalPath(k8);
-    await this.setAsClusterDefault(k8, installedName);
-    return installedName;
+    return this.installLocalPath(k8);
   }
 
   private validateUserClass(storageClasses: StorageClass[], userSuppliedClass: string): string {
@@ -79,21 +75,10 @@ export class StorageClassHelper {
   private async installLocalPath(k8: K8): Promise<string> {
     const manifestPath: string = PathEx.joinWithRealPath(constants.RESOURCES_DIR, 'local-path-provisioner.yaml');
     this.logger.showUser(
-      `No StorageClass found in cluster — installing ${constants.LOCAL_PATH_PROVISIONER}-provisioner. ` +
-        'Use --pvc-storage-class to specify an existing StorageClass.',
+      `No default StorageClass found in cluster — installing ${constants.LOCAL_PATH_PROVISIONER}-provisioner ` +
+        '(not set as cluster default). Use --pvc-storage-class to specify an existing StorageClass.',
     );
     await k8.manifests().applyManifest(manifestPath, {ignoreExisting: true});
     return constants.LOCAL_PATH_STORAGE_CLASS;
-  }
-
-  private async setAsClusterDefault(k8: K8, name: string): Promise<void> {
-    await k8.manifests().patchObject({
-      apiVersion: 'storage.k8s.io/v1',
-      kind: 'StorageClass',
-      metadata: {
-        name,
-        annotations: {'storageclass.kubernetes.io/is-default-class': 'true'},
-      },
-    });
   }
 }
