@@ -25,4 +25,4 @@ web3:
       memory: 0
     limits:
       cpu: 1000m
-      memory: 200Mi
+      memory: 500Mi
