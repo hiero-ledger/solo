@@ -872,24 +872,27 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
-TEMP_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-migration-block-node-values-XXXX.yaml)"
+TEMP_BLOCK_NODE_VALUES_FILE=""
 
-# After a CN freeze upgrade, file 0.0.101 loses RSA_PubKey so mirror serves empty
-# public_key. Pre-populate BN's rsa-bootstrap-roster.json via an init container so
-# BN v0.37 has RSA keys ready if WRB mode is enabled later.
-BN_RSA_BOOTSTRAP_B64=""
-if BN_RSA_BOOTSTRAP_B64="$(build_bn_rsa_bootstrap_base64)"; then
-  echo "RSA bootstrap data generated for block node init container (${#BN_RSA_BOOTSTRAP_B64} chars)"
-else
-  echo "WARNING: RSA bootstrap generation failed; BN will query mirror REST for RSA keys"
-fi
+if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  TEMP_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-migration-block-node-values-XXXX.yaml)"
 
-if [[ -n "${BN_RSA_BOOTSTRAP_B64}" ]]; then
+  # After a CN freeze upgrade, file 0.0.101 loses RSA_PubKey so mirror serves empty
+  # public_key. Pre-populate BN's rsa-bootstrap-roster.json via an init container so
+  # BN versions that need RSA bootstrap have keys ready if WRB mode is enabled later.
+  BN_RSA_BOOTSTRAP_B64=""
+  if BN_RSA_BOOTSTRAP_B64="$(build_bn_rsa_bootstrap_base64)"; then
+    echo "RSA bootstrap data generated for block node init container (${#BN_RSA_BOOTSTRAP_B64} chars)"
+  else
+    echo "WARNING: RSA bootstrap generation failed; BN will query mirror REST for RSA keys"
+  fi
+
+  if [[ -n "${BN_RSA_BOOTSTRAP_B64}" ]]; then
 cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
 # Generated for the migration workflow.
 # /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
 # An init container pre-writes rsa-bootstrap-roster.json from local gossip certs so
-# BN v0.37 has RSA keys ready if WRB mode is enabled after the migration.
+# BN has RSA keys ready if WRB mode is enabled after the migration.
 blockNode:
   config:
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
@@ -936,7 +939,7 @@ blockNode:
         - name: application-state-storage
           mountPath: /application-state-pvc
 EOF
-else
+  else
 cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
 # Generated for the migration workflow.
 # /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
@@ -949,10 +952,15 @@ blockNode:
     applicationState:
       existingClaim: "verification-storage-block-node-1-0"
 EOF
+  fi
 fi
 
 echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-echo "Using temporary block node values override file: ${TEMP_BLOCK_NODE_VALUES_FILE}"
+if [[ -n "${TEMP_BLOCK_NODE_VALUES_FILE}" ]]; then
+  echo "Using temporary block node values override file: ${TEMP_BLOCK_NODE_VALUES_FILE}"
+else
+  echo "Block node version unchanged; no temporary block node values override file needed"
+fi
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 if [[ "$(printf '%s\n' "v0.73.0" "${TO_CONSENSUS_NODE_VERSION}" | sort -V | head -n 1)" == "v0.73.0" ]]; then
   npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" -q --dev
@@ -960,22 +968,23 @@ else
   npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
 fi
 
-# Stop the upgraded CN around the BN RECREATE so BN v0.37 inherits the live/archive
+# Stop the upgraded CN around the BN RECREATE so BN can inherit the live/archive
 # PVCs (containing blocks 0-N in TSS format) before CN resumes at block N+1. This
-# prevents a gap: CN committed block N before the stop, BN v0.37 starts with 0-N,
-# and CN begins at N+1 — no missing blocks for mirror.
+# prevents a gap: CN committed block N before the stop, BN starts with 0-N, and CN
+# begins at N+1 — no missing blocks for mirror. If the BN version is unchanged, do
+# not mutate the running BN with migration-only values; the source deploy already
+# installed the target BN chart.
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   echo "Block node version changing — stopping target CN before BN upgrade"
   npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
-fi
 
-npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
-
-if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
   echo "Target CN remains in TSS block streaming mode; BN ${CURRENT_BLOCK_VERSION} reuses the source verification PVC as application-state."
   echo "Waiting briefly for block node rollout after recreate before restarting target CN"
   sleep 10
   npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+else
+  echo "Block node version unchanged (${CURRENT_BLOCK_VERSION}); skipping block node upgrade"
 fi
 
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
