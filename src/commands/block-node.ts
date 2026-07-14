@@ -724,7 +724,10 @@ export class BlockNodeCommand extends BaseCommand {
             }
           },
         },
-        this.checkBlockNodeReadiness(),
+        this.checkBlockNodeReadiness(
+          (config): ComponentId => config.newBlockNodeComponent.metadata.id,
+          (config): number => config.livenessCheckPort,
+        ),
         this.handleConsensusNodeUpdating(),
         this.emitBlockNodeDeployed(),
       ],
@@ -1162,6 +1165,7 @@ export class BlockNodeCommand extends BaseCommand {
             }
           },
         },
+        this.checkBlockNodeReadiness((config): ComponentId => config.id),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
@@ -1564,8 +1568,8 @@ export class BlockNodeCommand extends BaseCommand {
     };
   }
 
-  private displayHealthCheckData(
-    task: SoloListrTaskWrapper<BlockNodeDeployContext>,
+  private displayHealthCheckData<TContext>(
+    task: SoloListrTaskWrapper<TContext>,
   ): (attempt: number, maxAttempt: number, color?: 'yellow' | 'green' | 'red', additionalData?: string) => void {
     const baseTitle: string = task.title;
 
@@ -1579,7 +1583,10 @@ export class BlockNodeCommand extends BaseCommand {
     };
   }
 
-  private checkBlockNodeReadiness(): SoloListrTask<BlockNodeDeployContext> {
+  private checkBlockNodeReadiness<TContext extends BlockNodeDeployContext | BlockNodeUpgradeContext>(
+    getId: (config: TContext['config']) => ComponentId,
+    getPort: (config: TContext['config']) => number = (): number => constants.BLOCK_NODE_PORT,
+  ): SoloListrTask<TContext> {
     return {
       title: 'Check block node readiness',
       task: async ({config}, task): Promise<void> => {
@@ -1593,7 +1600,7 @@ export class BlockNodeCommand extends BaseCommand {
         const blockNodePodReference: PodReference = await this.k8Factory
           .getK8(config.context)
           .pods()
-          .list(config.namespace, Templates.renderBlockNodeLabels(config.newBlockNodeComponent.metadata.id))
+          .list(config.namespace, Templates.renderBlockNodeLabels(getId(config)))
           .then((pods: Pod[]): PodReference => pods[0].podReference);
 
         const containerReference: ContainerReference = ContainerReference.of(
@@ -1614,7 +1621,7 @@ export class BlockNodeCommand extends BaseCommand {
                 .getK8(config.context)
                 .containers()
                 .readByRef(containerReference)
-                .execContainer(['bash', '-c', `curl -s http://localhost:${config.livenessCheckPort}/healthz/readyz`]),
+                .execContainer(['bash', '-c', `curl -s http://localhost:${getPort(config)}/healthz/readyz`]),
               Duration.ofSeconds(constants.BLOCK_NODE_ACTIVE_TIMEOUT),
               'Healthcheck timed out',
             );

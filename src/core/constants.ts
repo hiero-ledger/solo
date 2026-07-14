@@ -228,7 +228,7 @@ export const SOLO_MIRROR_WEB3_NAME_LABEL: string = 'app.kubernetes.io/name=web3'
 export const SOLO_MIRROR_POSTGRES_NAME_LABEL: string = 'app.kubernetes.io/name=postgres';
 export const SOLO_MIRROR_REDIS_NAME_LABEL: string = 'app.kubernetes.io/name=redis';
 export const SOLO_MIRROR_RESTJAVA_NAME_LABEL: string = 'app.kubernetes.io/name=restjava';
-export const SOLO_BLOCK_NODE_NAME_LABEL: string = 'app.kubernetes.io/name=block-node-1';
+export const SOLO_BLOCK_NODE_NAME_LABEL: string = 'block-node.hiero.com/type=block-node';
 export const SOLO_INGRESS_CONTROLLER_NAME_LABEL: string = 'app.kubernetes.io/name=haproxy-ingress';
 
 export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
