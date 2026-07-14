@@ -99,6 +99,13 @@ function invokeCopyLocalBuildPathToNode(
   );
 }
 
+function invokeBuildRefreshLiveLocalBuildJarsCommand(nodeCommandTasks: NodeCommandTasks): string {
+  const builderFunction: () => string = (nodeCommandTasks as unknown as Record<string, () => string>)
+    .buildRefreshLiveLocalBuildJarsCommand;
+
+  return builderFunction.call(nodeCommandTasks);
+}
+
 describe('NodeCommandTasks local build path PVC validation', (): void => {
   it('warns when local build path is used without node PVCs', async (): Promise<void> => {
     const {tasks, showUserMessages} = createNodeCommandTasksWithPvcData({
@@ -161,6 +168,30 @@ describe('NodeCommandTasks platform software fetch routing', (): void => {
 });
 
 describe('NodeCommandTasks local build path copy', (): void => {
+  it('builds a start preflight that refreshes and validates local build jars', (): void => {
+    const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+    const hapiPath: string = constants.HEDERA_HAPI_PATH;
+    const applicationDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const libraryDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_LIB_DIR}`;
+    const applicationJar: string = `${applicationDirectory}/${constants.HEDERA_APP_NAME}`;
+    const upgradeDirectory: string = `${hapiPath}/data/upgrade/current`;
+    const upgradeApplicationDirectory: string = `${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const upgradeLibraryDirectory: string = `${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}`;
+    const upgradeApplicationJar: string = `${upgradeApplicationDirectory}/${constants.HEDERA_APP_NAME}`;
+
+    const command: string = invokeBuildRefreshLiveLocalBuildJarsCommand(nodeCommandTasks);
+
+    expect(command).to.include(`if [ -f "${upgradeApplicationJar}" ]; then`);
+    expect(command).to.include(`rm -f "${applicationDirectory}"/*.jar "${libraryDirectory}"/*.jar`);
+    expect(command).to.include(`cp -f "${upgradeApplicationDirectory}"/*.jar "${applicationDirectory}/"`);
+    expect(command).to.include(`cp -f "${upgradeLibraryDirectory}"/*.jar "${libraryDirectory}/"`);
+    expect(command).to.include(`test -f "${applicationJar}"`);
+    expect(command).to.include(
+      `unzip -l "${applicationJar}" "com/hedera/node/app/ServicesMain.class" | ` +
+        'grep -q "com/hedera/node/app/ServicesMain.class"',
+    );
+  });
+
   it('stops the network node and disables autostart before replacing jars', async (): Promise<void> => {
     const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
     const execContainerStub: sinon.SinonStub = sinon.stub().resolves('');
