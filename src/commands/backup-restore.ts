@@ -2137,35 +2137,26 @@ export class BackupRestoreCommand extends BaseCommand {
         );
         const container: Container = k8.containers().readByRef(containerReference);
 
-        // Verify the pod is exec-able before attempting any container operations.
-        let podIsAccessible: boolean = false;
-        try {
-          await container.execContainer(['sh', '-c', 'true']);
-          podIsAccessible = true;
-        } catch {
-          // best-effort: pod may still be initializing; restart it first, then retry operations below
-          this.logger.info(`Block node pod ${podName} not accessible yet; will restart and retry`);
-        }
-
-        if (!podIsAccessible) {
-          const beforeInaccessibleDelete: Date = new Date();
-          await k8
-            .pods()
-            .delete(podReference)
-            .catch((): void => {
-              // best-effort: pod may not exist, StatefulSet will recreate it
-              this.logger.info(`Delete of ${podName} failed (pod may not exist); StatefulSet will restart it`);
-            });
-          await k8
-            .pods()
-            .waitForReadyStatus(
-              namespace,
-              Templates.renderBlockNodeLabels(blockNodeId),
-              constants.PODS_READY_MAX_ATTEMPTS,
-              constants.PODS_READY_DELAY,
-              beforeInaccessibleDelete,
-            );
-        }
+        // Stabilizing restart: importConfigMaps may have triggered a rolling pod restart that is
+        // still in progress (the configmap checksum annotation races with this code).  Explicitly
+        // delete the pod and wait for the replacement to be Ready before touching the container
+        // filesystem.  This eliminates a window where copyTo targets a Terminating pod.
+        const beforeStabilizingDelete: Date = new Date();
+        await k8
+          .pods()
+          .delete(podReference)
+          .catch((): void => {
+            // best-effort: pod may not exist; StatefulSet will recreate it
+          });
+        await k8
+          .pods()
+          .waitForReadyStatus(
+            namespace,
+            Templates.renderBlockNodeLabels(blockNodeId),
+            constants.PODS_READY_MAX_ATTEMPTS,
+            constants.PODS_READY_DELAY,
+            beforeStabilizingDelete,
+          );
 
         // Copy the backed-up tss-bootstrap-roster.json into application-state/ so
         // BlockNodeApp.loadApplicationState() provides TssData to all plugins on restart.
@@ -2194,33 +2185,7 @@ export class BackupRestoreCommand extends BaseCommand {
         // EPERM on some Kubernetes volume drivers.
         const localArchivePath: string = PathEx.join(blockNodeDataDirectory, archiveName);
         const archiveInPod: string = `/tmp/${archiveName}`;
-        try {
-          await container.copyTo(localArchivePath, '/tmp/');
-        } catch {
-          // importConfigMaps triggers a BN configmap update which causes a rolling pod restart.
-          // If the pod restarts between the accessibility check and this copyTo, the copy fails.
-          // Recover by deleting the pod and waiting for the new one to be Ready, then retry once.
-          this.logger.info(
-            `Archive copy to ${podName} failed (pod may be restarting after configmap update); waiting for Ready`,
-          );
-          const beforeArchiveRetryDelete: Date = new Date();
-          await k8
-            .pods()
-            .delete(podReference)
-            .catch((): void => {
-              // best-effort: pod may already be terminating; StatefulSet will recreate it
-            });
-          await k8
-            .pods()
-            .waitForReadyStatus(
-              namespace,
-              Templates.renderBlockNodeLabels(blockNodeId),
-              constants.PODS_READY_MAX_ATTEMPTS,
-              constants.PODS_READY_DELAY,
-              beforeArchiveRetryDelete,
-            );
-          await container.copyTo(localArchivePath, '/tmp/');
-        }
+        await container.copyTo(localArchivePath, '/tmp/');
         await container
           .execContainer([
             'sh',
