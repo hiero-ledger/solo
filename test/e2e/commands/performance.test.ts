@@ -259,7 +259,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           // stage. The block node takes ~46 s to reach PUBLISHER_CONNECTED, accumulating ~200
           // blocks (at ~4 blocks/sec). This sleep lets the importer catch up to near-real-time
           // so the RTT probe does not spend its entire readiness window on stale blocks.
-          await sleep(Duration.ofSeconds(60));
+          await sleep(Duration.ofSeconds(mirrorImporterWarmupSeconds));
           // rapid-fire enforces the TPS!=0 + "Finished" check internally and throws
           // on degraded runs (proxy backpressure, NFT-vs-fungible token mismatch, etc.).
           await main(

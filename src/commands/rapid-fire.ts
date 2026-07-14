@@ -428,7 +428,9 @@ export class RapidFireCommand extends BaseCommand {
     const mirrorRestPod: Pod | undefined = restPods[0];
 
     if (!mirrorRestPod) {
-      throw new Error(`No mirror REST pod found in namespace ${mirrorNamespace.name}`);
+      throw new SoloErrors.component.rapidFireExecutionFailed(
+        `No mirror REST pod found in namespace ${mirrorNamespace.name}`,
+      );
     }
 
     this.logger.info(

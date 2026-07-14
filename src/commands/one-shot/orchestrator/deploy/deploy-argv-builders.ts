@@ -113,10 +113,12 @@ export class DeployArgvBuilders {
     const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
     const isPerfMode: boolean = constants.ONE_SHOT_BLOCK_NODE_PERF.toLowerCase() === 'true';
     const perfValuesFile: string | undefined = isPerfMode ? constants.BLOCK_NODE_MESSAGING_WORKAROUND_FILE : undefined;
-    // In perf mode, inject the RSA bootstrap roster directly into the block node's
-    // application-state PVC via a Helm init-container override. This writes the file
-    // before the block node container ever starts, so no pod restart is needed and the
-    // consensus node's gRPC publisher stream is never interrupted.
+    // Placeholder: inject RSA bootstrap roster into the block node's application-state PVC
+    // via a Helm init-container override when ONE_SHOT_BLOCK_NODE_PERF=true.
+    // BAD_BLOCK_PROOF was observed in runs 28988949642/28991564151 when keyByNodeId was empty
+    // (ExtendedMerkleTreeSession.verifyRsaProof rejected all WRB/RSA blocks).
+    // Currently ONE_SHOT_BLOCK_NODE_PERF=false so this path is inactive; re-enable if
+    // BAD_BLOCK_PROOF reappears with a future block node version.
     const rsaBootstrapValuesFile: string | undefined = isPerfMode
       ? DeployArgvBuilders.writeRsaBootstrapInitContainerValuesFile(config.cacheDir, config.numberOfConsensusNodes)
       : undefined;

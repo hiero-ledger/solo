@@ -11,7 +11,7 @@
 # (overflowing 8 s before SmartContract started), freezing the mirror importer.
 # 4 M ring buffer is sufficient for the 4 enabled load tests: at the empirical net
 # production rate of ~2 778/s, tests 1–4 accumulate ~3.7 M items — just under the 4 M
-# limit.  SmartContractLoadTest is temporarily disabled (see performance.test.ts) because
+# limit.  SmartContractLoadTest is disabled until hiero-block-node#3150 is fixed (see performance.test.ts) because
 # it pushed the fill to ~4.83 M, exceeding 4 M and requiring an 8 M buffer + ~6 GB heap.
 # Workaround: 4 M ring buffer + 8 CPUs + ZGC (see config below).
 #
