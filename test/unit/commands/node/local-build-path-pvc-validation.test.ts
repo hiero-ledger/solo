@@ -185,9 +185,11 @@ describe('NodeCommandTasks local build path copy', (): void => {
     expect(command).to.include(`rm -f "${applicationDirectory}"/*.jar "${libraryDirectory}"/*.jar`);
     expect(command).to.include(`cp -f "${upgradeApplicationDirectory}"/*.jar "${applicationDirectory}/"`);
     expect(command).to.include(`cp -f "${upgradeLibraryDirectory}"/*.jar "${libraryDirectory}/"`);
+    expect(command).to.include(`chown -R hedera:hedera "${applicationDirectory}" "${libraryDirectory}"`);
+    expect(command).to.include(`chmod -R u+rwX,g+rX,o+rX "${applicationDirectory}" "${libraryDirectory}"`);
     expect(command).to.include(`test -f "${applicationJar}"`);
     expect(command).to.include(
-      `unzip -l "${applicationJar}" "com/hedera/node/app/ServicesMain.class" | ` +
+      `/command/s6-setuidgid hedera unzip -l "${applicationJar}" "com/hedera/node/app/ServicesMain.class" | ` +
         'grep -q "com/hedera/node/app/ServicesMain.class"',
     );
   });
@@ -211,7 +213,7 @@ describe('NodeCommandTasks local build path copy', (): void => {
     await expect(invokeCopyLocalBuildPathToNode(nodeCommandTasks, k8, configManager, '/tmp/local-build/data')).to
       .eventually.be.fulfilled;
 
-    expect(execContainerStub.calledThrice).to.equal(true);
+    expect(execContainerStub.callCount).to.equal(4);
     const expectedStopCommand: string = [
       'test -x "/command/network-node-lifecycle" || { ' +
         'echo "missing /command/network-node-lifecycle; update solo-container image" >&2; exit 1; }',
@@ -222,7 +224,15 @@ describe('NodeCommandTasks local build path copy', (): void => {
       `rm -rf ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ` +
       `${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`;
     expect(execContainerStub.secondCall.args[0]).to.deep.equal(['bash', '-c', expectedJarRemovalCommand]);
-    expect(execContainerStub.thirdCall.args[0]).to.deep.equal(['sync', constants.HEDERA_HAPI_PATH]);
+    expect(execContainerStub.thirdCall.args[0]).to.deep.equal([
+      'bash',
+      '-c',
+      [
+        `chown -R hedera:hedera "${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}" "${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}"`,
+        `chmod -R u+rwX,g+rX,o+rX "${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}" "${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}"`,
+      ].join('\n'),
+    ]);
+    expect(execContainerStub.getCall(3).args[0]).to.deep.equal(['sync', constants.HEDERA_HAPI_PATH]);
     expect(hasDirectoryStub.calledOnceWith(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current`)).to.equal(true);
     expect(copyToStub.calledOnceWith('/tmp/local-build/data', constants.HEDERA_HAPI_PATH)).to.equal(true);
   });
@@ -251,9 +261,17 @@ describe('NodeCommandTasks local build path copy', (): void => {
       `rm -rf ${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ` +
       `${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`;
 
-    expect(execContainerStub.callCount).to.equal(4);
-    expect(execContainerStub.thirdCall.args[0]).to.deep.equal(['bash', '-c', expectedUpgradeJarRemovalCommand]);
-    expect(execContainerStub.getCall(3).args[0]).to.deep.equal(['sync', constants.HEDERA_HAPI_PATH]);
+    expect(execContainerStub.callCount).to.equal(6);
+    expect(execContainerStub.getCall(3).args[0]).to.deep.equal(['bash', '-c', expectedUpgradeJarRemovalCommand]);
+    expect(execContainerStub.getCall(4).args[0]).to.deep.equal([
+      'bash',
+      '-c',
+      [
+        `chown -R hedera:hedera "${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}" "${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}"`,
+        `chmod -R u+rwX,g+rX,o+rX "${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}" "${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}"`,
+      ].join('\n'),
+    ]);
+    expect(execContainerStub.getCall(5).args[0]).to.deep.equal(['sync', constants.HEDERA_HAPI_PATH]);
     expect(copyToStub.firstCall.args[0]).to.equal('/tmp/local-build/data');
     expect(copyToStub.firstCall.args[1]).to.equal(constants.HEDERA_HAPI_PATH);
     expect(copyToStub.secondCall.args[0]).to.equal('/tmp/local-build/data');
