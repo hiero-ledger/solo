@@ -25,17 +25,17 @@ images:
     version: MIRROR_NODE_VERSION
     source: gcr.io
 
-  - name: ghcr.io/hiero-ledger/hiero-mirror-node/grpc
+  - name: gcr.io/mirrornode/hedera-mirror-grpc
     version: MIRROR_NODE_VERSION
-    source: ghcr.io
+    source: gcr.io
 
-  - name: ghcr.io/hiero-ledger/hiero-mirror-node/importer
+  - name: gcr.io/mirrornode/hedera-mirror-importer
     version: MIRROR_NODE_VERSION
-    source: ghcr.io
+    source: gcr.io
 
-  - name: ghcr.io/hiero-ledger/hiero-mirror-node/rest-java
+  - name: gcr.io/mirrornode/hedera-mirror-rest-java
     version: MIRROR_NODE_VERSION
-    source: ghcr.io
+    source: gcr.io
 
   - name: gcr.io/mirrornode/redis-sentinel
     version: 8.2.2

@@ -16,8 +16,8 @@ redis:
 # config for subchart hiero-mirror/importer
 importer:
   image:
-    registry: ghcr.io
-    repository: hiero-ledger/hiero-mirror-node/importer
+    registry: gcr.io
+    repository: mirrornode/hedera-mirror-importer
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -77,8 +77,8 @@ importer:
                 enabled: true
 grpc:
   image:
-    registry: ghcr.io
-    repository: hiero-ledger/hiero-mirror-node/grpc
+    registry: gcr.io
+    repository: mirrornode/hedera-mirror-grpc
   ingress:
     annotations:
       haproxy-ingress.github.io/backend-protocol: h2
@@ -193,8 +193,8 @@ rest:
     hostname: "localhost"
 restjava:
   image:
-    registry: ghcr.io
-    repository: hiero-ledger/hiero-mirror-node/rest-java
+    registry: gcr.io
+    repository: mirrornode/hedera-mirror-rest-java
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -226,8 +226,8 @@ restjava:
     failureThreshold: 60
 web3:
   image:
-    registry: ghcr.io
-    repository: hiero-ledger/hiero-mirror-node/web3
+    registry: gcr.io
+    repository: mirrornode/hedera-mirror-web3
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
