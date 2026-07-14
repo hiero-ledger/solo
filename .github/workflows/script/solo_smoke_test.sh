@@ -28,6 +28,21 @@ function clone_smart_contract_repo ()
   fi
   sed -i.bak 's/const DEFAULT_TIMEOUT = 120000;/const DEFAULT_TIMEOUT = 360000;/' hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
   rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
+
+  echo "Patch ERC20 smoke gas overrides"
+  if ! grep -q "factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    echo "Expected ERC20 deploy gas argument was not found"
+    log_and_exit 1
+  fi
+  sed -i.bak "s/factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000)/factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', { gasLimit: Constants.GAS_LIMIT_10_000_000 })/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
+  rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
+
+  if ! grep -q "erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    echo "Expected ERC20 mint gas argument was not found"
+    log_and_exit 1
+  fi
+  sed -i.bak "s/erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)/erc20Contract.mint(wallet1, firstMintAmount, { gasLimit: Constants.GAS_LIMIT_10_000_000 })/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
+  rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
 }
 
 function setup_smart_contract_test ()
