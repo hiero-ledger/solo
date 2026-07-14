@@ -102,8 +102,19 @@ export class DockerClient implements ContainerEngineClient {
       argumentsPrefix: [],
     };
 
-    const output: string[] = await this.shellRunner.run(engineCommand.executable, [
-      [...engineCommand.argumentsPrefix,'exec', '--privileged', nodeName, 'ctr', '--namespace=k8s.io', 'images', 'ls', '-q'],
+    const output: string[] = await this.shellRunner.run(
+      engineCommand.executable,
+      [
+        ...engineCommand.argumentsPrefix,
+        'exec',
+        '--privileged',
+        nodeName,
+        'ctr',
+        '--namespace=k8s.io',
+        'images',
+        'ls',
+        '-q',
+      ],
       {commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE},
     );
 
