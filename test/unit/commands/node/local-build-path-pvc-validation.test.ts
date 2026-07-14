@@ -16,6 +16,7 @@ import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.j
 type FakeContainer = {
   execContainer: sinon.SinonStub;
   copyTo: sinon.SinonStub;
+  hasDir: sinon.SinonStub;
 };
 
 type FakeK8 = {
@@ -164,11 +165,13 @@ describe('NodeCommandTasks local build path copy', (): void => {
     const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
     const execContainerStub: sinon.SinonStub = sinon.stub().resolves('');
     const copyToStub: sinon.SinonStub = sinon.stub().resolves();
+    const hasDirectoryStub: sinon.SinonStub = sinon.stub().resolves(false);
     const k8: FakeK8 = {
       containers: (): {readByRef: () => FakeContainer} => ({
         readByRef: (): FakeContainer => ({
           execContainer: execContainerStub,
           copyTo: copyToStub,
+          hasDir: hasDirectoryStub,
         }),
       }),
     };
@@ -177,7 +180,7 @@ describe('NodeCommandTasks local build path copy', (): void => {
     await expect(invokeCopyLocalBuildPathToNode(nodeCommandTasks, k8, configManager, '/tmp/local-build/data')).to
       .eventually.be.fulfilled;
 
-    expect(execContainerStub.calledTwice).to.equal(true);
+    expect(execContainerStub.calledThrice).to.equal(true);
     const expectedStopCommand: string = [
       'test -x "/command/network-node-lifecycle" || { ' +
         'echo "missing /command/network-node-lifecycle; update solo-container image" >&2; exit 1; }',
@@ -188,7 +191,42 @@ describe('NodeCommandTasks local build path copy', (): void => {
       `rm -rf ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ` +
       `${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`;
     expect(execContainerStub.secondCall.args[0]).to.deep.equal(['bash', '-c', expectedJarRemovalCommand]);
+    expect(execContainerStub.thirdCall.args[0]).to.deep.equal(['sync', constants.HEDERA_HAPI_PATH]);
+    expect(hasDirectoryStub.calledOnceWith(`${constants.HEDERA_HAPI_PATH}/data/upgrade/current`)).to.equal(true);
     expect(copyToStub.calledOnceWith('/tmp/local-build/data', constants.HEDERA_HAPI_PATH)).to.equal(true);
+  });
+
+  it('copies local build jars into the prepared upgrade directory when present', async (): Promise<void> => {
+    const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+    const execContainerStub: sinon.SinonStub = sinon.stub().resolves('');
+    const copyToStub: sinon.SinonStub = sinon.stub().resolves();
+    const hasDirectoryStub: sinon.SinonStub = sinon.stub().resolves(true);
+    const k8: FakeK8 = {
+      containers: (): {readByRef: () => FakeContainer} => ({
+        readByRef: (): FakeContainer => ({
+          execContainer: execContainerStub,
+          copyTo: copyToStub,
+          hasDir: hasDirectoryStub,
+        }),
+      }),
+    };
+    const configManager: {getFlag: sinon.SinonStub} = {getFlag: sinon.stub().returns('')};
+
+    await expect(invokeCopyLocalBuildPathToNode(nodeCommandTasks, k8, configManager, '/tmp/local-build/data')).to
+      .eventually.be.fulfilled;
+
+    const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`;
+    const expectedUpgradeJarRemovalCommand: string =
+      `rm -rf ${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ` +
+      `${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`;
+
+    expect(execContainerStub.callCount).to.equal(4);
+    expect(execContainerStub.thirdCall.args[0]).to.deep.equal(['bash', '-c', expectedUpgradeJarRemovalCommand]);
+    expect(execContainerStub.getCall(3).args[0]).to.deep.equal(['sync', constants.HEDERA_HAPI_PATH]);
+    expect(copyToStub.firstCall.args[0]).to.equal('/tmp/local-build/data');
+    expect(copyToStub.firstCall.args[1]).to.equal(constants.HEDERA_HAPI_PATH);
+    expect(copyToStub.secondCall.args[0]).to.equal('/tmp/local-build/data');
+    expect(copyToStub.secondCall.args[1]).to.equal(upgradeDirectory);
   });
 });
 

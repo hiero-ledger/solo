@@ -186,7 +186,7 @@ import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-
 import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-  return !(path.includes('data/keys') || path.includes('data/config'));
+  return !(path.includes('data/keys') || path.includes('data/config') || path.includes('data/upgrade'));
 };
 
 const {gray, cyan, red, green, yellow} = chalk;
@@ -339,6 +339,19 @@ export class NodeCommandTasks {
     ]);
 
     await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
+
+    const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`;
+    if (await container.hasDir(upgradeDirectory)) {
+      await container.execContainer([
+        'bash',
+        '-c',
+        `rm -rf ${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`,
+      ]);
+      await container.copyTo(localDataLibraryBuildPath, upgradeDirectory, localBuildPathFilter);
+    }
+
+    await container.execContainer(['sync', constants.HEDERA_HAPI_PATH]);
+
     if (configManager.getFlag<string>(flags.appConfig)) {
       const testJsonFiles: string[] = configManager.getFlag<string>(flags.appConfig)!.split(',');
       for (const jsonFile of testJsonFiles) {
