@@ -989,10 +989,15 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   if version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.1"; then
     TEMP_WRB_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-wrb-application-properties-XXXX.properties)"
     cp "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}"
+    set_application_property "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BOTH"
     set_application_property "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
+    set_application_property "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
+    set_application_property "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
+    set_application_property "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
+    set_application_property "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
     chmod 644 "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}"
 
-    echo "Switching stopped target CN pods to WRB block streaming mode for BN ${CURRENT_BLOCK_VERSION}"
+    echo "Switching stopped target CN pods to WRB/RSA block streaming mode for BN ${CURRENT_BLOCK_VERSION}"
     for node_pod in network-node1-0 network-node2-0; do
       kubectl --context "kind-${SOLO_CLUSTER_NAME}" cp \
         "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}" \
@@ -1015,7 +1020,9 @@ fi
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
-wait_for_mirror_block_count_progress "target deployment after component upgrades" "${source_block_after_one_shot}" 3 180 2 > /dev/null
+target_block_before_final_wait="$(get_latest_mirror_block_number)"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Target mirror block before final progress wait: ${target_block_before_final_wait}"
+wait_for_mirror_block_count_progress "target deployment after component upgrades" "${target_block_before_final_wait}" 3 180 2 > /dev/null
 
 npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
 
