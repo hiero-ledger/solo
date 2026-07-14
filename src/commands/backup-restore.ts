@@ -18,7 +18,13 @@ import {type K8} from '../integration/kube/k8.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {SoloErrors} from '../core/errors/solo-errors.js';
-import {type Context, type ClusterReferences, type SoloListrTask, type SoloListr} from '../types/index.js';
+import {
+  type Context,
+  type ClusterReferences,
+  type SoloListrTask,
+  type SoloListr,
+  type SoloListrTaskWrapper,
+} from '../types/index.js';
 import {Listr} from 'listr2';
 import * as constants from '../core/constants.js';
 import {NetworkNodes} from '../core/network-nodes.js';
@@ -30,6 +36,10 @@ import {plainToInstance} from 'class-transformer';
 import {RemoteConfigSchema} from '../data/schema/model/remote/remote-config-schema.js';
 import {RemoteConfig} from '../business/runtime-state/config/remote/remote-config.js';
 import {type DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
+import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
+import {type ConsensusNodeStateSchema} from '../data/schema/model/remote/state/consensus-node-state-schema.js';
+import {type MirrorNodeStateSchema} from '../data/schema/model/remote/state/mirror-node-state-schema.js';
+import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay-node-state-schema.js';
 import {type DeploymentName} from '../types/index.js';
 import {type ApplicationVersionsSchema} from '../data/schema/model/common/application-versions-schema.js';
 import {KeysCommandDefinition} from './command-definitions/keys-command-definition.js';
@@ -88,6 +98,15 @@ interface ExternalDatabaseParameters {
   ownerPassword: string;
 }
 
+type ComponentOptionName = 'consensus' | 'block' | 'mirror' | 'relay' | 'explorer';
+type ComponentOptions = Partial<Record<ComponentOptionName, string[]>>;
+type JsonObject = Record<string, unknown>;
+type ZstdDecompress = (buffer: Buffer) => Buffer;
+type SoloSubTaskResult = SoloListr<AnyListrContext> | SoloListr<AnyListrContext>[];
+
+// eslint-disable-next-line unicorn/no-null -- Kubernetes JSON merge patches use null to remove fields.
+const JSON_MERGE_PATCH_DELETE_VALUE: null = null;
+
 const helpers: {
   sleep: typeof sleep;
   extractContextFromConsensusNodes: typeof extractContextFromConsensusNodes;
@@ -111,6 +130,18 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public async close(): Promise<void> {
     // No resources to close for this command
+  }
+
+  private static isJsonObject(value: unknown): value is JsonObject {
+    return typeof value === 'object' && value !== JSON_MERGE_PATCH_DELETE_VALUE && !Array.isArray(value);
+  }
+
+  private static getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+  }
+
+  private static getError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error));
   }
 
   public static BACKUP_FLAGS_LIST: CommandFlags = {
@@ -896,7 +927,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * the restored (old) password rather than the password set during restore-network.
    */
   private async restartMirrorRuntimeDependencies(namespace: NamespaceName): Promise<void> {
-    const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
+    const mirrorNodes: MirrorNodeStateSchema[] = this.remoteConfig.configuration.state.mirrorNodes || [];
     const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
     const processedContexts: Set<string> = new Set<string>();
 
@@ -994,7 +1025,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   private readExternalDatabaseParameters(
     baseDirectory: string,
-    required = false,
+    required: boolean = false,
   ): ExternalDatabaseParameters | undefined {
     const {paramsFilePath, fromFlag} = this.resolveExternalDbParamsFilePath(baseDirectory);
     if (!fs.existsSync(paramsFilePath)) {
@@ -1004,8 +1035,16 @@ export class BackupRestoreCommand extends BaseCommand {
       return undefined;
     }
 
-    const parsedPayload: any = JSON.parse(fs.readFileSync(paramsFilePath, 'utf8'));
-    const parameters: any = parsedPayload.parameters || parsedPayload;
+    const parsedPayload: unknown = JSON.parse(fs.readFileSync(paramsFilePath, 'utf8'));
+    if (!BackupRestoreCommand.isJsonObject(parsedPayload)) {
+      throw new SoloError(`Invalid external database parameters file '${paramsFilePath}'. Expected an object.`);
+    }
+
+    const parametersPayload: unknown = parsedPayload.parameters || parsedPayload;
+    if (!BackupRestoreCommand.isJsonObject(parametersPayload)) {
+      throw new SoloError(`Invalid external database parameters file '${paramsFilePath}'. Expected parameters object.`);
+    }
+    const parameters: JsonObject = parametersPayload;
 
     const requiredKeys: string[] = [
       'context',
@@ -1026,13 +1065,13 @@ export class BackupRestoreCommand extends BaseCommand {
     }
 
     return {
-      context: parameters.context,
-      namespace: parameters.namespace,
-      podName: parameters.podName,
-      containerName: parameters.containerName,
-      databaseName: parameters.databaseName,
-      ownerUsername: parameters.ownerUsername,
-      ownerPassword: parameters.ownerPassword,
+      context: parameters.context as string,
+      namespace: parameters.namespace as string,
+      podName: parameters.podName as string,
+      containerName: parameters.containerName as string,
+      databaseName: parameters.databaseName as string,
+      ownerUsername: parameters.ownerUsername as string,
+      ownerPassword: parameters.ownerPassword as string,
     };
   }
 
@@ -1064,13 +1103,13 @@ export class BackupRestoreCommand extends BaseCommand {
       `Aligning mirror importer (external DB: ${parameters.context}/${parameters.namespace}/${parameters.podName})...`,
     );
 
-    const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
+    const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes || [];
     if (blockNodes.length === 0) {
       this.logger.info('No block node in deployment; skipping alignment.');
       return;
     }
 
-    const blockNode: any = blockNodes[0];
+    const blockNode: BlockNodeStateSchema = blockNodes[0];
     const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
     const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
     const blockNodeId: number = Number(blockNode.metadata.id);
@@ -1150,8 +1189,8 @@ export class BackupRestoreCommand extends BaseCommand {
         if (pods.length > 0) {
           return k8.containers().readByRef(ContainerReference.of(pods[0].podReference, constants.ROOT_CONTAINER));
         }
-      } catch (error: any) {
-        this.logger.info(`Skipping CN ${consensusNode.name}: ${error.message || error}`);
+      } catch (error: unknown) {
+        this.logger.info(`Skipping CN ${consensusNode.name}: ${BackupRestoreCommand.getErrorMessage(error)}`);
       }
     }
     return undefined;
@@ -1256,8 +1295,10 @@ export class BackupRestoreCommand extends BaseCommand {
       ]);
       const parsed: number = Number.parseInt((output || '').trim(), 10);
       return Number.isFinite(parsed) ? parsed : -1;
-    } catch (error: any) {
-      this.logger.info(`psql query failed while reading record_file MAX(index): ${error.message || error}`);
+    } catch (error: unknown) {
+      this.logger.info(
+        `psql query failed while reading record_file MAX(index): ${BackupRestoreCommand.getErrorMessage(error)}`,
+      );
       return -1;
     }
   }
@@ -1302,12 +1343,12 @@ export class BackupRestoreCommand extends BaseCommand {
    * Parameters include pod/container location plus DB credentials from mirror secrets.
    */
   private async resolveExternalDatabaseParametersForBackup(): Promise<ExternalDatabaseParameters> {
-    const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
+    const mirrorNodes: MirrorNodeStateSchema[] = this.remoteConfig.configuration.state.mirrorNodes || [];
     if (mirrorNodes.length === 0) {
       throw new SoloError('No mirror node found in deployment state; cannot back up external database.');
     }
 
-    const mirrorNode: any = mirrorNodes[0];
+    const mirrorNode: MirrorNodeStateSchema = mirrorNodes[0];
     const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
     const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
 
@@ -1646,11 +1687,11 @@ export class BackupRestoreCommand extends BaseCommand {
       return false;
     }
 
-    const blockNodes: any[] = this.remoteConfig.configuration?.state?.blockNodes || [];
+    const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration?.state?.blockNodes || [];
     if (blockNodes.length === 0) {
       return false;
     }
-    const blockNode: any = blockNodes[0];
+    const blockNode: BlockNodeStateSchema = blockNodes[0];
     const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
     const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
     const blockNodeId: number = Number(blockNode.metadata.id);
@@ -1791,8 +1832,8 @@ export class BackupRestoreCommand extends BaseCommand {
       ]);
       const parsed: number = Number.parseInt((output || '').trim(), 10);
       return Number.isFinite(parsed) ? parsed : -1;
-    } catch (error: any) {
-      this.logger.info(`Failed to read importer record_file MAX: ${error.message || error}`);
+    } catch (error: unknown) {
+      this.logger.info(`Failed to read importer record_file MAX: ${BackupRestoreCommand.getErrorMessage(error)}`);
       return -1;
     }
   }
@@ -1863,14 +1904,14 @@ export class BackupRestoreCommand extends BaseCommand {
     const rawCompressed: Buffer = Buffer.from(base64Content.replaceAll(/\s/g, ''), 'base64');
     let rawBytes: Buffer = rawCompressed;
     if (foundPath.endsWith('.blk.zstd')) {
-      // Node 22.15+ provides zstd via zlib. The synchronous API is still marked
-      // experimental in Node's docs but is stable enough for our one-off use here.
+      const zlibWithZstd: Record<string, unknown> = zlib as unknown as Record<string, unknown>;
       // eslint-disable-next-line n/no-unsupported-features/node-builtins
-      const zstdDecompress: any = (zlib as any).zstdDecompressSync;
-      if (typeof zstdDecompress !== 'function') {
+      const zstdDecompressCandidate: unknown = zlibWithZstd['zstdDecompressSync'];
+      if (typeof zstdDecompressCandidate !== 'function') {
         this.logger.info('zstd decompression unavailable in this Node.js runtime; cannot bridge gap');
         return undefined;
       }
+      const zstdDecompress: ZstdDecompress = zstdDecompressCandidate as ZstdDecompress;
       rawBytes = zstdDecompress(rawCompressed);
     }
 
@@ -1909,11 +1950,11 @@ export class BackupRestoreCommand extends BaseCommand {
    * keeps requesting the same (already-gapped) block.
    */
   private async restartMirrorImporter(): Promise<void> {
-    const mirrorNodes: any[] = this.remoteConfig.configuration?.state?.mirrorNodes || [];
+    const mirrorNodes: MirrorNodeStateSchema[] = this.remoteConfig.configuration?.state?.mirrorNodes || [];
     if (mirrorNodes.length === 0) {
       return;
     }
-    const mirrorNode: any = mirrorNodes[0];
+    const mirrorNode: MirrorNodeStateSchema = mirrorNodes[0];
     const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
     const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
     const mirrorReleaseName: string = Templates.renderMirrorNodeName(Number(mirrorNode.metadata.id));
@@ -1946,12 +1987,12 @@ export class BackupRestoreCommand extends BaseCommand {
     namespace: NamespaceName,
     consensusNodes: ConsensusNode[],
   ): Promise<void> {
-    const relayNodes: any[] = this.remoteConfig.configuration.state.relayNodes || [];
+    const relayNodes: RelayNodeStateSchema[] = this.remoteConfig.configuration.state.relayNodes || [];
     if (relayNodes.length === 0) {
       return;
     }
 
-    const relayNode: any = relayNodes[0];
+    const relayNode: RelayNodeStateSchema = relayNodes[0];
     const relayClusterReference: string = relayNode.metadata.cluster;
     const relayContext: Context = this.remoteConfig.getClusterRefs().get(relayClusterReference);
     const networkMap: Record<string, string> = {};
@@ -1960,8 +2001,8 @@ export class BackupRestoreCommand extends BaseCommand {
       const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias as NodeAlias, consensusNodes);
       const k8: K8 = this.k8Factory.getK8(context);
 
-      const haProxyService = await k8.services().read(namespace, `haproxy-${nodeAlias}-svc`);
-      const nodeService = await k8.services().read(namespace, `network-${nodeAlias}-svc`);
+      const haProxyService: Service = await k8.services().read(namespace, `haproxy-${nodeAlias}-svc`);
+      const nodeService: Service = await k8.services().read(namespace, `network-${nodeAlias}-svc`);
       const lbOrClusterEndpoint: string =
         haProxyService.status?.loadBalancer?.ingress?.[0]?.ip || haProxyService.spec?.clusterIP || '';
       const endpointPort: number =
@@ -2348,7 +2389,7 @@ export class BackupRestoreCommand extends BaseCommand {
         // cluster resources and have no ordering dependency between them.
         {
           title: 'Import ConfigMaps and Secrets',
-          task: (_, tw) =>
+          task: (_, tw): SoloListr<AnyListrContext> =>
             tw.newListr(
               [
                 {
@@ -2381,7 +2422,7 @@ export class BackupRestoreCommand extends BaseCommand {
         // Total wall time = max(A, B, C) ≈ Redis restart time, instead of A + B + C.
         {
           title: 'Restore state',
-          task: (_, tw) =>
+          task: (_, tw): SoloListr<AnyListrContext> =>
             tw.newListr(
               [
                 // Branch A: Redis restart
@@ -2395,7 +2436,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 // Branch B: restore CN TSS keys → CN restart → wait → stop → restore logs → upload state (sequential)
                 {
                   title: 'Restore consensus node state',
-                  task: (_, tw2) =>
+                  task: (_, tw2): SoloListr<AnyListrContext> =>
                     tw2.newListr(
                       [
                         {
@@ -2447,7 +2488,7 @@ export class BackupRestoreCommand extends BaseCommand {
                 // independent and independent of A and B — run all three in parallel.
                 {
                   title: 'Patch components and restore database',
-                  task: (_, tw2) =>
+                  task: (_, tw2): SoloListr<AnyListrContext> =>
                     tw2.newListr(
                       [
                         {
@@ -2581,7 +2622,7 @@ export class BackupRestoreCommand extends BaseCommand {
         title: 'Generate consensus node keys',
         skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<SoloSubTaskResult> => {
           return CommandHelpers.subTaskSoloCommand(
             KeysCommandDefinition.KEYS_COMMAND,
             taskListWrapper,
@@ -2608,7 +2649,7 @@ export class BackupRestoreCommand extends BaseCommand {
         title: 'Deploy consensus network',
         skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<SoloSubTaskResult> => {
           return CommandHelpers.subTaskSoloCommand(
             ConsensusCommandDefinition.DEPLOY_COMMAND,
             taskListWrapper,
@@ -2658,7 +2699,7 @@ export class BackupRestoreCommand extends BaseCommand {
         title: 'Setup consensus nodes',
         skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<SoloSubTaskResult> => {
           return CommandHelpers.subTaskSoloCommand(
             ConsensusCommandDefinition.SETUP_COMMAND,
             taskListWrapper,
@@ -2688,7 +2729,7 @@ export class BackupRestoreCommand extends BaseCommand {
         title: 'Start consensus nodes',
         skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.consensusNodes || context_.deploymentState.consensusNodes.length === 0,
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<SoloSubTaskResult> => {
           return CommandHelpers.subTaskSoloCommand(
             ConsensusCommandDefinition.START_COMMAND,
             taskListWrapper,
@@ -2722,13 +2763,13 @@ export class BackupRestoreCommand extends BaseCommand {
         title: 'Deploy block nodes',
         skip: (context_: AnyListrContext): boolean =>
           !context_.deploymentState?.blockNodes || context_.deploymentState.blockNodes.length === 0,
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<SoloListr<AnyListrContext>> => {
           const blockNodeTasks: SoloListrTask<AnyListrContext>[] = [];
 
           for (const blockNode of context_.deploymentState.blockNodes) {
             blockNodeTasks.push({
               title: `Deploy block node ${blockNode.metadata.id}`,
-              task: async (_, subTaskListWrapper) => {
+              task: async (_, subTaskListWrapper): Promise<SoloSubTaskResult> => {
                 // Switch to the correct cluster context for this block node
                 const clusterReference: string | undefined = blockNode.metadata.cluster;
                 if (blockNode.metadata.context) {
@@ -2799,13 +2840,13 @@ export class BackupRestoreCommand extends BaseCommand {
           !context_.deploymentState?.mirrorNodes ||
           context_.deploymentState.mirrorNodes.length === 0 ||
           (Array.isArray(context_.componentOptions?.mirror) && context_.componentOptions.mirror.length === 0),
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<SoloListr<AnyListrContext>> => {
           const mirrorNodeTasks: SoloListrTask<AnyListrContext>[] = [];
 
           for (const mirrorNode of context_.deploymentState.mirrorNodes) {
             mirrorNodeTasks.push({
               title: `Deploy mirror node ${mirrorNode.metadata.id}`,
-              task: async (_, subTaskListWrapper) => {
+              task: async (_, subTaskListWrapper): Promise<SoloSubTaskResult> => {
                 // Switch to the correct cluster context for this mirror node
                 const clusterReference: string | undefined = mirrorNode.metadata.cluster;
                 if (mirrorNode.metadata.context) {
@@ -2870,13 +2911,13 @@ export class BackupRestoreCommand extends BaseCommand {
           !context_.deploymentState?.relayNodes ||
           context_.deploymentState.relayNodes.length === 0 ||
           (Array.isArray(context_.componentOptions?.relay) && context_.componentOptions.relay.length === 0),
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<SoloListr<AnyListrContext>> => {
           const relayNodeTasks: SoloListrTask<AnyListrContext>[] = [];
 
           for (const relayNode of context_.deploymentState.relayNodes) {
             relayNodeTasks.push({
               title: `Deploy relay node ${relayNode.metadata.id}`,
-              task: async (_, subTaskListWrapper) => {
+              task: async (_, subTaskListWrapper): Promise<SoloSubTaskResult> => {
                 // Switch to the correct cluster context for this relay node
                 const clusterReference: string | undefined = relayNode.metadata.cluster;
                 if (relayNode.metadata.context) {
@@ -2942,13 +2983,13 @@ export class BackupRestoreCommand extends BaseCommand {
           !context_.deploymentState?.explorers ||
           context_.deploymentState.explorers.length === 0 ||
           (Array.isArray(context_.componentOptions?.explorer) && context_.componentOptions.explorer.length === 0),
-        task: async (context_, taskListWrapper) => {
+        task: async (context_, taskListWrapper): Promise<SoloListr<AnyListrContext>> => {
           const explorerTasks: SoloListrTask<AnyListrContext>[] = [];
 
           for (const explorer of context_.deploymentState.explorers) {
             explorerTasks.push({
               title: `Deploy explorer ${explorer.metadata.id}`,
-              task: async (_, subTaskListWrapper) => {
+              task: async (_, subTaskListWrapper): Promise<SoloSubTaskResult> => {
                 // Switch to the correct cluster context for this explorer
                 const clusterReference: string | undefined = explorer.metadata.cluster;
                 if (explorer.metadata.context) {
@@ -3053,7 +3094,7 @@ export class BackupRestoreCommand extends BaseCommand {
         // Read and parse the config file
         const configData: Record<string, unknown> = await this.readRemoteConfigFile(configPath);
         context_.remoteConfig = this.parseRemoteConfig(configData);
-        const remoteConfig = context_.remoteConfig as RemoteConfig;
+        const remoteConfig: RemoteConfig = context_.remoteConfig as RemoteConfig;
         context_.deploymentState = remoteConfig.state;
         context_.versions = remoteConfig.versions;
 
@@ -3071,7 +3112,7 @@ export class BackupRestoreCommand extends BaseCommand {
         this.logger.showUser(chalk.cyan(`Clusters from config: ${clusterNames}`));
 
         // Validate: number of cluster directories should match number of clusters in config
-        const clusters = (context_.clusters as Array<{name: string}>) || [];
+        const clusters: ClusterSchema[] = (context_.clusters as ClusterSchema[]) || [];
         if (clusterReferenceDirectories.length !== clusters.length) {
           this.logger.showUser(
             chalk.yellow(
@@ -3081,7 +3122,7 @@ export class BackupRestoreCommand extends BaseCommand {
         }
 
         // Extract deployment info from config (use first cluster)
-        const clusterInfo = clusters[0] as {namespace: string; deployment: string; name: string};
+        const clusterInfo: ClusterSchema = clusters[0];
         context_.namespace = NamespaceName.of(clusterInfo.namespace);
         context_.deployment = clusterInfo.deployment as DeploymentName;
         context_.context = clusterInfo.name; // Cluster name is the context
@@ -3091,7 +3132,7 @@ export class BackupRestoreCommand extends BaseCommand {
         this.logger.showUser(chalk.cyan(`Context: ${context_.context}`));
 
         // Build node aliases and validate we have components to deploy
-        const deploymentState = context_.deploymentState as DeploymentStateSchema;
+        const deploymentState: DeploymentStateSchema = context_.deploymentState as DeploymentStateSchema;
         if (deploymentState.consensusNodes && deploymentState.consensusNodes.length > 0) {
           context_.nodeAliases = deploymentState.consensusNodes
             .map((n): `node${string}` => `node${n.metadata.id}`)
@@ -3117,9 +3158,9 @@ export class BackupRestoreCommand extends BaseCommand {
    * Normalize component options file paths before subcommands are invoked.
    * Relative values files are resolved from the options YAML location.
    */
-  private normalizeComponentOptionsFilePaths(parsedOptions: any, optionsFile: string): void {
+  private normalizeComponentOptionsFilePaths(parsedOptions: ComponentOptions, optionsFile: string): void {
     const optionsDirectory: string = path.dirname(path.resolve(optionsFile));
-    const componentNames: string[] = ['consensus', 'block', 'mirror', 'relay', 'explorer'];
+    const componentNames: ComponentOptionName[] = ['consensus', 'block', 'mirror', 'relay', 'explorer'];
 
     for (const componentName of componentNames) {
       const rawArguments: unknown = parsedOptions?.[componentName];
@@ -3167,24 +3208,27 @@ export class BackupRestoreCommand extends BaseCommand {
    * empty string.
    */
   private interpolateEnvVariables(content: string): string {
-    return content.replaceAll(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (match, braced: string, unbraced: string) => {
-      const variableName: string = braced ?? unbraced;
-      const value: string | undefined = constants.getEnvironmentVariable(variableName);
-      if (value === undefined) {
-        this.logger.warn(`Options file references undefined environment variable: ${variableName}`);
-        return match;
-      }
-      return value;
-    });
+    return content.replaceAll(
+      /\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g,
+      (match, braced: string, unbraced: string): string => {
+        const variableName: string = braced ?? unbraced;
+        const value: string | undefined = constants.getEnvironmentVariable(variableName);
+        if (value === undefined) {
+          this.logger.warn(`Options file references undefined environment variable: ${variableName}`);
+          return match;
+        }
+        return value;
+      },
+    );
   }
 
   /**
    * Build shared initialization task for restore commands
    */
-  private buildInitializationTask(argv: ArgvStruct): SoloListrTask<any> {
+  private buildInitializationTask(argv: ArgvStruct): SoloListrTask<AnyListrContext> {
     return {
       title: 'Initialize configuration',
-      task: async (context_: any) => {
+      task: async (context_: AnyListrContext): Promise<void> => {
         await this.localConfig.load();
         this.configManager.update(argv);
 
@@ -3206,7 +3250,7 @@ export class BackupRestoreCommand extends BaseCommand {
           try {
             const rawContent: string = fs.readFileSync(optionsFile, 'utf8');
             const optionsContent: string = this.interpolateEnvVariables(rawContent);
-            const parsedOptions: any = yaml.parse(optionsContent);
+            const parsedOptions: ComponentOptions = (yaml.parse(optionsContent) || {}) as ComponentOptions;
             this.normalizeComponentOptionsFilePaths(parsedOptions, optionsFile);
             context_.componentOptions = parsedOptions;
 
@@ -3234,7 +3278,10 @@ export class BackupRestoreCommand extends BaseCommand {
     };
   }
 
-  private async extractEncryptedBackup(targetDirectory: string, task: any): Promise<void> {
+  private async extractEncryptedBackup(
+    targetDirectory: string,
+    task?: SoloListrTaskWrapper<AnyListrContext>,
+  ): Promise<void> {
     const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
     if (!zipPassword) {
       return;
@@ -3284,8 +3331,8 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build create Kind clusters tasks
    */
-  private buildKindNetworkTask(): SoloListrTask<any>[] {
-    const tasks: SoloListrTask<any>[] = [
+  private buildKindNetworkTask(): SoloListrTask<AnyListrContext>[] {
+    const tasks: SoloListrTask<AnyListrContext>[] = [
       {
         title: 'Setup Docker network for multi-cluster',
         skip: (context_): boolean => !context_.clusters || context_.clusters.length <= 1,
@@ -3315,12 +3362,13 @@ export class BackupRestoreCommand extends BaseCommand {
             this.logger.info('Adding MetalLB Helm repository...');
             await this.helm.addRepository(new Repository('metallb', 'https://metallb.github.io/metallb'));
             await this.helm.updateRepositories();
-          } catch (error: any) {
+          } catch (error: unknown) {
             // Network might already exist, which is fine
-            if (error.message && error.message.includes('already exists')) {
+            const errorMessage: string = BackupRestoreCommand.getErrorMessage(error);
+            if (errorMessage.includes('already exists')) {
               this.logger.info('Kind Docker network already exists, continuing...');
             } else {
-              throw new SoloErrors.deployment.kindClusterNetworkSetupFailed(error);
+              throw new SoloErrors.deployment.kindClusterNetworkSetupFailed(BackupRestoreCommand.getError(error));
             }
           }
         },
@@ -3335,15 +3383,15 @@ export class BackupRestoreCommand extends BaseCommand {
    * Build individual cluster creation tasks
    */
   private buildIndividualClusterCreationTasks(
-    context_: any,
+    context_: AnyListrContext,
     metallbConfig: string = 'metallb-cluster-{index}.yaml',
-  ): SoloListrTask<any>[] {
-    const clusterTasks: SoloListrTask<any>[] = [];
+  ): SoloListrTask<AnyListrContext>[] {
+    const clusterTasks: SoloListrTask<AnyListrContext>[] = [];
     const isMultiCluster: boolean = context_.clusters.length > 1;
 
     // Create a task for each cluster
     for (let clusterIndex: number = 0; clusterIndex < context_.clusters.length; clusterIndex++) {
-      const cluster: any = context_.clusters[clusterIndex];
+      const cluster: ClusterSchema = context_.clusters[clusterIndex] as ClusterSchema;
 
       // Get the cluster reference from directory name
       // This is used as the base name for Kind cluster creation
@@ -3353,7 +3401,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
       clusterTasks.push({
         title: `Create cluster '${clusterNameForCreation}' (cluster ref: ${cluster.name})`,
-        task: async (_: any, task: any): Promise<void> => {
+        task: async (_: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>): Promise<void> => {
           const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
           const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
           const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(clusterNameForCreation);
@@ -3373,12 +3421,16 @@ export class BackupRestoreCommand extends BaseCommand {
               clusterReady = true;
               this.logger.info(`Cluster '${clusterResponse.context}' is ready after ${(attempt + 1) * 2} seconds`);
               task.title = `Created cluster '${clusterResponse.name}' (ready in ${(attempt + 1) * 2}s)`;
-            } catch (error: any) {
+            } catch (error: unknown) {
               attempt++;
               if (attempt < maxAttempts) {
                 await sleep(Duration.ofSeconds(2));
               } else {
-                throw new SoloErrors.deployment.clusterApiServerTimeout(clusterResponse.context, maxAttempts, error);
+                throw new SoloErrors.deployment.clusterApiServerTimeout(
+                  clusterResponse.context,
+                  maxAttempts,
+                  BackupRestoreCommand.getError(error),
+                );
               }
             }
           }
@@ -3423,8 +3475,12 @@ export class BackupRestoreCommand extends BaseCommand {
   /**
    * Build cluster initialization tasks
    */
-  private buildClusterInitializationTasks(context_: any, shard: number = 0, realm: number = 0): any[] {
-    const initTasks: any[] = [];
+  private buildClusterInitializationTasks(
+    context_: AnyListrContext,
+    shard: number = 0,
+    realm: number = 0,
+  ): SoloListrTask<AnyListrContext>[] {
+    const initTasks: SoloListrTask<AnyListrContext>[] = [];
     const createdDeployments: Set<string> = new Set<string>(); // Track deployments already created
 
     // For each cluster, run the initialization commands
@@ -3438,7 +3494,7 @@ export class BackupRestoreCommand extends BaseCommand {
       // Count consensus nodes belonging to this specific cluster
       // Note: nodes may have cluster saved with or without prefix, so check both
       const clusterConsensusNodeCount: number = context_.deploymentState!.consensusNodes.filter(
-        (node: any): boolean => {
+        (node: ConsensusNodeStateSchema): boolean => {
           return node.metadata.cluster === clusterReference;
         },
       ).length;
@@ -3666,12 +3722,12 @@ export class BackupRestoreCommand extends BaseCommand {
           namespace: namespace.name,
           name: serviceName,
           annotations: {
-            'metallb.universe.tf/loadBalancerIPs': null,
-            'metallb.io/loadBalancerIPs': null,
+            'metallb.universe.tf/loadBalancerIPs': JSON_MERGE_PATCH_DELETE_VALUE,
+            'metallb.io/loadBalancerIPs': JSON_MERGE_PATCH_DELETE_VALUE,
           },
         },
         spec: {
-          loadBalancerIP: null,
+          loadBalancerIP: JSON_MERGE_PATCH_DELETE_VALUE,
         },
       });
   }
@@ -3696,8 +3752,8 @@ export class BackupRestoreCommand extends BaseCommand {
           namespace: namespace.name,
           name: serviceName,
           annotations: {
-            'metallb.universe.tf/loadBalancerIPs': null,
-            'metallb.io/loadBalancerIPs': null,
+            'metallb.universe.tf/loadBalancerIPs': JSON_MERGE_PATCH_DELETE_VALUE,
+            'metallb.io/loadBalancerIPs': JSON_MERGE_PATCH_DELETE_VALUE,
           },
         },
         spec: {
@@ -3794,8 +3850,10 @@ export class BackupRestoreCommand extends BaseCommand {
     for (const context of contexts) {
       try {
         await this.patchDeploymentRestartAnnotation(context, NamespaceName.of('metallb-system'), 'metallb-controller');
-      } catch (error: any) {
-        this.logger.info(`Skipping MetalLB controller restart for context '${context}': ${error.message}`);
+      } catch (error: unknown) {
+        this.logger.info(
+          `Skipping MetalLB controller restart for context '${context}': ${BackupRestoreCommand.getErrorMessage(error)}`,
+        );
       }
     }
   }

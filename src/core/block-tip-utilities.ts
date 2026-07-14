@@ -36,8 +36,9 @@ export class BlockTipUtilities {
         `find ${BLOCK_NODE_DATA_DIRECTORY} -type f -name '*.blk*' 2>/dev/null | sort | tail -1`,
       ]);
       return BlockTipUtilities.parseBlockNumberFromPath(output);
-    } catch (error: any) {
-      logger.info(`Failed to read block node on-disk tip: ${error.message || error}`);
+    } catch (error: unknown) {
+      const errorMessage: string = error instanceof Error ? error.message : String(error);
+      logger.info(`Failed to read block node on-disk tip: ${errorMessage}`);
       return -1;
     }
   }
@@ -58,8 +59,9 @@ export class BlockTipUtilities {
         String.raw`find ${CONSENSUS_BLOCK_STREAMS_DIRECTORY} -type f \( -name '*.blk*' -o -name '*.pnd*' \) 2>/dev/null | sort | tail -1`,
       ]);
       return BlockTipUtilities.parseBlockNumberFromPath(output);
-    } catch (error: any) {
-      logger.info(`Failed to read CN block stream tip: ${error.message || error}`);
+    } catch (error: unknown) {
+      const errorMessage: string = error instanceof Error ? error.message : String(error);
+      logger.info(`Failed to read CN block stream tip: ${errorMessage}`);
       return -1;
     }
   }
