@@ -329,6 +329,8 @@ export class NodeCommandTasks {
       .containers()
       .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
 
+    await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
+
     // Remove existing jars before copying to prevent mixed-version classpath (issue #3848)
     await container.execContainer([
       'bash',
@@ -1201,7 +1203,7 @@ export class NodeCommandTasks {
         const upgradeDirectories: string[] = [
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`,
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/apps`,
-          `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/libs`,
+          `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/lib`,
         ];
 
         for (const upgradeDirectory of upgradeDirectories) {

@@ -10,6 +10,19 @@ import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import * as constants from '../../../../src/core/constants.js';
 import {Helpers} from '../../../../src/core/helpers.js';
+import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
+import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
+
+type FakeContainer = {
+  execContainer: sinon.SinonStub;
+  copyTo: sinon.SinonStub;
+};
+
+type FakeK8 = {
+  containers: () => {
+    readByRef: () => FakeContainer;
+  };
+};
 
 function createNodeCommandTasksWithPvcData(persistentVolumeClaimsByContext: Record<string, string[]>): {
   tasks: NodeCommandTasks;
@@ -51,6 +64,38 @@ function invokeValidateNodePvcsForLocalBuildPath(
   ).validateNodePvcsForLocalBuildPath;
 
   return validatorFunction.call(nodeCommandTasks, NamespaceName.of('solo'), contexts);
+}
+
+function invokeCopyLocalBuildPathToNode(
+  nodeCommandTasks: NodeCommandTasks,
+  k8: FakeK8,
+  configManager: {getFlag: sinon.SinonStub},
+  localBuildPath: string,
+): Promise<void> {
+  const copyFunction: (
+    k8: FakeK8,
+    podReference: PodReference,
+    configManager: {getFlag: sinon.SinonStub},
+    localBuildPath: string,
+  ) => Promise<void> = (
+    nodeCommandTasks as unknown as Record<
+      string,
+      (
+        k8: FakeK8,
+        podReference: PodReference,
+        configManager: {getFlag: sinon.SinonStub},
+        localBuildPath: string,
+      ) => Promise<void>
+    >
+  ).copyLocalBuildPathToNode;
+
+  return copyFunction.call(
+    nodeCommandTasks,
+    k8,
+    PodReference.of(NamespaceName.of('solo'), PodName.of('network-node1-0')),
+    configManager,
+    localBuildPath,
+  );
 }
 
 describe('NodeCommandTasks local build path PVC validation', (): void => {
@@ -111,6 +156,39 @@ describe('NodeCommandTasks platform software fetch routing', (): void => {
     } finally {
       sinon.restore();
     }
+  });
+});
+
+describe('NodeCommandTasks local build path copy', (): void => {
+  it('stops the network node and disables autostart before replacing jars', async (): Promise<void> => {
+    const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+    const execContainerStub: sinon.SinonStub = sinon.stub().resolves('');
+    const copyToStub: sinon.SinonStub = sinon.stub().resolves();
+    const k8: FakeK8 = {
+      containers: (): {readByRef: () => FakeContainer} => ({
+        readByRef: (): FakeContainer => ({
+          execContainer: execContainerStub,
+          copyTo: copyToStub,
+        }),
+      }),
+    };
+    const configManager: {getFlag: sinon.SinonStub} = {getFlag: sinon.stub().returns('')};
+
+    await expect(invokeCopyLocalBuildPathToNode(nodeCommandTasks, k8, configManager, '/tmp/local-build/data')).to
+      .eventually.be.fulfilled;
+
+    expect(execContainerStub.calledTwice).to.equal(true);
+    const expectedStopCommand: string = [
+      'test -x "/command/network-node-lifecycle" || { ' +
+        'echo "missing /command/network-node-lifecycle; update solo-container image" >&2; exit 1; }',
+      '"/command/network-node-lifecycle" stop-and-disable-autostart',
+    ].join('\n');
+    expect(execContainerStub.firstCall.args[0]).to.deep.equal(['bash', '-c', expectedStopCommand]);
+    const expectedJarRemovalCommand: string =
+      `rm -rf ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ` +
+      `${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`;
+    expect(execContainerStub.secondCall.args[0]).to.deep.equal(['bash', '-c', expectedJarRemovalCommand]);
+    expect(copyToStub.calledOnceWith('/tmp/local-build/data', constants.HEDERA_HAPI_PATH)).to.equal(true);
   });
 });
 
