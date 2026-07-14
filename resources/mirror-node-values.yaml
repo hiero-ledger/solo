@@ -31,10 +31,10 @@ importer:
   resources:
     requests:
       cpu: 0
-      memory: 800Mi
+      memory: 400Mi
     limits:
       cpu: 1000m
-      memory: 880Mi
+      memory: 80Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -95,10 +95,10 @@ grpc:
   resources:
     requests:
       cpu: 0
-      memory: 400Mi
+      memory: 200Mi
     limits:
       cpu: 500m
-      memory: 480Mi
+      memory: 40Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -208,10 +208,10 @@ restjava:
   resources:
     requests:
       cpu: 0
-      memory: 700Mi
+      memory: 250Mi
     limits:
       cpu: 2
-      memory: 800Mi
+      memory: 500Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -241,10 +241,10 @@ web3:
   resources:
     requests:
       cpu: 0
-      memory: 740Mi
+      memory: 250Mi
     limits:
       cpu: 1000m
-      memory: 740Mi
+      memory: 500Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
