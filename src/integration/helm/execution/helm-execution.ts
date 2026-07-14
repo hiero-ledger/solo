@@ -75,8 +75,6 @@ export class HelmExecution {
 
     this.process = spawn(invocation.commandPathOrName, invocation.commandArguments, {
       shell: false,
-      // The builder already produced the complete minimal environment; spreading process.env
-      // again here would re-introduce the full parent environment and undo that minimization.
       env: invocation.environmentVariables,
       cwd: invocation.workingDirectory,
     });
