@@ -86,6 +86,13 @@ is_tss_supported_consensus_version() {
   [[ "$(printf '%s\n' "${minimum_tss_version}" "${consensus_version}" | sort -V | head -n 1)" == "${minimum_tss_version}" ]]
 }
 
+version_at_least() {
+  local version="${1#v}"
+  local minimum_version="${2#v}"
+
+  [[ "$(printf '%s\n' "${minimum_version}" "${version}" | sort -V | head -n 1)" == "${minimum_version}" ]]
+}
+
 extract_required_test_version() {
   local variable_name="${1}"
   local version_value=""
@@ -862,10 +869,9 @@ cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPER
 
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "fees.simpleFeesEnabled" "false"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
-# Keep TSS mode (false) during the BN version transition. BN v0.36 cannot process WRB
-# blocks, so producing block 73 in WRB format would leave it unverifiable by the old BN.
-# BN v0.36 stores TSS block 73 to its live/archive PVCs; the RECREATE to BN v0.37
-# preserves those PVCs, so block 73 is available when CN restarts at block 74.
+# Keep TSS mode during the consensus upgrade while the source BN v0.36 is still
+# receiving blocks. After upgrading BN, the script switches the stopped CN pods
+# to WRB mode before restart so mirror-node sees BLOCK_HEADER blocks.
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
@@ -979,7 +985,26 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
 
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  echo "Target CN remains in TSS block streaming mode; BN ${CURRENT_BLOCK_VERSION} reuses the source verification PVC as application-state."
+
+  if version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.1"; then
+    TEMP_WRB_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-wrb-application-properties-XXXX.properties)"
+    cp "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}"
+    set_application_property "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
+    chmod 644 "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}"
+
+    echo "Switching stopped target CN pods to WRB block streaming mode for BN ${CURRENT_BLOCK_VERSION}"
+    for node_pod in network-node1-0 network-node2-0; do
+      kubectl --context "kind-${SOLO_CLUSTER_NAME}" cp \
+        "${TEMP_WRB_APPLICATION_PROPERTIES_FILE}" \
+        "${SOLO_NAMESPACE}/${node_pod}:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties" \
+        -c root-container
+      kubectl --context "kind-${SOLO_CLUSTER_NAME}" exec "${node_pod}" -n "${SOLO_NAMESPACE}" -c root-container -- \
+        bash -c 'chown hedera:hedera /opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties 2>/dev/null || true'
+    done
+  else
+    echo "Target BN ${CURRENT_BLOCK_VERSION} does not support the WRB/RSA migration path; keeping target CN in TSS mode"
+  fi
+
   echo "Waiting briefly for block node rollout after recreate before restarting target CN"
   sleep 10
   npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
