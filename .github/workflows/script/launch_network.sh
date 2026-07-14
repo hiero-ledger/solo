@@ -1003,7 +1003,7 @@ echo "::endgroup::"
 
 echo "::group::Final Verification"
 SKIP_IMPORTER_CHECK=true
-export SMOKE_MIRROR_BLOCK_SETTLE_BLOCKS=60
+export SMOKE_MIRROR_BLOCK_SETTLE_BLOCKS=3
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 echo "::endgroup::"
 

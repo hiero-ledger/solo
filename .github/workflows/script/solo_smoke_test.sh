@@ -77,6 +77,31 @@ function start_contract_test ()
   fi
 }
 
+function scale_mirror_pinger ()
+{
+  local namespace="${1}"
+  local replicas="${2}"
+  local action="${3}"
+  local context="${MIRROR_KUBE_CONTEXT:-$(kubectl config current-context)}"
+  local pinger_deployments=""
+  local deployment=""
+
+  pinger_deployments=$(kubectl --context "${context}" get deployments -n "${namespace}" \
+    -l app.kubernetes.io/component=pinger -o name 2>/dev/null || true)
+
+  if [[ -z "${pinger_deployments}" ]]; then
+    echo "No mirror pinger deployment found to ${action} in namespace ${namespace} on context ${context}"
+    return 0
+  fi
+
+  while IFS= read -r deployment; do
+    [[ -z "${deployment}" ]] && continue
+    echo "${action} ${deployment} in namespace ${namespace} on context ${context}"
+    kubectl --context "${context}" scale "${deployment}" -n "${namespace}" --replicas="${replicas}"
+    kubectl --context "${context}" rollout status "${deployment}" -n "${namespace}" --timeout=2m
+  done <<< "${pinger_deployments}"
+}
+
 function wait_for_contract_test_accounts ()
 {
   local relay_url="${1:-http://127.0.0.1:37546}"
@@ -451,6 +476,7 @@ if [ -z "${SOLO_NAMESPACE}" ]; then
   export SOLO_NAMESPACE="solo-e2e"
 fi
 
+scale_mirror_pinger "${SOLO_NAMESPACE}" 0 "Pause"
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
@@ -459,6 +485,7 @@ latest_mirror_block_before_contract_test="$(get_latest_mirror_block_number)"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Mirror block before smart contract test: ${latest_mirror_block_before_contract_test}"
 wait_for_mirror_block_progress "before smart contract test" "${latest_mirror_block_before_contract_test}" "${SMOKE_MIRROR_BLOCK_SETTLE_BLOCKS:-5}" 180 2
 start_contract_test
+scale_mirror_pinger "${SOLO_NAMESPACE}" 1 "Resume"
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"
 sleep 30
