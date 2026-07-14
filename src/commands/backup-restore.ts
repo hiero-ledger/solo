@@ -2179,10 +2179,33 @@ export class BackupRestoreCommand extends BaseCommand {
           this.logger.info(`No tss-bootstrap-roster.json found at ${localTssFilePath}; WRAPS blocks may not verify`);
         }
 
-        // Restart so block-node loads the restored tss-bootstrap-roster.json on startup.
-        // BN starts with empty data/ (lastVerifiedBlock=-1); BLOCK_NODE_EARLIEST_MANAGED_BLOCK=
-        // 100000000 causes BN to accept CN's first post-restore block via streamBeforeEmbOrElse
-        // without triggering BehindPublisher.
+        // Restore the block data archive so BN starts with lastVerifiedBlock=N (the backed-up
+        // maximum).  CN's state restore point is typically a few blocks before N; CN will
+        // reproduce those blocks first, which BN skips (already present), and then produce block
+        // N+1, which BN accepts as the first new block.  Without the archive, lastVerifiedBlock=-1
+        // and BN parks every post-restore block waiting for blocks 0 through N-1 that CN can
+        // never provide — block streaming never starts.
+        // Archive layout: {cluster}/blockNodeData/{podName}-blockNodeData.tar.gz expands to data/.
+        // Use -m (--touch) so tar does not try to set mtimes on PVC files, which triggers
+        // EPERM on some Kubernetes volume drivers.
+        const localArchivePath: string = PathEx.join(blockNodeDataDirectory, archiveName);
+        const archiveInPod: string = `/tmp/${archiveName}`;
+        await container.copyTo(localArchivePath, '/tmp/');
+        await container
+          .execContainer([
+            'sh',
+            '-c',
+            `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}" -m 2>/dev/null; rm -f "${archiveInPod}"; true`,
+          ])
+          .catch((): void => {
+            // best-effort: archive may have minor warnings on PVC mounts; block data is likely intact
+            this.logger.info(`Block data archive extraction had warnings for ${podName}; continuing`);
+          });
+        this.logger.info(
+          `Restored block data archive to ${podName}; lastVerifiedBlock will initialise to the backed-up maximum`,
+        );
+
+        // Restart BN so it loads the restored block data and tss-bootstrap-roster.json.
         const beforeBlockNodeDelete: Date = new Date();
         await k8.pods().delete(podReference);
         await k8
