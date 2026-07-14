@@ -31,7 +31,8 @@ vars:
     sh: sed -n "s/.*PREV_BLOCK_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
 
   # Current versions to upgrade to
-  CURRENT_MIRROR_VERSION: "v0.152.0"
+  CURRENT_MIRROR_VERSION:
+    sh: sed -n "s/.*MIRROR_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version-test.ts"
 
   # Local build path for network upgrade
   ROOT_DIR:
