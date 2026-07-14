@@ -45,6 +45,11 @@ export const REDIS_IMAGE_VERSION: string = constants.getEnvironmentVariable('RED
 export const REDIS_SENTINEL_IMAGE_VERSION: string =
   constants.getEnvironmentVariable('REDIS_SENTINEL_IMAGE_VERSION') || '8.2.2';
 
+// Image versions embedded in the solo-deployment Helm chart (SOLO_CHART_VERSION).
+// These must stay in sync with charts/solo-deployment/values.yaml whenever SOLO_CHART_VERSION bumps.
+export const SOLO_CHEETAH_VERSION: string = constants.getEnvironmentVariable('SOLO_CHEETAH_VERSION') || '0.4.5';
+export const SOLO_CONTAINERS_VERSION: string = constants.getEnvironmentVariable('SOLO_CONTAINERS_VERSION') || '0.46.0';
+
 // -------------------------------------------------------------------- //
 // Edge (newer-than-default) versions used by the `--edge` preset in one-shot deploys.
 export const SOLO_CHART_EDGE_VERSION: string =
