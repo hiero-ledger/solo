@@ -37,7 +37,6 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
-  type PrivateKeyAndCertificateObject,
   type Realm,
   type Shard,
   type SoloListr,
@@ -49,6 +48,7 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
@@ -916,7 +916,6 @@ export class NetworkCommand extends BaseCommand {
         'keysDir',
         'nodeAliases',
         'stagingDir',
-        'stagingKeysDir',
         'chartValuesMap',
         'resolvedThrottlesFile',
         'namespace',
@@ -951,7 +950,6 @@ export class NetworkCommand extends BaseCommand {
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
     config.stagingDir = Templates.renderStagingDir(config.cacheDir, config.releaseTag);
-    config.stagingKeysDir = PathEx.join(config.stagingDir, 'keys');
 
     config.resolvedThrottlesFile = resolveValidJsonFilePath(
       config.genesisThrottlesFile,
@@ -994,14 +992,10 @@ export class NetworkCommand extends BaseCommand {
     config.namespace = namespace;
     await this.prepareNamespaces(config);
 
-    // prepare staging keys directory
-    if (!fs.existsSync(config.stagingKeysDir)) {
-      fs.mkdirSync(config.stagingKeysDir, {recursive: true});
-    }
-
     // create cached keys dir if it does not exist yet
     if (!fs.existsSync(config.keysDir)) {
-      fs.mkdirSync(config.keysDir);
+      fs.mkdirSync(config.keysDir, {mode: 0o700});
+      FilePermissions.restrictToOwner(config.keysDir, true);
     }
 
     this.logger.debug('Preparing storage secrets');
@@ -1264,6 +1258,9 @@ export class NetworkCommand extends BaseCommand {
         }
       }
 
+      // The cached CRD file may have been copyFileSync'd from a packaged (0755) source, bypassing umask.
+      FilePermissions.restrictTreeToOwner(temporaryFile);
+
       await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);
     }
   }
@@ -1474,42 +1471,28 @@ export class NetworkCommand extends BaseCommand {
             !grpcTlsCertificatePath && !grpcWebTlsCertificatePath,
         },
         {
-          title: 'Prepare staging directory',
-          task: (_, parentTask): SoloListr<NetworkDeployContext> => {
+          title: 'Copy node keys to secrets',
+          task: ({config: {keysDir, consensusNodes, contexts}}, parentTask): SoloListr<NetworkDeployContext> => {
+            // set up the subtasks
             return parentTask.newListr(
-              [
-                {
-                  title: 'Copy Gossip keys to staging',
-                  task: ({config: {keysDir, stagingKeysDir, nodeAliases}}): void => {
-                    this.keyManager.copyGossipKeysToStaging(keysDir, stagingKeysDir, nodeAliases);
-                  },
-                },
-                {
-                  title: 'Copy gRPC TLS keys to staging',
-                  task: ({config: {nodeAliases, keysDir, stagingKeysDir}}): void => {
-                    for (const nodeAlias of nodeAliases) {
-                      const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTlsKeyFilePaths(
-                        nodeAlias,
-                        keysDir,
-                      );
-
-                      this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, stagingKeysDir);
-                    }
-                  },
-                },
-              ],
-              constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+              this.platformInstaller.copyNodeKeys(keysDir, consensusNodes, contexts),
+              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             );
           },
         },
         {
-          title: 'Copy node keys to secrets',
-          task: ({config: {stagingDir, consensusNodes, contexts}}, parentTask): SoloListr<NetworkDeployContext> => {
-            // set up the subtasks
-            return parentTask.newListr(
-              this.platformInstaller.copyNodeKeys(stagingDir, consensusNodes, contexts),
-              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
-            );
+          title: 'Remove cached keys',
+          // When --debug is off, the keys now live only in the cluster secrets (uploaded by the task above), so
+          // remove the on-disk copies to avoid leaving private keys in SOLO_CACHE_DIR. Later node commands
+          // re-read them from the secrets in-memory when rebuilding the secrets.
+          skip: (): boolean | string =>
+            this.configManager.getFlag<boolean>(flags.debugMode)
+              ? '--debug enabled, keeping cached keys on disk'
+              : false,
+          task: ({config: {keysDir}}): void => {
+            if (keysDir && fs.existsSync(keysDir)) {
+              fs.rmSync(keysDir, {recursive: true, force: true});
+            }
           },
         },
         {
@@ -1879,10 +1862,13 @@ export class NetworkCommand extends BaseCommand {
                     const container: Container = await new K8Helper(
                       consensusNode.context,
                     ).getConsensusNodeRootContainer(NamespaceName.of(consensusNode.namespace), consensusNode.name);
-                    await container.copyTo(
-                      javaFlightRecorderConfiguration,
-                      `${constants.HEDERA_HAPI_PATH}/data/config`,
-                    );
+                    const destinationDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
+                    await container.copyTo(javaFlightRecorderConfiguration, destinationDirectory);
+                    await container.execContainer([
+                      'bash',
+                      '-c',
+                      `chown hedera:hedera ${destinationDirectory}/${path.basename(javaFlightRecorderConfiguration)} 2>/dev/null || true`,
+                    ]);
                   } catch (error) {
                     throw new SoloErrors.component.blockNodeConfigFailed(error);
                   }

@@ -112,11 +112,11 @@ describe('DefaultOneShotCommand.generateFalconValuesYaml', (): void => {
     const output: string = DefaultOneShotCommand.generateFalconValuesYaml(config);
     const parsed: Record<string, Record<string, string | boolean>> = yaml.parse(output);
 
-    expect(parsed.setup[optionFromFlag(Flags.devMode)]).to.equal(true);
+    expect(parsed.setup[optionFromFlag(Flags.debugMode)]).to.equal(true);
     expect(parsed.setup[optionFromFlag(Flags.localBuildPath)]).to.equal('/path/to/build');
     expect(parsed.network[optionFromFlag(Flags.debugNodeAlias)]).to.equal('node1');
     expect(parsed.consensusNode[optionFromFlag(Flags.debugNodeAlias)]).to.equal('node1');
-    expect(parsed.blockNode[optionFromFlag(Flags.devMode)]).to.equal(true);
+    expect(parsed.blockNode[optionFromFlag(Flags.debugMode)]).to.equal(true);
   });
 
   it('should apply port forwarding setting', (): void => {

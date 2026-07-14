@@ -777,6 +777,11 @@ export class Helpers {
     await container.execContainer(
       `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
     );
+    await container.execContainer([
+      'bash',
+      '-c',
+      `chown hedera:hedera ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE} 2>/dev/null || true`,
+    ]);
 
     const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`;
 
@@ -802,7 +807,16 @@ export class Helpers {
       lines.push(`blockStream.streamMode=${blockStreamMode}`);
     }
 
-    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
+    let writerModeUpdated: boolean = false;
+    for (const line of lines) {
+      if (line.startsWith('blockStream.writerMode=')) {
+        lines[lines.indexOf(line)] = `blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`;
+        writerModeUpdated = true;
+        break;
+      }
+    }
+
+    if (!writerModeUpdated) {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
 
@@ -830,6 +844,11 @@ export class Helpers {
     if (updatedApplicationPropertiesData !== applicationPropertiesData) {
       fs.writeFileSync(updatedApplicationPropertiesFilePath, updatedApplicationPropertiesData);
       await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+      await container.execContainer([
+        'bash',
+        '-c',
+        `chown hedera:hedera ${targetDirectory}/${constants.APPLICATION_PROPERTIES} 2>/dev/null || true`,
+      ]);
     }
   }
 }

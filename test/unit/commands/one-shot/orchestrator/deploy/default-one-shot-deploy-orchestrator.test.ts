@@ -487,7 +487,13 @@ describe('DefaultOneShotDeployOrchestrator buildAutoCleanConfirmationMessage', (
 function makeMinimalOrchestrator(): DefaultOneShotDeployOrchestrator {
   return new DefaultOneShotDeployOrchestrator(
     {} as MockType,
-    {emit: sinon.stub(), waitFor: sinon.stub()} as MockType,
+    {
+      emit: sinon.stub(),
+      waitFor: sinon.stub(),
+      abort: sinon.stub(),
+      abortReason: sinon.stub(),
+      reset: sinon.stub(),
+    } as MockType,
     {} as MockType,
     {} as MockType,
     {} as MockType,

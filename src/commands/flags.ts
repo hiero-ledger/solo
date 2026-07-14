@@ -141,11 +141,15 @@ export class Flags {
     }
   }
 
-  public static readonly devMode: CommandFlag = {
-    constName: 'devMode',
-    name: 'dev',
+  // TODO(#1560): `--dev` was renamed to `--debug` and deprecated on 2026-06-30. The `dev` alias is
+  //  retained only for backwards compatibility and should be removed once the first LTS release that
+  //  ships this deprecation reaches end-of-life (see README "Current Releases" / legacy-versions.md).
+  public static readonly debugMode: CommandFlag = {
+    constName: 'debugMode',
+    name: 'debug',
     definition: {
-      describe: 'Enable developer mode',
+      describe: 'Enable debug mode',
+      alias: 'dev',
       defaultValue: constants.SOLO_DEV_OUTPUT,
       type: 'boolean',
     },
@@ -1444,17 +1448,6 @@ export class Flags {
     prompt: undefined,
   };
 
-  public static readonly localAddressBook: CommandFlag = {
-    constName: 'localAddressBook',
-    name: 'local-address-book',
-    definition: {
-      describe: 'Build address book from local key files instead of querying a live consensus node',
-      defaultValue: false,
-      type: 'boolean',
-    },
-    prompt: undefined,
-  };
-
   public static readonly localBuildPath: CommandFlag = {
     constName: 'localBuildPath',
     name: 'local-build-path',
@@ -2049,18 +2042,6 @@ export class Flags {
     definition: {
       describe: 'Skip LoadBalancer IP tracking and enforcement during restore-network',
       defaultValue: true,
-      type: 'boolean',
-    },
-    prompt: undefined,
-  };
-
-  public static readonly skipDbRestore: CommandFlag = {
-    constName: 'skipDbRestore',
-    name: 'skip-db-restore',
-    definition: {
-      describe:
-        'Skip the external database dump restore. Use when restore-db has already restored the dump in a prior step.',
-      defaultValue: false,
       type: 'boolean',
     },
     prompt: undefined,
@@ -3243,7 +3224,7 @@ export class Flags {
     Flags.deployPrometheusStack,
     Flags.deployment,
     Flags.deploymentClusters,
-    Flags.devMode,
+    Flags.debugMode,
     Flags.ecdsaPrivateKey,
     Flags.ed25519PrivateKey,
     Flags.enableIngress,
@@ -3277,9 +3258,8 @@ export class Flags {
     Flags.externalDbParamsFile,
     Flags.expectedLbIpsFile,
     Flags.skipIpTracking,
-    Flags.skipDbRestore,
+
     Flags.loadBalancerEnabled,
-    Flags.localAddressBook,
     Flags.localBuildPath,
     Flags.log4j2Xml,
     Flags.metallbConfig,
@@ -3432,7 +3412,7 @@ export class Flags {
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],
-    optional: [Flags.namespace, Flags.cacheDir, Flags.releaseTag, Flags.devMode, Flags.quiet],
+    optional: [Flags.namespace, Flags.cacheDir, Flags.releaseTag, Flags.debugMode, Flags.quiet],
   };
 
   /**

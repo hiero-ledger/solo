@@ -28,9 +28,9 @@ for nodeid in */; do
     
     # Find all numeric round directories and keep a fully signed, non-freeze
     # state when available. If the newest archived state is a freeze state, use
-    # the signed non-freeze checkpoint before the latest non-freeze candidate.
-    # This avoids restoring a freeze-adjacent state while keeping the selected
-    # state new enough for the retained PCES files.
+    # the latest signed non-freeze state so CN resumes with TSS already
+    # established, avoiding TSS re-keying that would break block proof
+    # verification against the backed-up tss-bootstrap-roster.json.
     rounds=$(find . -maxdepth 1 -type d -name '[0-9]*' | sed 's|./||' | sort -n)
     
     if [ -n "$rounds" ]; then
@@ -39,7 +39,6 @@ for nodeid in */; do
       highest_round=$(echo "$rounds" | tail -n 1)
       highest_round_freeze_state=""
       earliest_signed_non_freeze_round=""
-      previous_signed_non_freeze_round=""
       latest_signed_non_freeze_round=""
       for round in $rounds; do
         metadata_file="${round}/stateMetadata.txt"
@@ -57,18 +56,13 @@ for nodeid in */; do
           if [ -z "$earliest_signed_non_freeze_round" ]; then
             earliest_signed_non_freeze_round="$round"
           fi
-          previous_signed_non_freeze_round="$latest_signed_non_freeze_round"
           latest_signed_non_freeze_round="$round"
           latest_round="$round"
         fi
       done
 
       if [ "$highest_round_freeze_state" = "true" ] && [ -n "$latest_signed_non_freeze_round" ]; then
-        if [ -n "$previous_signed_non_freeze_round" ]; then
-          latest_round="$previous_signed_non_freeze_round"
-        else
-          latest_round="$latest_signed_non_freeze_round"
-        fi
+        latest_round="$latest_signed_non_freeze_round"
       fi
 
       if [ -z "$latest_round" ]; then
@@ -90,10 +84,9 @@ for nodeid in */; do
         fi
       done
 
-      # Keep top-level PCES from a later pre-freeze round when the newest state
-      # is a freeze state. The selected early state avoids restoring freeze, and
-      # the later PCES gives the event creator enough future parents to become
-      # active without replaying the freeze round.
+      # Rebuild top-level PCES from the selected pre-freeze round so the event
+      # creator has the preconsensus events it needs to become active after
+      # resuming from the kept state.
       if [ -d "${pces_source_round}/preconsensus-events" ]; then
         top_level_pces="${HEDERA_HAPI_PATH}/data/saved/preconsensus-events"
         echo "  Rebuilding top-level preconsensus events from round: $pces_source_round"

@@ -131,7 +131,6 @@ import {BlockNodeInvalidComponentIdSoloError} from './classes/validation/block-n
 import {BlockNodeLocalImageNotFoundSoloError} from './classes/validation/block-node-local-image-not-found-solo-error.js';
 import {ExplorerInvalidComponentIdSoloError} from './classes/validation/explorer-invalid-component-id-solo-error.js';
 import {RelayInvalidComponentIdSoloError} from './classes/validation/relay-invalid-component-id-solo-error.js';
-import {OneShotCachedDeploymentNotFoundSoloError} from './classes/validation/one-shot-cached-deployment-not-found-solo-error.js';
 import {MirrorNodeInvalidComponentIdSoloError} from './classes/validation/mirror-node-invalid-component-id-solo-error.js';
 import {ClusterSetupFailedSoloError} from './classes/deployment/cluster-setup-failed-solo-error.js';
 import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-failed-solo-error.js';
@@ -164,6 +163,7 @@ import {SdkPingFailedSoloError} from './classes/component/sdk-ping-failed-solo-e
 import {NodeServicesRetrievalFailedSoloError} from './classes/component/node-services-retrieval-failed-solo-error.js';
 import {NodeServiceNotFoundSoloError} from './classes/component/node-service-not-found-solo-error.js';
 import {GossipKeySecretCreationFailedSoloError} from './classes/component/gossip-key-secret-creation-failed-solo-error.js';
+import {GossipKeySecretRestoreFailedSoloError} from './classes/component/gossip-key-secret-restore-failed-solo-error.js';
 import {TlsKeySecretCreationFailedSoloError} from './classes/component/tls-key-secret-creation-failed-solo-error.js';
 import {TlsKeyGenerationFailedSoloError} from './classes/component/tls-key-generation-failed-solo-error.js';
 import {SigningKeyGenerationFailedSoloError} from './classes/component/signing-key-generation-failed-solo-error.js';
@@ -283,6 +283,7 @@ import {RemoteConfigDeploymentNotSetError} from './classes/internal/remote-confi
 import {RemoteConfigContextUnavailableError} from './classes/internal/remote-config-context-unavailable-error.js';
 import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-template-undeclared-error.js';
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
+import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -436,6 +437,7 @@ export class SoloErrors {
     readonly nodeServicesRetrievalFailed: typeof NodeServicesRetrievalFailedSoloError;
     readonly nodeServiceNotFound: typeof NodeServiceNotFoundSoloError;
     readonly gossipKeySecretCreationFailed: typeof GossipKeySecretCreationFailedSoloError;
+    readonly gossipKeySecretRestoreFailed: typeof GossipKeySecretRestoreFailedSoloError;
     readonly tlsKeySecretCreationFailed: typeof TlsKeySecretCreationFailedSoloError;
     readonly tlsKeyGenerationFailed: typeof TlsKeyGenerationFailedSoloError;
     readonly signingKeyGenerationFailed: typeof SigningKeyGenerationFailedSoloError;
@@ -525,6 +527,7 @@ export class SoloErrors {
     nodeServicesRetrievalFailed: NodeServicesRetrievalFailedSoloError,
     nodeServiceNotFound: NodeServiceNotFoundSoloError,
     gossipKeySecretCreationFailed: GossipKeySecretCreationFailedSoloError,
+    gossipKeySecretRestoreFailed: GossipKeySecretRestoreFailedSoloError,
     tlsKeySecretCreationFailed: TlsKeySecretCreationFailedSoloError,
     tlsKeyGenerationFailed: TlsKeyGenerationFailedSoloError,
     signingKeyGenerationFailed: SigningKeyGenerationFailedSoloError,
@@ -583,7 +586,6 @@ export class SoloErrors {
     readonly explorerInvalidComponentId: typeof ExplorerInvalidComponentIdSoloError;
     readonly relayInvalidComponentId: typeof RelayInvalidComponentIdSoloError;
     readonly mirrorNodeInvalidComponentId: typeof MirrorNodeInvalidComponentIdSoloError;
-    readonly oneShotCachedDeploymentNotFound: typeof OneShotCachedDeploymentNotFoundSoloError;
     readonly invalidHbarAmount: typeof InvalidHbarAmountSoloError;
     readonly invalidFileIdFormat: typeof InvalidFileIdFormatSoloError;
     readonly invalidEndpointFormat: typeof InvalidEndpointFormatSoloError;
@@ -658,7 +660,6 @@ export class SoloErrors {
     explorerInvalidComponentId: ExplorerInvalidComponentIdSoloError,
     relayInvalidComponentId: RelayInvalidComponentIdSoloError,
     mirrorNodeInvalidComponentId: MirrorNodeInvalidComponentIdSoloError,
-    oneShotCachedDeploymentNotFound: OneShotCachedDeploymentNotFoundSoloError,
     invalidHbarAmount: InvalidHbarAmountSoloError,
     invalidFileIdFormat: InvalidFileIdFormatSoloError,
     invalidEndpointFormat: InvalidEndpointFormatSoloError,
@@ -876,6 +877,7 @@ export class SoloErrors {
     readonly remoteConfigContextUnavailable: typeof RemoteConfigContextUnavailableError;
     readonly cacheImageTemplateUndeclared: typeof CacheImageTemplateUndeclaredError;
     readonly injectedFailure: typeof InjectedFailureSoloError;
+    readonly pipelineCancelled: typeof PipelineCancelledSoloError;
   } = Object.freeze({
     unsupportedOperation: UnsupportedOperationError,
     readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
@@ -888,5 +890,6 @@ export class SoloErrors {
     remoteConfigContextUnavailable: RemoteConfigContextUnavailableError,
     cacheImageTemplateUndeclared: CacheImageTemplateUndeclaredError,
     injectedFailure: InjectedFailureSoloError,
+    pipelineCancelled: PipelineCancelledSoloError,
   });
 }

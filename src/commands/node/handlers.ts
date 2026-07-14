@@ -891,7 +891,7 @@ export class NodeCommandHandlers extends CommandHandler {
     const deployment: string = this.resolveDeploymentFlag(argv);
     const timestamp: string = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-').slice(0, 19);
     const zipFileName: string = `solo-debug-${deployment}-${timestamp}.zip`;
-    const zipFilePath: string = PathEx.join(outputDirectory, zipFileName);
+    const zipFilePath: string = PathEx.join(outputDirectory, '..', zipFileName);
 
     this.logger.showUser(chalk.cyan(`\nCreating debug archive from: ${outputDirectory}`));
     this.logger.showUser(chalk.cyan(`Archive location: ${zipFilePath}`));

@@ -53,7 +53,7 @@ import {Chart} from '../integration/helm/model/chart.js';
 import {Repository} from '../integration/helm/model/repository.js';
 import {InstallChartOptionsBuilder} from '../integration/helm/model/install/install-chart-options-builder.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
-import {METALLB_CHART_VERSION} from '../../version.js';
+import {BLOCK_NODE_VERSION, METALLB_CHART_VERSION} from '../../version.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
@@ -63,6 +63,7 @@ import {type Service} from '../integration/kube/resources/service/service.js';
 import {Templates} from '../core/templates.js';
 import {BlockTipUtilities} from '../core/block-tip-utilities.js';
 import * as Base64 from 'js-base64';
+import {K8Helper} from '../business/utils/k8-helper.js';
 
 interface ExpectedLbIpAssignment {
   context: Context;
@@ -126,7 +127,7 @@ export class BackupRestoreCommand extends BaseCommand {
 
   public static RESTORE_CONFIG_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.quiet, flags.inputDir, flags.externalDbParamsFile, flags.skipDbRestore],
+    optional: [flags.quiet, flags.inputDir, flags.externalDbParamsFile],
   };
 
   public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
@@ -454,30 +455,73 @@ export class BackupRestoreCommand extends BaseCommand {
                 this.logger.info(`tss-bootstrap-roster.json not present on ${podName}, skipping`);
               }
 
-              // Export last verified block number — used to create a state-genesis stub block
-              // during restore so that LiveStreamPublisherManager ignores the 1-path state proof
-              // failure for the first post-restore block from CN.
-              const lastBlockRaw: string = await blockNodeContainer
+              // Export block data archive. applyBlockNodeRestoreFixes() extracts this archive
+              // into /opt/hiero/block-node/ on the restored pod so data/live/ already holds
+              // blocks 0-N before BN starts. That sets lastVerifiedBlock=N on startup.
+              // Without the archive, lastVerifiedBlock=-1 and CN's first post-restore block
+              // (~145) parks in ResultOrderingManager waiting for blocks 0-144 that never
+              // arrive — bn_tip stays empty and the verify step times out.
+              const blockDataArchiveName: string = `${podName}-blockNodeData.tar.gz`;
+              const blockDataArchiveInPod: string = `/tmp/${blockDataArchiveName}`;
+              const blockNodeDataBackupDirectory: string = PathEx.join(
+                outputDirectory,
+                bn.metadata.cluster,
+                'blockNodeData',
+              );
+              await blockNodeContainer
                 .execContainer([
                   'sh',
                   '-c',
-                  String.raw`find /opt/hiero/block-node/data/live -type f \( -name '*.blk' -o -name '*.blk.zstd' \) 2>/dev/null` +
-                    String.raw` | sed 's|.*/0*\([0-9][0-9]*\)\.blk.*|\1|' | sort -un | tail -1`,
+                  `cd /opt/hiero/block-node && tar czf "${blockDataArchiveInPod}" data/ 2>/dev/null && echo ok || echo skip`,
                 ])
                 .catch((): string => '');
-              const lastBlockOutput: string = lastBlockRaw.trim();
-              if (lastBlockOutput && /^\d+$/.test(lastBlockOutput)) {
-                fs.writeFileSync(
-                  PathEx.join(blockNodeBackupDirectory, 'last-verified-block.txt'),
-                  lastBlockOutput,
-                  'utf8',
-                );
-                this.logger.info(`Exported last-verified-block=${lastBlockOutput} from ${podName}`);
-              } else {
-                this.logger.info(`No verified blocks found in ${podName} data/live/`);
-              }
+              await blockNodeContainer.copyFrom(blockDataArchiveInPod, blockNodeDataBackupDirectory);
+              await blockNodeContainer
+                .execContainer(['sh', '-c', `rm -f "${blockDataArchiveInPod}"`])
+                .catch((): void => undefined);
+              this.logger.info(`Exported block data archive from ${podName}`);
             }
             task.title = `Export block node state: ${blockNodes.length} node(s) processed, ${exportCount} TSS file(s) exported`;
+          },
+        },
+        {
+          title: 'Export CN TSS keys',
+          task: async (_, task): Promise<void> => {
+            // Back up each consensus node's TSS key directory so that applyBlockNodeRestoreFixes
+            // can restore it after cluster recreate.  After recreate, KIND PVs are deleted, so CN
+            // would run DKG and generate a new wrapsVerificationKey.  BN's backed-up
+            // tss-bootstrap-roster.json holds the OLD key → BAD_BLOCK_PROOF for the first WRAPS
+            // block.  Restoring these key files makes CN reuse the original DKG material so BN's
+            // tss-bootstrap-roster.json remains valid.
+            let exportCount: number = 0;
+            for (const node of consensusNodes) {
+              const context: Context = extractContextFromConsensusNodes(node.name, consensusNodes);
+              const cnContainer: Container = await new K8Helper(context).getConsensusNodeRootContainer(
+                namespace,
+                node.name,
+              );
+              const nodeDataDirectory: string = PathEx.join(outputDirectory, node.cluster, 'nodeData', node.name);
+              fs.mkdirSync(nodeDataDirectory, {recursive: true});
+              const tssKeyPath: string = `${constants.HEDERA_HAPI_PATH}/data/keys/tss`;
+              const archiveInPod: string = '/tmp/tss-keys.tar.gz';
+              await cnContainer
+                .execContainer([
+                  'sh',
+                  '-c',
+                  `test -d "${tssKeyPath}" && tar czf "${archiveInPod}" -C "${constants.HEDERA_HAPI_PATH}/data/keys" tss 2>/dev/null || true`,
+                ])
+                .catch((): string => '');
+              const archiveExists: boolean = await cnContainer.hasFile(archiveInPod).catch((): boolean => false);
+              if (archiveExists) {
+                await cnContainer.copyFrom(archiveInPod, nodeDataDirectory);
+                await cnContainer.execContainer(['sh', '-c', `rm -f "${archiveInPod}"`]).catch((): void => undefined);
+                exportCount++;
+                this.logger.info(`Exported TSS keys for ${node.name}`);
+              } else {
+                this.logger.info(`No TSS key directory for ${node.name}; CN has not completed DKG`);
+              }
+            }
+            task.title = `Export CN TSS keys: ${exportCount} of ${consensusNodes.length} node(s) exported`;
           },
         },
         {
@@ -585,6 +629,32 @@ export class BackupRestoreCommand extends BaseCommand {
             if ((resource.metadata?.name as string) === constants.SOLO_REMOTE_CONFIGMAP_NAME) {
               this.logger.showUser(chalk.yellow(`    Skipping ${resourceType} file: ${resource.metadata?.name}`));
               continue;
+            }
+
+            if (
+              resourceType === 'configmaps' &&
+              /^block-node-\d+-config$/.test(resource.metadata?.name as string) &&
+              resource.data
+            ) {
+              // Block-node configmaps carry a VERSION field that the pod's entrypoint uses to
+              // locate the app binary: /opt/hiero/block-node/app-${VERSION}/bin/app.
+              // If the backup was taken on an older BN release, the backed-up VERSION does not
+              // match the currently deployed image → the pod crashes with "No such file or directory".
+              // Overwrite VERSION with the currently deployed BLOCK_NODE_VERSION so the entrypoint
+              // always resolves to the correct binary path regardless of backup age.
+              if (resource.data['VERSION'] !== BLOCK_NODE_VERSION) {
+                this.logger.info(
+                  `Patching VERSION from ${resource.data['VERSION']} to ${BLOCK_NODE_VERSION} in ${resource.metadata?.name}`,
+                );
+                resource.data['VERSION'] = BLOCK_NODE_VERSION;
+              }
+              // After restore, CN's first block is typically ~7 behind BN's lastPersistedBlockNumber
+              // (the archive max).  BN's default duplicateBlockSkipWindow=5 sends END_DUPLICATE for
+              // blocks more than 5 behind lastPersistedBlockNumber; CN v0.74 cannot recover from
+              // DUPLICATE_BLOCK and stops streaming.  Raise the window to the maximum allowed (10)
+              // so CN's post-restore blocks receive SKIP (stream stays open) instead of END_DUPLICATE,
+              // letting CN fast-forward until BN accepts the first truly new block via streamBeforeEmbOrElse.
+              resource.data['PRODUCER_DUPLICATE_BLOCK_SKIP_WINDOW'] = '10';
             }
 
             await (resourceType === 'configmaps'
@@ -766,12 +836,12 @@ export class BackupRestoreCommand extends BaseCommand {
       return;
     }
 
-    const restartStartedAt: Date = new Date();
-
     for (const pod of pods) {
       await k8.pods().delete(pod.podReference);
     }
 
+    // No createdAfter filter: Kubernetes sets deletionTimestamp synchronously on delete(),
+    // so excludeMarkedForDeletion=true reliably excludes the old pod without a timestamp race.
     await k8
       .pods()
       .waitForReadyStatus(
@@ -779,7 +849,7 @@ export class BackupRestoreCommand extends BaseCommand {
         labels,
         constants.PODS_READY_MAX_ATTEMPTS,
         constants.PODS_READY_DELAY,
-        restartStartedAt,
+        undefined,
         true,
       );
   }
@@ -821,7 +891,9 @@ export class BackupRestoreCommand extends BaseCommand {
 
   /**
    * Restart mirror runtime dependencies that cache state/config.
-   * Redis pods are restarted so the restored config/database state is reloaded.
+   * Redis is restarted first so it picks up restored credentials. Once Redis is ready,
+   * grpc and importer pods are deleted and recreated so they authenticate to Redis with
+   * the restored (old) password rather than the password set during restore-network.
    */
   private async restartMirrorRuntimeDependencies(namespace: NamespaceName): Promise<void> {
     const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
@@ -835,11 +907,27 @@ export class BackupRestoreCommand extends BaseCommand {
       }
 
       processedContexts.add(mirrorContext);
+
       await this.restartPodsMatchingLabels(
         mirrorContext,
         namespace,
         [constants.SOLO_MIRROR_REDIS_NAME_LABEL],
         'mirror redis',
+      );
+
+      // grpc and importer may be in CrashLoopBackOff after Redis restarted with the restored
+      // password. Delete their pods now so they start fresh with the restored secret credentials.
+      await this.restartPodsMatchingLabels(
+        mirrorContext,
+        namespace,
+        [constants.SOLO_MIRROR_GRPC_NAME_LABEL],
+        'mirror grpc',
+      );
+      await this.restartPodsMatchingLabels(
+        mirrorContext,
+        namespace,
+        [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL],
+        'mirror importer',
       );
     }
   }
@@ -1482,84 +1570,6 @@ export class BackupRestoreCommand extends BaseCommand {
    * Importer is scaled down during restore, then runtime services are restarted.
    * Use this when mirror is already deployed. For pre-deploy restores use restoreDatabaseDump.
    */
-  private async restoreDatabaseDumpIfPresent(inputDirectory: string): Promise<void> {
-    const databaseDumpPath: string = PathEx.join(inputDirectory, 'database-dump.sql');
-    if (!fs.existsSync(databaseDumpPath)) {
-      this.logger.info(`No database dump found at ${databaseDumpPath}; skipping database restore`);
-      return;
-    }
-
-    const mirrorNodes: any[] = this.remoteConfig.configuration.state.mirrorNodes || [];
-    if (mirrorNodes.length === 0) {
-      this.logger.info('No mirror node found in deployment state; skipping database restore');
-      return;
-    }
-
-    const mirrorNode: any = mirrorNodes[0];
-    const mirrorContext: Context = this.remoteConfig.getClusterRefs().get(mirrorNode.metadata.cluster);
-    const mirrorNamespace: NamespaceName = NamespaceName.of(mirrorNode.metadata.namespace);
-    const mirrorReleaseName: string = Templates.renderMirrorNodeName(Number(mirrorNode.metadata.id));
-    const importerDeploymentName: string = `${mirrorReleaseName}-importer`;
-
-    const mirrorK8: K8 = this.k8Factory.getK8(mirrorContext);
-
-    let importerScaledDown: boolean = false;
-    try {
-      await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 0);
-      importerScaledDown = true;
-    } catch (error: any) {
-      // best-effort: log and continue; the restore still runs, importer just was not paused
-      this.logger.info(
-        `Skipping importer scale-down for '${importerDeploymentName}' in ${mirrorNamespace.name}: ${error.message || error}`,
-      );
-    }
-    try {
-      await this.restoreDatabaseDump(inputDirectory);
-    } finally {
-      if (importerScaledDown) {
-        await mirrorK8.manifests().scaleDeployment(mirrorNamespace.name, importerDeploymentName, 1);
-        try {
-          await mirrorK8
-            .pods()
-            .waitForReadyStatus(
-              mirrorNamespace,
-              [
-                'app.kubernetes.io/name=importer',
-                'app.kubernetes.io/component=importer',
-                `app.kubernetes.io/instance=${mirrorReleaseName}`,
-              ],
-              constants.PODS_READY_MAX_ATTEMPTS,
-              constants.PODS_READY_DELAY,
-            );
-        } catch (error: any) {
-          this.logger.showUser(
-            chalk.yellow(
-              'Importer is not ready yet after database restore; continuing with restore flow. ' +
-                `Reason: ${error.message || error}`,
-            ),
-          );
-        }
-      }
-    }
-
-    const grpcDeploymentName: string = `${mirrorReleaseName}-grpc`;
-    const restDeploymentName: string = `${mirrorReleaseName}-rest`;
-    await this.patchDeploymentRestartAnnotation(mirrorContext, mirrorNamespace, grpcDeploymentName);
-    await this.patchDeploymentRestartAnnotation(mirrorContext, mirrorNamespace, restDeploymentName);
-    await mirrorK8
-      .pods()
-      .waitForReadyStatus(
-        mirrorNamespace,
-        [
-          'app.kubernetes.io/name=rest',
-          'app.kubernetes.io/component=rest',
-          `app.kubernetes.io/instance=${mirrorReleaseName}`,
-        ],
-        constants.PODS_READY_MAX_ATTEMPTS,
-        constants.PODS_READY_DELAY,
-      );
-  }
-
   /**
    * Restore the external database dump independently of restore-config.
    * Run this BEFORE restore-network so mirror/relay/explorer deploy against
@@ -1654,8 +1664,8 @@ export class BackupRestoreCommand extends BaseCommand {
       .readByRef(ContainerReference.of(pods[0].podReference, constants.BLOCK_NODE_CONTAINER_NAME));
 
     const firstAvailableAbove: number = await this.findLowestAvailableBlockAbove(blockNodeContainer, importerMax);
-    if (firstAvailableAbove < 0 || firstAvailableAbove === importerMax + 1) {
-      // No gap or no future blocks available; nothing to bridge.
+    if (firstAvailableAbove < 0) {
+      // No future blocks available yet; nothing to bridge.
       return false;
     }
 
@@ -1683,6 +1693,32 @@ export class BackupRestoreCommand extends BaseCommand {
       .getK8(externalDatabaseParameters.context)
       .containers()
       .readByRef(databaseContainerReference);
+
+    if (firstAvailableAbove === importerMax + 1) {
+      // No block gap, but post-restore CN TSS re-keying produces replayed blocks with different
+      // hashes from the backup copy in mirror's DB. Block (importerMax+1)'s previousHash diverges
+      // from record_file[importerMax].hash, causing HashMismatchException in the importer.
+      // Patch the boundary row so the chain check passes when mirror reads the first post-restore block.
+      await databaseContainer.execContainer([
+        'env',
+        `PGPASSWORD=${externalDatabaseParameters.ownerPassword}`,
+        'psql',
+        '-U',
+        externalDatabaseParameters.ownerUsername,
+        '-d',
+        externalDatabaseParameters.databaseName,
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-c',
+        `UPDATE record_file SET hash = '${boundaryHash}' WHERE index = ${importerMax};`,
+      ]);
+      this.logger.showUser(
+        chalk.gray(
+          `    Patched record_file[${importerMax}].hash → block ${firstAvailableAbove}'s previousHash (post-restore TSS re-keying)`,
+        ),
+      );
+      return true;
+    }
 
     const placeholderHash: string =
       '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fake';
@@ -1768,7 +1804,8 @@ export class BackupRestoreCommand extends BaseCommand {
     const output: string = await blockNodeContainer.execContainer([
       'sh',
       '-c',
-      String.raw`find /opt/hiero/block-node/data -type f -name '*.blk*' 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | awk -v f=${floor} '$1 > f { print $1; exit }'`,
+      // -size +0c excludes any zero-byte placeholder files
+      String.raw`find /opt/hiero/block-node/data -type f -name '*.blk*' -size +0c 2>/dev/null | sed 's|.*/0*\([0-9]\+\)\.blk.*|\1|' | sort -un | awk -v f=${floor} '$1 > f { print $1; exit }'`,
     ]);
     const trimmed: string = (output || '').trim();
     const parsed: number = Number.parseInt(trimmed, 10);
@@ -1971,218 +2008,254 @@ export class BackupRestoreCommand extends BaseCommand {
   // (e.g. `000...142.pnd.gz`). The block number is the last 36-digit numeric segment of the
   // entry path. Returns the max block number found across all clusters, or -1 if no `.pnd`
   // entries are present (no freeze gap to bridge).
-  private async applyBlockNodeRestoreFixes(inputDirectory: string, _namespace: NamespaceName): Promise<void> {
-    const blockNodes: any[] = this.remoteConfig.configuration.state.blockNodes || [];
-    if (blockNodes.length === 0) {
-      return;
-    }
+  /**
+   * Resets blockStream.writerMode=FILE_AND_GRPC in every CN's application.properties ConfigMap
+   * and pod filesystem.
+   *
+   * restore-config runs with BLOCK_STREAM_WRITER_MODE=FILE so CN does not stream to block-node
+   * while the restore is in progress.  After applyBlockNodeRestoreFixes restores block data and
+   * restarts the block-node, CN must stream in FILE_AND_GRPC mode so the freshly-started
+   * block-node receives blocks.  consensus node start does NOT call updateBlockNodesJson, so
+   * writerMode would remain FILE without this explicit reset.
+   */
+  private async resetConsensusNodeWriterModeForStreaming(
+    namespace: NamespaceName,
+    consensusNodes: ConsensusNode[],
+  ): Promise<void> {
+    const applicationPropertiesFileName: string = constants.APPLICATION_PROPERTIES;
+    const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${applicationPropertiesFileName}`;
+    const targetDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
 
-    const standaloneTssParametersPath: string = PathEx.join(inputDirectory, 'tss-parameters.bin');
-    const hasStandaloneTssParameters: boolean = fs.existsSync(standaloneTssParametersPath);
-
-    for (const blockNode of blockNodes) {
-      const blockNodeId: number = Number(blockNode.metadata.id);
-      const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
-      const blockNodeReleaseName: string = Templates.renderBlockNodeName(blockNodeId);
-      const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
-      const k8: K8 = this.k8Factory.getK8(blockNodeContext);
-      const blockNodeConfigMapName: string = `${blockNodeReleaseName}-config`;
-
-      // FILES_RECENT_COMPRESSION=NONE: stub and any planted .blk files use no-compression so
-      // the recent-file plugin's ".blk" extension scan finds them.
-      // BLOCK_NODE_EARLIEST_MANAGED_BLOCK is already 100000000 from the Helm values file and
-      // from the imported backup ConfigMap — no need to set it here.
-      await k8.configMaps().update(blockNodeNamespace, blockNodeConfigMapName, {
-        FILES_RECENT_COMPRESSION: 'NONE',
-        FILES_HISTORIC_COMPRESSION: 'NONE',
-      });
-
-      // StatefulSet pods are always named <releaseName>-0. Construct the reference
-      // directly rather than relying on a label-selector list, which can return
-      // empty if the pod is still initializing when restore-config runs.
-      const podName: string = `${blockNodeReleaseName}-0`;
-      const podReference: PodReference = PodReference.of(blockNodeNamespace, PodName.of(podName));
-      const containerReference: ContainerReference = ContainerReference.of(
-        podReference,
-        constants.BLOCK_NODE_CONTAINER_NAME,
+    for (const consensusNode of consensusNodes) {
+      const context: Context = extractContextFromConsensusNodes(consensusNode.name as NodeAlias, consensusNodes);
+      const k8: K8 = this.k8Factory.getK8(context);
+      const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
+        namespace,
+        consensusNode.name as NodeAlias,
       );
-      const container: Container = k8.containers().readByRef(containerReference);
 
-      // Verify the pod is exec-able before attempting any container operations.
-      let podIsAccessible: boolean = false;
-      try {
-        await container.execContainer(['sh', '-c', 'true']);
-        podIsAccessible = true;
-      } catch {
-        // best-effort: pod may still be initializing; skip data-planting but still restart below
-        this.logger.info(`Block node pod ${podName} not accessible yet; skipping data operations`);
+      const original: string = await container.execContainer(`cat ${applicationPropertiesFilePath}`);
+      const updated: string = original
+        .split('\n')
+        .map((line: string): string =>
+          line.startsWith('blockStream.writerMode=') ? 'blockStream.writerMode=FILE_AND_GRPC' : line,
+        )
+        .join('\n');
+
+      if (updated === original) {
+        continue;
       }
 
-      if (!podIsAccessible) {
-        // Pod not accessible — skip data archive / blockStreams planting, but still
-        // restart the pod below so it picks up the updated ConfigMap values.
+      await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
+        [applicationPropertiesFileName]: updated,
+      });
+
+      const temporaryFile: string = path.join(os.tmpdir(), applicationPropertiesFileName);
+      fs.writeFileSync(temporaryFile, updated);
+      try {
+        await container.copyTo(temporaryFile, targetDirectory);
+      } finally {
+        fs.unlinkSync(temporaryFile);
+      }
+
+      this.logger.info(`Reset blockStream.writerMode to FILE_AND_GRPC for ${consensusNode.name}`);
+    }
+  }
+
+  /**
+   * Restores backed-up block data and TSS state to each BN pod so the block-verification
+   * plugin initialises correctly after cluster recreate.
+   *
+   * Two-part fix for the post-restore verification deadlock:
+   *
+   * Part 1 — block data archive (blockNodeData.tar.gz):
+   *   After destroy+restore, new PVCs leave data/ empty.  BlockFileRecentPlugin.init()
+   *   scans data/live/ → empty → availableBlocks.max()=-1.  VerificationServicePlugin.start()
+   *   sets lastVerifiedBlock=-1; nextExpectedBlock=0.  CN's first post-restore block (~145)
+   *   satisfies blockNumber(145) > nextExpectedBlock(0) AND source==PUBLISHER, so
+   *   ResultOrderingManager parks it waiting for blocks 0-144 that never arrive.
+   *   Fix: extract the backup archive into /opt/hiero/block-node/ so data/live/ holds
+   *   blocks 0-158 before BN starts.  On restart lastVerifiedBlock=158; nextExpectedBlock=159.
+   *   CN's blocks 145-158 satisfy blockNumber ≤ 158 → no parking → proceed normally.
+   *
+   * TSS bootstrap file (tss-bootstrap-roster.json):
+   *   Post-restore WRAPS blocks (CN v0.74+) must pass TSSVerifier.  TSSVerifier calls
+   *   TSS.verifyTSS(tssData.ledgerId(), signature, hash).  BlockNodeApp.loadApplicationState()
+   *   reads tss-bootstrap-roster.json on startup and feeds the TssData to all plugins via
+   *   onContextUpdate().  Without this file, currentTssData()=null → MISSING_VERIFICATION_DATA
+   *   for every WRAPS block.  Block N+1 (the first new block after restore) would fail and
+   *   subsequent blocks would park forever waiting for N+1 to succeed.
+   *   Fix: copy the backed-up tss-bootstrap-roster.json into application-state/ before
+   *   restarting.  See restoreConsensusNodeTssKeys() for why the wrapsVerificationKey in the
+   *   file must also match the running CN's DKG output.
+   *
+   * importConfigMaps() already restored the correct EMB from backup — do NOT overwrite it.
+   * importConfigMaps() also sets PRODUCER_DUPLICATE_BLOCK_SKIP_WINDOW=10 so that CN's
+   * post-restore blocks (which are typically ~7 behind BN's lastPersistedBlockNumber) receive
+   * SKIP instead of END_DUPLICATE — CN v0.74 cannot recover from DUPLICATE_BLOCK and stops
+   * streaming.  With the higher window the blocks get SKIP (stream stays open) and CN
+   * fast-forwards until BN accepts the first truly new block via streamBeforeEmbOrElse.
+   */
+  private async applyBlockNodeRestoreFixes(inputDirectory: string): Promise<void> {
+    // Discover block nodes from the backup directory rather than remote config state.
+    // state.blockNodes may be empty if the in-memory remote config was loaded before
+    // restore-network's block node add calls persisted to Kubernetes. The backup directory
+    // is the authoritative source: each cluster's blockNodeData/ holds one archive per pod.
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+    const namespace: NamespaceName = this.remoteConfig.getNamespace();
+
+    for (const [clusterReference, blockNodeContext] of clusterReferences.entries()) {
+      const blockNodeDataDirectory: string = PathEx.join(inputDirectory, clusterReference, 'blockNodeData');
+      if (!fs.existsSync(blockNodeDataDirectory)) {
+        continue;
+      }
+
+      const archives: string[] = fs
+        .readdirSync(blockNodeDataDirectory)
+        .filter((fileName: string): boolean => fileName.endsWith('-blockNodeData.tar.gz'));
+
+      if (archives.length === 0) {
+        continue;
+      }
+
+      const k8: K8 = this.k8Factory.getK8(blockNodeContext);
+
+      for (const archiveName of archives) {
+        // Archive is named {podName}-blockNodeData.tar.gz; the podName encodes the ID.
+        const podName: string = archiveName.slice(0, -'-blockNodeData.tar.gz'.length);
+        const idMatch: RegExpMatchArray | null = podName.match(/^block-node-(\d+)-\d+$/);
+        if (!idMatch) {
+          this.logger.info(`Skipping unexpected archive name: ${archiveName}`);
+          continue;
+        }
+        const blockNodeId: number = Number(idMatch[1]);
+
+        const podReference: PodReference = PodReference.of(namespace, PodName.of(podName));
+        const containerReference: ContainerReference = ContainerReference.of(
+          podReference,
+          constants.BLOCK_NODE_CONTAINER_NAME,
+        );
+        const container: Container = k8.containers().readByRef(containerReference);
+
+        // Stabilizing restart: importConfigMaps may have triggered a rolling pod restart that is
+        // still in progress (the configmap checksum annotation races with this code).  Explicitly
+        // delete the pod and wait for the replacement to be Ready before touching the container
+        // filesystem.  This eliminates a window where copyTo targets a Terminating pod.
+        const beforeStabilizingDelete: Date = new Date();
         await k8
           .pods()
           .delete(podReference)
           .catch((): void => {
-            // best-effort: pod may not exist, StatefulSet will recreate it
-            this.logger.info(`Delete of ${podName} failed (pod may not exist); StatefulSet will restart it`);
+            // best-effort: pod may not exist; StatefulSet will recreate it
           });
         await k8
           .pods()
           .waitForReadyStatus(
-            blockNodeNamespace,
+            namespace,
             Templates.renderBlockNodeLabels(blockNodeId),
             constants.PODS_READY_MAX_ATTEMPTS,
             constants.PODS_READY_DELAY,
+            beforeStabilizingDelete,
           );
-        continue;
-      }
 
-      // If the backup captured a dedicated block-node data archive, restore only verification/
-      // from it (not data/): the pre-freeze data/ may contain a .pnd gap block that has no
-      // BlockProof and permanently pins lastPersistedBlockNumber below the gap. The blockStreams
-      // section below plants sealed .blk files instead, giving the block node a clean range.
-      const dataArchivePath: string = PathEx.join(
-        inputDirectory,
-        blockNode.metadata.cluster,
-        'blockNodeData',
-        `${podName}-blockNodeData.tar.gz`,
-      );
-      const hasDataArchive: boolean = fs.existsSync(dataArchivePath);
-      if (hasDataArchive) {
-        const archiveInPod: string = `/tmp/${podName}-blockNodeData.tar.gz`;
-        // Wipe both data/ and verification/ so the extract doesn't merge with the fresh chart
-        // deploy seed. We then extract only verification/ - data/ stays empty. Pass `-m` and
-        // `--no-same-owner` because the block-node-server runs as a non-root user that lacks
-        // chown/utime capability on pre-existing directory entries.
-        await container.execContainer([
-          'sh',
-          '-c',
-          'rm -rf /opt/hiero/block-node/data/* /opt/hiero/block-node/verification/* 2>/dev/null || true',
-        ]);
-        await container.copyTo(dataArchivePath, '/tmp');
-        await container.execContainer([
-          'sh',
-          '-c',
-          `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}" --no-same-owner verification && rm -f "${archiveInPod}"`,
-        ]);
-        this.logger.info(`Restored block node verification artifacts into ${podName} (data/ left empty by design)`);
-      } else {
-        this.logger.info(`No block node data archive at ${dataArchivePath}; leaving fresh deploy state`);
-      }
-
-      // Plant CN's sealed block files into data/live/ so the block node's recent-file plugin
-      // discovers the pre-freeze block range on startup and sets lastPersistedBlockNumber
-      // accordingly. The .blk.gz files from the backup are gzip-compressed; the block node's
-      // CompressionType only supports NONE (.blk) and ZSTD (.blk.zstd), so we decompress them
-      // to .blk on the host before copying. With FILES_RECENT_COMPRESSION=NONE the plugin then
-      // scans for ".blk" files and finds all sealed blocks.
-      const blockStreamsDirectory: string = PathEx.join(inputDirectory, blockNode.metadata.cluster, 'blockStreams');
-      const blockStreamsZips: string[] = fs.existsSync(blockStreamsDirectory)
-        ? fs.readdirSync(blockStreamsDirectory).filter((f: string) => f.endsWith('-blockStreams.zip'))
-        : [];
-
-      if (blockStreamsZips.length > 0) {
-        const archivePath: string = PathEx.join(blockStreamsDirectory, blockStreamsZips[0]);
-        const temporaryExtractDirectory: string = PathEx.join(os.tmpdir(), `solo-bn-restore-${blockNodeId}`);
-        const temporaryTarPath: string = PathEx.join(os.tmpdir(), `solo-bn-restore-${blockNodeId}.tar.gz`);
-        const blockStreamsShellRunner: ShellRunner = new ShellRunner(this.logger);
-        try {
-          fs.rmSync(temporaryExtractDirectory, {recursive: true, force: true});
-          fs.mkdirSync(temporaryExtractDirectory, {recursive: true});
-          await blockStreamsShellRunner.run('unzip', ['-q', '-o', archivePath, '-d', temporaryExtractDirectory]);
-          // Decompress each .blk.gz to .blk in-place (gzip -d removes the .gz suffix).
-          await blockStreamsShellRunner.run('bash', [
-            '-c',
-            String.raw`find "${temporaryExtractDirectory}" -name '*.blk.gz' -exec gzip -d '{}' \;`,
-          ]);
-          await blockStreamsShellRunner.run('tar', ['czf', temporaryTarPath, '-C', temporaryExtractDirectory, '.']);
-          await container.copyTo(temporaryTarPath, '/tmp');
-          const tarInPod: string = `/tmp/${path.basename(temporaryTarPath)}`;
-          await container.execContainer([
-            'bash',
-            '-c',
-            `mkdir -p /opt/hiero/block-node/data/live && cd /opt/hiero/block-node/data/live && tar xzmf "${tarInPod}" && rm -f "${tarInPod}"`,
-          ]);
-          this.logger.info(`Seeded block node ${podName} data/live/ with sealed blocks from ${blockStreamsZips[0]}`);
-        } finally {
-          fs.rmSync(temporaryExtractDirectory, {recursive: true, force: true});
-          if (fs.existsSync(temporaryTarPath)) {
-            fs.rmSync(temporaryTarPath);
-          }
+        // Copy the backed-up tss-bootstrap-roster.json into application-state/ so
+        // BlockNodeApp.loadApplicationState() provides TssData to all plugins on restart.
+        // Without this file, TSSVerifier returns MISSING_VERIFICATION_DATA for every WRAPS
+        // block and the first new post-restore block (159) can never be written to disk.
+        // Archive path: {inputDirectory}/{cluster}/blockNodeData/{podName}/tss-bootstrap-roster.json
+        const localTssFilePath: string = PathEx.join(blockNodeDataDirectory, podName, 'tss-bootstrap-roster.json');
+        if (fs.existsSync(localTssFilePath)) {
+          await container.copyTo(localTssFilePath, '/opt/hiero/block-node/application-state/').catch((): void => {
+            // best-effort: tss file copy failed; WRAPS verification may fail but block data restore still helps
+            this.logger.info(`TSS file copy failed for ${podName}; WRAPS blocks may not verify`);
+          });
+          this.logger.info(`Restored tss-bootstrap-roster.json to ${podName}; TSS data will be loaded on restart`);
+        } else {
+          this.logger.info(`No tss-bootstrap-roster.json found at ${localTssFilePath}; WRAPS blocks may not verify`);
         }
-      }
 
-      // Overlay a standalone tss-parameters.bin if backup emitted it (legacy compat).
-      if (hasStandaloneTssParameters) {
-        await container.copyTo(standaloneTssParametersPath, '/opt/hiero/block-node/verification');
-        await container.execContainer([
-          'sh',
-          '-c',
-          'chown hedera:hedera /opt/hiero/block-node/verification/tss-parameters.bin || true',
-        ]);
-      }
-
-      // Restore tss-bootstrap-roster.json so the block-verification plugin has TSS data on
-      // startup and can verify post-restore blocks (TSS-signed blocks from CN v0.74+).
-      // Without this file, currentTssData() is null → all TSS-signed blocks fail with
-      // MISSING_VERIFICATION_DATA.
-      const tssBootstrapPath: string = PathEx.join(
-        inputDirectory,
-        blockNode.metadata.cluster,
-        'blockNodeData',
-        podName,
-        'tss-bootstrap-roster.json',
-      );
-      if (fs.existsSync(tssBootstrapPath)) {
-        await container.execContainer(['sh', '-c', 'mkdir -p /opt/hiero/block-node/application-state']);
-        await container.copyTo(tssBootstrapPath, '/opt/hiero/block-node/application-state');
-        this.logger.info(`Restored tss-bootstrap-roster.json to ${podName}`);
-      } else {
-        this.logger.info(`No tss-bootstrap-roster.json backup for ${podName}; TSS state will not be pre-seeded`);
-      }
-
-      // Plant a zero-byte stub .blk file for the state-genesis block (lastVerifiedBlock+1).
-      // When CN restarts from saved state, its first block is a "state genesis" block with a
-      // 1-path blockStateProof that fails StateProofVerifier. By pre-seeding lastPersistedBlockNumber
-      // to equal the state-genesis block number, that verification failure triggers
-      // shouldHandle=false in LiveStreamPublisherManager (blockNumber > lastPersisted is false),
-      // so no ResendBlock is sent. The block node then accepts the next normal block (which has a
-      // TSS signedBlockProof and passes verification with the restored TSS data).
-      const lastBlockTxtPath: string = PathEx.join(
-        inputDirectory,
-        blockNode.metadata.cluster,
-        'blockNodeData',
-        podName,
-        'last-verified-block.txt',
-      );
-      if (fs.existsSync(lastBlockTxtPath)) {
-        const lastVerifiedBlock: number = Number(fs.readFileSync(lastBlockTxtPath, 'utf8').trim());
-        if (!Number.isNaN(lastVerifiedBlock) && lastVerifiedBlock >= 0) {
-          const stubBlockNumber: number = lastVerifiedBlock + 1;
-          const stubBlockName: string = `${String(stubBlockNumber).padStart(19, '0')}.blk`;
-          await container.execContainer([
+        // Restore the block data archive so BN starts with lastVerifiedBlock=N (the backed-up
+        // maximum).  CN's state restore point is typically a few blocks before N; CN will
+        // reproduce those blocks first, which BN skips (already present), and then produce block
+        // N+1, which BN accepts as the first new block.  Without the archive, lastVerifiedBlock=-1
+        // and BN parks every post-restore block waiting for blocks 0 through N-1 that CN can
+        // never provide — block streaming never starts.
+        // Archive layout: {cluster}/blockNodeData/{podName}-blockNodeData.tar.gz expands to data/.
+        // Use -m (--touch) so tar does not try to set mtimes on PVC files, which triggers
+        // EPERM on some Kubernetes volume drivers.
+        const localArchivePath: string = PathEx.join(blockNodeDataDirectory, archiveName);
+        const archiveInPod: string = `/tmp/${archiveName}`;
+        await container.copyTo(localArchivePath, '/tmp/');
+        await container
+          .execContainer([
             'sh',
             '-c',
-            `mkdir -p /opt/hiero/block-node/data/live && touch "/opt/hiero/block-node/data/live/${stubBlockName}"`,
-          ]);
-          this.logger.info(`Created stub block ${stubBlockName} in ${podName} data/live/ (state-genesis sentinel)`);
-        }
-      } else {
-        this.logger.info(`No last-verified-block.txt backup for ${podName}; state-genesis stub not created`);
-      }
-
-      // Restart so the block node re-scans data/ and picks up the restored block ranges.
-      await k8.pods().delete(podReference);
-      await k8
-        .pods()
-        .waitForReadyStatus(
-          blockNodeNamespace,
-          Templates.renderBlockNodeLabels(blockNodeId),
-          constants.PODS_READY_MAX_ATTEMPTS,
-          constants.PODS_READY_DELAY,
+            `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}" -m 2>/dev/null; rm -f "${archiveInPod}"; true`,
+          ])
+          .catch((): void => {
+            // best-effort: archive may have minor warnings on PVC mounts; block data is likely intact
+            this.logger.info(`Block data archive extraction had warnings for ${podName}; continuing`);
+          });
+        this.logger.info(
+          `Restored block data archive to ${podName}; lastVerifiedBlock will initialise to the backed-up maximum`,
         );
+
+        // Restart BN so it loads the restored block data and tss-bootstrap-roster.json.
+        const beforeBlockNodeDelete: Date = new Date();
+        await k8.pods().delete(podReference);
+        await k8
+          .pods()
+          .waitForReadyStatus(
+            namespace,
+            Templates.renderBlockNodeLabels(blockNodeId),
+            constants.PODS_READY_MAX_ATTEMPTS,
+            constants.PODS_READY_DELAY,
+            beforeBlockNodeDelete,
+          );
+      }
+    }
+  }
+
+  /**
+   * Copy backed-up CN TSS key archives into each running CN pod (data/keys/tss/) without
+   * restarting.  The pod restart is deferred to restartConsensusPods so TSS keys land on the
+   * PVC before the pods are cycled, eliminating any race between this restore and Branch B's
+   * concurrent pod restart.
+   */
+  private async restoreConsensusNodeTssKeys(inputDirectory: string): Promise<void> {
+    const namespace: NamespaceName = this.remoteConfig.getNamespace();
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+    for (const consensusNode of consensusNodes) {
+      const tssArchivePath: string = PathEx.join(
+        inputDirectory,
+        consensusNode.cluster,
+        'nodeData',
+        consensusNode.name,
+        'tss-keys.tar.gz',
+      );
+      if (!fs.existsSync(tssArchivePath)) {
+        this.logger.info(`No TSS key backup for ${consensusNode.name}; CN will run fresh DKG on start`);
+        continue;
+      }
+      const cnContext: Context = extractContextFromConsensusNodes(consensusNode.name, consensusNodes);
+      const cnContainer: Container = await new K8Helper(cnContext).getConsensusNodeRootContainer(
+        namespace,
+        consensusNode.name,
+      );
+      const archiveInPod: string = '/tmp/tss-keys.tar.gz';
+      const keysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+      await cnContainer.copyTo(tssArchivePath, '/tmp/');
+      await cnContainer
+        .execContainer([
+          'sh',
+          '-c',
+          `tar xzmf "${archiveInPod}" -C "${keysDirectory}" 2>/dev/null; rm -f "${archiveInPod}"; true`,
+        ])
+        .catch((): void => {
+          // best-effort: keys are likely extracted even with minor utime warnings on PVC mounts
+          this.logger.info(`TSS key extraction had warnings for ${consensusNode.name}; continuing`);
+        });
+      this.logger.info(`Restored TSS keys for ${consensusNode.name} to PVC; pod restart will load them`);
     }
   }
 
@@ -2202,8 +2275,6 @@ export class BackupRestoreCommand extends BaseCommand {
     const inputDirectory: string = this.configManager.getFlag<string>(flags.inputDir) || './solo-backup';
     const quiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
     const deployment: string = this.configManager.getFlag<string>(flags.deployment);
-    const skipDatabaseRestore: boolean = (this.configManager.getFlag<boolean>(flags.skipDbRestore) as boolean) ?? false;
-
     // Get configuration data
     const namespace: NamespaceName = this.remoteConfig.getNamespace();
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
@@ -2273,77 +2344,139 @@ export class BackupRestoreCommand extends BaseCommand {
             }
           },
         },
+        // Phase 2: import ConfigMaps and Secrets in parallel — they target independent
+        // cluster resources and have no ordering dependency between them.
         {
-          title: 'Import ConfigMaps',
-          task: async (context_, task): Promise<void> => {
-            context_.configMapCount = await this.importConfigMaps(inputDirectory);
-            task.title = `Import ConfigMaps: ${context_.configMapCount} imported`;
-          },
+          title: 'Import ConfigMaps and Secrets',
+          task: (_, tw) =>
+            tw.newListr(
+              [
+                {
+                  title: 'Import ConfigMaps',
+                  task: async (context_, task): Promise<void> => {
+                    context_.configMapCount = await this.importConfigMaps(inputDirectory);
+                    task.title = `Import ConfigMaps: ${context_.configMapCount} imported`;
+                  },
+                },
+                {
+                  title: 'Import Secrets',
+                  task: async (context_, task): Promise<void> => {
+                    context_.secretCount = await this.importSecrets(inputDirectory);
+                    task.title = `Import Secrets: ${context_.secretCount} imported`;
+                  },
+                },
+              ],
+              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+            ),
+        },
+        // Phase 3: three independent branches run in parallel after imports complete.
+        //
+        // Branch A: restart Redis so it picks up restored secret credentials (~3m41s).
+        // Branch B: restore CN TSS keys to PVC → restart CN pods (to mount restored
+        //           ConfigMaps/Secrets and pick up TSS keys) → wait → stop → upload state.
+        //           TSS key restore runs first so the keys are on the PVC before pod restart,
+        //           eliminating any race with Branch C's block-node fixes.
+        // Branch C: relay patch + block node fixes — none depend on A or B.
+        //
+        // Total wall time = max(A, B, C) ≈ Redis restart time, instead of A + B + C.
+        {
+          title: 'Restore state',
+          task: (_, tw) =>
+            tw.newListr(
+              [
+                // Branch A: Redis restart
+                {
+                  title: 'Restart mirror runtime dependencies',
+                  task: async (_, task): Promise<void> => {
+                    await this.restartMirrorRuntimeDependencies(namespace);
+                    task.title = 'Restart mirror runtime dependencies: completed';
+                  },
+                },
+                // Branch B: restore CN TSS keys → CN restart → wait → stop → restore logs → upload state (sequential)
+                {
+                  title: 'Restore consensus node state',
+                  task: (_, tw2) =>
+                    tw2.newListr(
+                      [
+                        {
+                          title: 'Restore consensus node TSS keys to PVC',
+                          task: async (_, task): Promise<void> => {
+                            await this.restoreConsensusNodeTssKeys(inputDirectory);
+                            task.title = 'Restore consensus node TSS keys to PVC: completed';
+                          },
+                        },
+                        {
+                          title: 'Restart consensus pods to pick up restored ConfigMaps/Secrets',
+                          task: async (context_, task): Promise<void> => {
+                            await this.restartConsensusPods(namespace, consensusNodes);
+                            context_.config.podRefs = await this.buildConsensusPodReferences(
+                              namespace,
+                              consensusNodes,
+                              nodeAliases,
+                            );
+                            task.title = 'Restart consensus pods to pick up restored ConfigMaps/Secrets: completed';
+                          },
+                        },
+                        {
+                          title: 'Wait for consensus node pods',
+                          task: async (_, task): Promise<void> => {
+                            await this.waitForConsensusPods();
+                            task.title = 'Wait for consensus node pods: completed';
+                          },
+                        },
+                        {
+                          title: 'Stop consensus nodes before restoring state',
+                          task: async (context_, task): Promise<void> => {
+                            await this.nodeCommandTasks.stopNodes('nodeAliases').task(context_, task);
+                            task.title = 'Stop consensus nodes before restoring state: completed';
+                          },
+                        },
+                        {
+                          title: 'Restore Logs and Configs',
+                          task: async (_, task): Promise<void> => {
+                            await this.restoreLogsAndConfigs(inputDirectory);
+                            task.title = 'Restore Logs and Configs: completed';
+                          },
+                        },
+                        this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),
+                      ],
+                      {concurrent: false, rendererOptions: {collapseSubtasks: false}},
+                    ),
+                },
+                // Branch C: relay patch, block node fixes, and DB restore are mutually
+                // independent and independent of A and B — run all three in parallel.
+                {
+                  title: 'Patch components and restore database',
+                  task: (_, tw2) =>
+                    tw2.newListr(
+                      [
+                        {
+                          title: 'Patch relay HEDERA_NETWORK from live services',
+                          task: async (_, task): Promise<void> => {
+                            await this.patchRelayHederaNetworkFromLiveServices(namespace, consensusNodes);
+                            task.title = 'Patch relay HEDERA_NETWORK from live services: completed';
+                          },
+                        },
+                        {
+                          title: 'Apply block node restore fixes',
+                          task: async (_, task): Promise<void> => {
+                            await this.applyBlockNodeRestoreFixes(inputDirectory);
+                            task.title = 'Apply block node restore fixes: completed';
+                          },
+                        },
+                      ],
+                      constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+                    ),
+                },
+              ],
+              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+            ),
         },
         {
-          title: 'Import Secrets',
-          task: async (context_, task): Promise<void> => {
-            context_.secretCount = await this.importSecrets(inputDirectory);
-            task.title = `Import Secrets: ${context_.secretCount} imported`;
-          },
-        },
-        {
-          title: 'Restart mirror runtime dependencies',
-          task: async (context_, task): Promise<void> => {
-            await this.restartMirrorRuntimeDependencies(namespace);
-            task.title = 'Restart mirror runtime dependencies: completed';
-          },
-        },
-        {
-          title: 'Restore external database dump (if present)',
-          skip: (): boolean => skipDatabaseRestore,
-          task: async (context_, task): Promise<void> => {
-            await this.restoreDatabaseDumpIfPresent(inputDirectory);
-            task.title = 'Restore external database dump (if present): completed';
-          },
-        },
-        {
-          title: 'Restart consensus pods to pick up restored ConfigMaps/Secrets',
-          task: async (context_, task): Promise<void> => {
-            await this.restartConsensusPods(namespace, consensusNodes);
-            context_.config.podRefs = await this.buildConsensusPodReferences(namespace, consensusNodes, nodeAliases);
-            task.title = 'Restart consensus pods to pick up restored ConfigMaps/Secrets: completed';
-          },
-        },
-        {
-          title: 'Wait for consensus node pods',
-          task: async (context_, task): Promise<void> => {
-            await this.waitForConsensusPods();
-            task.title = 'Wait for consensus node pods: completed';
-          },
-        },
-        {
-          title: 'Stop consensus nodes before restoring state',
-          task: async (context_, task): Promise<void> => {
-            await this.nodeCommandTasks.stopNodes('nodeAliases').task(context_, task);
-            task.title = 'Stop consensus nodes before restoring state: completed';
-          },
-        },
-        {
-          title: 'Restore Logs and Configs',
-          task: async (context_, task): Promise<void> => {
-            await this.restoreLogsAndConfigs(inputDirectory);
-            task.title = 'Restore Logs and Configs: completed';
-          },
-        },
-        this.nodeCommandTasks.uploadStateFiles(false, inputDirectory),
-        {
-          title: 'Patch relay HEDERA_NETWORK from live services',
-          task: async (context_, task): Promise<void> => {
-            await this.patchRelayHederaNetworkFromLiveServices(namespace, consensusNodes);
-            task.title = 'Patch relay HEDERA_NETWORK from live services: completed';
-          },
-        },
-        {
-          title: 'Apply block node restore fixes',
-          task: async (context_, task): Promise<void> => {
-            await this.applyBlockNodeRestoreFixes(inputDirectory, namespace);
-            task.title = 'Apply block node restore fixes: completed';
+          title: 'Reset consensus node blockStream.writerMode to FILE_AND_GRPC',
+          task: async (_, task): Promise<void> => {
+            await this.resetConsensusNodeWriterModeForStreaming(namespace, consensusNodes);
+            task.title = 'Reset consensus node blockStream.writerMode to FILE_AND_GRPC: completed';
           },
         },
       ],
@@ -2709,8 +2842,6 @@ export class BackupRestoreCommand extends BaseCommand {
                         );
                       }
                     }
-                    // Build address book from local keys — CN is not running during restore-network
-                    argv.push(CommandHelpers.optionFromFlag(flags.localAddressBook));
                     return CommandHelpers.argvPushGlobalFlags(argv);
                   },
                   this.taskList,
