@@ -631,22 +631,30 @@ export class BackupRestoreCommand extends BaseCommand {
               continue;
             }
 
-            // Block-node configmaps carry a VERSION field that the pod's entrypoint uses to
-            // locate the app binary: /opt/hiero/block-node/app-${VERSION}/bin/app.
-            // If the backup was taken on an older BN release, the backed-up VERSION does not
-            // match the currently deployed image → the pod crashes with "No such file or directory".
-            // Overwrite VERSION with the currently deployed BLOCK_NODE_VERSION so the entrypoint
-            // always resolves to the correct binary path regardless of backup age.
             if (
               resourceType === 'configmaps' &&
               /^block-node-\d+-config$/.test(resource.metadata?.name as string) &&
-              resource.data &&
-              resource.data['VERSION'] !== BLOCK_NODE_VERSION
+              resource.data
             ) {
-              this.logger.info(
-                `Patching VERSION from ${resource.data['VERSION']} to ${BLOCK_NODE_VERSION} in ${resource.metadata?.name}`,
-              );
-              resource.data['VERSION'] = BLOCK_NODE_VERSION;
+              // Block-node configmaps carry a VERSION field that the pod's entrypoint uses to
+              // locate the app binary: /opt/hiero/block-node/app-${VERSION}/bin/app.
+              // If the backup was taken on an older BN release, the backed-up VERSION does not
+              // match the currently deployed image → the pod crashes with "No such file or directory".
+              // Overwrite VERSION with the currently deployed BLOCK_NODE_VERSION so the entrypoint
+              // always resolves to the correct binary path regardless of backup age.
+              if (resource.data['VERSION'] !== BLOCK_NODE_VERSION) {
+                this.logger.info(
+                  `Patching VERSION from ${resource.data['VERSION']} to ${BLOCK_NODE_VERSION} in ${resource.metadata?.name}`,
+                );
+                resource.data['VERSION'] = BLOCK_NODE_VERSION;
+              }
+              // After restore, CN's first block is typically ~7 behind BN's lastPersistedBlockNumber
+              // (the archive max).  BN's default duplicateBlockSkipWindow=5 sends END_DUPLICATE for
+              // blocks more than 5 behind lastPersistedBlockNumber; CN v0.74 cannot recover from
+              // DUPLICATE_BLOCK and stops streaming.  Raise the window to the maximum allowed (10)
+              // so CN's post-restore blocks receive SKIP (stream stays open) instead of END_DUPLICATE,
+              // letting CN fast-forward until BN accepts the first truly new block via streamBeforeEmbOrElse.
+              resource.data['PRODUCER_DUPLICATE_BLOCK_SKIP_WINDOW'] = '10';
             }
 
             await (resourceType === 'configmaps'
@@ -2081,16 +2089,12 @@ export class BackupRestoreCommand extends BaseCommand {
    *   restarting.  See restoreConsensusNodeTssKeys() for why the wrapsVerificationKey in the
    *   file must also match the running CN's DKG output.
    *
-   * NOTE: The block data archive (blockNodeData.tar.gz) is intentionally NOT restored here.
-   *   Restoring it sets lastVerifiedBlock=N, which causes BN to immediately send
-   *   BehindPublisher(N) to CN on the very first connection.  CN v0.74 interprets this as a
-   *   SEND_BEHIND signal and closes with EndStream(RESET), which BN logs as "EndOfBlock for
-   *   block N+1, but not currently streaming a block".  BN then re-sends BehindPublisher,
-   *   creating an infinite reconnect loop.  By leaving BN empty (lastVerifiedBlock=-1) and
-   *   relying on BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000, BN's streamBeforeEmbOrElse
-   *   accepts CN's first block directly without triggering BehindPublisher at all.
-   *
    * importConfigMaps() already restored the correct EMB from backup — do NOT overwrite it.
+   * importConfigMaps() also sets PRODUCER_DUPLICATE_BLOCK_SKIP_WINDOW=10 so that CN's
+   * post-restore blocks (which are typically ~7 behind BN's lastPersistedBlockNumber) receive
+   * SKIP instead of END_DUPLICATE — CN v0.74 cannot recover from DUPLICATE_BLOCK and stops
+   * streaming.  With the higher window the blocks get SKIP (stream stays open) and CN
+   * fast-forwards until BN accepts the first truly new block via streamBeforeEmbOrElse.
    */
   private async applyBlockNodeRestoreFixes(inputDirectory: string): Promise<void> {
     // Discover block nodes from the backup directory rather than remote config state.
@@ -2190,7 +2194,33 @@ export class BackupRestoreCommand extends BaseCommand {
         // EPERM on some Kubernetes volume drivers.
         const localArchivePath: string = PathEx.join(blockNodeDataDirectory, archiveName);
         const archiveInPod: string = `/tmp/${archiveName}`;
-        await container.copyTo(localArchivePath, '/tmp/');
+        try {
+          await container.copyTo(localArchivePath, '/tmp/');
+        } catch {
+          // importConfigMaps triggers a BN configmap update which causes a rolling pod restart.
+          // If the pod restarts between the accessibility check and this copyTo, the copy fails.
+          // Recover by deleting the pod and waiting for the new one to be Ready, then retry once.
+          this.logger.info(
+            `Archive copy to ${podName} failed (pod may be restarting after configmap update); waiting for Ready`,
+          );
+          const beforeArchiveRetryDelete: Date = new Date();
+          await k8
+            .pods()
+            .delete(podReference)
+            .catch((): void => {
+              // best-effort: pod may already be terminating; StatefulSet will recreate it
+            });
+          await k8
+            .pods()
+            .waitForReadyStatus(
+              namespace,
+              Templates.renderBlockNodeLabels(blockNodeId),
+              constants.PODS_READY_MAX_ATTEMPTS,
+              constants.PODS_READY_DELAY,
+              beforeArchiveRetryDelete,
+            );
+          await container.copyTo(localArchivePath, '/tmp/');
+        }
         await container
           .execContainer([
             'sh',
