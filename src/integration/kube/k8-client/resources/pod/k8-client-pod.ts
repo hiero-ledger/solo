@@ -255,7 +255,7 @@ export class K8ClientPod implements Pod {
         // WSL2 has issues with kubectl port-forward when binding to localhost, binding to all interfaces will trigger
         // a permission prompt which if hidden behind the terminal can cause the port-forward command to fail.
         if (!isWindows) {
-          cmdArguments.push(localBindAddress, '&');
+          cmdArguments.push(localBindAddress);
         }
       } else {
         cmd = constants.KUBECTL;
@@ -281,9 +281,7 @@ export class K8ClientPod implements Pod {
         }
       }
 
-      // Don't use shell on Windows when doing persist mode to avoid argument parsing issues
-      const useShell: boolean = isWindows && persist ? false : true;
-
+      // shell:false to eliminate shell-injection; ShellRunner's detached spawn handles backgrounding.
       await new ShellRunner().run(cmd, cmdArguments, {
         verbose: true,
         detached: true,
@@ -291,7 +289,7 @@ export class K8ClientPod implements Pod {
         environmentVariablesToAppend: {
           PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
         },
-        useShell,
+        useShell: false,
       });
 
       return availablePort;

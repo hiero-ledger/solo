@@ -48,7 +48,7 @@ defaults:
 
 permissions:
   contents: read
-  actions: read
+  actions: write
 
 jobs:
   test-one-shot-interrupt-destroy:
@@ -92,6 +92,14 @@ jobs:
       - name: Build Application
         run: task build:compile
 
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
       - name: Run Interrupt Workflow Script
         timeout-minutes: 60
         env:
@@ -105,6 +113,13 @@ jobs:
           fi
           export INTERRUPT_SECONDS="${{ matrix.interrupt_seconds }}"
           node .github/workflows/script/one-shot-interrupt-destroy.mjs
+
+      - name: Save Solo Image Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Cleanup Deployment
         if: always()
