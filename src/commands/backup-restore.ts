@@ -2070,26 +2070,25 @@ export class BackupRestoreCommand extends BaseCommand {
    *   blocks 0-158 before BN starts.  On restart lastVerifiedBlock=158; nextExpectedBlock=159.
    *   CN's blocks 145-158 satisfy blockNumber ≤ 158 → no parking → proceed normally.
    *
-   * Part 2 — TSS bootstrap file (tss-bootstrap-roster.json):
+   * TSS bootstrap file (tss-bootstrap-roster.json):
    *   Post-restore WRAPS blocks (CN v0.74+) must pass TSSVerifier.  TSSVerifier calls
    *   TSS.verifyTSS(tssData.ledgerId(), signature, hash).  BlockNodeApp.loadApplicationState()
    *   reads tss-bootstrap-roster.json on startup and feeds the TssData to all plugins via
    *   onContextUpdate().  Without this file, currentTssData()=null → MISSING_VERIFICATION_DATA
-   *   for every WRAPS block.  Block 159 (the first new block after restore) would then fail,
-   *   and block 160 would park forever waiting for 159 to succeed.
+   *   for every WRAPS block.  Block N+1 (the first new block after restore) would fail and
+   *   subsequent blocks would park forever waiting for N+1 to succeed.
    *   Fix: copy the backed-up tss-bootstrap-roster.json into application-state/ before
-   *   restarting.  See Part 3 below for why the wrapsVerificationKey in the file must also
-   *   match the running CN's DKG output.
+   *   restarting.  See restoreConsensusNodeTssKeys() for why the wrapsVerificationKey in the
+   *   file must also match the running CN's DKG output.
    *
-   * Part 3 — CN TSS key files (tss-keys.tar.gz per node):
-   *   Even after restoring tss-bootstrap-roster.json, BAD_BLOCK_PROOF occurs for the first
-   *   WRAPS block if CN has regenerated its TSS keys.  KIND PVs are deleted when clusters are
-   *   destroyed (reclaim policy=Delete), so CN runs a fresh DKG on startup and produces a new
-   *   wrapsVerificationKey.  BN's backed-up tss-bootstrap-roster.json holds the OLD key →
-   *   TSSVerifier.verify() returns false → BAD_BLOCK_PROOF → lastVerifiedBlock stalls.
-   *   Fix: restore backed-up CN TSS key files (data/keys/tss/) before CN's first post-restore
-   *   start so CN reuses the original DKG material.  BN's tss-bootstrap-roster.json then
-   *   matches and all WRAPS blocks verify successfully.
+   * NOTE: The block data archive (blockNodeData.tar.gz) is intentionally NOT restored here.
+   *   Restoring it sets lastVerifiedBlock=N, which causes BN to immediately send
+   *   BehindPublisher(N) to CN on the very first connection.  CN v0.74 interprets this as a
+   *   SEND_BEHIND signal and closes with EndStream(RESET), which BN logs as "EndOfBlock for
+   *   block N+1, but not currently streaming a block".  BN then re-sends BehindPublisher,
+   *   creating an infinite reconnect loop.  By leaving BN empty (lastVerifiedBlock=-1) and
+   *   relying on BLOCK_NODE_EARLIEST_MANAGED_BLOCK=100000000, BN's streamBeforeEmbOrElse
+   *   accepts CN's first block directly without triggering BehindPublisher at all.
    *
    * importConfigMaps() already restored the correct EMB from backup — do NOT overwrite it.
    */
@@ -2164,30 +2163,7 @@ export class BackupRestoreCommand extends BaseCommand {
             );
         }
 
-        // Part 1: Copy the backup block data archive into the pod and extract it.
-        // Archive path: {inputDirectory}/{cluster}/blockNodeData/{podName}-blockNodeData.tar.gz
-        // Use -m (--touch) so tar does not restore modification times on directory entries;
-        // PVC-backed filesystems deny utime() on directories, causing tar to exit non-zero
-        // even though all files were extracted successfully.  The .catch() ensures the pod
-        // restart below always runs even if extraction reports warnings.
-        const localArchivePath: string = PathEx.join(blockNodeDataDirectory, archiveName);
-        const archiveInPod: string = `/tmp/${archiveName}`;
-        await container.copyTo(localArchivePath, '/tmp/');
-        await container
-          .execContainer([
-            'sh',
-            '-c',
-            `cd /opt/hiero/block-node && tar xzmf "${archiveInPod}"; rm -f "${archiveInPod}" 2>/dev/null; true`,
-          ])
-          .catch((): void => {
-            // best-effort: block files are likely extracted even with minor utime warnings on PVC mounts
-            this.logger.info(`Block data extraction reported warnings for ${podName}; continuing with restart`);
-          });
-        this.logger.info(
-          `Restored block data archive to ${podName}; lastVerifiedBlock will initialise to the backed-up maximum`,
-        );
-
-        // Part 2: Copy the backed-up tss-bootstrap-roster.json into application-state/ so
+        // Copy the backed-up tss-bootstrap-roster.json into application-state/ so
         // BlockNodeApp.loadApplicationState() provides TssData to all plugins on restart.
         // Without this file, TSSVerifier returns MISSING_VERIFICATION_DATA for every WRAPS
         // block and the first new post-restore block (159) can never be written to disk.
@@ -2203,7 +2179,10 @@ export class BackupRestoreCommand extends BaseCommand {
           this.logger.info(`No tss-bootstrap-roster.json found at ${localTssFilePath}; WRAPS blocks may not verify`);
         }
 
-        // Restart so block-node re-scans data/ and initialises lastVerifiedBlock correctly.
+        // Restart so block-node loads the restored tss-bootstrap-roster.json on startup.
+        // BN starts with empty data/ (lastVerifiedBlock=-1); BLOCK_NODE_EARLIEST_MANAGED_BLOCK=
+        // 100000000 causes BN to accept CN's first post-restore block via streamBeforeEmbOrElse
+        // without triggering BehindPublisher.
         const beforeBlockNodeDelete: Date = new Date();
         await k8.pods().delete(podReference);
         await k8
