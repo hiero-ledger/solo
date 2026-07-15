@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import sinon, {type SinonSandbox} from 'sinon';
+import sinon, {type SinonSandbox, type SinonStubbedInstance} from 'sinon';
 import {before, beforeEach, describe} from 'mocha';
 import {expect} from 'chai';
 import {getTestCluster, HEDERA_PLATFORM_VERSION_TAG} from '../../test-utility.js';
@@ -25,8 +25,18 @@ import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/confi
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
 
-const getBaseCommandOptions = (context: string) => {
-  const options = {
+type BaseCommandOptions = {
+  logger: SinonStubbedInstance<SoloLogger>;
+  helm: SinonStubbedInstance<DefaultHelmClient>;
+  k8Factory: SinonStubbedInstance<K8ClientFactory>;
+  chartManager: SinonStubbedInstance<ChartManager>;
+  configManager: SinonStubbedInstance<ConfigManager>;
+  depManager: SinonStubbedInstance<DependencyManager>;
+  localConfig: SinonStubbedInstance<LocalConfigRuntimeState>;
+};
+
+const getBaseCommandOptions: (context: string) => BaseCommandOptions = (context: string): BaseCommandOptions => {
+  const options: BaseCommandOptions = {
     logger: sandbox.createStubInstance<SoloLogger>(SoloPinoLogger),
     helm: sandbox.createStubInstance(DefaultHelmClient),
     k8Factory: sandbox.createStubInstance(K8ClientFactory),

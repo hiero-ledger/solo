@@ -183,7 +183,7 @@ export class RelayCommand extends BaseCommand {
       flags.forcePortForward,
       flags.externalAddress,
       flags.cacheDir,
-      flags.devMode,
+      flags.debugMode,
 
       // Mirror Node
       flags.mirrorNodeId,
@@ -213,7 +213,7 @@ export class RelayCommand extends BaseCommand {
       flags.externalAddress,
       flags.cacheDir,
       flags.id,
-      flags.devMode,
+      flags.debugMode,
 
       // Mirror Node
       flags.mirrorNodeId,
@@ -223,7 +223,14 @@ export class RelayCommand extends BaseCommand {
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.nodeAliasesUnparsed, flags.quiet, flags.devMode, flags.id],
+    optional: [
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.nodeAliasesUnparsed,
+      flags.quiet,
+      flags.debugMode,
+      flags.id,
+    ],
   };
 
   private async prepareHelmChartValuesForRelay({
