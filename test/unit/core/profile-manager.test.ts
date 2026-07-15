@@ -352,6 +352,64 @@ describe('ProfileManager', (): void => {
       expect(updatedApplicationProperties).to.contain('hedera.realm=1');
       expect(updatedApplicationProperties).to.contain('hedera.shard=2');
     });
+
+    it('updateApplicationPropertiesWithRealmAndShard should preserve explicit TSS properties', async (): Promise<void> => {
+      const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
+      const applicationProperties: string = [
+        'hedera.realm=0',
+        'hedera.shard=0',
+        'tss.hintsEnabled=false',
+        'tss.historyEnabled=false',
+        'tss.forceMockSignatures=false',
+        'tss.wrapsEnabled=false',
+        '',
+      ].join('\n');
+
+      fs.writeFileSync(applicationPropertiesPath, applicationProperties, 'utf8');
+
+      const profileManagerPrivate: {
+        remoteConfig: RemoteConfigRuntimeStateApi;
+        updateApplicationPropertiesWithRealmAndShard: (
+          applicationPropertiesPath: string,
+          realm: number,
+          shard: number,
+        ) => Promise<void>;
+      } = profileManager as unknown as {
+        remoteConfig: RemoteConfigRuntimeStateApi;
+        updateApplicationPropertiesWithRealmAndShard: (
+          applicationPropertiesPath: string,
+          realm: number,
+          shard: number,
+        ) => Promise<void>;
+      };
+
+      const configurationStub: sinon.SinonStub = sinon.stub(profileManagerPrivate.remoteConfig, 'configuration').get(
+        (): RemoteConfig =>
+          ({
+            state: {tssEnabled: true, wrapsEnabled: true},
+            versions: {consensusNode: new SemanticVersion<string>(version.HEDERA_PLATFORM_VERSION)},
+          }) as unknown as RemoteConfig,
+      );
+
+      const updateApplicationPropertiesWithRealmAndShard: (
+        applicationPropertiesPath: string,
+        realm: number,
+        shard: number,
+      ) => Promise<void> = profileManagerPrivate.updateApplicationPropertiesWithRealmAndShard;
+
+      try {
+        await updateApplicationPropertiesWithRealmAndShard.call(profileManager, applicationPropertiesPath, 1, 2);
+      } finally {
+        configurationStub.restore();
+      }
+
+      const updatedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+
+      expect(updatedApplicationProperties).to.contain('tss.hintsEnabled=false');
+      expect(updatedApplicationProperties).to.contain('tss.historyEnabled=false');
+      expect(updatedApplicationProperties).to.contain('tss.forceMockSignatures=false');
+      expect(updatedApplicationProperties).to.contain('tss.wrapsEnabled=false');
+    });
   });
 
   describe('prepareConfigText', (): void => {

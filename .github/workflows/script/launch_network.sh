@@ -334,7 +334,88 @@ wait_for_consensus_nodes_frozen() {
   return 1
 }
 
+apply_consensus_application_properties_config_map() {
+  local properties_file="${1}"
+  local namespace="${SOLO_NAMESPACE:-one-shot}"
+  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
+  local config_map_name="network-node-data-config-cm"
+  local content_json
+
+  content_json="$(jq -Rs . < "${properties_file}")"
+  kubectl --context "${context}" get configmap "${config_map_name}" -n "${namespace}" -o json \
+    | jq --argjson application_properties "${content_json}" '.data["application.properties"] = $application_properties' \
+    | kubectl --context "${context}" apply -f -
+}
+
+copy_consensus_application_properties_to_pods() {
+  local properties_file="${1}"
+  local namespace="${SOLO_NAMESPACE:-one-shot}"
+  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
+  local node_pods=("network-node1-0" "network-node2-0")
+
+  for node_pod in "${node_pods[@]}"; do
+    if ! kubectl --context "${context}" exec -i "${node_pod}" -n "${namespace}" -c root-container -- \
+      bash -c 'cat > /opt/hgcapp/data/config/application.properties && chown hedera:hedera /opt/hgcapp/data/config/application.properties' \
+      < "${properties_file}"; then
+      echo "Direct application.properties copy failed for ${node_pod}; waiting for config map projection"
+    fi
+  done
+}
+
+copy_consensus_application_properties_from_pod() {
+  local properties_file="${1}"
+  local namespace="${SOLO_NAMESPACE:-one-shot}"
+  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
+
+  kubectl --context "${context}" exec "network-node1-0" -n "${namespace}" -c root-container -- \
+    bash -c 'cat /opt/hgcapp/data/config/application.properties' > "${properties_file}"
+}
+
+wait_for_consensus_application_properties() {
+  local expected_wrapped_record_blocks="${1}"
+  local expected_hints_enabled="${2}"
+  local expected_history_enabled="${3}"
+  local expected_wraps_enabled="${4}"
+  local max_attempts="${5:-30}"
+  local sleep_seconds="${6:-2}"
+  local namespace="${SOLO_NAMESPACE:-one-shot}"
+  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
+  local node_pods=("network-node1-0" "network-node2-0")
+  local current_properties
+  local all_updated
+
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    all_updated="true"
+
+    for node_pod in "${node_pods[@]}"; do
+      current_properties="$(kubectl --context "${context}" exec "${node_pod}" -n "${namespace}" -c root-container -- \
+        bash -c "grep -E '^(blockStream.streamWrappedRecordBlocks|tss.hintsEnabled|tss.historyEnabled|tss.wrapsEnabled)=' /opt/hgcapp/data/config/application.properties" 2>/dev/null || true)"
+
+      if ! grep -q "^blockStream.streamWrappedRecordBlocks=${expected_wrapped_record_blocks}$" <<< "${current_properties}" \
+        || ! grep -q "^tss.hintsEnabled=${expected_hints_enabled}$" <<< "${current_properties}" \
+        || ! grep -q "^tss.historyEnabled=${expected_history_enabled}$" <<< "${current_properties}" \
+        || ! grep -q "^tss.wrapsEnabled=${expected_wraps_enabled}$" <<< "${current_properties}"; then
+        all_updated="false"
+        echo "Consensus node ${node_pod} application.properties not updated yet [attempt=${attempt}/${max_attempts}]"
+        echo "${current_properties}"
+        break
+      fi
+    done
+
+    if [[ "${all_updated}" == "true" ]]; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - Consensus application.properties updated on all nodes"
+      return 0
+    fi
+
+    sleep "${sleep_seconds}"
+  done
+
+  echo "Timed out waiting for consensus application.properties update"
+  return 1
+}
+
 run_consensus_network_upgrade() {
+  local application_properties_file="${CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE:-${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}}"
   local command=(
     npm run solo --
     consensus network upgrade
@@ -344,7 +425,7 @@ run_consensus_network_upgrade() {
   )
 
   if version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.73.0"; then
-    command+=(--application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}")
+    command+=(--application-properties "${application_properties_file}")
   fi
 
   command+=(-q --dev)
@@ -352,6 +433,7 @@ run_consensus_network_upgrade() {
 }
 
 run_consensus_network_upgrade_prepare() {
+  local application_properties_file="${CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE:-${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}}"
   local command=(
     npm run solo --
     consensus dev-node-upgrade prepare
@@ -362,7 +444,7 @@ run_consensus_network_upgrade_prepare() {
   )
 
   if version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.73.0"; then
-    command+=(--application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}")
+    command+=(--application-properties "${application_properties_file}")
   fi
 
   command+=(-q --dev)
@@ -378,6 +460,7 @@ run_consensus_network_upgrade_submit() {
 }
 
 run_consensus_network_upgrade_execute() {
+  local application_properties_file="${CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE:-${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}}"
   local command=(
     npm run solo --
     consensus dev-node-upgrade execute
@@ -388,7 +471,7 @@ run_consensus_network_upgrade_execute() {
   )
 
   if version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.73.0"; then
-    command+=(--application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}")
+    command+=(--application-properties "${application_properties_file}")
   fi
 
   command+=(-q --dev)
@@ -1058,6 +1141,19 @@ else
 fi
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
+CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE=""
+if [[ "${MIGRATION_USES_WRB_RSA}" == "true" && "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-handoff-application-properties-XXXX.properties)"
+  cp "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}"
+  set_application_property "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
+  set_application_property "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
+  set_application_property "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
+  set_application_property "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
+  set_application_property "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
+  chmod 644 "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}"
+fi
+
 TEMP_BLOCK_NODE_VALUES_FILE=""
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
@@ -1142,6 +1238,9 @@ EOF
 fi
 
 echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+if [[ -n "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" ]]; then
+  echo "Using temporary handoff application.properties override file: ${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}"
+fi
 if [[ -n "${TEMP_BLOCK_NODE_VALUES_FILE}" ]]; then
   echo "Using temporary block node values override file: ${TEMP_BLOCK_NODE_VALUES_FILE}"
 else
@@ -1160,15 +1259,38 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${MIGRATION
   echo "Consensus and block node versions are both changing; using freeze-boundary upgrade ordering"
   TEMP_UPGRADE_CONTEXT_DIR="$(mktemp -d -t solo-upgrade-context-XXXX)"
 
+  echo "Using normal/TSS block streaming for the CN ${TO_CONSENSUS_NODE_VERSION} handoff so pending source blocks reach BN ${PREV_BLOCK_VERSION_NO_V}."
+  CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}"
   run_consensus_network_upgrade_prepare
   run_consensus_network_upgrade_submit
   wait_for_consensus_nodes_frozen 90 2
-  wait_for_mirror_block_stability "source deployment before block node upgrade" 3 90 2 > /dev/null
 
-  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  echo "BN ${CURRENT_BLOCK_VERSION} is installed while source CN is frozen, before the first CN ${TO_CONSENSUS_NODE_VERSION} block."
+  handoff_block_before_execute="$(get_latest_mirror_block_number)"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Mirror block before CN handoff execute: ${handoff_block_before_execute}"
 
   run_consensus_network_upgrade_execute
+  wait_for_mirror_block_count_progress "normal/TSS handoff before block node upgrade" "${handoff_block_before_execute}" 1 180 2 > /dev/null
+
+  echo "Stopping consensus nodes before switching to WRB/RSA and BN ${CURRENT_BLOCK_VERSION}."
+  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+
+  echo "Applying final WRB/RSA consensus application.properties before restarting against BN ${CURRENT_BLOCK_VERSION}."
+  TEMP_FINAL_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-final-application-properties-XXXX.properties)"
+  copy_consensus_application_properties_from_pod "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}"
+  set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
+  set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
+  set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
+  set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
+  set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
+  apply_consensus_application_properties_config_map "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}"
+  copy_consensus_application_properties_to_pods "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}"
+  wait_for_consensus_application_properties "true" "false" "false" "false" 30 2
+
+  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
+  echo "BN ${CURRENT_BLOCK_VERSION} is installed after the normal/TSS handoff block reached mirror."
+
+  npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+  CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 else
   if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
     npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"

@@ -654,16 +654,32 @@ export class ProfileManager {
     }
 
     if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
-      Helpers.upsertApplicationProperty(lines, 'tss.hintsEnabled', 'true');
-      Helpers.upsertApplicationProperty(lines, 'tss.historyEnabled', 'true');
-      Helpers.upsertApplicationProperty(lines, 'tss.forceMockSignatures', 'false');
+      if (!ProfileManager.hasApplicationProperty(lines, 'tss.hintsEnabled')) {
+        Helpers.upsertApplicationProperty(lines, 'tss.hintsEnabled', 'true');
+      }
 
-      if (this.remoteConfig.configuration.state.wrapsEnabled) {
+      if (!ProfileManager.hasApplicationProperty(lines, 'tss.historyEnabled')) {
+        Helpers.upsertApplicationProperty(lines, 'tss.historyEnabled', 'true');
+      }
+
+      if (!ProfileManager.hasApplicationProperty(lines, 'tss.forceMockSignatures')) {
+        Helpers.upsertApplicationProperty(lines, 'tss.forceMockSignatures', 'false');
+      }
+
+      if (
+        this.remoteConfig.configuration.state.wrapsEnabled &&
+        !ProfileManager.hasApplicationProperty(lines, 'tss.wrapsEnabled')
+      ) {
         Helpers.upsertApplicationProperty(lines, 'tss.wrapsEnabled', 'true');
       }
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
+  }
+
+  private static hasApplicationProperty(lines: string[], key: string): boolean {
+    const propertyPrefix: string = `${key}=`;
+    return lines.some((line: string): boolean => line.startsWith(propertyPrefix));
   }
 
   public async prepareValuesForNodeTransaction(
