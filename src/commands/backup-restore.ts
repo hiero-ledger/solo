@@ -71,7 +71,6 @@ import {Container} from '../integration/kube/resources/container/container.js';
 import {ContainerName} from '../integration/kube/resources/container/container-name.js';
 import {type Service} from '../integration/kube/resources/service/service.js';
 import {Templates} from '../core/templates.js';
-import {BlockTipUtilities} from '../core/block-tip-utilities.js';
 import * as Base64 from 'js-base64';
 import {K8Helper} from '../business/utils/k8-helper.js';
 
@@ -382,7 +381,7 @@ export class BackupRestoreCommand extends BaseCommand {
           title: 'Wait for consensus node block stream to stabilize',
           skip: (): boolean => !shouldBackupExternalDatabase,
           task: async (_, task): Promise<void> => {
-            await this.waitForMirrorImporterCatchUp();
+            await helpers.sleep(Duration.ofSeconds(30));
             task.title = 'Wait for consensus node block stream to stabilize: completed';
           },
         },
@@ -1084,99 +1083,6 @@ export class BackupRestoreCommand extends BaseCommand {
     };
     fs.writeFileSync(paramsFilePath, `${JSON.stringify(payload, undefined, 2)}\n`, 'utf8');
     return paramsFilePath;
-  }
-
-  /**
-   * Wait until the mirror importer has indexed every block CN finalized before freeze, AND
-   * the block node has received those blocks. CN saves a signed state for block N, but
-   * streaming block N to the block node and then to the importer can lag - especially the
-   * freeze block, which is finalized just as CN halts producing. If the DB dump is taken
-   * before all three (CN local stream, block node, importer) agree on the same tip, the
-   * post-restore CN resumes one or more blocks ahead of importer.MAX(record_file)+1 and
-   * the importer permanently demands a block the block node will never provide.
-   * The authoritative target is CN's own local block stream tip, since blocks land there
-   * before being streamed downstream. Wait for block node and importer to both reach it.
-   */
-  private async waitForMirrorImporterCatchUp(): Promise<void> {
-    this.logger.showUser(chalk.cyan('\n  Waiting for consensus node block stream to stabilize...'));
-    const consensusNodeContainer: Container | undefined = await this.findFirstConsensusNodeContainer();
-    const cnTip: number = await this.waitForConsensusTipStable(consensusNodeContainer);
-    if (cnTip < 0) {
-      this.logger.info('Could not determine CN local block stream tip; proceeding with backup.');
-      return;
-    }
-    this.logger.showUser(chalk.gray(`    CN local block stream tip: ${cnTip}`));
-  }
-
-  /**
-   * Locate any consensus node pod from remote config and return a Container ref for its
-   * root-container. Returns undefined if no CN pod is reachable.
-   */
-  private async findFirstConsensusNodeContainer(): Promise<Container | undefined> {
-    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
-    for (const consensusNode of consensusNodes) {
-      const context: Context = helpers.extractContextFromConsensusNodes(
-        consensusNode.name as NodeAlias,
-        consensusNodes,
-      );
-      const k8: K8 = this.k8Factory.getK8(context);
-      try {
-        const pods: Pod[] = await k8
-          .pods()
-          .list(NamespaceName.of(consensusNode.namespace), [
-            `solo.hedera.com/node-name=${consensusNode.name}`,
-            'solo.hedera.com/type=network-node',
-          ]);
-        if (pods.length > 0) {
-          return k8.containers().readByRef(ContainerReference.of(pods[0].podReference, constants.ROOT_CONTAINER));
-        }
-      } catch (error: unknown) {
-        this.logger.info(`Skipping CN ${consensusNode.name}: ${BackupRestoreCommand.getErrorMessage(error)}`);
-      }
-    }
-    return undefined;
-  }
-
-  /**
-   * Wrapper around the shared CN block-stream tip reader, with a null-safe guard so callers
-   * can pass `undefined` when no CN container could be located.
-   */
-  private async getConsensusNodeBlockStreamTip(container: Container | undefined): Promise<number> {
-    return container ? BlockTipUtilities.readConsensusBlockStreamTip(container) : -1;
-  }
-
-  /**
-   * Poll CN's local block stream tip every 3s until three consecutive identical samples
-   * confirm CN has stopped finalizing new blocks. Capped at 30 polls (~90s) since CN is
-   * already frozen and idle before this wait runs.
-   */
-  private async waitForConsensusTipStable(consensusNodeContainer: Container | undefined): Promise<number> {
-    if (!consensusNodeContainer) {
-      return -1;
-    }
-    const maxAttempts: number = 30;
-    let previousTip: number = -2;
-    let stableCount: number = 0;
-    let currentTip: number = -1;
-    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-      currentTip = await this.getConsensusNodeBlockStreamTip(consensusNodeContainer);
-      this.logger.info(`CN local tip: ${currentTip} (attempt ${attempt}/${maxAttempts}, stable-count ${stableCount})`);
-      if (currentTip >= 0 && currentTip === previousTip) {
-        stableCount++;
-        if (stableCount >= 3) {
-          this.logger.info(`CN local tip stabilized at block ${currentTip}`);
-          return currentTip;
-        }
-      } else {
-        stableCount = 0;
-      }
-      previousTip = currentTip;
-      await helpers.sleep(Duration.ofSeconds(3));
-    }
-    this.logger.info(
-      `CN local tip did not stabilize within ${maxAttempts} polls; using last observed value ${currentTip}`,
-    );
-    return currentTip;
   }
 
   /**

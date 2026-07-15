@@ -108,9 +108,18 @@ tasks:
       #    Without it, TSSVerifier returns MISSING_VERIFICATION_DATA for every post-restore
       #    WRAPS block; block N+1 never reaches disk.
       #
-      # Restore can leave a small imported record_file gap around the saved-state edge.
-      # Wait for any block-node across both clusters to have blocks above importer's MAX, then
-      # bridge the missing rows so mirror importer can chain from the first live block.
+      # CN freeze-block gap (hiero-consensus-node#25389): the freeze block (block N) is
+      # finalized just as CN halts, so it is never streamed to the block node before or after
+      # restore. BN therefore has blocks 0..N-1 from the archive, then N+1, N+2, ... from CN
+      # after restore — block N is permanently absent. The importer DB is restored to
+      # MAX(index)=N-1 and tries to consume block N next; BN cannot provide it, so the
+      # importer stalls indefinitely.
+      #
+      # bridge-import-gap resolves this by reading block N+1's previousHash (= block N's hash)
+      # and patching record_file[N-1].hash to match, allowing the importer to chain from
+      # N-1 directly to N+1 without needing the missing block N. The wait below ensures BN
+      # has received at least one post-restore block (N+1 or higher) before bridge-import-gap
+      # runs, because it needs that block to extract the correct previousHash.
       - cmd: |
           echo "Waiting for block node to receive blocks above importer's MAX..."
           IMPORTER_MAX="$({ kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
@@ -121,12 +130,9 @@ tasks:
           FOUND=0
           for i in $(seq 1 96); do
             BN_TIP=""
-            # Check every block node pod/context combination; the topology differs between
-            # local (block-node-1-0 on c2 only) and CI (block-node-1-0 on c1, block-node-2-0 on c2).
             for CTX_POD in \
               "kind-solo-e2e-c1:block-node-1-0" \
-              "kind-solo-e2e-c2:block-node-2-0" \
-              "kind-solo-e2e-c2:block-node-1-0"; do
+              "kind-solo-e2e-c2:block-node-2-0"; do
               CTX="${CTX_POD%%:*}"
               POD="${CTX_POD##*:}"
               TIP=$(kubectl exec "${POD}" -n {{ .NAMESPACE }} --context "${CTX}" -c block-node-server -- \
