@@ -406,8 +406,9 @@ wait_for_consensus_application_properties() {
   local expected_hints_enabled="${2}"
   local expected_history_enabled="${3}"
   local expected_wraps_enabled="${4}"
-  local max_attempts="${5:-30}"
-  local sleep_seconds="${6:-2}"
+  local expected_cutover_enabled="${5:-}"
+  local max_attempts="${6:-30}"
+  local sleep_seconds="${7:-2}"
   local namespace="${SOLO_NAMESPACE:-one-shot}"
   local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
   local node_pods=("network-node1-0" "network-node2-0")
@@ -422,7 +423,7 @@ wait_for_consensus_application_properties() {
         bash -c "
           for properties_path in /opt/hgcapp/data/config/application.properties /opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties; do
             if [[ -f \"\${properties_path}\" ]]; then
-              grep -E '^(blockStream.streamWrappedRecordBlocks|tss.hintsEnabled|tss.historyEnabled|tss.wrapsEnabled)=' \"\${properties_path}\"
+              grep -E '^(blockStream.streamWrappedRecordBlocks|blockStream.enableCutover|tss.hintsEnabled|tss.historyEnabled|tss.wrapsEnabled)=' \"\${properties_path}\"
               exit 0
             fi
           done
@@ -433,7 +434,8 @@ wait_for_consensus_application_properties() {
       if ! grep -q "^blockStream.streamWrappedRecordBlocks=${expected_wrapped_record_blocks}$" <<< "${current_properties}" \
         || ! grep -q "^tss.hintsEnabled=${expected_hints_enabled}$" <<< "${current_properties}" \
         || ! grep -q "^tss.historyEnabled=${expected_history_enabled}$" <<< "${current_properties}" \
-        || ! grep -q "^tss.wrapsEnabled=${expected_wraps_enabled}$" <<< "${current_properties}"; then
+        || ! grep -q "^tss.wrapsEnabled=${expected_wraps_enabled}$" <<< "${current_properties}" \
+        || { [[ -n "${expected_cutover_enabled}" ]] && ! grep -q "^blockStream.enableCutover=${expected_cutover_enabled}$" <<< "${current_properties}"; }; then
         all_updated="false"
         echo "Consensus node ${node_pod} application.properties not updated yet [attempt=${attempt}/${max_attempts}]"
         echo "${current_properties}"
@@ -1166,12 +1168,14 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "true"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
 else
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
