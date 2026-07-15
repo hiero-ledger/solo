@@ -1074,6 +1074,12 @@ else
   echo "Block node version unchanged; no temporary block node values override file needed"
 fi
 
+if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+  echo "Upgrading mirror node before source CN stop so the importer can read WRB/RSA blocks after restart"
+  npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
+  MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS="true"
+fi
+
 # Upgrade BN before upgrading CN. BN 0.36 rejects the CN 0.75 block proof at the
 # first post-upgrade block, which leaves mirror pinned at the last source block.
 # Stop source CN during the BN StatefulSet recreate so no blocks are produced
@@ -1085,11 +1091,6 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
 
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
   echo "BN ${CURRENT_BLOCK_VERSION} is installed before the CN upgrade so it handles the first CN ${TO_CONSENSUS_NODE_VERSION} block."
-
-  if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
-    npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
-    MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS="true"
-  fi
 
   apply_source_wrb_rsa_configmaps
 
