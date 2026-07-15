@@ -1040,14 +1040,22 @@ add_application_properties_overwrite_marker "${TEMP_UPGRADE_APPLICATION_PROPERTI
 
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "fees.simpleFeesEnabled" "false"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
+if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
+else
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
+fi
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 TEMP_BLOCK_NODE_VALUES_FILE=""
