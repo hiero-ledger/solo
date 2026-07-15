@@ -28,7 +28,7 @@ export const EXPLORER_VERSION: string = constants.getEnvironmentVariable('EXPLOR
 export const HEDERA_JSON_RPC_RELAY_VERSION: string = constants.getEnvironmentVariable('RELAY_VERSION') || '0.77.0';
 export const INGRESS_CONTROLLER_VERSION: string =
   constants.getEnvironmentVariable('INGRESS_CONTROLLER_VERSION') || '0.14.5';
-export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || '0.37.1';
+export const BLOCK_NODE_VERSION: string = constants.getEnvironmentVariable('BLOCK_NODE_VERSION') || '0.38.0';
 
 export const METALLB_CHART_VERSION: string = constants.getEnvironmentVariable('METALLB_CHART_VERSION') || '0.15.3';
 export const MINIO_OPERATOR_VERSION: string = constants.getEnvironmentVariable('MINIO_OPERATOR_VERSION') || '7.1.1';
@@ -44,6 +44,11 @@ export const PROMETHEUS_OPERATOR_CRDS_VERSION: string =
 export const REDIS_IMAGE_VERSION: string = constants.getEnvironmentVariable('REDIS_IMAGE_VERSION') || '8.2.2';
 export const REDIS_SENTINEL_IMAGE_VERSION: string =
   constants.getEnvironmentVariable('REDIS_SENTINEL_IMAGE_VERSION') || '8.2.2';
+
+// Image versions embedded in the solo-deployment Helm chart (SOLO_CHART_VERSION).
+// These must stay in sync with charts/solo-deployment/values.yaml whenever SOLO_CHART_VERSION bumps.
+export const SOLO_CHEETAH_VERSION: string = constants.getEnvironmentVariable('SOLO_CHEETAH_VERSION') || '0.4.5';
+export const SOLO_CONTAINERS_VERSION: string = constants.getEnvironmentVariable('SOLO_CONTAINERS_VERSION') || '0.46.0';
 
 // -------------------------------------------------------------------- //
 // Edge (newer-than-default) versions used by the `--edge` preset in one-shot deploys.
