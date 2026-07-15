@@ -724,7 +724,13 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     }
     const configReference: RegExpExecArray | null = /^\$\{config\.([A-Za-z0-9_]+)\}$/.exec(raw);
     if (configReference) {
-      return (config as unknown as Record<string, FalconOverrideValue>)[configReference[1]];
+      const configKey: string = configReference[1];
+      if (!Object.hasOwn(config, configKey)) {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unknown config key '${configKey}' referenced in falcon prepare spec`),
+        );
+      }
+      return (config as unknown as Record<string, FalconOverrideValue>)[configKey];
     }
     return raw;
   }
@@ -739,6 +745,16 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       throw new SoloErrors.component.falconValuesPreparationFailed(
         new Error(`Unknown falcon prepare flagsFrom '${section.flagsFrom}' for section '${section.name}'`),
       );
+    }
+
+    // Fail fast on override keys that are not real flag names: a typo (e.g. `dev` instead of
+    // `debug`) would otherwise be silently dropped, leaving the flag at its empty default.
+    for (const overrideKey of Object.keys(section.overrides ?? {})) {
+      if (!flags.allFlagsMap.has(overrideKey)) {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unknown flag '${overrideKey}' in overrides for section '${section.name}'`),
+        );
+      }
     }
 
     const built: Record<string, FalconOverrideValue> = {};
@@ -756,9 +772,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     // compatibility with existing templates, tests, and user-edited values files).
     for (const [flagName, raw] of Object.entries(section.extraKeys ?? {})) {
       const flag: CommandFlag | undefined = flags.allFlagsMap.get(flagName);
-      if (flag) {
-        built[optionFromFlag(flag)] = DefaultOneShotCommand.resolveFalconValue(raw, flag, config);
+      if (!flag) {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unknown flag '${flagName}' in extraKeys for section '${section.name}'`),
+        );
       }
+      built[optionFromFlag(flag)] = DefaultOneShotCommand.resolveFalconValue(raw, flag, config);
     }
 
     return built;
@@ -800,6 +819,12 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   ): Promise<void> {
     const target: Record<string, unknown> = config as unknown as Record<string, unknown>;
     for (const prompt of spec.prompts) {
+      if (prompt.type !== 'confirm') {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unsupported falcon prepare prompt type '${prompt.type}' for '${prompt.configKey}'`),
+        );
+      }
+
       if (quiet && prompt.skipWhenQuiet) {
         target[prompt.configKey] = prompt.quietValue ?? false;
         continue;
@@ -812,15 +837,24 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       target[prompt.configKey] = answer;
 
       if (answer && prompt.onTrue) {
-        const followUpFlags: CommandFlag[] = prompt.onTrue.promptFlags
-          .map((name: string): CommandFlag | undefined => flags.allFlagsMap.get(name))
-          .filter((flag: CommandFlag | undefined): flag is CommandFlag => flag !== undefined);
+        const followUpFlags: CommandFlag[] = prompt.onTrue.promptFlags.map((name: string): CommandFlag => {
+          const flag: CommandFlag | undefined = flags.allFlagsMap.get(name);
+          if (!flag) {
+            throw new SoloErrors.component.falconValuesPreparationFailed(
+              new Error(`Unknown flag '${name}' in promptFlags for prompt '${prompt.configKey}'`),
+            );
+          }
+          return flag;
+        });
         await this.configManager.executePrompt(task, followUpFlags);
         for (const entry of prompt.onTrue.setConfig) {
           const flag: CommandFlag | undefined = flags.allFlagsMap.get(entry.flag);
-          if (flag) {
-            target[entry.configKey] = this.configManager.getFlag(flag);
+          if (!flag) {
+            throw new SoloErrors.component.falconValuesPreparationFailed(
+              new Error(`Unknown flag '${entry.flag}' in setConfig for prompt '${prompt.configKey}'`),
+            );
           }
+          target[entry.configKey] = this.configManager.getFlag(flag);
         }
       }
     }

@@ -49,7 +49,7 @@ sections:
     overrides:
       release-tag: ${config.releaseTag}
       local-build-path: ${config.localBuildPath}
-      dev: ${config.enableDevChartMode}
+      debug: ${config.enableDevChartMode}
     extraKeys:
       release-tag: ${config.releaseTag}
 
@@ -87,7 +87,7 @@ sections:
     overrides:
       chart-version: ${config.chartVersion}
       enable-ingress: ${default}
-      dev: ${config.enableDevChartMode}
+      debug: ${config.enableDevChartMode}
     extraKeys:
       chart-version: ${config.chartVersion}
 
