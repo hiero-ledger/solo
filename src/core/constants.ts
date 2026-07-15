@@ -421,6 +421,11 @@ export const LISTR_DEFAULT_OPTIONS: {
   },
 };
 
+// Maximum number of image cache operations that run concurrently, applied to both the pull path
+// and the load path. Bounded to avoid amplifying Docker Hub rate limits when fetching images and to avoid
+// saturating the network/disk, while staying wide enough to keep a cold pull responsive.
+export const CACHE_IMAGE_MAX_CONCURRENCY: number = +getEnvironmentVariable('CACHE_IMAGE_MAX_CONCURRENCY') || 12;
+
 export const SIGNING_KEY_PREFIX: string = 's';
 export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
@@ -502,6 +507,8 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_DELAY') || 1000;
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
+// Collects images that failed to cache (pull) or load so a summary can be shown at the end of the run.
+export const CACHE_IMAGE_FAILURE_MESSAGE_GROUP: string = 'cache-image-failures';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
 export const GRPC_LOCAL_PORT: number = +getEnvironmentVariable('GRPC_LOCAL_PORT') || 35_211;
 export const GRPC_WEB_PORT: number = +getEnvironmentVariable('GRPC_WEB_PORT') || 8080;
