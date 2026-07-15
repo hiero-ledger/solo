@@ -24,14 +24,17 @@ export const SOLO_SILENT_MODE: boolean = getEnvironmentVariable('SOLO_SILENT_MOD
 
 // eslint-disable-next-line solo/no-exported-function
 export function getEnvironmentVariable(name: string): string | undefined {
-  if (process.env[name] && process.env[name].trim() !== '') {
+  const value: string | undefined = process.env[name];
+
+  if (value && value.trim() !== '') {
     if (!(process.env.SOLO_SILENT_MODE === 'true')) {
       console.log(`>> environment variable '${name}' exists, using its value`);
     }
-    return process.env[name];
+    return value;
   }
   return undefined;
 }
+
 export const ROOT_DIR: string = PathEx.joinWithRealPath(path.dirname(url.fileURLToPath(import.meta.url)), '..', '..');
 
 // -------------------- solo related constants ---------------------------------------------------------------------
@@ -308,6 +311,10 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'block-node-messaging-workaround.yaml',
+);
 export const MIRROR_POSTGRES_TRUNCATE_SQL_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'mirror-postgres-truncate.sql',
@@ -319,6 +326,7 @@ export const CLEANUP_STATE_ROUNDS_SCRIPT: string = PathEx.joinWithRealPath(RESOU
 export const RENAME_STATE_NODE_ID_SCRIPT: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rename-state-node-id.sh');
 export const NODE_LOG_FAILURE_MSG: string = 'failed to download logs from pod';
 export const ONE_SHOT_WITH_BLOCK_NODE: string = getEnvironmentVariable('ONE_SHOT_WITH_BLOCK_NODE') || 'false';
+export const ONE_SHOT_BLOCK_NODE_PERF: string = getEnvironmentVariable('ONE_SHOT_BLOCK_NODE_PERF') || 'false';
 export const ONE_SHOT_DEPLOYMENT_NAME: string = 'one-shot';
 export const RAPID_FIRE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'rapid-fire', 'nlg-values.yaml');
 
@@ -412,6 +420,11 @@ export const LISTR_DEFAULT_OPTIONS: {
   },
 };
 
+// Maximum number of image cache operations that run concurrently, applied to both the pull path
+// and the load path. Bounded to avoid amplifying Docker Hub rate limits when fetching images and to avoid
+// saturating the network/disk, while staying wide enough to keep a cold pull responsive.
+export const CACHE_IMAGE_MAX_CONCURRENCY: number = +getEnvironmentVariable('CACHE_IMAGE_MAX_CONCURRENCY') || 12;
+
 export const SIGNING_KEY_PREFIX: string = 's';
 export const CERTIFICATE_VALIDITY_YEARS: number = 100; // years
 
@@ -492,8 +505,9 @@ export const NETWORK_LOAD_GENERATOR_POD_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const NETWORK_LOAD_GENERATOR_POD_RUNNING_DELAY: number =
   +getEnvironmentVariable('NETWORK_LOAD_GENERATOR_PODS_RUNNING_DELAY') || 1000;
-
 export const PORT_FORWARDING_MESSAGE_GROUP: string = 'port-forwarding';
+// Collects images that failed to cache (pull) or load so a summary can be shown at the end of the run.
+export const CACHE_IMAGE_FAILURE_MESSAGE_GROUP: string = 'cache-image-failures';
 export const GRPC_PORT: number = +getEnvironmentVariable('GRPC_PORT') || 50_211;
 export const GRPC_LOCAL_PORT: number = +getEnvironmentVariable('GRPC_LOCAL_PORT') || 35_211;
 export const GRPC_WEB_PORT: number = +getEnvironmentVariable('GRPC_WEB_PORT') || 8080;
@@ -502,6 +516,7 @@ export const JSON_RPC_RELAY_LOCAL_PORT: number = +getEnvironmentVariable('JSON_R
 export const EXPLORER_PORT: number = +getEnvironmentVariable('EXPLORER_PORT') || 8080;
 export const EXPLORER_LOCAL_PORT: number = +getEnvironmentVariable('EXPLORER_LOCAL_PORT') || 38_080;
 export const MIRROR_NODE_PORT: number = +getEnvironmentVariable('MIRROR_NODE_PORT') || 38_081;
+export const MIRROR_REST_CONTAINER_PORT: number = 5551;
 export const LOCAL_BUILD_COPY_RETRY: number = +getEnvironmentVariable('LOCAL_BUILD_COPY_RETRY') || 3;
 
 export const LOAD_BALANCER_CHECK_DELAY_SECS: number = +getEnvironmentVariable('LOAD_BALANCER_CHECK_DELAY_SECS') || 5;

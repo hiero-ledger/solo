@@ -62,7 +62,7 @@ defaults:
 permissions:
   contents: read
   pull-requests: write
-  actions: read
+  actions: write
 
 env:
   STEP_TIMEOUT_MINUTES: '5'
@@ -134,6 +134,14 @@ jobs:
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
 
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
       - name: Run E2E Tests
         id: run-e2e-tests
         env:
@@ -162,6 +170,8 @@ jobs:
           fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
+          echo BLOCK_STREAM_STREAM_MODE=BOTH >> .env
+          echo ONE_SHOT_BLOCK_NODE_PERF=false >> .env
           cat .env
 
           # Start resource monitoring in background (30s interval for finer granularity)
@@ -253,6 +263,13 @@ jobs:
             npm run solo-test -- deployment diagnostics logs -q --dev || true
             exit "${TASK_RC}"
           fi
+
+      - name: Save Solo Image Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Log Metrics
         id: log-metrics
@@ -420,7 +437,11 @@ jobs:
       - name: Performance Test Verification
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          MAX_MEMORY_MB=4000
+          # ONE_SHOT_BLOCK_NODE_PERF=false: no ring-buffer workaround applied.
+          # RTT probe runs but failures are non-fatal (hiero-block-node#3150) — block-node RSS
+          # stays at the ~143 MB baseline.  Measured peak (run 29267777062): 2 331 MiB.
+          # 3 000 MB (= 2 331 + 500 margin rounded to nearest 500) leaves headroom for NLG + mirror + kube-system.
+          MAX_MEMORY_MB=3000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"
           MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')
