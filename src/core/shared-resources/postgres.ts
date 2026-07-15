@@ -217,7 +217,7 @@ export class PostgresSharedResource {
           `  echo "Initialization sentinel found on database '${databaseName}' — reconciling role passwords and skipping re-init."`,
           '  # The database and roles already exist, but the mirror-passwords Secret may have been',
           '  # regenerated while this PVC survived a prior destroy, leaving the stored passwords stale.',
-          '  # Re-apply the current passwords to every role to avoid an auth mismatch (see issue #4961).',
+          '  # Re-apply the current passwords to every role to avoid an auth mismatch.',
           '  # Best-effort per role, since optional roles (graphql/rosetta) may not exist.',
           '  reconcile_roles=("${OWNER_USERNAME}" mirror_importer "${REST_USERNAME}" mirror_rest_java mirror_web3 mirror_grpc mirror_graphql mirror_rosetta)',
           '  reconcile_passwords=("${OWNER_PASSWORD}" "${IMPORTER_PASSWORD}" "${REST_PASSWORD}" "${REST_JAVA_PASSWORD}" "${WEB3_PASSWORD}" "${GRPC_PASSWORD}" "${GRAPHQL_PASSWORD}" "${ROSETTA_PASSWORD}")',
