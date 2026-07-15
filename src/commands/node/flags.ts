@@ -30,6 +30,18 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.upgradeZipFile,
 ];
 
+const UPGRADE_CONFIGURATION_FLAGS: CommandFlag[] = [
+  flags.upgradeVersion,
+  flags.wrapsKeyPath,
+  flags.networkDeploymentValuesFile,
+  flags.apiPermissionProperties,
+  flags.applicationEnv,
+  flags.applicationProperties,
+  flags.bootstrapProperties,
+  flags.log4j2Xml,
+  flags.settingTxt,
+];
+
 const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
 const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.app,
@@ -53,36 +65,22 @@ const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
 
 export const UPGRADE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS],
-  optional: [
-    ...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS,
-
-    flags.upgradeVersion,
-    flags.wrapsKeyPath,
-
-    // Node config file flags
-    flags.networkDeploymentValuesFile,
-    flags.apiPermissionProperties,
-    flags.applicationEnv,
-    flags.applicationProperties,
-    flags.bootstrapProperties,
-    flags.log4j2Xml,
-    flags.settingTxt,
-  ],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, ...UPGRADE_CONFIGURATION_FLAGS],
 };
 
 export const UPGRADE_PREPARE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.outputDir],
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, ...UPGRADE_CONFIGURATION_FLAGS],
 };
 
 export const UPGRADE_SUBMIT_TRANSACTIONS_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, ...UPGRADE_CONFIGURATION_FLAGS],
 };
 
 export const UPGRADE_EXECUTE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, ...UPGRADE_CONFIGURATION_FLAGS],
 };
 
 export const UPDATE_FLAGS: CommandFlags = {

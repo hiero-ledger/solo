@@ -532,7 +532,7 @@ export class NodeCommandHandlers extends CommandHandler {
 
   public async upgradeExecute(argv: ArgvStruct): Promise<boolean> {
     const leaseWrapper: LeaseWrapper = {lease: undefined};
-    argv = addFlagsToArgv(argv, NodeFlags.UPGRADE_FLAGS);
+    argv = addFlagsToArgv(argv, NodeFlags.UPGRADE_EXECUTE_FLAGS);
     await this.commandAction(
       argv,
       [

@@ -10,6 +10,7 @@ TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MIRROR_NODE_VALUES_FILE=""
 TEMP_BLOCK_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
+TEMP_UPGRADE_CONTEXT_DIR=""
 
 collect_failure_diagnostics() {
   local rc="${1}"
@@ -53,6 +54,10 @@ on_exit() {
 
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
     rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+  fi
+
+  if [[ -n "${TEMP_UPGRADE_CONTEXT_DIR:-}" && -d "${TEMP_UPGRADE_CONTEXT_DIR}" ]]; then
+    rm -rf "${TEMP_UPGRADE_CONTEXT_DIR}"
   fi
 
   if [[ ${rc} -ne 0 ]]; then
@@ -105,77 +110,6 @@ version_at_least() {
   local minimum_version="${2#v}"
 
   [[ "$(printf '%s\n' "${minimum_version}" "${version}" | sort -V | head -n 1)" == "${minimum_version}" ]]
-}
-
-apply_source_wrb_rsa_configmaps() {
-  if [[ "${MIGRATION_USES_WRB_RSA}" != "true" ]]; then
-    return 0
-  fi
-
-  local namespace="${SOLO_NAMESPACE:-one-shot}"
-  local context="kind-${SOLO_CLUSTER_NAME}"
-  local configmaps
-  local application_properties_file
-  local application_properties_path="/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties"
-  application_properties_file="$(mktemp -t source-wrb-application-properties-XXXX.properties)"
-
-  cp resources/templates/application.properties "${application_properties_file}"
-  add_application_properties_overwrite_marker "${application_properties_file}"
-  set_application_property "${application_properties_file}" "blockStream.streamMode" "BLOCKS"
-  set_application_property "${application_properties_file}" "blockStream.streamWrappedRecordBlocks" "true"
-  set_application_property "${application_properties_file}" "blockStream.writerMode" "FILE_AND_GRPC"
-  set_application_property "${application_properties_file}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
-  set_application_property "${application_properties_file}" "blockNode.wantedBlockExpirationMillis" "60000"
-  set_application_property "${application_properties_file}" "tss.hintsEnabled" "false"
-  set_application_property "${application_properties_file}" "tss.historyEnabled" "false"
-  set_application_property "${application_properties_file}" "tss.forceMockSignatures" "false"
-  set_application_property "${application_properties_file}" "tss.wrapsEnabled" "false"
-
-  configmaps="$(kubectl --context "${context}" get configmap -n "${namespace}" -o name \
-    | grep -E '^configmap/network-node([0-9]+)?-data-config-cm$' || true)"
-
-  if [[ -z "${configmaps}" ]]; then
-    echo "No source consensus node configmaps found in namespace ${namespace}"
-    rm -f "${application_properties_file}"
-    return 1
-  fi
-
-  local patched_count=0
-  local configmap_reference
-  while IFS= read -r configmap_reference; do
-    if [[ -z "${configmap_reference}" ]]; then
-      continue
-    fi
-
-    local configmap_name="${configmap_reference#configmap/}"
-    local patch_file
-    patch_file="$(mktemp -t source-wrb-configmap-patch-XXXX.json)"
-
-    jq -Rs '{data: {"application.properties": .}}' < "${application_properties_file}" > "${patch_file}"
-    kubectl --context "${context}" patch configmap "${configmap_name}" -n "${namespace}" \
-      --type merge --patch-file "${patch_file}"
-
-    rm -f "${patch_file}"
-    patched_count=$((patched_count + 1))
-  done <<< "${configmaps}"
-
-  if [[ "${patched_count}" -eq 0 ]]; then
-    echo "No source consensus node application.properties configmaps were patched"
-    rm -f "${application_properties_file}"
-    return 1
-  fi
-
-  for node_pod in network-node1-0 network-node2-0; do
-    kubectl --context "${context}" cp \
-      "${application_properties_file}" \
-      "${namespace}/${node_pod}:${application_properties_path}" \
-      -c root-container
-    kubectl --context "${context}" exec "${node_pod}" -n "${namespace}" -c root-container -- \
-      bash -c "chown hedera:hedera ${application_properties_path} 2>/dev/null || true"
-  done
-
-  rm -f "${application_properties_file}"
-  echo "Patched ${patched_count} source consensus node configmap(s) for WRB/RSA block streaming"
 }
 
 extract_required_test_version() {
@@ -327,6 +261,138 @@ wait_for_mirror_block_count_progress() {
   local minimum_previous_block=$((previous_block + required_new_blocks - 1))
 
   wait_for_mirror_block_progress "${label}" "${minimum_previous_block}" "${max_attempts}" "${sleep_seconds}"
+}
+
+wait_for_mirror_block_stability() {
+  local label="${1}"
+  local required_stable_samples="${2:-3}"
+  local max_attempts="${3:-60}"
+  local sleep_seconds="${4:-2}"
+  local latest_block=-1
+  local previous_block=-1
+  local stable_samples=0
+
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for mirror block stability (${label})" >&2
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    latest_block=$(get_latest_mirror_block_number)
+    if [[ "${latest_block}" -ge 0 && "${latest_block}" -eq "${previous_block}" ]]; then
+      stable_samples=$((stable_samples + 1))
+    else
+      stable_samples=0
+      previous_block="${latest_block}"
+    fi
+
+    if [[ "${stable_samples}" -ge "${required_stable_samples}" ]]; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - Mirror block ingestion stable (${label}): latest block ${latest_block}" >&2
+      echo "${latest_block}"
+      return 0
+    fi
+
+    echo "Mirror block ingestion still settling (${label}) [attempt=${attempt}/${max_attempts}, latest=${latest_block}, stable=${stable_samples}/${required_stable_samples}]" >&2
+    sleep "${sleep_seconds}"
+  done
+
+  echo "Timed out waiting for mirror block stability (${label}); latest=${latest_block}" >&2
+  return 1
+}
+
+wait_for_consensus_nodes_frozen() {
+  local max_attempts="${1:-90}"
+  local sleep_seconds="${2:-2}"
+  local namespace="${SOLO_NAMESPACE:-one-shot}"
+  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
+  local node_pods=("network-node1-0" "network-node2-0")
+  local status_line
+  local status_number
+  local all_frozen
+
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for source consensus nodes to reach FREEZE_COMPLETE"
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    all_frozen="true"
+
+    for node_pod in "${node_pods[@]}"; do
+      status_line="$(kubectl --context "${context}" exec "${node_pod}" -n "${namespace}" -c root-container -- \
+        bash -c "curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v '#'" 2>/dev/null || true)"
+      status_number="$(awk '/^platform_PlatformStatus/ {print int($NF); exit}' <<< "${status_line}")"
+
+      if [[ "${status_number}" != "6" ]]; then
+        all_frozen="false"
+        echo "Consensus node ${node_pod} not frozen yet [attempt=${attempt}/${max_attempts}, status=${status_number:-unknown}]"
+        break
+      fi
+    done
+
+    if [[ "${all_frozen}" == "true" ]]; then
+      echo "$(date '+%Y-%m-%d %H:%M:%S') - Source consensus nodes reached FREEZE_COMPLETE"
+      return 0
+    fi
+
+    sleep "${sleep_seconds}"
+  done
+
+  echo "Timed out waiting for source consensus nodes to reach FREEZE_COMPLETE"
+  return 1
+}
+
+run_consensus_network_upgrade() {
+  local command=(
+    npm run solo --
+    consensus network upgrade
+    -i node1,node2
+    --deployment "${SOLO_DEPLOYMENT}"
+    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}"
+  )
+
+  if version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.73.0"; then
+    command+=(--application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}")
+  fi
+
+  command+=(-q --dev)
+  "${command[@]}"
+}
+
+run_consensus_network_upgrade_prepare() {
+  local command=(
+    npm run solo --
+    consensus dev-node-upgrade prepare
+    -i node1,node2
+    --deployment "${SOLO_DEPLOYMENT}"
+    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}"
+    --output-dir "${TEMP_UPGRADE_CONTEXT_DIR}"
+  )
+
+  if version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.73.0"; then
+    command+=(--application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}")
+  fi
+
+  command+=(-q --dev)
+  "${command[@]}"
+}
+
+run_consensus_network_upgrade_submit() {
+  npm run solo -- \
+    consensus dev-node-upgrade submit-transactions \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --input-dir "${TEMP_UPGRADE_CONTEXT_DIR}" \
+    -q --dev
+}
+
+run_consensus_network_upgrade_execute() {
+  local command=(
+    npm run solo --
+    consensus dev-node-upgrade execute
+    -i node1,node2
+    --deployment "${SOLO_DEPLOYMENT}"
+    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}"
+    --input-dir "${TEMP_UPGRADE_CONTEXT_DIR}"
+  )
+
+  if version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.73.0"; then
+    command+=(--application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}")
+  fi
+
+  command+=(-q --dev)
+  "${command[@]}"
 }
 
 # Restart relay after upgrade and refresh port-forwards.
@@ -1075,38 +1141,35 @@ else
 fi
 
 if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
-  echo "Upgrading mirror node before source CN stop so the importer can read WRB/RSA blocks after restart"
+  echo "Upgrading mirror node before consensus upgrade so the importer can read WRB/RSA blocks after restart"
   npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
   MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS="true"
 fi
 
-# Upgrade BN before upgrading CN. BN 0.36 rejects the CN 0.75 block proof at the
-# first post-upgrade block, which leaves mirror pinned at the last source block.
-# Stop source CN during the BN StatefulSet recreate so no blocks are produced
-# while the BN service is unavailable, then prove the source CN can stream through
-# the upgraded BN before proceeding to the CN upgrade.
-if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-  echo "Block node version changing - stopping source CN before BN upgrade"
-  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
+
+if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+  echo "Consensus and block node versions are both changing; using freeze-boundary upgrade ordering"
+  TEMP_UPGRADE_CONTEXT_DIR="$(mktemp -d -t solo-upgrade-context-XXXX)"
+
+  run_consensus_network_upgrade_prepare
+  run_consensus_network_upgrade_submit
+  wait_for_consensus_nodes_frozen 90 2
+  wait_for_mirror_block_stability "source deployment before block node upgrade" 3 90 2 > /dev/null
 
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  echo "BN ${CURRENT_BLOCK_VERSION} is installed before the CN upgrade so it handles the first CN ${TO_CONSENSUS_NODE_VERSION} block."
+  echo "BN ${CURRENT_BLOCK_VERSION} is installed while source CN is frozen, before the first CN ${TO_CONSENSUS_NODE_VERSION} block."
 
-  apply_source_wrb_rsa_configmaps
-
-  source_block_before_block_node_restart="$(get_latest_mirror_block_number)"
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before source CN restart: ${source_block_before_block_node_restart}"
-  npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-  wait_for_mirror_block_progress "source deployment after block node upgrade" "${source_block_before_block_node_restart}" 180 2 > /dev/null
+  run_consensus_network_upgrade_execute
 else
-  echo "Block node version unchanged (${CURRENT_BLOCK_VERSION}); skipping pre-CN-upgrade block node upgrade"
-fi
+  if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+    npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
+    echo "BN ${CURRENT_BLOCK_VERSION} is installed before the CN upgrade."
+  else
+    echo "Block node version unchanged (${CURRENT_BLOCK_VERSION}); skipping block node upgrade"
+  fi
 
-echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
-if [[ "$(printf '%s\n' "v0.73.0" "${TO_CONSENSUS_NODE_VERSION}" | sort -V | head -n 1)" == "v0.73.0" ]]; then
-  npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" -q --dev
-else
-  npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
+  run_consensus_network_upgrade
 fi
 
 if [[ "${MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS}" != "true" ]]; then
