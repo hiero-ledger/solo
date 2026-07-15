@@ -966,6 +966,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade 
 ps -ef |grep port-forward
 
 echo "Block node version: source=${PREV_BLOCK_VERSION_NO_V}, target=${CURRENT_BLOCK_VERSION}"
+MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS="false"
 
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
 cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
@@ -1085,6 +1086,11 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
   echo "BN ${CURRENT_BLOCK_VERSION} is installed before the CN upgrade so it handles the first CN ${TO_CONSENSUS_NODE_VERSION} block."
 
+  if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+    npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
+    MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS="true"
+  fi
+
   apply_source_wrb_rsa_configmaps
 
   source_block_before_block_node_restart="$(get_latest_mirror_block_number)"
@@ -1102,7 +1108,11 @@ else
   npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
 fi
 
-npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
+if [[ "${MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS}" != "true" ]]; then
+  npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
+else
+  echo "Mirror node was upgraded before source CN restart for WRB/RSA block ingestion; skipping duplicate mirror upgrade"
+fi
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 target_block_before_final_wait="$(get_latest_mirror_block_number)"
