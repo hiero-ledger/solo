@@ -84,6 +84,20 @@ set_application_property() {
   rm -f "${file_path}.bak"
 }
 
+add_application_properties_overwrite_marker() {
+  local file_path="${1}"
+
+  if grep -q '^# SOLO_ENABLE_OVERWRITE=true$' "${file_path}"; then
+    return 0
+  fi
+
+  local marked_file
+  marked_file="$(mktemp -t solo-application-properties-overwrite-XXXX.properties)"
+  printf '# SOLO_ENABLE_OVERWRITE=true\n' > "${marked_file}"
+  cat "${file_path}" >> "${marked_file}"
+  mv "${marked_file}" "${file_path}"
+}
+
 is_tss_supported_consensus_version() {
   local consensus_version="${1#v}"
   local minimum_tss_version="0.74.0"
@@ -106,11 +120,28 @@ apply_source_wrb_rsa_configmaps() {
   local namespace="${SOLO_NAMESPACE:-one-shot}"
   local context="kind-${SOLO_CLUSTER_NAME}"
   local configmaps
+  local application_properties_file
+  local application_properties_path="/opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties"
+  application_properties_file="$(mktemp -t source-wrb-application-properties-XXXX.properties)"
+
+  cp resources/templates/application.properties "${application_properties_file}"
+  add_application_properties_overwrite_marker "${application_properties_file}"
+  set_application_property "${application_properties_file}" "blockStream.streamMode" "BLOCKS"
+  set_application_property "${application_properties_file}" "blockStream.streamWrappedRecordBlocks" "true"
+  set_application_property "${application_properties_file}" "blockStream.writerMode" "FILE_AND_GRPC"
+  set_application_property "${application_properties_file}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
+  set_application_property "${application_properties_file}" "blockNode.wantedBlockExpirationMillis" "60000"
+  set_application_property "${application_properties_file}" "tss.hintsEnabled" "false"
+  set_application_property "${application_properties_file}" "tss.historyEnabled" "false"
+  set_application_property "${application_properties_file}" "tss.forceMockSignatures" "false"
+  set_application_property "${application_properties_file}" "tss.wrapsEnabled" "false"
+
   configmaps="$(kubectl --context "${context}" get configmap -n "${namespace}" -o name \
     | grep -E '^configmap/network-node([0-9]+)?-data-config-cm$' || true)"
 
   if [[ -z "${configmaps}" ]]; then
     echo "No source consensus node configmaps found in namespace ${namespace}"
+    rm -f "${application_properties_file}"
     return 1
   fi
 
@@ -122,43 +153,33 @@ apply_source_wrb_rsa_configmaps() {
     fi
 
     local configmap_name="${configmap_reference#configmap/}"
-    local application_properties_file
     local patch_file
-    application_properties_file="$(mktemp -t source-wrb-application-properties-XXXX.properties)"
     patch_file="$(mktemp -t source-wrb-configmap-patch-XXXX.json)"
-
-    kubectl --context "${context}" get configmap "${configmap_name}" -n "${namespace}" \
-      -o jsonpath='{.data.application\.properties}' > "${application_properties_file}"
-
-    if [[ ! -s "${application_properties_file}" ]]; then
-      echo "Skipping ConfigMap ${configmap_name}; no application.properties data found"
-      rm -f "${application_properties_file}" "${patch_file}"
-      continue
-    fi
-
-    set_application_property "${application_properties_file}" "blockStream.streamMode" "BLOCKS"
-    set_application_property "${application_properties_file}" "blockStream.streamWrappedRecordBlocks" "true"
-    set_application_property "${application_properties_file}" "blockStream.writerMode" "FILE_AND_GRPC"
-    set_application_property "${application_properties_file}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
-    set_application_property "${application_properties_file}" "blockNode.wantedBlockExpirationMillis" "60000"
-    set_application_property "${application_properties_file}" "tss.hintsEnabled" "false"
-    set_application_property "${application_properties_file}" "tss.historyEnabled" "false"
-    set_application_property "${application_properties_file}" "tss.forceMockSignatures" "false"
-    set_application_property "${application_properties_file}" "tss.wrapsEnabled" "false"
 
     jq -Rs '{data: {"application.properties": .}}' < "${application_properties_file}" > "${patch_file}"
     kubectl --context "${context}" patch configmap "${configmap_name}" -n "${namespace}" \
       --type merge --patch-file "${patch_file}"
 
-    rm -f "${application_properties_file}" "${patch_file}"
+    rm -f "${patch_file}"
     patched_count=$((patched_count + 1))
   done <<< "${configmaps}"
 
   if [[ "${patched_count}" -eq 0 ]]; then
     echo "No source consensus node application.properties configmaps were patched"
+    rm -f "${application_properties_file}"
     return 1
   fi
 
+  for node_pod in network-node1-0 network-node2-0; do
+    kubectl --context "${context}" cp \
+      "${application_properties_file}" \
+      "${namespace}/${node_pod}:${application_properties_path}" \
+      -c root-container
+    kubectl --context "${context}" exec "${node_pod}" -n "${namespace}" -c root-container -- \
+      bash -c "chown hedera:hedera ${application_properties_path} 2>/dev/null || true"
+  done
+
+  rm -f "${application_properties_file}"
   echo "Patched ${patched_count} source consensus node configmap(s) for WRB/RSA block streaming"
 }
 
@@ -808,6 +829,7 @@ TEMP_MIRROR_NODE_VALUES_FILE="$(mktemp -t mirror-node-migration-XXXX.yaml)"
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE="$(mktemp -t source-application-properties-XXXX.properties)"
 
 cp resources/templates/application.properties "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+add_application_properties_overwrite_marker "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
 CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
 CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
@@ -972,6 +994,7 @@ echo "Block node version: source=${PREV_BLOCK_VERSION_NO_V}, target=${CURRENT_BL
 
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
 cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+add_application_properties_overwrite_marker "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "fees.simpleFeesEnabled" "false"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
