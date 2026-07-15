@@ -379,11 +379,11 @@ export class BackupRestoreCommand extends BaseCommand {
           },
         },
         {
-          title: 'Wait for mirror importer to catch up',
-          skip: (context_): boolean => !shouldBackupExternalDatabase || !context_.externalDatabaseParameters,
-          task: async (context_, task): Promise<void> => {
-            await this.waitForMirrorImporterCatchUp(context_.externalDatabaseParameters);
-            task.title = 'Wait for mirror importer to catch up: completed';
+          title: 'Wait for consensus node block stream to stabilize',
+          skip: (): boolean => !shouldBackupExternalDatabase,
+          task: async (_, task): Promise<void> => {
+            await this.waitForMirrorImporterCatchUp();
+            task.title = 'Wait for consensus node block stream to stabilize: completed';
           },
         },
         {
@@ -1097,74 +1097,15 @@ export class BackupRestoreCommand extends BaseCommand {
    * The authoritative target is CN's own local block stream tip, since blocks land there
    * before being streamed downstream. Wait for block node and importer to both reach it.
    */
-  private async waitForMirrorImporterCatchUp(parameters: ExternalDatabaseParameters): Promise<void> {
-    this.logger.showUser(chalk.cyan('\n  Aligning mirror importer with consensus + block node tip...'));
-    this.logger.info(
-      `Aligning mirror importer (external DB: ${parameters.context}/${parameters.namespace}/${parameters.podName})...`,
-    );
-
-    const blockNodes: BlockNodeStateSchema[] = this.remoteConfig.configuration.state.blockNodes || [];
-    if (blockNodes.length === 0) {
-      this.logger.info('No block node in deployment; skipping alignment.');
-      return;
-    }
-
-    const blockNode: BlockNodeStateSchema = blockNodes[0];
-    const blockNodeContext: Context = this.remoteConfig.getClusterRefs().get(blockNode.metadata.cluster);
-    const blockNodeNamespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace);
-    const blockNodeId: number = Number(blockNode.metadata.id);
-    const blockNodePods: Pod[] = await this.k8Factory
-      .getK8(blockNodeContext)
-      .pods()
-      .list(blockNodeNamespace, Templates.renderBlockNodeLabels(blockNodeId));
-    if (blockNodePods.length === 0) {
-      this.logger.info(`No block node pod found for id ${blockNodeId}; skipping alignment.`);
-      return;
-    }
-    const blockNodeContainer: Container = this.k8Factory
-      .getK8(blockNodeContext)
-      .containers()
-      .readByRef(ContainerReference.of(blockNodePods[0].podReference, constants.BLOCK_NODE_CONTAINER_NAME));
-
-    // CN's local block stream tip is the authoritative target: blocks land there before being
-    // streamed to the block node, and CN's saved state never references a block beyond it.
+  private async waitForMirrorImporterCatchUp(): Promise<void> {
+    this.logger.showUser(chalk.cyan('\n  Waiting for consensus node block stream to stabilize...'));
     const consensusNodeContainer: Container | undefined = await this.findFirstConsensusNodeContainer();
     const cnTip: number = await this.waitForConsensusTipStable(consensusNodeContainer);
     if (cnTip < 0) {
-      this.logger.info('Could not determine CN local block stream tip; skipping alignment.');
+      this.logger.info('Could not determine CN local block stream tip; proceeding with backup.');
       return;
     }
     this.logger.showUser(chalk.gray(`    CN local block stream tip: ${cnTip}`));
-
-    // Wait for block node to receive every block up to cnTip. If CN never streams the
-    // final block(s), this exposes the gap explicitly instead of silently producing a
-    // backup that cannot be restored.
-    const blockNodeTip: number = await this.waitForBlockNodeToReach(blockNodeContainer, cnTip);
-    this.logger.showUser(chalk.gray(`    Block node tip: ${blockNodeTip}`));
-    if (blockNodeTip < cnTip) {
-      this.logger.showUser(
-        chalk.yellow(
-          `    ⚠ Block node tip ${blockNodeTip} is below CN tip ${cnTip}; backup will have a ${cnTip - blockNodeTip}-block gap on restore.`,
-        ),
-      );
-    }
-
-    const target: number = Math.min(cnTip, blockNodeTip);
-    if (target < 0) {
-      this.logger.info('No usable target block; skipping importer alignment.');
-      return;
-    }
-
-    const databaseContainerReference: ContainerReference = ContainerReference.of(
-      PodReference.of(NamespaceName.of(parameters.namespace), PodName.of(parameters.podName)),
-      ContainerName.of(parameters.containerName),
-    );
-    const databaseContainer: Container = this.k8Factory
-      .getK8(parameters.context)
-      .containers()
-      .readByRef(databaseContainerReference);
-
-    await this.waitForImporterAtBlock(databaseContainer, parameters, target);
   }
 
   /**
@@ -1194,14 +1135,6 @@ export class BackupRestoreCommand extends BaseCommand {
       }
     }
     return undefined;
-  }
-
-  /**
-   * Wrapper around the shared block-node tip reader so existing callers in this file keep
-   * a stable signature. Returns -1 when no `.blk*` files exist on disk.
-   */
-  private async getBlockNodeLatestBlock(blockNodeContainer: Container): Promise<number> {
-    return BlockTipUtilities.readBlockNodeOnDiskTip(blockNodeContainer);
   }
 
   /**
@@ -1244,98 +1177,6 @@ export class BackupRestoreCommand extends BaseCommand {
       `CN local tip did not stabilize within ${maxAttempts} polls; using last observed value ${currentTip}`,
     );
     return currentTip;
-  }
-
-  /**
-   * Poll the block node tip until it reaches or exceeds `target`. Returns the last observed
-   * tip. If the block node never reaches target within the timeout window, returns the last
-   * observed tip without throwing - the post-restore `bridge-import-gap` step compensates.
-   * Capped at 20 polls (~60s) because the freeze-block flush either happens immediately or
-   * never (hiero-consensus-node#25389); waiting longer just wastes the CI budget.
-   */
-  private async waitForBlockNodeToReach(blockNodeContainer: Container, target: number): Promise<number> {
-    const maxAttempts: number = 20;
-    let lastTip: number = -1;
-    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-      lastTip = await this.getBlockNodeLatestBlock(blockNodeContainer);
-      this.logger.info(`Block node tip: ${lastTip} (target ${target}, attempt ${attempt}/${maxAttempts})`);
-      if (lastTip >= target) {
-        this.logger.info(`Block node reached target ${target} (tip at ${lastTip})`);
-        return lastTip;
-      }
-      await helpers.sleep(Duration.ofSeconds(3));
-    }
-    this.logger.info(
-      `Block node did not reach target ${target} within ${maxAttempts} polls; last tip ${lastTip}. ` +
-        'Post-restore bridge-import-gap will compensate for the missing block(s).',
-    );
-    return lastTip;
-  }
-
-  /**
-   * Run psql in the DB pod to read MAX(index) from record_file. Returns -1 when the table
-   * is empty or the query fails.
-   */
-  private async getImporterMaxRecordFileIndex(
-    databaseContainer: Container,
-    parameters: ExternalDatabaseParameters,
-  ): Promise<number> {
-    try {
-      const output: string = await databaseContainer.execContainer([
-        'env',
-        `PGPASSWORD=${parameters.ownerPassword}`,
-        'psql',
-        '-U',
-        parameters.ownerUsername,
-        '-d',
-        parameters.databaseName,
-        '-tA',
-        '-c',
-        'SELECT COALESCE(MAX(index), -1) FROM record_file;',
-      ]);
-      const parsed: number = Number.parseInt((output || '').trim(), 10);
-      return Number.isFinite(parsed) ? parsed : -1;
-    } catch (error: unknown) {
-      this.logger.info(
-        `psql query failed while reading record_file MAX(index): ${BackupRestoreCommand.getErrorMessage(error)}`,
-      );
-      return -1;
-    }
-  }
-
-  /**
-   * Poll the importer DB until record_file MAX(index) reaches `targetBlock`. Capped at
-   * 60 polls (~3 min) - any block-node-side gap that prevents the importer from reaching
-   * the target is permanent (hiero-consensus-node#25389) and waiting longer is wasted
-   * time; the post-restore bridge-import-gap step inserts synthetic record_file rows to
-   * compensate.
-   */
-  private async waitForImporterAtBlock(
-    databaseContainer: Container,
-    parameters: ExternalDatabaseParameters,
-    targetBlock: number,
-  ): Promise<void> {
-    const maxAttempts: number = 60;
-    for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
-      const importerTip: number = await this.getImporterMaxRecordFileIndex(databaseContainer, parameters);
-      this.logger.info(
-        `Importer record_file MAX(index): ${importerTip} (target ${targetBlock}, attempt ${attempt}/${maxAttempts})`,
-      );
-      if (importerTip >= targetBlock) {
-        this.logger.showUser(chalk.green(`    ✓ Importer aligned at block ${importerTip} (target ${targetBlock})`));
-        this.logger.info(`Importer caught up to target ${targetBlock} (importer at ${importerTip})`);
-        return;
-      }
-      await helpers.sleep(Duration.ofSeconds(3));
-    }
-    this.logger.showUser(
-      chalk.yellow(
-        `    ⚠ Importer did not reach block ${targetBlock} within ${maxAttempts} polls; bridge-import-gap will fill the gap on restore.`,
-      ),
-    );
-    this.logger.info(
-      `Importer did not reach block ${targetBlock} within ${maxAttempts} polls; proceeding with backup.`,
-    );
   }
 
   /**
