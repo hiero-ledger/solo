@@ -57,6 +57,7 @@ defaults:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -106,6 +107,17 @@ jobs:
         if: ${{ matrix.install-mode == 'source' }}
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: task build:compile
+
+      - name: Restore Solo Image Cache
+        # source mode only: restoring the image cache populates ~/.solo/cache/images, which would
+        # both create ~/.solo (failing the global-package "Assert Clean Environment" step) and
+        # defeat that mode's no-cached-images purpose.
+        id: solo-image-cache
+        if: ${{ matrix.install-mode == 'source' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
 
       - name: Assert Clean Environment
         # Demonstrable proof that no Solo-managed state exists before we install. Only Solo state is
