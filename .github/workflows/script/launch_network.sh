@@ -355,7 +355,27 @@ copy_consensus_application_properties_to_pods() {
 
   for node_pod in "${node_pods[@]}"; do
     if ! kubectl --context "${context}" exec -i "${node_pod}" -n "${namespace}" -c root-container -- \
-      bash -c 'cat > /opt/hgcapp/data/config/application.properties && chown hedera:hedera /opt/hgcapp/data/config/application.properties' \
+      bash -c '
+        set -euo pipefail
+        temp_file="$(mktemp)"
+        cat > "${temp_file}"
+        wrote="false"
+
+        for properties_dir in /opt/hgcapp/data/config /opt/hgcapp/services-hedera/HapiApp2.0/data/config; do
+          if [[ -d "${properties_dir}" ]]; then
+            cp "${temp_file}" "${properties_dir}/application.properties"
+            chown hedera:hedera "${properties_dir}/application.properties" || true
+            chmod 0644 "${properties_dir}/application.properties"
+            wrote="true"
+          fi
+        done
+
+        rm -f "${temp_file}"
+        if [[ "${wrote}" != "true" ]]; then
+          echo "No consensus application.properties directory exists" >&2
+          exit 1
+        fi
+      ' \
       < "${properties_file}"; then
       echo "Direct application.properties copy failed for ${node_pod}; waiting for config map projection"
     fi
@@ -368,7 +388,17 @@ copy_consensus_application_properties_from_pod() {
   local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
 
   kubectl --context "${context}" exec "network-node1-0" -n "${namespace}" -c root-container -- \
-    bash -c 'cat /opt/hgcapp/data/config/application.properties' > "${properties_file}"
+    bash -c '
+      for properties_path in /opt/hgcapp/data/config/application.properties /opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties; do
+        if [[ -f "${properties_path}" ]]; then
+          cat "${properties_path}"
+          exit 0
+        fi
+      done
+
+      echo "No consensus application.properties file exists" >&2
+      exit 1
+    ' > "${properties_file}"
 }
 
 wait_for_consensus_application_properties() {
@@ -389,7 +419,16 @@ wait_for_consensus_application_properties() {
 
     for node_pod in "${node_pods[@]}"; do
       current_properties="$(kubectl --context "${context}" exec "${node_pod}" -n "${namespace}" -c root-container -- \
-        bash -c "grep -E '^(blockStream.streamWrappedRecordBlocks|tss.hintsEnabled|tss.historyEnabled|tss.wrapsEnabled)=' /opt/hgcapp/data/config/application.properties" 2>/dev/null || true)"
+        bash -c "
+          for properties_path in /opt/hgcapp/data/config/application.properties /opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties; do
+            if [[ -f \"\${properties_path}\" ]]; then
+              grep -E '^(blockStream.streamWrappedRecordBlocks|tss.hintsEnabled|tss.historyEnabled|tss.wrapsEnabled)=' \"\${properties_path}\"
+              exit 0
+            fi
+          done
+
+          exit 1
+        " 2>/dev/null || true)"
 
       if ! grep -q "^blockStream.streamWrappedRecordBlocks=${expected_wrapped_record_blocks}$" <<< "${current_properties}" \
         || ! grep -q "^tss.hintsEnabled=${expected_hints_enabled}$" <<< "${current_properties}" \
@@ -1271,10 +1310,7 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${MIGRATION
   run_consensus_network_upgrade_execute
   wait_for_mirror_block_count_progress "normal/TSS handoff before block node upgrade" "${handoff_block_before_execute}" 1 180 2 > /dev/null
 
-  echo "Stopping consensus nodes before switching to WRB/RSA and BN ${CURRENT_BLOCK_VERSION}."
-  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-
-  echo "Applying final WRB/RSA consensus application.properties before restarting against BN ${CURRENT_BLOCK_VERSION}."
+  echo "Building final WRB/RSA consensus application.properties from the post-handoff CN config."
   TEMP_FINAL_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-final-application-properties-XXXX.properties)"
   copy_consensus_application_properties_from_pod "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}"
   set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
@@ -1282,6 +1318,11 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${MIGRATION
   set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
   set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
   set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
+
+  echo "Stopping consensus nodes before switching to WRB/RSA and BN ${CURRENT_BLOCK_VERSION}."
+  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+
+  echo "Applying final WRB/RSA consensus application.properties before restarting against BN ${CURRENT_BLOCK_VERSION}."
   apply_consensus_application_properties_config_map "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}"
   copy_consensus_application_properties_to_pods "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}"
   wait_for_consensus_application_properties "true" "false" "false" "false" 30 2
