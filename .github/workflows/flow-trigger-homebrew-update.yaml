@@ -78,8 +78,9 @@ jobs:
         if: ${{ steps.get-version.outputs.skip != 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          VERSION: ${{ steps.get-version.outputs.version }}
         run: |
           gh workflow run update-solo-formula.yml \
             --repo hiero-ledger/homebrew-tools \
-            --field version=${{ steps.get-version.outputs.version }}
-          echo "::notice::Triggered homebrew update for version ${{ steps.get-version.outputs.version }}"
+            --field version="${VERSION}"
+          echo "::notice::Triggered homebrew update for version ${VERSION}"
