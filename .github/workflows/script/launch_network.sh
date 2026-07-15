@@ -1181,17 +1181,6 @@ fi
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE=""
-if [[ "${MIGRATION_USES_WRB_RSA}" == "true" && "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-  TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-handoff-application-properties-XXXX.properties)"
-  cp "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}"
-  set_application_property "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
-  set_application_property "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
-  set_application_property "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
-  set_application_property "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-  set_application_property "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
-  chmod 644 "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}"
-fi
 
 TEMP_BLOCK_NODE_VALUES_FILE=""
 
@@ -1277,9 +1266,6 @@ EOF
 fi
 
 echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-if [[ -n "${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}" ]]; then
-  echo "Using temporary handoff application.properties override file: ${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}"
-fi
 if [[ -n "${TEMP_BLOCK_NODE_VALUES_FILE}" ]]; then
   echo "Using temporary block node values override file: ${TEMP_BLOCK_NODE_VALUES_FILE}"
 else
@@ -1295,29 +1281,23 @@ fi
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
-  echo "Consensus and block node versions are both changing; using freeze-boundary upgrade ordering"
+  echo "Consensus and block node versions are both changing; upgrading BN while source CN is frozen"
   TEMP_UPGRADE_CONTEXT_DIR="$(mktemp -d -t solo-upgrade-context-XXXX)"
 
-  echo "Using normal/TSS block streaming for the CN ${TO_CONSENSUS_NODE_VERSION} handoff so pending source blocks reach BN ${PREV_BLOCK_VERSION_NO_V}."
-  CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}"
+  echo "Preparing CN ${TO_CONSENSUS_NODE_VERSION} with final WRB/RSA block stream properties."
+  CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
   run_consensus_network_upgrade_prepare
   run_consensus_network_upgrade_submit
   wait_for_consensus_nodes_frozen 90 2
 
-  handoff_block_before_execute="$(get_latest_mirror_block_number)"
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - Mirror block before CN handoff execute: ${handoff_block_before_execute}"
-
-  run_consensus_network_upgrade_execute
-  wait_for_mirror_block_count_progress "normal/TSS handoff before block node upgrade" "${handoff_block_before_execute}" 1 180 2 > /dev/null
-
-  echo "Stopping consensus nodes before switching to BN ${CURRENT_BLOCK_VERSION}."
-  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+  frozen_block_before_bn_upgrade="$(wait_for_mirror_block_stability "source frozen before block node upgrade" 3 60 2)"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Stable mirror block before frozen BN upgrade: ${frozen_block_before_bn_upgrade}"
 
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  echo "BN ${CURRENT_BLOCK_VERSION} is installed after the normal/TSS handoff block reached mirror."
+  echo "BN ${CURRENT_BLOCK_VERSION} is installed while source CN is frozen."
 
-  npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-  CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}"
+  run_consensus_network_upgrade_execute
+  wait_for_mirror_block_count_progress "target WRB/RSA after consensus upgrade" "${frozen_block_before_bn_upgrade}" 1 180 2 > /dev/null
 else
   if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
     npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
