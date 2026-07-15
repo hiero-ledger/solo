@@ -233,8 +233,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             }
             config.clusterRef ||= 'one-shot';
             config.context ||= this.k8Factory.default().contexts().readCurrent();
-            config.deployment ||= 'one-shot';
-            config.namespace ||= NamespaceName.of('one-shot');
+            config.deployment ||= constants.ONE_SHOT_DEPLOYMENT_NAME;
+            config.namespace ||= NamespaceName.of(constants.ONE_SHOT_DEPLOYMENT_NAME);
             this.configManager.setFlag(flags.namespace, config.namespace);
             config.numberOfConsensusNodes ||= 1;
             config.force = argv.force as boolean;
@@ -772,7 +772,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
             this.showCacheImageFailures();
             this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
-            this.cacheDeploymentName(context_, PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'));
           },
         }),
       }),
@@ -1178,11 +1177,6 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         'For more information on public and private keys see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures',
       );
     }
-  }
-
-  private cacheDeploymentName(context: OneShotSingleDeployContext, outputFile: string): void {
-    fs.writeFileSync(outputFile, context.config.deployment);
-    this.logger.showUser(chalk.green(`Deployment name (${context.config.deployment}) saved to file: ${outputFile}`));
   }
 
   private async confirmNonKindContext(

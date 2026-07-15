@@ -101,7 +101,7 @@ export class CacheCommand extends BaseCommand {
     optional: [
       flags.quiet,
       flags.cacheDir,
-      flags.devMode,
+      flags.debugMode,
       flags.edgeEnabled,
 
       // Versions
@@ -114,27 +114,27 @@ export class CacheCommand extends BaseCommand {
 
   public static readonly LOAD_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode, flags.clusterRef],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode, flags.clusterRef],
   };
 
   public static readonly LIST_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   public static readonly CLEAR_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   public static readonly PRUNE_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode],
   };
 
   public static readonly STATUS_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.cacheDir, flags.devMode, flags.clusterRef],
+    optional: [flags.quiet, flags.cacheDir, flags.debugMode, flags.clusterRef],
   };
 
   // ----- Handlers ------- //
@@ -550,8 +550,10 @@ export class CacheCommand extends BaseCommand {
             (edgeEnabled ? version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION : version.HEDERA_JSON_RPC_RELAY_VERSION),
           explorerVersion || (edgeEnabled ? version.EXPLORER_EDGE_VERSION : version.EXPLORER_VERSION),
 
-          // MinIO is an external dependency and currently has no Solo edge variant.
+          // These three are external/chart-internal and have no Solo edge variants.
           version.MINIO_OPERATOR_VERSION,
+          version.SOLO_CHEETAH_VERSION,
+          version.SOLO_CONTAINERS_VERSION,
         ),
       ),
     ).renderToFile(constants.SOLO_CACHE_IMAGES_TARGET_FILE, renderedConfigDirectory);

@@ -111,7 +111,6 @@ import {
   type NodeAliasToAddressMapping,
   type Optional,
   type PriorityMapping,
-  type PrivateKeyAndCertificateObject,
   type Realm,
   type Shard,
   type SoloListr,
@@ -1196,6 +1195,8 @@ export class NodeCommandTasks {
 
         const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
 
+        fs.mkdirSync(stagingDir, {recursive: true});
+
         // found all files under ${constants.HEDERA_HAPI_PATH}/data/upgrade/current/
         const upgradeDirectories: string[] = [
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`,
@@ -1628,7 +1629,6 @@ export class NodeCommandTasks {
           await this.generateGenesisNetworkJson(
             config.namespace,
             config.consensusNodes,
-            config.keysDir,
             config.stagingDir,
             config.domainNamesMapping,
           );
@@ -1897,7 +1897,6 @@ export class NodeCommandTasks {
   private async generateGenesisNetworkJson(
     namespace: NamespaceName,
     consensusNodes: ConsensusNode[],
-    keysDirectory: string,
     stagingDirectory: string,
     domainNamesMapping?: Record<NodeAlias, string>,
   ): Promise<void> {
@@ -1916,7 +1915,6 @@ export class NodeCommandTasks {
       consensusNodes,
       this.keyManager,
       this.accountManager,
-      keysDirectory,
       networkNodeServiceMap,
       adminPublicKeys,
       domainNamesMapping,
@@ -1958,24 +1956,6 @@ export class NodeCommandTasks {
                   deploymentName,
                   applicationPropertiesPath,
                 );
-              }
-            },
-          },
-          {
-            title: 'Copy Gossip keys to staging',
-            task: async (): Promise<void> => {
-              this.keyManager.copyGossipKeysToStaging(config.keysDir, config.stagingKeysDir, nodeAliases);
-            },
-          },
-          {
-            title: 'Copy gRPC TLS keys to staging',
-            task: async (): Promise<void> => {
-              for (const nodeAlias of nodeAliases) {
-                const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTlsKeyFilePaths(
-                  nodeAlias,
-                  config.keysDir,
-                );
-                this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, config.stagingKeysDir);
               }
             },
           },
@@ -2538,6 +2518,11 @@ export class NodeCommandTasks {
             const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
 
             await container.copyTo(sourcePath, destinationPath);
+            await container.execContainer([
+              'bash',
+              '-c',
+              `chown hedera:hedera ${destinationPath}/log4j2.xml 2>/dev/null || true`,
+            ]);
           }
 
           if (!this.isDefaultFlagValue(flags.settingTxt)) {
@@ -2545,6 +2530,11 @@ export class NodeCommandTasks {
             const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
 
             await container.copyTo(sourcePath, destinationPath);
+            await container.execContainer([
+              'bash',
+              '-c',
+              `chown hedera:hedera ${destinationPath}/settings.txt 2>/dev/null || true`,
+            ]);
           }
 
           if (!this.isDefaultFlagValue(flags.applicationProperties)) {
@@ -2552,6 +2542,11 @@ export class NodeCommandTasks {
             const destinationPath: string = ConsensusNodePathTemplates.DATA_CONFIG;
 
             await container.copyTo(sourcePath, destinationPath);
+            await container.execContainer([
+              'bash',
+              '-c',
+              `chown hedera:hedera ${destinationPath}/${constants.APPLICATION_PROPERTIES} 2>/dev/null || true`,
+            ]);
           }
         }
 
@@ -3380,12 +3375,12 @@ export class NodeCommandTasks {
       title: 'Copy node keys to secrets',
       task: (context_, task): any => {
         const subTasks: any[] = this.platformInstaller.copyNodeKeys(
-          context_.config.stagingDir,
+          context_.config.keysDir,
           nodeListOverride ? context_.config[nodeListOverride] : context_.config.consensusNodes,
           context_.config.contexts,
         );
 
-        // set up the sub-tasks for copying node keys to staging directory
+        // set up the sub-tasks for copying node keys to secrets
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
@@ -4347,7 +4342,7 @@ export class NodeCommandTasks {
         await this.localConfig.load();
         await this.remoteConfig.loadAndValidate(argv, validateRemoteConfig);
 
-        if (argv[flags.devMode.name]) {
+        if (argv[flags.debugMode.name]) {
           this.logger.setDevMode(true);
         }
 
