@@ -16,8 +16,8 @@ redis:
 # config for subchart hiero-mirror/importer
 importer:
   image:
-    registry: gcr.io
-    repository: mirrornode/hedera-mirror-importer
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/importer
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -31,10 +31,10 @@ importer:
   resources:
     requests:
       cpu: 0
-      memory: 400Mi
+      memory: 200Mi
     limits:
       cpu: 1000m
-      memory: 800Mi
+      memory: 220Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -77,8 +77,8 @@ importer:
                 enabled: true
 grpc:
   image:
-    registry: gcr.io
-    repository: mirrornode/hedera-mirror-grpc
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/grpc
   ingress:
     annotations:
       haproxy-ingress.github.io/backend-protocol: h2
@@ -95,10 +95,10 @@ grpc:
   resources:
     requests:
       cpu: 0
-      memory: 200Mi
+      memory: 100Mi
     limits:
       cpu: 500m
-      memory: 400Mi
+      memory: 120Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -193,8 +193,8 @@ rest:
     hostname: "localhost"
 restjava:
   image:
-    registry: gcr.io
-    repository: mirrornode/hedera-mirror-rest-java
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/rest-java
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -208,10 +208,10 @@ restjava:
   resources:
     requests:
       cpu: 0
-      memory: 250Mi
+      memory: 175Mi
     limits:
       cpu: 2
-      memory: 500Mi
+      memory: 200Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -226,8 +226,8 @@ restjava:
     failureThreshold: 60
 web3:
   image:
-    registry: gcr.io
-    repository: mirrornode/hedera-mirror-web3
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/web3
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -241,10 +241,10 @@ web3:
   resources:
     requests:
       cpu: 0
-      memory: 250Mi
+      memory: 185Mi
     limits:
       cpu: 1000m
-      memory: 500Mi
+      memory: 185Mi
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
