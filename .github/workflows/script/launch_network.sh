@@ -10,6 +10,7 @@ TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MIRROR_NODE_VALUES_FILE=""
 TEMP_BLOCK_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
+TEMP_SOURCE_BLOCK_NODE_VALUES_FILE=""
 
 collect_failure_diagnostics() {
   local rc="${1}"
@@ -51,6 +52,10 @@ on_exit() {
     rm -f "${TEMP_BLOCK_NODE_VALUES_FILE}"
   fi
 
+  if [[ -n "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE:-}" && -f "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" ]]; then
+    rm -f "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}"
+  fi
+
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
     rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
   fi
@@ -84,6 +89,77 @@ is_tss_supported_consensus_version() {
   local minimum_tss_version="0.74.0"
 
   [[ "$(printf '%s\n' "${minimum_tss_version}" "${consensus_version}" | sort -V | head -n 1)" == "${minimum_tss_version}" ]]
+}
+
+version_at_least() {
+  local version="${1#v}"
+  local minimum_version="${2#v}"
+
+  [[ "$(printf '%s\n' "${minimum_version}" "${version}" | sort -V | head -n 1)" == "${minimum_version}" ]]
+}
+
+apply_source_wrb_rsa_configmaps() {
+  if [[ "${MIGRATION_USES_WRB_RSA}" != "true" ]]; then
+    return 0
+  fi
+
+  local namespace="${SOLO_NAMESPACE:-one-shot}"
+  local context="kind-${SOLO_CLUSTER_NAME}"
+  local configmaps
+  configmaps="$(kubectl --context "${context}" get configmap -n "${namespace}" -o name \
+    | grep -E '^configmap/network-node([0-9]+)?-data-config-cm$' || true)"
+
+  if [[ -z "${configmaps}" ]]; then
+    echo "No source consensus node configmaps found in namespace ${namespace}"
+    return 1
+  fi
+
+  local patched_count=0
+  local configmap_reference
+  while IFS= read -r configmap_reference; do
+    if [[ -z "${configmap_reference}" ]]; then
+      continue
+    fi
+
+    local configmap_name="${configmap_reference#configmap/}"
+    local application_properties_file
+    local patch_file
+    application_properties_file="$(mktemp -t source-wrb-application-properties-XXXX.properties)"
+    patch_file="$(mktemp -t source-wrb-configmap-patch-XXXX.json)"
+
+    kubectl --context "${context}" get configmap "${configmap_name}" -n "${namespace}" \
+      -o jsonpath='{.data.application\.properties}' > "${application_properties_file}"
+
+    if [[ ! -s "${application_properties_file}" ]]; then
+      echo "Skipping ConfigMap ${configmap_name}; no application.properties data found"
+      rm -f "${application_properties_file}" "${patch_file}"
+      continue
+    fi
+
+    set_application_property "${application_properties_file}" "blockStream.streamMode" "BLOCKS"
+    set_application_property "${application_properties_file}" "blockStream.streamWrappedRecordBlocks" "true"
+    set_application_property "${application_properties_file}" "blockStream.writerMode" "FILE_AND_GRPC"
+    set_application_property "${application_properties_file}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
+    set_application_property "${application_properties_file}" "blockNode.wantedBlockExpirationMillis" "60000"
+    set_application_property "${application_properties_file}" "tss.hintsEnabled" "false"
+    set_application_property "${application_properties_file}" "tss.historyEnabled" "false"
+    set_application_property "${application_properties_file}" "tss.forceMockSignatures" "false"
+    set_application_property "${application_properties_file}" "tss.wrapsEnabled" "false"
+
+    jq -Rs '{data: {"application.properties": .}}' < "${application_properties_file}" > "${patch_file}"
+    kubectl --context "${context}" patch configmap "${configmap_name}" -n "${namespace}" \
+      --type merge --patch-file "${patch_file}"
+
+    rm -f "${application_properties_file}" "${patch_file}"
+    patched_count=$((patched_count + 1))
+  done <<< "${configmaps}"
+
+  if [[ "${patched_count}" -eq 0 ]]; then
+    echo "No source consensus node application.properties configmaps were patched"
+    return 1
+  fi
+
+  echo "Patched ${patched_count} source consensus node configmap(s) for WRB/RSA block streaming"
 }
 
 extract_required_test_version() {
@@ -733,6 +809,16 @@ TEMP_SOURCE_APPLICATION_PROPERTIES_FILE="$(mktemp -t source-application-properti
 
 cp resources/templates/application.properties "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
+CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
+CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
+PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
+MIGRATION_USES_WRB_RSA="false"
+
+if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}" && \
+  version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.0"; then
+  MIGRATION_USES_WRB_RSA="true"
+fi
+
 if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   SOURCE_BLOCK_STREAM_MODE="BOTH"
   SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
@@ -742,7 +828,7 @@ if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   SOURCE_MIRROR_RECORD_ENABLED="true"
 else
   SOURCE_BLOCK_STREAM_MODE="BLOCKS"
-  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
+  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="${MIGRATION_USES_WRB_RSA}"
   SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
   SOURCE_MINIO_ENABLED="false"
   SOURCE_MIRROR_BLOCK_ENABLED="true"
@@ -760,6 +846,12 @@ set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStre
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "${SOURCE_BLOCK_STREAM_WRITER_MODE}"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
+if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
+fi
 chmod 644 "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
 cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<EOF
@@ -795,6 +887,20 @@ importer:
               enabled: false
 EOF
 
+if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+  TEMP_SOURCE_BLOCK_NODE_VALUES_FILE="$(mktemp -t source-block-node-migration-XXXX.yaml)"
+  cat > "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" <<EOF
+# Generated for migration workflow source launch.
+# CN 0.74 source blocks must be emitted as WRB/RSA when this test crosses into
+# BN 0.37+, otherwise the upgraded BN rejects the first post-restart source block.
+blockNode:
+  config:
+    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
+    ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
+    ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
+EOF
+fi
+
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 # Generated for migration workflow launch.
 network:
@@ -807,6 +913,15 @@ setup:
 
 blockNode:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
+EOF
+
+if [[ -n "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" ]]; then
+  cat >> "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
+  --values-file: "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}"
+EOF
+fi
+
+cat >> "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 
 mirrorNode:
   --mirror-node-version: "${PREV_MIRROR_VERSION}"
@@ -827,7 +942,9 @@ export BLOCK_STREAM_WRITER_MODE="${SOURCE_BLOCK_STREAM_WRITER_MODE}"
 export DISABLE_IMPORTER_SPRING_PROFILES="${SOURCE_DISABLE_IMPORTER_SPRING_PROFILES}"
 echo "Initial source block stream mode: ${SOURCE_BLOCK_STREAM_MODE}"
 echo "Initial source block stream writer mode: ${SOURCE_BLOCK_STREAM_WRITER_MODE}"
+echo "Initial source wrapped record blocks enabled: ${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}"
 echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
+echo "Migration WRB/RSA mode: ${MIGRATION_USES_WRB_RSA}"
 
 if [[ "${SOURCE_MINIO_ENABLED}" == "true" ]]; then
   install_minio_operator_for_source_deploy
@@ -851,10 +968,6 @@ echo "::group::Upgrade Consensus Node"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
 ps -ef |grep port-forward
 
-CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
-CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
-PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
-
 echo "Block node version: source=${PREV_BLOCK_VERSION_NO_V}, target=${CURRENT_BLOCK_VERSION}"
 
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
@@ -862,13 +975,14 @@ cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPER
 
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "fees.simpleFeesEnabled" "false"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
-# Keep TSS mode across the migration. Switching an upgraded CN from BLOCKS to
-# WRB/BOTH after state has advanced crashes replay; setting WRB true while still
-# in BLOCKS disables the normal gRPC writer and prevents post-upgrade blocks.
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 TEMP_BLOCK_NODE_VALUES_FILE=""
@@ -972,6 +1086,8 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
 
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
   echo "BN ${CURRENT_BLOCK_VERSION} is installed before the CN upgrade so it handles the first CN ${TO_CONSENSUS_NODE_VERSION} block."
+
+  apply_source_wrb_rsa_configmaps
 
   source_block_before_block_node_restart="$(get_latest_mirror_block_number)"
   echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before source CN restart: ${source_block_before_block_node_restart}"
