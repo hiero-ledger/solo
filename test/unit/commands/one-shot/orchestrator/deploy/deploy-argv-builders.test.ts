@@ -54,10 +54,21 @@ describe('buildBlockNodeArgv', (): void => {
     expect(argv).to.include('test-deployment');
   });
 
-  it('does not set values file when no values file is provided', (): void => {
+  it('sets values file to BLOCK_NODE_SOLO_DEV_FILE when no existing values file is provided', (): void => {
     const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(makeConfig({blockNodeConfiguration: {}}));
     const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
-    expect(valueIndex).to.equal(-1);
+    expect(valueIndex).to.be.greaterThan(-1);
+    expect(argv[valueIndex + 1]).to.equal(constants.BLOCK_NODE_SOLO_DEV_FILE);
+  });
+
+  it('appends BLOCK_NODE_SOLO_DEV_FILE to an existing values file', (): void => {
+    const existingFile: string = '/path/to/custom.yaml';
+    const valuesFileFlagName: string = optionFromFlag(Flags.valuesFile);
+    const blockNodeConfiguration: Record<string, string> = {[valuesFileFlagName]: existingFile};
+    const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(makeConfig({blockNodeConfiguration}));
+    const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
+    expect(valueIndex).to.be.greaterThan(-1);
+    expect(argv[valueIndex + 1]).to.equal(`${existingFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`);
   });
 
   it('does not mutate blockNodeConfiguration', (): void => {

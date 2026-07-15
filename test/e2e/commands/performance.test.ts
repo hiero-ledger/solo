@@ -25,7 +25,6 @@ import {Flags} from '../../../src/commands/flags.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
 import {type AggregatedMetrics} from '../../../src/business/runtime-state/model/aggregated-metrics.js';
-import * as versions from '../../../version.js';
 
 // A snapshot file on disk has AggregatedMetrics' fields plus the peakMemoryInMebibytes
 // we inject during logMetrics().
@@ -56,11 +55,6 @@ const stableTransactionPerSecondTarget: number = 100;
 // which makes them heavier than simple transfers; 600 ms provides adequate headroom at 97 TPS.
 const maxEndToEndRtt: number = 600;
 const nftTransferLoadTestTimeoutMultiplier: number = 6;
-const consensusNodeVersion: string = (process.env.CONSENSUS_NODE_VERSION || versions.HEDERA_PLATFORM_VERSION).replace(
-  /^v/,
-  '',
-);
-const smartContractLoadTestEnabled: boolean = !consensusNodeVersion.startsWith('0.75.');
 const mirrorImporterWarmupSeconds: number = 60;
 let startTime: Date;
 let metricsInterval: NodeJS.Timeout;

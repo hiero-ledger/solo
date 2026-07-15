@@ -311,6 +311,7 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const BLOCK_NODE_SOLO_DEV_FILE: string = BLOCK_NODE_VALUES_FILE;
 export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'block-node-messaging-workaround.yaml',
