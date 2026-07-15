@@ -18,6 +18,7 @@ import {ArtifactHealthResult} from '../integration/cache/models/impl/artifact-he
 import fs from 'node:fs/promises';
 import {Stats} from 'node:fs';
 import {type ContainerEngineClient} from '../integration/container-engine/container-engine-client.js';
+import {type CacheCatalogStore} from '../integration/cache/api/cache-catalog-store.js';
 import {CacheImageTargetTemplateRenderer} from '../integration/cache/impl/cache-image-target-template-renderer.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {CacheImageTemplateValues} from '../integration/cache/models/impl/cache-image-template-values.js';
@@ -53,14 +54,6 @@ interface CacheClearContext {
   config: CacheClearConfigClass;
 }
 
-interface CachePruneConfigClass {
-  imageCacheHandler: ImageCacheHandler;
-}
-
-interface CachePruneContext {
-  config: CachePruneConfigClass;
-}
-
 interface CacheStatusConfigClass {
   imageCacheHandler: ImageCacheHandler;
   clusterReference: ClusterReferenceName;
@@ -87,6 +80,7 @@ export class CacheCommand extends BaseCommand {
 
   public constructor(
     @inject(InjectTokens.ContainerEngineClient) private containerEngineClient?: ContainerEngineClient,
+    @inject(InjectTokens.CacheCatalogStore) private readonly cacheCatalogStore?: CacheCatalogStore,
   ) {
     super();
 
@@ -95,6 +89,7 @@ export class CacheCommand extends BaseCommand {
       InjectTokens.ContainerEngineClient,
       this.constructor.name,
     );
+    this.cacheCatalogStore = patchInject(cacheCatalogStore, InjectTokens.CacheCatalogStore, this.constructor.name);
   }
 
   public async close(): Promise<void> {}
@@ -327,20 +322,17 @@ export class CacheCommand extends BaseCommand {
   }
 
   public async prune(): Promise<boolean> {
-    const tasks: SoloListr<CachePruneContext> = this.taskList.newTaskList(
+    const tasks: SoloListr<AnyListrContext> = this.taskList.newTaskList(
       [
         {
           title: 'Prune image cache',
-          task: async (context_): Promise<void> => {
+          task: async (): Promise<void> => {
             const cacheDirectory: string = this.configManager.getFlag(flags.cacheDir);
 
-            const config: CachePruneConfigClass = {
-              imageCacheHandler: await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory),
-            };
-
-            context_.config = config;
-
-            await config.imageCacheHandler.prune();
+            // Wipe the whole cache directory and the rendered targets file. Idempotent: it does not
+            // require the cache to be materialized and never fails when there is nothing to prune.
+            await this.cacheCatalogStore.clear();
+            await fs.rm(this.getRenderedImageTargetsFilePath(cacheDirectory), {force: true});
           },
         },
       ],
@@ -371,9 +363,19 @@ export class CacheCommand extends BaseCommand {
 
             const cacheDirectory: string = this.configManager.getFlag(flags.cacheDir);
 
-            const config: CacheStatusConfigClass = {
-              imageCacheHandler: await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory),
-            } as CacheStatusConfigClass;
+            let imageCacheHandler: ImageCacheHandler;
+            try {
+              imageCacheHandler = await this.buildImageCacheHandlerFromRenderedFile(cacheDirectory);
+            } catch (error) {
+              // Report an unmaterialized cache cleanly so status stays a reliable pre-deploy check.
+              if (error instanceof SoloError && error.message === CacheCommand.CACHE_NOT_MATERIALIZED_ERROR_MESSAGE) {
+                this.logger.showUser('Image cache is not materialized. Run `solo cache image pull` to populate it.');
+                return;
+              }
+              throw error;
+            }
+
+            const config: CacheStatusConfigClass = {imageCacheHandler} as CacheStatusConfigClass;
 
             const clusterReference: ClusterReferenceName | undefined = this.configManager.getFlag(flags.clusterRef);
 
@@ -484,10 +486,10 @@ export class CacheCommand extends BaseCommand {
     return {
       title: 'Pull and cache container images',
       task: async ({config: {imageCacheHandler}}, task): Promise<SoloListr<AnyListrContext>> => {
-        return task.newListr(
-          await imageCacheHandler.pull(),
-          constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY_COLLAPSABLE,
-        );
+        return task.newListr(await imageCacheHandler.pull(), {
+          ...constants.LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS,
+          concurrent: constants.CACHE_IMAGE_MAX_CONCURRENCY,
+        });
       },
     };
   }
@@ -496,14 +498,15 @@ export class CacheCommand extends BaseCommand {
     return {
       title: 'Load images into cluster',
       task: async ({config: {imageCacheHandler, context}}, task): Promise<SoloListr<CacheLoadContext>> => {
-        const subTasks: SoloListrTask<CacheLoadContext>[] = [];
+        const clusterName: string = this.prepareClusterName(this.k8Factory.getK8(context).clusters().readCurrent());
+        const subTasks: SoloListrTask<CacheLoadContext>[] = await imageCacheHandler.load(clusterName);
 
-        const newTasks: SoloListrTask<CacheLoadContext>[] = await imageCacheHandler.load(
-          this.prepareClusterName(this.k8Factory.getK8(context).clusters().readCurrent()),
-        );
-        subTasks.push(...newTasks);
-
-        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY_COLLAPSABLE);
+        // Load images concurrently, bounded to avoid saturating local disk during ctr import, and
+        // keep each step visible after it completes.
+        return task.newListr(subTasks, {
+          ...constants.LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS,
+          concurrent: constants.CACHE_IMAGE_MAX_CONCURRENCY,
+        });
       },
     };
   }
