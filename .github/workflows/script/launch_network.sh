@@ -1310,28 +1310,14 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${MIGRATION
   run_consensus_network_upgrade_execute
   wait_for_mirror_block_count_progress "normal/TSS handoff before block node upgrade" "${handoff_block_before_execute}" 1 180 2 > /dev/null
 
-  echo "Building final WRB/RSA consensus application.properties from the post-handoff CN config."
-  TEMP_FINAL_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-final-application-properties-XXXX.properties)"
-  copy_consensus_application_properties_from_pod "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}"
-  set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
-  set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
-  set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
-  set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-  set_application_property "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
-
-  echo "Stopping consensus nodes before switching to WRB/RSA and BN ${CURRENT_BLOCK_VERSION}."
+  echo "Stopping consensus nodes before switching to BN ${CURRENT_BLOCK_VERSION}."
   npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-
-  echo "Applying final WRB/RSA consensus application.properties before restarting against BN ${CURRENT_BLOCK_VERSION}."
-  apply_consensus_application_properties_config_map "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}"
-  copy_consensus_application_properties_to_pods "${TEMP_FINAL_APPLICATION_PROPERTIES_FILE}"
-  wait_for_consensus_application_properties "true" "false" "false" "false" 30 2
 
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
   echo "BN ${CURRENT_BLOCK_VERSION} is installed after the normal/TSS handoff block reached mirror."
 
   npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-  CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+  CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_HANDOFF_APPLICATION_PROPERTIES_FILE}"
 else
   if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
     npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
@@ -1353,8 +1339,8 @@ npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirror
 target_block_before_final_wait="$(get_latest_mirror_block_number)"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Target mirror block before post-upgrade account create: ${target_block_before_final_wait}"
 
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --create-amount 3 --dev
-wait_for_mirror_block_count_progress "target deployment after component upgrades" "${target_block_before_final_wait}" 3 180 2 > /dev/null
+npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
+wait_for_mirror_block_count_progress "target deployment after component upgrades" "${target_block_before_final_wait}" 1 180 2 > /dev/null
 
 npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 # Restart relay and refresh forwards after upgrade to reduce stale-connection windows.
