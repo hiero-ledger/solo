@@ -62,6 +62,22 @@ export class DeployArgvBuilders {
     return this.isBlockNodeEnvironmentEnabled();
   }
 
+  private static shouldSkipMinioSetup(config: OneShotSingleDeployConfigClass): boolean {
+    if (!this.shouldDeployBlockNode(config)) {
+      return false;
+    }
+
+    const consensusNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
+      config.versions.consensus || version.HEDERA_PLATFORM_VERSION,
+    );
+    if (consensusNodeVersion.lessThan(version.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+      return false;
+    }
+
+    const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
+    return blockStreamMode === 'BLOCKS';
+  }
+
   /**
    * Builds the argv for `one-shot single destroy`, used by the deploy pipeline to auto-clean any
    * pre-existing one-shot state before a fresh deploy. Runs quietly against the same deployment.
@@ -412,7 +428,7 @@ export class DeployArgvBuilders {
       argv.push(optionFromFlag(Flags.deployMetricsServer));
     }
 
-    if (this.shouldDeployBlockNode(config)) {
+    if (this.shouldSkipMinioSetup(config)) {
       argv.push(negatedOptionFromFlag(Flags.deployMinio));
     }
 

@@ -20,6 +20,7 @@ import {type AnyObject, type ArgvStruct} from '../../../../../../src/types/alias
 
 afterEach((): void => {
   delete process.env.ONE_SHOT_WITH_BLOCK_NODE;
+  delete process.env.BLOCK_STREAM_STREAM_MODE;
 });
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
@@ -335,6 +336,25 @@ describe('buildClusterSetupArgv', (): void => {
     );
 
     expect(argv).to.include(negatedOptionFromFlag(Flags.deployMinio));
+  });
+
+  it('does not add --no-minio when block node one-shot uses BOTH stream mode', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
+    process.env.BLOCK_STREAM_STREAM_MODE = 'BOTH';
+    const argv: string[] = DeployArgvBuilders.buildClusterSetupArgv(
+      makeConfig({
+        versions: {
+          explorer: '2.5.0',
+          soloChart: '0.0.0',
+          consensus: 'v0.74.0',
+          mirror: '0.0.0',
+          relay: '0.0.0',
+          blockNode: '0.0.0',
+        },
+      }),
+    );
+
+    expect(argv).to.not.include(negatedOptionFromFlag(Flags.deployMinio));
   });
 
   it('does not add --no-minio when ONE_SHOT_WITH_BLOCK_NODE is disabled', (): void => {
