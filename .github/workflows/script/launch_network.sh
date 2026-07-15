@@ -1351,10 +1351,10 @@ fi
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 target_block_before_final_wait="$(get_latest_mirror_block_number)"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Target mirror block before final progress wait: ${target_block_before_final_wait}"
-wait_for_mirror_block_count_progress "target deployment after component upgrades" "${target_block_before_final_wait}" 3 180 2 > /dev/null
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Target mirror block before post-upgrade account create: ${target_block_before_final_wait}"
 
-npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --dev
+npm run solo -- ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount 100 --create-amount 3 --dev
+wait_for_mirror_block_count_progress "target deployment after component upgrades" "${target_block_before_final_wait}" 3 180 2 > /dev/null
 
 npm run solo -- relay node upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
 # Restart relay and refresh forwards after upgrade to reduce stale-connection windows.
