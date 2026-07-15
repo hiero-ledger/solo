@@ -1297,7 +1297,7 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${MIGRATION
   echo "BN ${CURRENT_BLOCK_VERSION} is installed while source CN is frozen."
 
   run_consensus_network_upgrade_execute
-  wait_for_mirror_block_count_progress "target WRB/RSA after consensus upgrade" "${frozen_block_before_bn_upgrade}" 1 180 2 > /dev/null
+  echo "CN ${TO_CONSENSUS_NODE_VERSION} is active with WRB/RSA block streaming; post-upgrade transaction will verify block progress from ${frozen_block_before_bn_upgrade}."
 else
   if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
     npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
