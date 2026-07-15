@@ -960,30 +960,32 @@ if [[ -n "${TEMP_BLOCK_NODE_VALUES_FILE}" ]]; then
 else
   echo "Block node version unchanged; no temporary block node values override file needed"
 fi
+
+# Upgrade BN before upgrading CN. BN 0.36 rejects the CN 0.75 block proof at the
+# first post-upgrade block, which leaves mirror pinned at the last source block.
+# Stop source CN during the BN StatefulSet recreate so no blocks are produced
+# while the BN service is unavailable, then prove the source CN can stream through
+# the upgraded BN before proceeding to the CN upgrade.
+if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  echo "Block node version changing - stopping source CN before BN upgrade"
+  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+
+  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
+  echo "BN ${CURRENT_BLOCK_VERSION} is installed before the CN upgrade so it handles the first CN ${TO_CONSENSUS_NODE_VERSION} block."
+
+  source_block_before_block_node_restart="$(get_latest_mirror_block_number)"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before source CN restart: ${source_block_before_block_node_restart}"
+  npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+  wait_for_mirror_block_progress "source deployment after block node upgrade" "${source_block_before_block_node_restart}" 180 2 > /dev/null
+else
+  echo "Block node version unchanged (${CURRENT_BLOCK_VERSION}); skipping pre-CN-upgrade block node upgrade"
+fi
+
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 if [[ "$(printf '%s\n' "v0.73.0" "${TO_CONSENSUS_NODE_VERSION}" | sort -V | head -n 1)" == "v0.73.0" ]]; then
   npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" -q --dev
 else
   npm run solo -- consensus network upgrade -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" -q --dev
-fi
-
-# Stop the upgraded CN around the BN RECREATE so BN can inherit the live/archive
-# PVCs (containing blocks 0-N in TSS format) before CN resumes at block N+1. This
-# prevents a gap: CN committed block N before the stop, BN starts with 0-N, and CN
-# begins at N+1 — no missing blocks for mirror. If the BN version is unchanged, do
-# not mutate the running BN with migration-only values; the source deploy already
-# installed the target BN chart.
-if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-  echo "Block node version changing — stopping target CN before BN upgrade"
-  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
-
-  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  echo "Target CN remains in TSS block streaming mode; BN ${CURRENT_BLOCK_VERSION} reuses the source verification PVC as application-state."
-  echo "Waiting briefly for block node rollout after recreate before restarting target CN"
-  sleep 10
-  npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-else
-  echo "Block node version unchanged (${CURRENT_BLOCK_VERSION}); skipping block node upgrade"
 fi
 
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
