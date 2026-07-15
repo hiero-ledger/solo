@@ -10,7 +10,6 @@ TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MIRROR_NODE_VALUES_FILE=""
 TEMP_BLOCK_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
-TEMP_SOURCE_BLOCK_NODE_VALUES_FILE=""
 
 collect_failure_diagnostics() {
   local rc="${1}"
@@ -50,10 +49,6 @@ on_exit() {
 
   if [[ -n "${TEMP_BLOCK_NODE_VALUES_FILE:-}" && -f "${TEMP_BLOCK_NODE_VALUES_FILE}" ]]; then
     rm -f "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  fi
-
-  if [[ -n "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE:-}" && -f "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" ]]; then
-    rm -f "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}"
   fi
 
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
@@ -850,7 +845,7 @@ if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   SOURCE_MIRROR_RECORD_ENABLED="true"
 else
   SOURCE_BLOCK_STREAM_MODE="BLOCKS"
-  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="${MIGRATION_USES_WRB_RSA}"
+  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
   SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
   SOURCE_MINIO_ENABLED="false"
   SOURCE_MIRROR_BLOCK_ENABLED="true"
@@ -868,11 +863,11 @@ set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStre
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "${SOURCE_BLOCK_STREAM_WRITER_MODE}"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
-if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
-  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
-  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
+if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
   set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
 fi
 chmod 644 "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
@@ -909,20 +904,6 @@ importer:
               enabled: false
 EOF
 
-if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
-  TEMP_SOURCE_BLOCK_NODE_VALUES_FILE="$(mktemp -t source-block-node-migration-XXXX.yaml)"
-  cat > "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" <<EOF
-# Generated for migration workflow source launch.
-# CN 0.74 source blocks must be emitted as WRB/RSA when this test crosses into
-# BN 0.37+, otherwise the upgraded BN rejects the first post-restart source block.
-blockNode:
-  config:
-    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
-    ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
-    ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
-EOF
-fi
-
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 # Generated for migration workflow launch.
 network:
@@ -936,12 +917,6 @@ setup:
 blockNode:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
 EOF
-
-if [[ -n "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" ]]; then
-  cat >> "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
-  --values-file: "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}"
-EOF
-fi
 
 cat >> "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 
