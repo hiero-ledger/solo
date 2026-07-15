@@ -487,7 +487,7 @@ export class CacheCommand extends BaseCommand {
       title: 'Pull and cache container images',
       task: async ({config: {imageCacheHandler}}, task): Promise<SoloListr<AnyListrContext>> => {
         return task.newListr(await imageCacheHandler.pull(), {
-          ...constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+          ...constants.LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS,
           concurrent: constants.CACHE_IMAGE_MAX_CONCURRENCY,
         });
       },
@@ -504,7 +504,7 @@ export class CacheCommand extends BaseCommand {
         // Load images concurrently, bounded to avoid saturating local disk during ctr import, and
         // keep each step visible after it completes.
         return task.newListr(subTasks, {
-          ...constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
+          ...constants.LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS,
           concurrent: constants.CACHE_IMAGE_MAX_CONCURRENCY,
         });
       },
