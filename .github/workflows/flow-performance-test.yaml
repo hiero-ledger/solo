@@ -78,7 +78,7 @@ jobs:
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
@@ -97,7 +97,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y jq
 
       - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: 22
@@ -170,9 +170,8 @@ jobs:
           fi
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=5 >> .env
-          # Workaround: keep BOTH mode so SmartContractLoadTest does not return INVALID_TRANSACTION_BODY.
-          # TODO: remove once https://github.com/hiero-ledger/hiero-consensus-node/issues/25883 is fixed.
           echo BLOCK_STREAM_STREAM_MODE=BOTH >> .env
+          echo ONE_SHOT_BLOCK_NODE_PERF=false >> .env
           cat .env
 
           # Start resource monitoring in background (30s interval for finer granularity)
@@ -438,7 +437,11 @@ jobs:
       - name: Performance Test Verification
         timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         run: |
-          MAX_MEMORY_MB=4000
+          # ONE_SHOT_BLOCK_NODE_PERF=false: no ring-buffer workaround applied.
+          # RTT probe runs but failures are non-fatal (hiero-block-node#3150) — block-node RSS
+          # stays at the ~143 MB baseline.  Measured peak (run 29267777062): 2 331 MiB.
+          # 3 000 MB (= 2 331 + 500 margin rounded to nearest 500) leaves headroom for NLG + mirror + kube-system.
+          MAX_MEMORY_MB=3000
           echo "Max memory threshold is set to ${MAX_MEMORY_MB} MB"
           echo "Parsing for the memory usage from the json file"
           MEMORY_USED_MB=$(cat ~/.solo/logs/*.json | jq '.memoryInMebibytes')

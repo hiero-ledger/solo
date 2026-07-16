@@ -209,9 +209,8 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         )
       : [];
 
-    return sortedItems.map(
-      (item: V1Pod): Pod =>
-        K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig, this.kubectlInstallationDirectory),
+    return sortedItems.map((item: V1Pod): Pod =>
+      K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig, this.kubectlInstallationDirectory),
     );
   }
 
