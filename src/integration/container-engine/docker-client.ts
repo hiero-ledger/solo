@@ -17,6 +17,7 @@ import {Architecture} from '../../business/utils/architecture.js';
 import {type ContainerEngineCommand} from './container-engine-command.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {PodmanClient} from './podman-client.js';
+import {create as createTarball} from 'tar';
 
 @injectable()
 export class DockerClient implements ContainerEngineClient {
@@ -48,16 +49,50 @@ export class DockerClient implements ContainerEngineClient {
   }
 
   public async saveImage(image: string, archivePath: string): Promise<void> {
-    await fs.mkdir(PathEx.dirname(archivePath), {recursive: true});
-
-    const platform: string = Architecture.getLinuxPlatform();
-    const craneExecutable: string = await this.dependencyManager.getExecutable(constants.CRANE);
+    const {platform, craneExecutable} = await this.prepareCranePull(archivePath);
 
     await this.shellRunner.run(craneExecutable, ['pull', '--platform', platform, image, archivePath], {
       verbose: true,
       timeoutMs: DockerClient.IMAGE_PULL_TIMEOUT_MS,
       idleTimeoutMs: DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
     });
+  }
+
+  private async prepareCranePull(archivePath: string): Promise<{platform: string; craneExecutable: string}> {
+    await fs.mkdir(PathEx.dirname(archivePath), {recursive: true});
+
+    return {
+      platform: Architecture.getLinuxPlatform(),
+      craneExecutable: await this.dependencyManager.getExecutable(constants.CRANE),
+    };
+  }
+
+  public async saveImageArchive(image: string, archivePath: string): Promise<void> {
+    const {platform, craneExecutable} = await this.prepareCranePull(archivePath);
+
+    // crane's default docker tarball omits manifest.json for OCI-media images, producing an archive
+    // neither docker nor containerd can load. The OCI layout is always valid; we pull it to a temp
+    // directory and pack it into the single-file archive that `kind load image-archive` (ctr import) expects.
+    // --annotate-ref records the image reference in the layout so ctr import restores the name:tag
+    // (without it the image imports untagged and is unusable by the cluster).
+    const layoutDirectory: string = `${archivePath}.oci-layout`;
+    await fs.rm(layoutDirectory, {recursive: true, force: true});
+
+    try {
+      await this.shellRunner.run(
+        craneExecutable,
+        ['pull', '--format', 'oci', '--annotate-ref', '--platform', platform, image, layoutDirectory],
+        {
+          verbose: true,
+          timeoutMs: DockerClient.IMAGE_PULL_TIMEOUT_MS,
+          idleTimeoutMs: DockerClient.IMAGE_PULL_IDLE_TIMEOUT_MS,
+        },
+      );
+
+      await createTarball({file: archivePath, cwd: layoutDirectory, portable: true}, ['.']);
+    } finally {
+      await fs.rm(layoutDirectory, {recursive: true, force: true});
+    }
   }
 
   public async loadImage(archivePath: string): Promise<void> {

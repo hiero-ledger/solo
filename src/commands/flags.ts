@@ -2952,6 +2952,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly maxRtt: CommandFlag = {
+    constName: 'maxRtt',
+    name: 'max-rtt',
+    definition: {
+      describe:
+        'Maximum allowed end-to-end round-trip time in milliseconds, from transaction submission to mirror node availability',
+      type: 'number',
+      defaultValue: 0,
+    },
+    prompt: undefined,
+  };
+
   public static readonly performanceTest: CommandFlag = {
     constName: 'performanceTest',
     name: 'test',
@@ -3285,6 +3297,7 @@ export class Flags {
     Flags.zipPassword,
     Flags.zipFile,
     Flags.maxTps,
+    Flags.maxRtt,
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
