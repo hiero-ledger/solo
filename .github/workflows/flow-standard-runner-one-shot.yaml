@@ -22,8 +22,9 @@ name: "Standard Runner One-Shot Deploy and Destroy"
 # It runs two install modes as a matrix:
 #
 #   1. source — build from source in the checkout and run `npm run solo --` from the repo root,
-#      matching the developer workflow.
-#   2. global-package — reproduce a first-time user experience with the published package:
+#      matching the developer workflow. Runs on ubuntu-latest (standard GitHub-hosted runner).
+#   2. global-package — reproduce a first-time user experience with the published package.
+#      Runs on hiero-solo-linux-large:
 #      - Faithful package: the tarball is built with the same release packaging code that produces
 #        the published artifact (`scripts/Taskfile.release.yml` dual-publish tasks), so
 #        `npm install -g` installs `@hiero-ledger/solo` under its real published name, exercising
@@ -68,7 +69,7 @@ env:
 jobs:
   standard-runner-one-shot:
     name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -76,8 +77,10 @@ jobs:
         include:
           - install-mode: source
             name: Standard Runner Deploy and Destroy
+            runner: ubuntu-latest
           - install-mode: global-package
             name: Clean Environment Deploy and Destroy
+            runner: hiero-solo-linux-large
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
