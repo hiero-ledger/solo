@@ -329,11 +329,9 @@ const createHarness: (sandbox: SinonSandbox) => Promise<ExplorerHarness> = async
     contexts: (): Record<string, unknown> => ({readCurrent: (): string => 'cluster-context-1'}),
   });
 
-  sandbox.stub(componentFactory, 'createNewExplorerComponent').callsFake(
-    (): Record<string, unknown> => ({
-      metadata: {id: 1, phase: DeploymentPhase.REQUESTED},
-    }),
-  );
+  sandbox.stub(componentFactory, 'createNewExplorerComponent').callsFake((): Record<string, unknown> => ({
+    metadata: {id: 1, phase: DeploymentPhase.REQUESTED},
+  }));
 
   // @ts-expect-error: Sinon stub typing requires unsafe cast for mocking private methods
   sandbox.stub(command, 'getClusterReference').returns('cluster-ref-1');

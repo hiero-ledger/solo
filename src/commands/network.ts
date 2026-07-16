@@ -1932,8 +1932,8 @@ export class NetworkCommand extends BaseCommand {
               force: this.configManager.getFlag(flags.force),
               contexts: remoteConfigLoaded
                 ? this.remoteConfig.getContexts()
-                : [...this.localConfig.configuration.clusterRefs.values()].map(
-                    (context): Context => context.toString(),
+                : [...this.localConfig.configuration.clusterRefs.values()].map((context): Context =>
+                    context.toString(),
                   ),
             };
 
