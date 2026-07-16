@@ -1389,12 +1389,6 @@ echo "::endgroup::"
 echo "::group::Final Verification"
 SKIP_IMPORTER_CHECK=true
 export SMOKE_MIRROR_BLOCK_SETTLE_BLOCKS=3
-export SKIP_ERC20_SMOKE_TEST=true
-# Native block-stream migration verifies CN -> BN -> mirror block ingestion. The
-# ERC20 smoke currently depends on relay querying mirror REST by Ethereum hash,
-# but mirror-node 0.159.0 stores the HAPI hash in contract_result for successful
-# block-stream Ethereum transactions, so /contracts/results/<ethereum-hash>
-# returns 404 even though the block and contract_result row were imported.
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 echo "::endgroup::"
 

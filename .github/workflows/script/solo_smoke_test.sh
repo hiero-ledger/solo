@@ -44,6 +44,78 @@ function clone_smart_contract_repo ()
   fi
   sed -i.bak "s/erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)/erc20Contract.mint(wallet1, firstMintAmount)/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
   rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
+
+  echo "Patch ERC20 smoke test to avoid receipt hash lookups"
+  node <<'NODE'
+const fs = require('fs');
+
+const file = 'hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js';
+let source = fs.readFileSync(file, 'utf8');
+
+const sleepFunction = `function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+`;
+const waitForContractDeploymentFunction = `function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForContractDeployment(contract, maxAttempts = 60) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await contract.name();
+      return;
+    } catch (error) {
+      lastError = error;
+      await sleep(2000);
+    }
+  }
+
+  throw lastError;
+}
+`;
+
+if (!source.includes('async function waitForContractDeployment(')) {
+  if (!source.includes(sleepFunction)) {
+    throw new Error('Expected ERC20 sleep function was not found');
+  }
+  source = source.replace(sleepFunction, waitForContractDeploymentFunction);
+}
+
+const receiptBasedDeploy = `        const deployReceipt = await deployed.deploymentTransaction().wait();
+        erc20Contract = factory.attach(deployReceipt.contractAddress);
+        await sleep(3500); // wait for consensus on write transactions
+        console.log(\`erc20Contract = \${deployReceipt.contractAddress}\`);`;
+const receiptlessDeploy = `        const erc20ContractAddress = await deployed.getAddress();
+        erc20Contract = factory.attach(erc20ContractAddress);
+        await waitForContractDeployment(erc20Contract);
+        console.log(\`erc20Contract = \${erc20ContractAddress}\`);`;
+
+if (source.includes(receiptBasedDeploy)) {
+  source = source.replace(receiptBasedDeploy, receiptlessDeploy);
+} else if (!source.includes(receiptlessDeploy)) {
+  throw new Error('Expected ERC20 receipt-based deployment block was not found');
+}
+
+const receiptBasedApproval = `      const approveResponse = await erc20Contract.approve(await erc20Contract.getAddress(), transferAmount);
+      expect(
+        (await approveResponse?.wait())?.logs?.filter(
+          (e) => e.fragment.name === Constants.Events.Approval
+        )
+      ).to.not.be.empty;
+      await sleep(3500); // wait for consensus on write transactions`;
+const receiptlessApproval = `      await erc20Contract.approve(await erc20Contract.getAddress(), transferAmount);
+      await sleep(3500); // wait for consensus on write transactions`;
+
+if (source.includes(receiptBasedApproval)) {
+  source = source.replace(receiptBasedApproval, receiptlessApproval);
+} else if (!source.includes(receiptlessApproval)) {
+  throw new Error('Expected ERC20 receipt-based approval block was not found');
+}
+
+fs.writeFileSync(file, source);
+NODE
 }
 
 function setup_smart_contract_test ()
@@ -494,17 +566,13 @@ fi
 
 scale_mirror_pinger "${SOLO_NAMESPACE}" 0 "Pause"
 create_test_account "${SOLO_DEPLOYMENT}"
-if [[ "${SKIP_ERC20_SMOKE_TEST:-false}" == "true" ]]; then
-  echo "Skipping ERC20 smoke test"
-else
-  clone_smart_contract_repo
-  setup_smart_contract_test
-  wait_for_contract_test_accounts
-  latest_mirror_block_before_contract_test="$(get_latest_mirror_block_number)"
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - Mirror block before smart contract test: ${latest_mirror_block_before_contract_test}"
-  wait_for_mirror_block_progress "before smart contract test" "${latest_mirror_block_before_contract_test}" "${SMOKE_MIRROR_BLOCK_SETTLE_BLOCKS:-5}" 180 2
-  start_contract_test
-fi
+clone_smart_contract_repo
+setup_smart_contract_test
+wait_for_contract_test_accounts
+latest_mirror_block_before_contract_test="$(get_latest_mirror_block_number)"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Mirror block before smart contract test: ${latest_mirror_block_before_contract_test}"
+wait_for_mirror_block_progress "before smart contract test" "${latest_mirror_block_before_contract_test}" "${SMOKE_MIRROR_BLOCK_SETTLE_BLOCKS:-5}" 180 2
+start_contract_test
 scale_mirror_pinger "${SOLO_NAMESPACE}" 1 "Resume"
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"

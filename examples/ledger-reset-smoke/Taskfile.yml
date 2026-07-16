@@ -83,7 +83,6 @@ tasks:
               cd "{{.TASKFILE_DIR}}/../.."
               export SOLO_DEPLOYMENT="{{ .SOLO_DEPLOYMENT }}"
               export SOLO_NAMESPACE="{{ .SOLO_NAMESPACE }}"
-              export SKIP_ERC20_SMOKE_TEST=true
               ./.github/workflows/script/solo_smoke_test.sh
             )
           else
@@ -115,7 +114,6 @@ tasks:
               cd "{{.TASKFILE_DIR}}/../.."
               export SOLO_DEPLOYMENT="{{ .SOLO_DEPLOYMENT }}"
               export SOLO_NAMESPACE="{{ .SOLO_NAMESPACE }}"
-              export SKIP_ERC20_SMOKE_TEST=true
               ./.github/workflows/script/solo_smoke_test.sh
             )
           else
