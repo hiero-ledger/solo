@@ -1,0 +1,16 @@
+# Values for the standalone kube-prometheus-stack install; previously supplied by the solo-cluster-setup umbrella chart
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 5s
+    podMonitorNamespaceSelector:
+      any: true # fetch metrics from other namespaces
+    podMonitorSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleNamespaceSelector:
+      any: true # fetch metrics from other namespaces
+    ruleSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector:
+      any: true # fetch metrics from other namespaces
+    serviceMonitorSelector: {}
+    serviceMonitorSelectorNilUsesHelmValues: false
