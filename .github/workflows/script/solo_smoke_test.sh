@@ -186,6 +186,10 @@ function uint256(value) {
   return value.toString();
 }
 
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 async function executeContractFunction(client, contractId, functionName, parameters) {
   const transaction = await new ContractExecuteTransaction()
     .setContractId(contractId)
@@ -193,7 +197,38 @@ async function executeContractFunction(client, contractId, functionName, paramet
     .setFunction(functionName, parameters)
     .execute(client);
 
-  await transaction.getReceipt(client);
+  const receipt = await transaction.getReceipt(client);
+  if (receipt.status.toString() !== 'SUCCESS') {
+    throw new Error(`${functionName} failed with status ${receipt.status.toString()}`);
+  }
+}
+
+async function waitForExpectedValue(label, callback, expected, maxAttempts = 90) {
+  let actual;
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      actual = await callback();
+      lastError = undefined;
+      if (actual === expected) {
+        console.log(`${label} ready [attempt=${attempt}/${maxAttempts}, value=${actual}]`);
+        return actual;
+      }
+
+      console.log(`${label} not ready [attempt=${attempt}/${maxAttempts}, actual=${actual}, expected=${expected}]`);
+    } catch (error) {
+      lastError = error;
+      console.log(`${label} not ready [attempt=${attempt}/${maxAttempts}, error=${error.message}]`);
+    }
+
+    await sleep(2000);
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  throw new Error(`${label} did not reach expected value ${expected}; last value was ${actual}`);
 }
 
 async function main() {
@@ -222,6 +257,9 @@ async function main() {
     .setConstructorParameters(new ContractFunctionParameters().addString(tokenName).addString(tokenSymbol))
     .execute(client);
   const createReceipt = await createTransaction.getReceipt(client);
+  if (createReceipt.status.toString() !== 'SUCCESS') {
+    throw new Error(`Contract create failed with status ${createReceipt.status.toString()}`);
+  }
   const contractId = createReceipt.contractId;
   const contractAddress = `0x${contractId.toSolidityAddress()}`;
   console.log(`erc20Contract = ${contractAddress}`);
@@ -236,27 +274,35 @@ async function main() {
   const provider = new ethers.JsonRpcProvider(relayUrl);
   const erc20Contract = new ethers.Contract(contractAddress, artifact.abi, provider);
 
-  const actualName = await erc20Contract.name();
+  const actualName = await waitForExpectedValue('token name', async () => await erc20Contract.name(), tokenName);
   if (actualName !== tokenName) {
     throw new Error(`Unexpected token name: ${actualName}`);
   }
 
-  const actualSymbol = await erc20Contract.symbol();
+  const actualSymbol = await waitForExpectedValue('token symbol', async () => await erc20Contract.symbol(), tokenSymbol);
   if (actualSymbol !== tokenSymbol) {
     throw new Error(`Unexpected token symbol: ${actualSymbol}`);
   }
 
-  const actualDecimals = await erc20Contract.decimals();
+  const actualDecimals = await waitForExpectedValue('token decimals', async () => await erc20Contract.decimals(), 18n);
   if (actualDecimals !== 18n) {
     throw new Error(`Unexpected token decimals: ${actualDecimals}`);
   }
 
-  const totalSupply = await erc20Contract.totalSupply();
+  const totalSupply = await waitForExpectedValue(
+    'total supply after mint',
+    async () => await erc20Contract.totalSupply(),
+    firstMintAmount,
+  );
   if (totalSupply !== firstMintAmount) {
     throw new Error(`Unexpected total supply: ${totalSupply}`);
   }
 
-  const wallet1BalanceBefore = await erc20Contract.balanceOf(wallet1);
+  const wallet1BalanceBefore = await waitForExpectedValue(
+    'wallet1 balance after mint',
+    async () => await erc20Contract.balanceOf(wallet1),
+    firstMintAmount,
+  );
   const wallet2BalanceBefore = await erc20Contract.balanceOf(wallet2);
   if (wallet1BalanceBefore !== firstMintAmount || wallet2BalanceBefore !== 0n) {
     throw new Error(`Unexpected initial balances: wallet1=${wallet1BalanceBefore}, wallet2=${wallet2BalanceBefore}`);
@@ -269,8 +315,16 @@ async function main() {
     new ContractFunctionParameters().addAddress(normalizeAddress(wallet2)).addUint256(uint256(transferAmount)),
   );
 
-  const wallet1BalanceAfterTransfer = await erc20Contract.balanceOf(wallet1);
-  const wallet2BalanceAfterTransfer = await erc20Contract.balanceOf(wallet2);
+  const wallet1BalanceAfterTransfer = await waitForExpectedValue(
+    'wallet1 balance after transfer',
+    async () => await erc20Contract.balanceOf(wallet1),
+    firstMintAmount - transferAmount,
+  );
+  const wallet2BalanceAfterTransfer = await waitForExpectedValue(
+    'wallet2 balance after transfer',
+    async () => await erc20Contract.balanceOf(wallet2),
+    transferAmount,
+  );
   if (wallet1BalanceAfterTransfer !== firstMintAmount - transferAmount) {
     throw new Error(`Unexpected wallet1 balance after transfer: ${wallet1BalanceAfterTransfer}`);
   }
@@ -285,7 +339,11 @@ async function main() {
     new ContractFunctionParameters().addAddress(normalizeAddress(contractAddress)).addUint256(uint256(transferAmount)),
   );
 
-  const allowance = await erc20Contract.allowance(wallet1, contractAddress);
+  const allowance = await waitForExpectedValue(
+    'allowance after approve',
+    async () => await erc20Contract.allowance(wallet1, contractAddress),
+    transferAmount,
+  );
   if (allowance !== transferAmount) {
     throw new Error(`Unexpected allowance: ${allowance}`);
   }
