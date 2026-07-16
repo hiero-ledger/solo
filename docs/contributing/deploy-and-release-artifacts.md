@@ -61,10 +61,10 @@
 - https://www.npmjs.com/package/@hashgraph/solo?activeTab=versions
 
 ## 10. Verify JFrog Artifactory (@hashgraph)
-- https://artifacts.swirldslabs.io/ui/packages/npm:%2F%2F@hashgraph%2Fsolo/
+- https://artifacts.hashgraph.io/ui/packages/npm:%2F%2F@hashgraph%2Fsolo/
 
 ## 11. Verify npm Package (@hiero-ledger)
 - https://www.npmjs.com/package/@hiero-ledger/solo?activeTab=versions
 
 ## 12. Verify JFrog Artifactory (@hiero-ledger)
-- https://artifacts.swirldslabs.io/ui/packages/npm:%2F%2F@hiero-ledger%2Fsolo/
+- https://artifacts.hashgraph.io/ui/packages/npm:%2F%2F@hiero-ledger%2Fsolo/
