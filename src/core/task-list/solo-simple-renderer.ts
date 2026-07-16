@@ -34,6 +34,18 @@ interface SoloSimpleRendererOptions extends ListrSimpleRendererOptions {
 }
 
 /**
+ * The internal listr2 shape read from a Task to determine concurrency — the owning list, its
+ * (normalized-to-a-number) `concurrent` option, and its sibling tasks. Not part of listr2's public
+ * Task type, so it is accessed via a structural cast.
+ */
+interface ConcurrencyProbe {
+  listr?: {
+    options?: {concurrent?: number | boolean};
+    tasks?: readonly unknown[];
+  };
+}
+
+/**
  * Solo's variant of the built-in listr2 `simple` renderer. It is append-only and avoids the two
  * problems solo hits with the default renderer:
  *
@@ -154,7 +166,7 @@ export class SoloSimpleRenderer implements ListrRenderer {
           const timer: PresetTimer | undefined = rendererTaskOptions?.timer;
           this.logger.log(
             ListrLogLevels.COMPLETED,
-            task.title,
+            this.taskLabel(task),
             timer && {
               suffix: {
                 ...timer,
@@ -167,27 +179,32 @@ export class SoloSimpleRenderer implements ListrRenderer {
       });
 
       task.on(ListrTaskEventType.OUTPUT, (output: string): void => {
-        this.logger.log(ListrLogLevels.OUTPUT, output);
+        // Only prefix output with the breadcrumb when the task can interleave with others; otherwise
+        // keep the bare output line as the built-in simple renderer does.
+        this.logger.log(
+          ListrLogLevels.OUTPUT,
+          this.runsConcurrently(task) ? `${this.taskPath(task)}: ${output}` : output,
+        );
       });
 
       task.on(ListrTaskEventType.MESSAGE, (message: ListrTaskMessage): void => {
         if (message.error !== undefined) {
           this.stopProgress(task.id);
-          this.logger.log(ListrLogLevels.FAILED, task.title, {
+          this.logger.log(ListrLogLevels.FAILED, this.taskLabel(task), {
             suffix: {field: `${ListrLogLevels.FAILED}: ${message.error}`, format: (): LoggerFormat => color.red},
           });
         } else if (message.skip !== undefined) {
           this.stopProgress(task.id);
-          this.logger.log(ListrLogLevels.SKIPPED, task.title, {
+          this.logger.log(ListrLogLevels.SKIPPED, this.taskLabel(task), {
             suffix: {field: `${ListrLogLevels.SKIPPED}: ${message.skip}`, format: (): LoggerFormat => color.yellow},
           });
         } else if (message.rollback !== undefined) {
           this.stopProgress(task.id);
-          this.logger.log(ListrLogLevels.ROLLBACK, task.title, {
+          this.logger.log(ListrLogLevels.ROLLBACK, this.taskLabel(task), {
             suffix: {field: `${ListrLogLevels.ROLLBACK}: ${message.rollback}`, format: (): LoggerFormat => color.red},
           });
         } else if (message.retry !== undefined) {
-          this.logger.log(ListrLogLevels.RETRY, task.title, {
+          this.logger.log(ListrLogLevels.RETRY, this.taskLabel(task), {
             suffix: {field: `${ListrLogLevels.RETRY}:${message.retry.count}`, format: (): LoggerFormat => color.red},
           });
         }
@@ -227,7 +244,7 @@ export class SoloSimpleRenderer implements ListrRenderer {
           args: [elapsedMilliseconds],
         },
       };
-      this.logger.log(ListrLogLevels.STARTED, task.title, options);
+      this.logger.log(ListrLogLevels.STARTED, this.taskLabel(task), options);
     }, PROGRESS_INTERVAL_MILLISECONDS);
 
     // Do not let the progress timer keep the process alive on its own.
@@ -246,6 +263,55 @@ export class SoloSimpleRenderer implements ListrRenderer {
 
   private showSubtasks(taskId: string): boolean {
     return this.cache.rendererOptions.get(taskId)?.showSubtasks !== false;
+  }
+
+  /**
+   * The label to print for a task: its ancestry breadcrumb when the task can interleave with others
+   * (see {@link runsConcurrently}), otherwise just its own title. Breadcrumbs only add value when
+   * output actually interleaves, so a fully sequential run keeps the plain, less noisy title.
+   */
+  private taskLabel(task: ListrSimpleRendererTask): string {
+    return this.runsConcurrently(task) ? this.taskPath(task) : (task.title ?? '');
+  }
+
+  /**
+   * Builds a breadcrumb of the task's ancestry — the titles of every titled ancestor and the task
+   * itself, joined with ` › ` — so each appended line identifies which (sub)task it belongs to even
+   * when concurrent subtrees interleave in the output. A top-level task's path is just its own title.
+   */
+  private taskPath(task: ListrSimpleRendererTask): string {
+    const segments: string[] = [];
+    let current: ListrSimpleRendererTask | undefined = task;
+    while (current) {
+      if (current.hasTitle() && current.title) {
+        segments.unshift(current.title);
+      }
+      current = current.parent as ListrSimpleRendererTask | undefined;
+    }
+    return segments.join(' › ');
+  }
+
+  /**
+   * Whether this task's output can interleave with unrelated tasks — true when the task's own list, or
+   * any ancestor list, runs concurrently with more than one task. In that case sibling/cousin subtrees
+   * emit lines in between this task's lines, so a breadcrumb is needed to keep them traceable.
+   *
+   * listr2 does not expose the owning list on its public Task type, so it is read structurally. The
+   * `concurrent` option is normalized by listr2 to a number: 1 means sequential, and anything greater
+   * (including Infinity for `concurrent: true`) means concurrent.
+   */
+  private runsConcurrently(task: ListrSimpleRendererTask): boolean {
+    let current: ListrSimpleRendererTask | undefined = task;
+    while (current) {
+      const list: ConcurrencyProbe['listr'] = (current as unknown as ConcurrencyProbe).listr;
+      const concurrent: number | undefined =
+        typeof list?.options?.concurrent === 'number' ? list.options.concurrent : undefined;
+      if (concurrent !== undefined && concurrent > 1 && (list?.tasks?.length ?? 0) > 1) {
+        return true;
+      }
+      current = current.parent as ListrSimpleRendererTask | undefined;
+    }
+    return false;
   }
 
   private calculate(task: ListrSimpleRendererTask): void {
