@@ -6,6 +6,8 @@ import path from 'node:path';
 import {format} from 'node:util';
 import {SoloErrors} from './errors/solo-errors.js';
 import {Templates} from './templates.js';
+import {SubprocessEnvironment} from './subprocess-environment.js';
+import {SubprocessCommandProfile} from './subprocess-command-profile.js';
 import * as constants from './constants.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
@@ -648,6 +650,7 @@ export class Helpers {
       const output: string = execFileSync('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}'], {
         encoding: 'utf8',
         stdio: 'pipe',
+        env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.CONTAINER_ENGINE),
       });
       return output
         .split(/\r?\n/)
