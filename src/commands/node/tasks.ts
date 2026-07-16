@@ -186,7 +186,7 @@ import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-
 import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-  return !(path.includes('data/keys') || path.includes('data/config'));
+  return !(path.includes('data/keys') || path.includes('data/config') || path.includes('data/upgrade'));
 };
 
 const {gray, cyan, red, green, yellow} = chalk;
@@ -329,6 +329,8 @@ export class NodeCommandTasks {
       .containers()
       .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
 
+    await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
+
     // Remove existing jars before copying to prevent mixed-version classpath (issue #3848)
     await container.execContainer([
       'bash',
@@ -337,6 +339,21 @@ export class NodeCommandTasks {
     ]);
 
     await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
+    await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand()]);
+
+    const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`;
+    if (await container.hasDir(upgradeDirectory)) {
+      await container.execContainer([
+        'bash',
+        '-c',
+        `rm -rf ${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`,
+      ]);
+      await container.copyTo(localDataLibraryBuildPath, upgradeDirectory, localBuildPathFilter);
+      await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand(upgradeDirectory)]);
+    }
+
+    await container.execContainer(['sync', constants.HEDERA_HAPI_PATH]);
+
     if (configManager.getFlag<string>(flags.appConfig)) {
       const testJsonFiles: string[] = configManager.getFlag<string>(flags.appConfig)!.split(',');
       for (const jsonFile of testJsonFiles) {
@@ -1201,7 +1218,7 @@ export class NodeCommandTasks {
         const upgradeDirectories: string[] = [
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`,
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/apps`,
-          `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/libs`,
+          `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/lib`,
         ];
 
         for (const upgradeDirectory of upgradeDirectories) {
@@ -1989,6 +2006,9 @@ export class NodeCommandTasks {
                 config.namespace,
                 nodeAlias,
               );
+              if (config.localBuildPath) {
+                await container.execContainer(['bash', '-c', this.buildRefreshLiveLocalBuildJarsCommand()]);
+              }
               for (const directory of [constants.HEDERA_DATA_APPS_DIR, constants.HEDERA_DATA_LIB_DIR]) {
                 const directoryPath: string = `${constants.HEDERA_HAPI_PATH}/${directory}`;
                 const output: string = await container.execContainer([
@@ -2009,6 +2029,39 @@ export class NodeCommandTasks {
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
+  }
+
+  private buildRefreshLiveLocalBuildJarsCommand(): string {
+    const hapiPath: string = constants.HEDERA_HAPI_PATH;
+    const applicationDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const libraryDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_LIB_DIR}`;
+    const applicationJar: string = `${applicationDirectory}/${constants.HEDERA_APP_NAME}`;
+    const upgradeDirectory: string = `${hapiPath}/data/upgrade/current`;
+    const upgradeApplicationDirectory: string = `${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const upgradeLibraryDirectory: string = `${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}`;
+    const upgradeApplicationJar: string = `${upgradeApplicationDirectory}/${constants.HEDERA_APP_NAME}`;
+
+    return [
+      `if [ -f "${upgradeApplicationJar}" ]; then`,
+      `  rm -f "${applicationDirectory}"/*.jar "${libraryDirectory}"/*.jar`,
+      `  cp -f "${upgradeApplicationDirectory}"/*.jar "${applicationDirectory}/"`,
+      `  cp -f "${upgradeLibraryDirectory}"/*.jar "${libraryDirectory}/"`,
+      this.buildNormalizeHederaJarPermissionsCommand(),
+      `  sync "${hapiPath}"`,
+      'fi',
+      `test -f "${applicationJar}" || { echo "missing ${applicationJar}" >&2; exit 1; }`,
+      `/command/s6-setuidgid hedera unzip -l "${applicationJar}" "com/hedera/node/app/ServicesMain.class" | grep -q "com/hedera/node/app/ServicesMain.class" || { echo "missing ServicesMain in ${applicationJar}" >&2; exit 1; }`,
+    ].join('\n');
+  }
+
+  private buildNormalizeHederaJarPermissionsCommand(hapiPath: string = constants.HEDERA_HAPI_PATH): string {
+    const applicationDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const libraryDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_LIB_DIR}`;
+
+    return [
+      `chown -R hedera:hedera "${applicationDirectory}" "${libraryDirectory}"`,
+      `chmod -R u+rwX,g+rX,o+rX "${applicationDirectory}" "${libraryDirectory}"`,
+    ].join('\n');
   }
 
   /**
