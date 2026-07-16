@@ -62,6 +62,14 @@ function flagEntry(flag: CommandFlag, value: FalconOverrideValue): [string, Falc
   return [flag.name, value];
 }
 
+/** A single account entry from the one-shot deployment's accounts.json file. */
+interface OneShotAccount {
+  accountId?: string;
+  name?: string;
+  balance?: string;
+  publicAddress?: string;
+}
+
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
   private _isRollback: boolean = false;
@@ -136,6 +144,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   public static readonly INFO_FLAGS_LIST: CommandFlags = {
     required: [],
     optional: [flags.quiet, flags.deployment],
+  };
+
+  public static readonly SHOW_ACCOUNTS_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.quiet, flags.deployment, flags.output],
   };
 
   public static readonly FALCON_PREPARE_FLAGS_LIST: CommandFlags = {
@@ -306,6 +319,65 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
   private getOneShotOutputDirectory(deploymentName: string): string {
     return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${UserInput.safeFilenameComponent(deploymentName)}`);
+  }
+
+  /** Prints the one-shot deployment's `accounts.json` file in the format given by `--output`. */
+  public async showAccounts(): Promise<boolean> {
+    const deploymentName: DeploymentName =
+      this.configManager.getFlag(flags.deployment) || constants.ONE_SHOT_DEPLOYMENT_NAME;
+
+    const accountsFile: string = PathEx.join(this.getOneShotOutputDirectory(deploymentName), 'accounts.json');
+
+    if (!fs.existsSync(accountsFile)) {
+      this.logger.showUser(chalk.yellow(`\n⚠️  Accounts file not found: ${accountsFile}`));
+      return true;
+    }
+
+    const format: 'json' | 'yaml' | 'wide' = this.resolveOutputFormat();
+    const accounts: Record<string, OneShotAccount[]> = JSON.parse(fs.readFileSync(accountsFile, 'utf8')) as Record<
+      string,
+      OneShotAccount[]
+    >;
+
+    if (format === 'json') {
+      this.logger.showUser(JSON.stringify(accounts, undefined, 2));
+      return true;
+    }
+    if (format === 'yaml') {
+      this.logger.showUser(yaml.stringify(accounts));
+      return true;
+    }
+
+    this.logger.showUser(chalk.cyan(`\n=== Accounts: ${accountsFile} ===`));
+    for (const [groupName, groupAccounts] of Object.entries(accounts)) {
+      if (Array.isArray(groupAccounts) && groupAccounts.length > 0) {
+        this.logger.showList(
+          groupName,
+          groupAccounts.map((account): string =>
+            [account.accountId, account.name, account.balance, account.publicAddress].filter(Boolean).join('  '),
+          ),
+        );
+      }
+    }
+    return true;
+  }
+
+  /** Resolves the `--output` flag to a supported format, defaulting to `wide`. */
+  private resolveOutputFormat(): 'json' | 'yaml' | 'wide' {
+    const rawOutput: string = this.configManager.getFlag(flags.output);
+    switch (rawOutput) {
+      case '':
+      case 'wide': {
+        return 'wide';
+      }
+      case 'json':
+      case 'yaml': {
+        return rawOutput;
+      }
+      default: {
+        throw new SoloErrors.validation.invalidOutputFormat(rawOutput);
+      }
+    }
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {

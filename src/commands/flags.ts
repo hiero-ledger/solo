@@ -2040,7 +2040,7 @@ export class Flags {
     constName: 'output',
     name: 'output',
     definition: {
-      describe: 'Output format. One of: json|yaml|wide',
+      describe: 'Output format. One of: "json", "yaml", "wide"',
       defaultValue: '',
       alias: 'o',
       type: 'string',
