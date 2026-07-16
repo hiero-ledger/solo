@@ -156,7 +156,7 @@ flags may be specified at any level of the command hierarchy.
 | ledger      | file               | < create & update >                                                                |
 | mirror      | node               | < list & info & logs & add & upgrade & destroy >                                   |
 | relay       | node               | < list & info & logs & add & upgrade & destroy >                                   |
-| one-shot    | < single & multi > | < info & deploy & destroy >                                                        |
+| one-shot    | < single & multi & falcon & show > | < deploy & destroy & prepare & deployment & accounts >             |
 | cache       | < images >         | < pull & load & list & clear & status >                                            |
 
 
@@ -655,6 +655,17 @@ operations associated with each resource.
 | **Info**       | `info`         | Displays details of the one shot configuration.                          |
 | **Deploy**     | `deploy`       | Deploys all required components for the selected one shot configuration. |
 | **Destroy**    | `destroy`      | Removes the deployed resources for the selected one shot configuration.  |
+
+<p align="right">
+:arrow_up_small: <a href="#table-of-contents">Back to top</a>
+</p>
+
+#### Show
+
+| Operation Name | Command Syntax | Description                                                            |
+|----------------|----------------|------------------------------------------------------------------------|
+| **Deployment** | `deployment`   | Displays information about the last one-shot deployment.               |
+| **Accounts**   | `accounts`     | Displays the contents of the one-shot deployment `accounts.json` file. |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
