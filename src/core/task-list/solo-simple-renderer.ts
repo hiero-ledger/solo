@@ -31,18 +31,16 @@ const PROGRESS_INTERVAL_MILLISECONDS: number = 15_000;
 interface SoloSimpleRendererOptions extends ListrSimpleRendererOptions {
   /** When `false`, subtasks are not rendered and only the parent line/progress line is shown. */
   showSubtasks?: boolean;
-}
 
-/**
- * The internal listr2 shape read from a Task to determine concurrency — the owning list, its
- * (normalized-to-a-number) `concurrent` option, and its sibling tasks. Not part of listr2's public
- * Task type, so it is accessed via a structural cast.
- */
-interface ConcurrencyProbe {
-  listr?: {
-    options?: {concurrent?: number | boolean};
-    tasks?: readonly unknown[];
-  };
+  /**
+   * Controls the ancestry breadcrumb prefix on task lines:
+   * - `undefined` (default): auto — a breadcrumb is shown only for tasks that actually overlapped with
+   *   an unrelated task at runtime (see {@link SoloSimpleRenderer.trackOverlap}).
+   * - `true`: always show the breadcrumb.
+   * - `false`: never show the breadcrumb; every line uses the plain title. Set this when the caller
+   *   knows the run is sequential (e.g. `--parallel-deploy false`) so it stays uncluttered.
+   */
+  breadcrumbs?: boolean;
 }
 
 /**
@@ -79,6 +77,12 @@ export class SoloSimpleRenderer implements ListrRenderer {
   /** Wall-clock start time (epoch milliseconds) of each running task, keyed by task id. */
   private readonly startTimes: Map<string, number> = new Map();
 
+  /** Titled tasks that have started but not yet closed — i.e. currently running. */
+  private readonly running: Set<ListrSimpleRendererTask> = new Set();
+
+  /** Ids of tasks that ran concurrently with an unrelated task at some point, so need a breadcrumb. */
+  private readonly overlapped: Set<string> = new Set();
+
   public constructor(
     private readonly tasks: ListrSimpleRendererTask[],
     private options: SoloSimpleRendererOptions,
@@ -114,6 +118,8 @@ export class SoloSimpleRenderer implements ListrRenderer {
     }
     this.progressTimers.clear();
     this.startTimes.clear();
+    this.running.clear();
+    this.overlapped.clear();
   }
 
   private renderer(tasks: ListrSimpleRendererTask[]): void {
@@ -126,6 +132,7 @@ export class SoloSimpleRenderer implements ListrRenderer {
 
       task.once(ListrTaskEventType.CLOSED, (): void => {
         this.stopProgress(task.id);
+        this.running.delete(task);
         this.reset(task);
       });
 
@@ -160,6 +167,7 @@ export class SoloSimpleRenderer implements ListrRenderer {
         }
 
         if (state === ListrTaskState.STARTED) {
+          this.trackOverlap(task);
           this.startProgress(task, rendererTaskOptions);
         } else if (state === ListrTaskState.COMPLETED) {
           this.stopProgress(task.id);
@@ -181,10 +189,7 @@ export class SoloSimpleRenderer implements ListrRenderer {
       task.on(ListrTaskEventType.OUTPUT, (output: string): void => {
         // Only prefix output with the breadcrumb when the task can interleave with others; otherwise
         // keep the bare output line as the built-in simple renderer does.
-        this.logger.log(
-          ListrLogLevels.OUTPUT,
-          this.runsConcurrently(task) ? `${this.taskPath(task)}: ${output}` : output,
-        );
+        this.logger.log(ListrLogLevels.OUTPUT, this.useBreadcrumb(task) ? `${this.taskPath(task)}: ${output}` : output);
       });
 
       task.on(ListrTaskEventType.MESSAGE, (message: ListrTaskMessage): void => {
@@ -266,12 +271,23 @@ export class SoloSimpleRenderer implements ListrRenderer {
   }
 
   /**
-   * The label to print for a task: its ancestry breadcrumb when the task can interleave with others
-   * (see {@link runsConcurrently}), otherwise just its own title. Breadcrumbs only add value when
-   * output actually interleaves, so a fully sequential run keeps the plain, less noisy title.
+   * The label to print for a task: its ancestry breadcrumb, or just its own title. See
+   * {@link useBreadcrumb} for when the breadcrumb is used.
    */
   private taskLabel(task: ListrSimpleRendererTask): string {
-    return this.runsConcurrently(task) ? this.taskPath(task) : (task.title ?? '');
+    return this.useBreadcrumb(task) ? this.taskPath(task) : (task.title ?? '');
+  }
+
+  /**
+   * Whether a task's line should carry its ancestry breadcrumb. Honours the {@link breadcrumbs} option
+   * (`true`/`false` force it on/off); when unset, falls back to auto — a breadcrumb only when the task
+   * actually overlapped with an unrelated task at runtime (see {@link trackOverlap}).
+   */
+  private useBreadcrumb(task: ListrSimpleRendererTask): boolean {
+    if (typeof this.options.breadcrumbs === 'boolean') {
+      return this.options.breadcrumbs;
+    }
+    return this.overlapped.has(task.id);
   }
 
   /**
@@ -292,21 +308,32 @@ export class SoloSimpleRenderer implements ListrRenderer {
   }
 
   /**
-   * Whether this task's output can interleave with unrelated tasks — true when the task's own list, or
-   * any ancestor list, runs concurrently with more than one task. In that case sibling/cousin subtrees
-   * emit lines in between this task's lines, so a breadcrumb is needed to keep them traceable.
-   *
-   * listr2 does not expose the owning list on its public Task type, so it is read structurally. The
-   * `concurrent` option is normalized by listr2 to a number: 1 means sequential, and anything greater
-   * (including Infinity for `concurrent: true`) means concurrent.
+   * Records actual runtime overlap: when a task starts, any other task already running that is neither
+   * an ancestor nor a descendant of it is genuinely running alongside it, so both tasks (and every line
+   * they later emit) are flagged to use a breadcrumb. A parent running while its own subtask runs is
+   * nesting, not interleaving, so related tasks are ignored. Purely sequential execution never flags
+   * anything, so those runs keep plain titles — independent of how lists declare their concurrency.
    */
-  private runsConcurrently(task: ListrSimpleRendererTask): boolean {
-    let current: ListrSimpleRendererTask | undefined = task;
+  private trackOverlap(task: ListrSimpleRendererTask): void {
+    for (const other of this.running) {
+      if (!this.isRelated(task, other)) {
+        this.overlapped.add(task.id);
+        this.overlapped.add(other.id);
+      }
+    }
+    this.running.add(task);
+  }
+
+  /** Whether one of the two tasks is an ancestor of the other (i.e. they are on the same branch). */
+  private isRelated(a: ListrSimpleRendererTask, b: ListrSimpleRendererTask): boolean {
+    return this.isAncestorOf(a, b) || this.isAncestorOf(b, a);
+  }
+
+  /** Whether `ancestor` appears somewhere on `node`'s parent chain. */
+  private isAncestorOf(ancestor: ListrSimpleRendererTask, node: ListrSimpleRendererTask): boolean {
+    let current: ListrSimpleRendererTask | undefined = node.parent as ListrSimpleRendererTask | undefined;
     while (current) {
-      const list: ConcurrencyProbe['listr'] = (current as unknown as ConcurrencyProbe).listr;
-      const concurrent: number | undefined =
-        typeof list?.options?.concurrent === 'number' ? list.options.concurrent : undefined;
-      if (concurrent !== undefined && concurrent > 1 && (list?.tasks?.length ?? 0) > 1) {
+      if (current.id === ancestor.id) {
         return true;
       }
       current = current.parent as ListrSimpleRendererTask | undefined;
