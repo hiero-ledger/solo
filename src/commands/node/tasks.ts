@@ -124,6 +124,8 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {SubprocessEnvironment} from '../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
 import {helmValuesHelper} from '../../core/helm-values-helper.js';
 import {type GitClient} from '../../integration/git/git-client.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
@@ -2760,10 +2762,9 @@ export class NodeCommandTasks {
                     encoding: 'utf8',
                     cwd: process.cwd(),
                     maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-                    env: {
-                      ...process.env,
+                    env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.HELM, {
                       PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${PathEx.delimiter}${process.env.PATH}`,
-                    },
+                    }),
                   },
                 ).toString();
 
