@@ -1022,6 +1022,7 @@ PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
 MIGRATION_USES_WRB_RSA="false"
 
 if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}" && \
+  version_at_least "${PREV_BLOCK_VERSION_NO_V}" "0.37.0" && \
   version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.0"; then
   MIGRATION_USES_WRB_RSA="true"
 fi

@@ -3,6 +3,7 @@
 import {describe, it, afterEach} from 'mocha';
 import {expect} from 'chai';
 import sinon from 'sinon';
+import fs from 'node:fs';
 import {ConsensusCommandDefinition} from '../../../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {MirrorCommandDefinition} from '../../../../../../src/commands/command-definitions/mirror-command-definition.js';
 import * as constants from '../../../../../../src/core/constants.js';
@@ -21,6 +22,7 @@ import {type AnyObject, type ArgvStruct} from '../../../../../../src/types/alias
 afterEach((): void => {
   delete process.env.ONE_SHOT_WITH_BLOCK_NODE;
   delete process.env.BLOCK_STREAM_STREAM_MODE;
+  delete process.env.ONE_SHOT_BLOCK_NODE_PERF;
 });
 
 function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): OneShotSingleDeployConfigClass {
@@ -70,6 +72,37 @@ describe('buildBlockNodeArgv', (): void => {
     const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
     expect(valueIndex).to.be.greaterThan(-1);
     expect(argv[valueIndex + 1]).to.equal(`${existingFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`);
+  });
+
+  it('injects RSA bootstrap values for one-shot block node WRB/RSA deploys outside perf mode', (): void => {
+    process.env.ONE_SHOT_WITH_BLOCK_NODE = 'true';
+    process.env.BLOCK_STREAM_STREAM_MODE = 'BOTH';
+    process.env.ONE_SHOT_BLOCK_NODE_PERF = 'false';
+
+    const argv: string[] = DeployArgvBuilders.buildBlockNodeArgv(
+      makeConfig({
+        cacheDir: 'test/data/pem',
+        numberOfConsensusNodes: 1,
+        versions: {
+          explorer: '2.5.0',
+          soloChart: '0.0.0',
+          consensus: 'v0.75.0',
+          mirror: '0.0.0',
+          relay: '0.0.0',
+          blockNode: '0.37.1',
+        },
+      }),
+    );
+
+    const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
+    expect(valueIndex).to.be.greaterThan(-1);
+    const valuesFiles: string[] = argv[valueIndex + 1].split(',');
+    expect(valuesFiles).to.have.length(2);
+    expect(valuesFiles[1]).to.equal(constants.BLOCK_NODE_SOLO_DEV_FILE);
+
+    const rsaBootstrapValues: string = fs.readFileSync(valuesFiles[0], 'utf8');
+    expect(rsaBootstrapValues).to.contain('rsa-bootstrap-roster.json');
+    expect(rsaBootstrapValues).to.contain('ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL');
   });
 
   it('does not mutate blockNodeConfiguration', (): void => {
