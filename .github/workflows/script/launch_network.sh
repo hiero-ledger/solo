@@ -1041,17 +1041,24 @@ if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   SOURCE_MIRROR_BLOCK_ENABLED="false"
   SOURCE_MIRROR_RECORD_ENABLED="true"
 else
-  SOURCE_BLOCK_STREAM_MODE="BLOCKS"
   SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
   SOURCE_MINIO_ENABLED="false"
   SOURCE_MIRROR_BLOCK_ENABLED="true"
   SOURCE_MIRROR_RECORD_ENABLED="false"
 
   if [[ "${SOURCE_USES_WRB_RSA}" == "true" ]]; then
+    SOURCE_BLOCK_STREAM_MODE="BOTH"
     SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
   else
+    SOURCE_BLOCK_STREAM_MODE="BLOCKS"
     SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
   fi
+fi
+
+if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
+  TARGET_BLOCK_STREAM_MODE="BOTH"
+else
+  TARGET_BLOCK_STREAM_MODE="BLOCKS"
 fi
 
 if [[ "${SOURCE_MIRROR_BLOCK_ENABLED}" == "true" ]]; then
@@ -1152,6 +1159,7 @@ echo "Initial source wrapped record blocks enabled: ${SOURCE_STREAM_WRAPPED_RECO
 echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
 echo "Source WRB/RSA mode: ${SOURCE_USES_WRB_RSA}"
 echo "Target WRB/RSA mode: ${TARGET_USES_WRB_RSA}"
+echo "Target block stream mode: ${TARGET_BLOCK_STREAM_MODE}"
 
 if [[ "${SOURCE_MINIO_ENABLED}" == "true" ]]; then
   install_minio_operator_for_source_deploy
@@ -1183,7 +1191,7 @@ cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPER
 add_application_properties_overwrite_marker "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "fees.simpleFeesEnabled" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "${TARGET_BLOCK_STREAM_MODE}"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
