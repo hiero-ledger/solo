@@ -5,6 +5,8 @@ import * as os from 'node:os';
 import {execFileSync} from 'node:child_process';
 import {OperatingSystem} from './operating-system.js';
 import {PathEx} from './path-ex.js';
+import {SubprocessEnvironment} from '../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
 
 /**
  * Cross-platform helper for restricting filesystem access to the current user only.
@@ -92,6 +94,7 @@ export class FilePermissions {
       // Windows analogue of group/other), and `/grant:r` replaces any existing grant for the user.
       execFileSync('icacls', [targetPath, '/inheritance:r', '/grant:r', `${principal}:${permissions}`], {
         stdio: 'ignore',
+        env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.GENERIC),
       });
     } catch {
       // best-effort: ACL hardening can fail on non-NTFS volumes or with insufficient rights; the POSIX
