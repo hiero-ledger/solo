@@ -122,6 +122,10 @@ describe('Helpers', (): void => {
       expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.74.0', true)).to.equal('BLOCKS');
     });
 
+    it('preserves BOTH during 0.74+ WRB/RSA upgrades when a block node is deployed', (): void => {
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.75.0', true, true)).to.equal('BOTH');
+    });
+
     it('preserves BOTH during upgrades to 0.74+ when no block node is deployed', (): void => {
       expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.74.0')).to.equal('BOTH');
     });

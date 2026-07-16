@@ -589,10 +589,12 @@ export class ProfileManager {
       fileText.split('\n'),
     );
 
+    const applicationPropertiesText: string = lines.join('\n');
     const streamMode: string = Helpers.resolveBlockStreamModeForConsensusVersion(
-      Helpers.parseBlockStreamMode(lines.join('\n')),
+      Helpers.parseBlockStreamMode(applicationPropertiesText),
       this.remoteConfig.configuration.versions.consensusNode,
       hasDeployedBlockNodes,
+      Helpers.parseStreamWrappedRecordBlocks(applicationPropertiesText),
     );
     Helpers.updateBlockStreamPropertiesForMode(lines, streamMode);
 

@@ -82,6 +82,7 @@ export class Helpers {
     existingStreamMode: string | undefined,
     consensusNodeVersion?: SemanticVersion<string> | string,
     blockNodeIntegrationEnabled: boolean = false,
+    streamWrappedRecordBlocksEnabled: boolean = false,
   ): string {
     const version: SemanticVersion<string> = new SemanticVersion<string>(
       consensusNodeVersion?.toString() || versions.HEDERA_PLATFORM_VERSION,
@@ -92,7 +93,8 @@ export class Helpers {
       // consensus version. CN 0.74+ with block nodes must use pure block streaming by default.
       if (
         existingStreamMode === 'BLOCKS' ||
-        (existingStreamMode === 'BOTH' && version.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS))
+        (existingStreamMode === 'BOTH' &&
+          (version.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) || streamWrappedRecordBlocksEnabled))
       ) {
         return existingStreamMode;
       }
@@ -110,6 +112,13 @@ export class Helpers {
       /^\s*blockStream\.streamMode\s*=\s*(\S+)\s*$/m,
     );
     return match?.[1];
+  }
+
+  public static parseStreamWrappedRecordBlocks(applicationPropertiesText: string): boolean {
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      /^\s*blockStream\.streamWrappedRecordBlocks\s*=\s*(\S+)\s*$/m,
+    );
+    return match?.[1] === 'true';
   }
 
   public static updateBlockStreamPropertiesForMode(
@@ -849,6 +858,7 @@ export class Helpers {
       Helpers.parseBlockStreamMode(applicationPropertiesData),
       consensusNodeVersion,
       true,
+      Helpers.parseStreamWrappedRecordBlocks(applicationPropertiesData),
     );
     Helpers.updateBlockStreamPropertiesForMode(lines, blockStreamMode);
 
