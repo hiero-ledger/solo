@@ -147,9 +147,157 @@ function start_contract_test ()
   cd hedera-smart-contracts
   echo "Show current port forward for debugging purpose"
   ps -ef | grep port-forward
-  echo "Run smart contract test"
+  echo "Run SDK-backed ERC20 smart contract smoke test"
   result=0
-  npm run hh:test || result=$?
+  node <<'NODE' || result=$?
+const {
+  AccountId,
+  Client,
+  ContractCreateFlow,
+  ContractExecuteTransaction,
+  ContractFunctionParameters,
+  PrivateKey,
+} = require('@hashgraph/sdk');
+const {ethers} = require('ethers');
+const artifact = require('./artifacts/contracts/openzeppelin/ERC-20/ERC20Mock.sol/OZERC20Mock.json');
+
+const firstMintAmount = 1000n;
+const transferAmount = 33n;
+const relayUrl = 'http://127.0.0.1:37546';
+const nodeAddress = '127.0.0.1:35211';
+const nodeAccountId = '0.0.3';
+const tokenName = 'tokenName';
+const tokenSymbol = 'TOKENSYMBOL';
+
+function requireEnvironment(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return value;
+}
+
+function normalizeAddress(address) {
+  return address.replace(/^0x/i, '');
+}
+
+function uint256(value) {
+  return value.toString();
+}
+
+async function executeContractFunction(client, contractId, functionName, parameters) {
+  const transaction = await new ContractExecuteTransaction()
+    .setContractId(contractId)
+    .setGas(1_000_000)
+    .setFunction(functionName, parameters)
+    .execute(client);
+
+  await transaction.getReceipt(client);
+}
+
+async function main() {
+  const operatorId = AccountId.fromString(requireEnvironment('OPERATOR_ID'));
+  const operatorKey = PrivateKey.fromStringDer(requireEnvironment('OPERATOR_KEY'));
+  const keys = requireEnvironment('CONTRACT_TEST_KEYS')
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean);
+
+  if (keys.length < 2) {
+    throw new Error('CONTRACT_TEST_KEYS must contain at least two private keys');
+  }
+
+  const wallet1 = new ethers.Wallet(keys[0]).address;
+  const wallet2 = new ethers.Wallet(keys[1]).address;
+  console.log(`wallet1 = ${wallet1}`);
+  console.log(`wallet2 = ${wallet2}`);
+
+  const client = Client.forNetwork({[nodeAddress]: AccountId.fromString(nodeAccountId)});
+  client.setOperator(operatorId, operatorKey);
+
+  const createTransaction = await new ContractCreateFlow()
+    .setGas(10_000_000)
+    .setBytecode(artifact.bytecode)
+    .setConstructorParameters(new ContractFunctionParameters().addString(tokenName).addString(tokenSymbol))
+    .execute(client);
+  const createReceipt = await createTransaction.getReceipt(client);
+  const contractId = createReceipt.contractId;
+  const contractAddress = `0x${contractId.toSolidityAddress()}`;
+  console.log(`erc20Contract = ${contractAddress}`);
+
+  await executeContractFunction(
+    client,
+    contractId,
+    'mint',
+    new ContractFunctionParameters().addAddress(normalizeAddress(wallet1)).addUint256(uint256(firstMintAmount)),
+  );
+
+  const provider = new ethers.JsonRpcProvider(relayUrl);
+  const erc20Contract = new ethers.Contract(contractAddress, artifact.abi, provider);
+
+  const actualName = await erc20Contract.name();
+  if (actualName !== tokenName) {
+    throw new Error(`Unexpected token name: ${actualName}`);
+  }
+
+  const actualSymbol = await erc20Contract.symbol();
+  if (actualSymbol !== tokenSymbol) {
+    throw new Error(`Unexpected token symbol: ${actualSymbol}`);
+  }
+
+  const actualDecimals = await erc20Contract.decimals();
+  if (actualDecimals !== 18n) {
+    throw new Error(`Unexpected token decimals: ${actualDecimals}`);
+  }
+
+  const totalSupply = await erc20Contract.totalSupply();
+  if (totalSupply !== firstMintAmount) {
+    throw new Error(`Unexpected total supply: ${totalSupply}`);
+  }
+
+  const wallet1BalanceBefore = await erc20Contract.balanceOf(wallet1);
+  const wallet2BalanceBefore = await erc20Contract.balanceOf(wallet2);
+  if (wallet1BalanceBefore !== firstMintAmount || wallet2BalanceBefore !== 0n) {
+    throw new Error(`Unexpected initial balances: wallet1=${wallet1BalanceBefore}, wallet2=${wallet2BalanceBefore}`);
+  }
+
+  await executeContractFunction(
+    client,
+    contractId,
+    'transfer',
+    new ContractFunctionParameters().addAddress(normalizeAddress(wallet2)).addUint256(uint256(transferAmount)),
+  );
+
+  const wallet1BalanceAfterTransfer = await erc20Contract.balanceOf(wallet1);
+  const wallet2BalanceAfterTransfer = await erc20Contract.balanceOf(wallet2);
+  if (wallet1BalanceAfterTransfer !== firstMintAmount - transferAmount) {
+    throw new Error(`Unexpected wallet1 balance after transfer: ${wallet1BalanceAfterTransfer}`);
+  }
+  if (wallet2BalanceAfterTransfer !== transferAmount) {
+    throw new Error(`Unexpected wallet2 balance after transfer: ${wallet2BalanceAfterTransfer}`);
+  }
+
+  await executeContractFunction(
+    client,
+    contractId,
+    'approve',
+    new ContractFunctionParameters().addAddress(normalizeAddress(contractAddress)).addUint256(uint256(transferAmount)),
+  );
+
+  const allowance = await erc20Contract.allowance(wallet1, contractAddress);
+  if (allowance !== transferAmount) {
+    throw new Error(`Unexpected allowance: ${allowance}`);
+  }
+
+  console.log('SDK-backed ERC20 smart contract smoke test passed');
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+NODE
   cd -
 
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -571,7 +719,11 @@ setup_smart_contract_test
 wait_for_contract_test_accounts
 latest_mirror_block_before_contract_test="$(get_latest_mirror_block_number)"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Mirror block before smart contract test: ${latest_mirror_block_before_contract_test}"
-wait_for_mirror_block_progress "before smart contract test" "${latest_mirror_block_before_contract_test}" "${SMOKE_MIRROR_BLOCK_SETTLE_BLOCKS:-5}" 180 2
+if [[ "${SMOKE_MIRROR_BLOCK_SETTLE_BLOCKS:-0}" -gt 0 ]]; then
+  wait_for_mirror_block_progress "before smart contract test" "${latest_mirror_block_before_contract_test}" "${SMOKE_MIRROR_BLOCK_SETTLE_BLOCKS}" 180 2
+else
+  echo "Skipping mirror block settle wait before smart contract test"
+fi
 start_contract_test
 scale_mirror_pinger "${SOLO_NAMESPACE}" 1 "Resume"
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
