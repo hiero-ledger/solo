@@ -194,6 +194,22 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('Missing required argument: deployment');
       expect(process.exitCode).to.equal(1);
     });
+
+    it('should throw SilentBreak for a missing required argument so no internal error is displayed', async (): Promise<void> => {
+      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'destroy'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+        expect.fail('Expected SilentBreak to be thrown');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.not.include('SOLO-9007');
+      expect(process.exitCode).to.equal(1);
+    });
   });
 
   describe('Unknown Arguments', (): void => {
@@ -218,6 +234,49 @@ describe('ArgumentProcessor', (): void => {
 
       const output: string = consoleOutput.join('\n');
       expect(output).to.include('Unknown');
+    });
+
+    it('should treat an unknown short flag as a usage error without an internal error report', async (): Promise<void> => {
+      // Repro from https://github.com/hiero-ledger/solo/issues/5062
+      const argv: string[] = ['node', 'solo.ts', 'deployment', 'config', 'list', '-d', 'one-shot'];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+        expect.fail('Expected SilentBreak to be thrown');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
+        expect((error as Error).message).to.include('Unknown argument');
+      }
+
+      const output: string = consoleOutput.join('\n');
+      expect(output).to.include('Unknown argument');
+      expect(output).to.not.include('SOLO-9007');
+      expect(output).to.not.include('File a bug report');
+      expect(process.exitCode).to.equal(1);
+    });
+
+    it('should throw SilentBreak for an unknown flag so no internal error is displayed', async (): Promise<void> => {
+      const argv: string[] = [
+        'node',
+        'solo.ts',
+        'consensus',
+        'network',
+        'deploy',
+        '--deployment',
+        'test',
+        '--unknown-flag',
+      ];
+      process.exitCode = undefined;
+
+      try {
+        await ArgumentProcessor.process(argv);
+        expect.fail('Expected SilentBreak to be thrown');
+      } catch (error: unknown) {
+        expect((error as Error).constructor.name).to.equal('SilentBreak');
+      }
+
+      expect(process.exitCode).to.equal(1);
     });
   });
 
