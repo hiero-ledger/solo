@@ -18,7 +18,7 @@ point" is a non-binding prompt to speed discussion, not a decision.
 
 **How to answer each block**
 
-- **Do we want to handle it?** `Yes` / `No (accept as-is)` / `Defer`.
+- **Do we want to handle it?** `Yes` / `No (accept as-is)` / `Defer`. 
 - **Desired behavior** (if Yes): `fail-fast` (clear actionable error) · `auto-heal` (recreate/repair) ·
   `warn + continue` · `prompt / require --force` · `other`.
 - **Ownership:** `User` · `Infrastructure` · `Solo bug`.
@@ -44,7 +44,7 @@ These frame the individual decisions below.
 
 ## A. Entry / bootstrap
 
-### SC-ENTRY-1 — `~/.solo` directory missing at DI construction
+### SC-ENTRY-1 — `~/.solo` directory missing at DI construction - YES
 - **Where:** `file-storage-backend.ts:31` (constructor `lstatSync`s `basePath`).
 - **Trigger:** first run / wiped home dir; a service that resolves `LocalConfigRuntimeState` before `initSystemFiles` created `~/.solo`.
 - **Current behavior:** ⚠️ raw `StorageBackendError('basePath must exist')` at container-resolve time, before any friendly load path.
@@ -71,6 +71,8 @@ These frame the individual decisions below.
 - **Applies to:** all commands.
 - **Suggested starting point:** No (accept as-is).
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: Keep as it is
+
 
 ### SC-LC-2 — Malformed / empty / unreadable local config
 - **Where:** `local-config-runtime-state.ts:85`.
@@ -80,6 +82,7 @@ These frame the individual decisions below.
 - **Applies to:** all commands.
 - **Suggested starting point:** No (accept as-is); optionally ensure the message names the file path.
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: leverage the command that will generate the local config based on an existing remote config
 
 ### SC-LC-3 — Parseable-but-partial local config (missing `deployments`/`clusterRefs`)
 - **Where:** `local-config.ts:24-40,58`.
@@ -89,6 +92,7 @@ These frame the individual decisions below.
 - **Applies to:** all commands.
 - **Suggested starting point:** fail-fast with a clear "local config is incomplete/corrupt" error when required top-level keys are absent.
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: make sure we are creating the local config atomically or leverage the command from above
 
 ### SC-LC-4 — Legacy `~/.solo/cache/local-config.yaml` migration edge cases
 - **Where:** `local-config-runtime-state.ts:62-74`.
@@ -98,6 +102,7 @@ These frame the individual decisions below.
 - **Applies to:** all commands (first load after upgrade).
 - **Suggested starting point:** validate old file parses before copying; wrap fs ops; prune-to-valid + WARN instead of blind-delete (no dated backup, per the local-config principle).
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: move first -> perform validations and fallback logic - make sure that logic is not skipped because of ordering 
 
 ### SC-LC-5 — SRE with no local config bootstraps from an existing cloud cluster
 - **Where:** no supported command today (would read the remote-config ConfigMap + kube context).
@@ -105,8 +110,9 @@ These frame the individual decisions below.
 - **Current behavior:** 🐛 **broken** — there is no documented/supported way to regenerate local config (deployment, namespace, clusterRef→context mapping) from the cluster.
 - **Impact:** high for operators — blocks a core SRE workflow.
 - **Applies to:** all commands (bootstrap precondition).
-- **Suggested starting point:** add a supported `solo deployment config import --deployment <name> --context <ctx>` that reconstructs local config from the remote config; document it. **File a ticket if one doesn't exist.**
+- **Suggested starting point:** add a supported `solo deployment config import --namespace <name> --context <ctx>` that reconstructs local config from the remote config; document it. **File a ticket if one doesn't exist.**
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: optional namespace/context if missing attempt to use the default + one-shot default - otherwise prompt interactively (non-destructive), dont query non-kind clusters, accepted contexts (any non-kind, default context, solo one-shot default values for namespace and deployment)
 
 ---
 
