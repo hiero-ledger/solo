@@ -109,6 +109,15 @@ export class Helpers {
     return match?.[1];
   }
 
+  public static ensureWrappedRecordBlocksDisabled(lines: string[], streamMode: string): void {
+    if (
+      streamMode === 'BOTH' &&
+      !lines.some((line: string): boolean => line.startsWith('blockStream.streamWrappedRecordBlocks='))
+    ) {
+      lines.push('blockStream.streamWrappedRecordBlocks=false');
+    }
+  }
+
   public static sleep(duration: Duration): Promise<void> {
     return new Promise<void>((resolve: (value: PromiseLike<void> | void) => void): void => {
       setTimeout(resolve, duration.toMillis());
@@ -810,6 +819,12 @@ export class Helpers {
     if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
+
+    // streamMode=BOTH (used by performance tests) produces both native block-stream blocks
+    // (BLOCK_HEADER) and Wrapped Record Blocks (ROUND_HEADER). The mirror importer rejects
+    // ROUND_HEADER; its rapid retries trigger the block node's HTTP/2 rapid-reset protection,
+    // cutting off block ingestion. Disable WRBs only when BOTH mode is active.
+    Helpers.ensureWrappedRecordBlocksDisabled(lines, blockStreamMode);
 
     const updatedApplicationPropertiesData: string = lines.join('\n');
     if (updatedApplicationPropertiesData !== applicationPropertiesData) {
