@@ -347,12 +347,10 @@ export class SoloPinoLogger implements SoloLogger {
       level: 'ERROR',
       message: this.getFormattedCode(error) + error.message,
       stack: error.stack,
-      causes: causeChain.slice(1).map(
-        (cause: Error): Record<string, unknown> => ({
-          message: this.getFormattedCode(cause) + cause.message,
-          stack: cause.stack,
-        }),
-      ),
+      causes: causeChain.slice(1).map((cause: Error): Record<string, unknown> => ({
+        message: this.getFormattedCode(cause) + cause.message,
+        stack: cause.stack,
+      })),
     };
   }
 
