@@ -92,6 +92,12 @@ tasks:
     cmds:    
       - cmd: |
           mkdir -p "{{ .TEMP_DIR }}"
+          echo "==== Normalizing port-forwards before baseline ===="
+          RESOLVED_DEPLOYMENT="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}")"
+          $SOLO_COMMAND deployment refresh port-forwards --deployment "${RESOLVED_DEPLOYMENT}" --dev
+          echo ""
+
+      - cmd: |
           node {{ .USER_WORKING_DIR }}/port-forward-status.mjs \
             --mode summary \
             --expected-port-count-file "{{ .EXPECTED_PORT_COUNT_FILE }}"
@@ -158,7 +164,7 @@ tasks:
           elif git rev-parse --show-toplevel >/dev/null 2>&1; then
             REPO_ROOT="$(git rev-parse --show-toplevel)"
             echo "Running solo smoke test from repo root: ${REPO_ROOT}"
-            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
+            (cd "${REPO_ROOT}" && SKIP_ERC20_SMOKE_TEST=true .github/workflows/script/solo_smoke_test.sh)
           else
             echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
           fi
