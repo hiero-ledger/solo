@@ -45,6 +45,7 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {KindClient} from '../integration/kind/kind-client.js';
 import {type ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {ShellRunner} from '../core/shell-runner.js';
+import {SubprocessCommandProfile} from '../core/subprocess-command-profile.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {Chart} from '../integration/helm/model/chart.js';
 import {Repository} from '../integration/helm/model/repository.js';
@@ -1400,21 +1401,17 @@ export class BackupRestoreCommand extends BaseCommand {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
             // Remove any pre-existing network, then create it.
             try {
-              await shellRunner.run('docker', ['network', 'rm', '-f', 'kind']);
+              await shellRunner.run('docker', ['network', 'rm', '-f', 'kind'], {
+                commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
+              });
             } catch {
               // network may not exist yet; safe to ignore
             }
-            await shellRunner.run('docker', [
-              'network',
-              'create',
-              'kind',
-              '--scope',
-              'local',
-              '--subnet',
-              '172.19.0.0/16',
-              '--driver',
-              'bridge',
-            ]);
+            await shellRunner.run(
+              'docker',
+              ['network', 'create', 'kind', '--scope', 'local', '--subnet', '172.19.0.0/16', '--driver', 'bridge'],
+              {commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE},
+            );
 
             // Add MetalLB Helm repository for multi-cluster load balancing
             this.logger.info('Adding MetalLB Helm repository...');
