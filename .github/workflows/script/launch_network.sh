@@ -1019,12 +1019,18 @@ add_application_properties_overwrite_marker "${TEMP_SOURCE_APPLICATION_PROPERTIE
 CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
 CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
 PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
-MIGRATION_USES_WRB_RSA="false"
+SOURCE_USES_WRB_RSA="false"
+TARGET_USES_WRB_RSA="false"
 
 if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}" && \
   version_at_least "${PREV_BLOCK_VERSION_NO_V}" "0.37.0" && \
   version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.0"; then
-  MIGRATION_USES_WRB_RSA="true"
+  SOURCE_USES_WRB_RSA="true"
+fi
+
+if is_tss_supported_consensus_version "${TO_CONSENSUS_NODE_VERSION}" && \
+  version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.0"; then
+  TARGET_USES_WRB_RSA="true"
 fi
 
 if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
@@ -1041,7 +1047,7 @@ else
   SOURCE_MIRROR_BLOCK_ENABLED="true"
   SOURCE_MIRROR_RECORD_ENABLED="false"
 
-  if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+  if [[ "${SOURCE_USES_WRB_RSA}" == "true" ]]; then
     SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
   else
     SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
@@ -1060,7 +1066,7 @@ set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStre
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
-  if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+  if [[ "${SOURCE_USES_WRB_RSA}" == "true" ]]; then
     set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
     set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
     set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
@@ -1144,7 +1150,8 @@ echo "Initial source block stream mode: ${SOURCE_BLOCK_STREAM_MODE}"
 echo "Initial source block stream writer mode: ${SOURCE_BLOCK_STREAM_WRITER_MODE}"
 echo "Initial source wrapped record blocks enabled: ${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}"
 echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
-echo "Migration WRB/RSA mode: ${MIGRATION_USES_WRB_RSA}"
+echo "Source WRB/RSA mode: ${SOURCE_USES_WRB_RSA}"
+echo "Target WRB/RSA mode: ${TARGET_USES_WRB_RSA}"
 
 if [[ "${SOURCE_MINIO_ENABLED}" == "true" ]]; then
   install_minio_operator_for_source_deploy
@@ -1181,7 +1188,7 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "false"
-if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
@@ -1288,7 +1295,7 @@ else
   echo "Block node version unchanged; no temporary block node values override file needed"
 fi
 
-if [[ "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
   echo "Upgrading mirror node before consensus upgrade so the importer can read WRB/RSA blocks after restart"
   npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
   MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS="true"
@@ -1296,7 +1303,7 @@ fi
 
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 
-if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${MIGRATION_USES_WRB_RSA}" == "true" ]]; then
+if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_USES_WRB_RSA}" == "true" ]]; then
   echo "Consensus and block node versions are both changing; upgrading BN while source CN is frozen"
   TEMP_UPGRADE_CONTEXT_DIR="$(mktemp -d -t solo-upgrade-context-XXXX)"
 
