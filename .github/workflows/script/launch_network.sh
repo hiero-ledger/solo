@@ -1028,7 +1028,8 @@ if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}" && \
   SOURCE_USES_WRB_RSA="true"
 fi
 
-if is_tss_supported_consensus_version "${TO_CONSENSUS_NODE_VERSION}" && \
+if [[ "${SOURCE_USES_WRB_RSA}" == "true" ]] && \
+  is_tss_supported_consensus_version "${TO_CONSENSUS_NODE_VERSION}" && \
   version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.0"; then
   TARGET_USES_WRB_RSA="true"
 fi
@@ -1207,7 +1208,7 @@ else
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
 fi
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
