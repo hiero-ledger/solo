@@ -153,9 +153,9 @@ function start_contract_test ()
 const {
   AccountId,
   Client,
+  ContractCreateTransaction,
   ContractExecuteTransaction,
   ContractFunctionParameters,
-  ContractId,
   PrivateKey,
 } = require('@hashgraph/sdk');
 const {ethers} = require('ethers');
@@ -237,16 +237,19 @@ async function waitForExpectedValue(label, callback, expected, maxAttempts = 90)
   throw new Error(`${label} did not reach expected value ${expected}; last value was ${actual}`);
 }
 
-async function deployErc20Contract(provider, deploymentKey, operatorId) {
-  const deploymentWallet = new ethers.Wallet(deploymentKey, provider);
-  const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, deploymentWallet);
-  const deployment = await factory.deploy(tokenName, tokenSymbol, {gasLimit: 10_000_000});
-  const contractAddress = await deployment.getAddress();
-  const contractId = ContractId.fromEvmAddress(
-    Number(operatorId.shard.toString()),
-    Number(operatorId.realm.toString()),
-    contractAddress,
-  );
+async function deployErc20Contract(client) {
+  const createTransaction = await new ContractCreateTransaction()
+    .setGas(10_000_000)
+    .setBytecode(ethers.getBytes(artifact.bytecode))
+    .setConstructorParameters(new ContractFunctionParameters().addString(tokenName).addString(tokenSymbol))
+    .execute(client);
+  const createReceipt = await createTransaction.getReceipt(client);
+  if (createReceipt.status.toString() !== 'SUCCESS') {
+    throw new Error(`Contract create failed with status ${createReceipt.status.toString()}`);
+  }
+
+  const contractId = createReceipt.contractId;
+  const contractAddress = `0x${contractId.toSolidityAddress()}`;
   console.log(`erc20Contract = ${contractAddress}`);
   console.log(`erc20ContractId = ${contractId.toString()}`);
   return {contractAddress, contractId};
@@ -271,7 +274,7 @@ async function main() {
 
   const provider = new ethers.JsonRpcProvider(relayUrl);
   const client = createClient(operatorId, operatorKey, nodeAccountId);
-  const {contractAddress, contractId} = await deployErc20Contract(provider, keys[0], operatorId);
+  const {contractAddress, contractId} = await deployErc20Contract(client);
   const erc20Contract = new ethers.Contract(contractAddress, artifact.abi, provider);
 
   const actualName = await waitForExpectedValue('token name', async () => await erc20Contract.name(), tokenName);
