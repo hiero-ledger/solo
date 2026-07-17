@@ -76,7 +76,8 @@ export const MINIMUM_MIRROR_NODE_CHART_VERSION_FOR_PINGER_ENV_VARS_UPDATE: strin
 export const MINIMUM_HIERO_PLATFORM_VERSION_FOR_NETWORK_LOAD_GENERATOR: string = 'v0.72.0-0';
 export const NETWORK_LOAD_GENERATOR_CHART_VERSION_BEFORE_CN_72: string = '0.8.0';
 export const NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72: string =
-  constants.getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_VERSION') || '0.14.3';
+  // NLG 0.14.3 is compiled for Java 25, while the current chart image runs Java 21.
+  constants.getEnvironmentVariable('NETWORK_LOAD_GENERATOR_CHART_VERSION') || '0.14.1';
 export const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
 export const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
 export const MINIMUM_SOLO_CHART_VERSION: string = '0.64.0';

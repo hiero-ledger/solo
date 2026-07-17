@@ -28,6 +28,7 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.localBuildPath,
   flags.force,
   flags.upgradeZipFile,
+  flags.upgradeVersion,
 ];
 
 const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
@@ -56,7 +57,6 @@ export const UPGRADE_FLAGS: CommandFlags = {
   optional: [
     ...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS,
 
-    flags.upgradeVersion,
     flags.wrapsKeyPath,
 
     // Node config file flags

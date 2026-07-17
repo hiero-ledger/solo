@@ -9,6 +9,7 @@ TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MIRROR_NODE_VALUES_FILE=""
 TEMP_BLOCK_NODE_VALUES_FILE=""
+TEMP_SOURCE_BLOCK_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
 TEMP_UPGRADE_CONTEXT_DIR=""
 
@@ -50,6 +51,10 @@ on_exit() {
 
   if [[ -n "${TEMP_BLOCK_NODE_VALUES_FILE:-}" && -f "${TEMP_BLOCK_NODE_VALUES_FILE}" ]]; then
     rm -f "${TEMP_BLOCK_NODE_VALUES_FILE}"
+  fi
+
+  if [[ -n "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE:-}" && -f "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" ]]; then
+    rm -f "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}"
   fi
 
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
@@ -883,7 +888,7 @@ build_bn_rsa_bootstrap_base64() {
     return 1
   fi
 
-  # Build NodeAddressBook JSON for BN RSA bootstrap.
+  # Build RangedAddressBookHistory JSON for BN RSA bootstrap.
   # Mirror returns public_key as hex (possibly with "0x" prefix).
   # BN RsaKeyDecoder expects hex-encoded DER SubjectPublicKeyInfo without "0x" prefix.
   local json
@@ -899,12 +904,12 @@ for node in nodes:
         if pk.startswith('0x'):
             pk = pk[2:]
         entries.append({'nodeId': nid, 'RSAPubKey': pk})
-print(json.dumps({'nodeAddress': entries}))
+print(json.dumps({'addressBooks': [{'addressBook': {'nodeAddress': entries}, 'startBlock': '0', 'endBlock': '-1'}]}))
 " 2>&1)
 
   local entry_count
   entry_count=$(echo "${json}" | python3 -c \
-    "import sys, json; d = json.load(sys.stdin); print(len(d['nodeAddress']))" 2>/dev/null || echo "0")
+    "import sys, json; d = json.load(sys.stdin); print(len(d['addressBooks'][0]['addressBook']['nodeAddress']))" 2>/dev/null || echo "0")
 
   if [[ "${entry_count}" == "0" ]]; then
     echo "WARNING: No valid RSA keys found in mirror response" >&2
@@ -1147,6 +1152,18 @@ importer:
               enabled: false
 EOF
 
+TEMP_SOURCE_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-source-block-node-values-XXXX.yaml)"
+cat > "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" <<EOF
+# Generated for migration workflow source deploy.
+# BN v0.37+ needs RSA public keys to verify WRB blocks from CN v0.74+.
+# Mirror v0.156+ serves /api/v1/network/nodes from Java REST, not Node.js REST.
+blockNode:
+  config:
+    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
+    ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
+    ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
+EOF
+
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 # Generated for migration workflow launch.
 network:
@@ -1159,6 +1176,7 @@ setup:
 
 blockNode:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
+  --values-file: "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}"
 EOF
 
 cat >> "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
@@ -1245,9 +1263,9 @@ TEMP_BLOCK_NODE_VALUES_FILE=""
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   TEMP_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-migration-block-node-values-XXXX.yaml)"
 
-  # After a CN freeze upgrade, file 0.0.101 loses RSA_PubKey so mirror serves empty
-  # public_key. Pre-populate BN's rsa-bootstrap-roster.json via an init container so
-  # BN versions that need RSA bootstrap have keys ready if WRB mode is enabled later.
+  # After a CN freeze upgrade, file 0.0.101 can lose RSA_PubKey entries.
+  # Pre-populate BN's rsa-bootstrap-roster.json via an init container so BN
+  # versions that need RSA bootstrap have keys ready if WRB mode is enabled later.
   BN_RSA_BOOTSTRAP_B64=""
   if BN_RSA_BOOTSTRAP_B64="$(build_bn_rsa_bootstrap_base64)"; then
     echo "RSA bootstrap data generated for block node init container (${#BN_RSA_BOOTSTRAP_B64} chars)"
@@ -1259,8 +1277,8 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
 cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
 # Generated for the migration workflow.
 # /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
-# An init container pre-writes rsa-bootstrap-roster.json from local gossip certs so
-# BN has RSA keys ready if WRB mode is enabled after the migration.
+# An init container pre-writes rsa-bootstrap-roster.json from mirror's pre-upgrade
+# address book so BN has RSA keys ready if WRB mode is enabled after the migration.
 blockNode:
   config:
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
