@@ -163,8 +163,9 @@ export class RelayCommand extends BaseCommand {
   private static readonly UPGRADE_CONFIGS_NAME: string = 'deployConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.chainId,
       flags.chartDirectory,
       flags.relayChartDirectory,
@@ -192,8 +193,9 @@ export class RelayCommand extends BaseCommand {
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.chainId,
       flags.chartDirectory,
       flags.relayChartDirectory,
@@ -222,8 +224,9 @@ export class RelayCommand extends BaseCommand {
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.chartDirectory,
       flags.clusterRef,
       flags.nodeAliasesUnparsed,
