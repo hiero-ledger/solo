@@ -147,228 +147,9 @@ function start_contract_test ()
   cd hedera-smart-contracts
   echo "Show current port forward for debugging purpose"
   ps -ef | grep port-forward
-  echo "Run SDK-backed ERC20 smart contract smoke test"
+  echo "Run smart contract test"
   result=0
-  node <<'NODE' || result=$?
-const {
-  AccountId,
-  Client,
-  ContractCreateFlow,
-  ContractExecuteTransaction,
-  ContractFunctionParameters,
-  PrivateKey,
-} = require('@hashgraph/sdk');
-const {ethers} = require('ethers');
-const artifact = require('./artifacts/contracts/openzeppelin/ERC-20/ERC20Mock.sol/OZERC20Mock.json');
-
-const firstMintAmount = 1000n;
-const transferAmount = 33n;
-const relayUrl = 'http://127.0.0.1:37546';
-const nodeAddress = '127.0.0.1:35211';
-const nodeAccountId = '0.0.3';
-const tokenName = 'tokenName';
-const tokenSymbol = 'TOKENSYMBOL';
-
-function requireEnvironment(name) {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-
-  return value;
-}
-
-function normalizeAddress(address) {
-  return address.replace(/^0x/i, '');
-}
-
-function uint256(value) {
-  return value.toString();
-}
-
-function sleep(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-async function executeContractFunction(client, contractId, functionName, parameters) {
-  const transaction = await new ContractExecuteTransaction()
-    .setContractId(contractId)
-    .setGas(1_000_000)
-    .setFunction(functionName, parameters)
-    .execute(client);
-
-  const receipt = await transaction.getReceipt(client);
-  if (receipt.status.toString() !== 'SUCCESS') {
-    throw new Error(`${functionName} failed with status ${receipt.status.toString()}`);
-  }
-}
-
-function createClient(operatorId, operatorKey, nodeAccountId) {
-  const client = Client.forNetwork({[nodeAddress]: AccountId.fromString(nodeAccountId)});
-  client.setOperator(operatorId, operatorKey);
-  return client;
-}
-
-async function waitForExpectedValue(label, callback, expected, maxAttempts = 90) {
-  let actual;
-  let lastError;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      actual = await callback();
-      lastError = undefined;
-      if (actual === expected) {
-        console.log(`${label} ready [attempt=${attempt}/${maxAttempts}, value=${actual}]`);
-        return actual;
-      }
-
-      console.log(`${label} not ready [attempt=${attempt}/${maxAttempts}, actual=${actual}, expected=${expected}]`);
-    } catch (error) {
-      lastError = error;
-      console.log(`${label} not ready [attempt=${attempt}/${maxAttempts}, error=${error.message}]`);
-    }
-
-    await sleep(2000);
-  }
-
-  if (lastError) {
-    throw lastError;
-  }
-
-  throw new Error(`${label} did not reach expected value ${expected}; last value was ${actual}`);
-}
-
-async function getErc20DeployBytecode() {
-  const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode);
-  const deployTransaction = await factory.getDeployTransaction(tokenName, tokenSymbol);
-  if (!deployTransaction.data) {
-    throw new Error('ERC20 deploy transaction did not include initcode');
-  }
-
-  return deployTransaction.data;
-}
-
-async function deployErc20Contract(client) {
-  const deployBytecode = await getErc20DeployBytecode();
-  console.log(`erc20DeployBytecodeBytes = ${(deployBytecode.length - 2) / 2}`);
-  const createTransaction = await new ContractCreateFlow()
-    .setGas(10_000_000)
-    .setBytecode(deployBytecode)
-    .execute(client);
-  const createReceipt = await createTransaction.getReceipt(client);
-  if (createReceipt.status.toString() !== 'SUCCESS') {
-    throw new Error(`Contract create failed with status ${createReceipt.status.toString()}`);
-  }
-
-  const contractId = createReceipt.contractId;
-  const contractAddress = `0x${contractId.toSolidityAddress()}`;
-  console.log(`erc20Contract = ${contractAddress}`);
-  console.log(`erc20ContractId = ${contractId.toString()}`);
-  return {contractAddress, contractId};
-}
-
-async function main() {
-  const operatorId = AccountId.fromString(requireEnvironment('OPERATOR_ID'));
-  const receiverId = AccountId.fromString(requireEnvironment('SECOND_ACCOUNT_ID'));
-  const operatorKey = PrivateKey.fromStringDer(requireEnvironment('OPERATOR_KEY'));
-  const wallet1 = `0x${operatorId.toSolidityAddress()}`;
-  const wallet2 = `0x${receiverId.toSolidityAddress()}`;
-  console.log(`wallet1 = ${wallet1}`);
-  console.log(`wallet2 = ${wallet2}`);
-
-  const provider = new ethers.JsonRpcProvider(relayUrl);
-  const client = createClient(operatorId, operatorKey, nodeAccountId);
-  const {contractAddress, contractId} = await deployErc20Contract(client);
-  const erc20Contract = new ethers.Contract(contractAddress, artifact.abi, provider);
-
-  const actualName = await waitForExpectedValue('token name', async () => await erc20Contract.name(), tokenName);
-  if (actualName !== tokenName) {
-    throw new Error(`Unexpected token name: ${actualName}`);
-  }
-
-  const actualSymbol = await waitForExpectedValue('token symbol', async () => await erc20Contract.symbol(), tokenSymbol);
-  if (actualSymbol !== tokenSymbol) {
-    throw new Error(`Unexpected token symbol: ${actualSymbol}`);
-  }
-
-  const actualDecimals = await waitForExpectedValue('token decimals', async () => await erc20Contract.decimals(), 18n);
-  if (actualDecimals !== 18n) {
-    throw new Error(`Unexpected token decimals: ${actualDecimals}`);
-  }
-
-  await executeContractFunction(
-    client,
-    contractId,
-    'mint',
-    new ContractFunctionParameters().addAddress(normalizeAddress(wallet1)).addUint256(uint256(firstMintAmount)),
-  );
-
-  const totalSupply = await waitForExpectedValue(
-    'total supply after mint',
-    async () => await erc20Contract.totalSupply(),
-    firstMintAmount,
-  );
-  if (totalSupply !== firstMintAmount) {
-    throw new Error(`Unexpected total supply: ${totalSupply}`);
-  }
-
-  const wallet1BalanceBefore = await waitForExpectedValue(
-    'wallet1 balance after mint',
-    async () => await erc20Contract.balanceOf(wallet1),
-    firstMintAmount,
-  );
-  const wallet2BalanceBefore = await erc20Contract.balanceOf(wallet2);
-  if (wallet1BalanceBefore !== firstMintAmount || wallet2BalanceBefore !== 0n) {
-    throw new Error(`Unexpected initial balances: wallet1=${wallet1BalanceBefore}, wallet2=${wallet2BalanceBefore}`);
-  }
-
-  await executeContractFunction(
-    client,
-    contractId,
-    'transfer',
-    new ContractFunctionParameters().addAddress(normalizeAddress(wallet2)).addUint256(uint256(transferAmount)),
-  );
-
-  const wallet1BalanceAfterTransfer = await waitForExpectedValue(
-    'wallet1 balance after transfer',
-    async () => await erc20Contract.balanceOf(wallet1),
-    firstMintAmount - transferAmount,
-  );
-  const wallet2BalanceAfterTransfer = await waitForExpectedValue(
-    'wallet2 balance after transfer',
-    async () => await erc20Contract.balanceOf(wallet2),
-    transferAmount,
-  );
-  if (wallet1BalanceAfterTransfer !== firstMintAmount - transferAmount) {
-    throw new Error(`Unexpected wallet1 balance after transfer: ${wallet1BalanceAfterTransfer}`);
-  }
-  if (wallet2BalanceAfterTransfer !== transferAmount) {
-    throw new Error(`Unexpected wallet2 balance after transfer: ${wallet2BalanceAfterTransfer}`);
-  }
-
-  await executeContractFunction(
-    client,
-    contractId,
-    'approve',
-    new ContractFunctionParameters().addAddress(normalizeAddress(contractAddress)).addUint256(uint256(transferAmount)),
-  );
-
-  const allowance = await waitForExpectedValue(
-    'allowance after approve',
-    async () => await erc20Contract.allowance(wallet1, contractAddress),
-    transferAmount,
-  );
-  if (allowance !== transferAmount) {
-    throw new Error(`Unexpected allowance: ${allowance}`);
-  }
-
-  console.log('SDK-backed ERC20 smart contract smoke test passed');
-}
-
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
-NODE
+  npm run hh:test || result=$?
   cd -
 
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
@@ -399,15 +180,18 @@ function wait_for_contract_test_accounts ()
   local derived_addresses=""
   local address_lower=""
 
-  echo "Resolve contract test addresses from SDK account IDs"
+  echo "Resolve contract test addresses from generated private keys"
   derived_addresses=$(
-    cd hedera-smart-contracts && OPERATOR_ID="${OPERATOR_ID}" SECOND_ACCOUNT_ID="${SECOND_ACCOUNT_ID}" node - <<'NODE'
-const {AccountId} = require('@hashgraph/sdk');
+    cd hedera-smart-contracts && CONTRACT_TEST_KEYS="${CONTRACT_TEST_KEYS}" node - <<'NODE'
+const { Wallet } = require('ethers');
 
-const accountIds = [process.env.OPERATOR_ID, process.env.SECOND_ACCOUNT_ID].filter(Boolean);
+const keys = (process.env.CONTRACT_TEST_KEYS || '')
+  .split(',')
+  .map((key) => key.trim())
+  .filter(Boolean);
 
-for (const accountId of accountIds) {
-  console.log(`0x${AccountId.fromString(accountId).toSolidityAddress()}`);
+for (const key of keys) {
+  console.log(new Wallet(key).address);
 }
 NODE
   )
@@ -420,7 +204,7 @@ ${derived_addresses}
 EOF
 
   if [[ ${#contract_test_addresses[@]} -eq 0 ]]; then
-    echo "Could not derive contract test addresses from OPERATOR_ID and SECOND_ACCOUNT_ID"
+    echo "Could not derive contract test addresses from CONTRACT_TEST_KEYS"
     log_and_exit 1
   fi
 
