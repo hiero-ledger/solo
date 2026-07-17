@@ -61,6 +61,13 @@ const fs = require('fs');
 const file = 'hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js';
 let source = fs.readFileSync(file, 'utf8');
 
+if (!source.includes("require('@hashgraph/sdk')")) {
+  source = source.replace(
+    "const { ethers } = require('hardhat');\n",
+    "const { ethers } = require('hardhat');\nconst { AccountId, Client, ContractCreateFlow, ContractFunctionParameters, PrivateKey } = require('@hashgraph/sdk');\n"
+  );
+}
+
 const sleepFunction = `function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -105,6 +112,34 @@ async function waitForDeploymentResult(previousTimestamp, transactionHash, maxAt
 
   throw lastError || new Error(\`Timed out waiting for deployment result for \${transactionHash}\`);
 }
+
+async function deployContractWithSdk(factory) {
+  const operatorId = process.env.OPERATOR_ID_A || process.env.OPERATOR_ID;
+  const operatorKey = process.env.OPERATOR_KEY_A || process.env.OPERATOR_KEY;
+  if (!operatorId || !operatorKey) {
+    throw new Error('OPERATOR_ID_A/OPERATOR_KEY_A or OPERATOR_ID/OPERATOR_KEY must be set for SDK deployment');
+  }
+
+  const client = Client.forNetwork({
+    '127.0.0.1:35211': AccountId.fromString('0.0.3'),
+  }).setOperator(AccountId.fromString(operatorId), PrivateKey.fromString(operatorKey));
+
+  try {
+    const transactionResponse = await new ContractCreateFlow()
+      .setBytecode(factory.bytecode.replace(/^0x/, ''))
+      .setGas(10_000_000)
+      .setConstructorParameters(new ContractFunctionParameters().addString(Constants.TOKEN_NAME).addString('TOKENSYMBOL'))
+      .execute(client);
+    const receipt = await transactionResponse.getReceipt(client);
+    if (!receipt.contractId) {
+      throw new Error('SDK deployment did not return a contract ID');
+    }
+
+    return \`0x\${receipt.contractId.toSolidityAddress()}\`;
+  } finally {
+    client.close();
+  }
+}
 `;
 const waitForContractDeploymentFunction = `function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -143,23 +178,46 @@ if (!source.includes('async function waitForContractDeployment(')) {
   source = source.replace(sleepFunction, waitForContractDeploymentFunction);
 }
 
-const receiptBasedDeploy = `        const deployReceipt = await deployed.deploymentTransaction().wait();
+const receiptBasedDeploy = `        const deployed = await factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000);
+        const deployReceipt = await deployed.deploymentTransaction().wait();
         erc20Contract = factory.attach(deployReceipt.contractAddress);
         await sleep(3500); // wait for consensus on write transactions
         console.log(\`erc20Contract = \${deployReceipt.contractAddress}\`);`;
-const receiptlessDeploy = `        const previousContractResultTimestamp = await getLatestContractResultTimestamp();
+const receiptlessDeploy = `        const erc20ContractAddress = await deployContractWithSdk(factory);
+        erc20Contract = factory.attach(erc20ContractAddress);
+        await waitForContractDeployment(erc20Contract);
+        console.log(\`erc20Contract = \${erc20ContractAddress}\`);`;
+const rawRelayDeploy = `        const previousContractResultTimestamp = await getLatestContractResultTimestamp();
+        const deployTransaction = await factory.getDeployTransaction(
+          Constants.TOKEN_NAME,
+          'TOKENSYMBOL',
+          Constants.GAS_LIMIT_10_000_000
+        );
+        const deploymentResponse = await signers[0].sendTransaction(deployTransaction);
+        const transactionHash = deploymentResponse.hash;
+        const deploymentResult = await waitForDeploymentResult(previousContractResultTimestamp, transactionHash);
+        erc20Contract = factory.attach(deploymentResult.address);
+        await waitForContractDeployment(erc20Contract);
+        console.log(\`erc20Contract = \${deploymentResult.address}\`);`;
+const previousReceiptlessDeploy = `        const deployed = await factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000);
+        const previousContractResultTimestamp = await getLatestContractResultTimestamp();
         const transactionHash = deployed.deploymentTransaction().hash;
         const deploymentResult = await waitForDeploymentResult(previousContractResultTimestamp, transactionHash);
         erc20Contract = factory.attach(deploymentResult.address);
         await waitForContractDeployment(erc20Contract);
         console.log(\`erc20Contract = \${deploymentResult.address}\`);`;
-const oldReceiptlessDeploy = `        const erc20ContractAddress = await deployed.getAddress();
+const oldReceiptlessDeploy = `        const deployed = await factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000);
+        const erc20ContractAddress = await deployed.getAddress();
         erc20Contract = factory.attach(erc20ContractAddress);
         await waitForContractDeployment(erc20Contract);
         console.log(\`erc20Contract = \${erc20ContractAddress}\`);`;
 
 if (source.includes(receiptBasedDeploy)) {
   source = source.replace(receiptBasedDeploy, receiptlessDeploy);
+} else if (source.includes(rawRelayDeploy)) {
+  source = source.replace(rawRelayDeploy, receiptlessDeploy);
+} else if (source.includes(previousReceiptlessDeploy)) {
+  source = source.replace(previousReceiptlessDeploy, receiptlessDeploy);
 } else if (source.includes(oldReceiptlessDeploy)) {
   source = source.replace(oldReceiptlessDeploy, receiptlessDeploy);
 } else if (!source.includes(receiptlessDeploy)) {
@@ -202,6 +260,8 @@ function setup_smart_contract_test ()
   echo "Build .env file"
 
   echo "PRIVATE_KEYS=\"$CONTRACT_TEST_KEYS\"" > .env
+  echo "OPERATOR_ID_A=\"$OPERATOR_ID\"" >> .env
+  echo "OPERATOR_KEY_A=\"$OPERATOR_KEY\"" >> .env
   echo "RETRY_DELAY=5000 # ms" >> .env
   echo "MAX_RETRY=5" >> .env
   echo "MIRROR_NODE_REST_URL=http://127.0.0.1:38081/api/v1" >> .env
