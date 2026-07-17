@@ -150,7 +150,7 @@ describe('NodeCommandTasks platform software fetch routing', (): void => {
             namespace: NamespaceName.of('solo'),
             nodeAliases: ['node1'],
             podRefs: {},
-            releaseTag: 'v0.74.2',
+            releaseTag: 'v0.74.3',
             stagingDir: '/tmp/staging',
             upgradeVersion: '',
           },

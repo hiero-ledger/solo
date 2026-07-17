@@ -55,7 +55,7 @@ export const SOLO_CONTAINERS_VERSION: string = constants.getEnvironmentVariable(
 export const SOLO_CHART_EDGE_VERSION: string =
   constants.getEnvironmentVariable('SOLO_CHART_EDGE_VERSION') || SOLO_CHART_VERSION;
 export const HEDERA_PLATFORM_EDGE_VERSION: string =
-  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.74.2';
+  constants.getEnvironmentVariable('CONSENSUS_NODE_EDGE_VERSION') || 'v0.74.3';
 export const MIRROR_NODE_EDGE_VERSION: string =
   constants.getEnvironmentVariable('MIRROR_NODE_EDGE_VERSION') || MIRROR_NODE_VERSION;
 export const EXPLORER_EDGE_VERSION: string =
