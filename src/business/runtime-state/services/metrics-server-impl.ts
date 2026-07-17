@@ -5,6 +5,7 @@ import {type MetricsServer} from '../api/metrics-server.js';
 import {NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Context} from '../../../types/index.js';
 import {ShellRunner} from '../../../core/shell-runner.js';
+import {SubprocessCommandProfile} from '../../../core/subprocess-command-profile.js';
 import {PodName} from '../../../integration/kube/resources/pod/pod-name.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
@@ -122,8 +123,8 @@ export class MetricsServerImpl implements MetricsServer {
             `Metrics API not available, retrying attempt ${attempt} after ${backOffSeconds} seconds...`,
             error,
           );
-          await new Promise(
-            (resolve): NodeJS.Timeout => setTimeout(resolve, Duration.ofSeconds(backOffSeconds).toMillis()),
+          await new Promise((resolve): NodeJS.Timeout =>
+            setTimeout(resolve, Duration.ofSeconds(backOffSeconds).toMillis()),
           );
           return this.getClusterMetrics(namespaceLookup, labelSelector, context, attempt + 1);
         } else {
@@ -236,6 +237,7 @@ export class MetricsServerImpl implements MetricsServer {
     }
     const results: string[] = await new ShellRunner().run('kubectl', kubectlArguments, {
       verbose: true,
+      commandProfile: SubprocessCommandProfile.KUBECTL,
       environmentVariablesToAppend: {
         PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
       },
