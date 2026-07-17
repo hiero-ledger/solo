@@ -1106,6 +1106,10 @@ export class BlockNodeCommand extends BaseCommand {
                 );
                 await this.recreateBlockNodeChart(config, stepTargetVersion, step);
               } else {
+                // Record timestamp before upgrade so the pod-ready check (which uses
+                // recreateInstallTime as a createdAfter cutoff) waits for the NEW pod,
+                // not the old one still running while the StatefulSet rolls out.
+                config.recreateInstallTime = new Date();
                 try {
                   await this.chartManager.upgrade(
                     namespace,
