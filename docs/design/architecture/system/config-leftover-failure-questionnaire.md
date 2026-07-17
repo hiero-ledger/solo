@@ -58,6 +58,7 @@ These frame the individual decisions below.
   - Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3
   - Acceptance criteria: ____
   - Open questions: ____
+  - Investigate if valid and fix if it is
 
 ---
 
@@ -126,6 +127,7 @@ These frame the individual decisions below.
 - **Applies to:** deploy/destroy/validate (info tolerates separately — see SC-INFO-1).
 - **Suggested starting point:** No (accept as-is).
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: If we detect remote config is not found, cleaning up and starting over if is a kind cluster
 
 ### SC-RC-2 — Cluster unreachable / non-404 API error
 - **Where:** `remote-config-runtime-state.ts:329`.
@@ -135,6 +137,8 @@ These frame the individual decisions below.
 - **Applies to:** all commands touching remote config.
 - **Suggested starting point:** preserve the original error as `cause`.
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: for non-kind throw an error `ClusterUnreachableError`, for kind clusters throw `KubernetesApiInvalidResponse`
+- Note: follow up feature to detect if kind container is stopped, and resume it or start docker engine
 
 ### SC-RC-3 — Corrupt / partial `remote-config-data` YAML
 - **Where:** `yaml-config-map-storage-backend.ts:25`.
@@ -144,6 +148,7 @@ These frame the individual decisions below.
 - **Applies to:** all commands touching remote config.
 - **Suggested starting point:** wrap in a coded remote-config error with remediation (inspect/recreate ConfigMap).
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: Capture the broken config, advice to delete the cluster, if its re-producable or the user thinks its our fault, create a pr and use the diagnostics command
 
 ### SC-RC-4 — ConfigMap present but `remote-config-data` key missing
 - **Where:** `config-map-storage-backend.ts:66`.
@@ -153,6 +158,7 @@ These frame the individual decisions below.
 - **Applies to:** all commands touching remote config.
 - **Suggested starting point:** distinct "missing key" message.
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: add check if value and key exists before passing it to the buffer
 
 ### SC-RC-5 — ConfigMap data value is empty string
 - **Where:** `yaml-config-map-storage-backend.ts:21`.
@@ -162,6 +168,7 @@ These frame the individual decisions below.
 - **Applies to:** all commands touching remote config.
 - **Suggested starting point:** fold into the SC-RC-3 coded error family.
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: Capture the broken config, advice to delete the cluster, if its re-producable or the user thinks its our fault, create a pr and use the diagnostics command
 
 ---
 
@@ -175,6 +182,7 @@ These frame the individual decisions below.
 - **Applies to:** all commands (local + remote config).
 - **Suggested starting point:** fail-fast with a clear "created by a newer Solo — upgrade or remove" error (wire up the existing error class).
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: Recommend the user to update to newer version of solo, use Solo version older then the one currently used, report on the version used inside the remote config and the current + the config schema versions (for the report message)
 
 ### SC-VER-2 — Downgrade attempt vs deployed component version
 - **Where:** `upgrade-version-guard.ts:7`.
@@ -184,6 +192,7 @@ These frame the individual decisions below.
 - **Applies to:** upgrade/add flows.
 - **Suggested starting point:** No (accept as-is).
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: leave as it is
 
 ### SC-VER-3 — Schema version constants inconsistent (create=v6, migrations→v8, const=1)
 - **Where:** `remote-config-runtime-state.ts:226`, `remote-config-schema.ts:14`.
@@ -193,6 +202,7 @@ These frame the individual decisions below.
 - **Applies to:** remote (and local) config schema.
 - **Suggested starting point:** reconcile the created version / const / latest-migration to a single source of truth.
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: Add unit tests that validate the highest migration version is not newer then the static version
 
 ### SC-VER-4 — Unknown component type in remote config
 - **Where:** `remote-config-runtime-state.ts:481`.
@@ -202,6 +212,7 @@ These frame the individual decisions below.
 - **Applies to:** all commands loading remote config.
 - **Suggested starting point:** keep the throw but reconsider ownership/message (ties to SC-VER-1).
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: Do same as above by reporting on current vs remote versions
 
 ---
 
@@ -215,6 +226,7 @@ These frame the individual decisions below.
 - **Applies to:** deploy, node add/setup.
 - **Suggested starting point:** decide desired re-run semantics (regenerate-all vs reuse-valid vs fail-on-corrupt). Note: this path currently keeps **timestamped backups** of old keys — reconcile against the "no dated backups" principle.
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: Already fixed
 
 ### SC-KEY-2 — Corrupt/missing PEM on load → raw error
 - **Where:** `key-manager.ts:221-274`.
@@ -224,6 +236,7 @@ These frame the individual decisions below.
 - **Applies to:** node flows that load keys.
 - **Suggested starting point:** wrap in a typed key error with remediation (regenerate keys).
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: Wrap in a try-catch and report it with a unique error message
 
 ---
 
@@ -237,6 +250,7 @@ These frame the individual decisions below.
 - **Applies to:** deploy (image cache/load).
 - **Suggested starting point:** decide whether to validate archive integrity (size/checksum) and whether load failure should fail-fast.
 - **DECISIONS:** Handle? ☐ Yes ☐ No ☐ Defer · Behavior: ☐ fail-fast ☐ auto-heal ☐ warn+continue ☐ prompt/force ☐ other · Ownership: ☐ User ☐ Infra ☐ Solo bug · Priority: ☐ P0 ☐ P1 ☐ P2 ☐ P3 · Acceptance: ____ · Open Qs: ____
+- A: TBD
 
 ### SC-CACHE-2 — Image cache reuse across Solo versions
 - **Where:** `file-system-cache-catalog-store.ts:30`.
