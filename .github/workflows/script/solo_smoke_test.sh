@@ -65,6 +65,47 @@ const sleepFunction = `function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 `;
+const mirrorDeploymentHelpers = `async function getLatestContractResultTimestamp() {
+  const mirrorUrl = process.env.MIRROR_NODE_REST_URL || 'http://127.0.0.1:38081/api/v1';
+  const response = await fetch(\`\${mirrorUrl}/contracts/results?limit=1&order=desc\`);
+  if (!response.ok) {
+    return undefined;
+  }
+
+  const body = await response.json();
+  return body.results?.[0]?.timestamp;
+}
+
+async function waitForDeploymentResult(previousTimestamp, transactionHash, maxAttempts = 90) {
+  const mirrorUrl = process.env.MIRROR_NODE_REST_URL || 'http://127.0.0.1:38081/api/v1';
+  const hash = transactionHash.toLowerCase();
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const timestampFilter = previousTimestamp ? \`&timestamp=gt:\${previousTimestamp}\` : '';
+      const response = await fetch(\`\${mirrorUrl}/contracts/results?limit=25&order=desc\${timestampFilter}\`);
+      if (!response.ok) {
+        throw new Error(\`Mirror contract results request failed: \${response.status}\`);
+      }
+
+      const body = await response.json();
+      const results = body.results || [];
+      const exactMatch = results.find((result) => result.hash?.toLowerCase() === hash);
+      const deploymentResult = exactMatch || results[0];
+      if (deploymentResult?.address) {
+        return deploymentResult;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await sleep(2000);
+  }
+
+  throw lastError || new Error(\`Timed out waiting for deployment result for \${transactionHash}\`);
+}
+`;
 const waitForContractDeploymentFunction = `function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -85,6 +126,16 @@ async function waitForContractDeployment(contract, maxAttempts = 60) {
 }
 `;
 
+if (!source.includes('async function getLatestContractResultTimestamp(')) {
+  if (source.includes('async function waitForContractDeployment(')) {
+    source = source.replace('async function waitForContractDeployment(', `${mirrorDeploymentHelpers}\nasync function waitForContractDeployment(`);
+  } else if (source.includes(sleepFunction)) {
+    source = source.replace(sleepFunction, `${sleepFunction}\n${mirrorDeploymentHelpers}`);
+  } else {
+    throw new Error('Expected ERC20 deployment helper insertion point was not found');
+  }
+}
+
 if (!source.includes('async function waitForContractDeployment(')) {
   if (!source.includes(sleepFunction)) {
     throw new Error('Expected ERC20 sleep function was not found');
@@ -96,13 +147,21 @@ const receiptBasedDeploy = `        const deployReceipt = await deployed.deploym
         erc20Contract = factory.attach(deployReceipt.contractAddress);
         await sleep(3500); // wait for consensus on write transactions
         console.log(\`erc20Contract = \${deployReceipt.contractAddress}\`);`;
-const receiptlessDeploy = `        const erc20ContractAddress = await deployed.getAddress();
+const receiptlessDeploy = `        const previousContractResultTimestamp = await getLatestContractResultTimestamp();
+        const transactionHash = deployed.deploymentTransaction().hash;
+        const deploymentResult = await waitForDeploymentResult(previousContractResultTimestamp, transactionHash);
+        erc20Contract = factory.attach(deploymentResult.address);
+        await waitForContractDeployment(erc20Contract);
+        console.log(\`erc20Contract = \${deploymentResult.address}\`);`;
+const oldReceiptlessDeploy = `        const erc20ContractAddress = await deployed.getAddress();
         erc20Contract = factory.attach(erc20ContractAddress);
         await waitForContractDeployment(erc20Contract);
         console.log(\`erc20Contract = \${erc20ContractAddress}\`);`;
 
 if (source.includes(receiptBasedDeploy)) {
   source = source.replace(receiptBasedDeploy, receiptlessDeploy);
+} else if (source.includes(oldReceiptlessDeploy)) {
+  source = source.replace(oldReceiptlessDeploy, receiptlessDeploy);
 } else if (!source.includes(receiptlessDeploy)) {
   throw new Error('Expected ERC20 receipt-based deployment block was not found');
 }
@@ -145,6 +204,7 @@ function setup_smart_contract_test ()
   echo "PRIVATE_KEYS=\"$CONTRACT_TEST_KEYS\"" > .env
   echo "RETRY_DELAY=5000 # ms" >> .env
   echo "MAX_RETRY=5" >> .env
+  echo "MIRROR_NODE_REST_URL=http://127.0.0.1:38081/api/v1" >> .env
   cat .env
 
   cd -
