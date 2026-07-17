@@ -1296,9 +1296,6 @@ blockNode:
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
     ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
     ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
-  persistence:
-    applicationState:
-      existingClaim: "verification-storage-block-node-1-0"
   initContainers:
     - name: init-storage-dirs
       image: busybox
@@ -1346,9 +1343,6 @@ blockNode:
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
     ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
     ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
-  persistence:
-    applicationState:
-      existingClaim: "verification-storage-block-node-1-0"
 EOF
   fi
 fi
