@@ -186,6 +186,10 @@ function uint256(value) {
   return value.toString();
 }
 
+function hexToBytes(hex) {
+  return Buffer.from(hex.replace(/^0x/i, ''), 'hex');
+}
+
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -240,7 +244,7 @@ async function waitForExpectedValue(label, callback, expected, maxAttempts = 90)
 async function deployErc20Contract(client) {
   const createTransaction = await new ContractCreateFlow()
     .setGas(10_000_000)
-    .setBytecode(artifact.bytecode)
+    .setBytecode(hexToBytes(artifact.bytecode))
     .setConstructorParameters(new ContractFunctionParameters().addString(tokenName).addString(tokenSymbol))
     .execute(client);
   const createReceipt = await createTransaction.getReceipt(client);
