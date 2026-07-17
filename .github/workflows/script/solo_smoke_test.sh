@@ -33,24 +33,24 @@ function clone_smart_contract_repo ()
     log_and_exit 1
   fi
 
-  echo "Patch ERC20 smoke test ABI arguments"
-  if grep -q "factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
-    sed -i.bak "s/factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000)/factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL')/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
+  echo "Ensure ERC20 smoke test uses explicit gas overrides"
+  if grep -q "factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL')" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    sed -i.bak "s/factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL')/factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000)/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
     rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
-  elif grep -q "factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL')" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
-    echo "ERC20 deploy ABI arguments are already patched"
+  elif grep -q "factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    echo "ERC20 deploy gas override is already present"
   else
-    echo "Expected ERC20 deploy gas argument was not found"
+    echo "Expected ERC20 deploy call was not found"
     log_and_exit 1
   fi
 
-  if grep -q "erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
-    sed -i.bak "s/erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)/erc20Contract.mint(wallet1, firstMintAmount)/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
+  if grep -q "erc20Contract.mint(wallet1, firstMintAmount)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    sed -i.bak "s/erc20Contract.mint(wallet1, firstMintAmount)/erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
     rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
-  elif grep -q "erc20Contract.mint(wallet1, firstMintAmount)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
-    echo "ERC20 mint ABI arguments are already patched"
+  elif grep -q "erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    echo "ERC20 mint gas override is already present"
   else
-    echo "Expected ERC20 mint gas argument was not found"
+    echo "Expected ERC20 mint call was not found"
     log_and_exit 1
   fi
 
