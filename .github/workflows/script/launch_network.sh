@@ -1027,14 +1027,19 @@ PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
 SOURCE_USES_WRB_RSA="false"
 TARGET_USES_WRB_RSA="false"
 
+# CN 0.74 supports block streaming with TSS, but WRB/RSA bootstrap requires BN
+# to query mirror REST /api/v1/blocks during the initial one-shot deploy. Mirror
+# Java REST does not serve that endpoint in the migration source stack, so keep
+# the source deploy on plain block streams and enable WRB/RSA only for CN 0.75+.
 if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}" && \
+  version_at_least "${FROM_CONSENSUS_NODE_VERSION}" "v0.75.0" && \
   version_at_least "${PREV_BLOCK_VERSION_NO_V}" "0.37.0" && \
   version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.0"; then
   SOURCE_USES_WRB_RSA="true"
 fi
 
-if [[ "${SOURCE_USES_WRB_RSA}" == "true" ]] && \
-  is_tss_supported_consensus_version "${TO_CONSENSUS_NODE_VERSION}" && \
+if is_tss_supported_consensus_version "${TO_CONSENSUS_NODE_VERSION}" && \
+  version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.75.0" && \
   version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.0"; then
   TARGET_USES_WRB_RSA="true"
 fi
@@ -1152,10 +1157,11 @@ importer:
               enabled: false
 EOF
 
-TEMP_SOURCE_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-source-block-node-values-XXXX.yaml)"
-cat > "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" <<EOF
+if [[ "${SOURCE_USES_WRB_RSA}" == "true" ]]; then
+  TEMP_SOURCE_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-source-block-node-values-XXXX.yaml)"
+  cat > "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" <<EOF
 # Generated for migration workflow source deploy.
-# BN v0.37+ needs RSA public keys to verify WRB blocks from CN v0.74+.
+# BN v0.37+ needs RSA public keys to verify WRB blocks from CN v0.75+.
 # Mirror v0.156+ serves /api/v1/network/nodes from Java REST, not Node.js REST.
 blockNode:
   config:
@@ -1163,6 +1169,7 @@ blockNode:
     ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
     ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
 EOF
+fi
 
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 # Generated for migration workflow launch.
@@ -1176,8 +1183,13 @@ setup:
 
 blockNode:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
+EOF
+
+if [[ -n "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" ]]; then
+  cat >> "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
   --values-file: "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}"
 EOF
+fi
 
 cat >> "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 
