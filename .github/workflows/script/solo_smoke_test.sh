@@ -153,9 +153,9 @@ function start_contract_test ()
 const {
   AccountId,
   Client,
+  ContractCreateFlow,
   ContractExecuteTransaction,
   ContractFunctionParameters,
-  ContractId,
   PrivateKey,
 } = require('@hashgraph/sdk');
 const {ethers} = require('ethers');
@@ -237,16 +237,19 @@ async function waitForExpectedValue(label, callback, expected, maxAttempts = 90)
   throw new Error(`${label} did not reach expected value ${expected}; last value was ${actual}`);
 }
 
-async function deployErc20Contract(provider, deploymentKey, operatorId) {
-  const deploymentWallet = new ethers.Wallet(deploymentKey, provider);
-  const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, deploymentWallet);
-  const deployment = await factory.deploy(tokenName, tokenSymbol, {gasLimit: 10_000_000});
-  const contractAddress = await deployment.getAddress();
-  const contractId = ContractId.fromEvmAddress(
-    Number(operatorId.shard.toString()),
-    Number(operatorId.realm.toString()),
-    contractAddress,
-  );
+async function deployErc20Contract(client) {
+  const createTransaction = await new ContractCreateFlow()
+    .setGas(10_000_000)
+    .setBytecode(artifact.bytecode)
+    .setConstructorParameters(new ContractFunctionParameters().addString(tokenName).addString(tokenSymbol))
+    .execute(client);
+  const createReceipt = await createTransaction.getReceipt(client);
+  if (createReceipt.status.toString() !== 'SUCCESS') {
+    throw new Error(`Contract create failed with status ${createReceipt.status.toString()}`);
+  }
+
+  const contractId = createReceipt.contractId;
+  const contractAddress = `0x${contractId.toSolidityAddress()}`;
   console.log(`erc20Contract = ${contractAddress}`);
   console.log(`erc20ContractId = ${contractId.toString()}`);
   return {contractAddress, contractId};
@@ -254,24 +257,16 @@ async function deployErc20Contract(provider, deploymentKey, operatorId) {
 
 async function main() {
   const operatorId = AccountId.fromString(requireEnvironment('OPERATOR_ID'));
+  const receiverId = AccountId.fromString(requireEnvironment('SECOND_ACCOUNT_ID'));
   const operatorKey = PrivateKey.fromStringDer(requireEnvironment('OPERATOR_KEY'));
-  const keys = requireEnvironment('CONTRACT_TEST_KEYS')
-    .split(',')
-    .map((key) => key.trim())
-    .filter(Boolean);
-
-  if (keys.length < 2) {
-    throw new Error('CONTRACT_TEST_KEYS must contain at least two private keys');
-  }
-
-  const wallet1 = new ethers.Wallet(keys[0]).address;
-  const wallet2 = new ethers.Wallet(keys[1]).address;
+  const wallet1 = `0x${operatorId.toSolidityAddress()}`;
+  const wallet2 = `0x${receiverId.toSolidityAddress()}`;
   console.log(`wallet1 = ${wallet1}`);
   console.log(`wallet2 = ${wallet2}`);
 
   const provider = new ethers.JsonRpcProvider(relayUrl);
   const client = createClient(operatorId, operatorKey, nodeAccountId);
-  const {contractAddress, contractId} = await deployErc20Contract(provider, keys[0], operatorId);
+  const {contractAddress, contractId} = await deployErc20Contract(client);
   const erc20Contract = new ethers.Contract(contractAddress, artifact.abi, provider);
 
   const actualName = await waitForExpectedValue('token name', async () => await erc20Contract.name(), tokenName);
@@ -393,18 +388,15 @@ function wait_for_contract_test_accounts ()
   local derived_addresses=""
   local address_lower=""
 
-  echo "Resolve contract test addresses from generated private keys"
+  echo "Resolve contract test addresses from SDK account IDs"
   derived_addresses=$(
-    cd hedera-smart-contracts && CONTRACT_TEST_KEYS="${CONTRACT_TEST_KEYS}" node - <<'NODE'
-const { Wallet } = require('ethers');
+    cd hedera-smart-contracts && OPERATOR_ID="${OPERATOR_ID}" SECOND_ACCOUNT_ID="${SECOND_ACCOUNT_ID}" node - <<'NODE'
+const {AccountId} = require('@hashgraph/sdk');
 
-const keys = (process.env.CONTRACT_TEST_KEYS || '')
-  .split(',')
-  .map((key) => key.trim())
-  .filter(Boolean);
+const accountIds = [process.env.OPERATOR_ID, process.env.SECOND_ACCOUNT_ID].filter(Boolean);
 
-for (const key of keys) {
-  console.log(new Wallet(key).address);
+for (const accountId of accountIds) {
+  console.log(`0x${AccountId.fromString(accountId).toSolidityAddress()}`);
 }
 NODE
   )
@@ -417,7 +409,7 @@ ${derived_addresses}
 EOF
 
   if [[ ${#contract_test_addresses[@]} -eq 0 ]]; then
-    echo "Could not derive contract test addresses from CONTRACT_TEST_KEYS"
+    echo "Could not derive contract test addresses from OPERATOR_ID and SECOND_ACCOUNT_ID"
     log_and_exit 1
   fi
 
