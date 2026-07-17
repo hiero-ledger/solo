@@ -186,10 +186,6 @@ function uint256(value) {
   return value.toString();
 }
 
-function hexToBytes(hex) {
-  return Buffer.from(hex.replace(/^0x/i, ''), 'hex');
-}
-
 function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -241,11 +237,22 @@ async function waitForExpectedValue(label, callback, expected, maxAttempts = 90)
   throw new Error(`${label} did not reach expected value ${expected}; last value was ${actual}`);
 }
 
+async function getErc20DeployBytecode() {
+  const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode);
+  const deployTransaction = await factory.getDeployTransaction(tokenName, tokenSymbol);
+  if (!deployTransaction.data) {
+    throw new Error('ERC20 deploy transaction did not include initcode');
+  }
+
+  return deployTransaction.data;
+}
+
 async function deployErc20Contract(client) {
+  const deployBytecode = await getErc20DeployBytecode();
+  console.log(`erc20DeployBytecodeBytes = ${(deployBytecode.length - 2) / 2}`);
   const createTransaction = await new ContractCreateFlow()
     .setGas(10_000_000)
-    .setBytecode(hexToBytes(artifact.bytecode))
-    .setConstructorParameters(new ContractFunctionParameters().addString(tokenName).addString(tokenSymbol))
+    .setBytecode(deployBytecode)
     .execute(client);
   const createReceipt = await createTransaction.getReceipt(client);
   if (createReceipt.status.toString() !== 'SUCCESS') {
