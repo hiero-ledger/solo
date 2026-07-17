@@ -157,7 +157,7 @@ flags may be specified at any level of the command hierarchy.
 | mirror      | node               | < list & info & logs & add & upgrade & destroy >                                   |
 | relay       | node               | < list & info & logs & add & upgrade & destroy >                                   |
 | one-shot    | < single & multi > | < info & deploy & destroy >                                                        |
-| cache       | < images >         | < pull & load & list & clear & status >                                            |
+| cache       | < images & charts > | < pull & load & list & clear & prune & status >                                   |
 
 
 #### Example Commands
@@ -617,6 +617,16 @@ operations associated with each resource.
 | **List**       | `list`         | Lists all cached image archives.                                                      |
 | **Clear**      | `clear`        | Clears the image archives.                                                            |
 | **Status**     | `status`       | Lists all images, displays data about them and all missing images.                    |
+
+#### Chart
+
+| Operation Name | Command Syntax | Description                                                                        |
+|----------------|----------------|------------------------------------------------------------------------------------|
+| **Pull**       | `pull`         | Pulls and caches the helm charts used by solo so deploys install them from cache.  |
+| **List**       | `list`         | Lists all cached helm chart archives.                                              |
+| **Clear**      | `clear`        | Clears the cached helm chart archives.                                             |
+| **Prune**      | `prune`        | Prunes the cached helm chart archives.                                             |
+| **Status**     | `status`       | Lists all cached helm charts, their total size, and any missing chart archives.    |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
