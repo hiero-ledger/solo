@@ -153,9 +153,9 @@ function start_contract_test ()
 const {
   AccountId,
   Client,
-  ContractCreateFlow,
   ContractExecuteTransaction,
   ContractFunctionParameters,
+  ContractId,
   PrivateKey,
 } = require('@hashgraph/sdk');
 const {ethers} = require('ethers');
@@ -165,7 +165,7 @@ const firstMintAmount = 1000n;
 const transferAmount = 33n;
 const relayUrl = 'http://127.0.0.1:37546';
 const nodeAddress = '127.0.0.1:35211';
-const nodeAccountIds = ['0.0.3', '0.0.4', '0.0.5'];
+const nodeAccountId = '0.0.3';
 const tokenName = 'tokenName';
 const tokenSymbol = 'TOKENSYMBOL';
 
@@ -209,33 +209,6 @@ function createClient(operatorId, operatorKey, nodeAccountId) {
   return client;
 }
 
-async function createErc20Contract(operatorId, operatorKey) {
-  let lastError;
-  for (const nodeAccountId of nodeAccountIds) {
-    const client = createClient(operatorId, operatorKey, nodeAccountId);
-    try {
-      console.log(`Trying contract create through node account ${nodeAccountId}`);
-      const createTransaction = await new ContractCreateFlow()
-        .setGas(10_000_000)
-        .setBytecode(artifact.bytecode)
-        .setConstructorParameters(new ContractFunctionParameters().addString(tokenName).addString(tokenSymbol))
-        .execute(client);
-      const createReceipt = await createTransaction.getReceipt(client);
-      if (createReceipt.status.toString() !== 'SUCCESS') {
-        throw new Error(`Contract create failed with status ${createReceipt.status.toString()}`);
-      }
-
-      return {client, contractId: createReceipt.contractId};
-    } catch (error) {
-      lastError = error;
-      console.log(`Contract create failed through node account ${nodeAccountId}: ${error.message}`);
-      client.close();
-    }
-  }
-
-  throw lastError;
-}
-
 async function waitForExpectedValue(label, callback, expected, maxAttempts = 90) {
   let actual;
   let lastError;
@@ -264,6 +237,21 @@ async function waitForExpectedValue(label, callback, expected, maxAttempts = 90)
   throw new Error(`${label} did not reach expected value ${expected}; last value was ${actual}`);
 }
 
+async function deployErc20Contract(provider, deploymentKey, operatorId) {
+  const deploymentWallet = new ethers.Wallet(deploymentKey, provider);
+  const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, deploymentWallet);
+  const deployment = await factory.deploy(tokenName, tokenSymbol, {gasLimit: 10_000_000});
+  const contractAddress = await deployment.getAddress();
+  const contractId = ContractId.fromEvmAddress(
+    Number(operatorId.shard.toString()),
+    Number(operatorId.realm.toString()),
+    contractAddress,
+  );
+  console.log(`erc20Contract = ${contractAddress}`);
+  console.log(`erc20ContractId = ${contractId.toString()}`);
+  return {contractAddress, contractId};
+}
+
 async function main() {
   const operatorId = AccountId.fromString(requireEnvironment('OPERATOR_ID'));
   const operatorKey = PrivateKey.fromStringDer(requireEnvironment('OPERATOR_KEY'));
@@ -281,18 +269,9 @@ async function main() {
   console.log(`wallet1 = ${wallet1}`);
   console.log(`wallet2 = ${wallet2}`);
 
-  const {client, contractId} = await createErc20Contract(operatorId, operatorKey);
-  const contractAddress = `0x${contractId.toSolidityAddress()}`;
-  console.log(`erc20Contract = ${contractAddress}`);
-
-  await executeContractFunction(
-    client,
-    contractId,
-    'mint',
-    new ContractFunctionParameters().addAddress(normalizeAddress(wallet1)).addUint256(uint256(firstMintAmount)),
-  );
-
   const provider = new ethers.JsonRpcProvider(relayUrl);
+  const client = createClient(operatorId, operatorKey, nodeAccountId);
+  const {contractAddress, contractId} = await deployErc20Contract(provider, keys[0], operatorId);
   const erc20Contract = new ethers.Contract(contractAddress, artifact.abi, provider);
 
   const actualName = await waitForExpectedValue('token name', async () => await erc20Contract.name(), tokenName);
@@ -309,6 +288,13 @@ async function main() {
   if (actualDecimals !== 18n) {
     throw new Error(`Unexpected token decimals: ${actualDecimals}`);
   }
+
+  await executeContractFunction(
+    client,
+    contractId,
+    'mint',
+    new ContractFunctionParameters().addAddress(normalizeAddress(wallet1)).addUint256(uint256(firstMintAmount)),
+  );
 
   const totalSupply = await waitForExpectedValue(
     'total supply after mint',
