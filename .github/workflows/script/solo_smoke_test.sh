@@ -165,7 +165,7 @@ const firstMintAmount = 1000n;
 const transferAmount = 33n;
 const relayUrl = 'http://127.0.0.1:37546';
 const nodeAddress = '127.0.0.1:35211';
-const nodeAccountId = '0.0.3';
+const nodeAccountIds = ['0.0.3', '0.0.4', '0.0.5'];
 const tokenName = 'tokenName';
 const tokenSymbol = 'TOKENSYMBOL';
 
@@ -201,6 +201,39 @@ async function executeContractFunction(client, contractId, functionName, paramet
   if (receipt.status.toString() !== 'SUCCESS') {
     throw new Error(`${functionName} failed with status ${receipt.status.toString()}`);
   }
+}
+
+function createClient(operatorId, operatorKey, nodeAccountId) {
+  const client = Client.forNetwork({[nodeAddress]: AccountId.fromString(nodeAccountId)});
+  client.setOperator(operatorId, operatorKey);
+  return client;
+}
+
+async function createErc20Contract(operatorId, operatorKey) {
+  let lastError;
+  for (const nodeAccountId of nodeAccountIds) {
+    const client = createClient(operatorId, operatorKey, nodeAccountId);
+    try {
+      console.log(`Trying contract create through node account ${nodeAccountId}`);
+      const createTransaction = await new ContractCreateFlow()
+        .setGas(10_000_000)
+        .setBytecode(artifact.bytecode)
+        .setConstructorParameters(new ContractFunctionParameters().addString(tokenName).addString(tokenSymbol))
+        .execute(client);
+      const createReceipt = await createTransaction.getReceipt(client);
+      if (createReceipt.status.toString() !== 'SUCCESS') {
+        throw new Error(`Contract create failed with status ${createReceipt.status.toString()}`);
+      }
+
+      return {client, contractId: createReceipt.contractId};
+    } catch (error) {
+      lastError = error;
+      console.log(`Contract create failed through node account ${nodeAccountId}: ${error.message}`);
+      client.close();
+    }
+  }
+
+  throw lastError;
 }
 
 async function waitForExpectedValue(label, callback, expected, maxAttempts = 90) {
@@ -248,19 +281,7 @@ async function main() {
   console.log(`wallet1 = ${wallet1}`);
   console.log(`wallet2 = ${wallet2}`);
 
-  const client = Client.forNetwork({[nodeAddress]: AccountId.fromString(nodeAccountId)});
-  client.setOperator(operatorId, operatorKey);
-
-  const createTransaction = await new ContractCreateFlow()
-    .setGas(10_000_000)
-    .setBytecode(artifact.bytecode)
-    .setConstructorParameters(new ContractFunctionParameters().addString(tokenName).addString(tokenSymbol))
-    .execute(client);
-  const createReceipt = await createTransaction.getReceipt(client);
-  if (createReceipt.status.toString() !== 'SUCCESS') {
-    throw new Error(`Contract create failed with status ${createReceipt.status.toString()}`);
-  }
-  const contractId = createReceipt.contractId;
+  const {client, contractId} = await createErc20Contract(operatorId, operatorKey);
   const contractAddress = `0x${contractId.toSolidityAddress()}`;
   console.log(`erc20Contract = ${contractAddress}`);
 
@@ -369,31 +390,6 @@ NODE
     echo "Smart contract test failed with exit code $result"
     log_and_exit $result
   fi
-}
-
-function scale_mirror_pinger ()
-{
-  local namespace="${1}"
-  local replicas="${2}"
-  local action="${3}"
-  local context="${MIRROR_KUBE_CONTEXT:-$(kubectl config current-context)}"
-  local pinger_deployments=""
-  local deployment=""
-
-  pinger_deployments=$(kubectl --context "${context}" get deployments -n "${namespace}" \
-    -l app.kubernetes.io/component=pinger -o name 2>/dev/null || true)
-
-  if [[ -z "${pinger_deployments}" ]]; then
-    echo "No mirror pinger deployment found to ${action} in namespace ${namespace} on context ${context}"
-    return 0
-  fi
-
-  while IFS= read -r deployment; do
-    [[ -z "${deployment}" ]] && continue
-    echo "${action} ${deployment} in namespace ${namespace} on context ${context}"
-    kubectl --context "${context}" scale "${deployment}" -n "${namespace}" --replicas="${replicas}"
-    kubectl --context "${context}" rollout status "${deployment}" -n "${namespace}" --timeout=2m
-  done <<< "${pinger_deployments}"
 }
 
 function wait_for_contract_test_accounts ()
@@ -523,12 +519,18 @@ function start_sdk_test ()
 {
   realm_num="${1:-0}"
   shard_num="${2:-0}"
+  result=0
   cd solo
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
   fi
   if command -v grpcurl >/dev/null 2>&1; then
-    grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:38081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
+    echo "Run mirror gRPC network node query"
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 60s grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:38081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
+    else
+      grpcurl -plaintext -d '{"file_id": {"shardNum": '"$shard_num"', "realmNum": '"$realm_num"', "fileNum": 102}, "limit": 0}' localhost:38081 com.hedera.mirror.api.proto.NetworkService/getNodes || result=$?
+    fi
     if [[ $result -ne 0 ]]; then
       echo "grpcurl command failed with exit code $result"
       log_and_exit $result
@@ -537,7 +539,12 @@ function start_sdk_test ()
   else
     echo "grpcurl not found, skipping gRPC connectivity test (install grpcurl to enable)"
   fi
-  node scripts/create-topic.js || result=$?
+  echo "Run JavaScript SDK topic smoke test"
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 120s node scripts/create-topic.js || result=$?
+  else
+    node scripts/create-topic.js || result=$?
+  fi
   cd -
   if [[ $result -ne 0 ]]; then
     echo "JavaScript SDK test failed with exit code $result"
@@ -770,7 +777,6 @@ if [ -z "${SOLO_NAMESPACE}" ]; then
   export SOLO_NAMESPACE="solo-e2e"
 fi
 
-scale_mirror_pinger "${SOLO_NAMESPACE}" 0 "Pause"
 create_test_account "${SOLO_DEPLOYMENT}"
 clone_smart_contract_repo
 setup_smart_contract_test
@@ -783,7 +789,6 @@ else
   echo "Skipping mirror block settle wait before smart contract test"
 fi
 start_contract_test
-scale_mirror_pinger "${SOLO_NAMESPACE}" 1 "Resume"
 start_sdk_test "${REALM_NUM}" "${SHARD_NUM}"
 echo "Sleep a while to wait background transactions to finish"
 sleep 30
