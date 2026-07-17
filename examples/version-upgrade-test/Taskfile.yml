@@ -33,7 +33,6 @@ vars:
   # Current versions to upgrade to
   CURRENT_MIRROR_VERSION:
     sh: sed -n "s/^export const MIRROR_NODE_VERSION.*'\([^']*\)'.*/\1/p" "$(git rev-parse --show-toplevel)/version.ts"
-
   # Local build path for network upgrade
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
@@ -108,29 +107,10 @@ tasks:
           --chart-version {{ .PREV_BLOCK_VERSION }}
 
       - cmd: |
-          SOURCE_APPLICATION_PROPERTIES=$(mktemp -t version-upgrade-source-application-properties-XXXX.properties)
-          cp "{{ .ROOT_DIR }}/resources/templates/application.properties" "${SOURCE_APPLICATION_PROPERTIES}"
-          set_property() {
-            local key="$1"
-            local value="$2"
-            if grep -q "^${key}=" "${SOURCE_APPLICATION_PROPERTIES}"; then
-              sed -i.bak "s/^${key}=.*/${key}=${value}/" "${SOURCE_APPLICATION_PROPERTIES}"
-              rm -f "${SOURCE_APPLICATION_PROPERTIES}.bak"
-            else
-              echo "${key}=${value}" >> "${SOURCE_APPLICATION_PROPERTIES}"
-            fi
-          }
-          set_property blockStream.streamMode BLOCKS
-          set_property blockStream.writerMode FILE_AND_GRPC
-          set_property blockStream.streamWrappedRecordBlocks false
-          set_property blockStream.buffer.isBufferPersistenceEnabled true
-          set_property blockNode.wantedBlockExpirationMillis 60000
-          chmod 644 "${SOURCE_APPLICATION_PROPERTIES}"
-          BLOCK_STREAM_STREAM_MODE=BLOCKS BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
-          --release-tag {{ .PREV_CN_VERSION }} \
-          --application-properties "${SOURCE_APPLICATION_PROPERTIES}"
+          $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --pvcs true --node-aliases {{ .NODE_IDENTIFIERS }} \
+          --release-tag {{ .PREV_CN_VERSION }}
 
-      - cmd: BLOCK_STREAM_STREAM_MODE=BLOCKS BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
+      - cmd: $SOLO_COMMAND consensus node setup --node-aliases {{ .NODE_IDENTIFIERS }} --deployment {{ .DEPLOYMENT }} --release-tag {{ .PREV_CN_VERSION }}
 
       - cmd: $SOLO_COMMAND consensus node start --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_IDENTIFIERS }}
 
@@ -157,45 +137,23 @@ tasks:
   upgrade-components:
     desc: Upgrade all components to current versions
     cmds:
-      # Upgrade consensus network to current version first
+      # Upgrade mirror node
+      - cmd: |
+          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
+          --mirror-node-version {{ .CURRENT_MIRROR_VERSION }}
+      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
+
+      # Upgrade network to main with local build path
       - cmd: |
           export CONSENSUS_NODE_VERSION=$(awk -v RS=';' '/export const HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/ { s=$0; v=""; while (match(s, /'\''[^'\'']*'\''/)) { v=substr(s, RSTART+1, RLENGTH-2); s=substr(s, RSTART+RLENGTH) } if (v!="") { print v; exit } }' ../../version.ts)
-          UPGRADE_APPLICATION_PROPERTIES=$(mktemp -t version-upgrade-application-properties-XXXX.properties)
-          cp "{{ .ROOT_DIR }}/resources/templates/application.properties" "${UPGRADE_APPLICATION_PROPERTIES}"
-          set_property() {
-            local key="$1"
-            local value="$2"
-            if grep -q "^${key}=" "${UPGRADE_APPLICATION_PROPERTIES}"; then
-              sed -i.bak "s/^${key}=.*/${key}=${value}/" "${UPGRADE_APPLICATION_PROPERTIES}"
-              rm -f "${UPGRADE_APPLICATION_PROPERTIES}.bak"
-            else
-              echo "${key}=${value}" >> "${UPGRADE_APPLICATION_PROPERTIES}"
-            fi
-          }
-          set_property blockStream.streamMode BLOCKS
-          set_property blockStream.writerMode FILE_AND_GRPC
-          set_property blockStream.streamWrappedRecordBlocks false
-          set_property blockStream.buffer.isBufferPersistenceEnabled true
-          set_property blockNode.wantedBlockExpirationMillis 60000
-          set_property fees.simpleFeesEnabled false
-          chmod 644 "${UPGRADE_APPLICATION_PROPERTIES}"
           echo "Upgrading consensus network to version: ${CONSENSUS_NODE_VERSION}"
           SOLO_LOG_LEVEL=debug $SOLO_COMMAND consensus network upgrade --node-aliases {{ .NODE_IDENTIFIERS }} \
           --upgrade-version ${CONSENSUS_NODE_VERSION} \
-          --application-properties "${UPGRADE_APPLICATION_PROPERTIES}" \
           --deployment {{ .DEPLOYMENT }}
 
       # Upgrade block node
       - cmd: |
           $SOLO_COMMAND block node upgrade --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND consensus node restart --deployment {{ .DEPLOYMENT }}
-      - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
-
-      # Switch mirror importer to block-stream mode after CN + block-node are upgraded.
-      - cmd: |
-          $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
-          --mirror-node-version {{ .CURRENT_MIRROR_VERSION }} \
-          --force
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
 
