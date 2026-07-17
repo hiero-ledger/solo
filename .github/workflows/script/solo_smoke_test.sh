@@ -23,27 +23,36 @@ function clone_smart_contract_repo ()
   fi
 
   echo "Increase ERC20 smoke test timeout for block stream mirror propagation"
-  if ! grep -q "const DEFAULT_TIMEOUT = 120000;" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+  if grep -q "const DEFAULT_TIMEOUT = 120000;" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    sed -i.bak 's/const DEFAULT_TIMEOUT = 120000;/const DEFAULT_TIMEOUT = 360000;/' hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
+    rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
+  elif grep -q "const DEFAULT_TIMEOUT = 360000;" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    echo "ERC20 smoke test timeout is already patched"
+  else
     echo "Expected ERC20 smoke test timeout constant was not found"
     log_and_exit 1
   fi
-  sed -i.bak 's/const DEFAULT_TIMEOUT = 120000;/const DEFAULT_TIMEOUT = 360000;/' hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
-  rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
 
   echo "Patch ERC20 smoke test ABI arguments"
-  if ! grep -q "factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+  if grep -q "factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    sed -i.bak "s/factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000)/factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL')/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
+    rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
+  elif grep -q "factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL')" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    echo "ERC20 deploy ABI arguments are already patched"
+  else
     echo "Expected ERC20 deploy gas argument was not found"
     log_and_exit 1
   fi
-  sed -i.bak "s/factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL', Constants.GAS_LIMIT_10_000_000)/factory.deploy(Constants.TOKEN_NAME, 'TOKENSYMBOL')/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
-  rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
 
-  if ! grep -q "erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+  if grep -q "erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    sed -i.bak "s/erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)/erc20Contract.mint(wallet1, firstMintAmount)/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
+    rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
+  elif grep -q "erc20Contract.mint(wallet1, firstMintAmount)" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js; then
+    echo "ERC20 mint ABI arguments are already patched"
+  else
     echo "Expected ERC20 mint gas argument was not found"
     log_and_exit 1
   fi
-  sed -i.bak "s/erc20Contract.mint(wallet1, firstMintAmount, Constants.GAS_LIMIT_10_000_000)/erc20Contract.mint(wallet1, firstMintAmount)/" hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js
-  rm -f hedera-smart-contracts/test/openzeppelin/ERC-20/ERC20.js.bak
 
   echo "Patch ERC20 smoke test to avoid receipt hash lookups"
   node <<'NODE'
