@@ -112,15 +112,6 @@ export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
   ? ignorePodMetricsEnvironment.split(',')
   : ['network-load-generator', 'metrics-server'];
 
-export const HEDERA_NODE_SIDECARS: string[] = [
-  'recordStreamUploader',
-  'eventStreamUploader',
-  'backupUploader',
-  'accountBalanceUploader',
-  'otelCollector',
-  'blockstreamUploader',
-];
-
 export const REDIS_IMAGE_REGISTRY: string = 'gcr.io';
 export const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
 export const REDIS_SENTINEL_IMAGE_REGISTRY: string = 'gcr.io';
