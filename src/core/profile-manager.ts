@@ -783,8 +783,8 @@ export class ProfileManager {
         // Validate the saved IP still belongs to this node service.
         const serviceName: string = `network-${consensusNode.name}-svc`;
         const service:
-          | {spec?: {clusterIP?: string}; status?: {loadBalancer?: {ingress?: Array<{ip?: string}>}}}
-          | undefined = await k8.services().read(NamespaceName.of(consensusNode.namespace), serviceName);
+          {spec?: {clusterIP?: string}; status?: {loadBalancer?: {ingress?: Array<{ip?: string}>}}} | undefined =
+          await k8.services().read(NamespaceName.of(consensusNode.namespace), serviceName);
         const serviceIpAddresses: string[] = [
           ...(service?.status?.loadBalancer?.ingress ?? [])
             .map((ingress: {ip?: string}): string | undefined => ingress.ip)
