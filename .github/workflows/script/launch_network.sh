@@ -1360,7 +1360,7 @@ else
   echo "Block node version unchanged; no temporary block node values override file needed"
 fi
 
-if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
+if [[ "${TARGET_USES_WRB_RSA}" == "true" && "${PREV_BLOCK_VERSION_NO_V}" == "${CURRENT_BLOCK_VERSION}" ]]; then
   echo "Upgrading mirror node before consensus upgrade so the importer can read WRB/RSA blocks after restart"
   npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
   MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS="true"
@@ -1380,6 +1380,12 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
 
   frozen_block_before_bn_upgrade="$(wait_for_mirror_block_stability "source frozen before block node upgrade" 3 60 2)"
   echo "$(date '+%Y-%m-%d %H:%M:%S') - Stable mirror block before frozen BN upgrade: ${frozen_block_before_bn_upgrade}"
+
+  if [[ "${MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS}" != "true" ]]; then
+    echo "Source CN is frozen and old-format blocks are ingested; upgrading mirror node for WRB/RSA blocks"
+    npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
+    MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS="true"
+  fi
 
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
   echo "BN ${CURRENT_BLOCK_VERSION} is installed while source CN is frozen."

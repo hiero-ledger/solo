@@ -30,6 +30,15 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.upgradeZipFile,
   flags.upgradeVersion,
 ];
+const UPGRADE_CONFIG_FILE_FLAGS: CommandFlag[] = [
+  flags.networkDeploymentValuesFile,
+  flags.apiPermissionProperties,
+  flags.applicationEnv,
+  flags.applicationProperties,
+  flags.bootstrapProperties,
+  flags.log4j2Xml,
+  flags.settingTxt,
+];
 
 const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
 const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
@@ -60,19 +69,13 @@ export const UPGRADE_FLAGS: CommandFlags = {
     flags.wrapsKeyPath,
 
     // Node config file flags
-    flags.networkDeploymentValuesFile,
-    flags.apiPermissionProperties,
-    flags.applicationEnv,
-    flags.applicationProperties,
-    flags.bootstrapProperties,
-    flags.log4j2Xml,
-    flags.settingTxt,
+    ...UPGRADE_CONFIG_FILE_FLAGS,
   ],
 };
 
 export const UPGRADE_PREPARE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.outputDir],
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, ...UPGRADE_CONFIG_FILE_FLAGS],
 };
 
 export const UPGRADE_SUBMIT_TRANSACTIONS_FLAGS: CommandFlags = {
@@ -82,7 +85,7 @@ export const UPGRADE_SUBMIT_TRANSACTIONS_FLAGS: CommandFlags = {
 
 export const UPGRADE_EXECUTE_FLAGS: CommandFlags = {
   required: [...COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS, flags.inputDir],
-  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS],
+  optional: [...COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS, ...UPGRADE_CONFIG_FILE_FLAGS],
 };
 
 export const UPDATE_FLAGS: CommandFlags = {
