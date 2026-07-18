@@ -1254,7 +1254,12 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "false"
 if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "true"
+  # streamWrappedRecordBlocks=false: CN sends BLOCK_HEADER native blocks (with RSA proofs
+  # in BLOCK_PROOF) to BN. streamWrappedRecordBlocks=true would cause CN to stream
+  # ROUND_HEADER wrapped records which BN 0.38.1 drops via hasBlockHeader(), leaving
+  # mirror with no block to consume. RSA verification in BN uses the bootstrapped roster
+  # from rsa-bootstrap-roster.json to verify BLOCK_PROOF in BLOCK_HEADER blocks.
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
