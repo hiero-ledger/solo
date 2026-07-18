@@ -1252,16 +1252,11 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
-# CN v0.75+ compiled default for enableCutover flipped to true (hedera-services#25928).
-# Setting true here ensures CN streams only BLOCK_HEADER native blocks post-upgrade.
-# Setting false (the pre-v0.75 default) keeps CN in pre-cutover BOTH mode: it also
-# emits ROUND_HEADER wrapped records that BN 0.38.1 drops via hasBlockHeader(), which
-# creates block number gaps that permanently stall the mirror importer.
-if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "true"
-else
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "false"
-fi
+# enableCutover must stay false for the migration upgrade. The V0740BlockStreamSchema
+# cutover path requires BlockInfo.blockHashes to be populated, but when the source CN
+# ran in BLOCKS mode (not record-stream/WRB), that field is empty. Setting true crashes
+# CN v0.75+ with "Cutover requires at least one record block hash in BlockInfo.blockHashes".
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "false"
 if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
   # streamWrappedRecordBlocks=false: CN sends BLOCK_HEADER native blocks (with RSA proofs
   # in BLOCK_PROOF) to BN. streamWrappedRecordBlocks=true would cause CN to stream
@@ -1377,23 +1372,29 @@ fi
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_USES_WRB_RSA}" == "true" ]]; then
-  echo "Consensus and block node versions are both changing; upgrading BN while source CN is frozen"
+  echo "Consensus and block node versions are both changing; upgrading BN before source CN freeze"
   TEMP_UPGRADE_CONTEXT_DIR="$(mktemp -d -t solo-upgrade-context-XXXX)"
 
   echo "Preparing CN ${TO_CONSENSUS_NODE_VERSION} with final WRB/RSA block stream properties."
   CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
   run_consensus_network_upgrade_prepare
+
+  # Upgrade BN before freezing CN. If BN restarts while CN is mid-block (i.e., after
+  # freeze), the new BN's "next expected block" counter advances past the incomplete block,
+  # causing an off-by-one that prevents CN v0.75+ from ever establishing a publisher
+  # connection. Upgrading BN first lets source CN reconnect and complete any in-flight
+  # block cleanly before the freeze transaction is submitted.
+  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
+  echo "BN ${CURRENT_BLOCK_VERSION} installed; source CN will reconnect and finish in-flight blocks before freeze."
+
   run_consensus_network_upgrade_submit
   wait_for_consensus_nodes_frozen 90 2
 
-  frozen_block_before_bn_upgrade="$(wait_for_mirror_block_stability "source frozen before block node upgrade" 3 60 2)"
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - Stable mirror block before frozen BN upgrade: ${frozen_block_before_bn_upgrade}"
-
-  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  echo "BN ${CURRENT_BLOCK_VERSION} is installed while source CN is frozen."
+  frozen_block_before_cn_upgrade="$(wait_for_mirror_block_stability "source frozen before CN upgrade" 3 60 2)"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Stable mirror block before CN upgrade: ${frozen_block_before_cn_upgrade}"
 
   run_consensus_network_upgrade_execute
-  echo "CN ${TO_CONSENSUS_NODE_VERSION} is active with WRB/RSA block streaming; post-upgrade transaction will verify block progress from ${frozen_block_before_bn_upgrade}."
+  echo "CN ${TO_CONSENSUS_NODE_VERSION} is active with WRB/RSA block streaming; post-upgrade transaction will verify block progress from ${frozen_block_before_cn_upgrade}."
 else
   if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
     npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
