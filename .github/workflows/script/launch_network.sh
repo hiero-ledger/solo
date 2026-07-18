@@ -1066,11 +1066,11 @@ else
   fi
 fi
 
-if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
-  TARGET_BLOCK_STREAM_MODE="BOTH"
-else
-  TARGET_BLOCK_STREAM_MODE="BLOCKS"
-fi
+# WRB/RSA mode uses BLOCKS (BN-only streaming) so CN sends only BLOCK_HEADER native
+# blocks to BN. BOTH mode would also send ROUND_HEADER wrapped records to BN, which
+# BN 0.38.1 serves to mirror, causing "Incorrect first block item case ROUND_HEADER".
+# Mirror reads only from BN (BLOCK_SOURCE_TYPE=BLOCK_NODE), so no file/MinIO needed.
+TARGET_BLOCK_STREAM_MODE="BLOCKS"
 
 if [[ "${SOURCE_MIRROR_BLOCK_ENABLED}" == "true" ]]; then
   SOURCE_DISABLE_IMPORTER_SPRING_PROFILES="false"
