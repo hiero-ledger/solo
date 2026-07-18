@@ -2672,6 +2672,47 @@ export class NodeCommandTasks {
               );
             },
           },
+          {
+            title: 'Re-apply configuration files to nodes after chart update',
+            task: async (): Promise<void> => {
+              // The Helm chart upgrade triggers a StatefulSet rolling update, which restarts pods
+              // and runs the init-copier init container. That container copies the ConfigMap
+              // (which may have stale values) to the PVC, overwriting what was copied above.
+              // Wait for each pod to be Ready, then re-copy the staging application.properties
+              // so that CN reads the correct values on startup.
+              if (!this.isDefaultFlagValue(flags.applicationProperties)) {
+                for (const node of config.consensusNodes) {
+                  const labels: string[] = [
+                    `solo.hedera.com/node-name=${node.name}`,
+                    'solo.hedera.com/type=network-node',
+                  ];
+                  await this.k8Factory
+                    .getK8(node.context)
+                    .pods()
+                    .waitForReadyStatus(NamespaceName.of(node.namespace), labels, 120, 1000, undefined, true);
+
+                  const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                    NamespaceName.of(node.namespace),
+                    node.name,
+                  );
+
+                  const sourcePath: string = PathEx.join(
+                    stagingDirectory,
+                    'templates',
+                    constants.APPLICATION_PROPERTIES,
+                  );
+                  const destinationPath: string = ConsensusNodePathTemplates.DATA_CONFIG;
+
+                  await container.copyTo(sourcePath, destinationPath);
+                  await container.execContainer([
+                    'bash',
+                    '-c',
+                    `chown hedera:hedera ${destinationPath}/${constants.APPLICATION_PROPERTIES} 2>/dev/null || true`,
+                  ]);
+                }
+              }
+            },
+          },
         ];
 
         return task.newListr(subTasks, {concurrent: false, rendererOptions: {collapseSubtasks: false}});
