@@ -1372,20 +1372,27 @@ fi
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_USES_WRB_RSA}" == "true" ]]; then
-  echo "Consensus and block node versions are both changing; upgrading BN before source CN freeze"
+  # Two-phase "handoff" approach:
+  #  Phase 1: Execute CN upgrade against the existing BN ${PREV_BLOCK_VERSION_NO_V}. The
+  #  source CN v0.74.0 state records last_committed_block = N-1, so CN v0.75.1 starts with
+  #  wantedBlock = N even though BN already has N (streamed by source CN just before freeze).
+  #  BN ${PREV_BLOCK_VERSION_NO_V} accepts the duplicate block N gracefully. CN v0.75.1
+  #  progresses to N+1, N+2, ... and saves a new state that records N as committed.
+  #  Phase 2: Stop CN cleanly (no in-flight block), upgrade BN to ${CURRENT_BLOCK_VERSION},
+  #  then restart CN. CN loads the Phase 1 state (last_committed = N), wantedBlock = N+1.
+  #  BN ${CURRENT_BLOCK_VERSION} has clean blocks 0-N and expects N+1 → connection succeeds.
+  #
+  #  We cannot upgrade BN before the CN freeze: source CN reconnects to the new BN and
+  #  streams block N, so BN counter advances to N+1. CN v0.75.1 then reports
+  #  "wantedBlock: N, blocksAvailable: N+1-N+1" and can never publish.
+  #  We cannot upgrade BN after the freeze either: BN may restart while source CN is
+  #  mid-block, advancing the counter past the incomplete block (same off-by-one error).
+  echo "Consensus and block node versions are both changing; using two-phase BN handoff approach"
   TEMP_UPGRADE_CONTEXT_DIR="$(mktemp -d -t solo-upgrade-context-XXXX)"
 
   echo "Preparing CN ${TO_CONSENSUS_NODE_VERSION} with final WRB/RSA block stream properties."
   CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
   run_consensus_network_upgrade_prepare
-
-  # Upgrade BN before freezing CN. If BN restarts while CN is mid-block (i.e., after
-  # freeze), the new BN's "next expected block" counter advances past the incomplete block,
-  # causing an off-by-one that prevents CN v0.75+ from ever establishing a publisher
-  # connection. Upgrading BN first lets source CN reconnect and complete any in-flight
-  # block cleanly before the freeze transaction is submitted.
-  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  echo "BN ${CURRENT_BLOCK_VERSION} installed; source CN will reconnect and finish in-flight blocks before freeze."
 
   run_consensus_network_upgrade_submit
   wait_for_consensus_nodes_frozen 90 2
@@ -1393,8 +1400,23 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   frozen_block_before_cn_upgrade="$(wait_for_mirror_block_stability "source frozen before CN upgrade" 3 60 2)"
   echo "$(date '+%Y-%m-%d %H:%M:%S') - Stable mirror block before CN upgrade: ${frozen_block_before_cn_upgrade}"
 
+  # Phase 1: CN v0.75.1 runs against BN ${PREV_BLOCK_VERSION_NO_V}.
   run_consensus_network_upgrade_execute
-  echo "CN ${TO_CONSENSUS_NODE_VERSION} is active with WRB/RSA block streaming; post-upgrade transaction will verify block progress from ${frozen_block_before_cn_upgrade}."
+
+  # Wait for CN v0.75.1 to produce at least one new block against BN ${PREV_BLOCK_VERSION_NO_V}.
+  # This ensures CN has saved a new state snapshot with the correct committed-block counter
+  # before we stop it and upgrade BN.
+  wait_for_mirror_block_count_progress "CN ${TO_CONSENSUS_NODE_VERSION} phase-1 handoff with BN ${PREV_BLOCK_VERSION_NO_V}" "${frozen_block_before_cn_upgrade}" 1 180 2 > /dev/null
+
+  # Phase 2: Stop CN cleanly, upgrade BN, restart CN.
+  echo "Stopping CN nodes before upgrading BN from ${PREV_BLOCK_VERSION_NO_V} to ${CURRENT_BLOCK_VERSION}."
+  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+
+  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
+  echo "BN ${CURRENT_BLOCK_VERSION} installed after CN ${TO_CONSENSUS_NODE_VERSION} phase-1 handoff. Restarting CN."
+
+  npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+  echo "CN ${TO_CONSENSUS_NODE_VERSION} active with BN ${CURRENT_BLOCK_VERSION}; post-upgrade transaction will verify block progress from ${frozen_block_before_cn_upgrade}."
 else
   if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
     npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
