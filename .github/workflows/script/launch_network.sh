@@ -1252,7 +1252,16 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "false"
+# CN v0.75+ compiled default for enableCutover flipped to true (hedera-services#25928).
+# Setting true here ensures CN streams only BLOCK_HEADER native blocks post-upgrade.
+# Setting false (the pre-v0.75 default) keeps CN in pre-cutover BOTH mode: it also
+# emits ROUND_HEADER wrapped records that BN 0.38.1 drops via hasBlockHeader(), which
+# creates block number gaps that permanently stall the mirror importer.
+if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "true"
+else
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "false"
+fi
 if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
   # streamWrappedRecordBlocks=false: CN sends BLOCK_HEADER native blocks (with RSA proofs
   # in BLOCK_PROOF) to BN. streamWrappedRecordBlocks=true would cause CN to stream

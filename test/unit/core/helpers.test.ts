@@ -160,7 +160,7 @@ describe('Helpers', (): void => {
       ]);
     });
 
-    it('preserves explicit wrappedRecordBlocks=true in BLOCKS mode for WRB/RSA verification', (): void => {
+    it('overrides wrappedRecordBlocks=true to false in BLOCKS mode', (): void => {
       const lines: string[] = [
         'blockStream.streamMode=RECORDS',
         'blockStream.writerMode=FILE',
@@ -173,7 +173,7 @@ describe('Helpers', (): void => {
       expect(lines).to.deep.equal([
         'blockStream.streamMode=BLOCKS',
         'blockStream.writerMode=FILE_AND_GRPC',
-        'blockStream.streamWrappedRecordBlocks=true',
+        'blockStream.streamWrappedRecordBlocks=false',
       ]);
     });
 
