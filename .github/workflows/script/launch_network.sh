@@ -1425,17 +1425,24 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed; ready to accept CN v0.75.1 wantedBlock = frozen_block + 1"
 
-  # BN 0.37.0's graceful SIGTERM shutdown (triggered by the Helm upgrade above) may re-write
-  # block-ranges.json onto the PVC after our pre-upgrade deletion, causing BN 0.38.1 to inherit
-  # the stale publisher counter and reject CN v0.75.1's wantedBlock as "block out of range".
-  # Fix: delete block-ranges.json from the running BN 0.38.1 pod, then restart it so BN
-  # re-initialises its publisher counter by scanning live storage from disk.
+  # BN 0.37.0's graceful SIGTERM shutdown (triggered by the Helm upgrade above) may have:
+  # (a) written block-ranges.json with a stale counter, AND/OR
+  # (b) received block frozen_block+1 from CN v0.74.0 via an in-flight stream between our
+  #     pre-upgrade cleanup and the SIGTERM — storing it in live storage but not yet in
+  #     historic (which is archived asynchronously). BN 0.38.1 would then find that extra
+  #     live block, compute nextExpected = frozen_block+2, and reject CN v0.75.1's wantedBlock.
+  # Fix: delete both the extra blocks AND block-ranges.json from the running BN 0.38.1 pod,
+  # then force-kill it so BN re-initialises its publisher counter by scanning live storage.
   bn_pod_new=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
     --context "kind-${SOLO_CLUSTER_NAME}" \
     -l "block-node.hiero.com/type=block-node" \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
   if [[ -n "${bn_pod_new}" ]]; then
-    echo "Post-upgrade: deleting block-ranges.json from BN ${CURRENT_BLOCK_VERSION} pod ${bn_pod_new} to clear any SIGTERM-written stale counter"
+    echo "Post-upgrade: deleting blocks > frozen_block ${frozen_block_before_cn_upgrade} from ALL BN ${CURRENT_BLOCK_VERSION} storage (live + historic)"
+    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
+      --context "kind-${SOLO_CLUSTER_NAME}" -- \
+      sh -c "find /opt/hiero/block-node/data -name '*.blk.zstd' 2>/dev/null | while IFS= read -r f; do n=\$(( 10#\$(basename \"\$f\" .blk.zstd) )); if [ \"\$n\" -gt \"${frozen_block_before_cn_upgrade}\" ]; then echo \"Removing block \$n: \$f\"; rm -f \"\$f\"; fi; done; echo 'Post-upgrade block cleanup complete'"
+    echo "Post-upgrade: deleting block-ranges.json from BN ${CURRENT_BLOCK_VERSION} pod ${bn_pod_new}"
     kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
       --context "kind-${SOLO_CLUSTER_NAME}" -- \
       rm -f /opt/hiero/block-node/application-state/block-ranges.json
