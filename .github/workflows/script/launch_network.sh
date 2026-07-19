@@ -1400,7 +1400,7 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   # will be N-1 and CN v0.75.1's wantedBlock = N will be accepted.
   bn_pod=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
     --context "kind-${SOLO_CLUSTER_NAME}" \
-    -l "app.kubernetes.io/name=block-node-server" \
+    -l "block-node.hiero.com/type=block-node" \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
   if [[ -n "${bn_pod}" ]]; then
     bn_last_block=$(kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod}" \
@@ -1415,7 +1415,7 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
       echo "WARNING: No block files found in BN live storage; continuing without deletion"
     fi
   else
-    echo "WARNING: No BN pod found (label: app.kubernetes.io/name=block-node-server); continuing without block deletion"
+    echo "WARNING: No BN pod found (label: block-node.hiero.com/type=block-node); continuing without block deletion"
   fi
 
   # Upgrade BN: pod restarts and BlockFileRecentPlugin scans live directory → latestBlockAvailable = N-1
