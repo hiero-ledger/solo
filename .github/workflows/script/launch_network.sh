@@ -1398,6 +1398,14 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   # Find the BN pod and delete its last block file. BlockFileRecentPlugin rebuilds availableBlocks
   # by scanning the live directory at startup, so after the BN upgrade restart latestBlockAvailable
   # will be N-1 and CN v0.75.1's wantedBlock = N will be accepted.
+  #
+  # We also delete block-ranges.json from the application-state PVC. BN 0.37.0 writes this file
+  # with a publisher counter that may be advanced past N+1 due to checkMidBlockAndShutdown() being
+  # called when a CN node sends RESET mid-block during its shutdown sequence. BN 0.38.1 reads this
+  # stale counter at startup and reports blocksAvailable: N+2 (or higher), causing CN v0.75.1's
+  # wantedBlock = N to be rejected as "block out of range". Deleting the file forces BN 0.38.1 to
+  # rebuild its block-range state by scanning live storage from disk, which will correctly reflect
+  # only the blocks actually present after the deletion above.
   bn_pod=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
     --context "kind-${SOLO_CLUSTER_NAME}" \
     -l "block-node.hiero.com/type=block-node" \
@@ -1414,6 +1422,10 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
     else
       echo "WARNING: No block files found in BN live storage; continuing without deletion"
     fi
+    echo "Removing block-ranges.json state file to prevent stale publisher counter from blocking CN v0.75.1"
+    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod}" \
+      --context "kind-${SOLO_CLUSTER_NAME}" -- \
+      rm -f /opt/hiero/block-node/application-state/block-ranges.json
   else
     echo "WARNING: No BN pod found (label: block-node.hiero.com/type=block-node); continuing without block deletion"
   fi
