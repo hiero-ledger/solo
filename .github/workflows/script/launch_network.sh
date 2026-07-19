@@ -1456,18 +1456,15 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
     kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
       --context "kind-${SOLO_CLUSTER_NAME}" -- \
       rm -f /opt/hiero/block-node/application-state/block-ranges.json
-    # Use SIGKILL (kill -9 1) rather than kubectl delete pod to prevent BN's Java SIGTERM handler
-    # from re-writing block-ranges.json with the stale in-memory counter after our deletion above.
-    # SIGKILL cannot be caught, so the handler never fires, and the new container starts with no
-    # block-ranges.json and re-derives nextExpected by scanning the live directory.
-    echo "Force-killing BN container (SIGKILL) to bypass Java SIGTERM handler and prevent stale block-ranges.json rewrite"
-    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
-      --context "kind-${SOLO_CLUSTER_NAME}" -- \
-      sh -c "kill -9 1" 2>/dev/null || true
-    kubectl wait pod -n "${SOLO_NAMESPACE}" \
+    # Use kubectl delete --grace-period=0 --force (kubelet SIGKILL) rather than kill -9 1.
+    # kill -9 1 from within a container's PID namespace is blocked by Linux init-process
+    # protection — the kernel ignores SIGKILL sent to PID 1 from within the same namespace.
+    # Only the kubelet (running in the host PID namespace) can forcibly SIGKILL the container
+    # without first sending SIGTERM, so block-ranges.json is never rewritten.
+    echo "Force-deleting BN pod (kubelet SIGKILL, no SIGTERM) to prevent stale block-ranges.json rewrite"
+    kubectl delete pod -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
       --context "kind-${SOLO_CLUSTER_NAME}" \
-      -l "block-node.hiero.com/type=block-node" \
-      --for=condition=Ready=false --timeout=30s 2>/dev/null || true
+      --grace-period=0 --force 2>/dev/null || true
     kubectl wait pod -n "${SOLO_NAMESPACE}" \
       --context "kind-${SOLO_CLUSTER_NAME}" \
       -l "block-node.hiero.com/type=block-node" \
