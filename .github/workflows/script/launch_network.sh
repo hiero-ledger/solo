@@ -1372,22 +1372,17 @@ fi
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_USES_WRB_RSA}" == "true" ]]; then
-  # Two-phase "handoff" approach:
-  #  Phase 1: Execute CN upgrade against the existing BN ${PREV_BLOCK_VERSION_NO_V}. The
-  #  source CN v0.74.0 state records last_committed_block = N-1, so CN v0.75.1 starts with
-  #  wantedBlock = N even though BN already has N (streamed by source CN just before freeze).
-  #  BN ${PREV_BLOCK_VERSION_NO_V} accepts the duplicate block N gracefully. CN v0.75.1
-  #  progresses to N+1, N+2, ... and saves a new state that records N as committed.
-  #  Phase 2: Stop CN cleanly (no in-flight block), upgrade BN to ${CURRENT_BLOCK_VERSION},
-  #  then restart CN. CN loads the Phase 1 state (last_committed = N), wantedBlock = N+1.
-  #  BN ${CURRENT_BLOCK_VERSION} has clean blocks 0-N and expects N+1 → connection succeeds.
+  # When both CN and BN are upgrading simultaneously there is an off-by-one problem:
+  # source CN v0.74.0 state records last_committed_block = N-1, so CN v0.75.1 starts with
+  # wantedBlock = N. But BN already has block N (streamed by source CN just before freeze),
+  # so BN counter = N+1 and rejects CN's wantedBlock = N ("block out of range").
   #
-  #  We cannot upgrade BN before the CN freeze: source CN reconnects to the new BN and
-  #  streams block N, so BN counter advances to N+1. CN v0.75.1 then reports
-  #  "wantedBlock: N, blocksAvailable: N+1-N+1" and can never publish.
-  #  We cannot upgrade BN after the freeze either: BN may restart while source CN is
-  #  mid-block, advancing the counter past the incomplete block (same off-by-one error).
-  echo "Consensus and block node versions are both changing; using two-phase BN handoff approach"
+  # Fix: after source CN is frozen and mirror has stabilised, delete the last block file from
+  # BN's live storage before upgrading BN. BlockFileRecentPlugin scans the live directory at
+  # startup (init()) to rebuild availableBlocks in memory — there are no persistent state files
+  # to update. After the pod restart BN reports latestBlockAvailable = N-1. CN v0.75.1 then
+  # computes wantedBlock = N, which is within its buffer range, and BN accepts block N. ✓
+  echo "CN and BN versions are both changing; removing BN last block before upgrade to fix wantedBlock alignment"
   TEMP_UPGRADE_CONTEXT_DIR="$(mktemp -d -t solo-upgrade-context-XXXX)"
 
   echo "Preparing CN ${TO_CONSENSUS_NODE_VERSION} with final WRB/RSA block stream properties."
@@ -1400,22 +1395,36 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   frozen_block_before_cn_upgrade="$(wait_for_mirror_block_stability "source frozen before CN upgrade" 3 60 2)"
   echo "$(date '+%Y-%m-%d %H:%M:%S') - Stable mirror block before CN upgrade: ${frozen_block_before_cn_upgrade}"
 
-  # Phase 1: CN v0.75.1 runs against BN ${PREV_BLOCK_VERSION_NO_V}.
-  run_consensus_network_upgrade_execute
+  # Find the BN pod and delete its last block file. BlockFileRecentPlugin rebuilds availableBlocks
+  # by scanning the live directory at startup, so after the BN upgrade restart latestBlockAvailable
+  # will be N-1 and CN v0.75.1's wantedBlock = N will be accepted.
+  bn_pod=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
+    --context "kind-${SOLO_CLUSTER_NAME}" \
+    -l "app.kubernetes.io/name=block-node-server" \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+  if [[ -n "${bn_pod}" ]]; then
+    bn_last_block=$(kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod}" \
+      --context "kind-${SOLO_CLUSTER_NAME}" -- \
+      sh -c "find /opt/hiero/block-node/data/live -name '*.blk.zstd' 2>/dev/null | sort | tail -1")
+    if [[ -n "${bn_last_block}" ]]; then
+      echo "Removing last BN block file to align latestBlockAvailable for CN v0.75.1: ${bn_last_block}"
+      kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod}" \
+        --context "kind-${SOLO_CLUSTER_NAME}" -- rm -f "${bn_last_block}"
+      echo "Last BN block removed; BN will report latestBlockAvailable = N-1 after upgrade restart"
+    else
+      echo "WARNING: No block files found in BN live storage; continuing without deletion"
+    fi
+  else
+    echo "WARNING: No BN pod found (label: app.kubernetes.io/name=block-node-server); continuing without block deletion"
+  fi
 
-  # Wait for CN v0.75.1 to produce at least one new block against BN ${PREV_BLOCK_VERSION_NO_V}.
-  # This ensures CN has saved a new state snapshot with the correct committed-block counter
-  # before we stop it and upgrade BN.
-  wait_for_mirror_block_count_progress "CN ${TO_CONSENSUS_NODE_VERSION} phase-1 handoff with BN ${PREV_BLOCK_VERSION_NO_V}" "${frozen_block_before_cn_upgrade}" 1 180 2 > /dev/null
-
-  # Phase 2: Stop CN cleanly, upgrade BN, restart CN.
-  echo "Stopping CN nodes before upgrading BN from ${PREV_BLOCK_VERSION_NO_V} to ${CURRENT_BLOCK_VERSION}."
-  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
-
+  # Upgrade BN: pod restarts and BlockFileRecentPlugin scans live directory → latestBlockAvailable = N-1
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  echo "BN ${CURRENT_BLOCK_VERSION} installed after CN ${TO_CONSENSUS_NODE_VERSION} phase-1 handoff. Restarting CN."
+  echo "BN ${CURRENT_BLOCK_VERSION} installed; latestBlockAvailable = N-1, ready to accept CN v0.75.1 wantedBlock = N"
 
-  npm run solo -- consensus node start -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" -q --dev
+  # Execute CN upgrade: CN v0.75.1 loads state (last_committed = N-1), queries BN
+  # (latestBlockAvailable = N-1), sets wantedBlock = N, which is within its buffer → connects!
+  run_consensus_network_upgrade_execute
   echo "CN ${TO_CONSENSUS_NODE_VERSION} active with BN ${CURRENT_BLOCK_VERSION}; post-upgrade transaction will verify block progress from ${frozen_block_before_cn_upgrade}."
 else
   if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
