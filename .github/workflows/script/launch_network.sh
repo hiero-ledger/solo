@@ -1427,21 +1427,23 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
 
   # BN 0.37.0's graceful SIGTERM shutdown (triggered by the Helm upgrade above) may have:
   # (a) written block-ranges.json with a stale counter, AND/OR
-  # (b) received block frozen_block+1 from CN v0.74.0 via an in-flight stream between our
-  #     pre-upgrade cleanup and the SIGTERM — storing it in live storage but not yet in
-  #     historic (which is archived asynchronously). BN 0.38.1 would then find that extra
-  #     live block, compute nextExpected = frozen_block+2, and reject CN v0.75.1's wantedBlock.
-  # Fix: delete both the extra blocks AND block-ranges.json from the running BN 0.38.1 pod,
-  # then force-kill it so BN re-initialises its publisher counter by scanning live storage.
+  # (b) received block frozen_block+1 from CN v0.74.0 and flushed it to live storage after
+  #     our pre-upgrade cleanup ran (which only searched for *.blk.zstd files).  BN 0.38.1
+  #     then archives that extra live block (to a zip in historic) within seconds of starting,
+  #     so a second *.blk.zstd search still finds nothing — yet BN's internal wantedBlock is
+  #     already frozen_block+2, causing CN v0.75.1 to be rejected as "out of range".
+  # Fix: purge the entire live-storage directory (safe — HistoricBlockRange=0->frozen_block
+  #     confirms all those blocks are durably archived in the historic PVC) and delete
+  #     block-ranges.json, then force-kill so BN re-scans from clean state.
   bn_pod_new=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
     --context "kind-${SOLO_CLUSTER_NAME}" \
     -l "block-node.hiero.com/type=block-node" \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
   if [[ -n "${bn_pod_new}" ]]; then
-    echo "Post-upgrade: deleting blocks > frozen_block ${frozen_block_before_cn_upgrade} from ALL BN ${CURRENT_BLOCK_VERSION} storage (live + historic)"
+    echo "Post-upgrade: clearing entire live storage on BN ${CURRENT_BLOCK_VERSION} (historic PVC already has 0->${frozen_block_before_cn_upgrade}; live may contain extra blocks from CN v0.74.0 SIGTERM flush)"
     kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
       --context "kind-${SOLO_CLUSTER_NAME}" -- \
-      sh -c "find /opt/hiero/block-node/data -name '*.blk.zstd' 2>/dev/null | while IFS= read -r f; do n=\$(( 10#\$(basename \"\$f\" .blk.zstd) )); if [ \"\$n\" -gt \"${frozen_block_before_cn_upgrade}\" ]; then echo \"Removing block \$n: \$f\"; rm -f \"\$f\"; fi; done; echo 'Post-upgrade block cleanup complete'"
+      sh -c "find /opt/hiero/block-node/data/live -mindepth 1 -delete 2>/dev/null; echo 'Live storage cleared'"
     echo "Post-upgrade: deleting block-ranges.json from BN ${CURRENT_BLOCK_VERSION} pod ${bn_pod_new}"
     kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
       --context "kind-${SOLO_CLUSTER_NAME}" -- \
@@ -1459,7 +1461,7 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
       --context "kind-${SOLO_CLUSTER_NAME}" \
       -l "block-node.hiero.com/type=block-node" \
       --for=condition=Ready --timeout=120s
-    echo "BN ${CURRENT_BLOCK_VERSION} restarted; publisher counter rebuilt from live storage"
+    echo "BN ${CURRENT_BLOCK_VERSION} restarted; publisher counter rebuilt from historic storage (live cleared)"
   else
     echo "WARNING: No BN pod found after upgrade; skipping post-upgrade block-ranges.json cleanup"
   fi
