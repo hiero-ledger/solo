@@ -1395,41 +1395,24 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   frozen_block_before_cn_upgrade="$(wait_for_mirror_block_stability "source frozen before CN upgrade" 3 60 2)"
   echo "$(date '+%Y-%m-%d %H:%M:%S') - Stable mirror block before CN upgrade: ${frozen_block_before_cn_upgrade}"
 
-  # Conditionally delete BN's last live block to align wantedBlock.
+  # Delete all BN block files with block number > frozen_block from ALL storage locations,
+  # then delete block-ranges.json to align BN's publisher counter with CN v0.75.1's wantedBlock.
   #
-  # CN v0.75.1 starts with wantedBlock = frozen_block + 1 (last committed = frozen_block).
-  # BN's publisher counter at startup = (last_live_block + 1) or the value in block-ranges.json.
+  # BN writes every block to BOTH live (/data/live) AND historic/staging (/data/historic/staging)
+  # simultaneously. Deleting from only live leaves a surviving copy in historic that BN scans at
+  # startup, producing nextExpected = frozen_block+2 instead of frozen_block+1.
   #
-  # Two possible states after source CN freezes:
-  #   A) BN last_live_block == frozen_block: counter = frozen_block+1 = wantedBlock → already aligned.
-  #      Deleting the last live block would make counter = frozen_block < wantedBlock → off-by-one!
-  #   B) BN last_live_block > frozen_block: BN received an extra block CN hadn't committed before
-  #      freeze. Counter = last_live_block+1 > wantedBlock → "block out of range". Must delete.
-  #
-  # Always delete block-ranges.json: BN 0.37.0's SIGTERM/RESET handlers may advance the publisher
-  # counter past last_live_block+1 and persist it. BN 0.38.1 would inherit this stale counter.
+  # Also delete block-ranges.json: BN 0.37.0's SIGTERM/RESET handlers advance the publisher counter
+  # beyond the last complete block and persist it. BN 0.38.1 would inherit that stale counter.
   bn_pod=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
     --context "kind-${SOLO_CLUSTER_NAME}" \
     -l "block-node.hiero.com/type=block-node" \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
   if [[ -n "${bn_pod}" ]]; then
-    bn_last_block=$(kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod}" \
+    echo "CN and BN versions are both changing; removing BN blocks > frozen_block ${frozen_block_before_cn_upgrade} from all storage (live + historic)"
+    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod}" \
       --context "kind-${SOLO_CLUSTER_NAME}" -- \
-      sh -c "find /opt/hiero/block-node/data/live -name '*.blk.zstd' 2>/dev/null | sort | tail -1")
-    if [[ -n "${bn_last_block}" ]]; then
-      bn_last_block_number=$((10#$(basename "${bn_last_block}" .blk.zstd)))
-      echo "BN last live block: ${bn_last_block_number}, mirror stable block: ${frozen_block_before_cn_upgrade}"
-      if [[ "${bn_last_block_number}" -gt "${frozen_block_before_cn_upgrade}" ]]; then
-        echo "BN has extra block beyond mirror stable; removing ${bn_last_block} to align CN v0.75.1 wantedBlock"
-        kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod}" \
-          --context "kind-${SOLO_CLUSTER_NAME}" -- rm -f "${bn_last_block}"
-        echo "Last BN block removed; BN will report latestBlockAvailable = frozen_block after upgrade restart"
-      else
-        echo "BN last block already aligned with mirror stable block; skipping live block deletion"
-      fi
-    else
-      echo "WARNING: No block files found in BN live storage; continuing without deletion"
-    fi
+      sh -c "find /opt/hiero/block-node/data -name '*.blk.zstd' 2>/dev/null | while IFS= read -r f; do n=\$(( 10#\$(basename \"\$f\" .blk.zstd) )); if [ \"\$n\" -gt \"${frozen_block_before_cn_upgrade}\" ]; then echo \"Removing block \$n: \$f\"; rm -f \"\$f\"; fi; done; echo 'Block cleanup complete'"
     echo "Removing block-ranges.json to prevent stale SIGTERM/RESET counter from blocking CN v0.75.1"
     kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod}" \
       --context "kind-${SOLO_CLUSTER_NAME}" -- \
