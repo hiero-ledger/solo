@@ -1456,12 +1456,18 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
     kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
       --context "kind-${SOLO_CLUSTER_NAME}" -- \
       rm -f /opt/hiero/block-node/application-state/block-ranges.json
-    echo "Restarting BN pod ${bn_pod_new} so it re-initialises publisher counter by scanning live storage"
-    kubectl delete pod -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
-      --context "kind-${SOLO_CLUSTER_NAME}"
+    # Use SIGKILL (kill -9 1) rather than kubectl delete pod to prevent BN's Java SIGTERM handler
+    # from re-writing block-ranges.json with the stale in-memory counter after our deletion above.
+    # SIGKILL cannot be caught, so the handler never fires, and the new container starts with no
+    # block-ranges.json and re-derives nextExpected by scanning the live directory.
+    echo "Force-killing BN container (SIGKILL) to bypass Java SIGTERM handler and prevent stale block-ranges.json rewrite"
+    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
+      --context "kind-${SOLO_CLUSTER_NAME}" -- \
+      sh -c "kill -9 1" 2>/dev/null || true
     kubectl wait pod -n "${SOLO_NAMESPACE}" \
       --context "kind-${SOLO_CLUSTER_NAME}" \
-      "${bn_pod_new}" --for=delete --timeout=60s 2>/dev/null || true
+      -l "block-node.hiero.com/type=block-node" \
+      --for=condition=Ready=false --timeout=30s 2>/dev/null || true
     kubectl wait pod -n "${SOLO_NAMESPACE}" \
       --context "kind-${SOLO_CLUSTER_NAME}" \
       -l "block-node.hiero.com/type=block-node" \
