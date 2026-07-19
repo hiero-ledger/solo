@@ -1434,6 +1434,35 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed; latestBlockAvailable = N-1, ready to accept CN v0.75.1 wantedBlock = N"
 
+  # BN 0.37.0's graceful SIGTERM shutdown (triggered by the Helm upgrade above) may re-write
+  # block-ranges.json onto the PVC after our pre-upgrade deletion, causing BN 0.38.1 to inherit
+  # the stale publisher counter and reject CN v0.75.1's wantedBlock as "block out of range".
+  # Fix: delete block-ranges.json from the running BN 0.38.1 pod, then restart it so BN
+  # re-initialises its publisher counter by scanning live storage from disk.
+  bn_pod_new=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
+    --context "kind-${SOLO_CLUSTER_NAME}" \
+    -l "block-node.hiero.com/type=block-node" \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+  if [[ -n "${bn_pod_new}" ]]; then
+    echo "Post-upgrade: deleting block-ranges.json from BN ${CURRENT_BLOCK_VERSION} pod ${bn_pod_new} to clear any SIGTERM-written stale counter"
+    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
+      --context "kind-${SOLO_CLUSTER_NAME}" -- \
+      rm -f /opt/hiero/block-node/application-state/block-ranges.json
+    echo "Restarting BN pod ${bn_pod_new} so it re-initialises publisher counter by scanning live storage"
+    kubectl delete pod -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
+      --context "kind-${SOLO_CLUSTER_NAME}"
+    kubectl wait pod -n "${SOLO_NAMESPACE}" \
+      --context "kind-${SOLO_CLUSTER_NAME}" \
+      "${bn_pod_new}" --for=delete --timeout=60s 2>/dev/null || true
+    kubectl wait pod -n "${SOLO_NAMESPACE}" \
+      --context "kind-${SOLO_CLUSTER_NAME}" \
+      -l "block-node.hiero.com/type=block-node" \
+      --for=condition=Ready --timeout=120s
+    echo "BN ${CURRENT_BLOCK_VERSION} restarted; publisher counter rebuilt from live storage (blocks 0..N-1)"
+  else
+    echo "WARNING: No BN pod found after upgrade; skipping post-upgrade block-ranges.json cleanup"
+  fi
+
   # Execute CN upgrade: CN v0.75.1 loads state (last_committed = N-1), queries BN
   # (latestBlockAvailable = N-1), sets wantedBlock = N, which is within its buffer → connects!
   run_consensus_network_upgrade_execute
