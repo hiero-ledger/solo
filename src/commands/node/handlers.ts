@@ -1061,7 +1061,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.loadConfiguration(argv, leaseWrapper, this.leaseManager),
         this.tasks.initialize(argv, this.configs.stopConfigBuilder.bind(this.configs), leaseWrapper.lease),
         this.validateAllNodePhases({
-          acceptedPhases: [DeploymentPhase.STARTED, DeploymentPhase.CONFIGURED],
+          acceptedPhases: [DeploymentPhase.STARTED, DeploymentPhase.CONFIGURED, DeploymentPhase.FROZEN],
         }),
         this.tasks.identifyNetworkPods(1),
         this.tasks.stopNodes('nodeAliases'),

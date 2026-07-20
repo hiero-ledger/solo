@@ -1395,6 +1395,13 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   frozen_block_before_cn_upgrade="$(wait_for_mirror_block_stability "source frozen before CN upgrade" 3 60 2)"
   echo "$(date '+%Y-%m-%d %H:%M:%S') - Stable mirror block before CN upgrade: ${frozen_block_before_cn_upgrade}"
 
+  # Stop CN v0.74 JVM now that the freeze is confirmed and mirror has caught up.
+  # Killing the JVM closes the gRPC publisher stream to BN so no more blocks (including
+  # empty post-freeze rounds) arrive during the BN cleanup/upgrade window.
+  # upgradeExecuteTasks() skips its checkAllNodesAreFrozen gRPC check when nodes are STOPPED.
+  echo "Stopping CN ${FROM_CONSENSUS_NODE_VERSION} JVM to close gRPC stream before BN upgrade"
+  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
+
   # Delete all BN block files with block number > frozen_block from ALL storage locations,
   # then delete block-ranges.json to align BN's publisher counter with CN v0.75.1's wantedBlock.
   #
