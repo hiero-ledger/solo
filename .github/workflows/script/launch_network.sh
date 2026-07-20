@@ -221,39 +221,6 @@ wait_for_mirror_block_count_progress() {
   wait_for_mirror_block_progress "${label}" "${minimum_previous_block}" "${max_attempts}" "${sleep_seconds}"
 }
 
-wait_for_mirror_block_stability() {
-  local label="${1}"
-  local required_stable_samples="${2:-3}"
-  local max_attempts="${3:-60}"
-  local sleep_seconds="${4:-2}"
-  local latest_block=-1
-  local previous_block=-1
-  local stable_samples=0
-
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for mirror block stability (${label})" >&2
-  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
-    latest_block=$(get_latest_mirror_block_number)
-    if [[ "${latest_block}" -ge 0 && "${latest_block}" -eq "${previous_block}" ]]; then
-      stable_samples=$((stable_samples + 1))
-    else
-      stable_samples=0
-      previous_block="${latest_block}"
-    fi
-
-    if [[ "${stable_samples}" -ge "${required_stable_samples}" ]]; then
-      echo "$(date '+%Y-%m-%d %H:%M:%S') - Mirror block ingestion stable (${label}): latest block ${latest_block}" >&2
-      echo "${latest_block}"
-      return 0
-    fi
-
-    echo "Mirror block ingestion still settling (${label}) [attempt=${attempt}/${max_attempts}, latest=${latest_block}, stable=${stable_samples}/${required_stable_samples}]" >&2
-    sleep "${sleep_seconds}"
-  done
-
-  echo "Timed out waiting for mirror block stability (${label}); latest=${latest_block}" >&2
-  return 1
-}
-
 wait_for_consensus_nodes_frozen() {
   local max_attempts="${1:-90}"
   local sleep_seconds="${2:-2}"
@@ -357,60 +324,6 @@ copy_consensus_application_properties_from_pod() {
       echo "No consensus application.properties file exists" >&2
       exit 1
     ' > "${properties_file}"
-}
-
-wait_for_consensus_application_properties() {
-  local expected_wrapped_record_blocks="${1}"
-  local expected_hints_enabled="${2}"
-  local expected_history_enabled="${3}"
-  local expected_wraps_enabled="${4}"
-  local expected_cutover_enabled="${5:-}"
-  local max_attempts="${6:-30}"
-  local sleep_seconds="${7:-2}"
-  local namespace="${SOLO_NAMESPACE:-one-shot}"
-  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
-  local node_pods=("network-node1-0" "network-node2-0")
-  local current_properties
-  local all_updated
-
-  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
-    all_updated="true"
-
-    for node_pod in "${node_pods[@]}"; do
-      current_properties="$(kubectl --context "${context}" exec "${node_pod}" -n "${namespace}" -c root-container -- \
-        bash -c "
-          for properties_path in /opt/hgcapp/data/config/application.properties /opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties; do
-            if [[ -f \"\${properties_path}\" ]]; then
-              grep -E '^(blockStream.streamWrappedRecordBlocks|blockStream.enableCutover|tss.hintsEnabled|tss.historyEnabled|tss.wrapsEnabled)=' \"\${properties_path}\"
-              exit 0
-            fi
-          done
-
-          exit 1
-        " 2>/dev/null || true)"
-
-      if ! grep -q "^blockStream.streamWrappedRecordBlocks=${expected_wrapped_record_blocks}$" <<< "${current_properties}" \
-        || ! grep -q "^tss.hintsEnabled=${expected_hints_enabled}$" <<< "${current_properties}" \
-        || ! grep -q "^tss.historyEnabled=${expected_history_enabled}$" <<< "${current_properties}" \
-        || ! grep -q "^tss.wrapsEnabled=${expected_wraps_enabled}$" <<< "${current_properties}" \
-        || { [[ -n "${expected_cutover_enabled}" ]] && ! grep -q "^blockStream.enableCutover=${expected_cutover_enabled}$" <<< "${current_properties}"; }; then
-        all_updated="false"
-        echo "Consensus node ${node_pod} application.properties not updated yet [attempt=${attempt}/${max_attempts}]"
-        echo "${current_properties}"
-        break
-      fi
-    done
-
-    if [[ "${all_updated}" == "true" ]]; then
-      echo "$(date '+%Y-%m-%d %H:%M:%S') - Consensus application.properties updated on all nodes"
-      return 0
-    fi
-
-    sleep "${sleep_seconds}"
-  done
-
-  echo "Timed out waiting for consensus application.properties update"
-  return 1
 }
 
 run_consensus_network_upgrade() {
