@@ -1395,93 +1395,19 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   frozen_block_before_cn_upgrade="$(wait_for_mirror_block_stability "source frozen before CN upgrade" 3 60 2)"
   echo "$(date '+%Y-%m-%d %H:%M:%S') - Stable mirror block before CN upgrade: ${frozen_block_before_cn_upgrade}"
 
-  # Stop CN v0.74 JVM now that the freeze is confirmed and mirror has caught up.
-  # Killing the JVM closes the gRPC publisher stream to BN so no more blocks (including
-  # empty post-freeze rounds) arrive during the BN cleanup/upgrade window.
-  # upgradeExecuteTasks() skips its checkAllNodesAreFrozen gRPC check when nodes are STOPPED.
+  # Stop CN JVM to close the gRPC publisher stream before BN upgrade.
+  # CN >= 0.74 uses BLOCKS-only mode (no MinIO); stopping the JVM means no more blocks
+  # arrive at BN during upgrade, eliminating all wantedBlock timing races.
   echo "Stopping CN ${FROM_CONSENSUS_NODE_VERSION} JVM to close gRPC stream before BN upgrade"
   npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
 
-  # Delete all BN block files with block number > frozen_block from ALL storage locations,
-  # then delete block-ranges.json to align BN's publisher counter with CN v0.75.1's wantedBlock.
-  #
-  # BN writes every block to BOTH live (/data/live) AND historic/staging (/data/historic/staging)
-  # simultaneously. Deleting from only live leaves a surviving copy in historic that BN scans at
-  # startup, producing nextExpected = frozen_block+2 instead of frozen_block+1.
-  #
-  # Also delete block-ranges.json: BN 0.37.0's SIGTERM/RESET handlers advance the publisher counter
-  # beyond the last complete block and persist it. BN 0.38.1 would inherit that stale counter.
-  bn_pod=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
-    --context "kind-${SOLO_CLUSTER_NAME}" \
-    -l "block-node.hiero.com/type=block-node" \
-    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-  if [[ -n "${bn_pod}" ]]; then
-    echo "CN and BN versions are both changing; removing BN blocks > frozen_block ${frozen_block_before_cn_upgrade} from all storage (live + historic)"
-    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod}" \
-      --context "kind-${SOLO_CLUSTER_NAME}" -- \
-      sh -c "find /opt/hiero/block-node/data -name '*.blk.zstd' 2>/dev/null | while IFS= read -r f; do n=\$(( 10#\$(basename \"\$f\" .blk.zstd) )); if [ \"\$n\" -gt \"${frozen_block_before_cn_upgrade}\" ]; then echo \"Removing block \$n: \$f\"; rm -f \"\$f\"; fi; done; echo 'Block cleanup complete'"
-    echo "Removing block-ranges.json to prevent stale SIGTERM/RESET counter from blocking CN v0.75.1"
-    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod}" \
-      --context "kind-${SOLO_CLUSTER_NAME}" -- \
-      rm -f /opt/hiero/block-node/application-state/block-ranges.json
-  else
-    echo "WARNING: No BN pod found (label: block-node.hiero.com/type=block-node); continuing without block deletion"
-  fi
-
-  # Upgrade BN: pod restarts and BlockFileRecentPlugin scans live directory → latestBlockAvailable = N-1
-  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  echo "BN ${CURRENT_BLOCK_VERSION} installed; ready to accept CN v0.75.1 wantedBlock = frozen_block + 1"
-
-  # BN 0.38.1 writes every block simultaneously to BOTH:
-  #   live    → /data/live/.../NNNNNNNNNNNNNNNNNNN.blk.zstd    (live-storage PVC)
-  #   staging → /data/historic/staging/.../NNNNNNNNNNNNNNNNNNN.blk.zstd  (archive-storage PVC)
-  #
-  # After the Helm upgrade above, BN 0.38.1 immediately begins archiving staging files to
-  # final zip archives in a background thread.  Force-killing BN mid-archival leaves staging
-  # empty/corrupt — but live is unaffected: live files are only pruned when
-  # files.recent.blockRetentionThreshold (96000) is exceeded, which never happens with ~100
-  # blocks.  BN recomputes wantedBlock from live storage on restart.
-  #
-  # Selectively remove only blocks > frozen_block from BOTH live AND staging so BN restarts
-  # with wantedBlock = frozen_block + 1.  Do NOT clear all of live — that would leave BN with
-  # no storage on restart (live empty, staging corrupt, block-ranges.json deleted → wantedBlock
-  # reverts to -1 and CN v0.75.1 cannot replay from block 0).
-  bn_pod_new=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
-    --context "kind-${SOLO_CLUSTER_NAME}" \
-    -l "block-node.hiero.com/type=block-node" \
-    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-  if [[ -n "${bn_pod_new}" ]]; then
-    echo "Post-upgrade: removing blocks > ${frozen_block_before_cn_upgrade} from live and staging on BN ${CURRENT_BLOCK_VERSION} pod ${bn_pod_new}"
-    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
-      --context "kind-${SOLO_CLUSTER_NAME}" -- \
-      sh -c "find /opt/hiero/block-node/data/live -name '*.blk.zstd' 2>/dev/null | while IFS= read -r f; do n=\$(( 10#\$(basename \"\$f\" .blk.zstd) )); if [ \"\$n\" -gt \"${frozen_block_before_cn_upgrade}\" ]; then echo \"Removing extra live block \$n: \$f\"; rm -f \"\$f\"; fi; done; echo 'Live extra-block cleanup done'"
-    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
-      --context "kind-${SOLO_CLUSTER_NAME}" -- \
-      sh -c "find /opt/hiero/block-node/data/historic/staging -name '*.blk.zstd' 2>/dev/null | while IFS= read -r f; do n=\$(( 10#\$(basename \"\$f\" .blk.zstd) )); if [ \"\$n\" -gt \"${frozen_block_before_cn_upgrade}\" ]; then echo \"Removing extra staging block \$n: \$f\"; rm -f \"\$f\"; fi; done; echo 'Staging extra-block cleanup done'"
-    # BN's 500ms application-state timer can recreate block-ranges.json between a standalone
-    # 'rm -f' exec and the subsequent 'kubectl delete pod --force', leaving a stale wantedBlock
-    # that causes CN v0.75.1 to be rejected as "block out of range" (confirmed: both CN1 and CN2
-    # start at the same millisecond and both immediately see blocksAvailable: 101-101, meaning BN
-    # had the stale counter before any CN connected).  Fix: run rm + pkill in a single sh -c so
-    # there is zero scheduling gap for the timer to fire.  pkill SIGKILLs the JVM (not PID 1 /
-    # s6 supervisor), which causes s6 to exit the container; Kubernetes restarts the pod.  The
-    # belt-and-suspenders kubectl delete that follows handles any edge case where pkill did not
-    # trigger a pod restart (e.g. the exec raced with BN already exiting).
-    echo "Force-restarting BN: deleting block-ranges.json + killing JVM atomically to close 500ms timer race"
-    kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
-      --context "kind-${SOLO_CLUSTER_NAME}" -- \
-      sh -c "rm -f /opt/hiero/block-node/application-state/block-ranges.json && pkill -KILL java 2>/dev/null; true" 2>/dev/null || true
-    kubectl delete pod -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
-      --context "kind-${SOLO_CLUSTER_NAME}" \
-      --grace-period=0 --force 2>/dev/null || true
-    kubectl wait pod -n "${SOLO_NAMESPACE}" \
-      --context "kind-${SOLO_CLUSTER_NAME}" \
-      -l "block-node.hiero.com/type=block-node" \
-      --for=condition=Ready --timeout=120s
-    echo "BN ${CURRENT_BLOCK_VERSION} restarted; wantedBlock recomputed from live storage (0->${frozen_block_before_cn_upgrade} intact)"
-  else
-    echo "WARNING: No BN pod found after upgrade; skipping post-upgrade block-ranges.json cleanup"
-  fi
+  # Upgrade BN with cutover-block-number so the upgrade task trims blocks > N and removes
+  # block-ranges.json on the running pod before Helm restarts it with the new version.
+  # With CN stopped, no new blocks arrive during the upgrade so no post-upgrade cleanup is needed.
+  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" \
+    --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}" \
+    --cutover-block-number "${frozen_block_before_cn_upgrade}"
+  echo "BN ${CURRENT_BLOCK_VERSION} installed with cutover at block ${frozen_block_before_cn_upgrade}"
 
   # Execute CN upgrade: CN v0.75.1 loads state (last_committed = N-1), queries BN
   # (latestBlockAvailable = N-1), sets wantedBlock = N, which is within its buffer → connects!

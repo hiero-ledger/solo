@@ -790,6 +790,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly cutoverBlockNumber: CommandFlag = {
+    constName: 'cutoverBlockNumber',
+    name: 'cutover-block-number',
+    definition: {
+      describe:
+        'Network freeze block number used during CN+BN co-upgrade; block node upgrade trims blocks above this value before the new version starts',
+      defaultValue: undefined,
+      type: 'number',
+    },
+    prompt: undefined,
+  };
+
   public static readonly blockNodeMapping: CommandFlag = {
     constName: 'blockNodeIds',
     name: 'block-node-mapping',
@@ -3276,6 +3288,7 @@ export class Flags {
     Flags.blockNodeTssOverlay,
     Flags.blockNodeMessageSizeSoftLimitBytes,
     Flags.blockNodeMessageSizeHardLimitBytes,
+    Flags.cutoverBlockNumber,
     Flags.priorityMapping,
     Flags.externalBlockNodeAddress,
     Flags.realm,
@@ -3338,9 +3351,12 @@ export class Flags {
   );
 
   public static readonly integerFlags: Map<string, CommandFlag> = new Map(
-    [Flags.replicaCount, Flags.blockNodeMessageSizeSoftLimitBytes, Flags.blockNodeMessageSizeHardLimitBytes].map(
-      (f): [string, CommandFlag] => [f.name, f],
-    ),
+    [
+      Flags.replicaCount,
+      Flags.blockNodeMessageSizeSoftLimitBytes,
+      Flags.blockNodeMessageSizeHardLimitBytes,
+      Flags.cutoverBlockNumber,
+    ].map((f): [string, CommandFlag] => [f.name, f]),
   );
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
