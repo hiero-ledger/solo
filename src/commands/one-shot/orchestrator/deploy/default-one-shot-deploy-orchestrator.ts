@@ -485,9 +485,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         undefined,
         // Skip the whole group when the image cache is disabled.
         (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
-        // Never collapse: keep the pull/load steps visible so cache activity can be inspected live,
-        // even in parallel-deploy mode.
-        false,
+        (getConfig: () => OneShotSingleDeployConfigClass): boolean => getConfig()?.parallelDeploy === true,
       ),
       OrchestratorPipelinePhase.composite(
         'Prepare cluster and deployment',

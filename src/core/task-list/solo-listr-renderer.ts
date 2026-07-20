@@ -32,6 +32,8 @@ interface RendererTask {
   title?: string;
   output?: string;
   subtasks?: RendererTask[];
+  /** Per-task renderer overrides; `showSubtasks: false` collapses this task to a single line. */
+  rendererOptions?: {showSubtasks?: boolean};
   message: {duration?: number; error?: string; skip?: string};
   hasTitle(): boolean;
   hasSubtasks(): boolean;
@@ -92,7 +94,7 @@ export class SoloListrRenderer {
 
   public constructor(
     private readonly tasks: RendererTask[],
-    private readonly options: {lazy?: boolean} = {},
+    private readonly options: {lazy?: boolean; showSubtasks?: boolean} = {},
     private readonly events?: RendererEvents,
   ) {
     this.logger = new ListrLogger({useIcons: true});
@@ -210,8 +212,22 @@ export class SoloListrRenderer {
       out.push(this.line(task, depth));
     }
     this.committed.add(task.id);
+    // A collapsed task (showSubtasks: false) contributes only its own line; its subtree is marked
+    // committed so nothing dangles but is never written out.
+    if (!this.showsSubtasks(task)) {
+      this.markCommitted(task.subtasks ?? []);
+      return;
+    }
     for (const subtask of task.subtasks ?? []) {
       this.commit(subtask, childDepth, out);
+    }
+  }
+
+  /** Recursively marks a subtree committed without emitting any lines (used for collapsed tasks). */
+  private markCommitted(tasks: RendererTask[]): void {
+    for (const task of tasks) {
+      this.committed.add(task.id);
+      this.markCommitted(task.subtasks ?? []);
     }
   }
 
@@ -230,12 +246,12 @@ export class SoloListrRenderer {
   private renderTaskWindowed(task: RendererTask, depth: number, out: LiveLine[]): void {
     const childDepth: number = task.hasTitle() ? depth + 1 : depth;
     if (task.hasTitle()) {
-      out.push({text: this.line(task, depth), depth, parent: task.hasSubtasks()});
+      out.push({text: this.line(task, depth), depth, parent: task.hasSubtasks() && this.showsSubtasks(task)});
       if (task.output) {
         out.push({text: INDENT.repeat(childDepth) + color.dim(task.output.trim()), depth: childDepth, parent: false});
       }
     }
-    if (task.hasSubtasks()) {
+    if (task.hasSubtasks() && this.showsSubtasks(task)) {
       this.renderChildrenWindow(task, childDepth, out);
     }
   }
@@ -331,13 +347,27 @@ export class SoloListrRenderer {
           out.push(INDENT.repeat(childDepth) + color.dim(task.output.trim()));
         }
       }
-      if (task.hasSubtasks()) {
+      if (task.hasSubtasks() && this.showsSubtasks(task)) {
         this.renderFull(task.subtasks ?? [], childDepth, out);
       }
     }
   }
 
   // --- helpers ---
+
+  /**
+   * Whether this task's subtasks should be rendered. A task (or the whole list) marked
+   * `showSubtasks: false` collapses to a single line — mirroring the default renderer, and honouring
+   * the collapsed lists solo builds via `SpinnerListrOptions`. Per-task overrides win over the
+   * list-level default.
+   */
+  private showsSubtasks(task: RendererTask): boolean {
+    const taskOption: boolean | undefined = task.rendererOptions?.showSubtasks;
+    if (taskOption !== undefined) {
+      return taskOption;
+    }
+    return this.options?.showSubtasks !== false;
+  }
 
   private isSubtreeFinalized(task: RendererTask): boolean {
     return task.hasFinalized() && (task.subtasks ?? []).every((subtask): boolean => this.isSubtreeFinalized(subtask));
