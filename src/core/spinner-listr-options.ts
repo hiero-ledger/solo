@@ -9,8 +9,8 @@ import * as constants from './constants.js';
  * each task renders as a single line without its subtasks.
  *
  * Note: this previously injected an animated spinner for the built-in `default` renderer's pending line.
- * The primary renderer (SoloSimpleRenderer) is now append-only and shows progress via periodic progress
- * lines instead of an in-place spinner, so only the collapse behaviour remains.
+ * The primary renderer (SoloListrRenderer) manages its own spinner and per-parent windowing, so only
+ * the collapse behaviour remains here.
  */
 export class SpinnerListrOptions {
   /**
