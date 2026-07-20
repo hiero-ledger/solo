@@ -23,6 +23,7 @@ import {IntervalLockRenewalService} from '../lock/interval-lock-renewal.js';
 import {LockManager} from '../lock/lock-manager.js';
 import {OneShotState} from '../one-shot-state.js';
 import {CertificateManager} from '../certificate-manager.js';
+import {mkdirSync} from 'node:fs';
 import os from 'node:os';
 import * as version from '../../../version.js';
 import {NetworkNodes} from '../network-nodes.js';
@@ -322,6 +323,9 @@ export class Container {
       container.resolve<SoloLogger>(InjectTokens.SoloLogger).debug('Container already initialized');
       return;
     }
+
+    // Services such as the local config storage backend require the home directory to exist at construction time.
+    mkdirSync(homeDirectory, {recursive: true});
 
     const singletonContainers: SingletonContainer[] = Container.singletonContainers();
 
