@@ -1451,16 +1451,19 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
     kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
       --context "kind-${SOLO_CLUSTER_NAME}" -- \
       sh -c "find /opt/hiero/block-node/data/historic/staging -name '*.blk.zstd' 2>/dev/null | while IFS= read -r f; do n=\$(( 10#\$(basename \"\$f\" .blk.zstd) )); if [ \"\$n\" -gt \"${frozen_block_before_cn_upgrade}\" ]; then echo \"Removing extra staging block \$n: \$f\"; rm -f \"\$f\"; fi; done; echo 'Staging extra-block cleanup done'"
-    echo "Post-upgrade: deleting block-ranges.json to force BN to recompute wantedBlock from live storage"
+    # BN's 500ms application-state timer can recreate block-ranges.json between a standalone
+    # 'rm -f' exec and the subsequent 'kubectl delete pod --force', leaving a stale wantedBlock
+    # that causes CN v0.75.1 to be rejected as "block out of range" (confirmed: both CN1 and CN2
+    # start at the same millisecond and both immediately see blocksAvailable: 101-101, meaning BN
+    # had the stale counter before any CN connected).  Fix: run rm + pkill in a single sh -c so
+    # there is zero scheduling gap for the timer to fire.  pkill SIGKILLs the JVM (not PID 1 /
+    # s6 supervisor), which causes s6 to exit the container; Kubernetes restarts the pod.  The
+    # belt-and-suspenders kubectl delete that follows handles any edge case where pkill did not
+    # trigger a pod restart (e.g. the exec raced with BN already exiting).
+    echo "Force-restarting BN: deleting block-ranges.json + killing JVM atomically to close 500ms timer race"
     kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
       --context "kind-${SOLO_CLUSTER_NAME}" -- \
-      rm -f /opt/hiero/block-node/application-state/block-ranges.json
-    # Use kubectl delete --grace-period=0 --force (kubelet SIGKILL) rather than kill -9 1.
-    # kill -9 1 from within a container's PID namespace is blocked by Linux init-process
-    # protection — the kernel ignores SIGKILL sent to PID 1 from within the same namespace.
-    # Only the kubelet (running in the host PID namespace) can forcibly SIGKILL the container
-    # without first sending SIGTERM, so block-ranges.json is never rewritten.
-    echo "Force-deleting BN pod (kubelet SIGKILL, no SIGTERM) to prevent stale block-ranges.json rewrite"
+      sh -c "rm -f /opt/hiero/block-node/application-state/block-ranges.json && pkill -KILL java 2>/dev/null; true" 2>/dev/null || true
     kubectl delete pod -n "${SOLO_NAMESPACE}" "${bn_pod_new}" \
       --context "kind-${SOLO_CLUSTER_NAME}" \
       --grace-period=0 --force 2>/dev/null || true
