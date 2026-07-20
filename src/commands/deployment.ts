@@ -137,6 +137,11 @@ export class DeploymentCommand extends BaseCommand {
     optional: [flags.quiet],
   };
 
+  public static STOP_PORT_FORWARDS_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.quiet],
+  };
+
   public static IMAGES_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.clusterRef, flags.quiet],
@@ -1330,6 +1335,196 @@ export class DeploymentCommand extends BaseCommand {
       await tasks.run();
     } catch (error) {
       throw new SoloErrors.system.portForwardRefreshFailed(error);
+    }
+
+    return true;
+  }
+
+  /**
+   * Stop (close down) all port-forwards configured for a deployment. Kills the underlying kubectl port-forward
+   * processes and removes their configuration from the deployment's remote config so a subsequent refresh does not
+   * restore them and list no longer reports them.
+   */
+  public async stopPortForwards(argv: ArgvStruct): Promise<boolean> {
+    interface Config {
+      quiet: boolean;
+      deployment: DeploymentName;
+    }
+
+    interface StopPortForwardsContext {
+      config: Config;
+      namespace?: NamespaceName;
+      clusterReference?: string;
+      context?: string;
+    }
+
+    const tasks: SoloListr<StopPortForwardsContext> = new Listr(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_): Promise<void> => {
+            await this.localConfig.load();
+
+            this.configManager.update(argv);
+
+            context_.config = {
+              quiet: this.configManager.getFlag<boolean>(flags.quiet),
+              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+            } as Config;
+
+            // Get namespace from deployment
+            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
+            if (!deployment) {
+              throw new SoloErrors.deployment.notFound(
+                `Deployment ${context_.config.deployment} not found in local config`,
+              );
+            }
+
+            context_.namespace = NamespaceName.of(deployment.namespace);
+          },
+        },
+        {
+          title: 'Load remote configuration',
+          task: async (context_, task): Promise<void> => {
+            if (!context_.namespace) {
+              throw new SoloErrors.deployment.namespaceNotSet();
+            }
+
+            // Load remote config from a selected cluster in the deployment
+            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
+            const clusters: FacadeArray<StringFacade, string> = deployment.clusters;
+
+            if (clusters.length === 0) {
+              throw new SoloErrors.deployment.noClustersForDeployment(context_.config.deployment);
+            }
+
+            const clusterReferences: string[] = [];
+            for (let index: number = 0; index < clusters.length; index++) {
+              const clusterReferenceFacade: StringFacade = clusters.get(index);
+              if (clusterReferenceFacade) {
+                clusterReferences.push(clusterReferenceFacade.toString());
+              }
+            }
+
+            if (clusterReferences.length === 0) {
+              throw new SoloErrors.deployment.clusterReferenceResolutionFailed(
+                context_.config.deployment,
+                Flags.getFormattedFlagKey(Flags.deployment),
+                Flags.getFormattedFlagKey(Flags.numberOfConsensusNodes),
+                Flags.getFormattedFlagKey(Flags.clusterRef),
+              );
+            }
+
+            let clusterReference: string = clusterReferences[0];
+            if (clusterReferences.length > 1) {
+              clusterReference = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+                message: `Multiple clusters found for deployment '${context_.config.deployment}'. Select cluster reference:`,
+                choices: clusterReferences.map((reference): {name: string; value: string} => ({
+                  name: `${reference} (${this.localConfig.configuration.clusterRefs.get(reference)?.toString() ?? 'no-context'})`,
+                  value: reference,
+                })),
+              })) as string;
+            }
+
+            const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
+            if (!contextValue) {
+              throw new SoloErrors.deployment.contextNotFoundForCluster(
+                clusterReference,
+                Flags.getFormattedFlagKey(Flags.clusterRef),
+                Flags.getFormattedFlagKey(Flags.context),
+              );
+            }
+
+            const context: string = contextValue.toString();
+            context_.clusterReference = clusterReference;
+            context_.context = context;
+
+            await this.remoteConfig.load(context_.namespace, context);
+          },
+        },
+        {
+          title: 'Stop port-forwards for all components',
+          task: async (_context_, task): Promise<void> => {
+            const componentsToCheck: {type: string; components: BaseStateSchema[]}[] = [
+              {type: 'ConsensusNode', components: this.remoteConfig.configuration.state.consensusNodes || []},
+              {type: 'HaProxy', components: this.remoteConfig.configuration.state.haProxies || []},
+              {type: 'BlockNode', components: this.remoteConfig.configuration.state.blockNodes || []},
+              {type: 'MirrorNode', components: this.remoteConfig.configuration.state.mirrorNodes || []},
+              {type: 'RelayNode', components: this.remoteConfig.configuration.state.relayNodes || []},
+              {type: 'Explorer', components: this.remoteConfig.configuration.state.explorers || []},
+            ];
+
+            let totalConfigured: number = 0;
+            let stoppedCount: number = 0;
+            let removedCount: number = 0;
+
+            this.logger.showUser(chalk.cyan('\n=== Stopping Port-Forwards ===\n'));
+
+            for (const {type, components} of componentsToCheck) {
+              for (const component of components) {
+                if (!component.metadata?.portForwardConfigs || component.metadata.portForwardConfigs.length === 0) {
+                  continue;
+                }
+
+                const {cluster: clusterReference} = component.metadata;
+                const context: string | undefined = this.localConfig.configuration.clusterRefs
+                  .get(clusterReference)
+                  ?.toString();
+                const k8Client: K8 = this.k8Factory.getK8(context);
+
+                // Only entries that fail to stop are retained so a later refresh can retry them.
+                const remainingConfigs: PortForwardConfig[] = [];
+
+                for (const portForwardConfig of component.metadata.portForwardConfigs) {
+                  totalConfigured++;
+                  const {localPort, podPort} = portForwardConfig;
+                  const componentLabel: string = `${type} ${component.metadata.id}`;
+
+                  try {
+                    // stopPortForward matches the running process by local port, so no pod reference is needed.
+                    // eslint-disable-next-line unicorn/no-null
+                    await k8Client.pods().readByReference(null).stopPortForward(localPort);
+                    stoppedCount++;
+                    removedCount++;
+                    const detail: string = `✓ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Stopped]`;
+                    this.logger.showUser(chalk.green(detail));
+                  } catch (error) {
+                    remainingConfigs.push(portForwardConfig);
+                    const detail: string = `✗ ${componentLabel}: localhost:${localPort} -> pod:${podPort} [Failed: ${error.message}]`;
+                    this.logger.showUser(chalk.red(detail));
+                  }
+                }
+
+                component.metadata.portForwardConfigs = remainingConfigs;
+              }
+            }
+
+            if (removedCount > 0) {
+              await this.remoteConfig.persist();
+            }
+
+            this.logger.showUser(chalk.cyan('\n=== Summary ==='));
+            this.logger.showUser(`Total port-forwards configured: ${totalConfigured}`);
+            if (totalConfigured === 0) {
+              this.logger.showUser(chalk.yellow('No port-forwards configured in this deployment'));
+            } else {
+              this.logger.showUser(chalk.green(`Stopped: ${stoppedCount}`));
+              if (stoppedCount === totalConfigured) {
+                this.logger.showUser(chalk.green('✓ All port-forwards stopped'));
+              }
+            }
+
+            task.title = `Stopped ${stoppedCount} of ${totalConfigured} port-forward(s)`;
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloErrors.system.portForwardStopFailed(error);
     }
 
     return true;
