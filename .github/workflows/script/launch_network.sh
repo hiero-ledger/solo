@@ -8,7 +8,6 @@ source "${SCRIPT_DIR}/helper.sh"
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MIRROR_NODE_VALUES_FILE=""
-TEMP_BLOCK_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
 TEMP_UPGRADE_CONTEXT_DIR=""
 
@@ -46,10 +45,6 @@ on_exit() {
 
   if [[ -n "${TEMP_MIRROR_NODE_VALUES_FILE:-}" && -f "${TEMP_MIRROR_NODE_VALUES_FILE}" ]]; then
     rm -f "${TEMP_MIRROR_NODE_VALUES_FILE}"
-  fi
-
-  if [[ -n "${TEMP_BLOCK_NODE_VALUES_FILE:-}" && -f "${TEMP_BLOCK_NODE_VALUES_FILE}" ]]; then
-    rm -f "${TEMP_BLOCK_NODE_VALUES_FILE}"
   fi
 
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
@@ -845,75 +840,6 @@ auto_recover_importer_hash_chain() {
 # is rebuilt without RSA_PubKey entries, so mirror serves empty public_key afterward.
 # BN v0.37+ reads rsa-bootstrap-roster.json at startup (app.state.rsaBootstrapFilePath)
 # so it can verify WRB blocks without waiting for mirror to re-index RSA keys.
-build_bn_rsa_bootstrap_base64() {
-  local namespace="${SOLO_NAMESPACE:-one-shot}"
-  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
-
-  # Kind service ClusterIPs are not routable from outside the cluster, so tunnel
-  # via kubectl port-forward. Use a random port in the 38000-38999 range.
-  local pf_port=$((38000 + RANDOM % 1000))
-  kubectl port-forward -n "${namespace}" svc/mirror-1-restjava "${pf_port}":80 \
-    --context "${context}" >/dev/null 2>&1 &
-  local pf_pid=$!
-
-  # Wait up to 10 s for the port-forward to accept connections.
-  local retries=0
-  while ! curl -sf --max-time 2 \
-      "http://localhost:${pf_port}/api/v1/network/nodes?limit=1" >/dev/null 2>&1; do
-    ((retries++)) || true
-    if [[ ${retries} -ge 10 ]]; then
-      kill "${pf_pid}" 2>/dev/null || true
-      wait "${pf_pid}" 2>/dev/null || true
-      echo "WARNING: Timed out waiting for port-forward to mirror-1-restjava" >&2
-      return 1
-    fi
-    sleep 1
-  done
-
-  local api_response
-  api_response=$(curl -sf --max-time 30 \
-    "http://localhost:${pf_port}/api/v1/network/nodes?limit=100" 2>&1)
-  local query_rc=$?
-
-  kill "${pf_pid}" 2>/dev/null || true
-  wait "${pf_pid}" 2>/dev/null || true
-
-  if [[ ${query_rc} -ne 0 ]]; then
-    echo "WARNING: Failed to query mirror for RSA keys: ${api_response}" >&2
-    return 1
-  fi
-
-  # Build RangedAddressBookHistory JSON for BN RSA bootstrap.
-  # Mirror returns public_key as hex (possibly with "0x" prefix).
-  # BN RsaKeyDecoder expects hex-encoded DER SubjectPublicKeyInfo without "0x" prefix.
-  local json
-  json=$(echo "${api_response}" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-nodes = data.get('nodes', [])
-entries = []
-for node in nodes:
-    nid = node.get('node_id', 0)
-    pk = (node.get('public_key', '') or '').strip()
-    if pk and pk not in ('0x', ''):
-        if pk.startswith('0x'):
-            pk = pk[2:]
-        entries.append({'nodeId': nid, 'RSAPubKey': pk})
-print(json.dumps({'addressBooks': [{'addressBook': {'nodeAddress': entries}, 'startBlock': '0', 'endBlock': '-1'}]}))
-" 2>&1)
-
-  local entry_count
-  entry_count=$(echo "${json}" | python3 -c \
-    "import sys, json; d = json.load(sys.stdin); print(len(d['addressBooks'][0]['addressBook']['nodeAddress']))" 2>/dev/null || echo "0")
-
-  if [[ "${entry_count}" == "0" ]]; then
-    echo "WARNING: No valid RSA keys found in mirror response" >&2
-    return 1
-  fi
-
-  echo "Captured RSA keys for ${entry_count} nodes from mirror before CN upgrade" >&2
-  printf '%s' "${json}" | base64 -w0
-}
 
 fromSoloVersion="${1}"
 toConsensusNodeVersion="${2}"
@@ -1019,14 +945,6 @@ add_application_properties_overwrite_marker "${TEMP_SOURCE_APPLICATION_PROPERTIE
 CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
 CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
 PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
-TARGET_USES_WRB_RSA="false"
-
-if is_tss_supported_consensus_version "${TO_CONSENSUS_NODE_VERSION}" && \
-  version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.75.0" && \
-  version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.0"; then
-  TARGET_USES_WRB_RSA="true"
-fi
-
 if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   # CN < 0.74: legacy BOTH mode with MinIO record streams
   SOURCE_BLOCK_STREAM_MODE="BOTH"
@@ -1044,8 +962,6 @@ else
   SOURCE_MIRROR_BLOCK_ENABLED="true"
   SOURCE_MIRROR_RECORD_ENABLED="false"
 fi
-
-TARGET_BLOCK_STREAM_MODE="BLOCKS"
 
 if [[ "${SOURCE_MIRROR_BLOCK_ENABLED}" == "true" ]]; then
   SOURCE_DISABLE_IMPORTER_SPRING_PROFILES="false"
@@ -1162,8 +1078,6 @@ echo "Initial source block stream mode: ${SOURCE_BLOCK_STREAM_MODE}"
 echo "Initial source block stream writer mode: ${SOURCE_BLOCK_STREAM_WRITER_MODE}"
 echo "Initial source wrapped record blocks enabled: ${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}"
 echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
-echo "Target WRB/RSA mode: ${TARGET_USES_WRB_RSA}"
-echo "Target block stream mode: ${TARGET_BLOCK_STREAM_MODE}"
 
 if [[ "${SOURCE_MINIO_ENABLED}" == "true" ]]; then
   install_minio_operator_for_source_deploy
@@ -1188,151 +1102,34 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade 
 ps -ef |grep port-forward
 
 echo "Block node version: source=${PREV_BLOCK_VERSION_NO_V}, target=${CURRENT_BLOCK_VERSION}"
-MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS="false"
-
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
 cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 add_application_properties_overwrite_marker "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "fees.simpleFeesEnabled" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "${TARGET_BLOCK_STREAM_MODE}"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
-# enableCutover must stay false for the migration upgrade. The V0740BlockStreamSchema
-# cutover path requires BlockInfo.blockHashes to be populated, but when the source CN
-# ran in BLOCKS mode (not record-stream/WRB), that field is empty. Setting true crashes
-# CN v0.75+ with "Cutover requires at least one record block hash in BlockInfo.blockHashes".
+# enableCutover must stay false: source CN ran in BLOCKS mode (no record-stream/WRB) so
+# BlockInfo.blockHashes is empty; setting true crashes CN v0.75+ during migration.
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "false"
-if [[ "${TARGET_USES_WRB_RSA}" == "true" ]]; then
-  # streamWrappedRecordBlocks=false: CN sends BLOCK_HEADER native blocks (with RSA proofs
-  # in BLOCK_PROOF) to BN. streamWrappedRecordBlocks=true would cause CN to stream
-  # ROUND_HEADER wrapped records which BN 0.38.1 drops via hasBlockHeader(), leaving
-  # mirror with no block to consume. RSA verification in BN uses the bootstrapped roster
-  # from rsa-bootstrap-roster.json to verify BLOCK_PROOF in BLOCK_HEADER blocks.
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
-else
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
-fi
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
-TEMP_BLOCK_NODE_VALUES_FILE=""
-
-if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-  TEMP_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-migration-block-node-values-XXXX.yaml)"
-
-  # After a CN freeze upgrade, file 0.0.101 can lose RSA_PubKey entries.
-  # Pre-populate BN's rsa-bootstrap-roster.json via an init container so BN
-  # versions that need RSA bootstrap have keys ready if WRB mode is enabled later.
-  BN_RSA_BOOTSTRAP_B64=""
-  if BN_RSA_BOOTSTRAP_B64="$(build_bn_rsa_bootstrap_base64)"; then
-    echo "RSA bootstrap data generated for block node init container (${#BN_RSA_BOOTSTRAP_B64} chars)"
-  else
-    echo "WARNING: RSA bootstrap generation failed; BN will query mirror REST for RSA keys"
-  fi
-
-  if [[ -n "${BN_RSA_BOOTSTRAP_B64}" ]]; then
-cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
-# Generated for the migration workflow.
-# /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
-# An init container pre-writes rsa-bootstrap-roster.json from mirror's pre-upgrade
-# address book so BN has RSA keys ready if WRB mode is enabled after the migration.
-blockNode:
-  config:
-    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
-    ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
-    ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
-  initContainers:
-    - name: init-storage-dirs
-      image: busybox
-      command:
-        - sh
-        - -c
-        - |
-          mkdir -p /application-state-pvc && \
-          chown 2000:2000 /application-state-pvc && \
-          chmod 700 /application-state-pvc && \
-          mkdir -p /archive-pvc/archive-data && \
-          chown 2000:2000 /archive-pvc/archive-data && \
-          chmod 700 /archive-pvc/archive-data && \
-          mkdir -p /live-pvc/live-data && \
-          chown 2000:2000 /live-pvc/live-data && \
-          chmod 700 /live-pvc/live-data
-      volumeMounts:
-        - name: application-state-storage
-          mountPath: /application-state-pvc
-        - name: archive-storage
-          mountPath: /archive-pvc
-        - name: live-storage
-          mountPath: /live-pvc
-        - name: logging-storage
-          mountPath: /logging-pvc
-    - name: init-rsa-bootstrap
-      image: busybox
-      command:
-        - sh
-        - -c
-        - |
-          printf '%s' '${BN_RSA_BOOTSTRAP_B64}' | base64 -d > /application-state-pvc/rsa-bootstrap-roster.json && \
-          chown 2000:2000 /application-state-pvc/rsa-bootstrap-roster.json && \
-          chmod 600 /application-state-pvc/rsa-bootstrap-roster.json
-      volumeMounts:
-        - name: application-state-storage
-          mountPath: /application-state-pvc
-EOF
-  else
-cat > "${TEMP_BLOCK_NODE_VALUES_FILE}" <<EOF
-# Generated for the migration workflow.
-# /api/v1/network/nodes was moved from Node.js REST to Java REST in mirror v0.156.0+.
-blockNode:
-  config:
-    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
-    ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
-    ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
-EOF
-  fi
-fi
-
 echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-if [[ -n "${TEMP_BLOCK_NODE_VALUES_FILE}" ]]; then
-  echo "Using temporary block node values override file: ${TEMP_BLOCK_NODE_VALUES_FILE}"
-else
-  echo "Block node version unchanged; no temporary block node values override file needed"
-fi
-
-if [[ "${TARGET_USES_WRB_RSA}" == "true" && "${MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS}" != "true" ]]; then
-  echo "Upgrading mirror node before consensus freeze so the importer can read WRB/RSA blocks after CN+BN upgrade"
-  npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
-  MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS="true"
-fi
 
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 
-if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_USES_WRB_RSA}" == "true" ]]; then
-  # When both CN and BN are upgrading simultaneously there is an off-by-one problem:
-  # source CN v0.74.0 state records last_committed_block = N-1, so CN v0.75.1 starts with
-  # wantedBlock = N. But BN already has block N (streamed by source CN just before freeze),
-  # so BN counter = N+1 and rejects CN's wantedBlock = N ("block out of range").
-  #
-  # Fix: after source CN is frozen and mirror has stabilised, delete the last block file from
-  # BN's live storage before upgrading BN. BlockFileRecentPlugin scans the live directory at
-  # startup (init()) to rebuild availableBlocks in memory — there are no persistent state files
-  # to update. After the pod restart BN reports latestBlockAvailable = N-1. CN v0.75.1 then
-  # computes wantedBlock = N, which is within its buffer range, and BN accepts block N. ✓
-  echo "CN and BN versions are both changing; removing BN last block before upgrade to fix wantedBlock alignment"
+if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   TEMP_UPGRADE_CONTEXT_DIR="$(mktemp -d -t solo-upgrade-context-XXXX)"
 
-  echo "Preparing CN ${TO_CONSENSUS_NODE_VERSION} with final WRB/RSA block stream properties."
   CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
   run_consensus_network_upgrade_prepare
 
@@ -1352,7 +1149,6 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   # block-ranges.json on the running pod before Helm restarts it with the new version.
   # With CN stopped, no new blocks arrive during the upgrade so no post-upgrade cleanup is needed.
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" \
-    --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}" \
     --cutover-block-number "${frozen_block_before_cn_upgrade}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed with cutover at block ${frozen_block_before_cn_upgrade}"
 
@@ -1399,7 +1195,7 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   fi
 else
   if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-    npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
+    npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
     echo "BN ${CURRENT_BLOCK_VERSION} is installed before the CN upgrade."
   else
     echo "Block node version unchanged (${CURRENT_BLOCK_VERSION}); skipping block node upgrade"
@@ -1408,11 +1204,7 @@ else
   run_consensus_network_upgrade
 fi
 
-if [[ "${MIRROR_NODE_UPGRADED_BEFORE_CONSENSUS}" != "true" ]]; then
-  npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
-else
-  echo "Mirror node was upgraded before source CN restart for WRB/RSA block ingestion; skipping duplicate mirror upgrade"
-fi
+npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 target_block_before_final_wait="$(get_latest_mirror_block_number)"
