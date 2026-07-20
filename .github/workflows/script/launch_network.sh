@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/helper.sh"
 TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MIRROR_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
+TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 
 collect_failure_diagnostics() {
   local rc="${1}"
@@ -46,6 +47,9 @@ on_exit() {
     rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
   fi
 
+  if [[ -n "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" ]]; then
+    rm -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+  fi
 
   if [[ ${rc} -ne 0 ]]; then
     echo "Test failed, current port forward process: "
@@ -219,6 +223,7 @@ run_consensus_network_upgrade() {
     -i node1,node2 \
     --deployment "${SOLO_DEPLOYMENT}" \
     --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
+    --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
     -q --dev
 }
 
@@ -615,7 +620,8 @@ else
   kind create cluster -n "${SOLO_CLUSTER_NAME}"
 fi
 
-rm -rf ~/.solo/*
+solo cache image load
+# rm -rf ~/.solo/*
 echo "::endgroup::"
 
 echo "::group::Launch solo using released Solo version ${fromSoloVersion}"
@@ -725,6 +731,17 @@ ps -ef |grep port-forward
 
 echo "Block node version: source=${PREV_BLOCK_VERSION_NO_V}, target=${CURRENT_BLOCK_VERSION}"
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
+
+# CN 0.74 source runs with tss.hintsEnabled/historyEnabled=true; CN 0.75 inherits those and
+# crashes in ProofControllerImpl.advanceConstruction with NPE during TSS state reconciliation.
+# Pass explicit overrides to disable TSS hints/history for the upgrade.
+TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
+cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+add_application_properties_overwrite_marker "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
+chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
