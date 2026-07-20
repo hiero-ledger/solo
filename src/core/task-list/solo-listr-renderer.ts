@@ -357,7 +357,12 @@ export class SoloListrRenderer {
     if (task.isSkipped()) {
       return color.yellow(figures.arrowDown);
     }
-    return color.yellow(task.hasSubtasks() ? figures.pointer : this.spinner.fetch());
+    // Running (or prompting) tasks — parents included — animate with the spinner; tasks still waiting to
+    // start get a dim, static marker to set them apart.
+    if (task.isStarted() || task.isPrompt()) {
+      return color.yellow(this.spinner.fetch());
+    }
+    return color.dim(figures.pointerSmall);
   }
 
   private timer(task: RendererTask): string {

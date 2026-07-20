@@ -781,25 +781,15 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     // concurrent subtrees would otherwise interleave.
     const parallel: boolean = argv[flags.parallelDeploy.name] !== false;
 
-    const baseOptions: ListrBaseClassOptions<OneShotSingleDeployContext> = (
-      parallel ? SpinnerListrOptions.build() : constants.LISTR_DEFAULT_OPTIONS.DEFAULT
-    ) as ListrBaseClassOptions<OneShotSingleDeployContext>;
-
-    // Ancestry breadcrumbs only earn their noise when concurrent subtrees interleave. In sequential
-    // mode (--parallel-deploy false) nothing interleaves, so turn them off and keep plain titles. This
-    // governs the whole one-shot tree because the pipeline root owns the single renderer.
-    const pipelineOptions: ListrBaseClassOptions<OneShotSingleDeployContext> = {
-      ...baseOptions,
-      rendererOptions: {...baseOptions.rendererOptions, breadcrumbs: parallel},
-    } as ListrBaseClassOptions<OneShotSingleDeployContext>;
-
     return new OrchestratorPipeline<OneShotSingleDeployContext>(
       phases.map(
         (
           phase: OrchestratorPipelinePhase<OneShotSingleDeployConfigClass, OneShotSingleDeployContext>,
         ): SoloListrTask<OneShotSingleDeployContext> => phase.asListrTask(getConfigGlobal, this.eventBus),
       ),
-      pipelineOptions,
+      parallel
+        ? (SpinnerListrOptions.build() as ListrBaseClassOptions<OneShotSingleDeployContext>)
+        : (constants.LISTR_DEFAULT_OPTIONS.DEFAULT as ListrBaseClassOptions<OneShotSingleDeployContext>),
     );
   }
 

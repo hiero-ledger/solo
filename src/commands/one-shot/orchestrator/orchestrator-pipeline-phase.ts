@@ -45,7 +45,6 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
     exitOnError: boolean = true,
     rendererOptions?: object,
     skipFunction?: (getConfig: () => TConfig) => boolean,
-    // eslint-disable-next-line unused-imports/no-unused-vars
     collapseChildren: boolean | ((getConfig: () => TConfig) => boolean) = false,
   ): OrchestratorPipelinePhase<TConfig, TContext> {
     return new OrchestratorPipelinePhase<TConfig, TContext>(
@@ -56,8 +55,7 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
       exitOnError,
       rendererOptions,
       skipFunction,
-      // collapseChildren,
-      false,
+      collapseChildren,
     );
   }
 
