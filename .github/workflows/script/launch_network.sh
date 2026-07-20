@@ -93,13 +93,6 @@ add_application_properties_overwrite_marker() {
   mv "${marked_file}" "${file_path}"
 }
 
-version_at_least() {
-  local version="${1#v}"
-  local minimum_version="${2#v}"
-
-  [[ "$(printf '%s\n' "${minimum_version}" "${version}" | sort -V | head -n 1)" == "${minimum_version}" ]]
-}
-
 extract_required_test_version() {
   local variable_name="${1}"
   local version_value=""
@@ -422,39 +415,25 @@ wait_for_consensus_application_properties() {
 
 run_consensus_network_upgrade() {
   local application_properties_file="${CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE:-${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}}"
-  local command=(
-    npm run solo --
-    consensus network upgrade
-    -i node1,node2
-    --deployment "${SOLO_DEPLOYMENT}"
-    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}"
-  )
-
-  if version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.73.0"; then
-    command+=(--application-properties "${application_properties_file}")
-  fi
-
-  command+=(-q --dev)
-  "${command[@]}"
+  npm run solo -- \
+    consensus network upgrade \
+    -i node1,node2 \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
+    --application-properties "${application_properties_file}" \
+    -q --dev
 }
 
 run_consensus_network_upgrade_prepare() {
   local application_properties_file="${CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE:-${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}}"
-  local command=(
-    npm run solo --
-    consensus dev-node-upgrade prepare
-    -i node1,node2
-    --deployment "${SOLO_DEPLOYMENT}"
-    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}"
-    --output-dir "${TEMP_UPGRADE_CONTEXT_DIR}"
-  )
-
-  if version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.73.0"; then
-    command+=(--application-properties "${application_properties_file}")
-  fi
-
-  command+=(-q --dev)
-  "${command[@]}"
+  npm run solo -- \
+    consensus dev-node-upgrade prepare \
+    -i node1,node2 \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
+    --output-dir "${TEMP_UPGRADE_CONTEXT_DIR}" \
+    --application-properties "${application_properties_file}" \
+    -q --dev
 }
 
 run_consensus_network_upgrade_submit() {
@@ -467,21 +446,14 @@ run_consensus_network_upgrade_submit() {
 
 run_consensus_network_upgrade_execute() {
   local application_properties_file="${CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE:-${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}}"
-  local command=(
-    npm run solo --
-    consensus dev-node-upgrade execute
-    -i node1,node2
-    --deployment "${SOLO_DEPLOYMENT}"
-    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}"
-    --input-dir "${TEMP_UPGRADE_CONTEXT_DIR}"
-  )
-
-  if version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.73.0"; then
-    command+=(--application-properties "${application_properties_file}")
-  fi
-
-  command+=(-q --dev)
-  "${command[@]}"
+  npm run solo -- \
+    consensus dev-node-upgrade execute \
+    -i node1,node2 \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
+    --input-dir "${TEMP_UPGRADE_CONTEXT_DIR}" \
+    --application-properties "${application_properties_file}" \
+    -q --dev
 }
 
 # Restart relay after upgrade and refresh port-forwards.
