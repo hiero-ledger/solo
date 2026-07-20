@@ -9,7 +9,6 @@ TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MIRROR_NODE_VALUES_FILE=""
 TEMP_BLOCK_NODE_VALUES_FILE=""
-TEMP_SOURCE_BLOCK_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
 TEMP_UPGRADE_CONTEXT_DIR=""
 
@@ -51,10 +50,6 @@ on_exit() {
 
   if [[ -n "${TEMP_BLOCK_NODE_VALUES_FILE:-}" && -f "${TEMP_BLOCK_NODE_VALUES_FILE}" ]]; then
     rm -f "${TEMP_BLOCK_NODE_VALUES_FILE}"
-  fi
-
-  if [[ -n "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE:-}" && -f "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" ]]; then
-    rm -f "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}"
   fi
 
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
@@ -1024,19 +1019,7 @@ add_application_properties_overwrite_marker "${TEMP_SOURCE_APPLICATION_PROPERTIE
 CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
 CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
 PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
-SOURCE_USES_WRB_RSA="false"
 TARGET_USES_WRB_RSA="false"
-
-# CN 0.74 supports block streaming with TSS, but WRB/RSA bootstrap requires BN
-# to query mirror REST /api/v1/blocks during the initial one-shot deploy. Mirror
-# Java REST does not serve that endpoint in the migration source stack, so keep
-# the source deploy on plain block streams and enable WRB/RSA only for CN 0.75+.
-if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}" && \
-  version_at_least "${FROM_CONSENSUS_NODE_VERSION}" "v0.75.0" && \
-  version_at_least "${PREV_BLOCK_VERSION_NO_V}" "0.37.0" && \
-  version_at_least "${CURRENT_BLOCK_VERSION}" "0.37.0"; then
-  SOURCE_USES_WRB_RSA="true"
-fi
 
 if is_tss_supported_consensus_version "${TO_CONSENSUS_NODE_VERSION}" && \
   version_at_least "${TO_CONSENSUS_NODE_VERSION}" "v0.75.0" && \
@@ -1045,6 +1028,7 @@ if is_tss_supported_consensus_version "${TO_CONSENSUS_NODE_VERSION}" && \
 fi
 
 if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
+  # CN < 0.74: legacy BOTH mode with MinIO record streams
   SOURCE_BLOCK_STREAM_MODE="BOTH"
   SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
   SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
@@ -1052,24 +1036,15 @@ if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
   SOURCE_MIRROR_BLOCK_ENABLED="false"
   SOURCE_MIRROR_RECORD_ENABLED="true"
 else
+  # CN >= 0.74 with block node: BLOCKS-only mode (no MinIO)
+  SOURCE_BLOCK_STREAM_MODE="BLOCKS"
+  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
   SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
   SOURCE_MINIO_ENABLED="false"
   SOURCE_MIRROR_BLOCK_ENABLED="true"
   SOURCE_MIRROR_RECORD_ENABLED="false"
-
-  if [[ "${SOURCE_USES_WRB_RSA}" == "true" ]]; then
-    SOURCE_BLOCK_STREAM_MODE="BOTH"
-    SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
-  else
-    SOURCE_BLOCK_STREAM_MODE="BLOCKS"
-    SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
-  fi
 fi
 
-# WRB/RSA mode uses BLOCKS (BN-only streaming) so CN sends only BLOCK_HEADER native
-# blocks to BN. BOTH mode would also send ROUND_HEADER wrapped records to BN, which
-# BN 0.38.1 serves to mirror, causing "Incorrect first block item case ROUND_HEADER".
-# Mirror reads only from BN (BLOCK_SOURCE_TYPE=BLOCK_NODE), so no file/MinIO needed.
 TARGET_BLOCK_STREAM_MODE="BLOCKS"
 
 if [[ "${SOURCE_MIRROR_BLOCK_ENABLED}" == "true" ]]; then
@@ -1084,17 +1059,10 @@ set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStre
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
-  if [[ "${SOURCE_USES_WRB_RSA}" == "true" ]]; then
-    set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
-    set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
-    set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-    set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
-  else
-    set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
-    set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
-    set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-    set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
-  fi
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
+  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
 fi
 chmod 644 "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
@@ -1157,20 +1125,6 @@ importer:
               enabled: false
 EOF
 
-if [[ "${SOURCE_USES_WRB_RSA}" == "true" ]]; then
-  TEMP_SOURCE_BLOCK_NODE_VALUES_FILE="$(mktemp -t solo-source-block-node-values-XXXX.yaml)"
-  cat > "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" <<EOF
-# Generated for migration workflow source deploy.
-# BN v0.37+ needs RSA public keys to verify WRB blocks from CN v0.75+.
-# Mirror v0.156+ serves /api/v1/network/nodes from Java REST, not Node.js REST.
-blockNode:
-  config:
-    ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL: "http://mirror-1-restjava:80"
-    ROSTER_BOOTSTRAP_RSA_MN_INITIAL_QUERY_INTERVAL_MILLIS: "1000"
-    ROSTER_BOOTSTRAP_RSA_MN_SUBSEQUENT_QUERY_INTERVAL_MILLIS: "10000"
-EOF
-fi
-
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 # Generated for migration workflow launch.
 network:
@@ -1184,12 +1138,6 @@ setup:
 blockNode:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
 EOF
-
-if [[ -n "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}" ]]; then
-  cat >> "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
-  --values-file: "${TEMP_SOURCE_BLOCK_NODE_VALUES_FILE}"
-EOF
-fi
 
 cat >> "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 
@@ -1214,7 +1162,6 @@ echo "Initial source block stream mode: ${SOURCE_BLOCK_STREAM_MODE}"
 echo "Initial source block stream writer mode: ${SOURCE_BLOCK_STREAM_WRITER_MODE}"
 echo "Initial source wrapped record blocks enabled: ${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}"
 echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
-echo "Source WRB/RSA mode: ${SOURCE_USES_WRB_RSA}"
 echo "Target WRB/RSA mode: ${TARGET_USES_WRB_RSA}"
 echo "Target block stream mode: ${TARGET_BLOCK_STREAM_MODE}"
 
