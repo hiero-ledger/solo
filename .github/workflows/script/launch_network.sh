@@ -1477,6 +1477,13 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   # (latestBlockAvailable = N-1), sets wantedBlock = N, which is within its buffer → connects!
   run_consensus_network_upgrade_execute
   echo "CN ${TO_CONSENSUS_NODE_VERSION} active with BN ${CURRENT_BLOCK_VERSION}; post-upgrade transaction will verify block progress from ${frozen_block_before_cn_upgrade}."
+  # Mirror marked BN inactive after ROUND_HEADER failures on pre-upgrade CN v0.74.0 blocks
+  # (mirror tried to import block frozen_block+1 from BN while it still held a CN v0.74.0
+  # block in ROUND_HEADER format; after 3 failures BN is flagged inactive and the readmitDelay
+  # outlasts the test window).  Restart mirror so it reconnects fresh to BN, which now holds
+  # only CN v0.75.1 BLOCK_HEADER blocks.
+  echo "Restarting mirror importer to clear stale BN inactive state from pre-upgrade ROUND_HEADER errors"
+  restart_importer_pods_for_recovery "${SOLO_NAMESPACE}"
 else
   if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
     npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
