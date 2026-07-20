@@ -9,7 +9,6 @@ TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MIRROR_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
-TEMP_UPGRADE_CONTEXT_DIR=""
 
 collect_failure_diagnostics() {
   local rc="${1}"
@@ -51,9 +50,6 @@ on_exit() {
     rm -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
   fi
 
-  if [[ -n "${TEMP_UPGRADE_CONTEXT_DIR:-}" && -d "${TEMP_UPGRADE_CONTEXT_DIR}" ]]; then
-    rm -rf "${TEMP_UPGRADE_CONTEXT_DIR}"
-  fi
 
   if [[ ${rc} -ne 0 ]]; then
     echo "Test failed, current port forward process: "
@@ -221,151 +217,13 @@ wait_for_mirror_block_count_progress() {
   wait_for_mirror_block_progress "${label}" "${minimum_previous_block}" "${max_attempts}" "${sleep_seconds}"
 }
 
-wait_for_consensus_nodes_frozen() {
-  local max_attempts="${1:-90}"
-  local sleep_seconds="${2:-2}"
-  local namespace="${SOLO_NAMESPACE:-one-shot}"
-  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
-  local node_pods=("network-node1-0" "network-node2-0")
-  local status_line
-  local status_number
-  local all_frozen
-
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for source consensus nodes to reach FREEZE_COMPLETE"
-  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
-    all_frozen="true"
-
-    for node_pod in "${node_pods[@]}"; do
-      status_line="$(kubectl --context "${context}" exec "${node_pod}" -n "${namespace}" -c root-container -- \
-        bash -c "curl -s http://localhost:9999/metrics | grep platform_PlatformStatus | grep -v '#'" 2>/dev/null || true)"
-      status_number="$(awk '/^platform_PlatformStatus/ {print int($NF); exit}' <<< "${status_line}")"
-
-      if [[ "${status_number}" != "6" ]]; then
-        all_frozen="false"
-        echo "Consensus node ${node_pod} not frozen yet [attempt=${attempt}/${max_attempts}, status=${status_number:-unknown}]"
-        break
-      fi
-    done
-
-    if [[ "${all_frozen}" == "true" ]]; then
-      echo "$(date '+%Y-%m-%d %H:%M:%S') - Source consensus nodes reached FREEZE_COMPLETE"
-      return 0
-    fi
-
-    sleep "${sleep_seconds}"
-  done
-
-  echo "Timed out waiting for source consensus nodes to reach FREEZE_COMPLETE"
-  return 1
-}
-
-apply_consensus_application_properties_config_map() {
-  local properties_file="${1}"
-  local namespace="${SOLO_NAMESPACE:-one-shot}"
-  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
-  local config_map_name="network-node-data-config-cm"
-  local content_json
-
-  content_json="$(jq -Rs . < "${properties_file}")"
-  kubectl --context "${context}" get configmap "${config_map_name}" -n "${namespace}" -o json \
-    | jq --argjson application_properties "${content_json}" '.data["application.properties"] = $application_properties' \
-    | kubectl --context "${context}" apply -f -
-}
-
-copy_consensus_application_properties_to_pods() {
-  local properties_file="${1}"
-  local namespace="${SOLO_NAMESPACE:-one-shot}"
-  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
-  local node_pods=("network-node1-0" "network-node2-0")
-
-  for node_pod in "${node_pods[@]}"; do
-    if ! kubectl --context "${context}" exec -i "${node_pod}" -n "${namespace}" -c root-container -- \
-      bash -c '
-        set -euo pipefail
-        temp_file="$(mktemp)"
-        cat > "${temp_file}"
-        wrote="false"
-
-        for properties_dir in /opt/hgcapp/data/config /opt/hgcapp/services-hedera/HapiApp2.0/data/config; do
-          if [[ -d "${properties_dir}" ]]; then
-            cp "${temp_file}" "${properties_dir}/application.properties"
-            chown hedera:hedera "${properties_dir}/application.properties" || true
-            chmod 0644 "${properties_dir}/application.properties"
-            wrote="true"
-          fi
-        done
-
-        rm -f "${temp_file}"
-        if [[ "${wrote}" != "true" ]]; then
-          echo "No consensus application.properties directory exists" >&2
-          exit 1
-        fi
-      ' \
-      < "${properties_file}"; then
-      echo "Direct application.properties copy failed for ${node_pod}; waiting for config map projection"
-    fi
-  done
-}
-
-copy_consensus_application_properties_from_pod() {
-  local properties_file="${1}"
-  local namespace="${SOLO_NAMESPACE:-one-shot}"
-  local context="kind-${SOLO_CLUSTER_NAME:-solo-e2e}"
-
-  kubectl --context "${context}" exec "network-node1-0" -n "${namespace}" -c root-container -- \
-    bash -c '
-      for properties_path in /opt/hgcapp/data/config/application.properties /opt/hgcapp/services-hedera/HapiApp2.0/data/config/application.properties; do
-        if [[ -f "${properties_path}" ]]; then
-          cat "${properties_path}"
-          exit 0
-        fi
-      done
-
-      echo "No consensus application.properties file exists" >&2
-      exit 1
-    ' > "${properties_file}"
-}
-
 run_consensus_network_upgrade() {
-  local application_properties_file="${CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE:-${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}}"
   npm run solo -- \
     consensus network upgrade \
     -i node1,node2 \
     --deployment "${SOLO_DEPLOYMENT}" \
     --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
-    --application-properties "${application_properties_file}" \
-    -q --dev
-}
-
-run_consensus_network_upgrade_prepare() {
-  local application_properties_file="${CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE:-${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}}"
-  npm run solo -- \
-    consensus dev-node-upgrade prepare \
-    -i node1,node2 \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
-    --output-dir "${TEMP_UPGRADE_CONTEXT_DIR}" \
-    --application-properties "${application_properties_file}" \
-    -q --dev
-}
-
-run_consensus_network_upgrade_submit() {
-  npm run solo -- \
-    consensus dev-node-upgrade submit-transactions \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --input-dir "${TEMP_UPGRADE_CONTEXT_DIR}" \
-    -q --dev
-}
-
-run_consensus_network_upgrade_execute() {
-  local application_properties_file="${CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE:-${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}}"
-  npm run solo -- \
-    consensus dev-node-upgrade execute \
-    -i node1,node2 \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
-    --input-dir "${TEMP_UPGRADE_CONTEXT_DIR}" \
-    --application-properties "${application_properties_file}" \
+    --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
     -q --dev
 }
 
@@ -890,35 +748,16 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forc
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
-CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-
 echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-  TEMP_UPGRADE_CONTEXT_DIR="$(mktemp -d -t solo-upgrade-context-XXXX)"
-
-  CONSENSUS_UPGRADE_APPLICATION_PROPERTIES_FILE="${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-  run_consensus_network_upgrade_prepare
-
-  run_consensus_network_upgrade_submit
-  wait_for_consensus_nodes_frozen 90 2
-
-  # Stop CN JVM to close the gRPC publisher stream before BN upgrade.
-  # CN >= 0.74 uses BLOCKS-only mode (no MinIO); stopping the JVM means no more blocks
-  # arrive at BN during upgrade, eliminating all wantedBlock timing races.
-  echo "Stopping CN ${FROM_CONSENSUS_NODE_VERSION} JVM to close gRPC stream before BN upgrade"
-  npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
-
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed"
-
-  run_consensus_network_upgrade_execute
-else
-  echo "Block node version unchanged (${CURRENT_BLOCK_VERSION}); skipping block node upgrade"
-  run_consensus_network_upgrade
 fi
+
+run_consensus_network_upgrade
 
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev

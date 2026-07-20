@@ -162,7 +162,6 @@ import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
-import {ConsensusNodeStateSchema} from '../../data/schema/model/remote/state/consensus-node-state-schema.js';
 import net from 'node:net';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
 import {TDirectoryData} from '../../integration/kube/t-directory-data.js';
@@ -2185,28 +2184,6 @@ export class NodeCommandTasks {
   public checkAllNodesAreFrozen(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check all nodes are FROZEN',
-      // Skip the live gRPC check when all nodes are already in STOPPED phase — nodes can only
-      // reach STOPPED via the freeze→stop path, so they are implicitly frozen. This lets
-      // upgradeExecuteTasks() proceed normally after a prior `node stop` kills the JVM.
-      skip: (context_): boolean => {
-        if (!this.remoteConfig.isLoaded()) {
-          return false;
-        }
-        const nodeAliases: NodeAliases = context_.config[nodeAliasesProperty];
-        return nodeAliases.every((alias: NodeAlias): boolean => {
-          try {
-            const component: ConsensusNodeStateSchema =
-              this.remoteConfig.configuration.components.getComponent<ConsensusNodeStateSchema>(
-                ComponentTypes.ConsensusNode,
-                Templates.renderComponentIdFromNodeAlias(alias),
-              );
-            return component.metadata?.phase === DeploymentPhase.STOPPED;
-          } catch {
-            // component not found in config — do not skip, let the gRPC check run
-            return false;
-          }
-        });
-      },
       task: (context_, task): SoloListr<AnyListrContext> => {
         return this._checkNodeActivenessTask(
           context_,
