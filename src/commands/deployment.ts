@@ -1126,6 +1126,20 @@ export class DeploymentCommand extends BaseCommand {
   /**
    * Refresh port-forward processes for all components in the deployment
    */
+  /**
+   * Deprecated entry point for the legacy `solo deployment refresh port-forwards` command. Emits a deprecation
+   * notice pointing users at `solo deployment port-forwards refresh`, then delegates to {@link refresh}.
+   */
+  public async refreshDeprecated(argv: ArgvStruct): Promise<boolean> {
+    this.logger.showUser(
+      chalk.yellow(
+        "[DEPRECATED] 'solo deployment refresh port-forwards' is deprecated and will be removed in a future " +
+          "release. Use 'solo deployment port-forwards refresh' instead.",
+      ),
+    );
+    return this.refresh(argv);
+  }
+
   public async refresh(argv: ArgvStruct): Promise<boolean> {
     interface Config {
       quiet: boolean;
@@ -1755,7 +1769,7 @@ export class DeploymentCommand extends BaseCommand {
                 if (notRunningCount > 0) {
                   this.logger.showUser(
                     chalk.yellow(
-                      `    Tip: Run 'solo deployment refresh port-forwards --deployment ${deployment.name}' to restore missing port-forwards.`,
+                      `    Tip: Run 'solo deployment port-forwards refresh --deployment ${deployment.name}' to restore missing port-forwards.`,
                     ),
                   );
                 }

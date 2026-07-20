@@ -148,7 +148,7 @@ flags may be specified at any level of the command hierarchy.
 | deployment  | config             | < list & info & create & delete & import >                                         |
 | deployment  | cluster            | < list & info & attach & detach >                                                  |
 | deployment  | state              | < info & destroy & images >                                                        |
-| deployment  | port-forwards      | < stop >                                                                           |
+| deployment  | port-forwards      | < refresh & stop >                                                                 |
 | deployment  | diagnostics        | < logs & configs & all & connections & analyze >                                   |
 | explorer    | node               | < list & info & logs & add & upgrade & destroy >                                   |
 | keys        | consensus          | < generate >                                                                       |
@@ -500,6 +500,7 @@ operations associated with each resource.
 
 | Operation Name | Command Syntax | Description                                                                                      |
 |----------------|----------------|--------------------------------------------------------------------------------------------------|
+| **Refresh**    | `refresh`      | Refreshes and restores killed port-forward processes for all components in the deployment.       |
 | **Stop**       | `stop`         | Stops (closes down) all port-forwards for a deployment and removes them from the remote config. |
 
 <p align="right">
