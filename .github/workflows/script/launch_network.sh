@@ -620,6 +620,7 @@ else
   kind create cluster -n "${SOLO_CLUSTER_NAME}"
 fi
 
+solo cache image pull
 solo cache image load
 # rm -rf ~/.solo/*
 echo "::endgroup::"
