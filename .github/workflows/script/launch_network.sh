@@ -931,58 +931,8 @@ cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<'EOF'
 importer:
   env:
     HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "true"
-    HIERO_MIRROR_IMPORTER_DOWNLOADER_ALLOW_ANONYMOUS_ACCESS: "true"
     HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "false"
     HIERO_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
-    HIERO_MIRROR_IMPORTER_BLOCK_FREQUENCY: "2s"
-    HIERO_MIRROR_IMPORTER_BLOCK_SOURCE_TYPE: "BLOCK_NODE"
-    HIERO_MIRROR_IMPORTER_BLOCK_STREAM_MAX_SUBSCRIBE_ATTEMPTS: "100"
-    HIERO_MIRROR_IMPORTER_BLOCK_STREAM_READMIT_DELAY: "10s"
-    HEDERA_MIRROR_IMPORTER_BLOCK_ENABLED: "true"
-    HEDERA_MIRROR_IMPORTER_DOWNLOADER_ALLOW_ANONYMOUS_ACCESS: "true"
-    HEDERA_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "false"
-    HEDERA_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
-    HEDERA_MIRROR_IMPORTER_BLOCK_FREQUENCY: "2s"
-    HEDERA_MIRROR_IMPORTER_BLOCK_SOURCE_TYPE: "BLOCK_NODE"
-    HEDERA_MIRROR_IMPORTER_BLOCK_STREAM_MAX_SUBSCRIBE_ATTEMPTS: "100"
-    HEDERA_MIRROR_IMPORTER_BLOCK_STREAM_READMIT_DELAY: "10s"
-    SPRING_TASK_SCHEDULING_POOL_SIZE: "1"
-  config:
-    spring:
-      task:
-        scheduling:
-          pool:
-            size: 1
-    hedera:
-      mirror:
-        importer:
-          block:
-            frequency: 2s
-            sourceType: BLOCK_NODE
-            stream:
-              maxSubscribeAttempts: 100
-              readmitDelay: 10s
-          downloader:
-            allowAnonymousAccess: true
-            record:
-              enabled: false
-            balance:
-              enabled: false
-    hiero:
-      mirror:
-        importer:
-          block:
-            frequency: 2s
-            sourceType: BLOCK_NODE
-            stream:
-              maxSubscribeAttempts: 100
-              readmitDelay: 10s
-          downloader:
-            allowAnonymousAccess: true
-            record:
-              enabled: false
-            balance:
-              enabled: false
 EOF
 
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
