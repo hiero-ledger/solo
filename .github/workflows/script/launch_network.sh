@@ -1476,14 +1476,44 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" && "${TARGET_US
   # Execute CN upgrade: CN v0.75.1 loads state (last_committed = N-1), queries BN
   # (latestBlockAvailable = N-1), sets wantedBlock = N, which is within its buffer → connects!
   run_consensus_network_upgrade_execute
-  echo "CN ${TO_CONSENSUS_NODE_VERSION} active with BN ${CURRENT_BLOCK_VERSION}; post-upgrade transaction will verify block progress from ${frozen_block_before_cn_upgrade}."
-  # Mirror marked BN inactive after ROUND_HEADER failures on pre-upgrade CN v0.74.0 blocks
-  # (mirror tried to import block frozen_block+1 from BN while it still held a CN v0.74.0
-  # block in ROUND_HEADER format; after 3 failures BN is flagged inactive and the readmitDelay
-  # outlasts the test window).  Restart mirror so it reconnects fresh to BN, which now holds
-  # only CN v0.75.1 BLOCK_HEADER blocks.
-  echo "Restarting mirror importer to clear stale BN inactive state from pre-upgrade ROUND_HEADER errors"
-  restart_importer_pods_for_recovery "${SOLO_NAMESPACE}"
+  echo "CN ${TO_CONSENSUS_NODE_VERSION} active; waiting for BN to receive block $((frozen_block_before_cn_upgrade + 1)) before proceeding."
+  # CN v0.75.1 needs several minutes after the freeze upgrade to complete state loading and start
+  # the block stream publisher.  During this window mirror is retrying block (frozen_block+1)
+  # every 2s and receiving "No block node can provide block N" — a non-fatal response that does
+  # NOT mark BN inactive (unlike the ROUND_HEADER error that Fix 1 avoids).  Wait until BN
+  # confirms receipt of the first post-upgrade BLOCK_HEADER block so that the mirror upgrade and
+  # account-create that follow proceed against a BN with current blocks.  Mirror will pick up the
+  # block on its next 2s retry without needing an explicit restart here; the mirror upgrade below
+  # restarts the importer pods with the new image in any case.
+  target_post_upgrade_block="$((frozen_block_before_cn_upgrade + 1))"
+  target_post_upgrade_filename="$(printf '%019d.blk.zstd' "${target_post_upgrade_block}")"
+  echo "Polling BN live storage for block ${target_post_upgrade_block} (every 5s, timeout 600s)..."
+  bn_received_post_upgrade_block="false"
+  wait_elapsed=0
+  while [[ "${wait_elapsed}" -lt 600 ]]; do
+    bn_pod_for_wait=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
+      --context "kind-${SOLO_CLUSTER_NAME}" \
+      -l "block-node.hiero.com/type=block-node" \
+      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+    if [[ -n "${bn_pod_for_wait}" ]]; then
+      bn_block_found=$(kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_for_wait}" \
+        --context "kind-${SOLO_CLUSTER_NAME}" -- \
+        sh -c "find /opt/hiero/block-node/data/live -name '${target_post_upgrade_filename}' 2>/dev/null | head -1" 2>/dev/null || echo "")
+      if [[ -n "${bn_block_found}" ]]; then
+        echo "BN received block ${target_post_upgrade_block} after ${wait_elapsed}s"
+        bn_received_post_upgrade_block="true"
+        break
+      fi
+    fi
+    sleep 5
+    wait_elapsed=$((wait_elapsed + 5))
+    if [[ $((wait_elapsed % 30)) -eq 0 ]]; then
+      echo "Still waiting for BN block ${target_post_upgrade_block}... (${wait_elapsed}s elapsed)"
+    fi
+  done
+  if [[ "${bn_received_post_upgrade_block}" != "true" ]]; then
+    echo "WARNING: BN did not receive block ${target_post_upgrade_block} within 600s; proceeding but mirror ingestion may not recover in time"
+  fi
 else
   if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
     npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BLOCK_NODE_VALUES_FILE}"
