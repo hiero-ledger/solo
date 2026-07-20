@@ -127,8 +127,6 @@ interface BlockNodeUpgradeConfigClass {
   chartValues: HelmChartValues;
   id: number;
   isLegacyChartInstalled: boolean;
-  /** Network freeze block number for co-upgrade with CN; upgrade trims BN blocks above this value. */
-  cutoverBlockNumber?: number;
   /** Set by recreateBlockNodeChart; used by the readiness check to ignore the terminating predecessor pod. */
   recreateInstallTime?: Date;
 }
@@ -278,7 +276,6 @@ export class BlockNodeCommand extends BaseCommand {
       flags.valuesFile,
       flags.upgradeVersion,
       flags.id,
-      flags.cutoverBlockNumber,
     ],
   };
 
@@ -1065,46 +1062,6 @@ export class BlockNodeCommand extends BaseCommand {
             } catch (error) {
               throw new SoloErrors.system.blockNodeNotInRemoteConfig(config.releaseName, error);
             }
-          },
-        },
-        {
-          title: 'Trim BN blocks above cutover block',
-          skip: ({config}): boolean => config.cutoverBlockNumber === undefined,
-          task: async ({config}): Promise<void> => {
-            const cutover: number = config.cutoverBlockNumber!;
-            const labels: string[] = Templates.renderBlockNodeLabels(config.id);
-            const pods: Pod[] = await this.k8Factory.getK8(config.context).pods().list(config.namespace, labels);
-            if (pods.length === 0) {
-              this.logger.showUser('No block node pod found; skipping pre-upgrade block trim');
-              return;
-            }
-            const podReference: PodReference = pods[0].podReference;
-            const containerReference: ContainerReference = ContainerReference.of(
-              podReference,
-              constants.BLOCK_NODE_CONTAINER_NAME,
-            );
-            const container: Container = this.k8Factory
-              .getK8(config.context)
-              .containers()
-              .readByRef(containerReference);
-            // Delete all .blk.zstd files with block number > cutover from every storage path.
-            // CN >= 0.74 uses BLOCKS-only stream mode (no MinIO); only live and historic/staging exist.
-            await container.execContainer([
-              '/bin/sh',
-              '-c',
-              "find /opt/hiero/block-node/data -name '*.blk.zstd' 2>/dev/null | while IFS= read -r f; do " +
-                'n=$(( 10#$(basename "$f" .blk.zstd) )); ' +
-                `if [ "$n" -gt "${cutover}" ]; then rm -f "$f"; fi; ` +
-                "done; echo 'Block trim done'",
-            ]);
-            // Remove block-ranges.json so the new BN version recomputes wantedBlock from
-            // live storage rather than inheriting the old version's persisted counter.
-            await container.execContainer([
-              '/bin/sh',
-              '-c',
-              'rm -f /opt/hiero/block-node/application-state/block-ranges.json; echo "block-ranges.json removed"',
-            ]);
-            this.logger.showUser(`BN blocks trimmed to cutover=${cutover}; block-ranges.json removed`);
           },
         },
         {

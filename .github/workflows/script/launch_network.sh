@@ -992,21 +992,14 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   run_consensus_network_upgrade_submit
   wait_for_consensus_nodes_frozen 90 2
 
-  frozen_block_before_cn_upgrade="$(wait_for_mirror_block_stability "source frozen before CN upgrade" 3 60 2)"
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - Stable mirror block before CN upgrade: ${frozen_block_before_cn_upgrade}"
-
   # Stop CN JVM to close the gRPC publisher stream before BN upgrade.
   # CN >= 0.74 uses BLOCKS-only mode (no MinIO); stopping the JVM means no more blocks
   # arrive at BN during upgrade, eliminating all wantedBlock timing races.
   echo "Stopping CN ${FROM_CONSENSUS_NODE_VERSION} JVM to close gRPC stream before BN upgrade"
   npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
 
-  # Upgrade BN with cutover-block-number so the upgrade task trims blocks > N and removes
-  # block-ranges.json on the running pod before Helm restarts it with the new version.
-  # With CN stopped, no new blocks arrive during the upgrade so no post-upgrade cleanup is needed.
-  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" \
-    --cutover-block-number "${frozen_block_before_cn_upgrade}"
-  echo "BN ${CURRENT_BLOCK_VERSION} installed with cutover at block ${frozen_block_before_cn_upgrade}"
+  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+  echo "BN ${CURRENT_BLOCK_VERSION} installed"
 
   run_consensus_network_upgrade_execute
 else
