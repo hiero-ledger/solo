@@ -67,6 +67,7 @@ export interface NetworkDeployConfigClass {
   singleUseServiceMonitor: string;
   singleUsePodLog: string;
   enableMonitoringSupport: boolean;
+  clusterSetupNamespace: NamespaceName;
   javaFlightRecorderConfiguration: string;
   wrapsEnabled: boolean;
   wrapsKeyPath: string;
