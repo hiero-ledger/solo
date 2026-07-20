@@ -769,6 +769,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.logger.info(`Output directory: ${outputDirectory}`);
             this.showOneShotUserNotes(context_, PathEx.join(outputDirectory, 'notes'));
             this.showVersions(PathEx.join(outputDirectory, 'versions'), deployConfig);
+            this.addNodePortAccessMessages(deployConfig);
             this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
             this.showCacheImageFailures();
             this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
@@ -1026,6 +1027,25 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP)) {
       this.logger.showMessageGroup(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP, MessageLevel.WARN);
     }
+  }
+
+  /**
+   * Adds the stable NodePort access URL for the mirror node REST API to the port-forwarding message
+   * group. One-shot exposes the mirror node through the Kind cluster's extraPortMappings +
+   * ingress-controller NodePort instead of kubectl port-forward, so its URL is reported here rather
+   * than by managePortForward. Reuses the port-forwarding group so showPortForwards renders and files it.
+   */
+  private addNodePortAccessMessages(config: OneShotSingleDeployConfigClass): void {
+    if (!config.deployMirrorNode) {
+      return;
+    }
+    if (!this.logger.getMessageGroupKeys().includes(constants.PORT_FORWARDING_MESSAGE_GROUP)) {
+      this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+    }
+    this.logger.addMessageGroupMessage(
+      constants.PORT_FORWARDING_MESSAGE_GROUP,
+      `Mirror Node REST API available on ${constants.LOCAL_HOST}:${constants.ONE_SHOT_MIRROR_REST_NODEPORT} (NodePort)`,
+    );
   }
 
   private showPortForwards(outputFile?: string): void {

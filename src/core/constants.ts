@@ -302,6 +302,18 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'ingress-controller-values.yaml',
 );
+// One-shot only: layer this on top of INGRESS_CONTROLLER_VALUES_FILE to expose the mirror node
+// ingress controller as NodePort. The nodePort values match the extraPortMappings in the one-shot
+// Kind config (resources/templates/small-memory/kind-config.yaml), giving the host a stable Docker
+// port mapping instead of a flaky kubectl port-forward tunnel.
+export const ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'one-shot',
+  'mirror-ingress-controller-nodeport-values.yaml',
+);
+// Host port (== NodePort == Kind extraPortMappings hostPort) the one-shot deployment publishes for
+// the mirror node REST API.
+export const ONE_SHOT_MIRROR_REST_NODEPORT: number = 30_003;
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,

@@ -225,6 +225,11 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.clusterRef),
       config.clusterRef,
       optionFromFlag(Flags.enableIngress),
+      // Expose the mirror ingress controller via a stable Kind NodePort and skip the flaky
+      // kubectl port-forward tunnel. One-shot only; standalone `mirror node add` is unaffected.
+      optionFromFlag(Flags.ingressControllerValueFile),
+      constants.ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE,
+      negatedOptionFromFlag(Flags.forcePortForward),
       optionFromFlag(Flags.parallelDeploy),
       config.parallelDeploy.toString(),
     );
@@ -260,6 +265,10 @@ export class DeployArgvBuilders {
       config.clusterRef,
       optionFromFlag(Flags.pinger),
       optionFromFlag(Flags.enableIngress),
+      // Keep the ingress controller on its stable NodePort and skip port-forward on re-upgrade too.
+      optionFromFlag(Flags.ingressControllerValueFile),
+      constants.ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE,
+      negatedOptionFromFlag(Flags.forcePortForward),
     );
     if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
       argv.push(optionFromFlag(Flags.forceBlockNodeIntegration));

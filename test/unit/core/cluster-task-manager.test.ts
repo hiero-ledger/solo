@@ -77,4 +77,33 @@ describe('ClusterTaskManager', (): void => {
     expect(patchesMount?.hostPath).to.equal(expectedPatchesDirectory);
     expect(path.isAbsolute(patchesMount?.hostPath ?? '')).to.equal(true);
   });
+
+  it('should expose the one-shot mirror ingress-controller NodePorts via Kind extraPortMappings', (): void => {
+    const manager: ClusterTaskManager = createClusterTaskManager();
+    const configPath: string = getConfigFilePath(manager, true);
+
+    const renderedConfig: {
+      nodes?: {extraPortMappings?: {containerPort?: number; hostPort?: number; protocol?: string}[]}[];
+    } = yaml.parse(fs.readFileSync(configPath, 'utf8'));
+
+    const portMappings: {containerPort?: number; hostPort?: number; protocol?: string}[] = renderedConfig.nodes
+      ? renderedConfig.nodes.flatMap(
+          (node): {containerPort?: number; hostPort?: number; protocol?: string}[] => node.extraPortMappings ?? [],
+        )
+      : [];
+
+    // NodePort range is 30000-32767; hostPort mirrors containerPort so the host reaches the mirror
+    // node on a stable Docker port mapping instead of a flaky kubectl port-forward tunnel.
+    // 30003 mirror http, 30004 mirror https; these must match
+    // resources/one-shot/mirror-ingress-controller-nodeport-values.yaml.
+    const expectedPorts: number[] = [30_003, 30_004];
+    for (const expectedPort of expectedPorts) {
+      const mapping: {containerPort?: number; hostPort?: number; protocol?: string} | undefined = portMappings.find(
+        (entry): boolean => entry.containerPort === expectedPort,
+      );
+      expect(mapping, `extraPortMapping for ${expectedPort} should be present`).to.not.equal(undefined);
+      expect(mapping?.hostPort).to.equal(expectedPort);
+      expect(expectedPort).to.be.greaterThanOrEqual(30_000).and.lessThanOrEqual(32_767);
+    }
+  });
 });

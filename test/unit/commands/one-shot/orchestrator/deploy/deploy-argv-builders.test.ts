@@ -124,6 +124,15 @@ describe('buildMirrorNodeArgv', (): void => {
     expect(argv).to.include('true');
   });
 
+  it('exposes the mirror ingress via NodePort and disables port-forward', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildMirrorNodeArgv(makeConfig());
+    expect(argv).to.include(optionFromFlag(Flags.enableIngress));
+    expect(argv).to.include(negatedOptionFromFlag(Flags.forcePortForward));
+    const valueIndex: number = argv.indexOf(optionFromFlag(Flags.ingressControllerValueFile));
+    expect(valueIndex).to.be.greaterThan(-1);
+    expect(argv[valueIndex + 1]).to.equal(constants.ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE);
+  });
+
   it('sets values file to MIRROR_NODE_HIKARI_LIMITS_FILE when no existing values file', (): void => {
     const argv: string[] = DeployArgvBuilders.buildMirrorNodeArgv(makeConfig({mirrorNodeConfiguration: {}}));
     const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
@@ -172,6 +181,14 @@ describe('buildMirrorNodePingerUpgradeArgv', (): void => {
     const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
     expect(valueIndex).to.be.greaterThan(-1);
     expect(argv[valueIndex + 1]).to.equal(`${existingFile},${constants.MIRROR_NODE_HIKARI_LIMITS_FILE}`);
+  });
+
+  it('keeps the mirror ingress on its NodePort and disables port-forward on upgrade', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildMirrorNodePingerUpgradeArgv(makeConfig());
+    expect(argv).to.include(negatedOptionFromFlag(Flags.forcePortForward));
+    const valueIndex: number = argv.indexOf(optionFromFlag(Flags.ingressControllerValueFile));
+    expect(valueIndex).to.be.greaterThan(-1);
+    expect(argv[valueIndex + 1]).to.equal(constants.ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE);
   });
 });
 
