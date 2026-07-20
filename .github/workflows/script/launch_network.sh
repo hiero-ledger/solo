@@ -93,13 +93,6 @@ add_application_properties_overwrite_marker() {
   mv "${marked_file}" "${file_path}"
 }
 
-is_tss_supported_consensus_version() {
-  local consensus_version="${1#v}"
-  local minimum_tss_version="0.74.0"
-
-  [[ "$(printf '%s\n' "${minimum_tss_version}" "${consensus_version}" | sort -V | head -n 1)" == "${minimum_tss_version}" ]]
-}
-
 version_at_least() {
   local version="${1#v}"
   local minimum_version="${2#v}"
@@ -945,23 +938,12 @@ add_application_properties_overwrite_marker "${TEMP_SOURCE_APPLICATION_PROPERTIE
 CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
 CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
 PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
-if ! is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
-  # CN < 0.74: legacy BOTH mode with MinIO record streams
-  SOURCE_BLOCK_STREAM_MODE="BOTH"
-  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="true"
-  SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
-  SOURCE_MINIO_ENABLED="true"
-  SOURCE_MIRROR_BLOCK_ENABLED="false"
-  SOURCE_MIRROR_RECORD_ENABLED="true"
-else
-  # CN >= 0.74 with block node: BLOCKS-only mode (no MinIO)
-  SOURCE_BLOCK_STREAM_MODE="BLOCKS"
-  SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
-  SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
-  SOURCE_MINIO_ENABLED="false"
-  SOURCE_MIRROR_BLOCK_ENABLED="true"
-  SOURCE_MIRROR_RECORD_ENABLED="false"
-fi
+SOURCE_BLOCK_STREAM_MODE="BLOCKS"
+SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
+SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
+SOURCE_MINIO_ENABLED="false"
+SOURCE_MIRROR_BLOCK_ENABLED="true"
+SOURCE_MIRROR_RECORD_ENABLED="false"
 
 if [[ "${SOURCE_MIRROR_BLOCK_ENABLED}" == "true" ]]; then
   SOURCE_DISABLE_IMPORTER_SPRING_PROFILES="false"
@@ -974,12 +956,10 @@ set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStre
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "${SOURCE_BLOCK_STREAM_WRITER_MODE}"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
-if is_tss_supported_consensus_version "${FROM_CONSENSUS_NODE_VERSION}"; then
-  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
-  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
-  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-  set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
-fi
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "true"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
 chmod 644 "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
 cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<EOF
@@ -1152,55 +1132,9 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
     --cutover-block-number "${frozen_block_before_cn_upgrade}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed with cutover at block ${frozen_block_before_cn_upgrade}"
 
-  # Execute CN upgrade: CN v0.75.1 loads state (last_committed = N-1), queries BN
-  # (latestBlockAvailable = N-1), sets wantedBlock = N, which is within its buffer → connects!
   run_consensus_network_upgrade_execute
-  echo "CN ${TO_CONSENSUS_NODE_VERSION} active; waiting for BN to receive block $((frozen_block_before_cn_upgrade + 1)) before proceeding."
-  # CN v0.75.1 needs several minutes after the freeze upgrade to complete state loading and start
-  # the block stream publisher.  During this window mirror is retrying block (frozen_block+1)
-  # every 2s and receiving "No block node can provide block N" — a non-fatal response that does
-  # NOT mark BN inactive (unlike the ROUND_HEADER error that Fix 1 avoids).  Wait until BN
-  # confirms receipt of the first post-upgrade BLOCK_HEADER block so that the mirror upgrade and
-  # account-create that follow proceed against a BN with current blocks.  Mirror will pick up the
-  # block on its next 2s retry without needing an explicit restart here; the mirror upgrade below
-  # restarts the importer pods with the new image in any case.
-  target_post_upgrade_block="$((frozen_block_before_cn_upgrade + 1))"
-  target_post_upgrade_filename="$(printf '%019d.blk.zstd' "${target_post_upgrade_block}")"
-  echo "Polling BN live storage for block ${target_post_upgrade_block} (every 5s, timeout 600s)..."
-  bn_received_post_upgrade_block="false"
-  wait_elapsed=0
-  while [[ "${wait_elapsed}" -lt 600 ]]; do
-    bn_pod_for_wait=$(kubectl get pod -n "${SOLO_NAMESPACE}" \
-      --context "kind-${SOLO_CLUSTER_NAME}" \
-      -l "block-node.hiero.com/type=block-node" \
-      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-    if [[ -n "${bn_pod_for_wait}" ]]; then
-      bn_block_found=$(kubectl exec -n "${SOLO_NAMESPACE}" "${bn_pod_for_wait}" \
-        --context "kind-${SOLO_CLUSTER_NAME}" -- \
-        sh -c "find /opt/hiero/block-node/data/live -name '${target_post_upgrade_filename}' 2>/dev/null | head -1" 2>/dev/null || echo "")
-      if [[ -n "${bn_block_found}" ]]; then
-        echo "BN received block ${target_post_upgrade_block} after ${wait_elapsed}s"
-        bn_received_post_upgrade_block="true"
-        break
-      fi
-    fi
-    sleep 5
-    wait_elapsed=$((wait_elapsed + 5))
-    if [[ $((wait_elapsed % 30)) -eq 0 ]]; then
-      echo "Still waiting for BN block ${target_post_upgrade_block}... (${wait_elapsed}s elapsed)"
-    fi
-  done
-  if [[ "${bn_received_post_upgrade_block}" != "true" ]]; then
-    echo "WARNING: BN did not receive block ${target_post_upgrade_block} within 600s; proceeding but mirror ingestion may not recover in time"
-  fi
 else
-  if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-    npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
-    echo "BN ${CURRENT_BLOCK_VERSION} is installed before the CN upgrade."
-  else
-    echo "Block node version unchanged (${CURRENT_BLOCK_VERSION}); skipping block node upgrade"
-  fi
-
+  echo "Block node version unchanged (${CURRENT_BLOCK_VERSION}); skipping block node upgrade"
   run_consensus_network_upgrade
 fi
 
