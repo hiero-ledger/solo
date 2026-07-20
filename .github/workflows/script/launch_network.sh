@@ -112,29 +112,6 @@ extract_required_test_version() {
   printf '%s' "${version_value}"
 }
 
-install_minio_operator_for_source_deploy() {
-  local context="kind-${SOLO_CLUSTER_NAME}"
-  local namespace="solo-setup"
-  local release_name="operator"
-  local chart_repo_name="operator"
-  local chart_url="${MINIO_OPERATOR_CHART_URL:-https://operator.min.io/}"
-  local chart_version="${MINIO_OPERATOR_VERSION:-7.1.1}"
-
-  echo "Installing MinIO operator ${chart_version} for released Solo source deploy"
-  helm repo add "${chart_repo_name}" "${chart_url}" --force-update
-  helm repo update "${chart_repo_name}"
-  helm upgrade --install "${release_name}" "${chart_repo_name}/operator" \
-    --create-namespace \
-    --namespace "${namespace}" \
-    --kube-context "${context}" \
-    --version "${chart_version}" \
-    --set operator.replicaCount=1 \
-    --wait \
-    --timeout 5m
-  kubectl wait --for=condition=Established crd/tenants.minio.min.io \
-    --context "${context}" \
-    --timeout=2m
-}
 
 # Function to save current service ClusterIPs
 save_cluster_ips() {
@@ -938,22 +915,9 @@ add_application_properties_overwrite_marker "${TEMP_SOURCE_APPLICATION_PROPERTIE
 CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
 CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
 PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
-SOURCE_BLOCK_STREAM_MODE="BLOCKS"
-SOURCE_STREAM_WRAPPED_RECORD_BLOCKS="false"
-SOURCE_BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
-SOURCE_MINIO_ENABLED="false"
-SOURCE_MIRROR_BLOCK_ENABLED="true"
-SOURCE_MIRROR_RECORD_ENABLED="false"
-
-if [[ "${SOURCE_MIRROR_BLOCK_ENABLED}" == "true" ]]; then
-  SOURCE_DISABLE_IMPORTER_SPRING_PROFILES="false"
-else
-  SOURCE_DISABLE_IMPORTER_SPRING_PROFILES="true"
-fi
-
-set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "${SOURCE_BLOCK_STREAM_MODE}"
-set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}"
-set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "${SOURCE_BLOCK_STREAM_WRITER_MODE}"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "true"
@@ -962,21 +926,21 @@ set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.force
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
 chmod 644 "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
-cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<EOF
+cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<'EOF'
 # Generated for migration workflow launch.
 importer:
   env:
-    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "${SOURCE_MIRROR_BLOCK_ENABLED}"
+    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "true"
     HIERO_MIRROR_IMPORTER_DOWNLOADER_ALLOW_ANONYMOUS_ACCESS: "true"
-    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "${SOURCE_MIRROR_RECORD_ENABLED}"
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "false"
     HIERO_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
     HIERO_MIRROR_IMPORTER_BLOCK_FREQUENCY: "2s"
     HIERO_MIRROR_IMPORTER_BLOCK_SOURCE_TYPE: "BLOCK_NODE"
     HIERO_MIRROR_IMPORTER_BLOCK_STREAM_MAX_SUBSCRIBE_ATTEMPTS: "100"
     HIERO_MIRROR_IMPORTER_BLOCK_STREAM_READMIT_DELAY: "10s"
-    HEDERA_MIRROR_IMPORTER_BLOCK_ENABLED: "${SOURCE_MIRROR_BLOCK_ENABLED}"
+    HEDERA_MIRROR_IMPORTER_BLOCK_ENABLED: "true"
     HEDERA_MIRROR_IMPORTER_DOWNLOADER_ALLOW_ANONYMOUS_ACCESS: "true"
-    HEDERA_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "${SOURCE_MIRROR_RECORD_ENABLED}"
+    HEDERA_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "false"
     HEDERA_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
     HEDERA_MIRROR_IMPORTER_BLOCK_FREQUENCY: "2s"
     HEDERA_MIRROR_IMPORTER_BLOCK_SOURCE_TYPE: "BLOCK_NODE"
@@ -1001,7 +965,7 @@ importer:
           downloader:
             allowAnonymousAccess: true
             record:
-              enabled: ${SOURCE_MIRROR_RECORD_ENABLED}
+              enabled: false
             balance:
               enabled: false
     hiero:
@@ -1016,7 +980,7 @@ importer:
           downloader:
             allowAnonymousAccess: true
             record:
-              enabled: ${SOURCE_MIRROR_RECORD_ENABLED}
+              enabled: false
             balance:
               enabled: false
 EOF
@@ -1049,19 +1013,9 @@ explorerNode:
 EOF
 
 export ONE_SHOT_WITH_BLOCK_NODE=true
-# The source deploy uses released Solo, so set stream/minio behavior with generated
-# values rather than relying on local source changes.
-export BLOCK_STREAM_STREAM_MODE="${SOURCE_BLOCK_STREAM_MODE}"
-export BLOCK_STREAM_WRITER_MODE="${SOURCE_BLOCK_STREAM_WRITER_MODE}"
-export DISABLE_IMPORTER_SPRING_PROFILES="${SOURCE_DISABLE_IMPORTER_SPRING_PROFILES}"
-echo "Initial source block stream mode: ${SOURCE_BLOCK_STREAM_MODE}"
-echo "Initial source block stream writer mode: ${SOURCE_BLOCK_STREAM_WRITER_MODE}"
-echo "Initial source wrapped record blocks enabled: ${SOURCE_STREAM_WRAPPED_RECORD_BLOCKS}"
-echo "Initial source MinIO enabled: ${SOURCE_MINIO_ENABLED}"
-
-if [[ "${SOURCE_MINIO_ENABLED}" == "true" ]]; then
-  install_minio_operator_for_source_deploy
-fi
+export BLOCK_STREAM_STREAM_MODE="BLOCKS"
+export BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
+export DISABLE_IMPORTER_SPRING_PROFILES="false"
 
 BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   solo one-shot falcon deploy \
