@@ -5,7 +5,6 @@ set -eo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/helper.sh"
 
-TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 TEMP_ONE_SHOT_VALUES_FILE=""
 TEMP_MIRROR_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
@@ -34,9 +33,6 @@ on_exit() {
     rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
   fi
 
-  if [[ -n "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" ]]; then
-    rm -f "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-  fi
 
   if [[ -n "${TEMP_ONE_SHOT_VALUES_FILE:-}" && -f "${TEMP_ONE_SHOT_VALUES_FILE}" ]]; then
     rm -f "${TEMP_ONE_SHOT_VALUES_FILE}"
@@ -223,7 +219,6 @@ run_consensus_network_upgrade() {
     -i node1,node2 \
     --deployment "${SOLO_DEPLOYMENT}" \
     --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
-    --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
     -q --dev
 }
 
@@ -729,27 +724,6 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade 
 ps -ef |grep port-forward
 
 echo "Block node version: source=${PREV_BLOCK_VERSION_NO_V}, target=${CURRENT_BLOCK_VERSION}"
-TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
-cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-add_application_properties_overwrite_marker "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "fees.simpleFeesEnabled" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
-# enableCutover must stay false: source CN ran in BLOCKS mode (no record-stream/WRB) so
-# BlockInfo.blockHashes is empty; setting true crashes CN v0.75+ during migration.
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.enableCutover" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
-chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-
-echo "Using temporary application.properties override file: ${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
