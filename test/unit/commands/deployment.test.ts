@@ -190,12 +190,12 @@ describe('DeploymentCommand unit tests', (): void => {
     }
 
     function buildRemoteConfigStub(components: {mirrorNodes?: FakeComponent[]; explorers?: FakeComponent[]}): {
-      load: SinonStub;
+      loadAndValidate: SinonStub;
       persist: SinonStub;
       configuration: {state: Record<string, FakeComponent[]>};
     } {
       return {
-        load: sinon.stub().resolves(),
+        loadAndValidate: sinon.stub().resolves(),
         persist: sinon.stub().resolves(),
         configuration: {
           state: {

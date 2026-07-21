@@ -1360,16 +1360,8 @@ export class DeploymentCommand extends BaseCommand {
    * restore them and list no longer reports them.
    */
   public async stopPortForwards(argv: ArgvStruct): Promise<boolean> {
-    interface Config {
-      quiet: boolean;
-      deployment: DeploymentName;
-    }
-
     interface StopPortForwardsContext {
-      config: Config;
-      namespace?: NamespaceName;
-      clusterReference?: string;
-      context?: string;
+      deployment: DeploymentName;
     }
 
     const tasks: SoloListr<StopPortForwardsContext> = new Listr(
@@ -1378,82 +1370,15 @@ export class DeploymentCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_): Promise<void> => {
             await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
 
             this.configManager.update(argv);
 
-            context_.config = {
-              quiet: this.configManager.getFlag<boolean>(flags.quiet),
-              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
-            } as Config;
-
-            // Get namespace from deployment
-            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
+            context_.deployment = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.deployment);
             if (!deployment) {
-              throw new SoloErrors.deployment.notFound(
-                `Deployment ${context_.config.deployment} not found in local config`,
-              );
+              throw new SoloErrors.deployment.notFound(`Deployment ${context_.deployment} not found in local config`);
             }
-
-            context_.namespace = NamespaceName.of(deployment.namespace);
-          },
-        },
-        {
-          title: 'Load remote configuration',
-          task: async (context_, task): Promise<void> => {
-            if (!context_.namespace) {
-              throw new SoloErrors.deployment.namespaceNotSet();
-            }
-
-            // Load remote config from a selected cluster in the deployment
-            const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
-            const clusters: FacadeArray<StringFacade, string> = deployment.clusters;
-
-            if (clusters.length === 0) {
-              throw new SoloErrors.deployment.noClustersForDeployment(context_.config.deployment);
-            }
-
-            const clusterReferences: string[] = [];
-            for (let index: number = 0; index < clusters.length; index++) {
-              const clusterReferenceFacade: StringFacade = clusters.get(index);
-              if (clusterReferenceFacade) {
-                clusterReferences.push(clusterReferenceFacade.toString());
-              }
-            }
-
-            if (clusterReferences.length === 0) {
-              throw new SoloErrors.deployment.clusterReferenceResolutionFailed(
-                context_.config.deployment,
-                Flags.getFormattedFlagKey(Flags.deployment),
-                Flags.getFormattedFlagKey(Flags.numberOfConsensusNodes),
-                Flags.getFormattedFlagKey(Flags.clusterRef),
-              );
-            }
-
-            let clusterReference: string = clusterReferences[0];
-            if (clusterReferences.length > 1) {
-              clusterReference = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
-                message: `Multiple clusters found for deployment '${context_.config.deployment}'. Select cluster reference:`,
-                choices: clusterReferences.map((reference): {name: string; value: string} => ({
-                  name: `${reference} (${this.localConfig.configuration.clusterRefs.get(reference)?.toString() ?? 'no-context'})`,
-                  value: reference,
-                })),
-              })) as string;
-            }
-
-            const contextValue: StringFacade = this.localConfig.configuration.clusterRefs.get(clusterReference);
-            if (!contextValue) {
-              throw new SoloErrors.deployment.contextNotFoundForCluster(
-                clusterReference,
-                Flags.getFormattedFlagKey(Flags.clusterRef),
-                Flags.getFormattedFlagKey(Flags.context),
-              );
-            }
-
-            const context: string = contextValue.toString();
-            context_.clusterReference = clusterReference;
-            context_.context = context;
-
-            await this.remoteConfig.load(context_.namespace, context);
           },
         },
         {
