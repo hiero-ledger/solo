@@ -763,32 +763,37 @@ chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 # FREEZE_COMPLETE so the gRPC stream stays open and BN v0.37 commits the freeze block before the
 # JVM is stopped. CN v0.75 then starts from the next block (N+1). BN v0.37 already has block N.
 #
-# CN v0.75 is protocol-incompatible with BN v0.37 for blocks AFTER the freeze: mirror stays
-# stuck at N until BN is upgraded. Upgrading BN immediately after CN upgrade is correct:
-# BN v0.38.1 starts from block N+1 and receives it from CN v0.75.
+# BN v0.37 continues streaming blocks to mirror after CN upgrades. Before BN is upgraded,
+# block-ranges.json must be deleted from the application-state PVC. BN v0.37 has a bug
+# (hiero-block-node#3249): it writes block-ranges.json when it OPENS a block session, before
+# the .blk file lands on disk. When BN v0.37 is killed for the upgrade, the last-opened session
+# may not have completed, leaving block-ranges.json claiming block N is committed when only
+# blocks 0→N-1 are on disk. BN v0.38.1 then reports firstAvailableBlock=N+1; CN v0.75 wants N
+# and permanently blacklists BN — an unrecoverable deadlock (hiero-consensus-node#26456).
 #
-# However, BN v0.37 updates block-ranges.json (application-state PVC) when it OPENS a block
-# verification session, before the block .blk file is written to disk. During the CN freeze
-# drain window, CN v0.74 produces one post-freeze block (N+1) that BN v0.37 opens a session
-# for but never writes to disk (publisher disconnects). After the BN pod is replaced for
-# upgrade, BN v0.38.1 starts, reads the stale block-ranges.json (says "have N+1"), and
-# reports firstAvailableBlock=N+2 to CN v0.75. CN v0.75 then sees wantedBlock(N+1) < N+2
-# and marks BN as permanently ineligible for streaming — an unrecoverable deadlock.
-#
-# Workaround: delete block-ranges.json from the running BN pod before the upgrade. BN v0.37
-# is idle at this point (CN v0.74 already disconnected), so the file is not rewritten. BN
-# v0.38.1 then re-derives its block range from disk (finds 0->N), reports firstAvailableBlock
-# correctly, and CN v0.75 can stream block N+1 successfully. See hiero-block-node#3249.
+# We must delete block-ranges.json AFTER BN v0.37 stops (so it cannot rewrite the file) and
+# BEFORE BN v0.38.1 starts. Since we cannot exec into a stopped pod, we use a temporary busybox
+# pod that mounts the PVC directly. helm upgrade (via solo block node upgrade) then starts BN
+# v0.38.1, which rescans disk, derives the correct range, and connects to CN v0.75.
 run_consensus_network_upgrade
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   pre_bn_upgrade_block="$(get_latest_mirror_block_number)"
-  BN_POD=$(kubectl get pods -n "${SOLO_DEPLOYMENT}" -l "app.kubernetes.io/instance=block-node-1" \
-    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-  if [[ -n "${BN_POD}" ]]; then
-    kubectl exec -n "${SOLO_DEPLOYMENT}" "${BN_POD}" -c block-node-server -- \
-      rm -f /opt/hiero/block-node/application-state/block-ranges.json 2>/dev/null || true
-  fi
+  BN_SS="block-node-1"
+  BN_APP_STATE_PVC="application-state-storage-${BN_SS}-0"
+  BN_CLEANUP_POD="bn-pvc-cleanup"
+  CLEANUP_OVERRIDES="{\"spec\":{\"containers\":[{\"name\":\"c\",\"image\":\"busybox:stable\",\"command\":[\"rm\",\"-f\",\"/d/block-ranges.json\"],\"volumeMounts\":[{\"name\":\"v\",\"mountPath\":\"/d\"}]}],\"volumes\":[{\"name\":\"v\",\"persistentVolumeClaim\":{\"claimName\":\"${BN_APP_STATE_PVC}\"}}]}}"
+
+  # Stop BN v0.37 so it cannot write a new block-ranges.json after we delete it.
+  kubectl scale statefulset/"${BN_SS}" --replicas=0 -n "${SOLO_DEPLOYMENT}" 2>/dev/null || true
+  kubectl wait --for=delete pod/"${BN_SS}-0" -n "${SOLO_DEPLOYMENT}" --timeout=60s 2>/dev/null || true
+  # Delete stale block-ranges.json from the PVC via a one-shot busybox pod.
+  kubectl run "${BN_CLEANUP_POD}" -n "${SOLO_DEPLOYMENT}" \
+    --image=busybox:stable --restart=Never --overrides="${CLEANUP_OVERRIDES}" 2>/dev/null || true
+  kubectl wait pod/"${BN_CLEANUP_POD}" -n "${SOLO_DEPLOYMENT}" \
+    '--for=jsonpath={.status.phase}=Succeeded' --timeout=60s 2>/dev/null || true
+  kubectl delete pod/"${BN_CLEANUP_POD}" -n "${SOLO_DEPLOYMENT}" --ignore-not-found 2>/dev/null || true
+
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed"
   # Wait for BN v0.38.1 to reconnect to CN v0.75 and resume delivering blocks to mirror.
