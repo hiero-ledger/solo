@@ -748,31 +748,28 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "300000"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
-# CN v0.75 permanently blacklists BN when it sees a connection error or a wrong
-# firstAvailableBlock (hiero-consensus-node#26456). The blacklist is in-memory and
-# clears on JVM restart.
+# CN v0.75 permanently blacklists BN on any connection error or wrong firstAvailableBlock
+# on its very first connection attempt (hiero-consensus-node#26456). The blacklist is
+# in-memory and cleared only by a JVM restart.
+#
+# We also cannot do FREEZE_ONLY + CN v0.74 restart before the upgrade: when CN v0.74
+# restarts from FROZEN state, the first 2 consensus-recovery blocks have incomplete Merkle
+# state proofs (1 path instead of the expected 3). BN rejects them as BAD_BLOCK_PROOF, so
+# those blocks never land on disk and the mirror subscriber gets NOT_AVAILABLE forever.
 #
 # Strategy:
-#  1. network freeze  — FREEZE_ONLY drains block stream and stops CN JVM (pod stays running).
-#                       No new blocks during BN upgrade → no race condition.
-#  2. BN upgrade      — cleanup init container removes stale block-ranges.json
-#                       (hiero-block-node#3249) so BN v0.38.1 reports correct
-#                       firstAvailableBlock from actual disk state.
-#  3. BN stabilise    — wait 60 s; CN JVM is stopped so no mirror progress to poll.
-#  4. node restart    — restart CN v0.74 JVM (no phase validation needed); it connects
-#                       to BN v0.38.1 which has now been running for 60+ s.
-#  5. network upgrade — atomic CN upgrade (PREPARE_UPGRADE + FREEZE_UPGRADE + execute).
-#  6. node restart    — CN v0.75 permanently blacklists BN on any connection error during
-#                       its very first connection attempt on startup. Restarting CN v0.75
-#                       JVM clears the in-memory blacklist and gives it a fresh connection
-#                       attempt against BN that has been stable for 2+ minutes.
+#  1. BN upgrade — cleanup init container removes stale block-ranges.json
+#                  (hiero-block-node#3249) so BN v0.38.1 reports the correct
+#                  firstAvailableBlock from actual disk state. CN v0.74 reconnects
+#                  automatically after BN comes back up (v0.74 has no permanent blacklist).
+#  2. BN stabilise — poll until mirror advances 3+ blocks via BN v0.38.1 (proves the
+#                    CN→BN→mirror pipeline is healthy), then wait 120 s more. This
+#                    guarantees BN is stable for 2+ minutes before CN v0.75 starts.
+#  3. network upgrade — atomic CN upgrade (PREPARE_UPGRADE + FREEZE_UPGRADE + execute).
+#                       When CN v0.75 starts, BN has been stable for 2+ minutes and
+#                       block numbers are aligned by the clean FREEZE_UPGRADE boundary.
 
-# Step 1: Network freeze (FREEZE_ONLY) — drain block stream, stop CN JVM.
-npm run solo -- consensus network freeze \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  -q
-
-# Step 2: Upgrade BN while CN JVM is safely stopped.
+# Step 1: Upgrade BN while CN v0.74 is running.
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   TEMP_BN_UPGRADE_VALUES_FILE="$(mktemp -t bn-upgrade-values-XXXX.yaml)"
   cat > "${TEMP_BN_UPGRADE_VALUES_FILE}" <<'VALS'
@@ -819,18 +816,18 @@ VALS
   echo "BN ${CURRENT_BLOCK_VERSION} installed"
 fi
 
-# Step 3: Wait for BN to stabilise. CN JVM is stopped so mirror has no new blocks to poll.
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting 60s for BN to stabilise"
-sleep 60
+# Step 2: Wait for BN to stabilise before upgrading CN.
+#   CN v0.74 reconnects to BN v0.38.1 automatically. Poll until mirror receives 3 new
+#   blocks (proving the CN→BN→mirror pipeline is healthy), then wait 120 s more so BN
+#   is demonstrably stable before CN v0.75 makes its first connection attempt.
+bn_stabilize_start_block="$(get_latest_mirror_block_number)"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for BN ${CURRENT_BLOCK_VERSION} to stabilise (mirror at block ${bn_stabilize_start_block})"
+wait_for_mirror_block_count_progress "BN stabilise after upgrade" "${bn_stabilize_start_block}" 3 120 5
+echo "$(date '+%Y-%m-%d %H:%M:%S') - BN is streaming blocks; waiting 120s for full stability"
+sleep 120
 
-# Step 4: Restart CN v0.74 JVM so the network upgrade can submit HAPI transactions.
-#   'node restart' has no phase validation and works from the FROZEN phase set by step 1.
-npm run solo -- consensus node restart \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  -q
-echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.74 restarted and connected to BN"
-
-# Step 5: Atomic CN upgrade — PREPARE_UPGRADE + FREEZE_UPGRADE + execute.
+# Step 3: Atomic CN upgrade — PREPARE_UPGRADE + FREEZE_UPGRADE + execute.
+#   BN has been stable for 2+ minutes; CN v0.75 should connect cleanly on first startup.
 npm run solo -- \
   consensus network upgrade \
   -i node1,node2 \
@@ -839,14 +836,6 @@ npm run solo -- \
   --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
   --freeze-block-drain-seconds 30 \
   -q --dev
-
-# Step 6: Restart CN v0.75 JVM to clear any in-memory BN blacklist.
-#   CN v0.75 permanently blacklists BN on first connection error during startup. This restart
-#   gives CN v0.75 a clean start against BN that has been stable for 2+ minutes.
-npm run solo -- consensus node restart \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  -q
-echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.75 restarted; any BN blacklist cleared"
 
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev

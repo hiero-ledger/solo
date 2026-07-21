@@ -97,10 +97,39 @@ CN v0.75.1 first tried to connect → permanent blacklist.
 5. `network upgrade` (atomic: PREPARE_UPGRADE + FREEZE_UPGRADE + execute → CN v0.75.1)
 6. `node restart` (restart CN v0.75.1 JVM — clears any in-memory BN blacklist from startup)
 
-**Why step 6 works**: The blacklist is in CN's in-memory state only. Restarting CN v0.75.1 JVM
-clears it. By the time step 6 runs, BN has been stable for 3+ minutes. CN v0.75.1's second
-startup should connect cleanly.
+**Failure (run 29868390295)**: Mirror stuck at block 72, never advancing to 73. Root cause:
 
-**Key implementation detail**: `solo consensus node start` cannot be used in steps 4/6 because it
-requires `CONFIGURED` phase; after `network freeze` nodes are in `FROZEN` phase. `node restart`
-has no phase validation and works from any phase.
+When CN v0.74 restarts from FROZEN state (step 4), the first 2 consensus-recovery blocks (73 and
+74) have incomplete Merkle state proofs — **1 path instead of the expected 3** — because the
+consensus round reconvergence is incomplete at that moment. BN v0.38.1 rejects them with
+`BAD_BLOCK_PROOF`. Those blocks **never land on disk**. Block 75 onward pass verification fine.
+
+After CN v0.75.1 starts, its `wantedBlock` is 73 (the first block BN doesn't have). Mirror asks
+BN for block 73: BN returns `NOT_AVAILABLE`. Mirror is stuck forever.
+
+Step 6 (CN v0.75.1 restart) is also counterproductive: it resets CN v0.75.1's `wantedBlock` to
+the stale on-disk value while BN has already advanced further, widening the gap.
+
+**Root cause**: FREEZE_ONLY + CN v0.74 restart fundamentally cannot work — the recovery blocks
+always have bad proofs, and BN correctly rejects them.
+
+***
+
+## Attempt 5: BN Upgrade While CN Runs + Long Stability Wait + Network Upgrade
+
+**Sequence**:
+1. BN upgrade with cleanup init container — CN v0.74 **stays running** throughout
+2. Poll until mirror receives 3 new blocks via BN v0.38.1 (proves CN→BN→mirror pipeline healthy),
+   then wait 120 s more (BN stable for 2+ minutes before CN v0.75 starts)
+3. `network upgrade` (PREPARE_UPGRADE + FREEZE_UPGRADE + execute → CN v0.75.1)
+
+**Why this avoids previous failure modes**:
+- No FREEZE_ONLY → no CN v0.74 restart from FROZEN → no BAD_BLOCK_PROOF recovery blocks
+- CN v0.74 does NOT permanently blacklist BN (only v0.75 does), so CN v0.74 reconnects
+  automatically after BN v0.38.1 comes up
+- 3 confirmed mirror blocks + 120 s additional wait ensures BN is demonstrably stable before
+  CN v0.75 makes its first connection attempt
+- FREEZE_UPGRADE manages the block boundary cleanly, so CN v0.75.1 `wantedBlock` = BN `nextExpected`
+
+**Key difference from Attempt 2**: Attempt 2 waited for only 2 mirror blocks — not enough. This
+attempt waits for 3 blocks AND 120 s extra, giving BN 2+ minutes of proven stability.
