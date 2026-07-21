@@ -756,7 +756,7 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.maxBlocks" "1000"
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
+set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "300000"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 # Upgrade CN first. The --freeze-block-drain-seconds flag holds the JVM alive for 30s after
