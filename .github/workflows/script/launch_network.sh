@@ -224,6 +224,7 @@ run_consensus_network_upgrade() {
     --deployment "${SOLO_DEPLOYMENT}" \
     --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
     --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
+    --freeze-block-drain-seconds 30 \
     -q --dev
 }
 
@@ -758,20 +759,21 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "60000"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
-# Upgrade CN first so that CN v0.74's freeze block is delivered to BN v0.37 while the
-# gRPC streaming connection is stable (no backlog, immediate ACK). If BN is upgraded before
-# the CN freeze, the pod-restart disrupts the gRPC stream and the freeze block ends up
-# in-flight at the moment the connection closes — BN never commits it, and CN v0.75 starts
-# from the next block, leaving BN permanently stuck waiting for the missing freeze block.
+# Upgrade CN first. The --freeze-block-drain-seconds flag holds the JVM alive for 30s after
+# FREEZE_COMPLETE so the gRPC stream stays open and BN can commit the freeze block before the
+# JVM is stopped. CN v0.75 then starts from the next block, which BN already has.
 run_consensus_network_upgrade
 
-# After CN v0.75 is ACTIVE, upgrade BN. BN v0.37's PVC now has all blocks including the
-# freeze block. BN v0.38.1 inherits that PVC and CN v0.75 streams the remaining blocks.
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+  # Confirm BN committed the freeze block: mirror can only advance if BN received it.
+  # This check must pass before we restart BN with the new version.
+  post_cn_upgrade_block="$(get_latest_mirror_block_number)"
+  wait_for_mirror_block_count_progress "freeze block flushed to BN after CN upgrade" "${post_cn_upgrade_block}" 2 60 2 > /dev/null
+
   pre_bn_upgrade_block="$(get_latest_mirror_block_number)"
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed"
-  # Wait for BN v0.38.1 to reconnect to CN v0.75 and resume delivering blocks.
+  # Wait for BN to reconnect to CN v0.75 and resume delivering blocks to mirror.
   wait_for_mirror_block_count_progress "after BN upgrade" "${pre_bn_upgrade_block}" 2 60 2 > /dev/null
 fi
 
