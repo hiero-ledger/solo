@@ -759,46 +759,66 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStr
 set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "300000"
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
-# Upgrade CN first. The --freeze-block-drain-seconds flag holds the JVM alive for 30s after
-# FREEZE_COMPLETE so the gRPC stream stays open and BN v0.37 commits the freeze block before the
-# JVM is stopped. CN v0.75 then starts from the next block (N+1). BN v0.37 already has block N.
+# Upgrade BN first while CN v0.74 is still running. This ensures CN v0.75 sees BN v0.38.1
+# already running when it starts, avoiding the permanent blacklist that CN v0.75 applies
+# when BN is unavailable during startup (hiero-consensus-node#26456).
 #
-# BN v0.37 continues streaming blocks to mirror after CN upgrades. Before BN is upgraded,
-# block-ranges.json must be deleted from the application-state PVC. BN v0.37 has a bug
-# (hiero-block-node#3249): it writes block-ranges.json when it OPENS a block session, before
-# the .blk file lands on disk. When BN v0.37 is killed for the upgrade, the last-opened session
-# may not have completed, leaving block-ranges.json claiming block N is committed when only
-# blocks 0→N-1 are on disk. BN v0.38.1 then reports firstAvailableBlock=N+1; CN v0.75 wants N
-# and permanently blacklists BN — an unrecoverable deadlock (hiero-consensus-node#26456).
+# BN v0.37 has a bug (hiero-block-node#3249): block-ranges.json is written when a block
+# session OPENS, before the .blk file lands on disk. If BN v0.37 is killed mid-session,
+# the stale file claims block N is committed when only 0→N-1 are on disk. BN v0.38.1
+# would then report firstAvailableBlock=N+1 — permanently blacklisted by CN v0.75.
 #
-# We must delete block-ranges.json AFTER BN v0.37 stops (so it cannot rewrite the file) and
-# BEFORE BN v0.38.1 starts. Since we cannot exec into a stopped pod, we use a temporary busybox
-# pod that mounts the PVC directly. helm upgrade (via solo block node upgrade) then starts BN
-# v0.38.1, which rescans disk, derives the correct range, and connects to CN v0.75.
-run_consensus_network_upgrade
-
+# The cleanup init container in the values override runs AFTER BN v0.37 is fully stopped
+# and BEFORE BN v0.38.1 starts. blockNode.initContainers replaces the chart list entirely,
+# so the original init-storage-dirs container is included alongside the cleanup container.
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   pre_bn_upgrade_block="$(get_latest_mirror_block_number)"
-  BN_SS="block-node-1"
-  BN_APP_STATE_PVC="application-state-storage-${BN_SS}-0"
-  BN_CLEANUP_POD="bn-pvc-cleanup"
-  CLEANUP_OVERRIDES="{\"spec\":{\"containers\":[{\"name\":\"c\",\"image\":\"busybox:stable\",\"command\":[\"rm\",\"-f\",\"/d/block-ranges.json\"],\"volumeMounts\":[{\"name\":\"v\",\"mountPath\":\"/d\"}]}],\"volumes\":[{\"name\":\"v\",\"persistentVolumeClaim\":{\"claimName\":\"${BN_APP_STATE_PVC}\"}}]}}"
-
-  # Stop BN v0.37 so it cannot write a new block-ranges.json after we delete it.
-  kubectl scale statefulset/"${BN_SS}" --replicas=0 -n "${SOLO_DEPLOYMENT}" 2>/dev/null || true
-  kubectl wait --for=delete pod/"${BN_SS}-0" -n "${SOLO_DEPLOYMENT}" --timeout=60s 2>/dev/null || true
-  # Delete stale block-ranges.json from the PVC via a one-shot busybox pod.
-  kubectl run "${BN_CLEANUP_POD}" -n "${SOLO_DEPLOYMENT}" \
-    --image=busybox:stable --restart=Never --overrides="${CLEANUP_OVERRIDES}" 2>/dev/null || true
-  kubectl wait pod/"${BN_CLEANUP_POD}" -n "${SOLO_DEPLOYMENT}" \
-    '--for=jsonpath={.status.phase}=Succeeded' --timeout=60s 2>/dev/null || true
-  kubectl delete pod/"${BN_CLEANUP_POD}" -n "${SOLO_DEPLOYMENT}" --ignore-not-found 2>/dev/null || true
-
-  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
+  TEMP_BN_UPGRADE_VALUES_FILE="$(mktemp -t bn-upgrade-values-XXXX.yaml)"
+  cat > "${TEMP_BN_UPGRADE_VALUES_FILE}" <<'VALS'
+blockNode:
+  initContainers:
+    - name: init-storage-dirs
+      image: busybox
+      command:
+        - sh
+        - -c
+        - |
+          mkdir -p /application-state-pvc && \
+          chown 2000:2000 /application-state-pvc && \
+          chmod 700 /application-state-pvc && \
+          mkdir -p /archive-pvc/archive-data && \
+          chown 2000:2000 /archive-pvc/archive-data && \
+          chmod 700 /archive-pvc/archive-data && \
+          mkdir -p /live-pvc/live-data && \
+          chown 2000:2000 /live-pvc/live-data && \
+          chmod 700 /live-pvc/live-data
+      volumeMounts:
+        - name: application-state-storage
+          mountPath: /application-state-pvc
+        - name: archive-storage
+          mountPath: /archive-pvc
+        - name: live-storage
+          mountPath: /live-pvc
+        - name: logging-storage
+          mountPath: /logging-pvc
+    - name: cleanup-block-ranges
+      image: busybox
+      command:
+        - rm
+        - -f
+        - /application-state-pvc/block-ranges.json
+      volumeMounts:
+        - name: application-state-storage
+          mountPath: /application-state-pvc
+VALS
+  npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}" --values-file "${TEMP_BN_UPGRADE_VALUES_FILE}"
+  rm -f "${TEMP_BN_UPGRADE_VALUES_FILE}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed"
-  # Wait for BN v0.38.1 to reconnect to CN v0.75 and resume delivering blocks to mirror.
+  # Wait for BN v0.38.1 to reconnect to CN v0.74 and resume delivering blocks to mirror.
   wait_for_mirror_block_count_progress "after BN upgrade" "${pre_bn_upgrade_block}" 2 60 2 > /dev/null
 fi
+
+run_consensus_network_upgrade
 
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
