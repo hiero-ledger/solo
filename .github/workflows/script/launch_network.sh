@@ -761,8 +761,11 @@ chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 #  3. BN stabilise    — wait 60 s; CN JVM is stopped so no mirror progress to poll.
 #  4. node restart    — restart CN v0.74 JVM (no phase validation needed); it connects
 #                       to BN v0.38.1 which has now been running for 60+ s.
-#  5. network upgrade — atomic CN upgrade (PREPARE_UPGRADE + FREEZE_UPGRADE + execute);
-#                       CN v0.75 starts when BN v0.38.1 is already stable → no blacklist.
+#  5. network upgrade — atomic CN upgrade (PREPARE_UPGRADE + FREEZE_UPGRADE + execute).
+#  6. node restart    — CN v0.75 permanently blacklists BN on any connection error during
+#                       its very first connection attempt on startup. Restarting CN v0.75
+#                       JVM clears the in-memory blacklist and gives it a fresh connection
+#                       attempt against BN that has been stable for 2+ minutes.
 
 # Step 1: Network freeze (FREEZE_ONLY) — drain block stream, stop CN JVM.
 npm run solo -- consensus network freeze \
@@ -828,8 +831,6 @@ npm run solo -- consensus node restart \
 echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.74 restarted and connected to BN"
 
 # Step 5: Atomic CN upgrade — PREPARE_UPGRADE + FREEZE_UPGRADE + execute.
-#   CN v0.75 starts after BN v0.38.1 has been running for 60+ s → no connection error,
-#   no permanent blacklist.
 npm run solo -- \
   consensus network upgrade \
   -i node1,node2 \
@@ -838,6 +839,14 @@ npm run solo -- \
   --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
   --freeze-block-drain-seconds 30 \
   -q --dev
+
+# Step 6: Restart CN v0.75 JVM to clear any in-memory BN blacklist.
+#   CN v0.75 permanently blacklists BN on first connection error during startup. This restart
+#   gives CN v0.75 a clean start against BN that has been stable for 2+ minutes.
+npm run solo -- consensus node restart \
+  --deployment "${SOLO_DEPLOYMENT}" \
+  -q
+echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.75 restarted; any BN blacklist cleared"
 
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
