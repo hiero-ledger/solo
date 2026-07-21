@@ -760,20 +760,20 @@ set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNod
 chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
 # Upgrade CN first. The --freeze-block-drain-seconds flag holds the JVM alive for 30s after
-# FREEZE_COMPLETE so the gRPC stream stays open and BN can commit the freeze block before the
-# JVM is stopped. CN v0.75 then starts from the next block, which BN already has.
+# FREEZE_COMPLETE so the gRPC stream stays open and BN v0.37 commits the freeze block before the
+# JVM is stopped. CN v0.75 then starts from the next block (N+1). BN v0.37 already has block N.
+#
+# CN v0.75 is protocol-incompatible with BN v0.37 for blocks AFTER the freeze: mirror stays
+# stuck at N until BN is upgraded. Upgrading BN immediately after CN upgrade is correct:
+# BN v0.38.1 inherits the PVC (has block N), requests N+1 from CN v0.75, which still has it
+# in its block buffer (blockStream.buffer.maxBlocks=1000).
 run_consensus_network_upgrade
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
-  # Confirm BN committed the freeze block: mirror can only advance if BN received it.
-  # This check must pass before we restart BN with the new version.
-  post_cn_upgrade_block="$(get_latest_mirror_block_number)"
-  wait_for_mirror_block_count_progress "freeze block flushed to BN after CN upgrade" "${post_cn_upgrade_block}" 2 60 2 > /dev/null
-
   pre_bn_upgrade_block="$(get_latest_mirror_block_number)"
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed"
-  # Wait for BN to reconnect to CN v0.75 and resume delivering blocks to mirror.
+  # Wait for BN v0.38.1 to reconnect to CN v0.75 and resume delivering blocks to mirror.
   wait_for_mirror_block_count_progress "after BN upgrade" "${pre_bn_upgrade_block}" 2 60 2 > /dev/null
 fi
 
