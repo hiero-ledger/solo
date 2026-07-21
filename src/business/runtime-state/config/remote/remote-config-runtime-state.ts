@@ -519,12 +519,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       return;
     }
 
-    // TODO: Current quick fix for commands where namespace is not passed
-    let currentDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
-
     if (!deploymentName) {
       deploymentName = await promptTheUserForDeployment(this.configManager, undefined, this.localConfig);
-      currentDeployment = this.localConfig.configuration.deploymentByName(deploymentName);
       // TODO: Fix once we have the DataManager,
       //       without this the user will be prompted a second time for the deployment
       // TODO: we should not be mutating argv
@@ -535,9 +531,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       this.configManager.setFlag(flags.deployment, deploymentName);
     }
 
-    if (!currentDeployment) {
-      throw new SoloErrors.internal.remoteConfigDeploymentNotSet(deploymentName);
-    }
+    // TODO: Current quick fix for commands where namespace is not passed
+    const currentDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
 
     const namespace: NamespaceNameAsString = currentDeployment.namespace;
 
