@@ -765,12 +765,30 @@ chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 #
 # CN v0.75 is protocol-incompatible with BN v0.37 for blocks AFTER the freeze: mirror stays
 # stuck at N until BN is upgraded. Upgrading BN immediately after CN upgrade is correct:
-# BN v0.38.1 inherits the PVC (has block N), requests N+1 from CN v0.75, which still has it
-# in its block buffer (blockStream.buffer.maxBlocks=1000).
+# BN v0.38.1 starts from block N+1 and receives it from CN v0.75.
+#
+# However, BN v0.37 updates block-ranges.json (application-state PVC) when it OPENS a block
+# verification session, before the block .blk file is written to disk. During the CN freeze
+# drain window, CN v0.74 produces one post-freeze block (N+1) that BN v0.37 opens a session
+# for but never writes to disk (publisher disconnects). After the BN pod is replaced for
+# upgrade, BN v0.38.1 starts, reads the stale block-ranges.json (says "have N+1"), and
+# reports firstAvailableBlock=N+2 to CN v0.75. CN v0.75 then sees wantedBlock(N+1) < N+2
+# and marks BN as permanently ineligible for streaming — an unrecoverable deadlock.
+#
+# Workaround: delete block-ranges.json from the running BN pod before the upgrade. BN v0.37
+# is idle at this point (CN v0.74 already disconnected), so the file is not rewritten. BN
+# v0.38.1 then re-derives its block range from disk (finds 0->N), reports firstAvailableBlock
+# correctly, and CN v0.75 can stream block N+1 successfully. See hiero-block-node#3249.
 run_consensus_network_upgrade
 
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   pre_bn_upgrade_block="$(get_latest_mirror_block_number)"
+  BN_POD=$(kubectl get pods -n "${SOLO_DEPLOYMENT}" -l "app.kubernetes.io/instance=block-node-1" \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+  if [[ -n "${BN_POD}" ]]; then
+    kubectl exec -n "${SOLO_DEPLOYMENT}" "${BN_POD}" -c block-node-server -- \
+      rm -f /opt/hiero/block-node/application-state/block-ranges.json 2>/dev/null || true
+  fi
   npm run solo -- block node upgrade --deployment "${SOLO_DEPLOYMENT}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed"
   # Wait for BN v0.38.1 to reconnect to CN v0.75 and resume delivering blocks to mirror.
