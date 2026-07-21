@@ -211,6 +211,20 @@ export class NodeCommandTasks {
       : blockNodes.map((node: BlockNodeStateSchema): ComponentId => node.metadata.id);
   }
 
+  private static serviceEndpointFromAddress(address: Address): ServiceEndpoint {
+    if (address.domainName) {
+      return new ServiceEndpoint({
+        port: address.port,
+        domainName: address.domainName,
+      });
+    }
+
+    return new ServiceEndpoint({
+      port: address.port,
+      ipAddressV4: parseIpAddressToUint8Array(address.ipAddressV4),
+    });
+  }
+
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -3289,7 +3303,7 @@ export class NodeCommandTasks {
     };
   }
 
-  private async getGossipFqdnRestricted(config: NodeAddConfigClass, k8: K8): Promise<boolean> {
+  private async getGossipFqdnRestricted(config: NodeAddConfigClass | NodeUpdateConfigClass, k8: K8): Promise<boolean> {
     return await resolveGossipFqdnRestricted({
       k8,
       namespace: config.namespace,
@@ -3342,6 +3356,36 @@ export class NodeCommandTasks {
     };
   }
 
+  private async prepareNodeUpdateGossipEndpoints(config: NodeUpdateConfigClass): Promise<ServiceEndpoint[]> {
+    if (config.gossipEndpoints) {
+      return prepareEndpoints(
+        config.endpointType,
+        splitFlagInput(config.gossipEndpoints),
+        constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
+      );
+    }
+
+    const consensusNode: ConsensusNode | undefined = config.consensusNodes.find(
+      (node: ConsensusNode): boolean => node.name === config.nodeAlias,
+    );
+
+    if (!consensusNode) {
+      throw new SoloErrors.system.consensusNodeNotInConfig(config.nodeAlias);
+    }
+
+    const context: string = extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+    const k8: K8 = this.k8Factory.getK8(context);
+    const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(config, k8);
+    const externalEndpointAddress: Address = await Address.getExternalAddress(
+      consensusNode,
+      k8,
+      +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+      gossipFqdnRestricted,
+    );
+
+    return [NodeCommandTasks.serviceEndpointFromAddress(externalEndpointAddress)];
+  }
+
   public sendNodeUpdateTransaction(): SoloListrTask<NodeUpdateContext> {
     return {
       title: 'Send node update transaction',
@@ -3362,6 +3406,7 @@ export class NodeCommandTasks {
         }
 
         let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
+        nodeUpdateTx = nodeUpdateTx.setGossipEndpoints(await this.prepareNodeUpdateGossipEndpoints(config));
 
         if (config.tlsPublicKey && config.tlsPrivateKey) {
           this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
