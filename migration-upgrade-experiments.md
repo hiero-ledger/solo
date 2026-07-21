@@ -133,3 +133,36 @@ always have bad proofs, and BN correctly rejects them.
 
 **Key difference from Attempt 2**: Attempt 2 waited for only 2 mirror blocks — not enough. This
 attempt waits for 3 blocks AND 120 s extra, giving BN 2+ minutes of proven stability.
+
+**Failure (run 29872566219)**: Mirror stuck at block 161 (waiting for 162). CN v0.75.1 correctly
+started and BN was stable, but a second race existed at the CN upgrade boundary:
+
+When FREEZE_UPGRADE kills CN v0.74, one CN node (node1) sent `EndStream(RESET, latestAcked=-1)`
+at 22:18:05 while block 162 was mid-stream. CN node2 remained alive briefly. BN completed
+block 162 (or possibly 163) before CN node2 was killed. Result: BN's live window advanced to
+163, but CN v0.75.1 started with `wantedBlock=162`. CN v0.75.1 saw `blocksAvailable: 163-163`,
+`wantedBlock < firstAvailableBlock` → permanent blacklist. Mirror could not get block 162.
+
+***
+
+## Attempt 6: BN Upgrade + Long Wait + CN Upgrade + 120s Wait + CN v0.75 Restart
+
+**Sequence**:
+1. BN upgrade with cleanup init container — CN v0.74 stays running
+2. Poll until mirror receives 3 new blocks via BN v0.38.1, then wait 120 s (BN stable for 2+min)
+3. `network upgrade` (PREPARE_UPGRADE + FREEZE_UPGRADE + execute → CN v0.75.1)
+4. Wait 120 s (CN v0.75.1 commits ~60 blocks locally while blacklisted)
+5. `node restart` — clears the in-memory blacklist
+6. Poll until mirror receives 3 new blocks (confirms CN→BN→mirror pipeline healthy)
+7. Continue: mirror upgrade, explorer upgrade, etc.
+
+**Why the restart at 120 s works**:
+After 120 s, CN v0.75.1's committed state is ~60 blocks past its starting wantedBlock (162).
+After restart, CN v0.75.1's wantedBlock ≈ 222. BN's nextExpected ≈ 162. |222−162| = 60 ≤
+`staleResendPruneBuffer=100`. BN responds with `RESEND(162)` rather than "not a candidate". CN
+replays block 162 from its persistent buffer (`isBufferPersistenceEnabled = true`). BN writes
+block 162. Mirror receives it via BN's live subscription and advances.
+
+**Critical constraint**: the restart must happen within 200 s of CN v0.75.1 starting, because
+each extra second moves wantedBlock further past BN's nextExpected. Beyond 100 blocks of
+divergence, staleResendPruneBuffer is exceeded and BN can no longer RESEND the gap block.

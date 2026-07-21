@@ -757,6 +757,14 @@ chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 # state proofs (1 path instead of the expected 3). BN rejects them as BAD_BLOCK_PROOF, so
 # those blocks never land on disk and the mirror subscriber gets NOT_AVAILABLE forever.
 #
+# A second race exists at the CN upgrade boundary: when FREEZE_UPGRADE kills CN v0.74,
+# one or two blocks may be mid-stream. BN may write them, advancing its live window past
+# CN v0.75.1's starting wantedBlock. CN v0.75.1 immediately blacklists BN. The fix is to
+# let CN v0.75.1 run for 120 s (committing ~60 blocks locally), then restart it. After
+# restart, CN v0.75.1's wantedBlock is ~60 blocks past its start but still within BN's
+# staleResendPruneBuffer=100 of BN's nextExpected. BN responds with RESEND for the missing
+# block(s); CN replays them from its persistent buffer; mirror receives them via live stream.
+#
 # Strategy:
 #  1. BN upgrade — cleanup init container removes stale block-ranges.json
 #                  (hiero-block-node#3249) so BN v0.38.1 reports the correct
@@ -766,8 +774,10 @@ chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 #                    CN→BN→mirror pipeline is healthy), then wait 120 s more. This
 #                    guarantees BN is stable for 2+ minutes before CN v0.75 starts.
 #  3. network upgrade — atomic CN upgrade (PREPARE_UPGRADE + FREEZE_UPGRADE + execute).
-#                       When CN v0.75 starts, BN has been stable for 2+ minutes and
-#                       block numbers are aligned by the clean FREEZE_UPGRADE boundary.
+#  4. CN v0.75 restart — wait 120 s then restart CN v0.75 JVM to clear the in-memory BN
+#                        blacklist. After restart, CN wantedBlock > BN firstAvailableBlock
+#                        (no blacklist). BN sends RESEND for missing blocks; CN replays
+#                        them from its persistent buffer; mirror advances via live stream.
 
 # Step 1: Upgrade BN while CN v0.74 is running.
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
@@ -827,7 +837,6 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - BN is streaming blocks; waiting 120s for fu
 sleep 120
 
 # Step 3: Atomic CN upgrade — PREPARE_UPGRADE + FREEZE_UPGRADE + execute.
-#   BN has been stable for 2+ minutes; CN v0.75 should connect cleanly on first startup.
 npm run solo -- \
   consensus network upgrade \
   -i node1,node2 \
@@ -836,6 +845,24 @@ npm run solo -- \
   --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
   --freeze-block-drain-seconds 30 \
   -q --dev
+
+# Step 4: Restart CN v0.75 to clear its in-memory BN blacklist.
+#   CN v0.75.1 starts and immediately blacklists BN because FREEZE_UPGRADE may have left
+#   BN's live window 1-2 blocks ahead of CN v0.75.1's starting wantedBlock (the stream
+#   buffer drains while CN v0.74 is shutting down). After 120 s CN v0.75.1 has committed
+#   ~60 blocks locally — still within BN's staleResendPruneBuffer=100 of BN's nextExpected.
+#   After restart, CN wantedBlock > BN firstAvailableBlock → no blacklist. BN sends RESEND
+#   for any missing blocks; CN replays from its persistent buffer (isBufferPersistenceEnabled
+#   = true); mirror receives them via BN's live subscription.
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting 120s for CN v0.75 to advance past BN firstAvailableBlock"
+sleep 120
+npm run solo -- consensus node restart \
+  --deployment "${SOLO_DEPLOYMENT}" \
+  -q
+echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.75 restarted; clearing blacklist and replaying missing blocks"
+post_upgrade_start_block="$(get_latest_mirror_block_number)"
+wait_for_mirror_block_count_progress "CN v0.75 post-restart pipeline" "${post_upgrade_start_block}" 3 120 5
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Pipeline healthy; CN→BN→mirror confirmed"
 
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
