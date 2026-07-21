@@ -161,6 +161,7 @@ import {type Container} from '../../integration/kube/resources/container/contain
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
+import {type BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import net from 'node:net';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
@@ -196,6 +197,19 @@ const {gray, cyan, red, green, yellow} = chalk;
 @injectable()
 export class NodeCommandTasks {
   private readonly soloConfig: SoloConfig;
+
+  private static getDefaultBlockNodeIdsForCluster(
+    blockNodes: BlockNodeStateSchema[],
+    clusterReference: ClusterReferenceName,
+  ): ComponentId[] {
+    const clusterBlockNodeIds: ComponentId[] = blockNodes
+      .filter((node: BlockNodeStateSchema): boolean => node.metadata.cluster === clusterReference)
+      .map((node: BlockNodeStateSchema): ComponentId => node.metadata.id);
+
+    return clusterBlockNodeIds.length > 0
+      ? clusterBlockNodeIds
+      : blockNodes.map((node: BlockNodeStateSchema): ComponentId => node.metadata.id);
+  }
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
@@ -4475,8 +4489,9 @@ export class NodeCommandTasks {
         const blockNodeIdsRaw: string = this.configManager.getFlag(flags.blockNodeMapping);
         const externalBlockNodeIdsRaw: string = this.configManager.getFlag(flags.externalBlockNodeMapping);
 
-        const fallbackIdsForBlockNodes: ComponentId[] = this.remoteConfig.configuration.state.blockNodes.map(
-          (node): ComponentId => node.metadata.id,
+        const fallbackIdsForBlockNodes: ComponentId[] = NodeCommandTasks.getDefaultBlockNodeIdsForCluster(
+          this.remoteConfig.configuration.state.blockNodes,
+          clusterReference,
         );
 
         const fallbackIdsForExternalBlockNodes: ComponentId[] =
