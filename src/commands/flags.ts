@@ -3356,9 +3356,7 @@ export class Flags {
       Flags.blockNodeMessageSizeSoftLimitBytes,
       Flags.blockNodeMessageSizeHardLimitBytes,
       Flags.freezeBlockDrainSeconds,
-    ].map(
-      (f): [string, CommandFlag] => [f.name, f],
-    ),
+    ].map((f): [string, CommandFlag] => [f.name, f]),
   );
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
