@@ -222,19 +222,60 @@ Mirror receives it via live subscription.
 
 ## Attempt 7: Add BN log checkpoints to diagnose remaining unknowns
 
-**Changes**: No sequence changes. Added `dump_bn_log()` helper function with 5 call sites in
-`launch_network.sh` to capture BN state at each major step:
+**Changes**: No sequence changes from Attempt 6. Added `dump_bn_log()` helper function with
+5 call sites in `launch_network.sh` to capture BN state at each major step.
 
-1. After BN upgrade — baseline after v0.38.1 starts
-2. After 120 s BN stability wait, before CN upgrade — BN healthy state snapshot
-3. Immediately after FREEZE_UPGRADE boundary — does block 162 exist on disk? what is
-   BN's nextExpected and firstAvailableBlock at this moment?
-4. After 120 s sleep, before CN restart — has BN's gap persisted? is staleResendPruneBuffer
-   still satisfied?
-5. After CN v0.75 restart — did RESEND happen? was block 162 written?
+**Note**: The `dump_bn_log` commits were not pushed before CI triggered, so this run executed
+with Attempt 6's code. Results apply to Attempt 6's sequence, not the intended diagnostic run.
 
-Each dump greps out the per-item FINE noise (Appending, sendResponse, etc.) and keeps
-INFO/WARN/ERROR plus the FINE lines for block completion, RESEND, and handler connect/disconnect.
+**Failure (run 29884248461)**: Mirror stuck at block **163** (shifted by one from previous runs).
 
-**Purpose**: Answer the four open questions from Attempt 6 so the next fix targets the
-actual failure point rather than continuing to guess.
+**What the logs show**:
+
+* 02:04:00.109 — Block **162** fully written to `historic/staging` and `live` (first time
+  block 162 survived!). N1-STR2 sent ACK for block 162. Handler 0 was already skipping 162.
+* 02:04:00.109 — `ExtendedMerkleTreeSession` for block **163** immediately opened.
+* 02:04:00.252 — Block 163 session received 21 items (4+3 from N0 before SKIP, then 14 from N1).
+* 02:04:01.150 — N0-STR2 EndStream(RESET) → removed; `activePublishers=1` (N1 still connected).
+* 02:04:01.152 — BN log completely dark. N1-STR2 sent no more items and never sent a disconnect.
+  Whether N1-STR2 disconnected silently or BN's log writer failed is unknown.
+
+Mirror first error at 02:16:48: `No block node can provide block 163` — 1153 identical errors
+over ~2 minutes, matching the `wait_for_mirror_block_count_progress` 10-minute timeout.
+
+**Root cause confirmed**: The freeze ALWAYS kills CN mid-block. Block 162 completing was
+coincidental (the freeze landed just after 162 finished rather than during it). Block 163 had the
+same partial-session problem. BN v0.38.1 retains the in-memory partial session for the
+freeze-boundary block even after all publishers disconnect. When CN v0.75 connects with the
+correct wantedBlock (163, not blacklisted since 162 was acked), BN's stale session state
+prevents it from cleanly accepting CN v0.75's fresh block 163. BN stalls. Mirror stuck.
+
+**Open question resolved**: The CN restart alone does NOT fix the problem because BN's partial
+session state persists across the CN restart. BN needs its own restart to clear the in-memory
+state.
+
+***
+
+## Attempt 8: Restart BN after freeze to clear partial session, then restart CN v0.75
+
+**Sequence**:
+1. BN upgrade with cleanup init container — CN v0.74 stays running
+2. Poll until mirror receives 3 new blocks via BN v0.38.1, then wait 120 s
+3. `network upgrade` (PREPARE_UPGRADE + FREEZE_UPGRADE + execute → CN v0.75.1)
+4. Wait 30 s — CN v0.75 settles; any partial BN session writes complete or are abandoned
+5. `kubectl rollout restart statefulset/block-node-1` — clears BN's in-memory partial
+   session state (CN v0.75 is already blacklisted so BN downtime adds no NEW blacklist)
+6. `kubectl rollout status` — wait for BN pod fully ready (~60 s)
+7. Wait 60 s — BN fully initializes from PVC; CN v0.75 builds persistent block buffer
+8. `consensus node restart` — clears the permanent BN blacklist
+9. CN connects to clean BN; wantedBlock = gap_block (lastAcked+1 from streaming state) OR
+   gap_block+~85 (from committed state); either way BN's nextExpected matches or RESEND
+   triggers (|gap| ≤ staleResendPruneBuffer=100); gap block delivered; mirror advances
+
+**Timing**: 30 + ~60 (BN restart) + 60 = 150 s before CN restart. At 2 s/block that is
+~75 blocks committed → wantedBlock after CN restart = gap_block+75. |75| ≤ 100 ✓
+
+**Why BN restart is safe**: BN's PVC is preserved across pod restart (Kubernetes StatefulSet
+semantics). BN reinitializes from PVC: fully verified blocks 0→N-1 remain in `live/` and
+`historic/staging/`. The partial in-memory session for block N is gone. BN nextExpected = N
+(clean). CN v0.75 provides block N. Mirror receives it.
