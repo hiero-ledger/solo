@@ -747,63 +747,33 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before consensus upgrad
 echo "::endgroup::"
 
 
-echo "::group::Upgrade Consensus Node"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before upgrade consensus node"
+echo "::group::Consensus Node Upgrade Decision"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Check existing port-forward before consensus node upgrade decision"
 ps -ef |grep port-forward
 
 echo "Block node version: source=${PREV_BLOCK_VERSION_NO_V}, target=${CURRENT_BLOCK_VERSION}"
 echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 
-# CN 0.74 source runs with tss.hintsEnabled/historyEnabled=true; CN 0.75 inherits those and
-# crashes in ProofControllerImpl.advanceConstruction with NPE during TSS state reconciliation.
-# Pass explicit overrides to disable TSS hints/history for the upgrade.
-# forceMockSignatures must also be true: with hints/history/wraps all disabled, CN 0.75 cannot
-# complete real TSS block signing and crashes ~30s after ACTIVE, reverting to CHECKING.
-TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
-cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-add_application_properties_overwrite_marker "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "true"
-# Also carry the block-stream and block-buffer settings into CN 0.75 so that it streams
-# blocks to BN via gRPC and the BN reconnect window remains wide enough.
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.maxBlocks" "1000"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
-set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "300000"
-chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+# TEMPORARY BYPASS:
+#   CN upgrade is disabled in this migration test until hiero-consensus-node#26498 is fixed.
+#   Current CN FREEZE_UPGRADE can reach FREEZE_COMPLETE while the freeze-boundary block is only
+#   partially delivered to BN. CN v0.75.1 then resumes at N+1 instead of replaying N, leaving
+#   mirror permanently stuck at N-1 because block N cannot be provided by BN.
+#
+#   Keep the CN-upgrade code below this flag so the test can be restored once CN guarantees
+#   boundary block continuity or exposes a deterministic final-block-flushed signal for Solo.
+SKIP_CONSENSUS_NODE_UPGRADE_UNTIL_CN_26498_FIXED=true
 
-# CN v0.75 permanently blacklists BN on any connection error or wrong firstAvailableBlock
-# on its very first connection attempt (hiero-consensus-node#26456). The blacklist is
-# in-memory and cleared only by a JVM restart.
-#
-# We also cannot do FREEZE_ONLY + CN v0.74 restart before the upgrade: when CN v0.74
-# restarts from FROZEN state, the first 2 consensus-recovery blocks have incomplete Merkle
-# state proofs (1 path instead of the expected 3). BN rejects them as BAD_BLOCK_PROOF, so
-# those blocks never land on disk and the mirror subscriber gets NOT_AVAILABLE forever.
-#
-# A second race exists at the CN upgrade boundary: when FREEZE_UPGRADE kills CN v0.74,
-# one or two blocks may be mid-stream. BN may write later blocks without the gap block,
-# so CN v0.75.1's starting wantedBlock can fall behind BN's firstAvailableBlock and
-# permanently reject BN. The fix is to stage CN v0.75.1 without starting it, restart BN
-# to clear partial in-memory state, then start CN while BN still expects the gap block.
-#
-# Strategy:
+# Strategy while the bypass is active:
 #  1. BN upgrade — cleanup init container removes stale block-ranges.json
 #                  (hiero-block-node#3249) so BN v0.38.1 reports the correct
 #                  firstAvailableBlock from actual disk state. CN v0.74 reconnects
 #                  automatically after BN comes back up (v0.74 has no permanent blacklist).
-#  2. BN stabilise — poll until mirror advances 3+ blocks via BN v0.38.1 (proves the
-#                    CN→BN→mirror pipeline is healthy), then wait 120 s more. This
-#                    guarantees BN is stable for 2+ minutes before CN v0.75 starts.
-#  3. network upgrade — atomic CN upgrade (PREPARE_UPGRADE + FREEZE_UPGRADE + execute),
-#                       but skip the first CN v0.75 start.
-#  4. CN/BN gap recovery — restart BN, wait for clean PVC state, then start CN v0.75 so
-#                          its wantedBlock is in range and the gap block is streamed
-#                          before any post-gap blocks advance BN.
+#  2. BN stabilise — poll until mirror advances 3+ blocks via BN v0.38.1, then wait
+#                    120 s more. This proves the CN→BN→mirror pipeline is healthy without
+#                    exercising the known-broken CN freeze-upgrade boundary.
+#  3. Skip CN upgrade — leave consensus nodes on the source version and continue covering
+#                      Solo/component migration behavior until CN issue #26498 is fixed.
 
 # Step 1: Upgrade BN while CN v0.74 is running.
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
@@ -853,68 +823,98 @@ VALS
   dump_bn_log "after BN upgrade"
 fi
 
-# Step 2: Wait for BN to stabilise before upgrading CN.
+# Step 2: Wait for BN to stabilise before the CN upgrade decision.
 #   CN v0.74 reconnects to BN v0.38.1 automatically. Poll until mirror receives 3 new
-#   blocks (proving the CN→BN→mirror pipeline is healthy), then wait 120 s more so BN
-#   is demonstrably stable before CN v0.75 makes its first connection attempt.
+#   blocks (proving the CN→BN→mirror pipeline is healthy), then wait 120 s more. If
+#   the temporary bypass is turned off later, this also gives BN a stable window before
+#   CN v0.75 makes its first connection attempt.
 bn_stabilize_start_block="$(get_latest_mirror_block_number)"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for BN ${CURRENT_BLOCK_VERSION} to stabilise (mirror at block ${bn_stabilize_start_block})"
 wait_for_mirror_block_count_progress "BN stabilise after upgrade" "${bn_stabilize_start_block}" 3 120 5
 echo "$(date '+%Y-%m-%d %H:%M:%S') - BN is streaming blocks; waiting 120s for full stability"
 sleep 120
-dump_bn_log "after BN stability wait, before CN upgrade"
+dump_bn_log "after BN stability wait, before CN upgrade decision"
 
-# Step 3: Atomic CN upgrade — PREPARE_UPGRADE + FREEZE_UPGRADE + execute, without starting v0.75 yet.
-npm run solo -- \
-  consensus network upgrade \
-  -i node1,node2 \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
-  --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
-  --freeze-block-drain-seconds 30 \
-  --skip-node-start \
-  -q --dev
-dump_bn_log "immediately after CN upgrade staging (v0.75 not started)"
+if [[ "${SKIP_CONSENSUS_NODE_UPGRADE_UNTIL_CN_26498_FIXED}" == "true" ]]; then
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - TEMPORARILY skipping CN upgrade to ${TO_CONSENSUS_NODE_VERSION}"
+  echo "Reason: hiero-consensus-node#26498 can leave the freeze-boundary block missing from BN/mirror."
+  echo "Consensus nodes remain on ${FROM_CONSENSUS_NODE_VERSION}; continuing component migration coverage."
+  dump_bn_log "CN upgrade skipped due to hiero-consensus-node#26498"
+else
+  # CN 0.74 source runs with tss.hintsEnabled/historyEnabled=true; CN 0.75 inherits those and
+  # crashes in ProofControllerImpl.advanceConstruction with NPE during TSS state reconciliation.
+  # Pass explicit overrides to disable TSS hints/history for the upgrade.
+  # forceMockSignatures must also be true: with hints/history/wraps all disabled, CN 0.75 cannot
+  # complete real TSS block signing and crashes ~30s after ACTIVE, reverting to CHECKING.
+  TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE="$(mktemp -t solo-upgrade-application-properties-XXXX.properties)"
+  cp resources/templates/application.properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+  add_application_properties_overwrite_marker "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.hintsEnabled" "false"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "true"
+  # Also carry the block-stream and block-buffer settings into CN 0.75 so that it streams
+  # blocks to BN via gRPC and the BN reconnect window remains wide enough.
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.maxBlocks" "1000"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockNode.wantedBlockExpirationMillis" "300000"
+  chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 
-# Step 4: Restart BN, then start CN v0.75 to clear the freeze-boundary incomplete block session.
-#
-# At the freeze boundary, FREEZE_UPGRADE kills CN v0.74 while one block is always mid-stream.
-# BN v0.38.1 retains the partial in-memory session for that block even after all publishers
-# disconnect. When CN v0.75 connects, BN's incomplete session state prevents it from cleanly
-# accepting CN v0.75's fresh copy of the block → BN stalls or rejects → CN v0.75 either gets
-# immediately blacklisted (wantedBlock < firstAvailableBlock) or later blacklisted (connection
-# error after BN rejects the partial-session block).
-#
-# Fix:
-#  a. Skip the first CN v0.75 start in the network-upgrade command. If CN starts before BN
-#     is reset, BN can ingest later blocks and report blocksAvailable=N+2..M while CN still
-#     wants N. That recreates the permanent out-of-range condition and mirror remains stuck on N.
-#  b. Restart BN — the pod restart clears all in-memory partial session state. BN comes back
-#     with clean state: only the fully verified blocks on its PVC (0 through N-1, where N is
-#     the freeze-boundary gap block).
-#  c. Wait for BN to be ready and initialize from PVC. CN is stopped, so BN cannot advance
-#     past the gap before CN reconnects.
-#  d. Start CN v0.75 — first v0.75 connection happens while BN still expects
-#     the gap block. CN streams N, BN writes it, and mirror receives it.
+  # Step 3: Atomic CN upgrade — PREPARE_UPGRADE + FREEZE_UPGRADE + execute, without starting v0.75 yet.
+  npm run solo -- \
+    consensus network upgrade \
+    -i node1,node2 \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
+    --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
+    --freeze-block-drain-seconds 30 \
+    --skip-node-start \
+    -q --dev
+  dump_bn_log "immediately after CN upgrade staging (v0.75 not started)"
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Restarting BN to clear freeze-boundary incomplete session"
-kubectl rollout restart statefulset/block-node-1 -n "${SOLO_NAMESPACE}"
-kubectl rollout status statefulset/block-node-1 -n "${SOLO_NAMESPACE}" --timeout=3m
-echo "$(date '+%Y-%m-%d %H:%M:%S') - BN pod restarted; incomplete session cleared"
-dump_bn_log "after BN restart (clean state from PVC; no partial session)"
+  # Step 4: Restart BN, then start CN v0.75 to clear the freeze-boundary incomplete block session.
+  #
+  # At the freeze boundary, FREEZE_UPGRADE kills CN v0.74 while one block is always mid-stream.
+  # BN v0.38.1 retains the partial in-memory session for that block even after all publishers
+  # disconnect. When CN v0.75 connects, BN's incomplete session state prevents it from cleanly
+  # accepting CN v0.75's fresh copy of the block -> BN stalls or rejects -> CN v0.75 either gets
+  # immediately blacklisted (wantedBlock < firstAvailableBlock) or later blacklisted (connection
+  # error after BN rejects the partial-session block).
+  #
+  # Fix after CN issue #26498 is resolved:
+  #  a. Skip the first CN v0.75 start in the network-upgrade command. If CN starts before BN
+  #     is reset, BN can ingest later blocks and report blocksAvailable=N+2..M while CN still
+  #     wants N. That recreates the permanent out-of-range condition and mirror remains stuck on N.
+  #  b. Restart BN — the pod restart clears all in-memory partial session state. BN comes back
+  #     with clean state: only the fully verified blocks on its PVC (0 through N-1, where N is
+  #     the freeze-boundary gap block).
+  #  c. Wait for BN to be ready and initialize from PVC. CN is stopped, so BN cannot advance
+  #     past the gap before CN reconnects.
+  #  d. Start CN v0.75 — first v0.75 connection happens while BN still expects
+  #     the gap block. CN streams N, BN writes it, and mirror receives it.
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting 60s for BN to fully initialize from PVC"
-sleep 60
-dump_bn_log "after 60s wait, before CN start (gap window check)"
-npm run solo -- consensus node start \
-  -i node1,node2 \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  -q --dev
-echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.75 started; blacklist cleared"
-dump_bn_log "after CN v0.75 start (check gap block delivery)"
-post_upgrade_start_block="$(get_latest_mirror_block_number)"
-wait_for_mirror_block_count_progress "CN v0.75 post-start pipeline" "${post_upgrade_start_block}" 3 120 5
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Pipeline healthy; CN→BN→mirror confirmed"
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Restarting BN to clear freeze-boundary incomplete session"
+  kubectl rollout restart statefulset/block-node-1 -n "${SOLO_NAMESPACE}"
+  kubectl rollout status statefulset/block-node-1 -n "${SOLO_NAMESPACE}" --timeout=3m
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - BN pod restarted; incomplete session cleared"
+  dump_bn_log "after BN restart (clean state from PVC; no partial session)"
+
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting 60s for BN to fully initialize from PVC"
+  sleep 60
+  dump_bn_log "after 60s wait, before CN start (gap window check)"
+  npm run solo -- consensus node start \
+    -i node1,node2 \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    -q --dev
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.75 started; blacklist cleared"
+  dump_bn_log "after CN v0.75 start (check gap block delivery)"
+  post_upgrade_start_block="$(get_latest_mirror_block_number)"
+  wait_for_mirror_block_count_progress "CN v0.75 post-start pipeline" "${post_upgrade_start_block}" 3 120 5
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - Pipeline healthy; CN→BN→mirror confirmed"
+fi
 
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
