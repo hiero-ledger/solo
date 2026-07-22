@@ -537,6 +537,34 @@ auto_recover_importer_hash_chain() {
   fi
 }
 
+# Dumps recent BN log lines at a labelled checkpoint. Omits the very verbose FINE-level
+# messages (per-item appends, ACK/SKIP responses) and keeps INFO/WARN/ERROR plus the FINE
+# messages that carry actionable state: block completion, RESEND, handler connect/disconnect.
+# Call at each major upgrade step so post-mortem analysis has a BN-state timeline.
+dump_bn_log() {
+  local label="${1}"
+  echo "=== [BN_DIAG] ${label} — $(date '+%Y-%m-%d %H:%M:%S') ==="
+  local bnPod
+  bnPod=$(kubectl get pods -n "${SOLO_NAMESPACE}" \
+    --field-selector=status.phase=Running \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+    | grep '^block-node' | head -1 || echo "")
+  if [[ -z "${bnPod}" ]]; then
+    bnPod=$(kubectl get pods -n "${SOLO_NAMESPACE}" \
+      -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+      | grep '^block-node' | head -1 || echo "")
+  fi
+  if [[ -z "${bnPod}" ]]; then
+    echo "(no block-node pod found in namespace ${SOLO_NAMESPACE})"
+  else
+    echo "BN pod: ${bnPod}"
+    kubectl logs -n "${SOLO_NAMESPACE}" "${bnPod}" --tail=400 2>/dev/null \
+      | grep -v "FINE.*Appending\|FINE.*sendResponse\|FINE.*Started new block verif\|FINE.*Sending block verif\|FINE.*Sending block persisted\|FINE.*sendPublisherStatus\|FINE.*registerNoBackpressure\|FINE.*Finished verification\|FINE.*Persistence Handle verif\|FINE.*sendBlockVerif\|FINE.*sendBlockPersisted\|FINE.*Sending publisher status" \
+      | tail -80 || echo "(kubectl logs failed)"
+  fi
+  echo "=== [BN_DIAG end] ==="
+}
+
 # Builds a base64-encoded NodeAddressBook JSON string for the BN RSA bootstrap file.
 # Queries mirror's /api/v1/network/nodes BEFORE the CN upgrade to capture RSA public
 # keys while the address book still has them. After a CN freeze upgrade, file 0.0.101
@@ -824,6 +852,7 @@ VALS
     --values-file "${TEMP_BN_UPGRADE_VALUES_FILE}"
   rm -f "${TEMP_BN_UPGRADE_VALUES_FILE}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed"
+  dump_bn_log "after BN upgrade"
 fi
 
 # Step 2: Wait for BN to stabilise before upgrading CN.
@@ -835,6 +864,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for BN ${CURRENT_BLOCK_VERSION} to 
 wait_for_mirror_block_count_progress "BN stabilise after upgrade" "${bn_stabilize_start_block}" 3 120 5
 echo "$(date '+%Y-%m-%d %H:%M:%S') - BN is streaming blocks; waiting 120s for full stability"
 sleep 120
+dump_bn_log "after BN stability wait, before CN upgrade"
 
 # Step 3: Atomic CN upgrade — PREPARE_UPGRADE + FREEZE_UPGRADE + execute.
 npm run solo -- \
@@ -845,6 +875,7 @@ npm run solo -- \
   --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
   --freeze-block-drain-seconds 30 \
   -q --dev
+dump_bn_log "immediately after CN upgrade (FREEZE_UPGRADE boundary)"
 
 # Step 4: Restart CN v0.75 to clear its in-memory BN blacklist.
 #   CN v0.75.1 starts and immediately blacklists BN because FREEZE_UPGRADE may have left
@@ -856,10 +887,12 @@ npm run solo -- \
 #   = true); mirror receives them via BN's live subscription.
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting 120s for CN v0.75 to advance past BN firstAvailableBlock"
 sleep 120
+dump_bn_log "after 120s wait, before CN restart (check gap block and RESEND readiness)"
 npm run solo -- consensus node restart \
   --deployment "${SOLO_DEPLOYMENT}" \
   -q
 echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.75 restarted; clearing blacklist and replaying missing blocks"
+dump_bn_log "after CN v0.75 restart (check RESEND exchange and gap block delivery)"
 post_upgrade_start_block="$(get_latest_mirror_block_number)"
 wait_for_mirror_block_count_progress "CN v0.75 post-restart pipeline" "${post_upgrade_start_block}" 3 120 5
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Pipeline healthy; CN→BN→mirror confirmed"
