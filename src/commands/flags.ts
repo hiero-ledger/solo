@@ -397,6 +397,29 @@ export class Flags {
     },
   };
 
+  public static readonly deployGrafanaAlloy: CommandFlag = {
+    constName: 'deployGrafanaAlloy',
+    name: 'grafana-alloy',
+    definition: {
+      describe: 'Deploy Grafana Alloy and Loki to collect and store pod logs',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: async function promptDeployGrafanaAlloy(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: boolean,
+    ): Promise<boolean> {
+      return await Flags.promptToggle(
+        task,
+        input,
+        Flags.deployGrafanaAlloy.definition.defaultValue as boolean,
+        'Would you like to deploy Grafana Alloy? ',
+        undefined,
+        Flags.deployGrafanaAlloy.name,
+      );
+    },
+  };
+
   public static readonly deployMinio: CommandFlag = {
     constName: 'deployMinio',
     name: 'minio',
@@ -3158,6 +3181,7 @@ export class Flags {
     Flags.deployCertManager,
     Flags.deployCertManagerCrds,
     Flags.deployJsonRpcRelay,
+    Flags.deployGrafanaAlloy,
     Flags.deployMinio,
     Flags.deployMetricsServer,
     Flags.deployPrometheusStack,

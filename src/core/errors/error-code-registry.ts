@@ -38,6 +38,8 @@ export const ErrorCodeRegistry: Record<string, string> = {
   INIT_FAILED: 'SOLO-2028',
   BLOCK_NODE_CLUSTER_CONTEXT_NOT_FOUND: 'SOLO-2029',
   MIRROR_NODE_CLUSTER_CONTEXT_NOT_FOUND: 'SOLO-2030',
+  GRAFANA_ALLOY_INSTALL_FAILED: 'SOLO-2031',
+  LOKI_INSTALL_FAILED: 'SOLO-2032',
 
   // 3xxx - Component: Relay, Mirror Node, Explorer, CN runtime
   NODE_TRANSACTION_FAILED: 'SOLO-3001',
