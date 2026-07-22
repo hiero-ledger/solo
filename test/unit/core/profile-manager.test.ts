@@ -563,6 +563,64 @@ describe('ProfileManager', (): void => {
       expect(externalAddressStub.firstCall.args[3]).to.equal(false);
       expect(fs.readFileSync(configTxtPath, 'utf8')).to.contain('fallback-node1.test, 50211');
     });
+
+    it('avoids FQDN gossip endpoints for multi-context config.txt generation', async (): Promise<void> => {
+      const destinationPath: string = PathEx.join(temporaryDirectory, 'config-multi-context');
+      fs.mkdirSync(destinationPath, {recursive: true});
+
+      const extractSavedEndpointStub: sinon.SinonStub = sinon
+        .stub(
+          profileManager as unknown as {
+            extractSavedEndpoint: (
+              consensusNode: ConsensusNode,
+              nodeSeq: number,
+              gossipFqdnRestricted: boolean,
+            ) => Promise<Address | undefined>;
+          },
+          'extractSavedEndpoint',
+        )
+        .resolves();
+
+      const externalAddressStub: sinon.SinonStub = sinon
+        .stub(Address, 'getExternalAddress')
+        .callsFake(
+          async (consensusNode: ConsensusNode): Promise<Address> =>
+            new Address(50_211, `fallback-${consensusNode.name}.test`),
+        );
+      sinon
+        .stub(
+          (profileManager as unknown as {k8Factory: {getK8: (...arguments_: unknown[]) => unknown}}).k8Factory,
+          'getK8',
+        )
+        .returns({});
+      const multiContextConsensusNodes: ConsensusNode[] = [
+        consensusNodes[0],
+        {
+          ...consensusNodes[1],
+          context: 'second-context',
+          cluster: 'second-cluster',
+        },
+      ];
+      const nodeAccountMap: Map<NodeAlias, string> = new Map([
+        [multiContextConsensusNodes[0].name as NodeAlias, '0.0.3'],
+        [multiContextConsensusNodes[1].name as NodeAlias, '0.0.4'],
+      ]);
+
+      const configTxtPath: string = await profileManager.prepareConfigTxt(
+        nodeAccountMap,
+        multiContextConsensusNodes,
+        destinationPath,
+        constants.HEDERA_APP_NAME,
+        constants.HEDERA_CHAIN_ID,
+        false,
+      );
+
+      expect(extractSavedEndpointStub.calledTwice).to.equal(true);
+      expect(extractSavedEndpointStub.firstCall.args[2]).to.equal(true);
+      expect(externalAddressStub.calledTwice).to.equal(true);
+      expect(externalAddressStub.firstCall.args[3]).to.equal(true);
+      expect(fs.readFileSync(configTxtPath, 'utf8')).to.contain('fallback-node2.test, 50211');
+    });
   });
 
   describe('chainId updates', (): void => {

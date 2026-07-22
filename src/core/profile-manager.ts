@@ -882,6 +882,9 @@ export class ProfileManager {
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
 
+      const shouldAvoidGossipFqdn: boolean =
+        gossipFqdnRestricted || ProfileManager.hasMultipleKubernetesContexts(consensusNodes);
+
       let nodeSeq: number = 0;
       for (const consensusNode of consensusNodes) {
         const internalIP: string = constants.LOCAL_HOST;
@@ -890,7 +893,7 @@ export class ProfileManager {
         let address: Address | undefined = await this.extractSavedEndpoint(
           consensusNode,
           nodeSeq,
-          gossipFqdnRestricted,
+          shouldAvoidGossipFqdn,
         );
 
         // If no saved state, get current external address
@@ -899,7 +902,7 @@ export class ProfileManager {
             consensusNode,
             this.k8Factory.getK8(consensusNode.context),
             externalPort,
-            gossipFqdnRestricted,
+            shouldAvoidGossipFqdn,
           );
         }
 
@@ -919,6 +922,11 @@ export class ProfileManager {
         error instanceof Error ? error : new Error(String(error)),
       );
     }
+  }
+
+  private static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
+    const contexts: Set<string> = new Set(consensusNodes.map((node: ConsensusNode): string => node.context));
+    return contexts.size > 1;
   }
 
   private async getGossipFqdnRestricted(
