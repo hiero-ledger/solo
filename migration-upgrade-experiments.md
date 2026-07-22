@@ -436,3 +436,32 @@ a live stream batch starting with `ROUND_HEADER` and then reconnect rapidly.
 This follows the existing BN #3150 workaround pattern used by performance tests. It is not a final
 fix; it gives the migration smoke test enough buffer and HTTP/2 tolerance while BN fixes the
 subscriber stream boundary behavior.
+
+***
+
+## Attempt 13: Temporarily bypass BN upgrade
+
+**Failure (run 29964561063)**: The BN subscriber-stream mitigation was rendered into the chart
+values, but the smart contract smoke test still timed out after 360 s.
+
+Rendered BN values included:
+
+* `SERVER_HTTP2_MAX_RAPID_RESETS=500`
+* `MESSAGING_BLOCK_ITEM_QUEUE_SIZE=65536`
+
+The workflow still failed in the ERC20 `before all` hook. Mirror REST repeatedly returned 404 for
+the submitted contract result hash while mirror importer continued to log:
+
+* `Incorrect first block item case ROUND_HEADER`
+* `No block node can provide block 300`
+* `Abrupt GOAWAY closed sent stream. HTTP/2 error code: PROTOCOL_ERROR`
+
+This confirms the buffer/HTTP2 workaround is insufficient for this migration workflow. Solo can
+reduce reconnect pressure, but it cannot make BN v0.38.1 provide a mirror-compatible live-stream
+batch boundary once the BN #3150 condition is hit.
+
+**Temporary bypass**: Skip the BN upgrade while
+<https://github.com/hiero-ledger/hiero-block-node/issues/3150> is open. The migration workflow now
+leaves BN on the source version, also skips the CN upgrade while CN #26498 is open, and continues
+covering mirror, explorer, ledger, relay, and smoke-test migration behavior. Re-enable BN upgrade
+once BN fixes the subscriber stream boundary behavior.

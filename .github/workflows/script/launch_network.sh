@@ -764,19 +764,32 @@ echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 #   boundary block continuity or exposes a deterministic final-block-flushed signal for Solo.
 SKIP_CONSENSUS_NODE_UPGRADE_UNTIL_CN_26498_FIXED=true
 
+# TEMPORARY BYPASS:
+#   BN upgrade is disabled in this migration test until hiero-block-node#3150 is fixed.
+#   BN v0.38.1 can serve live stream batches that start with ROUND_HEADER after mirror reconnects.
+#   Mirror v0.159.0 rejects that stream shape, reconnects rapidly, and REST contract-result
+#   ingestion can stall long enough for smoke tests to time out even when the buffer/HTTP2
+#   workaround is rendered into the BN chart values.
+#
+#   Keep the BN-upgrade code below this flag so the test can be restored once BN fixes the
+#   subscriber stream boundary behavior.
+SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED=true
+
 # Strategy while the bypass is active:
-#  1. BN upgrade — cleanup init container removes stale block-ranges.json
-#                  (hiero-block-node#3249) so BN v0.38.1 reports the correct
-#                  firstAvailableBlock from actual disk state. CN v0.74 reconnects
-#                  automatically after BN comes back up (v0.74 has no permanent blacklist).
-#  2. BN stabilise — poll until mirror advances 3+ blocks via BN v0.38.1, then wait
-#                    120 s more. This proves the CN→BN→mirror pipeline is healthy without
-#                    exercising the known-broken CN freeze-upgrade boundary.
+#  1. Skip BN upgrade — leave BN on the source version until BN issue #3150 is fixed.
+#  2. BN stabilise — poll until mirror advances 3+ blocks via the active BN, then wait
+#                    120 s more. This proves the CN→BN→mirror pipeline is healthy.
 #  3. Skip CN upgrade — leave consensus nodes on the source version and continue covering
 #                      Solo/component migration behavior until CN issue #26498 is fixed.
 
-# Step 1: Upgrade BN while CN v0.74 is running.
-if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
+# Step 1: Upgrade BN while CN v0.74 is running, unless BN #3150 bypass is active.
+ACTIVE_BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION_NO_V}"
+if [[ "${SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED}" == "true" ]]; then
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - TEMPORARILY skipping BN upgrade to ${CURRENT_BLOCK_VERSION}"
+  echo "Reason: hiero-block-node#3150 can make mirror importer reject live-stream batches starting with ROUND_HEADER."
+  echo "Block node remains on ${PREV_BLOCK_VERSION_NO_V}; continuing component migration coverage."
+  dump_bn_log "BN upgrade skipped due to hiero-block-node#3150"
+elif [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   TEMP_BN_UPGRADE_VALUES_FILE="$(mktemp -t bn-upgrade-values-XXXX.yaml)"
   cat > "${TEMP_BN_UPGRADE_VALUES_FILE}" <<'VALS'
 blockNode:
@@ -830,17 +843,17 @@ VALS
     --values-file "${TEMP_BN_UPGRADE_VALUES_FILE}"
   rm -f "${TEMP_BN_UPGRADE_VALUES_FILE}"
   echo "BN ${CURRENT_BLOCK_VERSION} installed"
+  ACTIVE_BLOCK_NODE_VERSION="${CURRENT_BLOCK_VERSION}"
   dump_bn_log "after BN upgrade"
 fi
 
 # Step 2: Wait for BN to stabilise before the CN upgrade decision.
-#   CN v0.74 reconnects to BN v0.38.1 automatically. Poll until mirror receives 3 new
-#   blocks (proving the CN→BN→mirror pipeline is healthy), then wait 120 s more. If
-#   the temporary bypass is turned off later, this also gives BN a stable window before
-#   CN v0.75 makes its first connection attempt.
+#   Poll until mirror receives 3 new blocks (proving the CN→BN→mirror pipeline is healthy),
+#   then wait 120 s more. If the temporary bypasses are turned off later, this also gives BN
+#   a stable window before CN v0.75 makes its first connection attempt.
 bn_stabilize_start_block="$(get_latest_mirror_block_number)"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for BN ${CURRENT_BLOCK_VERSION} to stabilise (mirror at block ${bn_stabilize_start_block})"
-wait_for_mirror_block_count_progress "BN stabilise after upgrade" "${bn_stabilize_start_block}" 3 120 5
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for BN ${ACTIVE_BLOCK_NODE_VERSION} to stabilise (mirror at block ${bn_stabilize_start_block})"
+wait_for_mirror_block_count_progress "BN stabilise before CN upgrade decision" "${bn_stabilize_start_block}" 3 120 5
 echo "$(date '+%Y-%m-%d %H:%M:%S') - BN is streaming blocks; waiting 120s for full stability"
 sleep 120
 dump_bn_log "after BN stability wait, before CN upgrade decision"
