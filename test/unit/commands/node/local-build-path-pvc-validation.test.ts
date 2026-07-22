@@ -6,10 +6,13 @@ import sinon from 'sinon';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {type ServiceEndpoint} from '@hiero-ledger/sdk';
+import {Address} from '../../../../src/business/address/address.js';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import * as constants from '../../../../src/core/constants.js';
 import {Helpers} from '../../../../src/core/helpers.js';
+import {ConsensusNode} from '../../../../src/core/model/consensus-node.js';
 import {PodReference} from '../../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../../src/integration/kube/resources/pod/pod-name.js';
 
@@ -23,6 +26,24 @@ type FakeK8 = {
   containers: () => {
     readByRef: () => FakeContainer;
   };
+};
+
+type EndpointState = {
+  _domainName: unknown;
+  _ipAddressV4: unknown;
+  _port: number;
+};
+
+type PrepareGossipContext = {
+  config: {
+    consensusNodes: ConsensusNode[];
+    endpointType: string;
+    gossipEndpoints?: string;
+    namespace: NamespaceName;
+    nodeAlias: string;
+    stagingDir: string;
+  };
+  gossipEndpoints?: ServiceEndpoint[];
 };
 
 function createNodeCommandTasksWithPvcData(persistentVolumeClaimsByContext: Record<string, string[]>): {
@@ -390,5 +411,82 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
       sinon.restore();
       fs.rmSync(stagingDirectory, {recursive: true, force: true});
     }
+  });
+});
+
+describe('NodeCommandTasks generated gossip endpoints', (): void => {
+  it('uses IP SDK endpoints for multi-context generated gossip endpoints', async (): Promise<void> => {
+    const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
+    const k8: object = {};
+
+    (nodeCommandTasks as unknown as {k8Factory: {getK8: (context: string) => object}}).k8Factory = {
+      getK8: (context: string): object => {
+        expect(context).to.equal('context-a');
+        return k8;
+      },
+    };
+    (nodeCommandTasks as unknown as {getGossipFqdnRestricted: () => Promise<boolean>}).getGossipFqdnRestricted =
+      async (): Promise<boolean> => false;
+
+    const externalEndpointAddress: Address = new Address(+constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT, '172.19.1.8');
+    const getExternalAddressStub: sinon.SinonStub = sinon
+      .stub(Address, 'getExternalAddress')
+      .resolves(externalEndpointAddress);
+
+    const context_: PrepareGossipContext = {
+      config: {
+        consensusNodes: [
+          new ConsensusNode(
+            'node1',
+            0,
+            'dual-cluster-full',
+            undefined,
+            'context-a',
+            'cluster.local',
+            '',
+            'network-node1-svc.dual-cluster-full.svc.cluster.local',
+            [],
+            [],
+          ),
+          new ConsensusNode(
+            'node3',
+            2,
+            'dual-cluster-full',
+            undefined,
+            'context-b',
+            'cluster.local',
+            '',
+            'network-node3-svc.dual-cluster-full.svc.cluster.local',
+            [],
+            [],
+          ),
+        ],
+        endpointType: constants.ENDPOINT_TYPE_FQDN,
+        namespace: NamespaceName.of('dual-cluster-full'),
+        nodeAlias: 'node4',
+        stagingDir: '',
+      },
+    };
+
+    try {
+      await nodeCommandTasks.prepareGossipEndpoints().task(context_ as never, undefined as never);
+    } finally {
+      getExternalAddressStub.restore();
+    }
+
+    expect(getExternalAddressStub.firstCall.args[3]).to.equal(true);
+
+    const gossipEndpoints: ServiceEndpoint[] = context_.gossipEndpoints ?? [];
+    expect(gossipEndpoints).to.have.lengthOf(2);
+
+    const internalEndpointState: EndpointState = gossipEndpoints[0] as unknown as EndpointState;
+    const externalEndpointState: EndpointState = gossipEndpoints[1] as unknown as EndpointState;
+
+    expect(internalEndpointState._domainName).to.be.null;
+    expect([...(internalEndpointState._ipAddressV4 as Uint8Array)]).to.deep.equal([127, 0, 0, 1]);
+    expect(internalEndpointState._port).to.equal(+constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT);
+    expect(externalEndpointState._domainName).to.be.null;
+    expect([...(externalEndpointState._ipAddressV4 as Uint8Array)]).to.deep.equal([172, 19, 1, 8]);
+    expect(externalEndpointState._port).to.equal(+constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT);
   });
 });

@@ -225,6 +225,15 @@ export class NodeCommandTasks {
     });
   }
 
+  private static shouldAvoidGossipFqdn(consensusNodes: ConsensusNode[], gossipFqdnRestricted: boolean): boolean {
+    return gossipFqdnRestricted || NodeCommandTasks.hasMultipleKubernetesContexts(consensusNodes);
+  }
+
+  private static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
+    const contexts: Set<string> = new Set(consensusNodes.map((node: ConsensusNode): string => node.context));
+    return contexts.size > 1;
+  }
+
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -3258,47 +3267,51 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass = context_.config;
 
-        let endpoints: string[] = [];
         if (config.gossipEndpoints) {
-          endpoints = splitFlagInput(config.gossipEndpoints);
-        } else {
-          const context: string = extractContextFromConsensusNodes(
-            config.consensusNodes[0].name,
-            context_.config.consensusNodes,
+          context_.gossipEndpoints = prepareEndpoints(
+            config.endpointType,
+            splitFlagInput(config.gossipEndpoints),
+            constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
           );
-
-          const k8: K8 = this.k8Factory.getK8(context);
-          const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(config, k8);
-
-          const externalEndpointAddress: Address = await Address.getExternalAddress(
-            new ConsensusNode(
-              config.nodeAlias,
-              Templates.nodeIdFromNodeAlias(config.nodeAlias),
-              config.namespace.name,
-              undefined,
-              context,
-              config.consensusNodes[0].dnsBaseDomain,
-              config.consensusNodes[0].dnsConsensusNodePattern,
-              Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
-              [],
-              [],
-            ),
-            k8,
-            +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
-            gossipFqdnRestricted,
-          );
-
-          endpoints = [
-            `${constants.LOCAL_HOST}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
-            `${externalEndpointAddress.formattedAddress()}`,
-          ];
+          return;
         }
 
-        context_.gossipEndpoints = prepareEndpoints(
-          config.endpointType,
-          endpoints,
-          constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
+        const context: string = extractContextFromConsensusNodes(
+          config.consensusNodes[0].name,
+          context_.config.consensusNodes,
         );
+
+        const k8: K8 = this.k8Factory.getK8(context);
+        const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(config, k8);
+        const shouldAvoidGossipFqdn: boolean = NodeCommandTasks.shouldAvoidGossipFqdn(
+          config.consensusNodes,
+          gossipFqdnRestricted,
+        );
+
+        const externalEndpointAddress: Address = await Address.getExternalAddress(
+          new ConsensusNode(
+            config.nodeAlias,
+            Templates.nodeIdFromNodeAlias(config.nodeAlias),
+            config.namespace.name,
+            undefined,
+            context,
+            config.consensusNodes[0].dnsBaseDomain,
+            config.consensusNodes[0].dnsConsensusNodePattern,
+            Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
+            [],
+            [],
+          ),
+          k8,
+          +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+          shouldAvoidGossipFqdn,
+        );
+
+        context_.gossipEndpoints = [
+          NodeCommandTasks.serviceEndpointFromAddress(
+            new Address(+constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT, constants.LOCAL_HOST),
+          ),
+          NodeCommandTasks.serviceEndpointFromAddress(externalEndpointAddress),
+        ];
       },
     };
   }
@@ -3376,11 +3389,15 @@ export class NodeCommandTasks {
     const context: string = extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
     const k8: K8 = this.k8Factory.getK8(context);
     const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(config, k8);
+    const shouldAvoidGossipFqdn: boolean = NodeCommandTasks.shouldAvoidGossipFqdn(
+      config.consensusNodes,
+      gossipFqdnRestricted,
+    );
     const externalEndpointAddress: Address = await Address.getExternalAddress(
       consensusNode,
       k8,
       +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
-      gossipFqdnRestricted,
+      shouldAvoidGossipFqdn,
     );
 
     return [NodeCommandTasks.serviceEndpointFromAddress(externalEndpointAddress)];
