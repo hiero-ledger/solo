@@ -14,17 +14,10 @@ import {type ConfigManager} from './config-manager.js';
 import {Helpers} from './helpers.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, type DirectoryPath, type NodeAlias, type NodeAliases, type Path} from '../types/aliases.js';
-import {type Optional} from '../types/index.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
-import {type K8Factory} from '../integration/kube/k8-factory.js';
-import {type K8} from '../integration/kube/k8.js';
-import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
-import {type Pod} from '../integration/kube/resources/pod/pod.js';
-import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
-import {type Container} from '../integration/kube/resources/container/container.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {FilePermissions} from '../business/utils/file-permissions.js';
@@ -33,8 +26,6 @@ import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/lo
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
-import {NamespaceName} from '../types/namespace/namespace-name.js';
-import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
@@ -45,7 +36,6 @@ export class ProfileManager {
   private readonly logger: SoloLogger;
   private readonly configManager: ConfigManager;
   private readonly cacheDir: DirectoryPath;
-  private readonly k8Factory: K8Factory;
   private readonly remoteConfig: RemoteConfigRuntimeStateApi;
   private readonly accountManager: AccountManager;
   private readonly localConfig: LocalConfigRuntimeState;
@@ -54,7 +44,6 @@ export class ProfileManager {
     @inject(InjectTokens.SoloLogger) logger?: SoloLogger,
     @inject(InjectTokens.ConfigManager) configManager?: ConfigManager,
     @inject(InjectTokens.CacheDir) cacheDirectory?: DirectoryPath,
-    @inject(InjectTokens.K8Factory) k8Factory?: K8Factory,
     @inject(InjectTokens.RemoteConfigRuntimeState) remoteConfig?: RemoteConfigRuntimeStateApi,
     @inject(InjectTokens.AccountManager) accountManager?: AccountManager,
     @inject(InjectTokens.LocalConfigRuntimeState) localConfig?: LocalConfigRuntimeState,
@@ -62,7 +51,6 @@ export class ProfileManager {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.cacheDir = PathEx.resolve(patchInject(cacheDirectory, InjectTokens.CacheDir, this.constructor.name));
-    this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
@@ -172,23 +160,6 @@ export class ProfileManager {
       fs.mkdirSync(stagingDirectory, {recursive: true});
     }
 
-    const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(resolvedStagingOptions.releaseTag);
-    let configTxtPath: Optional<string>;
-    if (needsConfigTxt) {
-      const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(
-        consensusNodes,
-        applicationPropertiesPath,
-      );
-      configTxtPath = await this.prepareConfigTxt(
-        accountMap,
-        consensusNodes,
-        stagingDirectory,
-        resolvedStagingOptions.appName,
-        resolvedStagingOptions.chainId,
-        gossipFqdnRestricted,
-      );
-    }
-
     // Update application.properties with shard and realm
     await this.updateApplicationPropertiesWithRealmAndShard(
       applicationPropertiesPath,
@@ -257,9 +228,6 @@ export class ProfileManager {
     const bootstrapPropertiesPath: string = PathEx.join(stagingDirectory, 'templates', 'bootstrap.properties');
     await this.updateBoostrapPropertiesWithChainId(bootstrapPropertiesPath, resolvedStagingOptions.chainId);
 
-    if (configTxtPath) {
-      this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
-    }
     this._setFileContentsAsValue(
       'hedera.configMaps.log4j2Xml',
       PathEx.joinWithRealPath(stagingDirectory, 'templates', 'log4j2.xml'),
@@ -670,14 +638,8 @@ export class ProfileManager {
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 
-  public async prepareValuesForNodeTransaction(
-    applicationPropertiesPath: string,
-    configTxtPath?: string,
-  ): Promise<string> {
+  public async prepareValuesForNodeTransaction(applicationPropertiesPath: string): Promise<string> {
     const yamlRoot: AnyObject = {};
-    if (configTxtPath) {
-      this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
-    }
     await this.bumpHederaConfigVersion(applicationPropertiesPath);
     this._setFileContentsAsValue('hedera.configMaps.applicationProperties', applicationPropertiesPath, yamlRoot);
 
@@ -712,188 +674,5 @@ export class ProfileManager {
   private _setFileContentsAsValue(itemPath: string, valueFilePath: string, yamlRoot: AnyObject): void {
     const fileContents: string = fs.readFileSync(valueFilePath, 'utf8');
     this._setValue(itemPath, fileContents, yamlRoot);
-  }
-
-  /**
-   * Extracts gossip endpoints from saved state (network.json) if it exists
-   * @param consensusNode - the consensus node to check
-   * @param nodeSeq - the node sequence number (index in roster)
-   * @returns the saved endpoint address or undefined if no saved state exists or IP is no longer valid
-   * @private
-   */
-  private async extractSavedEndpoint(consensusNode: ConsensusNode, nodeSeq: number): Promise<Address | undefined> {
-    try {
-      const k8: K8 = this.k8Factory.getK8(consensusNode.context);
-      const networkJsonPath: string = `${constants.HEDERA_HAPI_PATH}/output/network.json`;
-
-      // Check if network.json exists in the pod
-      const pods: Pod[] = await k8
-        .pods()
-        .list(NamespaceName.of(consensusNode.namespace), [`app=network-${consensusNode.name}`]);
-      if (pods.length === 0) {
-        return undefined;
-      }
-
-      const pod: Pod | undefined = pods.find((candidate: Pod): boolean => Boolean(candidate?.podReference)) ?? pods[0];
-      const podReference: PodReference | null | undefined = pod?.podReference;
-      if (!podReference) {
-        return undefined;
-      }
-
-      // Get container reference
-      const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-      const container: Container = k8.containers().readByRef(containerReference);
-
-      // Try to read network.json from the pod
-      const networkJsonContent: string = await container.execContainer(['cat', networkJsonPath]);
-
-      if (!networkJsonContent || networkJsonContent.includes('No such file')) {
-        return undefined;
-      }
-
-      const networkJson: Record<string, unknown> = JSON.parse(networkJsonContent);
-      const nodeMetadata: unknown = networkJson?.nodeMetadata?.[nodeSeq];
-      const rosterEntry: {gossipEndpoint?: Array<Record<string, unknown>>} | undefined = (
-        nodeMetadata as {rosterEntry?: {gossipEndpoint?: Array<Record<string, unknown>>}} | undefined
-      )?.rosterEntry;
-      const gossipEndpointRaw: Record<string, unknown> | undefined = rosterEntry?.gossipEndpoint?.[0];
-      const port: number = (gossipEndpointRaw?.port as number) || 0;
-      const domainName: string | undefined =
-        typeof gossipEndpointRaw?.domainName === 'string' ? gossipEndpointRaw.domainName : undefined;
-      const ipAddressV4: string | undefined =
-        typeof gossipEndpointRaw?.ipAddressV4 === 'string' ? gossipEndpointRaw.ipAddressV4 : undefined;
-
-      if (!gossipEndpointRaw) {
-        return undefined;
-      }
-
-      // Check if endpoint uses domain name (FQDN)
-      if (domainName) {
-        this.logger.info(`Found saved endpoint for ${consensusNode.name}: ${domainName}:${port} (FQDN)`);
-        return new Address(port, domainName);
-      }
-
-      // Check if endpoint uses IP address
-      if (ipAddressV4) {
-        // Decode base64 IP address
-        const base64Ip: string = ipAddressV4 as string;
-        const ipBytes: Buffer = Buffer.from(base64Ip, 'base64');
-        const ipAddress: string = [...ipBytes].join('.');
-
-        // Validate the saved IP still belongs to this node service.
-        const serviceName: string = `network-${consensusNode.name}-svc`;
-        const service: {spec?: {clusterIP?: string}} | undefined = await k8
-          .services()
-          .read(NamespaceName.of(consensusNode.namespace), serviceName);
-        const serviceIpAddress: string | undefined = service?.spec?.clusterIP;
-        if (serviceIpAddress !== ipAddress) {
-          this.logger.warn(
-            `Saved endpoint ${ipAddress}:${port} for ${consensusNode.name} does not match current ${serviceName} ClusterIP ${serviceIpAddress ?? 'undefined'}, falling back to current service address`,
-          );
-          return undefined;
-        }
-
-        this.logger.info(`Found saved endpoint for ${consensusNode.name}: ${ipAddress}:${port} (IP)`);
-        return new Address(port, ipAddress);
-      }
-
-      return undefined;
-    } catch (error: Error | unknown) {
-      // If anything fails, return undefined to fall back to getExternalAddress
-      this.logger.debug(
-        `Could not extract saved endpoint for ${consensusNode.name}: ${error instanceof Error ? error.message : 'unknown error'}`,
-      );
-      return undefined;
-    }
-  }
-
-  /**
-   * Prepares config.txt file for the node
-   * @param nodeAccountMap - the map of node aliases to account IDs
-   * @param consensusNodes - the list of consensus nodes
-   * @param destinationPath
-   * @param [appName] - the app name (default: HederaNode.jar)
-   * @param [chainId] - chain ID (298 for local network)
-   * @returns the config.txt file path
-   */
-  public async prepareConfigTxt(
-    nodeAccountMap: Map<NodeAlias, string>,
-    consensusNodes: ConsensusNode[],
-    destinationPath: string,
-    appName: string = constants.HEDERA_APP_NAME,
-    chainId: string = constants.HEDERA_CHAIN_ID,
-    gossipFqdnRestricted: boolean = true,
-  ): Promise<string> {
-    if (!nodeAccountMap || nodeAccountMap.size === 0) {
-      throw new SoloErrors.validation.missingArgument('nodeAccountMap the map of node IDs to account IDs is required');
-    }
-
-    if (!fs.existsSync(destinationPath)) {
-      throw new SoloErrors.validation.illegalArgument(
-        `config destPath does not exist: ${destinationPath}`,
-        destinationPath,
-      );
-    }
-
-    const configFilePath: string = PathEx.join(destinationPath, 'config.txt');
-    if (fs.existsSync(configFilePath)) {
-      fs.unlinkSync(configFilePath);
-    }
-
-    // init variables
-    const internalPort: number = +constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT;
-    const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
-    const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
-
-    try {
-      const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
-
-      let nodeSeq: number = 0;
-      for (const consensusNode of consensusNodes) {
-        const internalIP: string = constants.LOCAL_HOST;
-
-        // First try to extract endpoint from saved state (migration scenario)
-        let address: Address | undefined = await this.extractSavedEndpoint(consensusNode, nodeSeq);
-
-        // If no saved state, get current external address
-        if (!address) {
-          address = await Address.getExternalAddress(
-            consensusNode,
-            this.k8Factory.getK8(consensusNode.context),
-            externalPort,
-            gossipFqdnRestricted,
-          );
-        }
-
-        const account: string | undefined = nodeAccountMap.get(consensusNode.name as NodeAlias);
-
-        configLines.push(
-          `address, ${nodeSeq}, ${nodeSeq}, ${consensusNode.name}, ${nodeStakeAmount}, ${internalIP}, ${internalPort}, ${address.hostString()}, ${address.port}, ${account}`,
-        );
-
-        nodeSeq += 1;
-      }
-
-      fs.writeFileSync(configFilePath, configLines.join('\n'));
-      return configFilePath;
-    } catch (error: Error | unknown) {
-      throw new SoloErrors.component.genesisDataGenerationFailed(
-        error instanceof Error ? error : new Error(String(error)),
-      );
-    }
-  }
-
-  private async getGossipFqdnRestricted(
-    consensusNodes: ConsensusNode[],
-    applicationPropertiesPath: string,
-  ): Promise<boolean> {
-    const firstNode: ConsensusNode | undefined = consensusNodes[0];
-    return await Helpers.resolveGossipFqdnRestricted({
-      k8: firstNode ? this.k8Factory.getK8(firstNode.context) : undefined,
-      namespace: firstNode ? NamespaceName.of(firstNode.namespace) : undefined,
-      applicationPropertiesPath,
-      cacheDir: constants.SOLO_CACHE_DIR,
-      resourcesDir: constants.RESOURCES_DIR,
-    });
   }
 }

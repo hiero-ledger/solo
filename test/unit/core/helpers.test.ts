@@ -369,7 +369,7 @@ describe('Helpers', (): void => {
 
     it('should return empty record when hedera.nodes is absent from the file', (): void => {
       const node: ConsensusNode = makeConsensusNode('node1', 0);
-      const valuesContent: string = 'hedera:\n  configMaps:\n    configTxt: "foo"\n';
+      const valuesContent: string = 'hedera:\n  configMaps:\n    settingsTxt: "foo"\n';
       const temporaryDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'test-helpers-'));
       const temporaryFile: string = path.join(temporaryDirectory, 'values.yaml');
       fs.writeFileSync(temporaryFile, valuesContent, 'utf8');
