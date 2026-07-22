@@ -67,7 +67,8 @@ import {ComponentFactory} from '../config/remote/component-factory.js';
 import {RemoteConfigValidator} from '../config/remote/remote-config-validator.js';
 import {type ConfigProvider} from '../../data/configuration/api/config-provider.js';
 import {DefaultConfigSource} from '../../data/configuration/impl/default-config-source.js';
-import {type SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
+import {SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
+import {EnvironmentAliasRegistry} from '../../data/schema/decorators/environment-alias-registry.js';
 import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
 import {DefaultOneShotCommand} from '../../commands/one-shot/default-one-shot.js';
@@ -275,6 +276,10 @@ export class Container {
         InjectTokens.ConfigProvider,
         (container: DependencyContainer): ConfigProvider => {
           const objectMapper: ClassToObjectMapper = container.resolve<ClassToObjectMapper>(InjectTokens.ObjectMapper);
+
+          // Register the root schema so environment variable aliases
+          // can be resolved by the EnvironmentConfigSource.
+          EnvironmentAliasRegistry.registerRootSchema(SoloConfigSchema);
 
           const helmChartConfigSource: DefaultConfigSource<SoloConfigSchema> =
             new DefaultConfigSource<SoloConfigSchema>(
