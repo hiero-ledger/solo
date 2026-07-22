@@ -35,11 +35,19 @@ function invokeExtractSavedEndpoint(
   manager: ProfileManager,
   consensusNode: ConsensusNode,
   nodeSequence: number,
+  gossipFqdnRestricted: boolean = false,
 ): Promise<Address | undefined> {
-  const extractSavedEndpoint: (node: ConsensusNode, nodeSequence: number) => Promise<Address | undefined> = (
-    manager as unknown as Record<string, (node: ConsensusNode, nodeSequence: number) => Promise<Address | undefined>>
+  const extractSavedEndpoint: (
+    node: ConsensusNode,
+    nodeSequence: number,
+    gossipFqdnRestricted: boolean,
+  ) => Promise<Address | undefined> = (
+    manager as unknown as Record<
+      string,
+      (node: ConsensusNode, nodeSequence: number, gossipFqdnRestricted: boolean) => Promise<Address | undefined>
+    >
   ).extractSavedEndpoint;
-  return extractSavedEndpoint.call(manager, consensusNode, nodeSequence);
+  return extractSavedEndpoint.call(manager, consensusNode, nodeSequence, gossipFqdnRestricted);
 }
 
 describe('ProfileManager', (): void => {
@@ -453,6 +461,38 @@ describe('ProfileManager', (): void => {
       expect(savedAddress?.port).to.equal(50_211);
     });
 
+    it('ignores saved domainName endpoint when gossip FQDN is restricted', async (): Promise<void> => {
+      const savedDomainName: string = 'network-node1-svc.test-namespace.svc.cluster.local';
+      const networkJsonContent: string = JSON.stringify({
+        nodeMetadata: [{rosterEntry: {gossipEndpoint: [{port: 50_211, domainName: savedDomainName}]}}],
+      });
+
+      const getK8Stub: sinon.SinonStub = sinon.stub().returns({
+        pods: (): {list: () => Promise<Array<{podReference: unknown}>>} => ({
+          list: async (): Promise<Array<{podReference: unknown}>> => [{podReference: {}}],
+        }),
+        containers: (): {readByRef: () => {execContainer: () => Promise<string>}} => ({
+          readByRef: (): {execContainer: () => Promise<string>} => ({
+            execContainer: async (): Promise<string> => networkJsonContent,
+          }),
+        }),
+      });
+      sinon
+        .stub(
+          (profileManager as unknown as {k8Factory: {getK8: (...arguments_: unknown[]) => unknown}}).k8Factory,
+          'getK8',
+        )
+        .callsFake(getK8Stub);
+
+      const savedAddress: Address | undefined = await invokeExtractSavedEndpoint(
+        profileManager,
+        consensusNodes[0],
+        0,
+        true,
+      );
+      expect(savedAddress).to.be.undefined;
+    });
+
     it('decodes saved ipAddressV4 and validates it against the expected node service', async (): Promise<void> => {
       const savedIpAddress: string = '10.1.2.3';
       const encodedIpAddress: string = Buffer.from([10, 1, 2, 3]).toString('base64');
@@ -494,7 +534,11 @@ describe('ProfileManager', (): void => {
       const extractSavedEndpointStub: sinon.SinonStub = sinon
         .stub(
           profileManager as unknown as {
-            extractSavedEndpoint: (consensusNode: ConsensusNode, nodeSeq: number) => Promise<Address | undefined>;
+            extractSavedEndpoint: (
+              consensusNode: ConsensusNode,
+              nodeSeq: number,
+              gossipFqdnRestricted: boolean,
+            ) => Promise<Address | undefined>;
           },
           'extractSavedEndpoint',
         )

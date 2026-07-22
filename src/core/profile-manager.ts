@@ -744,7 +744,11 @@ export class ProfileManager {
    * @returns the saved endpoint address or undefined if no saved state exists or IP is no longer valid
    * @private
    */
-  private async extractSavedEndpoint(consensusNode: ConsensusNode, nodeSeq: number): Promise<Address | undefined> {
+  private async extractSavedEndpoint(
+    consensusNode: ConsensusNode,
+    nodeSeq: number,
+    gossipFqdnRestricted: boolean,
+  ): Promise<Address | undefined> {
     try {
       const k8: K8 = this.k8Factory.getK8(consensusNode.context);
       const networkJsonPath: string = `${constants.HEDERA_HAPI_PATH}/output/network.json`;
@@ -792,6 +796,13 @@ export class ProfileManager {
 
       // Check if endpoint uses domain name (FQDN)
       if (domainName) {
+        if (gossipFqdnRestricted) {
+          this.logger.warn(
+            `Saved endpoint ${domainName}:${port} for ${consensusNode.name} is an FQDN while gossip FQDN is restricted, falling back to current service address`,
+          );
+          return undefined;
+        }
+
         this.logger.info(`Found saved endpoint for ${consensusNode.name}: ${domainName}:${port} (FQDN)`);
         return new Address(port, domainName);
       }
@@ -876,7 +887,11 @@ export class ProfileManager {
         const internalIP: string = constants.LOCAL_HOST;
 
         // First try to extract endpoint from saved state (migration scenario)
-        let address: Address | undefined = await this.extractSavedEndpoint(consensusNode, nodeSeq);
+        let address: Address | undefined = await this.extractSavedEndpoint(
+          consensusNode,
+          nodeSeq,
+          gossipFqdnRestricted,
+        );
 
         // If no saved state, get current external address
         if (!address) {

@@ -47,7 +47,6 @@ import {ValueContainer} from '../../../src/core/dependency-injection/value-conta
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
-import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 
 type AccountInfoResult = {
   accountId: string;
@@ -445,20 +444,12 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
       }).timeout(Duration.ofMinutes(2).toMillis());
 
       it('Create client from network config and submit topic/message should succeed', async (): Promise<void> => {
-        let sdkClient: Client | undefined;
         try {
-          const networkNodeServicesMap: NodeServiceMapping = await accountManager.getNodeServiceMap(
+          const sdkClient: Client = await accountManager.loadNodeClient(
             namespace,
             remoteConfig.getClusterRefs(),
             argv.getArg<DeploymentName>(flags.deployment),
-          );
-          sdkClient = await accountManager._getNodeClient(
-            namespace,
-            networkNodeServicesMap,
-            MY_ACCOUNT_ID,
-            MY_PRIVATE_KEY,
-            undefined,
-            true,
+            argv.getArg<boolean>(flags.forcePortForward),
           );
 
           // Create a new public topic and submit a message
@@ -475,8 +466,6 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
           expect(submitReceipt.status).to.deep.equal(Status.Success);
         } catch (error) {
           testLogger.showUserError(error);
-        } finally {
-          sdkClient?.close();
         }
       }).timeout(Duration.ofMinutes(2).toMillis());
 
