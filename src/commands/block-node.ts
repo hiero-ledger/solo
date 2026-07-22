@@ -60,6 +60,8 @@ import {BlockNodeDeployedEvent} from '../core/events/event-types/block-node-depl
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
+import yaml from 'yaml';
 
 interface BlockNodeDeployConfigClass {
   chartVersion: string;
@@ -67,6 +69,7 @@ interface BlockNodeDeployConfigClass {
   blockNodeChartDirectory: string;
   blockNodeTssOverlay: boolean;
   clusterRef: ClusterReferenceName;
+  cacheDir: string;
   deployment: DeploymentName;
   debugMode: boolean;
   domainName: Optional<string>;
@@ -224,6 +227,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.blockNodeMessageSizeHardLimitBytes,
       flags.chartDirectory,
       flags.clusterRef,
+      flags.cacheDir,
       flags.debugMode,
       flags.domainName,
       flags.enableIngress,
@@ -328,6 +332,11 @@ export class BlockNodeCommand extends BaseCommand {
       );
     }
 
+    const rsaBootstrapValuesFile: Optional<string> = this.writeRsaBootstrapInitContainerValuesFile(config);
+    if (rsaBootstrapValuesFile) {
+      chartValues.file(rsaBootstrapValuesFile);
+    }
+
     chartValues.filesFromCommaSeparatedInput(config.valuesFile);
 
     chartValues.set('nameOverride', config.releaseName);
@@ -409,6 +418,80 @@ export class BlockNodeCommand extends BaseCommand {
     const mirrorNodeId: number =
       this.remoteConfig.configuration.state.mirrorNodes?.[0]?.metadata.id ?? BlockNodeCommand.DEFAULT_MIRROR_NODE_ID;
     return Templates.renderMirrorNodeName(mirrorNodeId);
+  }
+
+  private writeRsaBootstrapInitContainerValuesFile(
+    config: BlockNodeDeployConfigClass | BlockNodeUpgradeConfigClass,
+  ): Optional<string> {
+    if (!('cacheDir' in config) || !this.shouldConfigureRsaMirrorBootstrapSource()) {
+      return undefined;
+    }
+
+    const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
+    if (consensusNodes.length === 0) {
+      return undefined;
+    }
+
+    const keysDirectory: string = PathEx.join(config.cacheDir, 'keys');
+    if (!fs.existsSync(keysDirectory)) {
+      return undefined;
+    }
+
+    const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = [];
+    for (const consensusNode of consensusNodes) {
+      const alias: NodeAlias = consensusNode.name;
+      const publicKeyFile: string = PathEx.join(keysDirectory, Templates.renderGossipPemPublicKeyFile(alias));
+      if (!fs.existsSync(publicKeyFile)) {
+        return undefined;
+      }
+
+      const certPem: string = fs.readFileSync(publicKeyFile, 'utf8');
+      const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
+        format: 'der',
+        type: 'spki',
+      }) as Buffer;
+      nodeAddresses.push({RSAPubKey: spkiDer.toString('hex'), nodeId: Templates.nodeIdFromNodeAlias(alias)});
+    }
+
+    const bootstrapJson: string = JSON.stringify({
+      addressBooks: [{addressBook: {nodeAddress: nodeAddresses}, startBlock: '0', endBlock: '-1'}],
+    });
+    const content: string = yaml.stringify({
+      blockNode: {
+        initContainers: [
+          {
+            name: 'init-storage-dirs',
+            image: 'busybox',
+            command: [
+              'sh',
+              '-c',
+              [
+                'mkdir -p /application-state-pvc',
+                'chown 2000:2000 /application-state-pvc',
+                'chmod 700 /application-state-pvc',
+                `printf '%s' '${bootstrapJson}' > /application-state-pvc/rsa-bootstrap-roster.json`,
+                'mkdir -p /archive-pvc/archive-data',
+                'chown 2000:2000 /archive-pvc/archive-data',
+                'chmod 700 /archive-pvc/archive-data',
+                'mkdir -p /live-pvc/live-data',
+                'chown 2000:2000 /live-pvc/live-data',
+                'chmod 700 /live-pvc/live-data',
+              ].join(' && \\\n'),
+            ],
+            volumeMounts: [
+              {name: 'application-state-storage', mountPath: '/application-state-pvc'},
+              {name: 'archive-storage', mountPath: '/archive-pvc'},
+              {name: 'live-storage', mountPath: '/live-pvc'},
+              {name: 'logging-storage', mountPath: '/logging-pvc'},
+            ],
+          },
+        ],
+      },
+    });
+    const valuesFile: string = PathEx.join(config.cacheDir, `${config.releaseName}-rsa-bootstrap-values.yaml`);
+    fs.mkdirSync(config.cacheDir, {recursive: true});
+    fs.writeFileSync(valuesFile, content);
+    return valuesFile;
   }
 
   private static appendExtraCommandArgs(

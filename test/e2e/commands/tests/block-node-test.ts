@@ -58,7 +58,7 @@ export class BlockNodeTest extends BaseCommandTest {
       argv.push(optionFromFlag(Flags.priorityMapping), stringBuilder.join(','));
     }
 
-    argvPushGlobalFlags(argv, testName, false, true);
+    argvPushGlobalFlags(argv, testName, true, true);
     return argv;
   }
 
