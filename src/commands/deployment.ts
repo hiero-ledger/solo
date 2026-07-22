@@ -1240,14 +1240,8 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Refresh port-forwards for all components',
           task: async (_context_, task): Promise<void> => {
-            const componentsToCheck: {type: string; components: BaseStateSchema[]}[] = [
-              {type: 'ConsensusNode', components: this.remoteConfig.configuration.state.consensusNodes || []},
-              {type: 'HaProxy', components: this.remoteConfig.configuration.state.haProxies || []},
-              {type: 'BlockNode', components: this.remoteConfig.configuration.state.blockNodes || []},
-              {type: 'MirrorNode', components: this.remoteConfig.configuration.state.mirrorNodes || []},
-              {type: 'RelayNode', components: this.remoteConfig.configuration.state.relayNodes || []},
-              {type: 'Explorer', components: this.remoteConfig.configuration.state.explorers || []},
-            ];
+            const componentsToCheck: {type: string; components: BaseStateSchema[]}[] =
+              DeploymentCommand.buildComponentsToCheck(this.remoteConfig.configuration.state);
 
             let restoredCount: number = 0;
             let totalChecked: number = 0;
@@ -1384,14 +1378,8 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Stop port-forwards for all components',
           task: async (_context_, task): Promise<void> => {
-            const componentsToCheck: {type: string; components: BaseStateSchema[]}[] = [
-              {type: 'ConsensusNode', components: this.remoteConfig.configuration.state.consensusNodes || []},
-              {type: 'HaProxy', components: this.remoteConfig.configuration.state.haProxies || []},
-              {type: 'BlockNode', components: this.remoteConfig.configuration.state.blockNodes || []},
-              {type: 'MirrorNode', components: this.remoteConfig.configuration.state.mirrorNodes || []},
-              {type: 'RelayNode', components: this.remoteConfig.configuration.state.relayNodes || []},
-              {type: 'Explorer', components: this.remoteConfig.configuration.state.explorers || []},
-            ];
+            const componentsToCheck: {type: string; components: BaseStateSchema[]}[] =
+              DeploymentCommand.buildComponentsToCheck(this.remoteConfig.configuration.state);
 
             let totalConfigured: number = 0;
             let stoppedCount: number = 0;
@@ -1643,14 +1631,8 @@ export class DeploymentCommand extends BaseCommand {
               }
 
               // Show port-forward status
-              const componentsToCheck: {type: string; components: BaseStateSchema[]}[] = [
-                {type: 'ConsensusNode', components: consensusNodes},
-                {type: 'HaProxy', components: haProxies},
-                {type: 'BlockNode', components: blockNodes},
-                {type: 'MirrorNode', components: mirrorNodes},
-                {type: 'RelayNode', components: relayNodes},
-                {type: 'Explorer', components: explorers},
-              ];
+              const componentsToCheck: {type: string; components: BaseStateSchema[]}[] =
+                DeploymentCommand.buildComponentsToCheck(state);
 
               let totalChecked: number = 0;
               let runningCount: number = 0;
@@ -1736,6 +1718,19 @@ export class DeploymentCommand extends BaseCommand {
   /**
    * Get the pod name for a component based on its type
    */
+  private static buildComponentsToCheck(
+    state: DeploymentStateSchema,
+  ): {type: string; components: BaseStateSchema[]}[] {
+    return [
+      {type: 'ConsensusNode', components: state.consensusNodes || []},
+      {type: 'HaProxy', components: state.haProxies || []},
+      {type: 'BlockNode', components: state.blockNodes || []},
+      {type: 'MirrorNode', components: state.mirrorNodes || []},
+      {type: 'RelayNode', components: state.relayNodes || []},
+      {type: 'Explorer', components: state.explorers || []},
+    ];
+  }
+
   private async getPodNameForComponent(
     component: BaseStateSchema,
     componentType: string,
