@@ -18,6 +18,7 @@ import {
   showVersionBanner,
   sleep,
 } from '../core/helpers.js';
+import {type StorageClassHelper} from '../core/storage-class-helper.js';
 import {helmValuesHelper} from '../core/helm-values-helper.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
 import {type PerNodeIdentity} from '../types/helm-values.js';
@@ -96,6 +97,7 @@ export class NetworkCommand extends BaseCommand {
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
     @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
+    @inject(InjectTokens.StorageClassHelper) private readonly storageClassHelper: StorageClassHelper,
   ) {
     super();
 
@@ -105,6 +107,7 @@ export class NetworkCommand extends BaseCommand {
     this.profileManager = patchInject(profileManager, InjectTokens.ProfileManager, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
+    this.storageClassHelper = patchInject(storageClassHelper, InjectTokens.StorageClassHelper, this.constructor.name);
   }
 
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
@@ -131,6 +134,7 @@ export class NetworkCommand extends BaseCommand {
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
+      flags.pvcStorageClass,
       flags.quiet,
       // Keep the legacy flag visible in help as deprecated while canonical parsing
       // uses --consensus-node-version.
@@ -345,16 +349,17 @@ export class NetworkCommand extends BaseCommand {
   }
 
   /**
-   * Prepare values args string for each cluster-ref
-   * @param config
-   */
-  /**
    * Prepare Helm chart values for each cluster-ref
    * @param config
    */
   private async prepareHelmChartValuesMap(
     config: NetworkDeployConfigClass,
   ): Promise<Record<ClusterReferenceName, HelmChartValues>> {
+    config.resolvedPvcStorageClass = config.persistentVolumeClaims
+      ? await this.resolveStorageClass(config.contexts, config.pvcStorageClass)
+      : '';
+
+    const valuesArguments: Record<ClusterReferenceName, string> = this.prepareValuesArg(config);
     const clusterChartValues: Record<ClusterReferenceName, HelmChartValues> = this.prepareHelmChartValues(config);
 
     // prepare values files for each cluster
@@ -662,7 +667,9 @@ export class NetworkCommand extends BaseCommand {
         .set('telemetry.prometheus.svcMonitor.enabled', false) // remove after chart version is bumped
         .set('crds.serviceMonitor.enabled', config.singleUseServiceMonitor)
         .set('crds.podLog.enabled', config.singleUsePodLog)
-        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims);
+        .set('defaults.volumeClaims.enabled', config.persistentVolumeClaims)
+        .set('defaults.volumeClaims.storageClassName', config.resolvedPvcStorageClass ? config.resolvedPvcStorageClass : '')
+        .set('minio-server.tenant.pools[0].storageClassName', config.resolvedPvcStorageClass ? config.resolvedPvcStorageClass : '');
     }
 
     config.singleUseServiceMonitor = 'false';
@@ -862,6 +869,7 @@ export class NetworkCommand extends BaseCommand {
       flags.loadBalancerEnabled,
       flags.log4j2Xml,
       flags.persistentVolumeClaims,
+      flags.pvcStorageClass,
       flags.settingTxt,
       flags.grpcTlsCertificatePath,
       flags.grpcWebTlsCertificatePath,
@@ -1351,6 +1359,14 @@ export class NetworkCommand extends BaseCommand {
       `Patched ServiceMonitor '${constants.SOLO_SERVICE_MONITOR_NAME}' in namespace '${namespace.name}': ` +
         `added label release=${constants.PROMETHEUS_RELEASE_NAME} and fixed selector to network-node-svc`,
     );
+  }
+
+  private async resolveStorageClass(contexts: string[], userSuppliedClass: string): Promise<string> {
+    let resolved: string = '';
+    for (const context of contexts) {
+      resolved = await this.storageClassHelper.resolveStorageClass(context, userSuppliedClass);
+    }
+    return resolved;
   }
 
   /** Run helm install and deploy network components */

@@ -167,7 +167,11 @@ describe('NetworkCommand unit tests', (): void => {
       });
       options.k8Factory.getK8().manifests = sinon.stub().returns({
         applyManifest: sinon.stub().resolves(),
+        installManifest: sinon.stub().resolves(),
         patchObject: sinon.stub().resolves(),
+      });
+      options.k8Factory.getK8().storageClasses = sinon.stub().returns({
+        list: sinon.stub().resolves([{name: 'standard', provisioner: 'rancher.io/local-path', isDefault: true}]),
       });
       options.k8Factory.getK8().logger = options.logger;
 
