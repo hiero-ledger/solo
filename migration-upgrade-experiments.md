@@ -166,3 +166,75 @@ block 162. Mirror receives it via BN's live subscription and advances.
 **Critical constraint**: the restart must happen within 200 s of CN v0.75.1 starting, because
 each extra second moves wantedBlock further past BN's nextExpected. Beyond 100 blocks of
 divergence, staleResendPruneBuffer is exceeded and BN can no longer RESEND the gap block.
+
+**Failure (run 29876951582)**: Mirror still stuck at block 161, waiting for 162. Even after the
+CN v0.75 restart at 23:42:47, mirror reported "No block node can provide block 162" at 23:48:45
+(6+ minutes after restart).
+
+**What the logs show**:
+
+BN block log (both files) cuts off at exactly **23:38:22.870** — the moment handler 0 (CN v0.74
+node1) was removed with `activePublishers=1` (handler 1 = CN v0.74 node2 still connected). Block
+162's verification session had received 35 items but shows **no** `Verified backfill block items
+for block=162` or `Wrote verified block 162` entry before truncation. Whether handler 1 completed
+block 162 before being killed cannot be determined from the available logs.
+
+Key evidence before cutoff:
+
+* 23:38:21.733 — BN wrote block 161, opened `ExtendedMerkleTreeSession` for block 162
+* 23:38:21.780 — Handler 0 sent SKIP for block 162 (handler 1 was the canonical streamer)
+* 23:38:22.058 — 35 items accumulated; live-subscriber socket error (unrelated client disconnect)
+* 23:38:22.869 — Handler 0 EndStream(RESET, earliestBlock=-1, latestAcked=-1) → removed;
+  `activePublishers=1` (handler 1 still active and streaming)
+* 23:38:22.870 — Log truncated; no block 162 completion visible
+
+CN v0.75.1 first BN query (23:39:18): `wantedBlock: 162, blocksAvailable: 163-163` → permanent
+blacklist. The `blocksAvailable: 163-163` persisted (and grew) for the 120 s sleep, indicating
+BN's live window was ahead of CN v0.75.1's wantedBlock throughout.
+
+**Timeline of restart**:
+
+* CN v0.75.1 started: 23:39:14
+* `network upgrade` returned, sleep 120 s began: ~23:39:14
+* Sleep ended: ~23:41:14
+* `node restart` command started: ~23:42:00
+* CN v0.75.1 JVM killed and restarted: 23:42:03 → 23:42:47 complete
+* Time from CN v0.75.1 start to restart: 169 s → ~84 blocks committed
+* Predicted wantedBlock after restart: 162 + 84 = **246**
+
+**What should have happened after restart**:
+After restart, CN v0.75.1 reads its committed state (~246) and connects to BN with
+wantedBlock=246. BN firstAvailableBlock=163. 246 > 163 → not blacklisted. BN nextExpected=162.
+|246−162|=84 ≤ staleResendPruneBuffer=100 → BN sends RESEND(162). CN replays block 162 from
+its persistent buffer (`isBufferPersistenceEnabled=true`). BN verifies and writes block 162.
+Mirror receives it via live subscription.
+
+**Why it still failed — open questions**:
+1. Did the RESEND exchange happen at all? (no post-restart CN or BN logs available)
+2. If RESEND happened, did CN's buffer have block 162? (buffer persists across version upgrades
+   only if the on-disk format is compatible between CN v0.74 and CN v0.75.1)
+3. If CN supplied block 162, did BN accept it? (CN v0.75.1's proof for block 162 may differ
+   from what BN's session had partially accumulated from CN v0.74)
+4. If BN wrote block 162, can mirror's subscriber access it? (block 162 may be in BN's
+   `historic/staging/` but not yet in the finalized historic path that the subscriber reads from)
+
+***
+
+## Attempt 7: Add BN log checkpoints to diagnose remaining unknowns
+
+**Changes**: No sequence changes. Added `dump_bn_log()` helper function with 5 call sites in
+`launch_network.sh` to capture BN state at each major step:
+
+1. After BN upgrade — baseline after v0.38.1 starts
+2. After 120 s BN stability wait, before CN upgrade — BN healthy state snapshot
+3. Immediately after FREEZE_UPGRADE boundary — does block 162 exist on disk? what is
+   BN's nextExpected and firstAvailableBlock at this moment?
+4. After 120 s sleep, before CN restart — has BN's gap persisted? is staleResendPruneBuffer
+   still satisfied?
+5. After CN v0.75 restart — did RESEND happen? was block 162 written?
+
+Each dump greps out the per-item FINE noise (Appending, sendResponse, etc.) and keeps
+INFO/WARN/ERROR plus the FINE lines for block completion, RESEND, and handler connect/disconnect.
+
+**Purpose**: Answer the four open questions from Attempt 6 so the next fix targets the
+actual failure point rather than continuing to guess.
