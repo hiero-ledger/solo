@@ -7,7 +7,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {type ServiceEndpoint} from '@hiero-ledger/sdk';
-import {Address} from '../../../../src/business/address/address.js';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
 import {NamespaceName} from '../../../../src/types/namespace/namespace-name.js';
 import * as constants from '../../../../src/core/constants.js';
@@ -36,6 +35,7 @@ type EndpointState = {
 
 type PrepareGossipContext = {
   config: {
+    cacheDir?: string;
     consensusNodes: ConsensusNode[];
     endpointType: string;
     gossipEndpoints?: string;
@@ -44,6 +44,7 @@ type PrepareGossipContext = {
     stagingDir: string;
   };
   gossipEndpoints?: ServiceEndpoint[];
+  newNode?: {accountId: string; name: string};
 };
 
 function createNodeCommandTasksWithPvcData(persistentVolumeClaimsByContext: Record<string, string[]>): {
@@ -415,9 +416,67 @@ describe('NodeCommandTasks gossipFqdnRestricted resolution', (): void => {
 });
 
 describe('NodeCommandTasks generated gossip endpoints', (): void => {
-  it('uses IP SDK endpoints for multi-context generated gossip endpoints', async (): Promise<void> => {
+  it('creates a load balancer service and uses IP SDK endpoints for multi-context generated gossip endpoints', async (): Promise<void> => {
     const nodeCommandTasks: NodeCommandTasks = Object.create(NodeCommandTasks.prototype) as NodeCommandTasks;
-    const k8: object = {};
+    const stagingDirectory: string = fs.mkdtempSync(path.join(os.tmpdir(), 'generated-gossip-endpoints-'));
+    let serviceCreated: boolean = false;
+    const listServicesStub: sinon.SinonStub = sinon.stub().callsFake(async (): Promise<object[]> => {
+      if (!serviceCreated) {
+        return [];
+      }
+
+      return [
+        {
+          metadata: {
+            name: 'network-node4-svc',
+          },
+          spec: {
+            type: 'LoadBalancer',
+          },
+          status: {
+            loadBalancer: {
+              ingress: [
+                {
+                  ip: '172.19.1.8',
+                },
+              ],
+            },
+          },
+        },
+      ];
+    });
+    const applyManifestStub: sinon.SinonStub = sinon.stub().callsFake(async (manifestPath: string): Promise<void> => {
+      const manifest: {
+        metadata: {
+          annotations: Record<string, string>;
+          labels: Record<string, string>;
+          name: string;
+          namespace: string;
+        };
+        spec: {selector: Record<string, string>; type: string};
+      } = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+
+      expect(manifest.metadata.name).to.equal('network-node4-svc');
+      expect(manifest.metadata.namespace).to.equal('dual-cluster-full');
+      expect(manifest.metadata.annotations['meta.helm.sh/release-name']).to.equal(constants.SOLO_DEPLOYMENT_CHART);
+      expect(manifest.metadata.labels['app.kubernetes.io/managed-by']).to.equal('Helm');
+      expect(manifest.metadata.labels['solo.hedera.com/account-id']).to.equal('3.2.6');
+      expect(manifest.metadata.labels['solo.hedera.com/node-id']).to.equal('3');
+      expect(manifest.metadata.labels['solo.hedera.com/node-name']).to.equal('node4');
+      expect(manifest.metadata.labels['solo.hedera.com/type']).to.equal('network-node-svc');
+      expect(manifest.spec.selector.app).to.equal('network-node4');
+      expect(manifest.spec.type).to.equal('LoadBalancer');
+
+      serviceCreated = true;
+    });
+    const k8: object = {
+      manifests: (): {applyManifest: sinon.SinonStub} => ({
+        applyManifest: applyManifestStub,
+      }),
+      services: (): {list: sinon.SinonStub} => ({
+        list: listServicesStub,
+      }),
+    };
 
     (nodeCommandTasks as unknown as {k8Factory: {getK8: (context: string) => object}}).k8Factory = {
       getK8: (context: string): object => {
@@ -428,13 +487,9 @@ describe('NodeCommandTasks generated gossip endpoints', (): void => {
     (nodeCommandTasks as unknown as {getGossipFqdnRestricted: () => Promise<boolean>}).getGossipFqdnRestricted =
       async (): Promise<boolean> => false;
 
-    const externalEndpointAddress: Address = new Address(+constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT, '172.19.1.8');
-    const getExternalAddressStub: sinon.SinonStub = sinon
-      .stub(Address, 'getExternalAddress')
-      .resolves(externalEndpointAddress);
-
     const context_: PrepareGossipContext = {
       config: {
+        cacheDir: stagingDirectory,
         consensusNodes: [
           new ConsensusNode(
             'node1',
@@ -464,17 +519,19 @@ describe('NodeCommandTasks generated gossip endpoints', (): void => {
         endpointType: constants.ENDPOINT_TYPE_FQDN,
         namespace: NamespaceName.of('dual-cluster-full'),
         nodeAlias: 'node4',
-        stagingDir: '',
+        stagingDir: stagingDirectory,
       },
+      newNode: {accountId: '3.2.6', name: 'node4'},
     };
 
     try {
       await nodeCommandTasks.prepareGossipEndpoints().task(context_ as never, undefined as never);
     } finally {
-      getExternalAddressStub.restore();
+      fs.rmSync(stagingDirectory, {force: true, recursive: true});
     }
 
-    expect(getExternalAddressStub.firstCall.args[3]).to.equal(true);
+    expect(applyManifestStub).to.have.been.calledOnce;
+    expect(listServicesStub).to.have.been.calledThrice;
 
     const gossipEndpoints: ServiceEndpoint[] = context_.gossipEndpoints ?? [];
     expect(gossipEndpoints).to.have.lengthOf(2);

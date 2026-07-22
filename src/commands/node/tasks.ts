@@ -197,6 +197,9 @@ const {gray, cyan, red, green, yellow} = chalk;
 @injectable()
 export class NodeCommandTasks {
   private readonly soloConfig: SoloConfig;
+  private static readonly GENERATED_GOSSIP_LOAD_BALANCER_MAX_ATTEMPTS: number = 60;
+  private static readonly GENERATED_GOSSIP_LOAD_BALANCER_RETRY_DELAY: Duration = Duration.ofSeconds(1);
+  private static readonly GRPC_TLS_PORT: number = 50_212;
 
   private static getDefaultBlockNodeIdsForCluster(
     blockNodes: BlockNodeStateSchema[],
@@ -232,6 +235,68 @@ export class NodeCommandTasks {
   private static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
     const contexts: Set<string> = new Set(consensusNodes.map((node: ConsensusNode): string => node.context));
     return contexts.size > 1;
+  }
+
+  private static buildNetworkNodeServiceManifest(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    nodeId: NodeId,
+    accountId: string,
+  ): AnyObject {
+    return {
+      apiVersion: 'v1',
+      kind: 'Service',
+      metadata: {
+        annotations: {
+          'meta.helm.sh/release-name': constants.SOLO_DEPLOYMENT_CHART,
+          'meta.helm.sh/release-namespace': namespace.name,
+        },
+        labels: {
+          'app.kubernetes.io/managed-by': 'Helm',
+          'solo.hedera.com/account-id': accountId,
+          'solo.hedera.com/node-id': nodeId.toString(),
+          'solo.hedera.com/node-name': nodeAlias,
+          'solo.hedera.com/prometheus-endpoint': 'active',
+          'solo.hedera.com/type': 'network-node-svc',
+        },
+        name: Templates.renderNetworkSvcName(nodeAlias),
+        namespace: namespace.name,
+      },
+      spec: {
+        externalTrafficPolicy: 'Local',
+        ports: [
+          {
+            name: 'gossip',
+            port: +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+            protocol: 'TCP',
+            targetPort: +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+          },
+          {
+            name: 'grpc-non-tls',
+            port: +constants.GRPC_PORT,
+            protocol: 'TCP',
+            targetPort: +constants.GRPC_PORT,
+          },
+          {
+            name: 'grpc-tls',
+            port: NodeCommandTasks.GRPC_TLS_PORT,
+            protocol: 'TCP',
+            targetPort: NodeCommandTasks.GRPC_TLS_PORT,
+          },
+          {
+            name: 'prometheus',
+            port: 9090,
+            protocol: 'TCP',
+            targetPort: 9999,
+          },
+        ],
+        publishNotReadyAddresses: true,
+        selector: {
+          app: `network-${nodeAlias}`,
+        },
+        type: 'LoadBalancer',
+      },
+    };
   }
 
   public constructor(
@@ -3228,6 +3293,82 @@ export class NodeCommandTasks {
     return this._generateGossipKeys(false) as SoloListrTask<NodeAddContext>;
   }
 
+  private async createGeneratedGossipLoadBalancerService(
+    config: NodeAddConfigClass,
+    k8: K8,
+    nodeId: NodeId,
+    accountId: string,
+  ): Promise<void> {
+    let serviceList: Service[] = await k8
+      .services()
+      .list(config.namespace, Templates.renderNodeSvcLabelsFromNodeId(nodeId));
+
+    if (!serviceList || serviceList.length === 0) {
+      serviceList = await k8
+        .services()
+        .list(config.namespace, [
+          `solo.hedera.com/node-name=${config.nodeAlias},solo.hedera.com/type=network-node-svc`,
+        ]);
+    }
+
+    if (serviceList && serviceList.length > 0) {
+      return;
+    }
+
+    const manifest: AnyObject = NodeCommandTasks.buildNetworkNodeServiceManifest(
+      config.namespace,
+      config.nodeAlias,
+      nodeId,
+      accountId,
+    );
+    const baseDirectory: string = config.stagingDir || config.cacheDir || constants.SOLO_CACHE_DIR;
+    fs.mkdirSync(baseDirectory, {recursive: true});
+    const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(baseDirectory, 'generated-gossip-service-'));
+    const manifestPath: string = PathEx.join(
+      temporaryDirectory,
+      `${Templates.renderNetworkSvcName(config.nodeAlias)}.json`,
+    );
+
+    try {
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, undefined, 2));
+      await k8.manifests().applyManifest(manifestPath);
+    } finally {
+      fs.rmSync(temporaryDirectory, {force: true, recursive: true});
+    }
+  }
+
+  private async getGeneratedGossipExternalAddress(
+    consensusNode: ConsensusNode,
+    k8: K8,
+    gossipFqdnRestricted: boolean,
+    loadBalancerRequired: boolean,
+  ): Promise<Address> {
+    if (!loadBalancerRequired) {
+      return await Address.getExternalAddress(
+        consensusNode,
+        k8,
+        +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+        gossipFqdnRestricted,
+      );
+    }
+
+    for (let attempt: number = 1; attempt <= NodeCommandTasks.GENERATED_GOSSIP_LOAD_BALANCER_MAX_ATTEMPTS; attempt++) {
+      const loadBalancerAddress: Address | undefined = await Address.getLoadBalancerAddress(
+        consensusNode,
+        k8,
+        +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+      );
+
+      if (loadBalancerAddress) {
+        return loadBalancerAddress;
+      }
+
+      await sleep(NodeCommandTasks.GENERATED_GOSSIP_LOAD_BALANCER_RETRY_DELAY);
+    }
+
+    throw new SoloErrors.system.loadBalancerNotFound();
+  }
+
   public generateGrpcTlsKeys(): SoloListrTask<NodeKeysContext> {
     return this._generateGrpcTlsKeys(true) as SoloListrTask<NodeKeysContext>;
   }
@@ -3287,23 +3428,31 @@ export class NodeCommandTasks {
           config.consensusNodes,
           gossipFqdnRestricted,
         );
+        const loadBalancerRequired: boolean = NodeCommandTasks.hasMultipleKubernetesContexts(config.consensusNodes);
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
 
-        const externalEndpointAddress: Address = await Address.getExternalAddress(
-          new ConsensusNode(
-            config.nodeAlias,
-            Templates.nodeIdFromNodeAlias(config.nodeAlias),
-            config.namespace.name,
-            undefined,
-            context,
-            config.consensusNodes[0].dnsBaseDomain,
-            config.consensusNodes[0].dnsConsensusNodePattern,
-            Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
-            [],
-            [],
-          ),
+        if (loadBalancerRequired) {
+          await this.createGeneratedGossipLoadBalancerService(config, k8, nodeId, context_.newNode.accountId);
+        }
+
+        const newConsensusNode: ConsensusNode = new ConsensusNode(
+          config.nodeAlias,
+          nodeId,
+          config.namespace.name,
+          undefined,
+          context,
+          config.consensusNodes[0].dnsBaseDomain,
+          config.consensusNodes[0].dnsConsensusNodePattern,
+          Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
+          [],
+          [],
+        );
+
+        const externalEndpointAddress: Address = await this.getGeneratedGossipExternalAddress(
+          newConsensusNode,
           k8,
-          +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
           shouldAvoidGossipFqdn,
+          loadBalancerRequired,
         );
 
         context_.gossipEndpoints = [
