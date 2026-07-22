@@ -11,8 +11,6 @@ import {
   Hbar,
   HbarUnit,
   type Key,
-  Logger,
-  LogLevel,
   PrivateKey,
   Status,
   TopicCreateTransaction,
@@ -49,6 +47,7 @@ import {ValueContainer} from '../../../src/core/dependency-injection/value-conta
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {LedgerCommandDefinition} from '../../../src/commands/command-definitions/ledger-command-definition.js';
 import {ConsensusCommandDefinition} from '../../../src/commands/command-definitions/consensus-command-definition.js';
+import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 
 type AccountInfoResult = {
   accountId: string;
@@ -446,17 +445,21 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
       }).timeout(Duration.ofMinutes(2).toMillis());
 
       it('Create client from network config and submit topic/message should succeed', async (): Promise<void> => {
+        let sdkClient: Client | undefined;
         try {
-          // Setup network configuration
-          const networkConfig: Record<string, AccountId> = {
-            ['127.0.0.1:30212']: AccountId.fromString('0.0.3'),
-            ['127.0.0.1:30213']: AccountId.fromString('0.0.4'),
-          };
-
-          // Instantiate SDK client
-          const sdkClient: Client = Client.fromConfig({network: networkConfig, scheduleNetworkUpdate: false});
-          sdkClient.setOperator(MY_ACCOUNT_ID, MY_PRIVATE_KEY);
-          sdkClient.setLogger(new Logger(LogLevel.Trace, 'hashgraph-sdk.log'));
+          const networkNodeServicesMap: NodeServiceMapping = await accountManager.getNodeServiceMap(
+            namespace,
+            remoteConfig.getClusterRefs(),
+            argv.getArg<DeploymentName>(flags.deployment),
+          );
+          sdkClient = await accountManager._getNodeClient(
+            namespace,
+            networkNodeServicesMap,
+            MY_ACCOUNT_ID,
+            MY_PRIVATE_KEY,
+            undefined,
+            true,
+          );
 
           // Create a new public topic and submit a message
           const txResponse: TransactionResponse = await new TopicCreateTransaction().execute(sdkClient);
@@ -472,6 +475,8 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
           expect(submitReceipt.status).to.deep.equal(Status.Success);
         } catch (error) {
           testLogger.showUserError(error);
+        } finally {
+          sdkClient?.close();
         }
       }).timeout(Duration.ofMinutes(2).toMillis());
 

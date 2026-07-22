@@ -1019,7 +1019,7 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.downloadLastState(),
         this.tasks.uploadStateToNewNode(),
         this.tasks.fetchPlatformSoftware('nodeAliases'),
-        this.tasks.setupNetworkNodes('nodeAliases', true),
+        this.tasks.setupNetworkNodes('nodeAliases', false),
         this.tasks.startNodes('nodeAliases'),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
       ],
