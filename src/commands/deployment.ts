@@ -1718,9 +1718,7 @@ export class DeploymentCommand extends BaseCommand {
   /**
    * Get the pod name for a component based on its type
    */
-  private static buildComponentsToCheck(
-    state: DeploymentStateSchema,
-  ): {type: string; components: BaseStateSchema[]}[] {
+  private static buildComponentsToCheck(state: DeploymentStateSchema): {type: string; components: BaseStateSchema[]}[] {
     return [
       {type: 'ConsensusNode', components: state.consensusNodes || []},
       {type: 'HaProxy', components: state.haProxies || []},
