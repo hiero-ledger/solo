@@ -18,6 +18,8 @@ import {EdgeVersionFetcher} from '../../core/edge-version-fetcher.js';
 import {type EdgeVersionsObject} from '../../core/edge-versions-object.js';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type FalconPrepareConfig} from './falcon-prepare-config.js';
+import {type FalconOverrideValue, type FalconPrepareSpec} from './falcon-prepare-spec.js';
+import {FalconPrepareSpecLoader} from './falcon-prepare-spec-loader.js';
 import {FALCON_DEPLOY_COMMAND, FALCON_PREPARE_COMMAND} from './one-shot-command-paths.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
@@ -50,17 +52,6 @@ import {type ApplicationVersionsSchema} from '../../data/schema/model/common/app
 import path from 'node:path';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {K8Helper} from '../../business/utils/k8-helper.js';
-
-/** Primitive value type used in falcon override maps. */
-type FalconOverrideValue = string | number | boolean | null;
-
-/** Map of flag names to override values for a falcon values section. */
-type FalconOverrideMap = ReadonlyMap<string, FalconOverrideValue>;
-
-/** Creates a [flag.name, value] entry for use in a FalconOverrideMap. */
-function flagEntry(flag: CommandFlag, value: FalconOverrideValue): [string, FalconOverrideValue] {
-  return [flag.name, value];
-}
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
@@ -674,21 +665,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             config.enableMirrorIngress = true;
             config.outputPath = resolvedOutputPath;
 
-            if (quiet) {
-              config.enableDevChartMode = false;
-              return;
-            }
-
-            config.enableDevChartMode = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
-              message: 'Enable development chart mode (use local platform build)?',
-              default: false,
-            });
-
-            if (config.enableDevChartMode) {
-              await this.configManager.executePrompt(task, [flags.localBuildPath, flags.debugNodeAlias]);
-              config.localBuildPath = this.configManager.getFlag(flags.localBuildPath);
-              config.debugNodeAlias = this.configManager.getFlag(flags.debugNodeAlias);
-            }
+            await this.runFalconPreparePrompts(FalconPrepareSpecLoader.load(), config, task, quiet);
           },
         },
         {
@@ -716,121 +693,104 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   /**
-   * Value emitted for a single key inside a falcon values section.
+   * Registry mapping a spec `flagsFrom` key to the command flag-list it enumerates. Class
+   * references cannot live in the YAML spec, so this is the one piece of the generation that stays
+   * in code.
    */
-  private static readonly FALCON_SECTION_NAMES: readonly string[] = [
-    'network',
-    'setup',
-    'consensusNode',
-    'mirrorNode',
-    'relayNode',
-    'blockNode',
-    'explorerNode',
-  ];
-
-  private static readonly FALCON_VALUES_BLOCKED_FLAGS: ReadonlySet<string> = new Set<string>([
-    flags.deployment.name,
-    flags.context.name,
-    flags.clusterRef.name,
-    flags.namespace.name,
-    flags.valuesFile.name,
-    flags.force.name,
-    flags.quiet.name,
+  private static readonly FALCON_FLAG_LISTS: ReadonlyMap<string, CommandFlags> = new Map<string, CommandFlags>([
+    ['network.deploy', NetworkCommand.DEPLOY_FLAGS_LIST],
+    ['node.setup', NODE_SETUP_FLAGS],
+    ['node.start', NODE_START_FLAGS],
+    ['mirror.deploy', MirrorNodeCommand.DEPLOY_FLAGS_LIST],
+    ['relay.deploy', RelayCommand.DEPLOY_FLAGS_LIST],
+    ['block.add', BlockNodeCommand.ADD_FLAGS_LIST],
+    ['explorer.deploy', ExplorerCommand.DEPLOY_FLAGS_LIST],
   ]);
 
-  private static buildFalconSectionFromFlags(
-    flagList: CommandFlags,
-    overrides: FalconOverrideMap,
+  /**
+   * Resolves a spec override value against the wizard answers and flag defaults. See the override
+   * value grammar documented in `resources/one-shot-falcon-prepare.yaml`.
+   */
+  private static resolveFalconValue(
+    raw: FalconOverrideValue,
+    flag: CommandFlag,
+    config: FalconPrepareConfig,
+  ): FalconOverrideValue {
+    if (typeof raw !== 'string') {
+      return raw;
+    }
+    if (raw === '${default}') {
+      return flag.definition.defaultValue as FalconOverrideValue;
+    }
+    const configReference: RegExpExecArray | null = /^\$\{config\.([A-Za-z0-9_]+)\}$/.exec(raw);
+    if (configReference) {
+      const configKey: string = configReference[1];
+      if (!Object.hasOwn(config, configKey)) {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unknown config key '${configKey}' referenced in falcon prepare spec`),
+        );
+      }
+      return (config as unknown as Record<string, FalconOverrideValue>)[configKey];
+    }
+    return raw;
+  }
+
+  private static buildFalconSection(
+    section: FalconPrepareSpec['sections'][number],
+    blockedFlags: ReadonlySet<string>,
+    config: FalconPrepareConfig,
   ): Record<string, FalconOverrideValue> {
-    const section: Record<string, FalconOverrideValue> = {};
+    const flagList: CommandFlags | undefined = DefaultOneShotCommand.FALCON_FLAG_LISTS.get(section.flagsFrom);
+    if (!flagList) {
+      throw new SoloErrors.component.falconValuesPreparationFailed(
+        new Error(`Unknown falcon prepare flagsFrom '${section.flagsFrom}' for section '${section.name}'`),
+      );
+    }
+
+    // Fail fast on override keys that are not real flag names: a typo (e.g. `dev` instead of
+    // `debug`) would otherwise be silently dropped, leaving the flag at its empty default.
+    for (const overrideKey of Object.keys(section.overrides ?? {})) {
+      if (!flags.allFlagsMap.has(overrideKey)) {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unknown flag '${overrideKey}' in overrides for section '${section.name}'`),
+        );
+      }
+    }
+
+    const built: Record<string, FalconOverrideValue> = {};
     for (const flag of flagList.optional) {
-      if (DefaultOneShotCommand.FALCON_VALUES_BLOCKED_FLAGS.has(flag.name)) {
+      if (blockedFlags.has(flag.name)) {
         continue;
       }
-      const key: string = optionFromFlag(flag);
-      section[key] = overrides.has(flag.name) ? (overrides.get(flag.name) as FalconOverrideValue) : '';
+      built[optionFromFlag(flag)] =
+        section.overrides && Object.hasOwn(section.overrides, flag.name)
+          ? DefaultOneShotCommand.resolveFalconValue(section.overrides[flag.name], flag, config)
+          : '';
     }
-    return section;
+
+    // Keys forced in regardless of the flag-list (legacy version keys kept for backward
+    // compatibility with existing templates, tests, and user-edited values files).
+    for (const [flagName, raw] of Object.entries(section.extraKeys ?? {})) {
+      const flag: CommandFlag | undefined = flags.allFlagsMap.get(flagName);
+      if (!flag) {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unknown flag '${flagName}' in extraKeys for section '${section.name}'`),
+        );
+      }
+      built[optionFromFlag(flag)] = DefaultOneShotCommand.resolveFalconValue(raw, flag, config);
+    }
+
+    return built;
   }
 
   public static generateFalconValuesYaml(config: FalconPrepareConfig): string {
-    const networkOverrides: FalconOverrideMap = new Map([
-      flagEntry(flags.soloChartVersion, config.soloChartVersion),
-      flagEntry(flags.debugNodeAlias, config.debugNodeAlias),
-      flagEntry(flags.loadBalancerEnabled, config.loadBalancerEnabled),
-      flagEntry(flags.persistentVolumeClaims, flags.persistentVolumeClaims.definition.defaultValue),
-      flagEntry(flags.releaseTag, config.releaseTag),
-      flagEntry(flags.serviceMonitor, flags.serviceMonitor.definition.defaultValue),
-      flagEntry(flags.podLog, flags.podLog.definition.defaultValue),
-    ]);
+    const spec: FalconPrepareSpec = FalconPrepareSpecLoader.load();
+    const blockedFlags: ReadonlySet<string> = new Set(spec.blockedFlags);
 
-    const setupOverrides: FalconOverrideMap = new Map([
-      flagEntry(flags.releaseTag, config.releaseTag),
-      flagEntry(flags.localBuildPath, config.localBuildPath),
-      flagEntry(flags.debugMode, config.enableDevChartMode),
-    ]);
-
-    const consensusNodeOverrides: FalconOverrideMap = new Map([
-      flagEntry(flags.debugNodeAlias, config.debugNodeAlias),
-      flagEntry(flags.forcePortForward, config.forcePortForward),
-    ]);
-
-    const mirrorNodeOverrides: FalconOverrideMap = new Map([
-      flagEntry(flags.mirrorNodeVersion, config.mirrorNodeVersion),
-      flagEntry(flags.enableIngress, config.enableMirrorIngress),
-      flagEntry(flags.forcePortForward, config.forcePortForward),
-      flagEntry(flags.pinger, true),
-      flagEntry(flags.useExternalDatabase, flags.useExternalDatabase.definition.defaultValue),
-    ]);
-
-    const relayNodeOverrides: FalconOverrideMap = new Map([
-      flagEntry(flags.relayReleaseTag, config.relayReleaseTag),
-      flagEntry(flags.replicaCount, flags.replicaCount.definition.defaultValue),
-      flagEntry(flags.forcePortForward, config.forcePortForward),
-      // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
-      flagEntry(flags.mirrorNodeId, null),
-    ]);
-
-    const blockNodeOverrides: FalconOverrideMap = new Map([
-      flagEntry(flags.blockNodeChartVersion, config.chartVersion),
-      flagEntry(flags.enableIngress, flags.enableIngress.definition.defaultValue),
-      flagEntry(flags.debugMode, config.enableDevChartMode),
-    ]);
-
-    const explorerNodeOverrides: FalconOverrideMap = new Map([
-      flagEntry(flags.soloChartVersion, config.soloChartVersion),
-      flagEntry(flags.explorerVersion, config.explorerVersion),
-      flagEntry(flags.enableIngress, true),
-      flagEntry(flags.enableExplorerTls, flags.enableExplorerTls.definition.defaultValue),
-      flagEntry(flags.explorerTlsHostName, flags.explorerTlsHostName.definition.defaultValue),
-      flagEntry(flags.tlsClusterIssuerType, flags.tlsClusterIssuerType.definition.defaultValue),
-      flagEntry(flags.forcePortForward, config.forcePortForward),
-      // eslint-disable-next-line unicorn/no-null -- YAML template requires null to match falcon-values.yaml format
-      flagEntry(flags.mirrorNodeId, null),
-    ]);
-
-    const valuesObject: Record<string, Record<string, FalconOverrideValue>> = {
-      network: DefaultOneShotCommand.buildFalconSectionFromFlags(NetworkCommand.DEPLOY_FLAGS_LIST, networkOverrides),
-      setup: DefaultOneShotCommand.buildFalconSectionFromFlags(NODE_SETUP_FLAGS, setupOverrides),
-      consensusNode: DefaultOneShotCommand.buildFalconSectionFromFlags(NODE_START_FLAGS, consensusNodeOverrides),
-      mirrorNode: DefaultOneShotCommand.buildFalconSectionFromFlags(
-        MirrorNodeCommand.DEPLOY_FLAGS_LIST,
-        mirrorNodeOverrides,
-      ),
-      relayNode: DefaultOneShotCommand.buildFalconSectionFromFlags(RelayCommand.DEPLOY_FLAGS_LIST, relayNodeOverrides),
-      blockNode: DefaultOneShotCommand.buildFalconSectionFromFlags(BlockNodeCommand.ADD_FLAGS_LIST, blockNodeOverrides),
-      explorerNode: DefaultOneShotCommand.buildFalconSectionFromFlags(
-        ExplorerCommand.DEPLOY_FLAGS_LIST,
-        explorerNodeOverrides,
-      ),
-    };
-
-    // Keep legacy version keys in generated falcon values for backward compatibility
-    // with existing templates, tests, and user-edited values files.
-    valuesObject.network[optionFromFlag(flags.releaseTag)] = config.releaseTag;
-    valuesObject.setup[optionFromFlag(flags.releaseTag)] = config.releaseTag;
-    valuesObject.relayNode[optionFromFlag(flags.relayReleaseTag)] = config.relayReleaseTag;
-    valuesObject.blockNode[optionFromFlag(flags.blockNodeChartVersion)] = config.chartVersion;
+    const valuesObject: Record<string, Record<string, FalconOverrideValue>> = {};
+    for (const section of spec.sections) {
+      valuesObject[section.name] = DefaultOneShotCommand.buildFalconSection(section, blockedFlags, config);
+    }
 
     const header: string =
       '# One-Shot Falcon Deployment Configuration\n' +
@@ -845,6 +805,59 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       `#   ${negatedOptionFromFlag(flags.deployRelay)}\n\n`;
 
     return header + yaml.stringify(valuesObject, {lineWidth: 0});
+  }
+
+  /**
+   * Runs the spec-defined interactive prompt workflow, writing each answer into `config`. In quiet
+   * mode a step that opts in via `skipWhenQuiet` is replaced by its `quietValue` instead of prompting.
+   */
+  private async runFalconPreparePrompts(
+    spec: FalconPrepareSpec,
+    config: FalconPrepareConfig,
+    task: SoloListrTaskWrapper<AnyListrContext>,
+    quiet: boolean,
+  ): Promise<void> {
+    const target: Record<string, unknown> = config as unknown as Record<string, unknown>;
+    for (const prompt of spec.prompts) {
+      if (prompt.type !== 'confirm') {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unsupported falcon prepare prompt type '${prompt.type}' for '${prompt.configKey}'`),
+        );
+      }
+
+      if (quiet && prompt.skipWhenQuiet) {
+        target[prompt.configKey] = prompt.quietValue ?? false;
+        continue;
+      }
+
+      const answer: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+        message: prompt.message,
+        default: prompt.default,
+      });
+      target[prompt.configKey] = answer;
+
+      if (answer && prompt.onTrue) {
+        const followUpFlags: CommandFlag[] = prompt.onTrue.promptFlags.map((name: string): CommandFlag => {
+          const flag: CommandFlag | undefined = flags.allFlagsMap.get(name);
+          if (!flag) {
+            throw new SoloErrors.component.falconValuesPreparationFailed(
+              new Error(`Unknown flag '${name}' in promptFlags for prompt '${prompt.configKey}'`),
+            );
+          }
+          return flag;
+        });
+        await this.configManager.executePrompt(task, followUpFlags);
+        for (const entry of prompt.onTrue.setConfig) {
+          const flag: CommandFlag | undefined = flags.allFlagsMap.get(entry.flag);
+          if (!flag) {
+            throw new SoloErrors.component.falconValuesPreparationFailed(
+              new Error(`Unknown flag '${entry.flag}' in setConfig for prompt '${prompt.configKey}'`),
+            );
+          }
+          target[entry.configKey] = this.configManager.getFlag(flag);
+        }
+      }
+    }
   }
 
   public async close(): Promise<void> {} // no-op
