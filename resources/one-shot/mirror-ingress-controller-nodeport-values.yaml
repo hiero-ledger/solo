@@ -1,7 +1,8 @@
 # One-shot only: expose the mirror-node ingress controller via a fixed NodePort so the host reaches
 # the mirror node REST/gRPC-web API through the Kind cluster's extraPortMappings instead of a flaky
-# kubectl port-forward tunnel. The nodePort values MUST match the extraPortMappings in the one-shot
-# Kind config (resources/templates/small-memory/kind-config.yaml). Used exclusively by
+# kubectl port-forward tunnel. The nodePort values MUST match the extraPortMappings containerPort
+# values in the one-shot Kind config (resources/templates/small-memory/kind-config.yaml), which maps
+# the http NodePort to host port 38081 — the legacy port-forward port. Used exclusively by
 # `solo one-shot single deploy`; it does not affect standalone `mirror node add` or HashSphere flows.
 controller:
   service:

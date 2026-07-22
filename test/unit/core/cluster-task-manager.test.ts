@@ -92,18 +92,21 @@ describe('ClusterTaskManager', (): void => {
         )
       : [];
 
-    // NodePort range is 30000-32767; hostPort mirrors containerPort so the host reaches the mirror
-    // node on a stable Docker port mapping instead of a flaky kubectl port-forward tunnel.
-    // 30003 mirror http, 30004 mirror https; these must match
-    // resources/one-shot/mirror-ingress-controller-nodeport-values.yaml.
-    const expectedPorts: number[] = [30_003, 30_004];
-    for (const expectedPort of expectedPorts) {
+    // containerPort values are ingress-controller NodePorts (range 30000-32767) and must match
+    // resources/one-shot/mirror-ingress-controller-nodeport-values.yaml. The mirror http hostPort is
+    // the legacy port-forward port (constants.ONE_SHOT_MIRROR_REST_HOST_PORT) so existing
+    // localhost:38081 URLs keep working without a flaky kubectl port-forward tunnel.
+    const expectedMappings: {containerPort: number; hostPort: number}[] = [
+      {containerPort: 30_003, hostPort: constants.ONE_SHOT_MIRROR_REST_HOST_PORT},
+      {containerPort: 30_004, hostPort: 30_004},
+    ];
+    for (const expected of expectedMappings) {
       const mapping: {containerPort?: number; hostPort?: number; protocol?: string} | undefined = portMappings.find(
-        (entry): boolean => entry.containerPort === expectedPort,
+        (entry): boolean => entry.containerPort === expected.containerPort,
       );
-      expect(mapping, `extraPortMapping for ${expectedPort} should be present`).to.not.equal(undefined);
-      expect(mapping?.hostPort).to.equal(expectedPort);
-      expect(expectedPort).to.be.greaterThanOrEqual(30_000).and.lessThanOrEqual(32_767);
+      expect(mapping, `extraPortMapping for ${expected.containerPort} should be present`).to.not.equal(undefined);
+      expect(mapping?.hostPort).to.equal(expected.hostPort);
+      expect(expected.containerPort).to.be.greaterThanOrEqual(30_000).and.lessThanOrEqual(32_767);
     }
   });
 });

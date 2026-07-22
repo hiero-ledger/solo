@@ -311,9 +311,11 @@ export const ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE: string = PathEx.joinW
   'one-shot',
   'mirror-ingress-controller-nodeport-values.yaml',
 );
-// Host port (== NodePort == Kind extraPortMappings hostPort) the one-shot deployment publishes for
-// the mirror node REST API.
-export const ONE_SHOT_MIRROR_REST_NODEPORT: number = 30_003;
+// Host port the one-shot deployment publishes for the mirror node REST API. Matches the legacy
+// kubectl port-forward port (MIRROR_NODE_PORT default) so existing URLs keep working; the Kind
+// extraPortMappings map it to ingress-controller NodePort 30003 inside the cluster. Must match the
+// hostPort in resources/templates/small-memory/kind-config.yaml.
+export const ONE_SHOT_MIRROR_REST_HOST_PORT: number = 38_081;
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,

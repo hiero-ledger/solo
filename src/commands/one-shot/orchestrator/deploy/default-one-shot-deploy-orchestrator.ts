@@ -1044,7 +1044,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     }
     this.logger.addMessageGroupMessage(
       constants.PORT_FORWARDING_MESSAGE_GROUP,
-      `Mirror Node REST API available on ${constants.LOCAL_HOST}:${constants.ONE_SHOT_MIRROR_REST_NODEPORT} (NodePort)`,
+      `Mirror Node REST API available on ${constants.LOCAL_HOST}:${constants.ONE_SHOT_MIRROR_REST_HOST_PORT} (NodePort)`,
     );
   }
 
