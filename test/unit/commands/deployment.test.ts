@@ -20,10 +20,15 @@ import {K8Client} from '../../../src/integration/kube/k8-client/k8-client.js';
 import {type Deployment} from '../../../src/business/runtime-state/config/local/deployment.js';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {type ConfigMap} from '../../../src/integration/kube/resources/config-map/config-map.js';
+import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
+import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import * as constants from '../../../src/core/constants.js';
 
 describe('DeploymentCommand unit tests', (): void => {
-  type K8StubbedMethods = Pick<K8, 'namespaces' | 'configMaps' | 'contexts' | 'clusters' | 'leases'>;
+  type K8StubbedMethods = Pick<
+    K8,
+    'namespaces' | 'configMaps' | 'contexts' | 'clusters' | 'leases' | 'pods' | 'containers'
+  >;
   type K8FactoryStubbedMethods = K8Factory & {getK8: SinonStub; default: SinonStub};
 
   const namespace: NamespaceName = NamespaceName.of('solo-e2e');
@@ -221,6 +226,87 @@ describe('DeploymentCommand unit tests', (): void => {
         (deployment: Deployment): boolean => deployment.name === importedDeploymentName,
       );
       expect(imported?.clusters.map((cluster): string => cluster.toString())).to.deep.equal([importedClusterReference]);
+    });
+
+    it("should read the realm and shard from a consensus node's application.properties", async (): Promise<void> => {
+      const applicationPropertiesContent: string = 'hedera.realm=3\nhedera.shard=2\n';
+      k8Stub.pods = sinon.stub().returns({
+        list: sinon
+          .stub()
+          .resolves([
+            {podReference: PodReference.of(NamespaceName.of(importedNamespaceName), PodName.of('network-node1-0'))},
+          ]),
+      });
+      k8Stub.containers = sinon.stub().returns({
+        readByRef: sinon.stub().returns({execContainer: sinon.stub().resolves(applicationPropertiesContent)}),
+      });
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+
+      await expect(deploymentCommand.importConfig(buildImportArgv().build())).to.eventually.be.true;
+
+      await localConfig.load();
+      const imported: Deployment | undefined = localConfig.configuration.deployments.find(
+        (deployment: Deployment): boolean => deployment.name === importedDeploymentName,
+      );
+      expect(imported?.realm).to.equal(3);
+      expect(imported?.shard).to.equal(2);
+    });
+
+    it('should read the realm and shard from the shared data ConfigMap when no consensus node is running', async (): Promise<void> => {
+      const sharedDataConfigMap: ConfigMap = {
+        name: constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME,
+        namespace: NamespaceName.of(importedNamespaceName),
+        labels: {},
+        data: {[constants.APPLICATION_PROPERTIES]: 'hedera.realm=5\nhedera.shard=1\n'},
+      };
+      const readStub: SinonStub = sinon.stub().resolves(remoteConfigMap);
+      readStub
+        .withArgs(sinon.match.any, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME)
+        .resolves(sharedDataConfigMap);
+      k8Stub.configMaps = sinon.stub().returns({
+        exists: configMapsStub,
+        list: sinon.stub().resolves([remoteConfigMap]),
+        listForAllNamespaces: sinon.stub().resolves([remoteConfigMap]),
+        read: readStub,
+      });
+      k8Stub.pods = sinon.stub().returns({list: sinon.stub().resolves([])});
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+
+      await expect(deploymentCommand.importConfig(buildImportArgv().build())).to.eventually.be.true;
+
+      await localConfig.load();
+      const imported: Deployment | undefined = localConfig.configuration.deployments.find(
+        (deployment: Deployment): boolean => deployment.name === importedDeploymentName,
+      );
+      expect(imported?.realm).to.equal(5);
+      expect(imported?.shard).to.equal(1);
+    });
+
+    it('should warn and fall back to the default realm and shard when they cannot be determined', async (): Promise<void> => {
+      k8Stub.pods = sinon.stub().returns({list: sinon.stub().resolves([])});
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+      const logger: SoloLogger = container.resolve(InjectTokens.SoloLogger);
+      const showUserStub: SinonStub = sinon.stub(logger, 'showUser');
+
+      await expect(deploymentCommand.importConfig(buildImportArgv().build())).to.eventually.be.true;
+
+      expect(
+        showUserStub.getCalls().some((call): boolean => String(call.args[0]).includes('realm')),
+        'expected a warning about falling back to the default realm and shard',
+      ).to.be.true;
+
+      await localConfig.load();
+      const imported: Deployment | undefined = localConfig.configuration.deployments.find(
+        (deployment: Deployment): boolean => deployment.name === importedDeploymentName,
+      );
+      expect(imported?.realm).to.equal(0);
+      expect(imported?.shard).to.equal(0);
     });
 
     it('should fail when no Solo deployment exists in the targeted context', async (): Promise<void> => {

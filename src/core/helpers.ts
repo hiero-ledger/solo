@@ -168,6 +168,17 @@ export class Helpers {
     return undefined;
   }
 
+  public static parseNumericApplicationProperty(
+    applicationPropertiesText: string,
+    propertyKey: string,
+  ): number | undefined {
+    const escapedPropertyKey: string = propertyKey.replaceAll('.', String.raw`\.`);
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      new RegExp(String.raw`^\s*${escapedPropertyKey}\s*=\s*(\d+)\s*$`, 'm'),
+    );
+    return match ? Number(match[1]) : undefined;
+  }
+
   public static readGossipFqdnRestrictedFromFile(filePath: string): boolean | undefined {
     if (!fs.existsSync(filePath)) {
       return undefined;

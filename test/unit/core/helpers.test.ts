@@ -522,6 +522,34 @@ nodes.gossipFqdnRestricted=false`;
     });
   });
 
+  describe('parseNumericApplicationProperty', (): void => {
+    it('parses the value of a numeric property', (): void => {
+      const content: string = 'hedera.realm=3\nhedera.shard=2';
+      expect(Helpers.parseNumericApplicationProperty(content, 'hedera.realm')).to.equal(3);
+      expect(Helpers.parseNumericApplicationProperty(content, 'hedera.shard')).to.equal(2);
+    });
+
+    it('handles whitespace around the equals sign and value', (): void => {
+      const content: string = 'hedera.realm  =  10 ';
+      expect(Helpers.parseNumericApplicationProperty(content, 'hedera.realm')).to.equal(10);
+    });
+
+    it('returns undefined for a missing property', (): void => {
+      const content: string = 'some.other.property=value';
+      expect(Helpers.parseNumericApplicationProperty(content, 'hedera.realm')).to.be.undefined;
+    });
+
+    it('returns undefined for a non-numeric value', (): void => {
+      const content: string = 'hedera.realm=abc';
+      expect(Helpers.parseNumericApplicationProperty(content, 'hedera.realm')).to.be.undefined;
+    });
+
+    it('does not match a property whose key is a superstring of the requested key', (): void => {
+      const content: string = 'hedera.realmNumber=7';
+      expect(Helpers.parseNumericApplicationProperty(content, 'hedera.realm')).to.be.undefined;
+    });
+  });
+
   describe('readGossipFqdnRestrictedFromFile', (): void => {
     afterEach((): void => {
       sinon.restore();

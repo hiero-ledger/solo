@@ -39,6 +39,7 @@ import {MessageLevel} from '../core/logging/message-level.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 import * as version from '../../version.js';
@@ -150,7 +151,7 @@ export class DeploymentCommand extends BaseCommand {
 
   public static IMPORT_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.context, flags.deployment, flags.namespace, flags.quiet, flags.realm, flags.shard],
+    optional: [flags.context, flags.deployment, flags.namespace, flags.quiet],
   };
 
   /**
@@ -563,8 +564,6 @@ export class DeploymentCommand extends BaseCommand {
       kubeContext: Context;
       namespace: Optional<NamespaceName>;
       deploymentFilter: Optional<DeploymentName>;
-      realm: Realm;
-      shard: Shard;
       configMap: Optional<ConfigMap>;
     }
 
@@ -594,8 +593,6 @@ export class DeploymentCommand extends BaseCommand {
                 this.configManager.getFlag<Context>(flags.context) || this.k8Factory.default().contexts().readCurrent(),
               namespace: namespaceValue ? NamespaceName.of(namespaceValue) : undefined,
               deploymentFilter: this.configManager.getFlag<DeploymentName>(flags.deployment) || undefined,
-              realm: this.configManager.getFlag<Realm>(flags.realm) || (flags.realm.definition.defaultValue as Realm),
-              shard: this.configManager.getFlag<Shard>(flags.shard) || (flags.shard.definition.defaultValue as Shard),
               configMap: undefined,
             };
           },
@@ -671,7 +668,7 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Import deployment into local configuration',
           task: async (context_: ImportTaskContext, task): Promise<void> => {
-            const {kubeContext, quiet, realm, shard} = context_.config;
+            const {kubeContext, quiet, configMap} = context_.config;
 
             const clusters: ReadonlyArray<Readonly<ClusterSchema>> = this.remoteConfig.configuration.clusters;
             if (clusters.length === 0) {
@@ -768,6 +765,7 @@ export class DeploymentCommand extends BaseCommand {
               (candidate: Deployment): boolean => candidate.name === deploymentName,
             );
             if (!deployment) {
+              const {realm, shard} = await this.readRealmAndShardFromConsensusNode(kubeContext, configMap.namespace);
               deployment = this.localConfig.configuration.deployments.addNew();
               deployment.name = deploymentName;
               deployment.namespace = namespaceName;
@@ -813,6 +811,82 @@ export class DeploymentCommand extends BaseCommand {
     }
 
     return true;
+  }
+
+  /** Read the realm and shard from the deployment's application.properties, warning and defaulting when unreachable. */
+  private async readRealmAndShardFromConsensusNode(
+    kubeContext: Context,
+    namespace: NamespaceName,
+  ): Promise<{realm: Realm; shard: Shard}> {
+    const defaultRealm: Realm = flags.realm.definition.defaultValue as Realm;
+    const defaultShard: Shard = flags.shard.definition.defaultValue as Shard;
+
+    const applicationProperties: Optional<string> = await this.readApplicationPropertiesFromCluster(
+      kubeContext,
+      namespace,
+    );
+    const realm: Optional<number> = applicationProperties
+      ? Helpers.parseNumericApplicationProperty(applicationProperties, 'hedera.realm')
+      : undefined;
+    const shard: Optional<number> = applicationProperties
+      ? Helpers.parseNumericApplicationProperty(applicationProperties, 'hedera.shard')
+      : undefined;
+
+    if (realm === undefined || shard === undefined) {
+      this.logger.showUser(
+        chalk.yellow(
+          "Could not read the realm and shard from the deployment's consensus nodes; " +
+            `defaulting to realm ${defaultRealm}, shard ${defaultShard}.`,
+        ),
+      );
+    }
+
+    return {realm: realm ?? defaultRealm, shard: shard ?? defaultShard};
+  }
+
+  /** Fetch application.properties from the first reachable consensus node pod, else from the shared data ConfigMap. */
+  private async readApplicationPropertiesFromCluster(
+    kubeContext: Context,
+    namespace: NamespaceName,
+  ): Promise<Optional<string>> {
+    const k8: K8 = this.k8Factory.getK8(kubeContext);
+    const applicationPropertiesPath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`;
+
+    try {
+      const pods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      for (const pod of pods) {
+        if (!pod?.podReference) {
+          continue;
+        }
+        try {
+          const containerReference: ContainerReference = ContainerReference.of(
+            pod.podReference,
+            constants.ROOT_CONTAINER,
+          );
+          const applicationProperties: string = await k8
+            .containers()
+            .readByRef(containerReference)
+            .execContainer(`cat ${applicationPropertiesPath}`);
+          if (applicationProperties) {
+            return applicationProperties;
+          }
+        } catch {
+          // best-effort: this pod may not be running; try the next consensus node
+        }
+      }
+    } catch {
+      // best-effort: pod listing may fail when the network is down; fall through to the ConfigMap
+    }
+
+    try {
+      const configMap: ConfigMap = await k8
+        .configMaps()
+        .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+      return configMap.data?.[constants.APPLICATION_PROPERTIES];
+    } catch {
+      // best-effort: the shared data ConfigMap may be absent; the caller falls back to defaults
+      return undefined;
+    }
   }
 
   public async close(): Promise<void> {} // no-op
