@@ -562,6 +562,17 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly skipNodeStart: CommandFlag = {
+    constName: 'skipNodeStart',
+    name: 'skip-node-start',
+    definition: {
+      describe: 'Skip starting consensus nodes after staging a network upgrade',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly imageTag: CommandFlag = {
     constName: 'imageTag',
     name: 'image-tag',
@@ -3236,6 +3247,7 @@ export class Flags {
     Flags.consensusNodeVersion,
     Flags.upgradeVersion,
     Flags.freezeBlockDrainSeconds,
+    Flags.skipNodeStart,
     Flags.replicaCount,
     Flags.setAlias,
     Flags.settingTxt,

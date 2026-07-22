@@ -788,9 +788,8 @@ chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 # A second race exists at the CN upgrade boundary: when FREEZE_UPGRADE kills CN v0.74,
 # one or two blocks may be mid-stream. BN may write later blocks without the gap block,
 # so CN v0.75.1's starting wantedBlock can fall behind BN's firstAvailableBlock and
-# permanently reject BN. The fix is to let CN v0.75.1 settle long enough to expose the
-# gap, stop CN so it cannot feed post-gap blocks, restart BN to clear partial in-memory
-# state, then start CN while BN still expects the gap block.
+# permanently reject BN. The fix is to stage CN v0.75.1 without starting it, restart BN
+# to clear partial in-memory state, then start CN while BN still expects the gap block.
 #
 # Strategy:
 #  1. BN upgrade — cleanup init container removes stale block-ranges.json
@@ -800,10 +799,11 @@ chmod 644 "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}"
 #  2. BN stabilise — poll until mirror advances 3+ blocks via BN v0.38.1 (proves the
 #                    CN→BN→mirror pipeline is healthy), then wait 120 s more. This
 #                    guarantees BN is stable for 2+ minutes before CN v0.75 starts.
-#  3. network upgrade — atomic CN upgrade (PREPARE_UPGRADE + FREEZE_UPGRADE + execute).
-#  4. CN/BN gap recovery — wait 30 s, stop CN v0.75, restart BN, wait for clean PVC
-#                          state, then start CN v0.75 so its wantedBlock is in range and
-#                          the gap block is streamed before any post-gap blocks advance BN.
+#  3. network upgrade — atomic CN upgrade (PREPARE_UPGRADE + FREEZE_UPGRADE + execute),
+#                       but skip the first CN v0.75 start.
+#  4. CN/BN gap recovery — restart BN, wait for clean PVC state, then start CN v0.75 so
+#                          its wantedBlock is in range and the gap block is streamed
+#                          before any post-gap blocks advance BN.
 
 # Step 1: Upgrade BN while CN v0.74 is running.
 if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
@@ -864,7 +864,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') - BN is streaming blocks; waiting 120s for fu
 sleep 120
 dump_bn_log "after BN stability wait, before CN upgrade"
 
-# Step 3: Atomic CN upgrade — PREPARE_UPGRADE + FREEZE_UPGRADE + execute.
+# Step 3: Atomic CN upgrade — PREPARE_UPGRADE + FREEZE_UPGRADE + execute, without starting v0.75 yet.
 npm run solo -- \
   consensus network upgrade \
   -i node1,node2 \
@@ -872,10 +872,11 @@ npm run solo -- \
   --upgrade-version "${TO_CONSENSUS_NODE_VERSION}" \
   --application-properties "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" \
   --freeze-block-drain-seconds 30 \
+  --skip-node-start \
   -q --dev
-dump_bn_log "immediately after CN upgrade (FREEZE_UPGRADE boundary)"
+dump_bn_log "immediately after CN upgrade staging (v0.75 not started)"
 
-# Step 4: Stop CN, restart BN, then start CN v0.75 to clear the freeze-boundary incomplete block session.
+# Step 4: Restart BN, then start CN v0.75 to clear the freeze-boundary incomplete block session.
 #
 # At the freeze boundary, FREEZE_UPGRADE kills CN v0.74 while one block is always mid-stream.
 # BN v0.38.1 retains the partial in-memory session for that block even after all publishers
@@ -885,29 +886,16 @@ dump_bn_log "immediately after CN upgrade (FREEZE_UPGRADE boundary)"
 # error after BN rejects the partial-session block).
 #
 # Fix:
-#  a. Wait 30 s — CN v0.75 runs and attempts BN connections (blacklisting BN if it hasn't
-#     already). Any partial-session writes to BN's in-flight state complete or are abandoned.
-#  b. Stop CN v0.75 before replacing BN. If CN keeps running while BN comes back clean,
-#     BN can ingest later blocks and report blocksAvailable=N+2..M while CN still wants N.
-#     That recreates the permanent out-of-range condition and mirror remains stuck on N.
-#  c. Restart BN — the pod restart clears all in-memory partial session state. BN comes back
+#  a. Skip the first CN v0.75 start in the network-upgrade command. If CN starts before BN
+#     is reset, BN can ingest later blocks and report blocksAvailable=N+2..M while CN still
+#     wants N. That recreates the permanent out-of-range condition and mirror remains stuck on N.
+#  b. Restart BN — the pod restart clears all in-memory partial session state. BN comes back
 #     with clean state: only the fully verified blocks on its PVC (0 through N-1, where N is
 #     the freeze-boundary gap block).
-#  d. Wait for BN to be ready and initialize from PVC. CN is stopped, so BN cannot advance
+#  c. Wait for BN to be ready and initialize from PVC. CN is stopped, so BN cannot advance
 #     past the gap before CN reconnects.
-#  e. Start CN v0.75 — clears the in-memory blacklist and reconnects while BN still expects
+#  d. Start CN v0.75 — first v0.75 connection happens while BN still expects
 #     the gap block. CN streams N, BN writes it, and mirror receives it.
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting 30s for CN v0.75 initial state to settle"
-sleep 30
-dump_bn_log "30s after CN upgrade (pre BN restart — checking partial session state)"
-
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Stopping CN v0.75 before BN restart to prevent post-gap block ingestion"
-npm run solo -- consensus node stop \
-  -i node1,node2 \
-  --deployment "${SOLO_DEPLOYMENT}" \
-  -q --dev
-echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.75 stopped; BN can be reset without advancing past the gap"
-dump_bn_log "after CN v0.75 stop (BN should still show freeze-boundary gap)"
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Restarting BN to clear freeze-boundary incomplete session"
 kubectl rollout restart statefulset/block-node-1 -n "${SOLO_NAMESPACE}"

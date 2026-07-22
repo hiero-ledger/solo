@@ -327,3 +327,46 @@ post-gap blocks before CN reconnects from the missing gap block.
 blocks 173+ while block 171 is still missing. When CN starts again, `wantedBlock=171` is in range
 for BN's clean `0->170` state, so CN can provide the gap block instead of permanently rejecting BN
 as `blocksAvailable: 173-N`.
+
+**Failure (run 29928859938)**: Mirror stuck at block **163**, waiting for 164.
+
+BN before restart:
+
+* 14:40:57.240 — BN verified block **163**.
+* 14:40:57.241 — BN opened `ExtendedMerkleTreeSession` for block **164**.
+* 14:40:57.241 — BN wrote verified block **163**.
+* No `Wrote verified block 164` entry before the scripted BN restart.
+
+The new CN stop before BN restart worked, but it happened too late. The monolithic
+`consensus network upgrade` command starts CN v0.75.1 internally before returning to the script:
+
+* 14:41:47 — `network upgrade` starts node1 and node2 with v0.75.1.
+* 14:41:51 — CN reports `wantedBlock: 164, blocksAvailable: 165-165`.
+* 14:42:32 — `launch_network.sh` regains control and begins its recovery logic.
+
+So v0.75 had already queried BN and seen the bad `165-165` range before the script could stop it.
+Later, after BN restarted cleanly from PVC with `HistoricBlockRange=0->163`, CN still rejected BN
+as out of range (`wantedBlock: 164, blocksAvailable: 165-N`). Root cause: the first v0.75 process
+must not start before BN has been reset.
+
+***
+
+## Attempt 10: Stage CN v0.75, restart BN, then start CN
+
+**Sequence**:
+
+1. BN upgrade with cleanup init container — CN v0.74 stays running
+2. Poll until mirror receives 3 new blocks via BN v0.38.1, then wait 120 s
+3. `network upgrade --skip-node-start` — runs PREPARE_UPGRADE + FREEZE_UPGRADE, drains the
+   block stream, stops CN v0.74, stages v0.75.1 software/config, and leaves CN stopped
+4. `kubectl rollout restart statefulset/block-node-1` — clears BN's in-memory partial
+   session state before any v0.75 process can connect
+5. `kubectl rollout status` and wait 60 s — BN fully initializes from PVC with a clean
+   range ending at the last fully written pre-gap block
+6. `consensus node start -i node1,node2` — first CN v0.75 startup happens while BN still
+   expects the gap block
+7. CN streams the gap block, BN writes it, mirror advances
+
+**Why this addresses Attempt 9**: CN v0.75 never gets a chance to see `blocksAvailable=N+1`
+before BN has been reset. The first v0.75 BN query happens only after clean BN reports a range
+ending at `N-1`, so `wantedBlock=N` is in range and the gap block can be streamed.

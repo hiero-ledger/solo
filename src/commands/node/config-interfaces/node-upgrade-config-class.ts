@@ -37,4 +37,5 @@ export interface NodeUpgradeConfigClass extends NodeCommonConfigWithNodeAliases,
   valuesFile: string;
 
   freezeBlockDrainSeconds: number;
+  skipNodeStart: boolean;
 }
