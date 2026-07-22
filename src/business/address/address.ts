@@ -89,9 +89,15 @@ export class Address {
   ): Promise<Address> {
     const namespace: NamespaceName = NamespaceName.of(consensusNode.namespace);
     try {
-      const serviceList: Service[] = await k8
+      let serviceList: Service[] = await k8
         .services()
         .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId));
+
+      if (!serviceList || serviceList.length === 0) {
+        serviceList = await k8
+          .services()
+          .list(namespace, [`solo.hedera.com/node-name=${consensusNode.name},solo.hedera.com/type=network-node-svc`]);
+      }
 
       if (serviceList && serviceList.length > 0) {
         const svc: Service = serviceList[0];
