@@ -210,6 +210,7 @@ export class BlockNodeCommand extends BaseCommand {
   // Sentinel printed by the in-pod consolidation script when no JFR recording is present.
   private static readonly NO_JFR_MARKER: string = 'SOLO_NO_JFR_RECORDING';
   private static readonly MIGRATION_COMPONENT_KEY: string = 'block-node';
+  private static readonly DEFAULT_MIRROR_NODE_ID: number = 1;
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
@@ -320,6 +321,13 @@ export class BlockNodeCommand extends BaseCommand {
       chartValues.file(constants.BLOCK_NODE_TSS_VALUES_FILE);
     }
 
+    if (this.shouldConfigureRsaMirrorBootstrapSource()) {
+      chartValues.setLiteral(
+        'blockNode.config.ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_BASE_URL',
+        `http://${this.resolveMirrorNodeReleaseName()}-restjava:80`,
+      );
+    }
+
     chartValues.filesFromCommaSeparatedInput(config.valuesFile);
 
     chartValues.set('nameOverride', config.releaseName);
@@ -383,6 +391,24 @@ export class BlockNodeCommand extends BaseCommand {
     }
 
     return chartValues;
+  }
+
+  private shouldConfigureRsaMirrorBootstrapSource(): boolean {
+    const consensusNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
+      this.remoteConfig.configuration.versions?.consensusNode?.toString() || versions.HEDERA_PLATFORM_VERSION,
+    );
+    if (consensusNodeVersion.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+      return false;
+    }
+
+    const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
+    return blockStreamMode === 'BLOCKS' || blockStreamMode === 'BOTH';
+  }
+
+  private resolveMirrorNodeReleaseName(): string {
+    const mirrorNodeId: number =
+      this.remoteConfig.configuration.state.mirrorNodes?.[0]?.metadata.id ?? BlockNodeCommand.DEFAULT_MIRROR_NODE_ID;
+    return Templates.renderMirrorNodeName(mirrorNodeId);
   }
 
   private static appendExtraCommandArgs(
