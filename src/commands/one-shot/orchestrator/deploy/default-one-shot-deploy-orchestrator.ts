@@ -937,6 +937,11 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       configMapExists = true;
       componentPhases = this.remoteConfig.getComponentPhasesMap();
     } catch {
+      // TODO(config-checks #6 — corrupt vs absent): this catch treats ANY load failure as a fresh
+      //   deploy, so a corrupt/unreachable ConfigMap is indistinguishable from an absent one and we
+      //   can rebuild over a real, broken deployment. Only ResourceNotFound should mean "fresh"; any
+      //   other failure should stop and surface. DECISION: fail-fast vs prompt/--force to continue.
+      //   See docs/design/architecture/system/config-checks-to-add.md
       this.logger.info('Remote config unavailable during snapshot, treating as fresh deploy');
     }
 

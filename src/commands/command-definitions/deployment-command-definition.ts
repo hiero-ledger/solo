@@ -35,6 +35,11 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
     'View and manage Solo cluster references used by a deployment.';
 
   public static readonly CONFIG_SUBCOMMAND_NAME: string = 'config';
+  // TODO(config-checks #5 — SRE bootstrap): the description advertises "import" but no import
+  //   subcommand exists. Add a supported command (e.g. `deployment config import --deployment <name>
+  //   --context <ctx>`) that reconstructs local config (deployment, namespace, clusterRef→context)
+  //   from an existing cluster's remote config, then persists it. File a ticket (SC-LC-5).
+  //   See docs/design/architecture/system/config-checks-to-add.md
   private static readonly CONFIG_SUBCOMMAND_DESCRIPTION: string =
     'List, view, create, delete, and import deployments. These commands affect the local configuration only.';
 

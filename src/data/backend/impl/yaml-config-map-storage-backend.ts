@@ -13,6 +13,11 @@ import {type ConfigMap} from '../../../integration/kube/resources/config-map/con
  */
 export class YamlConfigMapStorageBackend extends ConfigMapStorageBackend implements ObjectStorageBackend {
   public async readObject(key: string): Promise<object> {
+    // TODO(config-checks #7 — coded remote-config error family): these raw StorageBackendErrors
+    //   (missing key / empty data / parse failure) carry no SOLO code, ownership, or remediation.
+    //   Wrap them (here or at the remote-config load site) in a typed remote-config-corrupt error
+    //   with guidance (inspect / recreate the ConfigMap). DECISION: single family code vs per-case.
+    //   See docs/design/architecture/system/config-checks-to-add.md
     const data: Buffer = await this.readBytes(key);
     if (!data) {
       throw new StorageBackendError(`failed to read key: ${key} from config map`);

@@ -81,6 +81,16 @@ export class LocalConfigRuntimeState {
     try {
       await this.source.refresh();
       this.refresh();
+      // TODO(config-checks #1 — top-level keys present): after refresh, verify required keys
+      //   (deployments / clusterRefs / userIdentity) are present. A partial file silently coalesces
+      //   to empty (see LocalConfigSchema ctor + LocalConfig facade) and only fails later as
+      //   DeploymentNotFound. DECISION: prune-to-valid + WARN vs fail-fast.
+      // TODO(config-checks #2 — referential integrity): verify every deployment.clusters entry is a
+      //   key in clusterRefs and each clusterRef maps to a context that exists in kubeconfig; prune
+      //   dangling references + WARN. DECISION: prune vs fail-fast; context-missing = prune or warn-only.
+      // TODO(config-checks — choke point): DECIDE whether prune/validate runs here (every load),
+      //   on persist() only, or in an explicit `prune` command. #1/#2 hang off this choice.
+      //   See docs/design/architecture/system/config-checks-to-add.md
     } catch (error) {
       throw new SoloErrors.config.refreshLocalConfigSource(error);
     }
