@@ -85,7 +85,7 @@ during its very first connection attempt when CN v0.75.1 JVM started at the end 
 a brief connection hiccup (likely BN closing the old CN v0.74 stream) at the exact moment
 CN v0.75.1 first tried to connect → permanent blacklist.
 
----
+***
 
 ## Attempt 4: Freeze + BN Upgrade + Restart v0.74 + Network Upgrade + Restart v0.75
 
@@ -124,12 +124,12 @@ always have bad proofs, and BN correctly rejects them.
 3. `network upgrade` (PREPARE_UPGRADE + FREEZE_UPGRADE + execute → CN v0.75.1)
 
 **Why this avoids previous failure modes**:
-- No FREEZE_ONLY → no CN v0.74 restart from FROZEN → no BAD_BLOCK_PROOF recovery blocks
-- CN v0.74 does NOT permanently blacklist BN (only v0.75 does), so CN v0.74 reconnects
+* No FREEZE_ONLY → no CN v0.74 restart from FROZEN → no BAD_BLOCK_PROOF recovery blocks
+* CN v0.74 does NOT permanently blacklist BN (only v0.75 does), so CN v0.74 reconnects
   automatically after BN v0.38.1 comes up
-- 3 confirmed mirror blocks + 120 s additional wait ensures BN is demonstrably stable before
+* 3 confirmed mirror blocks + 120 s additional wait ensures BN is demonstrably stable before
   CN v0.75 makes its first connection attempt
-- FREEZE_UPGRADE manages the block boundary cleanly, so CN v0.75.1 `wantedBlock` = BN `nextExpected`
+* FREEZE_UPGRADE manages the block boundary cleanly, so CN v0.75.1 `wantedBlock` = BN `nextExpected`
 
 **Key difference from Attempt 2**: Attempt 2 waited for only 2 mirror blocks — not enough. This
 attempt waits for 3 blocks AND 120 s extra, giving BN 2+ minutes of proven stability.
@@ -279,3 +279,51 @@ state.
 semantics). BN reinitializes from PVC: fully verified blocks 0→N-1 remain in `live/` and
 `historic/staging/`. The partial in-memory session for block N is gone. BN nextExpected = N
 (clean). CN v0.75 provides block N. Mirror receives it.
+
+**Failure (run 29889499622)**: Mirror stuck at block **170**, waiting for 171.
+
+BN before restart:
+
+* 04:03:20.195 — `ExtendedMerkleTreeSession` for block **171** opened.
+* 04:03:20.196 — BN wrote verified block **170**.
+* No `Wrote verified block 171` entry before the scripted BN restart.
+
+BN after restart:
+
+* 04:06:03.489 — BN restarted cleanly from PVC with `HistoricBlockRange=0->170`.
+
+However, CN v0.75 kept running while BN was restarted. When BN came back, CN was still producing
+blocks but still had `wantedBlock=171`. BN quickly advanced its live window without the missing
+gap blocks:
+
+* 04:06:15 — CN reports `wantedBlock: 171, blocksAvailable: 173-224`.
+* Through 04:18 — CN still reports `wantedBlock: 171`, while BN advances to `blocksAvailable:
+  173-559`.
+
+The later `consensus node restart` did **not** advance CN's `wantedBlock`; both nodes continued to
+reject BN as out of range. Root cause: restarting BN while CN remains alive lets BN ingest
+post-gap blocks before CN reconnects from the missing gap block.
+
+***
+
+## Attempt 9: Stop CN, restart BN, then start CN v0.75
+
+**Sequence**:
+1. BN upgrade with cleanup init container — CN v0.74 stays running
+2. Poll until mirror receives 3 new blocks via BN v0.38.1, then wait 120 s
+3. `network upgrade` (PREPARE_UPGRADE + FREEZE_UPGRADE + execute → CN v0.75.1)
+4. Wait 30 s — CN v0.75 settles; any partial BN session writes complete or are abandoned
+5. `consensus node stop -i node1,node2` — prevents CN from feeding post-gap blocks into BN
+   while BN is being reset
+6. `kubectl rollout restart statefulset/block-node-1` — clears BN's in-memory partial
+   session state
+7. `kubectl rollout status` and wait 60 s — BN fully initializes from PVC with a clean
+   range ending at the last fully written pre-gap block
+8. `consensus node start -i node1,node2` — clears the permanent BN blacklist and reconnects CN
+   while BN still expects the gap block
+9. CN streams the gap block, BN writes it, mirror advances
+
+**Why this addresses Attempt 8**: CN is stopped before BN is restarted, so clean BN cannot ingest
+blocks 173+ while block 171 is still missing. When CN starts again, `wantedBlock=171` is in range
+for BN's clean `0->170` state, so CN can provide the gap block instead of permanently rejecting BN
+as `blocksAvailable: 173-N`.
