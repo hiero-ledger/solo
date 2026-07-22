@@ -68,6 +68,7 @@ import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
 import {
   HEDERA_PLATFORM_VERSION,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
   MINIMUM_SOLO_CHART_VERSION,
   needsConfigTxtForConsensusVersion,
 } from '../../../version.js';
@@ -200,6 +201,8 @@ export class NodeCommandTasks {
   private static readonly GENERATED_GOSSIP_LOAD_BALANCER_MAX_ATTEMPTS: number = 60;
   private static readonly GENERATED_GOSSIP_LOAD_BALANCER_RETRY_DELAY: Duration = Duration.ofSeconds(1);
   private static readonly GRPC_TLS_PORT: number = 50_212;
+  private static readonly BLOCK_NODE_RSA_BOOTSTRAP_FILE: string = 'rsa-bootstrap-roster.json';
+  private static readonly BLOCK_NODE_APPLICATION_STATE_DIRECTORY: string = '/opt/hiero/block-node/application-state';
 
   private static getDefaultBlockNodeIdsForCluster(
     blockNodes: BlockNodeStateSchema[],
@@ -235,6 +238,29 @@ export class NodeCommandTasks {
   private static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
     const contexts: Set<string> = new Set(consensusNodes.map((node: ConsensusNode): string => node.context));
     return contexts.size > 1;
+  }
+
+  private static buildRsaAddressBookHistory(consensusNodes: ConsensusNode[], keysDirectory: string): string {
+    const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = [];
+    for (const consensusNode of consensusNodes) {
+      const publicKeyFile: string = PathEx.join(
+        keysDirectory,
+        Templates.renderGossipPemPublicKeyFile(consensusNode.name),
+      );
+      const certPem: string = fs.readFileSync(publicKeyFile, 'utf8');
+      const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
+        format: 'der',
+        type: 'spki',
+      }) as Buffer;
+      nodeAddresses.push({
+        RSAPubKey: spkiDer.toString('hex'),
+        nodeId: Templates.nodeIdFromNodeAlias(consensusNode.name),
+      });
+    }
+
+    return JSON.stringify({
+      addressBooks: [{addressBook: {nodeAddress: nodeAddresses}, startBlock: '0', endBlock: '-1'}],
+    });
   }
 
   private static buildNetworkNodeServiceManifest(
@@ -3674,16 +3700,132 @@ export class NodeCommandTasks {
     return {
       title: 'Copy node keys to secrets',
       task: (context_, task): any => {
+        const consensusNodes: ConsensusNode[] = nodeListOverride
+          ? context_.config[nodeListOverride]
+          : context_.config.consensusNodes;
         const subTasks: any[] = this.platformInstaller.copyNodeKeys(
           context_.config.keysDir,
-          nodeListOverride ? context_.config[nodeListOverride] : context_.config.consensusNodes,
+          consensusNodes,
           context_.config.contexts,
         );
 
-        // set up the sub-tasks for copying node keys to secrets
-        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+        return task.newListr(
+          [
+            {
+              title: 'Copy keys',
+              task: (_subContext, subTask): SoloListr<any> => {
+                return subTask.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+              },
+            },
+            {
+              title: 'Refresh block node RSA bootstrap state',
+              skip: (): boolean => !this.shouldRefreshBlockNodeRsaBootstrapState(context_.config, consensusNodes),
+              task: async (): Promise<void> => {
+                await this.refreshBlockNodeRsaBootstrapState(context_.config, consensusNodes);
+              },
+            },
+          ],
+          constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+        );
       },
     };
+  }
+
+  private shouldRefreshBlockNodeRsaBootstrapState(
+    config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
+    consensusNodes: ConsensusNode[],
+  ): boolean {
+    if (this.remoteConfig.configuration.state.blockNodes.length === 0 || consensusNodes.length === 0) {
+      return false;
+    }
+
+    const consensusNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
+      this.remoteConfig.configuration.versions?.consensusNode?.toString() || HEDERA_PLATFORM_VERSION,
+    );
+    if (consensusNodeVersion.lessThan(MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+      return false;
+    }
+
+    const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
+    if (blockStreamMode !== 'BLOCKS' && blockStreamMode !== 'BOTH') {
+      return false;
+    }
+
+    for (const consensusNode of consensusNodes) {
+      const publicKeyFile: string = PathEx.join(
+        config.keysDir,
+        Templates.renderGossipPemPublicKeyFile(consensusNode.name),
+      );
+      if (!fs.existsSync(publicKeyFile)) {
+        this.logger.debug(`Skipping block node RSA bootstrap refresh, missing ${publicKeyFile}`);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private async refreshBlockNodeRsaBootstrapState(
+    config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
+    consensusNodes: ConsensusNode[],
+  ): Promise<void> {
+    const bootstrapJson: string = NodeCommandTasks.buildRsaAddressBookHistory(consensusNodes, config.keysDir);
+    const bootstrapFilePath: string = PathEx.join(config.keysDir, NodeCommandTasks.BLOCK_NODE_RSA_BOOTSTRAP_FILE);
+    fs.writeFileSync(bootstrapFilePath, bootstrapJson, 'utf8');
+
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+    for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
+      const context: Context | undefined = clusterReferences.get(blockNode.metadata.cluster);
+      if (!context) {
+        throw new SoloErrors.deployment.blockNodeClusterContextNotFound(String(blockNode.metadata.id));
+      }
+
+      const namespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace.toString());
+      const podName: string = `${Templates.renderBlockNodeName(blockNode.metadata.id)}-0`;
+      const k8: K8 = this.k8Factory.getK8(context);
+      const containerReference: ContainerReference = ContainerReference.of(
+        PodReference.of(namespace, PodName.of(podName)),
+        constants.BLOCK_NODE_CONTAINER_NAME,
+      );
+      const blockNodeContainer: Container = k8.containers().readByRef(containerReference);
+
+      await blockNodeContainer.execContainer(['mkdir', '-p', NodeCommandTasks.BLOCK_NODE_APPLICATION_STATE_DIRECTORY]);
+      await blockNodeContainer.copyTo(bootstrapFilePath, NodeCommandTasks.BLOCK_NODE_APPLICATION_STATE_DIRECTORY);
+      await blockNodeContainer.execContainer([
+        'test',
+        '-r',
+        `${NodeCommandTasks.BLOCK_NODE_APPLICATION_STATE_DIRECTORY}/${NodeCommandTasks.BLOCK_NODE_RSA_BOOTSTRAP_FILE}`,
+      ]);
+
+      try {
+        await blockNodeContainer.execContainer(['bash', '-c', 'sync && kill 1']);
+      } catch (error) {
+        this.logger.debug(`Block node container restart command interrupted for ${podName}`, error);
+      }
+
+      await this.waitForBlockNodeReady(blockNodeContainer, podName);
+    }
+  }
+
+  private async waitForBlockNodeReady(blockNodeContainer: Container, podName: string): Promise<void> {
+    const healthCheckCommand: string = `curl -fsS --max-time 5 http://localhost:${constants.BLOCK_NODE_PORT}/healthz/readyz`;
+    for (let attempt: number = 1; attempt <= constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS; attempt++) {
+      try {
+        const response: string = await blockNodeContainer.execContainer(['bash', '-c', healthCheckCommand]);
+        if (response.trim() === 'OK') {
+          return;
+        }
+      } catch (error) {
+        const message: string = error instanceof Error ? error.message : `${error}`;
+        this.logger.debug(
+          `Waiting for restarted block node ${podName} to become ready: ${message}, [attempts: ${attempt}/${constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS}]`,
+        );
+      }
+
+      await sleep(Duration.ofMillis(constants.BLOCK_NODE_PODS_RUNNING_DELAY));
+    }
+
+    throw new SoloErrors.component.blockNodeHealthCheckFailed(`block node ${podName} did not become ready`);
   }
 
   public addWrapsLib(): SoloListrTask<NodeAddContext> {

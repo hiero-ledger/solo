@@ -20,6 +20,9 @@ interface BlockNodePersistenceConfig {
 
 interface BlockNodeValuesConfig {
   blockNode?: {
+    config?: {
+      ROSTER_BOOTSTRAP_TSS_BLOCK_NODE_SOURCES_PATH?: string;
+    };
     persistence?: BlockNodePersistenceConfig;
   };
 }
@@ -40,6 +43,15 @@ describe('Block node default values', (): void => {
     expect(persistence?.live?.existingClaim, 'live existingClaim must remain unset by default').to.equal(undefined);
     expect(persistence?.logging?.existingClaim, 'logging existingClaim must remain unset by default').to.equal(
       undefined,
+    );
+  });
+
+  it('should wire the TSS bootstrap plugin to the block node sources file', (): void => {
+    const valuesContent: string = fs.readFileSync(constants.BLOCK_NODE_VALUES_FILE, 'utf8');
+    const parsedValues: BlockNodeValuesConfig = yaml.parse(valuesContent) as BlockNodeValuesConfig;
+
+    expect(parsedValues.blockNode?.config?.ROSTER_BOOTSTRAP_TSS_BLOCK_NODE_SOURCES_PATH).to.equal(
+      '/opt/hiero/block-node/backfill/block-node-sources.json',
     );
   });
 });
