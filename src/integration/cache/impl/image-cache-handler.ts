@@ -107,12 +107,23 @@ export class ImageCacheHandler implements CacheOperationHandler {
   public async load(target: string): Promise<SoloListrTask<AnyListrContext>[]> {
     const items: readonly CachedItem[] = await this.resolveExpectedCachedItems();
 
+    // Listing the cluster's loaded images once (a single `ctr images ls`) lets each subtask skip
+    // the per-image `kind load image-archive` shell-out when the image is already present. On a warm
+    // startup this avoids ~30 subprocess invocations and shaves several seconds off the run.
+    const loadedImages: ReadonlySet<string> = await this.resolveLoadedClusterImages(target);
+
     return items.map((item): SoloListrTask<AnyListrContext> => {
       const name: string = `${item.target.name}:${item.target.version}`;
 
       return {
         title: `Loading ${name} into ${target}`,
         task: async (_, task): Promise<void> => {
+          if (loadedImages.has(name)) {
+            // Already present in the cluster (warm startup); skip the redundant, expensive ctr import.
+            task.title += ' - ' + chalk.green('already loaded, skipped');
+            return;
+          }
+
           if (!(await this.inspector.exists(item.localPath))) {
             // Not cached (surfaced by pull / `cache image status`); keep it visible but non-fatal.
             task.title += ' - ' + chalk.yellow('archive not cached, skipped');
@@ -132,6 +143,20 @@ export class ImageCacheHandler implements CacheOperationHandler {
         },
       };
     });
+  }
+
+  // Best-effort snapshot of the images already loaded into the cluster, keyed by `name:version` for
+  // the load() skip check. A listing failure (unreachable cluster, missing container engine) must not
+  // block loading, so it degrades to an empty set: every archive is then loaded as before.
+  private async resolveLoadedClusterImages(clusterName: string): Promise<ReadonlySet<string>> {
+    try {
+      const images: readonly string[] = await this.engine.listLoadedImagesInCluster(clusterName);
+      return new Set<string>(images);
+    } catch (error) {
+      const message: string = ImageCacheHandler.getErrorMessage(error);
+      this.logger.debug(`Unable to list images already loaded in cluster ${clusterName}: ${message}`);
+      return new Set<string>();
+    }
   }
 
   public async clear(): Promise<void> {
