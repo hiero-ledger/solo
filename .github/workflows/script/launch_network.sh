@@ -877,21 +877,46 @@ npm run solo -- \
   -q --dev
 dump_bn_log "immediately after CN upgrade (FREEZE_UPGRADE boundary)"
 
-# Step 4: Restart CN v0.75 to clear its in-memory BN blacklist.
-#   CN v0.75.1 starts and immediately blacklists BN because FREEZE_UPGRADE may have left
-#   BN's live window 1-2 blocks ahead of CN v0.75.1's starting wantedBlock (the stream
-#   buffer drains while CN v0.74 is shutting down). After 120 s CN v0.75.1 has committed
-#   ~60 blocks locally — still within BN's staleResendPruneBuffer=100 of BN's nextExpected.
-#   After restart, CN wantedBlock > BN firstAvailableBlock → no blacklist. BN sends RESEND
-#   for any missing blocks; CN replays from its persistent buffer (isBufferPersistenceEnabled
-#   = true); mirror receives them via BN's live subscription.
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting 120s for CN v0.75 to advance past BN firstAvailableBlock"
-sleep 120
-dump_bn_log "after 120s wait, before CN restart (check gap block and RESEND readiness)"
+# Step 4: Restart BN then CN v0.75 to clear the freeze-boundary incomplete block session.
+#
+# At the freeze boundary, FREEZE_UPGRADE kills CN v0.74 while one block is always mid-stream.
+# BN v0.38.1 retains the partial in-memory session for that block even after all publishers
+# disconnect. When CN v0.75 connects, BN's incomplete session state prevents it from cleanly
+# accepting CN v0.75's fresh copy of the block → BN stalls or rejects → CN v0.75 either gets
+# immediately blacklisted (wantedBlock < firstAvailableBlock) or later blacklisted (connection
+# error after BN rejects the partial-session block).
+#
+# Fix:
+#  a. Wait 30 s — CN v0.75 runs and attempts BN connections (blacklisting BN if it hasn't
+#     already). Any partial-session writes to BN's in-flight state complete or are abandoned.
+#  b. Restart BN — the pod restart clears all in-memory partial session state. BN comes back
+#     with clean state: only the fully verified blocks on its PVC (0 through N, where N is
+#     the last block written before the freeze). CN v0.75 is already blacklisted so BN's
+#     brief downtime does not trigger a NEW blacklist.
+#  c. Wait for BN to be ready and 60 s more — BN v0.38.1 initializes from PVC (reads
+#     historic/staging, rebuilds live-store index). CN v0.75 continues committing blocks
+#     locally while blacklisted (isBufferPersistenceEnabled = true keeps them in the buffer).
+#  d. Restart CN v0.75 — clears the in-memory blacklist. After restart, CN's wantedBlock
+#     reflects its committed state (N+1 through N+~85), well within
+#     staleResendPruneBuffer=100 of BN's nextExpected (N+1). BN sends RESEND for the gap
+#     block; CN replays it from its persistent buffer; BN writes it; mirror receives it.
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting 30s for CN v0.75 initial state to settle"
+sleep 30
+dump_bn_log "30s after CN upgrade (pre BN restart — checking partial session state)"
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Restarting BN to clear freeze-boundary incomplete session"
+kubectl rollout restart statefulset/block-node-1 -n "${SOLO_NAMESPACE}"
+kubectl rollout status statefulset/block-node-1 -n "${SOLO_NAMESPACE}" --timeout=3m
+echo "$(date '+%Y-%m-%d %H:%M:%S') - BN pod restarted; incomplete session cleared"
+dump_bn_log "after BN restart (clean state from PVC; no partial session)"
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting 60s for BN to fully initialize and CN v0.75 to build buffer"
+sleep 60
+dump_bn_log "after 60s wait, before CN restart (RESEND window check)"
 npm run solo -- consensus node restart \
   --deployment "${SOLO_DEPLOYMENT}" \
   -q
-echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.75 restarted; clearing blacklist and replaying missing blocks"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - CN v0.75 restarted; blacklist cleared"
 dump_bn_log "after CN v0.75 restart (check RESEND exchange and gap block delivery)"
 post_upgrade_start_block="$(get_latest_mirror_block_number)"
 wait_for_mirror_block_count_progress "CN v0.75 post-restart pipeline" "${post_upgrade_start_block}" 3 120 5
