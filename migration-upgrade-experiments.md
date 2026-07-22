@@ -404,3 +404,35 @@ with CN block contents/proof/hash continuity. Until CN guarantees that `FREEZE_C
 boundary block or that the upgraded CN replays it, the CN upgrade path is not reliable enough for
 this migration test. The workflow now logs this bypass explicitly and keeps the skipped CN-upgrade
 code behind a single temporary flag for later re-enable.
+
+***
+
+## Attempt 12: Add BN subscriber-stream mitigation
+
+**Failure (run 29945363498)**: The CN bypass worked, but the smart contract smoke test timed
+out after 360 s in the ERC20 `before all` hook.
+
+The workflow skipped CN upgrade to v0.75.1 and kept consensus nodes on v0.74.0. It then upgraded
+BN to v0.38.1, mirror to v0.159.0, explorer, ledger accounts, and relay. Mirror was ready at
+block 182 after component upgrades and block 250 immediately before the smart contract test.
+
+During the smoke test, mirror REST repeatedly returned 404 for the submitted contract result hash.
+At the same time, mirror importer logged:
+
+* `Incorrect first block item case ROUND_HEADER`
+* `No block node can provide block 308`
+* `Abrupt GOAWAY closed sent stream. HTTP/2 error code: PROTOCOL_ERROR`
+
+BN did eventually verify and write block 308, so this was not the old CN freeze-boundary missing
+block. The signature matches the known BN subscriber-stream issue
+<https://github.com/hiero-ledger/hiero-block-node/issues/3150>, where mirror reconnects can receive
+a live stream batch starting with `ROUND_HEADER` and then reconnect rapidly.
+
+**Mitigation**: Add a migration-only BN upgrade values override:
+
+* `SERVER_HTTP2_MAX_RAPID_RESETS=500`
+* `MESSAGING_BLOCK_ITEM_QUEUE_SIZE=65536`
+
+This follows the existing BN #3150 workaround pattern used by performance tests. It is not a final
+fix; it gives the migration smoke test enough buffer and HTTP/2 tolerance while BN fixes the
+subscriber stream boundary behavior.

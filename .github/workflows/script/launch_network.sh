@@ -780,6 +780,16 @@ if [[ "${PREV_BLOCK_VERSION_NO_V}" != "${CURRENT_BLOCK_VERSION}" ]]; then
   TEMP_BN_UPGRADE_VALUES_FILE="$(mktemp -t bn-upgrade-values-XXXX.yaml)"
   cat > "${TEMP_BN_UPGRADE_VALUES_FILE}" <<'VALS'
 blockNode:
+  config:
+    # TEMPORARY WORKAROUND:
+    #   BN v0.38.1 can send a live stream batch starting with ROUND_HEADER when mirror
+    #   reconnects mid-block (hiero-block-node#3150). Mirror v0.159.0 rejects that
+    #   stream shape with "Incorrect first block item case ROUND_HEADER", reconnects
+    #   rapidly, and contract-result ingestion can stall long enough for smoke tests
+    #   to time out. Keep this migration-only buffer/HTTP2 mitigation until BN fixes
+    #   the subscriber stream boundary behavior.
+    SERVER_HTTP2_MAX_RAPID_RESETS: "500"
+    MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "65536"
   initContainers:
     - name: init-storage-dirs
       image: busybox
