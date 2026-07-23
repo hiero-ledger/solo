@@ -678,7 +678,16 @@ add_application_properties_overwrite_marker "${TEMP_SOURCE_APPLICATION_PROPERTIE
 CURRENT_BLOCK_VERSION="$(extract_version BLOCK_NODE_VERSION version.ts)"
 CURRENT_BLOCK_VERSION="${CURRENT_BLOCK_VERSION#v}"
 PREV_BLOCK_VERSION_NO_V="${PREV_BLOCK_VERSION#v}"
-set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
+
+# TEMPORARY WORKAROUND:
+#   Keep the migration source network in BOTH mode while hiero-block-node#3150 is open.
+#   Pure BLOCKS mode makes mirror importer depend entirely on BN live-subscriber streaming.
+#   That path can send batches starting with ROUND_HEADER, causing mirror to reconnect and
+#   contract-result ingestion to stall. BOTH keeps native block streaming enabled for BN while
+#   also preserving record streams/MinIO for mirror smoke coverage.
+MIGRATION_BLOCK_STREAM_MODE="BOTH"
+
+set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "${MIGRATION_BLOCK_STREAM_MODE}"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.isBufferPersistenceEnabled" "true"
@@ -696,8 +705,12 @@ cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<'EOF'
 # Generated for migration workflow launch.
 importer:
   env:
-    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "true"
-    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "false"
+    # TEMPORARY WORKAROUND:
+    #   Import migration smoke-test data from record streams while hiero-block-node#3150 is open.
+    #   BN remains deployed and receives native block streams, but mirror REST/contract smoke should
+    #   not depend on the known-broken BN live-subscriber boundary behavior.
+    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "false"
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "true"
     HIERO_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
 EOF
 
@@ -729,7 +742,7 @@ explorerNode:
 EOF
 
 export ONE_SHOT_WITH_BLOCK_NODE=true
-export BLOCK_STREAM_STREAM_MODE="BLOCKS"
+export BLOCK_STREAM_STREAM_MODE="${MIGRATION_BLOCK_STREAM_MODE}"
 export BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
 export DISABLE_IMPORTER_SPRING_PROFILES="false"
 
@@ -767,25 +780,20 @@ echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 #   boundary block continuity or exposes a deterministic final-block-flushed signal for Solo.
 SKIP_CONSENSUS_NODE_UPGRADE_UNTIL_CN_26498_FIXED=true
 
-# TEMPORARY BYPASS:
-#   BN upgrade is disabled in this migration test until hiero-block-node#3150 is fixed.
-#   BN v0.38.1 can serve live stream batches that start with ROUND_HEADER after mirror reconnects.
-#   Mirror v0.159.0 rejects that stream shape, reconnects rapidly, and REST contract-result
-#   ingestion can stall long enough for smoke tests to time out even when the buffer/HTTP2
-#   workaround is rendered into the BN chart values.
-#
-#   Keep the BN-upgrade code below this flag so the test can be restored once BN fixes the
-#   subscriber stream boundary behavior.
-SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED=true
+# BN upgrade is enabled while smoke tests use record-stream import. BN #3150 still affects the
+# mirror BN live-subscriber path, so the migration smoke checks avoid that path via BOTH mode and
+# record import. Keeping BN upgrade enabled preserves component migration coverage.
+SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED=false
 
 # Strategy while the bypass is active:
-#  1. Skip BN upgrade — leave BN on the source version until BN issue #3150 is fixed.
-#  2. BN stabilise — poll until mirror advances 3+ blocks via the active BN, then wait
-#                    120 s more. This proves the CN→BN→mirror pipeline is healthy.
+#  1. BN upgrade — upgrade BN while CN source version keeps running; mirror smoke imports records
+#                  so BN #3150 does not block REST/contract-result ingestion.
+#  2. Source stream stabilise — poll until mirror advances 3+ blocks via record import, then
+#                              wait 120 s more. BN remains deployed and receives native blocks.
 #  3. Skip CN upgrade — leave consensus nodes on the source version and continue covering
 #                      Solo/component migration behavior until CN issue #26498 is fixed.
 
-# Step 1: Upgrade BN while CN v0.74 is running, unless BN #3150 bypass is active.
+# Step 1: Upgrade BN while CN source version is running, unless the BN bypass is re-enabled.
 ACTIVE_BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION_NO_V}"
 if [[ "${SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED}" == "true" ]]; then
   echo "$(date '+%Y-%m-%d %H:%M:%S') - TEMPORARILY skipping BN upgrade to ${CURRENT_BLOCK_VERSION}"
@@ -850,16 +858,16 @@ VALS
   dump_bn_log "after BN upgrade"
 fi
 
-# Step 2: Wait for BN to stabilise before the CN upgrade decision.
-#   Poll until mirror receives 3 new blocks (proving the CN→BN→mirror pipeline is healthy),
-#   then wait 120 s more. If the temporary bypasses are turned off later, this also gives BN
-#   a stable window before CN v0.75 makes its first connection attempt.
+# Step 2: Wait for source streaming to stabilise before the CN upgrade decision.
+#   Poll until mirror receives 3 new blocks via record import, then wait 120 s more. If the
+#   temporary bypasses are turned off later, this also gives BN a stable window before CN v0.75
+#   makes its first connection attempt.
 bn_stabilize_start_block="$(get_latest_mirror_block_number)"
-echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for BN ${ACTIVE_BLOCK_NODE_VERSION} to stabilise (mirror at block ${bn_stabilize_start_block})"
-wait_for_mirror_block_count_progress "BN stabilise before CN upgrade decision" "${bn_stabilize_start_block}" 3 120 5
-echo "$(date '+%Y-%m-%d %H:%M:%S') - BN is streaming blocks; waiting 120s for full stability"
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Waiting for source stream with BN ${ACTIVE_BLOCK_NODE_VERSION} deployed to stabilise (mirror at block ${bn_stabilize_start_block})"
+wait_for_mirror_block_count_progress "source stream stabilise before CN upgrade decision" "${bn_stabilize_start_block}" 3 120 5
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Source stream is advancing; waiting 120s for full stability"
 sleep 120
-dump_bn_log "after BN stability wait, before CN upgrade decision"
+dump_bn_log "after source stream stability wait, before CN upgrade decision"
 
 if [[ "${SKIP_CONSENSUS_NODE_UPGRADE_UNTIL_CN_26498_FIXED}" == "true" ]]; then
   echo "$(date '+%Y-%m-%d %H:%M:%S') - TEMPORARILY skipping CN upgrade to ${TO_CONSENSUS_NODE_VERSION}"
@@ -879,9 +887,9 @@ else
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.historyEnabled" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "tss.forceMockSignatures" "true"
-  # Also carry the block-stream and block-buffer settings into CN 0.75 so that it streams
-  # blocks to BN via gRPC and the BN reconnect window remains wide enough.
-  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "BLOCKS"
+  # Also carry the block-stream and block-buffer settings into CN 0.75 so that it keeps
+  # native blocks for BN and record streams for mirror smoke coverage.
+  set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamMode" "${MIGRATION_BLOCK_STREAM_MODE}"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.streamWrappedRecordBlocks" "false"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.writerMode" "FILE_AND_GRPC"
   set_application_property "${TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE}" "blockStream.buffer.maxBlocks" "1000"

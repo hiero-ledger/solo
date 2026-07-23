@@ -465,3 +465,59 @@ batch boundary once the BN #3150 condition is hit.
 leaves BN on the source version, also skips the CN upgrade while CN #26498 is open, and continues
 covering mirror, explorer, ledger, relay, and smoke-test migration behavior. Re-enable BN upgrade
 once BN fixes the subscriber stream boundary behavior.
+
+***
+
+## Attempt 14: Restore BOTH mode for migration smoke tests
+
+**Failure (run 29971103780)**: Adding a smoke test immediately after one-shot proved the contract
+timeout occurs before the explicit BN, CN, or mirror upgrade steps.
+
+The source deployment used CN v0.74.0 with BN v0.37.0 and forced pure BN import:
+
+* `blockStream.streamMode=BLOCKS`
+* `HIERO_MIRROR_IMPORTER_BLOCK_ENABLED=true`
+* `HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED=false`
+
+The first smoke test timed out in the ERC20 `before all` hook. Mirror REST repeatedly returned 404
+for the submitted contract result hash while importer logged `Incorrect first block item case
+ROUND_HEADER`. This showed that skipping the BN upgrade alone is insufficient: the baseline
+one-shot smoke path was already dependent on the BN live subscriber behavior tracked by
+<https://github.com/hiero-ledger/hiero-block-node/issues/3150>.
+
+**Comparison (successful main run 29968883119)**: The CN v0.73.0 -> v0.74.0 migration with BN
+v0.32.0 -> v0.38.1 succeeded while the source network reported:
+
+* `Initial source block stream mode: BOTH`
+* `Initial source MinIO enabled: true`
+
+That run kept record streams available and did not run the new immediate post-one-shot smoke test
+against a pure BN-import source deployment.
+
+**Temporary workaround**: Restore BOTH mode for this migration workflow and import mirror smoke data
+from record streams while BN #3150 is open:
+
+* `blockStream.streamMode=BOTH`
+* `blockStream.streamWrappedRecordBlocks=false`
+* `HIERO_MIRROR_IMPORTER_BLOCK_ENABLED=false`
+* `HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED=true`
+
+BN remains deployed and receives native blocks, but REST Java and smart-contract smoke no longer
+depend on the known-broken BN live-subscriber boundary until BN fixes #3150.
+
+***
+
+## Attempt 15: Re-enable BN upgrade under BOTH mode
+
+With BOTH mode and record-stream mirror import restored, BN #3150 should no longer block REST Java
+or smart-contract smoke ingestion. Re-enable the BN upgrade to restore BN component migration
+coverage:
+
+1. Keep CN source version running.
+2. Upgrade BN from the source version to the target version.
+3. Let mirror smoke import from record streams, not the BN live-subscriber path.
+4. Keep CN upgrade skipped while CN #26498 remains open.
+
+This deliberately tests that BN can be upgraded and continue receiving native block streams, while
+avoiding the known-broken BN subscriber path for mirror REST/contract-result ingestion. CN upgrade
+remains bypassed because BOTH mode does not fix the missing freeze-boundary block problem.
