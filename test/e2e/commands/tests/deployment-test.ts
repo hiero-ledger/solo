@@ -343,12 +343,14 @@ export class DeploymentTest extends BaseCommandTest {
       expect(wideResult.stdout).to.contain('Cluster:');
       expect(wideResult.stdout).to.contain(clusterReference);
       expect(wideResult.stdout).to.contain('Namespace:');
-      expect(wideResult.stdout).to.contain('Consensus node gRPC');
-      // One-shot serves the mirror node REST API via a stable Kind NodePort mapping instead of a
-      // kubectl port-forward, so no mirror node port-forward is registered in the remote config.
+      // One-shot serves the consensus node gRPC, mirror node REST API, relay, and explorer via
+      // stable Kind NodePort mappings instead of kubectl port-forwards, so no port-forwards are
+      // registered in the remote config.
+      expect(wideResult.stdout).to.not.contain('Consensus node gRPC');
       expect(wideResult.stdout).to.not.contain('Mirror node REST');
-      expect(wideResult.stdout).to.contain('JSON-RPC relay');
-      expect(wideResult.stdout).to.contain('Explorer');
+      expect(wideResult.stdout).to.not.contain('JSON-RPC relay');
+      expect(wideResult.stdout).to.not.contain('Explorer');
+      expect(wideResult.stdout).to.contain('No port-forwards configured in remote config');
 
       const jsonResult: {stdout: string; outputFilePath: string} = await runMainAndCaptureOutputToJson(
         soloDeploymentConfigPortsArgv(testName, deployment, clusterReference, 'json', testCacheDirectory),

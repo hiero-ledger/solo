@@ -221,6 +221,11 @@ describe('buildExplorerArgv', (): void => {
     const versionIndex: number = argv.indexOf(optionFromFlag(Flags.explorerVersion));
     expect(argv[versionIndex + 1]).to.equal('2.5.0');
   });
+
+  it('disables port-forward in favor of the one-shot NodePort service', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildExplorerArgv(makeConfig());
+    expect(argv).to.include(negatedOptionFromFlag(Flags.forcePortForward));
+  });
 });
 
 describe('buildRelayArgv', (): void => {
@@ -246,6 +251,11 @@ describe('buildRelayArgv', (): void => {
     expect(argv).to.include(optionFromFlag(Flags.mirrorNamespace));
     const namespaceIndex: number = argv.indexOf(optionFromFlag(Flags.mirrorNamespace));
     expect(argv[namespaceIndex + 1]).to.equal('test-ns');
+  });
+
+  it('disables port-forward in favor of the one-shot NodePort service', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildRelayArgv(makeConfig());
+    expect(argv).to.include(negatedOptionFromFlag(Flags.forcePortForward));
   });
 });
 
@@ -279,6 +289,11 @@ describe('buildConsensusStartArgv', (): void => {
     }
     expect(argv).to.include(optionFromFlag(Flags.deployment));
     expect(argv).to.include('test-deployment');
+  });
+
+  it('disables port-forward in favor of the one-shot NodePort service', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildConsensusStartArgv(makeConfig());
+    expect(argv).to.include(negatedOptionFromFlag(Flags.forcePortForward));
   });
 });
 

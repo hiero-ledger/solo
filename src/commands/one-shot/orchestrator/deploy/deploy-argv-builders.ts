@@ -296,6 +296,9 @@ export class DeployArgvBuilders {
       config.deployment,
       optionFromFlag(Flags.clusterRef),
       config.clusterRef,
+      // The explorer is exposed via a stable Kind NodePort service created by the one-shot deploy
+      // orchestrator, so skip the flaky kubectl port-forward tunnel.
+      negatedOptionFromFlag(Flags.forcePortForward),
     );
     appendConfigToArgv(argv, {
       [optionFromFlag(Flags.soloChartVersion)]: config.versions.soloChart,
@@ -318,6 +321,9 @@ export class DeployArgvBuilders {
       config.clusterRef,
       optionFromFlag(Flags.nodeAliasesUnparsed),
       'node1',
+      // The relay is exposed via a stable Kind NodePort service created by the one-shot deploy
+      // orchestrator, so skip the flaky kubectl port-forward tunnel.
+      negatedOptionFromFlag(Flags.forcePortForward),
     );
     appendConfigToArgv(argv, {
       [optionFromFlag(Flags.relayVersion)]: config.versions.relay,
@@ -364,6 +370,9 @@ export class DeployArgvBuilders {
       ...ConsensusCommandDefinition.START_COMMAND.split(' '),
       optionFromFlag(Flags.deployment),
       config.deployment,
+      // Node1's gRPC endpoint is exposed via a stable Kind NodePort service created by the one-shot
+      // deploy orchestrator, so skip the flaky HAProxy kubectl port-forward tunnels.
+      negatedOptionFromFlag(Flags.forcePortForward),
     );
     appendConfigToArgv(argv, {
       [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
