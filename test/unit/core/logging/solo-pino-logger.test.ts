@@ -340,7 +340,6 @@ describe('SoloPinoLogger stream configuration', (): void => {
     // One NDJSON stream and one pretty stream are tracked for draining on exit.
     expect(internals.rotatingStreams).to.have.lengthOf(2);
 
-    // Release the real file handles opened by the rotating streams.
     for (const stream of internals.rotatingStreams) {
       stream.end();
     }
