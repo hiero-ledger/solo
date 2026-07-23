@@ -260,7 +260,8 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
       this.tasks.addNewConsensusNodeToRemoteConfig(),
-      this.tasks.copyNodeKeysToSecrets(),
+      // The new node is not part of the active proof roster immediately after node create.
+      this.tasks.copyNodeKeysToSecrets(undefined, false),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap('Deploy new network node', NodeSubcommandType.ADD),
       this.tasks.stopNodes('existingNodeAliases'),
