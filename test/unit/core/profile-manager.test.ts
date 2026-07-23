@@ -300,6 +300,49 @@ describe('ProfileManager', (): void => {
       updateApplicationPropertiesStub.resetHistory();
     });
 
+    it('updateApplicationPropertiesForBlockNode should use record streams when TSS is disabled', async (): Promise<void> => {
+      const manager: ProfileManager = new ProfileManager(undefined, undefined, temporaryDirectory);
+      const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
+
+      fs.writeFileSync(applicationPropertiesPath, 'blockStream.streamMode=BLOCKS\n', 'utf8');
+
+      const managerPrivate: {
+        remoteConfig: RemoteConfigRuntimeStateApi;
+        updateApplicationPropertiesForBlockNode: (applicationPropertiesPath: string) => Promise<void>;
+      } = manager as unknown as {
+        remoteConfig: RemoteConfigRuntimeStateApi;
+        updateApplicationPropertiesForBlockNode: (applicationPropertiesPath: string) => Promise<void>;
+      };
+
+      const configurationStub: sinon.SinonStub = sinon.stub(managerPrivate.remoteConfig, 'configuration').get(
+        (): RemoteConfig =>
+          ({
+            components: {
+              state: {
+                blockNodes: [
+                  new BlockNodeStateSchema(new ComponentStateMetadataSchema(1, namespace.name, currentClusterName)),
+                ],
+              },
+            },
+            state: {
+              tssEnabled: false,
+            },
+            versions: {
+              consensusNode: new SemanticVersion<string>('0.75.1'),
+            },
+          }) as unknown as RemoteConfig,
+      );
+
+      try {
+        await managerPrivate.updateApplicationPropertiesForBlockNode.call(manager, applicationPropertiesPath);
+      } finally {
+        configurationStub.restore();
+      }
+
+      const applicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
+      expect(applicationProperties).to.contain('blockStream.streamMode=RECORDS');
+    });
+
     it('updateApplicationPropertiesWithRealmAndShard should not duplicate TSS properties', async (): Promise<void> => {
       const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
       const applicationProperties: string = [

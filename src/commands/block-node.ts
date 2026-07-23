@@ -566,6 +566,7 @@ export class BlockNodeCommand extends BaseCommand {
             this.k8Factory,
             false,
             this.remoteConfig.configuration.versions.consensusNode,
+            this.remoteConfig.configuration.state.tssEnabled,
           );
         }
       },
@@ -589,6 +590,7 @@ export class BlockNodeCommand extends BaseCommand {
             this.k8Factory,
             false,
             this.remoteConfig.configuration.versions.consensusNode,
+            this.remoteConfig.configuration.state.tssEnabled,
           );
         }
       },
@@ -1496,6 +1498,7 @@ export class BlockNodeCommand extends BaseCommand {
             this.k8Factory,
             true,
             this.remoteConfig.configuration.versions.consensusNode,
+            this.remoteConfig.configuration.state.tssEnabled,
           );
         }
       },

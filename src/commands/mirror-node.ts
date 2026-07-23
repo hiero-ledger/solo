@@ -333,6 +333,13 @@ export class MirrorNodeCommand extends BaseCommand {
       return new HelmChartValues();
     }
 
+    if (!config.forceBlockNodeIntegration && configuration.state?.tssEnabled === false) {
+      this.logger.info(
+        `Mirror node will remain configured to pull from consensus node; TSS is disabled in deployment ${config.deployment}`,
+      );
+      return new HelmChartValues();
+    }
+
     const hasSupportedConsensusNodeVersion: boolean =
       this.remoteConfig.configuration.versions.consensusNode.greaterThanOrEqual(
         versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,

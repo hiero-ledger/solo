@@ -590,11 +590,13 @@ export class ProfileManager {
     );
 
     const applicationPropertiesText: string = lines.join('\n');
+    const tssEnabled: boolean = this.remoteConfig.configuration.state.tssEnabled ?? true;
     const streamMode: string = Helpers.resolveBlockStreamModeForConsensusVersion(
       Helpers.parseBlockStreamMode(applicationPropertiesText),
       this.remoteConfig.configuration.versions.consensusNode,
       hasDeployedBlockNodes,
       Helpers.parseStreamWrappedRecordBlocks(applicationPropertiesText),
+      tssEnabled,
     );
     Helpers.updateBlockStreamPropertiesForMode(lines, streamMode);
 

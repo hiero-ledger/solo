@@ -114,6 +114,12 @@ describe('Helpers', (): void => {
       expect(Helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.74.0', true)).to.equal('BLOCKS');
     });
 
+    it('defaults to RECORDS for 0.74+ consensus versions when TSS is disabled', (): void => {
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion(undefined, 'v0.74.0', true, false, false)).to.equal(
+        'RECORDS',
+      );
+    });
+
     it('preserves BOTH during pre-0.74 upgrades when a block node is deployed', (): void => {
       expect(Helpers.resolveBlockStreamModeForConsensusVersion('BOTH', 'v0.73.0', true)).to.equal('BOTH');
     });
@@ -136,6 +142,12 @@ describe('Helpers', (): void => {
 
     it('does not preserve RECORDS when block node integration is active', (): void => {
       expect(Helpers.resolveBlockStreamModeForConsensusVersion('RECORDS', 'v0.74.0', true)).to.equal('BLOCKS');
+    });
+
+    it('does not preserve BLOCKS when TSS is disabled', (): void => {
+      expect(Helpers.resolveBlockStreamModeForConsensusVersion('BLOCKS', 'v0.74.0', true, false, false)).to.equal(
+        'RECORDS',
+      );
     });
 
     it('does not preserve BLOCKS when block node integration is inactive', (): void => {

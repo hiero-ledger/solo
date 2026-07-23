@@ -4960,6 +4960,7 @@ export class NodeCommandTasks {
             this.k8Factory,
             false,
             this.remoteConfig.configuration.versions.consensusNode,
+            this.remoteConfig.configuration.state.tssEnabled,
           );
         }
       },
