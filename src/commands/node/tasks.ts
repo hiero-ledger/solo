@@ -158,6 +158,7 @@ import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
 import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
+import {type ContainerStatus} from '../../integration/kube/resources/pod/container-status.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
@@ -3787,6 +3788,12 @@ export class NodeCommandTasks {
         PodReference.of(namespace, PodName.of(podName)),
         constants.BLOCK_NODE_CONTAINER_NAME,
       );
+      const podReference: PodReference = containerReference.parentReference;
+      const pod: Pod = await k8.pods().read(podReference);
+      const initialRestartCount: number = this.getContainerRestartCount(
+        pod,
+        constants.BLOCK_NODE_CONTAINER_NAME.toString(),
+      );
       const blockNodeContainer: Container = k8.containers().readByRef(containerReference);
 
       await blockNodeContainer.execContainer(['mkdir', '-p', NodeCommandTasks.BLOCK_NODE_APPLICATION_STATE_DIRECTORY]);
@@ -3798,34 +3805,53 @@ export class NodeCommandTasks {
       ]);
 
       try {
-        await blockNodeContainer.execContainer(['bash', '-c', 'sync && kill 1']);
+        await blockNodeContainer.execContainer(['bash', '-c', 'sync; kill -KILL 1']);
       } catch (error) {
         this.logger.debug(`Block node container restart command interrupted for ${podName}`, error);
       }
 
-      await this.waitForBlockNodeReady(blockNodeContainer, podName);
+      await this.waitForBlockNodeContainerRestart(k8, podReference, initialRestartCount);
     }
   }
 
-  private async waitForBlockNodeReady(blockNodeContainer: Container, podName: string): Promise<void> {
-    const healthCheckCommand: string = `curl -fsS --max-time 5 http://localhost:${constants.BLOCK_NODE_PORT}/healthz/readyz`;
+  private getContainerStatus(pod: Pod, containerName: string): ContainerStatus | undefined {
+    return pod.allContainerStatuses?.find((status: ContainerStatus): boolean => status.name === containerName);
+  }
+
+  private getContainerRestartCount(pod: Pod, containerName: string): number {
+    return this.getContainerStatus(pod, containerName)?.restartCount ?? 0;
+  }
+
+  private async waitForBlockNodeContainerRestart(
+    k8: K8,
+    podReference: PodReference,
+    initialRestartCount: number,
+  ): Promise<void> {
+    const containerName: string = constants.BLOCK_NODE_CONTAINER_NAME.toString();
     for (let attempt: number = 1; attempt <= constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS; attempt++) {
       try {
-        const response: string = await blockNodeContainer.execContainer(['bash', '-c', healthCheckCommand]);
-        if (response.trim() === 'OK') {
+        const pod: Pod = await k8.pods().read(podReference);
+        const containerStatus: ContainerStatus | undefined = this.getContainerStatus(pod, containerName);
+        if (containerStatus?.restartCount > initialRestartCount && containerStatus.ready) {
           return;
         }
+
+        this.logger.debug(
+          `Waiting for restarted block node ${podReference.name.toString()} container ${containerName} to become ready: restartCount=${containerStatus?.restartCount ?? 'unknown'}, ready=${containerStatus?.ready ?? 'unknown'}, [attempts: ${attempt}/${constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS}]`,
+        );
       } catch (error) {
         const message: string = error instanceof Error ? error.message : `${error}`;
         this.logger.debug(
-          `Waiting for restarted block node ${podName} to become ready: ${message}, [attempts: ${attempt}/${constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS}]`,
+          `Waiting for restarted block node ${podReference.name.toString()} to become ready: ${message}, [attempts: ${attempt}/${constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS}]`,
         );
       }
 
       await sleep(Duration.ofMillis(constants.BLOCK_NODE_PODS_RUNNING_DELAY));
     }
 
-    throw new SoloErrors.component.blockNodeHealthCheckFailed(`block node ${podName} did not become ready`);
+    throw new SoloErrors.component.blockNodeHealthCheckFailed(
+      `block node ${podReference.name.toString()} did not restart and become ready`,
+    );
   }
 
   public addWrapsLib(): SoloListrTask<NodeAddContext> {
