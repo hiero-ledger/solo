@@ -487,9 +487,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
         undefined,
         // Skip the whole group when the image cache is disabled.
         (): boolean => !constants.CONFIG.ENABLE_IMAGE_CACHE,
-        // Never collapse: keep the pull/load steps visible so cache activity can be inspected live,
-        // even in parallel-deploy mode.
-        false,
+        (getConfig: () => OneShotSingleDeployConfigClass): boolean => getConfig()?.parallelDeploy === true,
       ),
       OrchestratorPipelinePhase.composite(
         'Prepare cluster and deployment',
@@ -780,9 +778,8 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       }),
     ];
 
-    // In parallel mode the components are collapsed to single lines (showSubtasks: false). The
-    // default renderer draws a static pointer for a running task that still has (hidden) subtasks,
-    // so animate those collapsed lines with a spinner instead.
+    // In parallel mode the components are collapsed to single lines (showSubtasks: false) since their
+    // concurrent subtrees would otherwise interleave.
     const parallel: boolean = argv[flags.parallelDeploy.name] !== false;
 
     return new OrchestratorPipeline<OneShotSingleDeployContext>(
