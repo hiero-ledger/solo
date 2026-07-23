@@ -1154,6 +1154,54 @@ export class NetworkCommand extends BaseCommand {
     await Promise.all(promises);
   }
 
+  /** Installs the solo-deployment chart with bounded retries to ride out transient API server outages. */
+  private async installSoloDeploymentChart(
+    config: NetworkDeployConfigClass,
+    clusterReference: ClusterReferenceName,
+  ): Promise<void> {
+    const kubeContext: Context = config.clusterRefs.get(clusterReference);
+
+    for (let attempt: number = 1; attempt <= constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS; attempt++) {
+      try {
+        await this.chartManager.upgrade(
+          config.namespace,
+          constants.SOLO_DEPLOYMENT_CHART,
+          constants.SOLO_DEPLOYMENT_CHART,
+          config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+          config.soloChartVersion,
+          config.chartValuesMap[clusterReference],
+          kubeContext,
+          false,
+          true,
+        );
+        return;
+      } catch (error) {
+        if (attempt === constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS) {
+          throw error;
+        }
+
+        this.logger.warn(
+          `Attempt ${attempt} of ${constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS} to install chart ` +
+            `'${constants.SOLO_DEPLOYMENT_CHART}' failed, retrying in ` +
+            `${constants.NETWORK_CHART_INSTALL_RETRY_DELAY_SECS} seconds`,
+          error,
+        );
+        await sleep(Duration.ofSeconds(constants.NETWORK_CHART_INSTALL_RETRY_DELAY_SECS));
+
+        try {
+          // remove the release left behind by the failed attempt so the retry starts from a clean state
+          await this.chartManager.uninstall(config.namespace, constants.SOLO_DEPLOYMENT_CHART, kubeContext);
+        } catch (uninstallError) {
+          // best-effort cleanup: a persistent failure will surface on the next upgrade attempt
+          this.logger.warn(
+            `Failed to uninstall chart '${constants.SOLO_DEPLOYMENT_CHART}' before retry`,
+            uninstallError,
+          );
+        }
+      }
+    }
+  }
+
   private async crdExists(context: string, crdName: string): Promise<boolean> {
     return await this.k8Factory.getK8(context).crds().ifExists(crdName);
   }
@@ -1504,7 +1552,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async ({config}): Promise<void> => {
-            const {namespace, clusterRefs, chartValuesMap, chartDirectory} = config;
+            const {namespace, clusterRefs} = config;
 
             for (const [clusterReference] of clusterRefs) {
               const isInstalled: boolean = await this.chartManager.isChartInstalled(
@@ -1528,17 +1576,7 @@ export class NetworkCommand extends BaseCommand {
                 versions.MINIMUM_SOLO_CHART_VERSION,
               );
 
-              await this.chartManager.upgrade(
-                namespace,
-                constants.SOLO_DEPLOYMENT_CHART,
-                constants.SOLO_DEPLOYMENT_CHART,
-                chartDirectory || constants.SOLO_TESTING_CHART_URL,
-                config.soloChartVersion,
-                chartValuesMap[clusterReference],
-                clusterRefs.get(clusterReference),
-                false,
-                true,
-              );
+              await this.installSoloDeploymentChart(config, clusterReference);
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
           },

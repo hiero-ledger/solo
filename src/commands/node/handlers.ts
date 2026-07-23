@@ -285,6 +285,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.loadAdminKey(),
       this.tasks.setGrpcWebEndpoint('newNodeAliases', NodeSubcommandType.ADD),
       this.tasks.finalize(),
+      this.tasks.removeCachedKeys(),
     ];
   }
 
@@ -330,6 +331,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodeProxiesAreActive(),
       this.tasks.triggerStakeWeightCalculate<NodeUpdateContext>(NodeSubcommandType.UPDATE),
       this.tasks.finalize(),
+      this.tasks.removeCachedKeys(),
     ];
   }
 

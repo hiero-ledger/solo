@@ -17,6 +17,7 @@ import {PrivateKey} from '@hiero-ledger/sdk';
 import 'dotenv/config';
 import {type AnyListrContext, type NodeAlias} from '../types/aliases.js';
 import {type ListrBaseClassOptions} from 'listr2';
+import {SoloListrRenderer} from './task-list/solo-listr-renderer.js';
 
 export const PACKAGE_NAME: string = '@hiero-ledger/solo';
 
@@ -391,7 +392,7 @@ export const LISTR_DEFAULT_OPTIONS: {
   WITH_CONCURRENCY_COLLAPSABLE: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
 } = {
   DEFAULT: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: false,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {
@@ -399,7 +400,7 @@ export const LISTR_DEFAULT_OPTIONS: {
     },
   },
   WITH_CONCURRENCY: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {
@@ -407,7 +408,7 @@ export const LISTR_DEFAULT_OPTIONS: {
     },
   },
   WITH_CONCURRENCY_COLLAPSABLE: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS,
     fallbackRendererOptions: {
@@ -525,6 +526,11 @@ export const LOCAL_BUILD_COPY_RETRY: number = +getEnvironmentVariable('LOCAL_BUI
 export const LOAD_BALANCER_CHECK_DELAY_SECS: number = +getEnvironmentVariable('LOAD_BALANCER_CHECK_DELAY_SECS') || 5;
 export const LOAD_BALANCER_CHECK_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('LOAD_BALANCER_CHECK_MAX_ATTEMPTS') || 60;
+
+export const NETWORK_CHART_INSTALL_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('NETWORK_CHART_INSTALL_MAX_ATTEMPTS') || 3;
+export const NETWORK_CHART_INSTALL_RETRY_DELAY_SECS: number =
+  +getEnvironmentVariable('NETWORK_CHART_INSTALL_RETRY_DELAY_SECS') || 15;
 
 export const NETWORK_DESTROY_WAIT_TIMEOUT: number = +getEnvironmentVariable('NETWORK_DESTROY_WAIT_TIMEOUT') || 120;
 
