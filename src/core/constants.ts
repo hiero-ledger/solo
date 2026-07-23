@@ -277,6 +277,10 @@ export const POD_CONDITION_STATUS_TRUE: string = 'True';
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
 export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
+export const ONE_SHOT_FALCON_PREPARE_SPEC_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'one-shot-falcon-prepare.yaml',
+);
 
 /* vars MIRROR_NODE_OLD_.* can be removed once minimum mirrornode version support is 0.152.0.
  * These variables will only be applied if the MIRROR_NODE_VERSION < 0.152.0

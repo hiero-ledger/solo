@@ -908,7 +908,7 @@ export class NodeCommandTasks {
   private _generateGossipKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
     return {
       title: 'Generate gossip keys',
-      task: ({config}, task): any => {
+      task: ({config}, task): SoloListr<AnyListrContext> => {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
@@ -936,7 +936,7 @@ export class NodeCommandTasks {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks: SoloListrTask<any>[] = this.keyManager.taskGenerateTLSKeys(
+        const subTasks: SoloListrTask<AnyListrContext>[] = this.keyManager.taskGenerateTLSKeys(
           nodeAliases,
           config.keysDir,
           config.curDate,
@@ -1036,7 +1036,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass | NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass =
           context_.config;
-        const {upgradeZipFile, deployment}: any = context_.config;
+        const {upgradeZipFile, deployment} = context_.config;
         if (upgradeZipFile) {
           context_.upgradeZipFile = upgradeZipFile;
           this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
@@ -1238,7 +1238,7 @@ export class NodeCommandTasks {
     return {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
-        const {freezeAdminPrivateKey, deployment, namespace}: any = context_.config;
+        const {freezeAdminPrivateKey, deployment, namespace} = context_.config;
         const nodeClient: Client = await this.accountManager.loadNodeClient(
           namespace,
           this.remoteConfig.getClusterRefs(),
@@ -1390,7 +1390,7 @@ export class NodeCommandTasks {
     task: SoloListrTaskWrapper<CheckedNodesContext>,
     nodeAliases: NodeAliases,
     maxAttempts?: number,
-  ): any {
+  ): SoloListr<CheckedNodesContext> {
     context_.config.podRefs = {};
     const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
 
@@ -3056,7 +3056,7 @@ export class NodeCommandTasks {
     return {
       title: 'Test create account',
       task: async ({config}, task): Promise<void> => {
-        const {namespace, deployment, context}: any = config;
+        const {namespace, deployment, context} = config;
 
         await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment);
 
@@ -3854,7 +3854,7 @@ export class NodeCommandTasks {
     );
   }
 
-  public addWrapsLib(): SoloListrTask<NodeAddContext> {
+  public addWrapsLib(): SoloListrTask<NodeAddContext | NodeUpdateContext> {
     return {
       title: 'Copy wraps lib over',
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
@@ -4613,7 +4613,7 @@ export class NodeCommandTasks {
     return {
       title: 'Download last state from an existing node',
       task: async ({config}): Promise<void> => {
-        const {consensusNodes, namespace, stagingDir}: any = config;
+        const {consensusNodes, namespace, stagingDir} = config;
 
         // TODO: currently only supports downloading from the first existing node
         const node: ConsensusNode = consensusNodes[0];
