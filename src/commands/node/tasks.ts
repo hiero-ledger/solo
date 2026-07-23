@@ -191,6 +191,8 @@ const localBuildPathFilter: (path: string | string[]) => boolean = (path: string
   return !(path.includes('data/keys') || path.includes('data/config') || path.includes('data/upgrade'));
 };
 
+const NETWORK_PROXY_INITIAL_READY_ATTEMPTS: number = 15;
+
 const {gray, cyan, red, green, yellow} = chalk;
 
 @injectable()
@@ -740,14 +742,42 @@ export class NodeCommandTasks {
         task: async (context_): Promise<void> => {
           const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           const k8: K8 = this.k8Factory.getK8(context);
-          await k8
-            .pods()
-            .waitForReadyStatus(
-              context_.config.namespace,
-              [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'],
-              constants.NETWORK_PROXY_MAX_ATTEMPTS,
-              constants.NETWORK_PROXY_DELAY,
-            );
+          const labels: string[] = [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
+
+          try {
+            await k8
+              .pods()
+              .waitForReadyStatus(
+                context_.config.namespace,
+                labels,
+                NETWORK_PROXY_INITIAL_READY_ATTEMPTS,
+                constants.NETWORK_PROXY_DELAY,
+              );
+          } catch {
+            // HAProxy can remain unready when it starts before its consensus-node backend is available.
+            // Recreate only the affected proxy after the node has had time to start, then wait for the
+            // replacement rather than spending the full readiness timeout polling a stuck pod.
+            const replacementCreatedAfter: Date = new Date();
+            const pods: Pod[] = await k8.pods().list(context_.config.namespace, labels);
+
+            this.logger.warn(`HAProxy for node '${nodeAlias}' is not ready; recreating ${pods.length} pod(s)`);
+            for (const pod of pods) {
+              if (pod.podReference) {
+                await k8.pods().delete(pod.podReference);
+              }
+            }
+
+            await k8
+              .pods()
+              .waitForReadyStatus(
+                context_.config.namespace,
+                labels,
+                constants.NETWORK_PROXY_MAX_ATTEMPTS,
+                constants.NETWORK_PROXY_DELAY,
+                replacementCreatedAfter,
+                true,
+              );
+          }
         },
       });
     }
