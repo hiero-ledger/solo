@@ -40,6 +40,7 @@ function makeOrchestrator(
     overrides.helm ?? ({} as MockType),
     {} as MockType,
     {} as MockType,
+    {} as MockType,
   );
 }
 
@@ -72,6 +73,7 @@ function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): On
     pinger: true,
     externalAddress: '',
     edgeEnabled: false,
+    clusterHasOneShotPortMappings: true,
     versions: {
       soloChart: '',
       consensus: '',
@@ -258,6 +260,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       helmMock,
       {} as MockType,
       {} as MockType,
+      {} as MockType,
     );
 
     // @ts-expect-error - to access private method
@@ -296,6 +299,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
       {} as MockType,
       {} as MockType,
     );
@@ -354,6 +358,7 @@ describe('DefaultOneShotDeployOrchestrator buildDeploymentStateSnapshot', (): vo
       {} as MockType,
       {} as MockType,
       helmMock,
+      {} as MockType,
       {} as MockType,
       {} as MockType,
     );
@@ -498,6 +503,7 @@ function makeMinimalOrchestrator(): DefaultOneShotDeployOrchestrator {
     {} as MockType,
     {} as MockType,
     {info: sinon.stub()} as MockType,
+    {} as MockType,
     {} as MockType,
     {} as MockType,
     {} as MockType,

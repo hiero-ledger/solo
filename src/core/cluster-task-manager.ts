@@ -39,6 +39,16 @@ export class ClusterTaskManager extends ShellRunner {
   // (notably Ubuntu/apt) ship a podman that is too old for kind; brew provides a current build.
   private readonly brewPackageManager: BrewPackageManager = new BrewPackageManager();
 
+  // True only when this process created the local Kind cluster from the small-memory config, whose
+  // extraPortMappings publish the one-shot NodePorts on the host. Stays false when cluster creation
+  // was skipped (a cluster already existed) or a KIND_CLUSTER_CONFIG_FILE override was used, so
+  // callers can fall back to kubectl port-forwards.
+  private oneShotHostPortsPublished: boolean = false;
+
+  public get createdClusterWithOneShotPortMappings(): boolean {
+    return this.oneShotHostPortsPublished;
+  }
+
   public constructor(
     @inject(InjectTokens.OsPackageManager) protected readonly osPackageManager: OsPackageManager,
     @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
@@ -159,6 +169,7 @@ export class ClusterTaskManager extends ShellRunner {
           // PATH must include both kindInstallationDirectory (for kind) and podmanPath (for podman).
           const kindRuntimePath: string = `${sudoEnvironment.PATH}${path.delimiter}${podmanPath}`;
           const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
+          const kindConfigFilePath: string = this.getConfigFilePath(useSmallMemoryCluster);
           // Use `sudo env VAR=... PATH=... kind ...` instead of a shell env-var prefix so no shell is needed.
           await this.sudoRun(
             onSudoRequested,
@@ -173,13 +184,16 @@ export class ClusterTaskManager extends ShellRunner {
               '--image',
               constants.KIND_NODE_IMAGE,
               '--config',
-              this.getConfigFilePath(useSmallMemoryCluster),
+              kindConfigFilePath,
             ],
             false,
             false,
             sudoEnvironment,
             SubprocessCommandProfile.KIND,
           );
+          // getConfigFilePath returns a path other than KIND_CLUSTER_CONFIG_FILE only for the
+          // rendered small-memory config, which carries the one-shot extraPortMappings.
+          this.oneShotHostPortsPublished = kindConfigFilePath !== constants.KIND_CLUSTER_CONFIG_FILE;
 
           // Merge kubeconfig data from root user into normal user's kubeconfig
           const user: string[] = await this.run('whoami');
@@ -345,15 +359,20 @@ export class ClusterTaskManager extends ShellRunner {
           await kindImageCacheHandler.loadKindNodeImageIntoEngine();
         }
 
+        const kindConfigFilePath: string = this.getConfigFilePath(useSmallMemoryCluster);
         const clusterCreateOptions: ClusterCreateOptions = ClusterCreateOptionsBuilder.builder()
           .image(constants.KIND_NODE_IMAGE)
-          .config(this.getConfigFilePath(useSmallMemoryCluster))
+          .config(kindConfigFilePath)
           .build();
 
         const clusterResponse: ClusterCreateResponse = await kindClient.createCluster(
           constants.DEFAULT_CLUSTER,
           clusterCreateOptions,
         );
+
+        // getConfigFilePath returns a path other than KIND_CLUSTER_CONFIG_FILE only for the
+        // rendered small-memory config, which carries the one-shot extraPortMappings.
+        this.oneShotHostPortsPublished = kindConfigFilePath !== constants.KIND_CLUSTER_CONFIG_FILE;
 
         parentTask.title = `Created local cluster '${clusterResponse.name}'; connect with context '${clusterResponse.context}'`;
       },

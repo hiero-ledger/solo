@@ -103,6 +103,7 @@ import {CacheCommandDefinition} from '../../../command-definitions/cache-command
 import {MessageLevel} from '../../../../core/logging/message-level.js';
 import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase-helper.js';
 import {SpinnerListrOptions} from '../../../../core/spinner-listr-options.js';
+import {ClusterTaskManager} from '../../../../core/cluster-task-manager.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
@@ -125,6 +126,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.MirrorNodeCommand) private readonly mirrorNodeCommand: MirrorNodeCommand,
     @inject(InjectTokens.ContainerEngineResourceInspector)
     private readonly containerEngineResourceInspector: ContainerEngineResourceInspector,
+    @inject(InjectTokens.ClusterTaskManager) private readonly clusterTaskManager: ClusterTaskManager,
   ) {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
@@ -144,6 +146,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       InjectTokens.ContainerEngineResourceInspector,
       this.constructor.name,
     );
+    this.clusterTaskManager = patchInject(clusterTaskManager, InjectTokens.ClusterTaskManager, this.constructor.name);
   }
 
   public buildDeployPipeline(
@@ -204,6 +207,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.networkConfiguration = {};
             config.setupConfiguration = {};
             config.versions = versions;
+            // The dependency-install preamble ran before this pipeline; if it created the Kind
+            // cluster, the one-shot extraPortMappings exist and port-forwards can be skipped.
+            config.clusterHasOneShotPortMappings = this.clusterTaskManager.createdClusterWithOneShotPortMappings;
 
             config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
@@ -1037,6 +1043,12 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
    * port values must match resources/templates/small-memory/kind-config.yaml.
    */
   private async exposeNodePortServices(config: OneShotSingleDeployConfigClass): Promise<void> {
+    if (!config.clusterHasOneShotPortMappings) {
+      // The Kind cluster pre-existed (or used a custom config), so the one-shot host port mappings
+      // are absent; the subcommands kept their legacy kubectl port-forwards instead.
+      return;
+    }
+
     if (!this.logger.getMessageGroupKeys().includes(constants.PORT_FORWARDING_MESSAGE_GROUP)) {
       this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
     }

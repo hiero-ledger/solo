@@ -225,14 +225,20 @@ export class DeployArgvBuilders {
       optionFromFlag(Flags.clusterRef),
       config.clusterRef,
       optionFromFlag(Flags.enableIngress),
-      // Expose the mirror ingress controller via a stable Kind NodePort and skip the flaky
-      // kubectl port-forward tunnel. One-shot only; standalone `mirror node add` is unaffected.
-      optionFromFlag(Flags.ingressControllerValueFile),
-      constants.ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE,
-      negatedOptionFromFlag(Flags.forcePortForward),
       optionFromFlag(Flags.parallelDeploy),
       config.parallelDeploy.toString(),
     );
+    if (config.clusterHasOneShotPortMappings) {
+      // Expose the mirror ingress controller via a stable Kind NodePort and skip the flaky
+      // kubectl port-forward tunnel. One-shot only; standalone `mirror node add` is unaffected.
+      // Only possible when this deploy created the Kind cluster with the one-shot
+      // extraPortMappings; a pre-existing cluster keeps the legacy port-forward.
+      argv.push(
+        optionFromFlag(Flags.ingressControllerValueFile),
+        constants.ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE,
+        negatedOptionFromFlag(Flags.forcePortForward),
+      );
+    }
     if (deployPinger && config.pinger) {
       argv.push(optionFromFlag(Flags.pinger));
     }
@@ -265,11 +271,15 @@ export class DeployArgvBuilders {
       config.clusterRef,
       optionFromFlag(Flags.pinger),
       optionFromFlag(Flags.enableIngress),
-      // Keep the ingress controller on its stable NodePort and skip port-forward on re-upgrade too.
-      optionFromFlag(Flags.ingressControllerValueFile),
-      constants.ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE,
-      negatedOptionFromFlag(Flags.forcePortForward),
     );
+    if (config.clusterHasOneShotPortMappings) {
+      // Keep the ingress controller on its stable NodePort and skip port-forward on re-upgrade too.
+      argv.push(
+        optionFromFlag(Flags.ingressControllerValueFile),
+        constants.ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE,
+        negatedOptionFromFlag(Flags.forcePortForward),
+      );
+    }
     if (constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() === 'true') {
       argv.push(optionFromFlag(Flags.forceBlockNodeIntegration));
     }
@@ -296,10 +306,12 @@ export class DeployArgvBuilders {
       config.deployment,
       optionFromFlag(Flags.clusterRef),
       config.clusterRef,
+    );
+    if (config.clusterHasOneShotPortMappings) {
       // The explorer is exposed via a stable Kind NodePort service created by the one-shot deploy
       // orchestrator, so skip the flaky kubectl port-forward tunnel.
-      negatedOptionFromFlag(Flags.forcePortForward),
-    );
+      argv.push(negatedOptionFromFlag(Flags.forcePortForward));
+    }
     appendConfigToArgv(argv, {
       [optionFromFlag(Flags.soloChartVersion)]: config.versions.soloChart,
       [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
@@ -321,10 +333,12 @@ export class DeployArgvBuilders {
       config.clusterRef,
       optionFromFlag(Flags.nodeAliasesUnparsed),
       'node1',
+    );
+    if (config.clusterHasOneShotPortMappings) {
       // The relay is exposed via a stable Kind NodePort service created by the one-shot deploy
       // orchestrator, so skip the flaky kubectl port-forward tunnel.
-      negatedOptionFromFlag(Flags.forcePortForward),
-    );
+      argv.push(negatedOptionFromFlag(Flags.forcePortForward));
+    }
     appendConfigToArgv(argv, {
       [optionFromFlag(Flags.relayVersion)]: config.versions.relay,
       [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
@@ -370,10 +384,12 @@ export class DeployArgvBuilders {
       ...ConsensusCommandDefinition.START_COMMAND.split(' '),
       optionFromFlag(Flags.deployment),
       config.deployment,
+    );
+    if (config.clusterHasOneShotPortMappings) {
       // Node1's gRPC endpoint is exposed via a stable Kind NodePort service created by the one-shot
       // deploy orchestrator, so skip the flaky HAProxy kubectl port-forward tunnels.
-      negatedOptionFromFlag(Flags.forcePortForward),
-    );
+      argv.push(negatedOptionFromFlag(Flags.forcePortForward));
+    }
     appendConfigToArgv(argv, {
       [optionFromFlag(Flags.externalAddress)]: config.externalAddress,
       ...config.consensusNodeConfiguration,

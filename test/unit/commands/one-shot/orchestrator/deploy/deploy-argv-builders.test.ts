@@ -43,6 +43,7 @@ function makeConfig(overrides: Partial<OneShotSingleDeployConfigClass> = {}): On
     setupConfiguration: {},
     consensusNodeConfiguration: {},
     cacheDir: '/tmp/cache',
+    clusterHasOneShotPortMappings: true,
     ...overrides,
   } as OneShotSingleDeployConfigClass;
 }
@@ -133,6 +134,12 @@ describe('buildMirrorNodeArgv', (): void => {
     expect(argv[valueIndex + 1]).to.equal(constants.ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE);
   });
 
+  it('keeps the legacy port-forward when the cluster lacks the one-shot port mappings', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildMirrorNodeArgv(makeConfig({clusterHasOneShotPortMappings: false}));
+    expect(argv).to.not.include(negatedOptionFromFlag(Flags.forcePortForward));
+    expect(argv).to.not.include(optionFromFlag(Flags.ingressControllerValueFile));
+  });
+
   it('sets values file to MIRROR_NODE_HIKARI_LIMITS_FILE when no existing values file', (): void => {
     const argv: string[] = DeployArgvBuilders.buildMirrorNodeArgv(makeConfig({mirrorNodeConfiguration: {}}));
     const valueIndex: number = argv.indexOf(optionFromFlag(Flags.valuesFile));
@@ -190,6 +197,14 @@ describe('buildMirrorNodePingerUpgradeArgv', (): void => {
     expect(valueIndex).to.be.greaterThan(-1);
     expect(argv[valueIndex + 1]).to.equal(constants.ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE);
   });
+
+  it('keeps the legacy port-forward on upgrade when the cluster lacks the one-shot port mappings', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildMirrorNodePingerUpgradeArgv(
+      makeConfig({clusterHasOneShotPortMappings: false}),
+    );
+    expect(argv).to.not.include(negatedOptionFromFlag(Flags.forcePortForward));
+    expect(argv).to.not.include(optionFromFlag(Flags.ingressControllerValueFile));
+  });
 });
 
 describe('buildExplorerArgv', (): void => {
@@ -226,6 +241,11 @@ describe('buildExplorerArgv', (): void => {
     const argv: string[] = DeployArgvBuilders.buildExplorerArgv(makeConfig());
     expect(argv).to.include(negatedOptionFromFlag(Flags.forcePortForward));
   });
+
+  it('keeps the legacy port-forward when the cluster lacks the one-shot port mappings', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildExplorerArgv(makeConfig({clusterHasOneShotPortMappings: false}));
+    expect(argv).to.not.include(negatedOptionFromFlag(Flags.forcePortForward));
+  });
 });
 
 describe('buildRelayArgv', (): void => {
@@ -256,6 +276,11 @@ describe('buildRelayArgv', (): void => {
   it('disables port-forward in favor of the one-shot NodePort service', (): void => {
     const argv: string[] = DeployArgvBuilders.buildRelayArgv(makeConfig());
     expect(argv).to.include(negatedOptionFromFlag(Flags.forcePortForward));
+  });
+
+  it('keeps the legacy port-forward when the cluster lacks the one-shot port mappings', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildRelayArgv(makeConfig({clusterHasOneShotPortMappings: false}));
+    expect(argv).to.not.include(negatedOptionFromFlag(Flags.forcePortForward));
   });
 });
 
@@ -294,6 +319,13 @@ describe('buildConsensusStartArgv', (): void => {
   it('disables port-forward in favor of the one-shot NodePort service', (): void => {
     const argv: string[] = DeployArgvBuilders.buildConsensusStartArgv(makeConfig());
     expect(argv).to.include(negatedOptionFromFlag(Flags.forcePortForward));
+  });
+
+  it('keeps the legacy port-forward when the cluster lacks the one-shot port mappings', (): void => {
+    const argv: string[] = DeployArgvBuilders.buildConsensusStartArgv(
+      makeConfig({clusterHasOneShotPortMappings: false}),
+    );
+    expect(argv).to.not.include(negatedOptionFromFlag(Flags.forcePortForward));
   });
 });
 
