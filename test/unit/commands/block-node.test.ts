@@ -180,6 +180,7 @@ describe('BlockNodeCommand unit tests', (): void => {
     }
     const rsaBootstrapValues: string = fs.readFileSync(valuesFile, 'utf8');
     expect(rsaBootstrapValues).to.contain('rsa-bootstrap-roster.json');
+    expect(rsaBootstrapValues).to.contain('[ ! -s /application-state-pvc/rsa-bootstrap-roster.json ]');
     expect(rsaBootstrapValues).to.contain('RSAPubKey');
     expect(rsaBootstrapValues).to.contain('application-state-storage');
   });

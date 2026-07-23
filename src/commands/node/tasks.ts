@@ -158,7 +158,6 @@ import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
 import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
-import {type ContainerStatus} from '../../integration/kube/resources/pod/container-status.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
@@ -3790,10 +3789,6 @@ export class NodeCommandTasks {
       );
       const podReference: PodReference = containerReference.parentReference;
       const pod: Pod = await k8.pods().read(podReference);
-      const initialRestartCount: number = this.getContainerRestartCount(
-        pod,
-        constants.BLOCK_NODE_CONTAINER_NAME.toString(),
-      );
       const blockNodeContainer: Container = k8.containers().readByRef(containerReference);
 
       await blockNodeContainer.execContainer(['mkdir', '-p', NodeCommandTasks.BLOCK_NODE_APPLICATION_STATE_DIRECTORY]);
@@ -3804,54 +3799,27 @@ export class NodeCommandTasks {
         `${NodeCommandTasks.BLOCK_NODE_APPLICATION_STATE_DIRECTORY}/${NodeCommandTasks.BLOCK_NODE_RSA_BOOTSTRAP_FILE}`,
       ]);
 
-      try {
-        await blockNodeContainer.execContainer(['bash', '-c', 'sync; kill -KILL 1']);
-      } catch (error) {
-        this.logger.debug(`Block node container restart command interrupted for ${podName}`, error);
-      }
+      await k8.pods().delete(podReference);
 
-      await this.waitForBlockNodeContainerRestart(k8, podReference, initialRestartCount);
+      await this.waitForBlockNodePodRecreated(k8, podReference, pod.creationTimestamp);
     }
   }
 
-  private getContainerStatus(pod: Pod, containerName: string): ContainerStatus | undefined {
-    return pod.allContainerStatuses?.find((status: ContainerStatus): boolean => status.name === containerName);
-  }
-
-  private getContainerRestartCount(pod: Pod, containerName: string): number {
-    return this.getContainerStatus(pod, containerName)?.restartCount ?? 0;
-  }
-
-  private async waitForBlockNodeContainerRestart(
+  private async waitForBlockNodePodRecreated(
     k8: K8,
     podReference: PodReference,
-    initialRestartCount: number,
+    previousCreationTimestamp?: Date,
   ): Promise<void> {
-    const containerName: string = constants.BLOCK_NODE_CONTAINER_NAME.toString();
-    for (let attempt: number = 1; attempt <= constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS; attempt++) {
-      try {
-        const pod: Pod = await k8.pods().read(podReference);
-        const containerStatus: ContainerStatus | undefined = this.getContainerStatus(pod, containerName);
-        if (containerStatus?.restartCount > initialRestartCount && containerStatus.ready) {
-          return;
-        }
-
-        this.logger.debug(
-          `Waiting for restarted block node ${podReference.name.toString()} container ${containerName} to become ready: restartCount=${containerStatus?.restartCount ?? 'unknown'}, ready=${containerStatus?.ready ?? 'unknown'}, [attempts: ${attempt}/${constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS}]`,
-        );
-      } catch (error) {
-        const message: string = error instanceof Error ? error.message : `${error}`;
-        this.logger.debug(
-          `Waiting for restarted block node ${podReference.name.toString()} to become ready: ${message}, [attempts: ${attempt}/${constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS}]`,
-        );
-      }
-
-      await sleep(Duration.ofMillis(constants.BLOCK_NODE_PODS_RUNNING_DELAY));
-    }
-
-    throw new SoloErrors.component.blockNodeHealthCheckFailed(
-      `block node ${podReference.name.toString()} did not restart and become ready`,
-    );
+    await k8
+      .pods()
+      .waitForReadyStatus(
+        podReference.namespace,
+        [`statefulset.kubernetes.io/pod-name=${podReference.name.toString()}`],
+        constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
+        constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+        previousCreationTimestamp,
+        true,
+      );
   }
 
   public addWrapsLib(): SoloListrTask<NodeAddContext | NodeUpdateContext> {

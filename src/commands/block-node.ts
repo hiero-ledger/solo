@@ -469,7 +469,7 @@ export class BlockNodeCommand extends BaseCommand {
                 'mkdir -p /application-state-pvc',
                 'chown 2000:2000 /application-state-pvc',
                 'chmod 700 /application-state-pvc',
-                `printf '%s' '${bootstrapJson}' > /application-state-pvc/rsa-bootstrap-roster.json`,
+                `if [ ! -s /application-state-pvc/rsa-bootstrap-roster.json ]; then printf '%s' '${bootstrapJson}' > /application-state-pvc/rsa-bootstrap-roster.json; fi`,
                 'mkdir -p /archive-pvc/archive-data',
                 'chown 2000:2000 /archive-pvc/archive-data',
                 'chmod 700 /archive-pvc/archive-data',
