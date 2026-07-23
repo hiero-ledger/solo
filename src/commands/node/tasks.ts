@@ -24,9 +24,9 @@ import {
 } from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
-  AccountBalance,
-  AccountBalanceQuery,
   AccountId,
+  type AccountInfo,
+  AccountInfoQuery,
   AccountUpdateTransaction,
   type Client,
   FileAppendTransaction,
@@ -848,26 +848,26 @@ export class NodeCommandTasks {
     client.setOperator(treasuryAccountId, treasuryPrivateKey);
 
     // check balance
-    let treasuryBalance: AccountBalance;
+    let treasuryAccountInfo: AccountInfo;
     try {
-      treasuryBalance = await new AccountBalanceQuery().setAccountId(treasuryAccountId).execute(client);
+      treasuryAccountInfo = await new AccountInfoQuery().setAccountId(treasuryAccountId).execute(client);
     } catch (error) {
       throw new SoloErrors.component.accountBalanceQueryFailed(treasuryAccountId, error);
     }
 
-    this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
+    this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryAccountInfo.balance}`);
 
     // get some initial balance
     await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
 
     // check balance
-    let balance: AccountBalance;
+    let accountInfo: AccountInfo;
     try {
-      balance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
+      accountInfo = await new AccountInfoQuery().setAccountId(accountId).execute(client);
     } catch (error) {
       throw new SoloErrors.component.accountBalanceQueryFailed(accountId, error);
     }
-    this.logger.debug(`Account ${accountId} balance: ${balance.hbars}`);
+    this.logger.debug(`Account ${accountId} balance: ${accountInfo.balance}`);
 
     // Create the transaction
     const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
@@ -1000,14 +1000,14 @@ export class NodeCommandTasks {
         const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
 
         // query the balance
-        let balance: AccountBalance;
+        let accountInfo: AccountInfo;
         try {
-          balance = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
+          accountInfo = await new AccountInfoQuery().setAccountId(freezeAccountId).execute(nodeClient);
         } catch (error) {
           throw new SoloErrors.component.accountBalanceQueryFailed(freezeAccountId, error);
         }
 
-        this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
+        this.logger.debug(`Freeze admin account balance: ${accountInfo.balance}`);
 
         // transfer some tiny amount to the freeze admin account
         await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
@@ -1061,14 +1061,14 @@ export class NodeCommandTasks {
         const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
 
         // query the balance
-        let balance: AccountBalance;
+        let accountInfo: AccountInfo;
         try {
-          balance = await new AccountBalanceQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
+          accountInfo = await new AccountInfoQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
         } catch (error) {
           throw new SoloErrors.component.accountBalanceQueryFailed(freezeAdminAccountId, error);
         }
 
-        this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
+        this.logger.debug(`Freeze admin account balance: ${accountInfo.balance}`);
 
         nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
         let freezeUpgradeReceipt: TransactionReceipt;
