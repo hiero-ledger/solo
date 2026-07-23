@@ -17,6 +17,7 @@ import {PrivateKey} from '@hiero-ledger/sdk';
 import 'dotenv/config';
 import {type AnyListrContext, type NodeAlias} from '../types/aliases.js';
 import {type ListrBaseClassOptions} from 'listr2';
+import {SoloListrRenderer} from './task-list/solo-listr-renderer.js';
 
 export const PACKAGE_NAME: string = '@hiero-ledger/solo';
 
@@ -391,7 +392,7 @@ export const LISTR_DEFAULT_OPTIONS: {
   WITH_CONCURRENCY_COLLAPSABLE: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
 } = {
   DEFAULT: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: false,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {
@@ -399,7 +400,7 @@ export const LISTR_DEFAULT_OPTIONS: {
     },
   },
   WITH_CONCURRENCY: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {
@@ -407,7 +408,7 @@ export const LISTR_DEFAULT_OPTIONS: {
     },
   },
   WITH_CONCURRENCY_COLLAPSABLE: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS,
     fallbackRendererOptions: {
