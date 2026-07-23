@@ -119,8 +119,8 @@ images:
     version: noble
     source: docker.io
 
-  - name: docker.io/otel/opentelemetry-collector-contrib
-    version: 0.72.0
+  - name: docker.io/grafana/alloy
+    version: v1.11.3
     source: docker.io
 
   - name: ghcr.io/hashgraph/solo-cheetah/cheetah

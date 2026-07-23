@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import {ShellRunner} from '../shell-runner.js';
+import {SubprocessCommandProfile} from '../subprocess-command-profile.js';
 import {type PackageManager} from './package-manager.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {getEnvironmentVariable} from '../constants.js';
@@ -27,19 +28,19 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
   }
 
   public async installPackages(dependencies: string[]): Promise<void> {
-    await this.run('brew', ['install', ...dependencies]);
+    await this.run('brew', ['install', ...dependencies], {commandProfile: SubprocessCommandProfile.BREW});
   }
 
   public async uninstallPackages(dependencies: string[]): Promise<void> {
-    await this.run('brew', ['uninstall', ...dependencies]);
+    await this.run('brew', ['uninstall', ...dependencies], {commandProfile: SubprocessCommandProfile.BREW});
   }
 
   public async update(): Promise<void> {
-    await this.run('brew', ['update']);
+    await this.run('brew', ['update'], {commandProfile: SubprocessCommandProfile.BREW});
   }
 
   public async upgrade(dependencies: string[]): Promise<void> {
-    await this.run('brew', ['upgrade', ...dependencies]);
+    await this.run('brew', ['upgrade', ...dependencies], {commandProfile: SubprocessCommandProfile.BREW});
   }
 
   public async install(): Promise<boolean> {
@@ -55,7 +56,7 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
 
   public async isAvailable(): Promise<boolean> {
     try {
-      await this.run('brew', ['--version']);
+      await this.run('brew', ['--version'], {commandProfile: SubprocessCommandProfile.BREW});
       return true;
     } catch {
       return false;
@@ -71,7 +72,11 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
     const scriptPath: string = PathEx.join(temporaryDirectory, 'homebrew.sh');
     try {
       await this.run('curl', ['-fsSL', scriptUrl, '-o', scriptPath]);
-      await this.run('bash', [scriptPath], {verbose: true, environmentVariablesToAppend: {NONINTERACTIVE: '1'}});
+      await this.run('bash', [scriptPath], {
+        verbose: true,
+        commandProfile: SubprocessCommandProfile.BREW,
+        environmentVariablesToAppend: {NONINTERACTIVE: '1'},
+      });
     } finally {
       // Remove the whole temp directory created by mkdtempSync, not just the script file.
       fs.rmSync(temporaryDirectory, {recursive: true, force: true});
@@ -83,7 +88,9 @@ export class BrewPackageManager extends ShellRunner implements PackageManager {
    * `export KEY="VALUE";` lines and expands the shell parameter references each value contains.
    */
   private async applyShellEnvironment(): Promise<void> {
-    const output: string[] = await this.run(`${BrewPackageManager.LINUXBREW_BIN}/brew`, ['shellenv']);
+    const output: string[] = await this.run(`${BrewPackageManager.LINUXBREW_BIN}/brew`, ['shellenv'], {
+      commandProfile: SubprocessCommandProfile.BREW,
+    });
     for (const line of output) {
       const match: RegExpMatchArray | null = line.match(/^export ([A-Za-z_]\w*)="(.*)";?$/);
       if (!match) {

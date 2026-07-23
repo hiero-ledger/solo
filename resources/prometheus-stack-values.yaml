@@ -1,6 +1,7 @@
 # Values for the standalone kube-prometheus-stack install; previously supplied by the solo-cluster-setup umbrella chart
 prometheus:
   prometheusSpec:
+    enableRemoteWriteReceiver: true # Grafana Alloy remote-writes consensus node metrics to Prometheus
     scrapeInterval: 5s
     podMonitorNamespaceSelector:
       any: true # fetch metrics from other namespaces

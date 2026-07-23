@@ -9,6 +9,8 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
 import {SensitiveDataRedactor} from './util/sensitive-data-redactor.js';
 import {type ShellRunOptions} from './shell-run-options.js';
+import {SubprocessEnvironment} from './subprocess-environment.js';
+import {SubprocessCommandProfile} from './subprocess-command-profile.js';
 
 @injectable()
 export class ShellRunner {
@@ -34,6 +36,7 @@ export class ShellRunner {
     const {
       verbose = false,
       detached = false,
+      commandProfile = SubprocessCommandProfile.GENERIC,
       environmentVariablesToAppend = {},
       timeoutMs,
       useShell = false,
@@ -47,7 +50,7 @@ export class ShellRunner {
 
     return new Promise<string[]>((resolve, reject): void => {
       const child: ChildProcessWithoutNullStreams | ChildProcess = spawn(cmd, arguments_, {
-        env: {...process.env, ...environmentVariablesToAppend},
+        env: SubprocessEnvironment.forCommand(commandProfile, environmentVariablesToAppend),
         shell: useShell,
         detached,
         cwd: workingDirectory,
@@ -211,6 +214,7 @@ export class ShellRunner {
     verbose: boolean = false,
     detached: boolean = false,
     environmentVariablesToAppend: Record<string, string> = {},
+    commandProfile: SubprocessCommandProfile = SubprocessCommandProfile.GENERIC,
   ): Promise<string[]> {
     // Use Promise.race to handle sudo whoami and timeout
     let whoamiResolved: boolean = false;
@@ -229,6 +233,6 @@ export class ShellRunner {
     });
     await Promise.race([whoamiPromise, timeoutPromise]);
 
-    return this.run('sudo', [cmd, ...arguments_], {verbose, detached, environmentVariablesToAppend});
+    return this.run('sudo', [cmd, ...arguments_], {verbose, detached, environmentVariablesToAppend, commandProfile});
   }
 }

@@ -17,6 +17,7 @@ import {PrivateKey} from '@hiero-ledger/sdk';
 import 'dotenv/config';
 import {type AnyListrContext, type NodeAlias} from '../types/aliases.js';
 import {type ListrBaseClassOptions} from 'listr2';
+import {SoloListrRenderer} from './task-list/solo-listr-renderer.js';
 
 export const PACKAGE_NAME: string = '@hiero-ledger/solo';
 
@@ -111,15 +112,6 @@ const ignorePodMetricsEnvironment: string = getEnvironmentVariable('IGNORE_POD_M
 export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
   ? ignorePodMetricsEnvironment.split(',')
   : ['network-load-generator', 'metrics-server'];
-
-export const HEDERA_NODE_SIDECARS: string[] = [
-  'recordStreamUploader',
-  'eventStreamUploader',
-  'backupUploader',
-  'accountBalanceUploader',
-  'otelCollector',
-  'blockstreamUploader',
-];
 
 export const REDIS_IMAGE_REGISTRY: string = 'gcr.io';
 export const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
@@ -291,6 +283,10 @@ export const PROMETHEUS_STACK_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'prometheus-stack-values.yaml',
 );
+export const ONE_SHOT_FALCON_PREPARE_SPEC_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'one-shot-falcon-prepare.yaml',
+);
 
 /* vars MIRROR_NODE_OLD_.* can be removed once minimum mirrornode version support is 0.152.0.
  * These variables will only be applied if the MIRROR_NODE_VERSION < 0.152.0
@@ -400,7 +396,7 @@ export const LISTR_DEFAULT_OPTIONS: {
   WITH_CONCURRENCY_COLLAPSABLE: ListrBaseClassOptions<AnyListrContext, ListrRendererValue>;
 } = {
   DEFAULT: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: false,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {
@@ -408,7 +404,7 @@ export const LISTR_DEFAULT_OPTIONS: {
     },
   },
   WITH_CONCURRENCY: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_OPTION,
     fallbackRendererOptions: {
@@ -416,7 +412,7 @@ export const LISTR_DEFAULT_OPTIONS: {
     },
   },
   WITH_CONCURRENCY_COLLAPSABLE: {
-    renderer: SOLO_SILENT_MODE ? 'silent' : 'default',
+    renderer: SOLO_SILENT_MODE ? 'silent' : SoloListrRenderer,
     concurrent: true,
     rendererOptions: LISTR_DEFAULT_RENDERER_COLLAPSABLE_OPTIONS,
     fallbackRendererOptions: {
@@ -485,6 +481,13 @@ export const MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS') || 900;
 export const MIRROR_NODE_PINGER_PODS_READY_DELAY: number =
   +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_DELAY') || 2000;
+export const MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS') || 900;
+export const MIRROR_NODE_SCHEMA_READY_DELAY: number = +getEnvironmentVariable('MIRROR_NODE_SCHEMA_READY_DELAY') || 2000;
+export const MIRROR_NODE_IMPORTER_DETECT_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_IMPORTER_DETECT_MAX_ATTEMPTS') || 15;
+export const MIRROR_NODE_IMPORTER_DETECT_DELAY: number =
+  +getEnvironmentVariable('MIRROR_NODE_IMPORTER_DETECT_DELAY') || 2000;
 export const RELAY_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('RELAY_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const RELAY_PODS_RUNNING_DELAY: number =
