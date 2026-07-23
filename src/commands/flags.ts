@@ -550,6 +550,29 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly freezeBlockDrainSeconds: CommandFlag = {
+    constName: 'freezeBlockDrainSeconds',
+    name: 'freeze-block-drain-seconds',
+    definition: {
+      describe:
+        'Seconds to wait after consensus nodes reach FREEZE_COMPLETE before stopping them, allowing the block stream to drain to the block node',
+      defaultValue: 20,
+      type: 'number',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly skipNodeStart: CommandFlag = {
+    constName: 'skipNodeStart',
+    name: 'skip-node-start',
+    definition: {
+      describe: 'Skip starting consensus nodes after staging a network upgrade',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly imageTag: CommandFlag = {
     constName: 'imageTag',
     name: 'image-tag',
@@ -3223,6 +3246,8 @@ export class Flags {
     Flags.releaseTag,
     Flags.consensusNodeVersion,
     Flags.upgradeVersion,
+    Flags.freezeBlockDrainSeconds,
+    Flags.skipNodeStart,
     Flags.replicaCount,
     Flags.setAlias,
     Flags.settingTxt,
@@ -3338,9 +3363,12 @@ export class Flags {
   );
 
   public static readonly integerFlags: Map<string, CommandFlag> = new Map(
-    [Flags.replicaCount, Flags.blockNodeMessageSizeSoftLimitBytes, Flags.blockNodeMessageSizeHardLimitBytes].map(
-      (f): [string, CommandFlag] => [f.name, f],
-    ),
+    [
+      Flags.replicaCount,
+      Flags.blockNodeMessageSizeSoftLimitBytes,
+      Flags.blockNodeMessageSizeHardLimitBytes,
+      Flags.freezeBlockDrainSeconds,
+    ].map((f): [string, CommandFlag] => [f.name, f]),
   );
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {

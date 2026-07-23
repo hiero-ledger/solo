@@ -29,6 +29,8 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.force,
   flags.upgradeZipFile,
   flags.upgradeVersion,
+  flags.freezeBlockDrainSeconds,
+  flags.skipNodeStart,
 ];
 const UPGRADE_CONFIG_FILE_FLAGS: CommandFlag[] = [
   flags.networkDeploymentValuesFile,

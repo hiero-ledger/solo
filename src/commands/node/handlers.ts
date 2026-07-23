@@ -331,6 +331,32 @@ export class NodeCommandHandlers extends CommandHandler {
     ];
   }
 
+  private skipTaskWhenNodeStartSkipped(task: SoloListrTask<NodeUpgradeContext>): SoloListrTask<NodeUpgradeContext> {
+    return {
+      ...task,
+      skip: (context_: NodeUpgradeContext): boolean | string =>
+        context_.config.skipNodeStart ? 'Skipped by --skip-node-start' : false,
+    };
+  }
+
+  private markNodesConfiguredWhenNodeStartSkipped(): SoloListrTask<NodeUpgradeContext> {
+    const task: SoloListrTask<NodeUpgradeContext> = this.changeAllNodePhases(
+      DeploymentPhase.CONFIGURED,
+    ) as SoloListrTask<NodeUpgradeContext>;
+
+    return {
+      ...task,
+      title: 'Mark nodes CONFIGURED because node start was skipped',
+      skip: (context_: NodeUpgradeContext): boolean | string => {
+        if (!context_.config.skipNodeStart) {
+          return 'Node start was not skipped';
+        }
+
+        return !this.remoteConfig.isLoaded();
+      },
+    };
+  }
+
   private upgradePrepareTasks(argv: ArgvStruct, lease: Lock): SoloListrTask<NodeUpgradeContext>[] {
     return [
       this.tasks.initialize(argv, this.configs.upgradeConfigBuilder.bind(this.configs), lease),
@@ -352,17 +378,19 @@ export class NodeCommandHandlers extends CommandHandler {
   private upgradeExecuteTasks(): SoloListrTask<NodeUpgradeContext>[] {
     return [
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
+      this.tasks.drainBlockStreamAfterFreeze(),
       this.tasks.stopNodes('existingNodeAliases'),
       this.tasks.downloadNodeUpgradeFiles(),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.upgradeNodeConfigurationFilesWithChart(),
       this.tasks.fetchPlatformSoftware('nodeAliases'),
       this.tasks.addWrapsLib(),
-      this.tasks.startNodes('allNodeAliases'),
-      this.tasks.enablePortForwarding(),
-      this.tasks.checkAllNodesAreActive('allNodeAliases'),
-      this.tasks.checkAllNodeProxiesAreActive(),
-      this.tasks.finalize(),
+      this.markNodesConfiguredWhenNodeStartSkipped(),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.startNodes('allNodeAliases')),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.enablePortForwarding()),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.checkAllNodesAreActive('allNodeAliases')),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.checkAllNodeProxiesAreActive()),
+      this.skipTaskWhenNodeStartSkipped(this.tasks.finalize()),
     ];
   }
 

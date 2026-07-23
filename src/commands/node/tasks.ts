@@ -4577,6 +4577,16 @@ export class NodeCommandTasks {
     };
   }
 
+  public drainBlockStreamAfterFreeze(): SoloListrTask<NodeUpgradeContext> {
+    return {
+      title: 'Drain block stream after freeze',
+      task: async (context_: NodeUpgradeContext): Promise<void> => {
+        const drainSeconds: number = context_.config.freezeBlockDrainSeconds ?? 20;
+        await sleep(Duration.ofSeconds(drainSeconds));
+      },
+    };
+  }
+
   public downloadLastState(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Download last state from an existing node',

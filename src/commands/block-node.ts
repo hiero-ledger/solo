@@ -1103,7 +1103,10 @@ export class BlockNodeCommand extends BaseCommand {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
             await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
+            // Skip pod-presence validation: the operator may have intentionally scaled the
+            // block node StatefulSet to 0 (e.g. to delete a stale block-ranges.json before
+            // upgrading), and the upgrade must succeed even when no pods are running.
+            await this.remoteConfig.loadAndValidate(argv, false);
             if (!this.oneShotState.isActive()) {
               lease = await this.leaseManager.create();
             }
