@@ -6,6 +6,8 @@ import sinon, {type SinonStub, type SinonFakeTimers} from 'sinon';
 import {EventEmitter} from 'node:events';
 import {SoloPinoLogger} from '../../../../src/core/logging/solo-pino-logger.js';
 import {OneShotState} from '../../../../src/core/one-shot-state.js';
+import {SoloErrors} from '../../../../src/core/errors/solo-errors.js';
+import {type SoloError} from '../../../../src/core/errors/solo-error.js';
 
 function lineLogged(stub: SinonStub, substring: string): boolean {
   return stub.getCalls().some((call): boolean => String(call.args[0]).includes(substring));
@@ -148,6 +150,35 @@ describe('SoloPinoLogger user-facing output', (): void => {
       expect(lineLogged(consoleLogStub, 'Some Title')).to.be.true;
       expect(lineLogged(consoleLogStub, 'alpha')).to.be.true;
       expect(lineLogged(consoleLogStub, '[ None ]')).to.be.false;
+    });
+  });
+
+  describe('showUserError troubleshooting steps', (): void => {
+    it('shows the steps of the deepest SoloError in the cause chain', (): void => {
+      const nonDevelopmentLogger: SoloPinoLogger = new SoloPinoLogger('debug', false, oneShotState);
+      const relayError: SoloError = new SoloErrors.component.relayDeployFailed(new Error('image pull failed'));
+      const oneShotError: SoloError = new SoloErrors.component.oneShotDeployFailed(
+        `Deploy failed: ${relayError.message}`,
+        relayError,
+      );
+
+      nonDevelopmentLogger.showUserError(oneShotError);
+
+      expect(lineLogged(consoleLogStub, 'Deploy failed:')).to.be.true;
+      expect(lineLogged(consoleLogStub, 'Inspect relay pods')).to.be.true;
+      expect(lineLogged(consoleLogStub, 'one-shot single destroy')).to.be.false;
+    });
+
+    it('falls back to the top-level error steps when no cause carries steps', (): void => {
+      const nonDevelopmentLogger: SoloPinoLogger = new SoloPinoLogger('debug', false, oneShotState);
+      const oneShotError: SoloError = new SoloErrors.component.oneShotDeployFailed(
+        'Deploy failed: boom',
+        new Error('boom'),
+      );
+
+      nonDevelopmentLogger.showUserError(oneShotError);
+
+      expect(lineLogged(consoleLogStub, 'clean up partial resources')).to.be.true;
     });
   });
 });

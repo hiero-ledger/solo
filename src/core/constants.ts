@@ -112,15 +112,6 @@ export const IGNORE_POD_METRICS: string[] = ignorePodMetricsEnvironment
   ? ignorePodMetricsEnvironment.split(',')
   : ['network-load-generator', 'metrics-server'];
 
-export const HEDERA_NODE_SIDECARS: string[] = [
-  'recordStreamUploader',
-  'eventStreamUploader',
-  'backupUploader',
-  'accountBalanceUploader',
-  'otelCollector',
-  'blockstreamUploader',
-];
-
 export const REDIS_IMAGE_REGISTRY: string = 'gcr.io';
 export const REDIS_IMAGE_REPOSITORY: string = 'mirrornode/redis';
 export const REDIS_SENTINEL_IMAGE_REGISTRY: string = 'gcr.io';
@@ -287,6 +278,10 @@ export const BLOCK_NODE_SOLO_DEV_FILE: string = PathEx.joinWithRealPath(RESOURCE
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
 export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
+export const ONE_SHOT_FALCON_PREPARE_SPEC_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'one-shot-falcon-prepare.yaml',
+);
 
 /* vars MIRROR_NODE_OLD_.* can be removed once minimum mirrornode version support is 0.152.0.
  * These variables will only be applied if the MIRROR_NODE_VERSION < 0.152.0
@@ -481,6 +476,13 @@ export const MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_MAX_ATTEMPTS') || 900;
 export const MIRROR_NODE_PINGER_PODS_READY_DELAY: number =
   +getEnvironmentVariable('MIRROR_NODE_PINGER_PODS_READY_DELAY') || 2000;
+export const MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS') || 900;
+export const MIRROR_NODE_SCHEMA_READY_DELAY: number = +getEnvironmentVariable('MIRROR_NODE_SCHEMA_READY_DELAY') || 2000;
+export const MIRROR_NODE_IMPORTER_DETECT_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('MIRROR_NODE_IMPORTER_DETECT_MAX_ATTEMPTS') || 15;
+export const MIRROR_NODE_IMPORTER_DETECT_DELAY: number =
+  +getEnvironmentVariable('MIRROR_NODE_IMPORTER_DETECT_DELAY') || 2000;
 export const RELAY_PODS_RUNNING_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('RELAY_PODS_RUNNING_MAX_ATTEMPTS') || 900;
 export const RELAY_PODS_RUNNING_DELAY: number =

@@ -294,16 +294,25 @@ export class SoloPinoLogger implements SoloLogger {
       lines.push(...errorMessage.split('\n').map((line: string): string => chalk.red(line)));
     }
 
-    if (error instanceof SoloError) {
-      const documentUrl: string | undefined = error.getDocumentUrl();
-      if (!this.developmentMode) {
-        const troubleshootingSteps: ReadonlyArray<string> | undefined = error.getTroubleshootingSteps();
-        if (troubleshootingSteps && troubleshootingSteps.length > 0) {
-          for (const step of troubleshootingSteps) {
-            lines.push(chalk.cyan('  →') + ' ' + step);
-          }
+    if (!this.developmentMode) {
+      // The outermost error is often a generic wrapper (e.g. one-shot deploy failed); the deepest
+      // SoloError in the cause chain carries the most specific troubleshooting guidance. The chain is
+      // ordered outermost-first, so the last qualifying entry is the deepest one.
+      let troubleshootingSource: SoloError | undefined;
+      for (const entry of causeChain) {
+        if (entry instanceof SoloError && (entry.getTroubleshootingSteps()?.length ?? 0) > 0) {
+          troubleshootingSource = entry;
         }
       }
+      const troubleshootingSteps: ReadonlyArray<string> | undefined = troubleshootingSource?.getTroubleshootingSteps();
+      if (troubleshootingSteps && troubleshootingSteps.length > 0) {
+        for (const step of troubleshootingSteps) {
+          lines.push(chalk.cyan('  →') + ' ' + step);
+        }
+      }
+    }
+    if (error instanceof SoloError) {
+      const documentUrl: string | undefined = error.getDocumentUrl();
       if (documentUrl) {
         lines.push('', chalk.cyan(`Learn more: ${documentUrl}`));
       }
