@@ -521,3 +521,35 @@ coverage:
 This deliberately tests that BN can be upgraded and continue receiving native block streams, while
 avoiding the known-broken BN subscriber path for mirror REST/contract-result ingestion. CN upgrade
 remains bypassed because BOTH mode does not fix the missing freeze-boundary block problem.
+
+***
+
+## Attempt 16: Keep prior one-shot on records, then add BN
+
+**Failure (run 29973317890)**: Re-enabling BN upgrade under BOTH mode failed before any smoke or
+upgrade step. The prior `solo one-shot falcon deploy` failed waiting for relay readiness:
+
+* Solo reported `Relay relay-1 is not ready: No pod found`.
+* Kubernetes diagnostics did capture the relay pod, but it was not ready and had startup-probe
+  failures.
+* Mirror importer repeatedly logged S3 credential errors from `RecordFileDownloader` and
+  `AccountBalancesDownloader`.
+
+Root cause: the first stage runs released Solo 0.83.0. For CN v0.74.0 with
+`ONE_SHOT_WITH_BLOCK_NODE=true`, that released one-shot path forces MinIO and record uploaders off,
+even when the migration source application properties set `blockStream.streamMode=BOTH`. Our manual
+mirror override then forced record import on top of a deployment with no record/MinIO source, so
+mirror never ingested and relay never became ready.
+
+**Temporary workaround**: Do not use block-node one-shot mode for the prior source deployment while
+BN #3150 is open:
+
+1. Deploy the prior source CN, mirror, relay, and explorer with records/MinIO enabled.
+2. Smoke-test immediately after one-shot to prove the source mirror/relay path is healthy.
+3. Add the previous BN chart with current Solo after genesis, using `--block-node-tss-overlay`.
+4. Keep mirror on the record-stream profile with `DISABLE_IMPORTER_SPRING_PROFILES=true`.
+5. Upgrade BN for component migration coverage, but keep smoke independent of the BN live subscriber.
+
+This avoids the released-Solo 0.83.0 MinIO-disable behavior and keeps the comments explicit that
+BN live-subscriber smoke coverage remains blocked by
+<https://github.com/hiero-ledger/hiero-block-node/issues/3150>.

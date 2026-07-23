@@ -6,7 +6,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/helper.sh"
 
 TEMP_ONE_SHOT_VALUES_FILE=""
-TEMP_MIRROR_NODE_VALUES_FILE=""
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE=""
 TEMP_UPGRADE_APPLICATION_PROPERTIES_FILE=""
 
@@ -37,10 +36,6 @@ on_exit() {
 
   if [[ -n "${TEMP_ONE_SHOT_VALUES_FILE:-}" && -f "${TEMP_ONE_SHOT_VALUES_FILE}" ]]; then
     rm -f "${TEMP_ONE_SHOT_VALUES_FILE}"
-  fi
-
-  if [[ -n "${TEMP_MIRROR_NODE_VALUES_FILE:-}" && -f "${TEMP_MIRROR_NODE_VALUES_FILE}" ]]; then
-    rm -f "${TEMP_MIRROR_NODE_VALUES_FILE}"
   fi
 
   if [[ -n "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE:-}" && -f "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" ]]; then
@@ -669,7 +664,6 @@ echo "Explorer Version (previous): ${PREV_EXPLORER_VERSION}"
 echo "Relay Version (previous): ${PREV_RELAY_VERSION}"
 
 TEMP_ONE_SHOT_VALUES_FILE="$(mktemp -t falcon-values-migration-XXXX.yaml)"
-TEMP_MIRROR_NODE_VALUES_FILE="$(mktemp -t mirror-node-migration-XXXX.yaml)"
 TEMP_SOURCE_APPLICATION_PROPERTIES_FILE="$(mktemp -t source-application-properties-XXXX.properties)"
 
 cp resources/templates/application.properties "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
@@ -701,30 +695,15 @@ set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.force
 set_application_property "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}" "tss.wrapsEnabled" "true"
 chmod 644 "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
 
-cat > "${TEMP_MIRROR_NODE_VALUES_FILE}" <<'EOF'
-# Generated for migration workflow launch.
-importer:
-  env:
-    # TEMPORARY WORKAROUND:
-    #   Import migration smoke-test data from record streams while hiero-block-node#3150 is open.
-    #   BN remains deployed and receives native block streams, but mirror REST/contract smoke should
-    #   not depend on the known-broken BN live-subscriber boundary behavior.
-    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: "false"
-    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: "true"
-    HIERO_MIRROR_IMPORTER_DOWNLOADER_BALANCE_ENABLED: "false"
-EOF
-
 cat > "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 # Generated for migration workflow launch.
 network:
   --pvcs: true
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
   --application-properties: "${TEMP_SOURCE_APPLICATION_PROPERTIES_FILE}"
+  --tss: true
 
 setup:
-  --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
-
-blockNode:
   --consensus-node-version: "${FROM_CONSENSUS_NODE_VERSION}"
 EOF
 
@@ -732,7 +711,6 @@ cat >> "${TEMP_ONE_SHOT_VALUES_FILE}" <<EOF
 
 mirrorNode:
   --mirror-node-version: "${PREV_MIRROR_VERSION}"
-  --values-file: "${TEMP_MIRROR_NODE_VALUES_FILE}"
 
 relayNode:
   --relay-release: "${PREV_RELAY_VERSION}"
@@ -741,13 +719,19 @@ explorerNode:
   --explorer-version: "${PREV_EXPLORER_VERSION}"
 EOF
 
-export ONE_SHOT_WITH_BLOCK_NODE=true
+# TEMPORARY WORKAROUND:
+#   Do not let released Solo 0.83.0 deploy the source network in block-node one-shot mode.
+#   That released one-shot path forces MinIO and record uploaders off for CN >= v0.74.0, even
+#   when this migration explicitly runs the source CN in BOTH mode. If mirror is forced back to
+#   record import afterward, the importer has no MinIO/record source and relay never becomes ready.
+#   Deploy the source CN/mirror/relay with records first, then add the previous BN with current
+#   Solo below so the BN upgrade path is still covered while mirror smoke avoids BN #3150.
+export ONE_SHOT_WITH_BLOCK_NODE=false
 export BLOCK_STREAM_STREAM_MODE="${MIGRATION_BLOCK_STREAM_MODE}"
 export BLOCK_STREAM_WRITER_MODE="FILE_AND_GRPC"
-export DISABLE_IMPORTER_SPRING_PROFILES="false"
+export DISABLE_IMPORTER_SPRING_PROFILES="true"
 
-BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
-  solo one-shot falcon deploy \
+solo one-shot falcon deploy \
   --num-consensus-nodes 2 \
   --consensus-node-version "${FROM_CONSENSUS_NODE_VERSION}" \
   --values-file "${TEMP_ONE_SHOT_VALUES_FILE}" \
@@ -759,6 +743,15 @@ SKIP_IMPORTER_CHECK=true
 wait_for_mirror_block_progress "source deployment after one-shot" -1 90 2 > /dev/null
 source_block_after_one_shot="$(get_latest_mirror_block_number)"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before consensus upgrade: ${source_block_after_one_shot}"
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Deploying source block node ${PREV_BLOCK_VERSION_NO_V} after record-backed one-shot deploy"
+npm run solo -- block node add \
+  --deployment "${SOLO_DEPLOYMENT}" \
+  --block-node-version "${PREV_BLOCK_VERSION_NO_V}" \
+  --block-node-tss-overlay \
+  -q --dev
+echo "$(date '+%Y-%m-%d %H:%M:%S') - Source block node ${PREV_BLOCK_VERSION_NO_V} deployed"
+dump_bn_log "after source BN add"
 
 echo "::endgroup::"
 
@@ -781,16 +774,20 @@ echo "Upgrade to Consensus Node Version: ${TO_CONSENSUS_NODE_VERSION}"
 SKIP_CONSENSUS_NODE_UPGRADE_UNTIL_CN_26498_FIXED=true
 
 # BN upgrade is enabled while smoke tests use record-stream import. BN #3150 still affects the
-# mirror BN live-subscriber path, so the migration smoke checks avoid that path via BOTH mode and
-# record import. Keeping BN upgrade enabled preserves component migration coverage.
+# mirror BN live-subscriber path, so the migration smoke checks avoid that path by keeping mirror
+# on the record-stream profile. The previous BN is added after the prior one-shot deploy because
+# released Solo 0.83.0 disables MinIO/record uploaders when block-node one-shot mode is active for
+# CN >= v0.74.0.
 SKIP_BLOCK_NODE_UPGRADE_UNTIL_BN_3150_FIXED=false
 
 # Strategy while the bypass is active:
-#  1. BN upgrade — upgrade BN while CN source version keeps running; mirror smoke imports records
+#  1. Source deploy — deploy CN/mirror/relay with records/MinIO, smoke it, then add previous BN
+#                     with current Solo for component upgrade coverage.
+#  2. BN upgrade — upgrade BN while CN source version keeps running; mirror smoke imports records
 #                  so BN #3150 does not block REST/contract-result ingestion.
-#  2. Source stream stabilise — poll until mirror advances 3+ blocks via record import, then
-#                              wait 120 s more. BN remains deployed and receives native blocks.
-#  3. Skip CN upgrade — leave consensus nodes on the source version and continue covering
+#  3. Source stream stabilise — poll until mirror advances 3+ blocks via record import, then
+#                              wait 120 s more. BN remains deployed but smoke does not depend on it.
+#  4. Skip CN upgrade — leave consensus nodes on the source version and continue covering
 #                      Solo/component migration behavior until CN issue #26498 is fixed.
 
 # Step 1: Upgrade BN while CN source version is running, unless the BN bypass is re-enabled.
@@ -950,7 +947,7 @@ else
   echo "$(date '+%Y-%m-%d %H:%M:%S') - Pipeline healthy; CN→BN→mirror confirmed"
 fi
 
-npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
+npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger -q --dev
 
 .github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
 
@@ -979,6 +976,7 @@ echo "::group::Cleanup"
 npm run solo -- explorer node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
 npm run solo -- relay node destroy -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
 npm run solo -- mirror node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
+npm run solo -- block node destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
 npm run solo -- consensus node stop -i node1,node2 --deployment "${SOLO_DEPLOYMENT}" --dev
 npm run solo -- consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force --dev
 echo "::endgroup::"
