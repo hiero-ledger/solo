@@ -58,6 +58,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly CONFIG_DELETE: string = 'delete';
   public static readonly CONFIG_INFO: string = 'info';
   public static readonly CONFIG_PORTS: string = 'ports';
+  public static readonly CONFIG_IMPORT: string = 'import';
 
   public static readonly DIAGNOSTICS_ALL: string = 'all';
   public static readonly DIAGNOSTICS_ANALYZE: string = 'analyze';
@@ -169,6 +170,16 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               this.deploymentCommand,
               this.deploymentCommand.ports,
               DeploymentCommand.PORTS_FLAGS_LIST,
+              [],
+            ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.CONFIG_IMPORT,
+              "Imports a deployment into the local configuration from an existing cluster's remote config.",
+              this.deploymentCommand,
+              this.deploymentCommand.importConfig,
+              DeploymentCommand.IMPORT_FLAGS_LIST,
               [],
             ),
           ),
