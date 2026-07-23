@@ -3734,6 +3734,26 @@ export class NodeCommandTasks {
     };
   }
 
+  public refreshBlockNodeRsaBootstrapStateTask(
+    nodeListOverride?: string,
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
+    return {
+      title: 'Refresh block node RSA bootstrap state',
+      skip: (context_: NodeUpdateContext | NodeAddContext | NodeDestroyContext): boolean =>
+        !this.shouldRefreshBlockNodeRsaBootstrapState(
+          context_.config,
+          nodeListOverride ? context_.config[nodeListOverride] : context_.config.consensusNodes,
+        ),
+      task: async (context_: NodeUpdateContext | NodeAddContext | NodeDestroyContext): Promise<void> => {
+        const consensusNodes: ConsensusNode[] = nodeListOverride
+          ? context_.config[nodeListOverride]
+          : context_.config.consensusNodes;
+
+        await this.refreshBlockNodeRsaBootstrapState(context_.config, consensusNodes);
+      },
+    };
+  }
+
   private shouldRefreshBlockNodeRsaBootstrapState(
     config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
     consensusNodes: ConsensusNode[],
