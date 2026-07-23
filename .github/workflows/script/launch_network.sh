@@ -740,6 +740,9 @@ BLOCK_NODE_VERSION="${PREV_BLOCK_VERSION#v}" \
   --values-file "${TEMP_ONE_SHOT_VALUES_FILE}" \
   --no-parallel-deploy
 
+SKIP_IMPORTER_CHECK=true
+.github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
+
 wait_for_mirror_block_progress "source deployment after one-shot" -1 90 2 > /dev/null
 source_block_after_one_shot="$(get_latest_mirror_block_number)"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Source mirror block before consensus upgrade: ${source_block_after_one_shot}"
@@ -940,6 +943,9 @@ else
 fi
 
 npm run solo -- mirror node upgrade --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger --values-file "${TEMP_MIRROR_NODE_VALUES_FILE}" -q --dev
+
+.github/workflows/script/solo_smoke_test.sh "${SKIP_IMPORTER_CHECK}"
+
 npm run solo -- explorer node upgrade --deployment "${SOLO_DEPLOYMENT}" --mirrorNamespace ${SOLO_NAMESPACE} -q --dev
 
 target_block_before_final_wait="$(get_latest_mirror_block_number)"
