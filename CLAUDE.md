@@ -97,6 +97,14 @@ The layered config system (`EnvironmentConfigSource`, prefix `SOLO`) allows envi
 
 This is **not** the same as plain `UPPER_SNAKE_CASE` — dashes within a segment represent camelCase word boundaries, not underscores.
 
+**Environment variable aliases.** Because the generated names are awkward (embedded dashes) and cannot
+match legacy fixed names, a field may also declare one or more fixed alias env var names with the
+`@EnvironmentAliasRegistry.alias('SOLO_TSS_READY_MAX_ATTEMPTS')` property decorator (see
+`src/data/schema/decorators/environment-alias-registry.ts`). The generated `SOLO_*` name always takes
+precedence; the alias applies only when the generated name is absent, and using an alias logs a notice.
+Aliases may only be placed on a uniquely-typed schema field (a reused type such as `HelmChartSchema`
+fails fast). When adding/removing an alias, keep this section and any env var docs in sync.
+
 ## Architecture and Design
 
 Before implementing a new feature or undertaking a major refactor, review the architecture and

@@ -435,54 +435,60 @@ export class RelayCommand extends BaseCommand {
     return {
       title: 'Deploy JSON RPC Relay',
       task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
-        if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
-          await this.kindLoadComponentImage(config.componentImage, config.context);
-        }
+        try {
+          if (config.componentImage && this.isLocalImageAvailableInDocker(config.componentImage)) {
+            await this.kindLoadComponentImage(config.componentImage, config.context);
+          }
 
-        await this.chartManager.upgrade(
-          config.namespace,
-          config.releaseName,
-          constants.JSON_RPC_RELAY_CHART,
-          config.relayChartDirectory || constants.JSON_RPC_RELAY_CHART,
-          config.relayChartDirectory ? '' : config.relayReleaseTag, // pin chart version to match image version
-          config.relayHelmChartValues,
-          config.context,
-          commandType !== RelayCommandType.ADD,
-          commandType === RelayCommandType.ADD,
-          false,
-          Boolean(config.relayChartDirectory),
-        );
-
-        showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
-
-        // wait for the pod to destroy in case it was an upgrade
-        if (commandType === RelayCommandType.UPGRADE) {
-          await sleep(Duration.ofSeconds(40));
-
-          // update relay version in remote config after successful upgrade
-          this.remoteConfig.updateComponentVersion(
-            ComponentTypes.RelayNodes,
-            new SemanticVersion<string>(config.relayReleaseTag),
+          await this.chartManager.upgrade(
+            config.namespace,
+            config.releaseName,
+            constants.JSON_RPC_RELAY_CHART,
+            config.relayChartDirectory || constants.JSON_RPC_RELAY_CHART,
+            config.relayChartDirectory ? '' : config.relayReleaseTag, // pin chart version to match image version
+            config.relayHelmChartValues,
+            config.context,
+            commandType !== RelayCommandType.ADD,
+            commandType === RelayCommandType.ADD,
+            false,
+            Boolean(config.relayChartDirectory),
           );
 
-          await this.remoteConfig.persist();
-        }
+          showVersionBanner(this.logger, config.releaseName, config.relayReleaseTag);
 
-        // Add component to remote config
-        else if (commandType === RelayCommandType.ADD) {
-          this.remoteConfig.configuration.components.changeComponentPhase(
-            (config as RelayDeployConfigClass).newRelayComponent.metadata.id,
-            ComponentTypes.RelayNodes,
-            DeploymentPhase.DEPLOYED,
-          );
+          // wait for the pod to destroy in case it was an upgrade
+          if (commandType === RelayCommandType.UPGRADE) {
+            await sleep(Duration.ofSeconds(40));
 
-          // update relay version in remote config after successful deployment
-          this.remoteConfig.updateComponentVersion(
-            ComponentTypes.RelayNodes,
-            new SemanticVersion<string>(config.relayReleaseTag),
-          );
+            // update relay version in remote config after successful upgrade
+            this.remoteConfig.updateComponentVersion(
+              ComponentTypes.RelayNodes,
+              new SemanticVersion<string>(config.relayReleaseTag),
+            );
 
-          await this.remoteConfig.persist();
+            await this.remoteConfig.persist();
+          }
+
+          // Add component to remote config
+          else if (commandType === RelayCommandType.ADD) {
+            this.remoteConfig.configuration.components.changeComponentPhase(
+              (config as RelayDeployConfigClass).newRelayComponent.metadata.id,
+              ComponentTypes.RelayNodes,
+              DeploymentPhase.DEPLOYED,
+            );
+
+            // update relay version in remote config after successful deployment
+            this.remoteConfig.updateComponentVersion(
+              ComponentTypes.RelayNodes,
+              new SemanticVersion<string>(config.relayReleaseTag),
+            );
+
+            await this.remoteConfig.persist();
+          }
+        } catch (error) {
+          throw commandType === RelayCommandType.UPGRADE
+            ? new SoloErrors.component.relayUpgradeFailed(error)
+            : new SoloErrors.component.relayDeployFailed(error);
         }
       },
     };
@@ -594,75 +600,79 @@ export class RelayCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
-            await this.localConfig.load();
-            await this.loadRemoteConfigOrWarn(argv);
-            if (!this.oneShotState.isActive()) {
-              lease = await this.leaseManager.create();
+            try {
+              await this.localConfig.load();
+              await this.loadRemoteConfigOrWarn(argv);
+              if (!this.oneShotState.isActive()) {
+                lease = await this.leaseManager.create();
+              }
+              // reset nodeAlias
+              this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+
+              this.configManager.update(argv);
+
+              flags.disablePrompts(RelayCommand.DEPLOY_FLAGS_LIST.optional);
+
+              const allFlags: CommandFlag[] = [
+                ...RelayCommand.DEPLOY_FLAGS_LIST.required,
+                ...RelayCommand.DEPLOY_FLAGS_LIST.optional,
+              ];
+
+              await this.configManager.executePrompt(task, allFlags);
+
+              // prompt if inputs are empty and set it in the context
+              const config: RelayDeployConfigClass = this.configManager.getConfig(
+                RelayCommand.DEPLOY_CONFIGS_NAME,
+                allFlags,
+                ['nodeAliases'],
+              ) as RelayDeployConfigClass;
+
+              context_.config = config;
+
+              config.isLegacyChartInstalled = false;
+
+              config.namespace = await this.getNamespace(task);
+
+              config.nodeAliases = parseNodeAliases(
+                config.nodeAliasesUnparsed,
+                this.remoteConfig.getConsensusNodes(),
+                this.configManager,
+              );
+
+              config.clusterRef = this.getClusterReference();
+              config.context = this.getClusterContext(config.clusterRef);
+              config.releaseName = this.getReleaseName();
+
+              const nodeIds: NodeId[] = config.nodeAliases.map((nodeAlias: NodeAlias): number =>
+                Templates.nodeIdFromNodeAlias(nodeAlias),
+              );
+
+              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+                config.namespace,
+                config.context,
+              );
+
+              config.mirrorNodeId = mirrorNodeId;
+              config.mirrorNamespace = mirrorNamespace;
+              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+
+              config.newRelayComponent = this.componentFactory.createNewRelayComponent(
+                config.clusterRef,
+                config.namespace,
+                nodeIds,
+              );
+
+              config.newRelayComponent.metadata.phase = DeploymentPhase.REQUESTED;
+
+              config.id = config.newRelayComponent.metadata.id;
+
+              if (!this.oneShotState.isActive()) {
+                return ListrLock.newAcquireLockTask(lease, task);
+              }
+              return ListrLock.newSkippedLockTask(task);
+            } catch (error) {
+              throw new SoloErrors.component.relayDeployFailed(error);
             }
-            // reset nodeAlias
-            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
-
-            this.configManager.update(argv);
-
-            flags.disablePrompts(RelayCommand.DEPLOY_FLAGS_LIST.optional);
-
-            const allFlags: CommandFlag[] = [
-              ...RelayCommand.DEPLOY_FLAGS_LIST.required,
-              ...RelayCommand.DEPLOY_FLAGS_LIST.optional,
-            ];
-
-            await this.configManager.executePrompt(task, allFlags);
-
-            // prompt if inputs are empty and set it in the context
-            const config: RelayDeployConfigClass = this.configManager.getConfig(
-              RelayCommand.DEPLOY_CONFIGS_NAME,
-              allFlags,
-              ['nodeAliases'],
-            ) as RelayDeployConfigClass;
-
-            context_.config = config;
-
-            config.isLegacyChartInstalled = false;
-
-            config.namespace = await this.getNamespace(task);
-
-            config.nodeAliases = parseNodeAliases(
-              config.nodeAliasesUnparsed,
-              this.remoteConfig.getConsensusNodes(),
-              this.configManager,
-            );
-
-            config.clusterRef = this.getClusterReference();
-            config.context = this.getClusterContext(config.clusterRef);
-            config.releaseName = this.getReleaseName();
-
-            const nodeIds: NodeId[] = config.nodeAliases.map((nodeAlias: NodeAlias): number =>
-              Templates.nodeIdFromNodeAlias(nodeAlias),
-            );
-
-            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-              config.namespace,
-              config.context,
-            );
-
-            config.mirrorNodeId = mirrorNodeId;
-            config.mirrorNamespace = mirrorNamespace;
-            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
-
-            config.newRelayComponent = this.componentFactory.createNewRelayComponent(
-              config.clusterRef,
-              config.namespace,
-              nodeIds,
-            );
-
-            config.newRelayComponent.metadata.phase = DeploymentPhase.REQUESTED;
-
-            config.id = config.newRelayComponent.metadata.id;
-
-            if (!this.oneShotState.isActive()) {
-              return ListrLock.newAcquireLockTask(lease, task);
-            }
-            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.addRelayComponent(),
@@ -689,7 +699,11 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloErrors.component.relayDeployFailed(error);
+        // Tasks wrap their own errors with relay context so it also survives nested one-shot runs;
+        // avoid stacking a second identical wrapper here.
+        throw error instanceof SoloErrors.component.relayDeployFailed
+          ? error
+          : new SoloErrors.component.relayDeployFailed(error);
       } finally {
         if (lease && !this.oneShotState.isActive()) {
           await lease.release();
@@ -714,76 +728,78 @@ export class RelayCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
-            await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
-            if (!this.oneShotState.isActive()) {
-              lease = await this.leaseManager.create();
+            try {
+              await this.localConfig.load();
+              await this.remoteConfig.loadAndValidate(argv);
+              if (!this.oneShotState.isActive()) {
+                lease = await this.leaseManager.create();
+              }
+              // reset nodeAlias
+              this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+
+              this.configManager.update(argv);
+
+              flags.disablePrompts(RelayCommand.UPGRADE_FLAGS_LIST.optional);
+
+              const allFlags: CommandFlag[] = [
+                ...RelayCommand.UPGRADE_FLAGS_LIST.required,
+                ...RelayCommand.UPGRADE_FLAGS_LIST.optional,
+              ];
+
+              await this.configManager.executePrompt(task, allFlags);
+
+              // prompt if inputs are empty and set it in the context
+              const config: RelayUpgradeConfigClass = this.configManager.getConfig(
+                RelayCommand.UPGRADE_CONFIGS_NAME,
+                allFlags,
+                [],
+              ) as RelayUpgradeConfigClass;
+
+              context_.config = config;
+
+              config.namespace = await this.getNamespace(task);
+
+              config.nodeAliases = parseNodeAliases(
+                config.nodeAliasesUnparsed,
+                this.remoteConfig.getConsensusNodes(),
+                this.configManager,
+              );
+
+              config.clusterRef = this.getClusterReference();
+              config.context = this.getClusterContext(config.clusterRef);
+
+              const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} =
+                await this.inferRelayData(config.namespace, config.context);
+
+              config.id = id;
+              config.isLegacyChartInstalled = isLegacyChartInstalled;
+              config.isChartInstalled = isChartInstalled;
+              config.releaseName = releaseName;
+              config.nodeAliases = nodeAliases;
+
+              const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
+                config.namespace,
+                config.context,
+              );
+
+              config.mirrorNodeId = mirrorNodeId;
+              config.mirrorNamespace = mirrorNamespace;
+              config.mirrorNodeReleaseName = mirrorNodeReleaseName;
+
+              assertUpgradeVersionNotOlder(
+                'Relay',
+                config.relayReleaseTag,
+                this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
+                optionFromFlag(flags.relayVersion),
+              );
+
+              if (!this.oneShotState.isActive()) {
+                return ListrLock.newAcquireLockTask(lease, task);
+              }
+              return ListrLock.newSkippedLockTask(task);
+            } catch (error) {
+              throw new SoloErrors.component.relayUpgradeFailed(error);
             }
-            // reset nodeAlias
-            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
-
-            this.configManager.update(argv);
-
-            flags.disablePrompts(RelayCommand.UPGRADE_FLAGS_LIST.optional);
-
-            const allFlags: CommandFlag[] = [
-              ...RelayCommand.UPGRADE_FLAGS_LIST.required,
-              ...RelayCommand.UPGRADE_FLAGS_LIST.optional,
-            ];
-
-            await this.configManager.executePrompt(task, allFlags);
-
-            // prompt if inputs are empty and set it in the context
-            const config: RelayUpgradeConfigClass = this.configManager.getConfig(
-              RelayCommand.UPGRADE_CONFIGS_NAME,
-              allFlags,
-              [],
-            ) as RelayUpgradeConfigClass;
-
-            context_.config = config;
-
-            config.namespace = await this.getNamespace(task);
-
-            config.nodeAliases = parseNodeAliases(
-              config.nodeAliasesUnparsed,
-              this.remoteConfig.getConsensusNodes(),
-              this.configManager,
-            );
-
-            config.clusterRef = this.getClusterReference();
-            config.context = this.getClusterContext(config.clusterRef);
-
-            const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} = await this.inferRelayData(
-              config.namespace,
-              config.context,
-            );
-
-            config.id = id;
-            config.isLegacyChartInstalled = isLegacyChartInstalled;
-            config.isChartInstalled = isChartInstalled;
-            config.releaseName = releaseName;
-            config.nodeAliases = nodeAliases;
-
-            const {mirrorNodeId, mirrorNamespace, mirrorNodeReleaseName} = await this.inferMirrorNodeData(
-              config.namespace,
-              config.context,
-            );
-
-            config.mirrorNodeId = mirrorNodeId;
-            config.mirrorNamespace = mirrorNamespace;
-            config.mirrorNodeReleaseName = mirrorNodeReleaseName;
-
-            assertUpgradeVersionNotOlder(
-              'Relay',
-              config.relayReleaseTag,
-              this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
-              optionFromFlag(flags.relayVersion),
-            );
-
-            if (!this.oneShotState.isActive()) {
-              return ListrLock.newAcquireLockTask(lease, task);
-            }
-            return ListrLock.newSkippedLockTask(task);
           },
         },
         this.prepareChartValuesTask(),
@@ -801,7 +817,10 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloErrors.component.relayUpgradeFailed(error);
+        // Avoid stacking a second identical wrapper on errors the tasks already wrapped.
+        throw error instanceof SoloErrors.component.relayUpgradeFailed
+          ? error
+          : new SoloErrors.component.relayUpgradeFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
@@ -826,52 +845,54 @@ export class RelayCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_, task): Promise<Listr<AnyListrContext>> => {
-            await this.localConfig.load();
-            await this.remoteConfig.loadAndValidate(argv);
-            if (!this.oneShotState.isActive()) {
-              lease = await this.leaseManager.create();
+            try {
+              await this.localConfig.load();
+              await this.remoteConfig.loadAndValidate(argv);
+              if (!this.oneShotState.isActive()) {
+                lease = await this.leaseManager.create();
+              }
+              // reset nodeAlias
+              this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
+              this.configManager.update(argv);
+
+              flags.disablePrompts([flags.clusterRef, flags.id, flags.nodeAliasesUnparsed]);
+
+              const allFlags: CommandFlag[] = [
+                ...RelayCommand.DESTROY_FLAGS_LIST.required,
+                ...RelayCommand.DESTROY_FLAGS_LIST.optional,
+              ];
+
+              await this.configManager.executePrompt(task, allFlags);
+
+              const clusterReference: ClusterReferenceName = this.getClusterReference();
+              const context: Context = this.getClusterContext(clusterReference);
+              const namespace: NamespaceName = await this.getNamespace(task);
+
+              const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} =
+                await this.inferRelayData(namespace, context);
+
+              const config: RelayDestroyConfigClass = {
+                chartDirectory: this.configManager.getFlag(flags.chartDirectory),
+                namespace,
+                nodeAliases,
+                clusterRef: clusterReference,
+                id,
+                isLegacyChartInstalled,
+                isChartInstalled,
+                releaseName,
+                deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
+                context,
+              };
+
+              context_.config = config;
+
+              if (!this.oneShotState.isActive()) {
+                return ListrLock.newAcquireLockTask(lease, task);
+              }
+              return ListrLock.newSkippedLockTask(task);
+            } catch (error) {
+              throw new SoloErrors.component.relayDestroyFailed(error);
             }
-            // reset nodeAlias
-            this.configManager.setFlag(flags.nodeAliasesUnparsed, '');
-            this.configManager.update(argv);
-
-            flags.disablePrompts([flags.clusterRef, flags.id, flags.nodeAliasesUnparsed]);
-
-            const allFlags: CommandFlag[] = [
-              ...RelayCommand.DESTROY_FLAGS_LIST.required,
-              ...RelayCommand.DESTROY_FLAGS_LIST.optional,
-            ];
-
-            await this.configManager.executePrompt(task, allFlags);
-
-            const clusterReference: ClusterReferenceName = this.getClusterReference();
-            const context: Context = this.getClusterContext(clusterReference);
-            const namespace: NamespaceName = await this.getNamespace(task);
-
-            const {id, isLegacyChartInstalled, isChartInstalled, releaseName, nodeAliases} = await this.inferRelayData(
-              namespace,
-              context,
-            );
-
-            const config: RelayDestroyConfigClass = {
-              chartDirectory: this.configManager.getFlag(flags.chartDirectory),
-              namespace,
-              nodeAliases,
-              clusterRef: clusterReference,
-              id,
-              isLegacyChartInstalled,
-              isChartInstalled,
-              releaseName,
-              deployment: this.configManager.getFlag<DeploymentName>(flags.deployment),
-              context,
-            };
-
-            context_.config = config;
-
-            if (!this.oneShotState.isActive()) {
-              return ListrLock.newAcquireLockTask(lease, task);
-            }
-            return ListrLock.newSkippedLockTask(task);
           },
         },
         {
@@ -905,7 +926,10 @@ export class RelayCommand extends BaseCommand {
       try {
         await tasks.run();
       } catch (error) {
-        throw new SoloErrors.component.relayDestroyFailed(error);
+        // Avoid stacking a second identical wrapper on errors the tasks already wrapped.
+        throw error instanceof SoloErrors.component.relayDestroyFailed
+          ? error
+          : new SoloErrors.component.relayDestroyFailed(error);
       } finally {
         if (!this.oneShotState.isActive()) {
           await lease?.release();
