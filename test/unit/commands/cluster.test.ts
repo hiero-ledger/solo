@@ -94,12 +94,12 @@ describe('ClusterCommand unit tests', (): void => {
       options.chartManager.install = sandbox.stub().returns(true);
 
       // Simple mock for installPodMonitorRole to avoid cluster connection
-      sandbox.stub(ClusterCommandTasks.prototype, 'installPodMonitorRole' as any).returns({
+      sandbox.stub(ClusterCommandTasks.prototype, 'installPodMonitorRole').returns({
         title: 'Install pod-monitor-role ClusterRole',
         task: async (): Promise<void> => {},
       });
 
-      sandbox.stub(ClusterCommandTasks.prototype, 'findMinioOperator' as any).returns({
+      sandbox.stub(ClusterCommandTasks.prototype, 'findMinioOperator').resolves({
         exists: false,
         releaseName: undefined,
       });
@@ -136,15 +136,15 @@ describe('ClusterCommand unit tests', (): void => {
       const clusterCommandHandlers: ClusterCommandHandlers = container.resolve(ClusterCommandHandlers);
       await clusterCommandHandlers.setup(argv.build());
 
-      const lokiInstallArguments: any[] = options.chartManager.install.args.find(
-        (installArguments: any[]): boolean => installArguments[1] === constants.LOKI_RELEASE_NAME,
+      const lokiInstallArguments: unknown[] = options.chartManager.install.args.find(
+        (installArguments: unknown[]): boolean => installArguments[1] === constants.LOKI_RELEASE_NAME,
       );
       expect(lokiInstallArguments, 'expected a Loki chart install').to.not.equal(undefined);
       expect(lokiInstallArguments[2]).to.equal(constants.LOKI_CHART);
       expect(lokiInstallArguments[4]).to.equal(version.LOKI_VERSION);
 
-      const alloyInstallArguments: any[] = options.chartManager.install.args.find(
-        (installArguments: any[]): boolean => installArguments[1] === constants.GRAFANA_ALLOY_RELEASE_NAME,
+      const alloyInstallArguments: unknown[] = options.chartManager.install.args.find(
+        (installArguments: unknown[]): boolean => installArguments[1] === constants.GRAFANA_ALLOY_RELEASE_NAME,
       );
       expect(alloyInstallArguments, 'expected a Grafana Alloy chart install').to.not.equal(undefined);
       expect(alloyInstallArguments[2]).to.equal(constants.GRAFANA_ALLOY_CHART);

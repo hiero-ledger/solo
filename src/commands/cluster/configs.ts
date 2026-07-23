@@ -28,7 +28,7 @@ export class ClusterCommandConfigs {
   private static readonly CONNECT_CONFIGS_NAME: string = 'connectConfig';
   private static readonly DEFAULT_CONFIGS_NAME: string = 'defaultConfig';
 
-  constructor(
+  public constructor(
     @inject(InjectTokens.ConfigManager) private readonly configManager: ConfigManager,
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.ChartManager) private readonly chartManager: ChartManager,
