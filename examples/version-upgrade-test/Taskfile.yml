@@ -8,6 +8,12 @@ env:
       else
         echo "npm run solo --"
       fi
+  # Temporary workaround for block node live-stream importer instability during
+  # version-upgrade tests. Keep record streams enabled for mirror services while
+  # still exercising block node deploy/upgrade.
+  BLOCK_STREAM_STREAM_MODE: BOTH
+  BLOCK_STREAM_WRITER_MODE: FILE_AND_GRPC
+  DISABLE_IMPORTER_SPRING_PROFILES: "true"
 
 vars:
   NODE_IDENTIFIERS: "node1,node2"
@@ -140,7 +146,8 @@ tasks:
       # Upgrade mirror node
       - cmd: |
           $SOLO_COMMAND mirror node upgrade --deployment {{ .DEPLOYMENT }} \
-          --mirror-node-version {{ .CURRENT_MIRROR_VERSION }}
+          --mirror-node-version {{ .CURRENT_MIRROR_VERSION }} \
+          --pinger
       - cmd: $SOLO_COMMAND ledger account create --deployment {{ .DEPLOYMENT }} --hbar-amount 50
 
       # Upgrade network to main with local build path
