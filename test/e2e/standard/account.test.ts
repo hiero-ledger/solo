@@ -11,6 +11,8 @@ import {
   Hbar,
   HbarUnit,
   type Key,
+  Logger,
+  LogLevel,
   PrivateKey,
   Status,
   TopicCreateTransaction,
@@ -447,7 +449,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
         try {
           // Setup network configuration from the live node client's actual forwarded endpoints;
           // hard-coded local ports break when an earlier port-forward recovery shifts the allocation
-          const sdkClient: Client = await accountManager.loadNodeClient(
+          await accountManager.loadNodeClient(
             namespace,
             remoteConfig.getClusterRefs(),
             argv.getArg<DeploymentName>(flags.deployment),
