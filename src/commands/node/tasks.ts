@@ -3758,11 +3758,6 @@ export class NodeCommandTasks {
     config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
     consensusNodes: ConsensusNode[],
   ): boolean {
-    if (NodeCommandTasks.isNodeUpdateWithoutGossipKeyChange(config)) {
-      this.logger.debug('Skipping block node RSA bootstrap refresh, node update did not change gossip keys');
-      return false;
-    }
-
     if (this.remoteConfig.configuration.state.blockNodes.length === 0 || consensusNodes.length === 0) {
       return false;
     }
@@ -3791,14 +3786,6 @@ export class NodeCommandTasks {
     }
 
     return true;
-  }
-
-  private static isNodeUpdateWithoutGossipKeyChange(
-    config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
-  ): boolean {
-    return (
-      'gossipPublicKey' in config && 'gossipPrivateKey' in config && !config.gossipPublicKey && !config.gossipPrivateKey
-    );
   }
 
   private async refreshBlockNodeRsaBootstrapState(
