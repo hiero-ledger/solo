@@ -445,12 +445,24 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
 
       it('Create client from network config and submit topic/message should succeed', async (): Promise<void> => {
         try {
+          // Setup network configuration from the live node client's actual forwarded endpoints;
+          // hard-coded local ports break when an earlier port-forward recovery shifts the allocation
           const sdkClient: Client = await accountManager.loadNodeClient(
             namespace,
             remoteConfig.getClusterRefs(),
             argv.getArg<DeploymentName>(flags.deployment),
             argv.getArg<boolean>(flags.forcePortForward),
           );
+          const clientNetwork: Record<string, string | AccountId> = accountManager._nodeClient.network;
+          const networkConfig: Record<string, AccountId> = {};
+          for (const endpoint of Object.keys(clientNetwork)) {
+            networkConfig[endpoint] = AccountId.fromString(clientNetwork[endpoint].toString());
+          }
+
+          // Instantiate SDK client
+          const sdkClient: Client = Client.fromConfig({network: networkConfig, scheduleNetworkUpdate: false});
+          sdkClient.setOperator(MY_ACCOUNT_ID, MY_PRIVATE_KEY);
+          sdkClient.setLogger(new Logger(LogLevel.Trace, 'hashgraph-sdk.log'));
 
           // Create a new public topic and submit a message
           const txResponse: TransactionResponse = await new TopicCreateTransaction().execute(sdkClient);
@@ -466,6 +478,7 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
           expect(submitReceipt.status).to.deep.equal(Status.Success);
         } catch (error) {
           testLogger.showUserError(error);
+          expect.fail();
         }
       }).timeout(Duration.ofMinutes(2).toMillis());
 
