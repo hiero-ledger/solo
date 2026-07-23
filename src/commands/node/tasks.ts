@@ -3437,6 +3437,22 @@ export class NodeCommandTasks {
     };
   }
 
+  public removeCachedKeys(): SoloListrTask<NodeUpdateContext | NodeAddContext> {
+    return {
+      title: 'Remove cached keys',
+      // copyNodeKeysToSecrets already uploaded the keys to the cluster secrets, and later commands re-read them
+      // from those secrets, so delete the on-disk copies to avoid leaving private keys in SOLO_CACHE_DIR. Kept
+      // when --debug is enabled. Runs last so every task that consumes keysDir has already read it.
+      skip: (): boolean | string =>
+        this.configManager.getFlag<boolean>(flags.debugMode) ? '--debug enabled, keeping cached keys on disk' : false,
+      task: ({config: {keysDir}}): void => {
+        if (keysDir && fs.existsSync(keysDir)) {
+          fs.rmSync(keysDir, {recursive: true, force: true});
+        }
+      },
+    };
+  }
+
   public addWrapsLib(): SoloListrTask<NodeAddContext | NodeUpdateContext> {
     return {
       title: 'Copy wraps lib over',
