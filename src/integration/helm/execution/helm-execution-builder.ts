@@ -8,6 +8,8 @@ import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import * as constants from '../../../core/constants.js';
 import {ExecutionBuilder} from '../../execution-builder.js';
 import {type ExternalCommandInvocation} from '../../../core/execution/external-command-invocation.js';
+import {SubprocessEnvironment} from '../../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../../core/subprocess-command-profile.js';
 
 @injectable()
 /**
@@ -187,7 +189,7 @@ export class HelmExecutionBuilder extends ExecutionBuilder {
    */
   public build(): HelmExecution {
     const invocation: ExternalCommandInvocation = this.buildCommand();
-    const environment: Record<string, string> = {...process.env};
+    const environment: Record<string, string> = SubprocessEnvironment.forCommand(SubprocessCommandProfile.HELM);
 
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;

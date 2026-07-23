@@ -25,6 +25,8 @@ import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import type Stream from 'node:stream';
 import * as constants from '../../../../../core/constants.js';
+import {SubprocessEnvironment} from '../../../../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../../../../core/subprocess-command-profile.js';
 import type * as stream from 'node:stream';
 import {platform} from 'node:process';
 import {PathEx} from '../../../../../business/utils/path-ex.js';
@@ -80,7 +82,9 @@ export class K8ClientContainer implements Container {
         constants.KUBECTL,
         fullArguments,
         {
-          env: {...process.env, PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`},
+          env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL, {
+            PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+          }),
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: os.platform() === 'win32',
         },

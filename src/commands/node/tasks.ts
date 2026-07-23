@@ -124,6 +124,8 @@ import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {SubprocessEnvironment} from '../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
 import {helmValuesHelper} from '../../core/helm-values-helper.js';
 import {type GitClient} from '../../integration/git/git-client.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
@@ -186,7 +188,7 @@ import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-
 import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
 
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-  return !(path.includes('data/keys') || path.includes('data/config'));
+  return !(path.includes('data/keys') || path.includes('data/config') || path.includes('data/upgrade'));
 };
 
 const {gray, cyan, red, green, yellow} = chalk;
@@ -329,6 +331,8 @@ export class NodeCommandTasks {
       .containers()
       .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
 
+    await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
+
     // Remove existing jars before copying to prevent mixed-version classpath (issue #3848)
     await container.execContainer([
       'bash',
@@ -337,6 +341,21 @@ export class NodeCommandTasks {
     ]);
 
     await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
+    await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand()]);
+
+    const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`;
+    if (await container.hasDir(upgradeDirectory)) {
+      await container.execContainer([
+        'bash',
+        '-c',
+        `rm -rf ${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`,
+      ]);
+      await container.copyTo(localDataLibraryBuildPath, upgradeDirectory, localBuildPathFilter);
+      await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand(upgradeDirectory)]);
+    }
+
+    await container.execContainer(['sync', constants.HEDERA_HAPI_PATH]);
+
     if (configManager.getFlag<string>(flags.appConfig)) {
       const testJsonFiles: string[] = configManager.getFlag<string>(flags.appConfig)!.split(',');
       for (const jsonFile of testJsonFiles) {
@@ -749,7 +768,7 @@ export class NodeCommandTasks {
   private _generateGossipKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
     return {
       title: 'Generate gossip keys',
-      task: ({config}, task): any => {
+      task: ({config}, task): SoloListr<AnyListrContext> => {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
@@ -777,7 +796,7 @@ export class NodeCommandTasks {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks: SoloListrTask<any>[] = this.keyManager.taskGenerateTLSKeys(
+        const subTasks: SoloListrTask<AnyListrContext>[] = this.keyManager.taskGenerateTLSKeys(
           nodeAliases,
           config.keysDir,
           config.curDate,
@@ -877,7 +896,7 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass | NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass =
           context_.config;
-        const {upgradeZipFile, deployment}: any = context_.config;
+        const {upgradeZipFile, deployment} = context_.config;
         if (upgradeZipFile) {
           context_.upgradeZipFile = upgradeZipFile;
           this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
@@ -1079,7 +1098,7 @@ export class NodeCommandTasks {
     return {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
-        const {freezeAdminPrivateKey, deployment, namespace}: any = context_.config;
+        const {freezeAdminPrivateKey, deployment, namespace} = context_.config;
         const nodeClient: Client = await this.accountManager.loadNodeClient(
           namespace,
           this.remoteConfig.getClusterRefs(),
@@ -1201,7 +1220,7 @@ export class NodeCommandTasks {
         const upgradeDirectories: string[] = [
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`,
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/apps`,
-          `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/libs`,
+          `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/lib`,
         ];
 
         for (const upgradeDirectory of upgradeDirectories) {
@@ -1231,7 +1250,7 @@ export class NodeCommandTasks {
     task: SoloListrTaskWrapper<CheckedNodesContext>,
     nodeAliases: NodeAliases,
     maxAttempts?: number,
-  ): any {
+  ): SoloListr<CheckedNodesContext> {
     context_.config.podRefs = {};
     const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
 
@@ -1567,9 +1586,8 @@ export class NodeCommandTasks {
         const nodeAliases: NodeAliases = context_.config[aliasesField] as NodeAliases;
         const uniqueContexts: Context[] = [
           ...new Set(
-            nodeAliases.map(
-              (nodeAlias: NodeAlias): Context =>
-                extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes),
+            nodeAliases.map((nodeAlias: NodeAlias): Context =>
+              extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes),
             ),
           ),
         ];
@@ -1990,6 +2008,9 @@ export class NodeCommandTasks {
                 config.namespace,
                 nodeAlias,
               );
+              if (config.localBuildPath) {
+                await container.execContainer(['bash', '-c', this.buildRefreshLiveLocalBuildJarsCommand()]);
+              }
               for (const directory of [constants.HEDERA_DATA_APPS_DIR, constants.HEDERA_DATA_LIB_DIR]) {
                 const directoryPath: string = `${constants.HEDERA_HAPI_PATH}/${directory}`;
                 const output: string = await container.execContainer([
@@ -2010,6 +2031,39 @@ export class NodeCommandTasks {
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
+  }
+
+  private buildRefreshLiveLocalBuildJarsCommand(): string {
+    const hapiPath: string = constants.HEDERA_HAPI_PATH;
+    const applicationDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const libraryDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_LIB_DIR}`;
+    const applicationJar: string = `${applicationDirectory}/${constants.HEDERA_APP_NAME}`;
+    const upgradeDirectory: string = `${hapiPath}/data/upgrade/current`;
+    const upgradeApplicationDirectory: string = `${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const upgradeLibraryDirectory: string = `${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}`;
+    const upgradeApplicationJar: string = `${upgradeApplicationDirectory}/${constants.HEDERA_APP_NAME}`;
+
+    return [
+      `if [ -f "${upgradeApplicationJar}" ]; then`,
+      `  rm -f "${applicationDirectory}"/*.jar "${libraryDirectory}"/*.jar`,
+      `  cp -f "${upgradeApplicationDirectory}"/*.jar "${applicationDirectory}/"`,
+      `  cp -f "${upgradeLibraryDirectory}"/*.jar "${libraryDirectory}/"`,
+      this.buildNormalizeHederaJarPermissionsCommand(),
+      `  sync "${hapiPath}"`,
+      'fi',
+      `test -f "${applicationJar}" || { echo "missing ${applicationJar}" >&2; exit 1; }`,
+      `/command/s6-setuidgid hedera unzip -l "${applicationJar}" "com/hedera/node/app/ServicesMain.class" | grep -q "com/hedera/node/app/ServicesMain.class" || { echo "missing ServicesMain in ${applicationJar}" >&2; exit 1; }`,
+    ].join('\n');
+  }
+
+  private buildNormalizeHederaJarPermissionsCommand(hapiPath: string = constants.HEDERA_HAPI_PATH): string {
+    const applicationDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const libraryDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_LIB_DIR}`;
+
+    return [
+      `chown -R hedera:hedera "${applicationDirectory}" "${libraryDirectory}"`,
+      `chmod -R u+rwX,g+rX,o+rX "${applicationDirectory}" "${libraryDirectory}"`,
+    ].join('\n');
   }
 
   /**
@@ -2262,8 +2316,7 @@ export class NodeCommandTasks {
           );
           // TODO: 'ctx.config.stakeAmount' is never initialized in the config
           const stakeAmountConfig: string | undefined = (context_.config as AnyObject).stakeAmount as
-            | string
-            | undefined;
+            string | undefined;
           const stakeAmountParsed: string[] = stakeAmountConfig ? splitFlagInput(stakeAmountConfig) : [];
           let nodeIndex: number = 0;
           for (const nodeAlias of context_.config.nodeAliases) {
@@ -2709,10 +2762,9 @@ export class NodeCommandTasks {
                     encoding: 'utf8',
                     cwd: process.cwd(),
                     maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-                    env: {
-                      ...process.env,
+                    env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.HELM, {
                       PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${PathEx.delimiter}${process.env.PATH}`,
-                    },
+                    }),
                   },
                 ).toString();
 
@@ -2789,15 +2841,14 @@ export class NodeCommandTasks {
     componentDisplayName: ComponentDisplayName,
     haProxyStates: HaProxyStateSchema[] = [],
   ): Promise<ComponentData>[] {
-    return states.map(
-      (state: BaseStateSchema): Promise<ComponentData> =>
-        this.getComponentData(
-          state,
-          componentDisplayName,
-          haProxyStates.find(
-            (haProxyState: HaProxyStateSchema): boolean => haProxyState.metadata.id === state.metadata.id,
-          ),
+    return states.map((state: BaseStateSchema): Promise<ComponentData> =>
+      this.getComponentData(
+        state,
+        componentDisplayName,
+        haProxyStates.find(
+          (haProxyState: HaProxyStateSchema): boolean => haProxyState.metadata.id === state.metadata.id,
         ),
+      ),
     );
   }
 
@@ -2852,7 +2903,7 @@ export class NodeCommandTasks {
     return {
       title: 'Test create account',
       task: async ({config}, task): Promise<void> => {
-        const {namespace, deployment, context}: any = config;
+        const {namespace, deployment, context} = config;
 
         await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment);
 
@@ -3402,7 +3453,7 @@ export class NodeCommandTasks {
     };
   }
 
-  public addWrapsLib(): SoloListrTask<NodeAddContext> {
+  public addWrapsLib(): SoloListrTask<NodeAddContext | NodeUpdateContext> {
     return {
       title: 'Copy wraps lib over',
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
@@ -4161,7 +4212,7 @@ export class NodeCommandTasks {
     return {
       title: 'Download last state from an existing node',
       task: async ({config}): Promise<void> => {
-        const {consensusNodes, namespace, stagingDir}: any = config;
+        const {consensusNodes, namespace, stagingDir} = config;
 
         // TODO: currently only supports downloading from the first existing node
         const node: ConsensusNode = consensusNodes[0];
@@ -4637,9 +4688,8 @@ export class NodeCommandTasks {
     };
 
     const matches: ProcessInfo[][] = await Promise.all(
-      processNames.map(
-        async (processName): Promise<ProcessInfo[]> =>
-          find('name', processName, findConfig).catch((): ProcessInfo[] => []),
+      processNames.map(async (processName): Promise<ProcessInfo[]> =>
+        find('name', processName, findConfig).catch((): ProcessInfo[] => []),
       ),
     );
 

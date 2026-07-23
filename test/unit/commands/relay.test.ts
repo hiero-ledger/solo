@@ -9,6 +9,8 @@ import {Flags as flags} from '../../../src/commands/flags.js';
 import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {resetForTest} from '../../test-container.js';
 import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
+import {SoloErrors} from '../../../src/core/errors/solo-errors.js';
+import {type ArgvStruct} from '../../../src/types/aliases.js';
 
 interface RelayCommandInternal {
   prepareNetworkJsonString: (nodeAliases: string[], namespace: NamespaceName, deployment: string) => Promise<string>;
@@ -152,6 +154,19 @@ describe('RelayCommand unit tests', (): void => {
       expect.fail('Expected prepareHelmChartValuesForRelay to throw');
     } catch (error) {
       expect(error.message).to.include('Invalid image reference format: latest');
+    }
+  });
+
+  it('wraps an add() Initialize failure in RelayDeployFailedSoloError exactly once', async (): Promise<void> => {
+    sinon.stub(relayCommand.localConfig, 'load').rejects(new Error('boom'));
+
+    try {
+      await relayCommand.add({_: []} as unknown as ArgvStruct);
+      expect.fail('Expected add() to throw');
+    } catch (error) {
+      expect(error).to.be.instanceOf(SoloErrors.component.relayDeployFailed);
+      expect(error.message).to.equal('Error deploying relay: boom');
+      expect(error.cause.message).to.equal('boom');
     }
   });
 });

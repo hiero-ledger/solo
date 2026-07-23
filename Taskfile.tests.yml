@@ -60,6 +60,14 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/integration/**/*.ts'
         {{ .reporter_options_prefix }}-e2e-integration.xml"
 
+  test-install-validation:
+    desc: "Runs the per-distribution system-dependency install validation and generates reports in coverage/install-validation"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha Install Validation Tests\"
+        {{ .reporter_prefix }}='coverage/install-validation'
+        {{ .mocha_bin }} 'test/e2e/integration/core/package-managers/os-package-manager-install.test.ts'
+        {{ .reporter_options_prefix }}-install-validation.xml --timeout 300000"
+
   test-e2e-leases:
     desc: "Runs E2E lease tests with coverage and generates reports in coverage/e2e-leases"
     cmds:

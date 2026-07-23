@@ -286,6 +286,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CLUSTER_ROLE_CHECK_FAILED: 'SOLO-5073',
   UNSUPPORTED_LINUX_DISTRIBUTION: 'SOLO-5074',
   BLOCK_NODES_JSON_EMPTY: 'SOLO-5075',
+  HELM_CHART_PULL_NO_ARCHIVE: 'SOLO-5076',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

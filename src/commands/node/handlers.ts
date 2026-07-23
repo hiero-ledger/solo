@@ -1251,21 +1251,19 @@ export class NodeCommandHandlers extends CommandHandler {
       task: (context_: Context, task): SoloListr<Context> => {
         const nodeAliases: NodeAliases = context_.config.nodeAliases;
 
-        const subTasks: SoloListrTask<Context>[] = nodeAliases.map(
-          (nodeAlias): SoloListrTask<AnyListrContext> => ({
-            title: `Validating state for node ${nodeAlias}`,
-            task: (_, task): void => {
-              const state: DeploymentPhase = this.validateNodeState(
-                nodeAlias,
-                this.remoteConfig.configuration.components,
-                acceptedPhases,
-                excludedPhases,
-              );
+        const subTasks: SoloListrTask<Context>[] = nodeAliases.map((nodeAlias): SoloListrTask<AnyListrContext> => ({
+          title: `Validating state for node ${nodeAlias}`,
+          task: (_, task): void => {
+            const state: DeploymentPhase = this.validateNodeState(
+              nodeAlias,
+              this.remoteConfig.configuration.components,
+              acceptedPhases,
+              excludedPhases,
+            );
 
-              task.title += ` - ${chalk.green('valid state')}: ${chalk.cyan(state)}`;
-            },
-          }),
-        );
+            task.title += ` - ${chalk.green('valid state')}: ${chalk.cyan(state)}`;
+          },
+        }));
 
         return task.newListr(subTasks, {
           concurrent: false,

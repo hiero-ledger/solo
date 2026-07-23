@@ -248,15 +248,15 @@ export default [
           fixStyle: 'inline-type-imports',
         },
       ],
-      '@typescript-eslint/no-explicit-any': 'warn', // TODO remove (771 errors)
+      '@typescript-eslint/no-explicit-any': 'warn', // TODO remove (406 errors)
       '@typescript-eslint/no-this-alias': [
         'error',
         {
           allowedNames: ['self'], // TODO remove (59 errors)
         },
       ],
-      '@typescript-eslint/no-unused-vars': 'warn', // TODO remove (83 errors)
-      'n/no-process-exit': 'warn', // TODO remove (38 errors)
+      '@typescript-eslint/no-unused-vars': 'warn', // TODO remove (6 errors)
+      'n/no-process-exit': 'warn', // TODO remove (1 errors)
       // Enforce `import {type X} from 'path';` over `import type {X} from 'path';`,
       // but allow `import type * as <name> from 'path';`
       'no-restricted-syntax': [
@@ -266,7 +266,7 @@ export default [
           message: "Use `import {type X} from 'path';` instead of `import type {X} from 'path';`.",
         },
       ],
-      '@typescript-eslint/explicit-member-accessibility': 'warn',
+      '@typescript-eslint/explicit-member-accessibility': 'warn', // TODO remove (47 error)
       'unused-imports/no-unused-imports': 'error',
       'unused-imports/no-unused-vars': [
         'error',
@@ -296,15 +296,10 @@ export default [
           ignore: ['.*\\.d\\.ts$'], // Ignore TypeScript declaration files if needed
         },
       ],
-      'unicorn/no-null': 'warn', // TODO error
-      'unicorn/text-encoding-identifier-case': 'warn', // TODO error
-      'unicorn/catch-error-name': 'warn', // TODO error
-      'unicorn/no-this-assignment': 'warn', // TODO error
-      'unicorn/consistent-function-scoping': 'warn', // TODO error
-      'unicorn/error-message': 'warn', // TODO error
-      'unicorn/import-style': 'warn', // TODO error
-      'unicorn/prefer-optional-catch-binding': 'warn', // TODO error
-      'unicorn/no-array-push-push': 'warn', // TODO error
+      'unicorn/no-null': 'warn', // TODO error (104 errors)
+      'unicorn/consistent-function-scoping': 'warn', // TODO error (2 errors)
+      'unicorn/error-message': 'warn', // TODO error (1 error)
+      'unicorn/import-style': 'warn', // TODO error (8 errors)
     },
   },
   {

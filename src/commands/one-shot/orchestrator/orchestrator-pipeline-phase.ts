@@ -29,8 +29,8 @@ export class OrchestratorPipelinePhase<TConfig extends {deployment: string}, TCo
     private readonly step: OrchestratorStep<TConfig, TContext> | undefined,
     private readonly subPhases: ReadonlyArray<OrchestratorPipelinePhase<TConfig, TContext>> = [],
     private readonly executionMode:
-      | ExecutionMode
-      | ((getConfig: () => TConfig) => ExecutionMode) = OrchestratorPipelinePhase.EXECUTION_MODE.SEQUENTIAL,
+      ExecutionMode | ((getConfig: () => TConfig) => ExecutionMode) = OrchestratorPipelinePhase.EXECUTION_MODE
+      .SEQUENTIAL,
     private readonly exitOnError: boolean = true,
     private readonly rendererOptions?: object,
     private readonly skipFunction?: (getConfig: () => TConfig) => boolean,

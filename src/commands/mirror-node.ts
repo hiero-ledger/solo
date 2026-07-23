@@ -1132,9 +1132,49 @@ export class MirrorNodeCommand extends BaseCommand {
                 await this.deployMirrorNode(context_, commandType);
               },
             },
+            this.waitForMirrorNodeSchemaTask(),
           ],
           constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         ),
+    };
+  }
+
+  /**
+   * Waits for the importer to become ready — and thus for its Flyway schema migrations to complete —
+   * before dependent components are health-checked. Without this gate, a slow first-run schema build
+   * lets REST/REST-Java/Web3/gRPC query a partially-migrated database and fail the deployment.
+   */
+  private waitForMirrorNodeSchemaTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Wait for mirror node database schema',
+      task: async (context_): Promise<void> => {
+        const config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass = context_.config;
+        const importerLabels: string[] = [
+          'app.kubernetes.io/component=importer',
+          `app.kubernetes.io/instance=${config.releaseName}`,
+        ];
+        const pods: Pods = this.k8Factory.getK8(config.clusterContext).pods();
+
+        try {
+          await pods.waitForRunningPhase(
+            config.namespace,
+            importerLabels,
+            constants.MIRROR_NODE_IMPORTER_DETECT_MAX_ATTEMPTS,
+            constants.MIRROR_NODE_IMPORTER_DETECT_DELAY,
+          );
+        } catch {
+          // importer disabled via custom values — no schema build to wait for
+          this.logger.info(`No importer pod found for release ${config.releaseName}; skipping mirror node schema wait`);
+          return;
+        }
+
+        await pods.waitForReadyStatus(
+          config.namespace,
+          importerLabels,
+          constants.MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS,
+          constants.MIRROR_NODE_SCHEMA_READY_DELAY,
+        );
+      },
     };
   }
 

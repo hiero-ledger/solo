@@ -576,6 +576,14 @@ export class ProfileManager {
       lines.push(`blockStream.writerMode=${writerMode}`);
     }
 
+    // streamMode=BOTH sends both native blocks (BLOCK_HEADER) and Wrapped Record Blocks
+    // (ROUND_HEADER) to the block node.  The block node silently drops ROUND_HEADER items
+    // because they fail its hasBlockHeader() check, creating gaps that permanently stall the
+    // mirror importer on NOT_AVAILABLE.  Set this here so the CN pod reads it at first startup;
+    // the post-start ConfigMap update in createAndCopyBlockNodeJsonFileForConsensusNode is too
+    // late because the JVM has already cached its configuration by then.
+    Helpers.ensureWrappedRecordBlocksDisabled(lines, streamMode);
+
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 

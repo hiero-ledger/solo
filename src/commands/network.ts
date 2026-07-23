@@ -167,6 +167,7 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
+      flags.clusterSetupNamespace,
       flags.javaFlightRecorderConfiguration,
       flags.wrapsEnabled,
       flags.wrapsKeyPath,
@@ -692,8 +693,19 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (config.enableMonitoringSupport) {
+      // the Prometheus stack is installed by `cluster-ref setup` into the cluster setup namespace,
+      // which is configurable, so the Alloy sidecar's remote-write target is composed rather than
+      // defaulted in the chart
+      const remoteWriteEndpoint: string =
+        `http://${constants.PROMETHEUS_RELEASE_NAME}-prometheus.${config.clusterSetupNamespace.name}` +
+        '.svc:9090/api/v1/write';
+
       for (const clusterReference of clusterReferences) {
-        chartValuesMap[clusterReference].set('crs.podLog.enabled', true).set('crs.serviceMonitor.enabled', true);
+        chartValuesMap[clusterReference]
+          .set('crs.podLog.enabled', true)
+          .set('crs.serviceMonitor.enabled', true)
+          .set('defaults.sidecars.grafanaAlloy.enabled', true)
+          .setLiteral('defaults.sidecars.grafanaAlloy.remoteWrite.endpoint', remoteWriteEndpoint);
       }
     }
 
@@ -1920,8 +1932,8 @@ export class NetworkCommand extends BaseCommand {
               force: this.configManager.getFlag(flags.force),
               contexts: remoteConfigLoaded
                 ? this.remoteConfig.getContexts()
-                : [...this.localConfig.configuration.clusterRefs.values()].map(
-                    (context): Context => context.toString(),
+                : [...this.localConfig.configuration.clusterRefs.values()].map((context): Context =>
+                    context.toString(),
                   ),
             };
 

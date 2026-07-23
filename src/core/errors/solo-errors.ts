@@ -241,6 +241,7 @@ import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-fai
 import {HelmChartGenericInstallFailedSoloError} from './classes/system/helm-chart-generic-install-failed-solo-error.js';
 import {HelmChartUninstallFailedSoloError} from './classes/system/helm-chart-uninstall-failed-solo-error.js';
 import {HelmChartUpgradeFailedSoloError} from './classes/system/helm-chart-upgrade-failed-solo-error.js';
+import {HelmChartPullNoArchiveSoloError} from './classes/system/helm-chart-pull-no-archive-solo-error.js';
 import {FileNotFoundSoloError} from './classes/system/file-not-found-solo-error.js';
 import {FileCopyFailedSoloError} from './classes/system/file-copy-failed-solo-error.js';
 import {FileEmptySoloError} from './classes/system/file-empty-solo-error.js';
@@ -750,6 +751,7 @@ export class SoloErrors {
     readonly helmChartGenericInstallFailed: typeof HelmChartGenericInstallFailedSoloError;
     readonly helmChartUninstallFailed: typeof HelmChartUninstallFailedSoloError;
     readonly helmChartUpgradeFailed: typeof HelmChartUpgradeFailedSoloError;
+    readonly helmChartPullNoArchive: typeof HelmChartPullNoArchiveSoloError;
     readonly fileNotFound: typeof FileNotFoundSoloError;
     readonly fileCopyFailed: typeof FileCopyFailedSoloError;
     readonly fileEmpty: typeof FileEmptySoloError;
@@ -827,6 +829,7 @@ export class SoloErrors {
     helmChartGenericInstallFailed: HelmChartGenericInstallFailedSoloError,
     helmChartUninstallFailed: HelmChartUninstallFailedSoloError,
     helmChartUpgradeFailed: HelmChartUpgradeFailedSoloError,
+    helmChartPullNoArchive: HelmChartPullNoArchiveSoloError,
     fileNotFound: FileNotFoundSoloError,
     fileCopyFailed: FileCopyFailedSoloError,
     fileEmpty: FileEmptySoloError,

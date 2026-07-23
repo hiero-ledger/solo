@@ -6,6 +6,8 @@ import path from 'node:path';
 import {format} from 'node:util';
 import {SoloErrors} from './errors/solo-errors.js';
 import {Templates} from './templates.js';
+import {SubprocessEnvironment} from './subprocess-environment.js';
+import {SubprocessCommandProfile} from './subprocess-command-profile.js';
 import * as constants from './constants.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
@@ -107,6 +109,15 @@ export class Helpers {
       /^\s*blockStream\.streamMode\s*=\s*(\S+)\s*$/m,
     );
     return match?.[1];
+  }
+
+  public static ensureWrappedRecordBlocksDisabled(lines: string[], streamMode: string): void {
+    if (
+      streamMode === 'BOTH' &&
+      !lines.some((line: string): boolean => line.startsWith('blockStream.streamWrappedRecordBlocks='))
+    ) {
+      lines.push('blockStream.streamWrappedRecordBlocks=false');
+    }
   }
 
   public static sleep(duration: Duration): Promise<void> {
@@ -639,6 +650,7 @@ export class Helpers {
       const output: string = execFileSync('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}'], {
         encoding: 'utf8',
         stdio: 'pipe',
+        env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.CONTAINER_ENGINE),
       });
       return output
         .split(/\r?\n/)
@@ -810,6 +822,12 @@ export class Helpers {
     if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
+
+    // streamMode=BOTH (used by performance tests) produces both native block-stream blocks
+    // (BLOCK_HEADER) and Wrapped Record Blocks (ROUND_HEADER). The mirror importer rejects
+    // ROUND_HEADER; its rapid retries trigger the block node's HTTP/2 rapid-reset protection,
+    // cutting off block ingestion. Disable WRBs only when BOTH mode is active.
+    Helpers.ensureWrappedRecordBlocksDisabled(lines, blockStreamMode);
 
     const updatedApplicationPropertiesData: string = lines.join('\n');
     if (updatedApplicationPropertiesData !== applicationPropertiesData) {
