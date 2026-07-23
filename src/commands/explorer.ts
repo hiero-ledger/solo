@@ -428,7 +428,9 @@ export class ExplorerCommand extends BaseCommand {
       title: 'Install explorer ingress controller',
       skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.enableIngress,
       task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
-        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues();
+        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues().file(
+          constants.INGRESS_CONTROLLER_VALUES_FILE,
+        );
 
         if (config.explorerStaticIp !== '') {
           explorerIngressControllerChartValues.setLiteral('controller.service.loadBalancerIP', config.explorerStaticIp);
