@@ -823,16 +823,20 @@ export class ExplorerCommand extends BaseCommand {
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
+            const currentExplorerVersion: SemanticVersion<string> = this.remoteConfig.getComponentVersion(
+              ComponentTypes.Explorer,
+            );
+
             config.explorerVersion = UpgradeVersionResolver.resolve(
               this.configManager.wasFlagProvidedByUser(flags.explorerVersion) ? config.explorerVersion : undefined,
-              this.remoteConfig.getComponentVersion(ComponentTypes.Explorer),
+              currentExplorerVersion,
               EXPLORER_VERSION,
             );
 
             assertUpgradeVersionNotOlder(
               'Explorer',
               config.explorerVersion,
-              this.remoteConfig.getComponentVersion(ComponentTypes.Explorer),
+              currentExplorerVersion,
               optionFromFlag(flags.explorerVersion),
             );
 

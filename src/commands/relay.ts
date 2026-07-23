@@ -788,16 +788,20 @@ export class RelayCommand extends BaseCommand {
               const relayVersionProvidedByUser: boolean =
                 this.configManager.wasFlagProvidedByUser(flags.relayVersion) ||
                 this.configManager.wasFlagProvidedByUser(flags.relayReleaseTag);
+              const currentRelayVersion: SemanticVersion<string> = this.remoteConfig.getComponentVersion(
+                ComponentTypes.RelayNodes,
+              );
+
               config.relayReleaseTag = UpgradeVersionResolver.resolve(
                 relayVersionProvidedByUser ? config.relayReleaseTag : undefined,
-                this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
+                currentRelayVersion,
                 HEDERA_JSON_RPC_RELAY_VERSION,
               );
 
               assertUpgradeVersionNotOlder(
                 'Relay',
                 config.relayReleaseTag,
-                this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
+                currentRelayVersion,
                 optionFromFlag(flags.relayVersion),
               );
 
