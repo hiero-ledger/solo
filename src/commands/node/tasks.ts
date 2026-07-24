@@ -66,11 +66,7 @@ import {
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
-import {
-  HEDERA_PLATFORM_VERSION,
-  MINIMUM_SOLO_CHART_VERSION,
-  needsConfigTxtForConsensusVersion,
-} from '../../../version.js';
+import {HEDERA_PLATFORM_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -1187,16 +1183,6 @@ export class NodeCommandTasks {
         const context: Context = extractContextFromConsensusNodes(targetNodeAlias, consensusNodes);
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
-
-        const consensusVersion: SemanticVersion<string> | undefined =
-          this.remoteConfig.configuration?.versions?.consensusNode;
-        const releaseTag: string = consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
-        const needsConfigTxt: boolean = needsConfigTxtForConsensusVersion(releaseTag);
-        const configSource: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
-        if (needsConfigTxt && (await k8Container.hasFile(configSource))) {
-          // copy the config.txt file from the node1 upgrade directory if it exists
-          await k8Container.copyFrom(configSource, stagingDir);
-        }
 
         // if directory data/upgrade/current/data/keys does not exist, then use data/upgrade/current
         let keyDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/keys`;
@@ -3653,13 +3639,8 @@ export class NodeCommandTasks {
         }
 
         // Add profile values files
-        const releaseTag: string = config.releaseTag || HEDERA_PLATFORM_VERSION;
-        const configTxtPath: string | undefined = needsConfigTxtForConsensusVersion(releaseTag)
-          ? PathEx.joinWithRealPath(config.stagingDir, 'config.txt')
-          : undefined;
         const profileValuesFile: string = await this.profileManager.prepareValuesForNodeTransaction(
           PathEx.joinWithRealPath(config.stagingDir, 'templates', constants.APPLICATION_PROPERTIES),
-          configTxtPath,
         );
 
         const valuesFilesMap: Record<ClusterReferenceName, HelmChartValues> = {};

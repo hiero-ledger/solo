@@ -21,20 +21,8 @@ import {KubeConfig} from '@kubernetes/client-node';
 import sinon from 'sinon';
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {type AnyObject, type NodeAlias, type NodeAliases} from '../../../src/types/aliases.js';
+import {type AnyObject, type NodeAliases} from '../../../src/types/aliases.js';
 import * as constants from '../../../src/core/constants.js';
-import {Address} from '../../../src/business/address/address.js';
-
-function invokeExtractSavedEndpoint(
-  manager: ProfileManager,
-  consensusNode: ConsensusNode,
-  nodeSequence: number,
-): Promise<Address | undefined> {
-  const extractSavedEndpoint: (node: ConsensusNode, nodeSequence: number) => Promise<Address | undefined> = (
-    manager as unknown as Record<string, (node: ConsensusNode, nodeSequence: number) => Promise<Address | undefined>>
-  ).extractSavedEndpoint;
-  return extractSavedEndpoint.call(manager, consensusNode, nodeSequence);
-}
 
 describe('ProfileManager', (): void => {
   let temporaryDirectory: string, configManager: ConfigManager, profileManager: ProfileManager, cacheDirectory: string;
@@ -193,115 +181,6 @@ describe('ProfileManager', (): void => {
       const cachedValuesFile: string = Object.values(cachedValuesFileMapping)[0];
       const valuesYaml: AnyObject = yaml.parse(fs.readFileSync(cachedValuesFile, 'utf8')) as AnyObject;
       expect(valuesYaml.hedera.configMaps.applicationEnv).to.equal(fileContents);
-    });
-  });
-
-  describe('prepareConfigText', (): void => {
-    it('should write and return the path to the config.txt file', async (): Promise<void> => {
-      const destinationPath: string = PathEx.join(temporaryDirectory, 'staging');
-      fs.mkdirSync(destinationPath, {recursive: true});
-    });
-  });
-
-  describe('saved endpoint extraction', (): void => {
-    afterEach((): void => {
-      sinon.restore();
-    });
-
-    it('reuses saved domainName endpoint from network.json', async (): Promise<void> => {
-      const savedDomainName: string = 'network-node1-svc.test-namespace.svc.cluster.local';
-      const networkJsonContent: string = JSON.stringify({
-        nodeMetadata: [{rosterEntry: {gossipEndpoint: [{port: 50_211, domainName: savedDomainName}]}}],
-      });
-
-      const getK8Stub: sinon.SinonStub = sinon.stub().returns({
-        pods: (): {list: () => Promise<Array<{podReference: unknown}>>} => ({
-          list: async (): Promise<Array<{podReference: unknown}>> => [{podReference: {}}],
-        }),
-        containers: (): {readByRef: () => {execContainer: () => Promise<string>}} => ({
-          readByRef: (): {execContainer: () => Promise<string>} => ({
-            execContainer: async (): Promise<string> => networkJsonContent,
-          }),
-        }),
-      });
-      sinon
-        .stub(
-          (profileManager as unknown as {k8Factory: {getK8: (...arguments_: unknown[]) => unknown}}).k8Factory,
-          'getK8',
-        )
-        .callsFake(getK8Stub);
-
-      const savedAddress: Address | undefined = await invokeExtractSavedEndpoint(profileManager, consensusNodes[0], 0);
-      expect(savedAddress).to.not.be.undefined;
-      expect(savedAddress?.hostString()).to.equal(savedDomainName);
-      expect(savedAddress?.port).to.equal(50_211);
-    });
-
-    it('decodes saved ipAddressV4 and validates it against the expected node service', async (): Promise<void> => {
-      const savedIpAddress: string = '10.1.2.3';
-      const encodedIpAddress: string = Buffer.from([10, 1, 2, 3]).toString('base64');
-      const networkJsonContent: string = JSON.stringify({
-        nodeMetadata: [{rosterEntry: {gossipEndpoint: [{port: 50_211, ipAddressV4: encodedIpAddress}]}}],
-      });
-      const serviceReadStub: sinon.SinonStub = sinon.stub().resolves({spec: {clusterIP: savedIpAddress}});
-      const getK8Stub: sinon.SinonStub = sinon.stub().returns({
-        pods: (): {list: () => Promise<Array<{podReference: unknown}>>} => ({
-          list: async (): Promise<Array<{podReference: unknown}>> => [{podReference: {}}],
-        }),
-        containers: (): {readByRef: () => {execContainer: () => Promise<string>}} => ({
-          readByRef: (): {execContainer: () => Promise<string>} => ({
-            execContainer: async (): Promise<string> => networkJsonContent,
-          }),
-        }),
-        services: (): {read: sinon.SinonStub} => ({
-          read: serviceReadStub,
-        }),
-      });
-      sinon
-        .stub(
-          (profileManager as unknown as {k8Factory: {getK8: (...arguments_: unknown[]) => unknown}}).k8Factory,
-          'getK8',
-        )
-        .callsFake(getK8Stub);
-
-      const savedAddress: Address | undefined = await invokeExtractSavedEndpoint(profileManager, consensusNodes[0], 0);
-      expect(savedAddress).to.not.be.undefined;
-      expect(savedAddress?.hostString()).to.equal(savedIpAddress);
-      expect(serviceReadStub.calledOnce).to.equal(true);
-      expect(serviceReadStub.firstCall.args[1]).to.equal('network-node1-svc');
-    });
-
-    it('falls back to current external address when saved endpoint is not reusable', async (): Promise<void> => {
-      const destinationPath: string = PathEx.join(temporaryDirectory, 'config-fallback');
-      fs.mkdirSync(destinationPath, {recursive: true});
-
-      const extractSavedEndpointStub: sinon.SinonStub = sinon
-        .stub(
-          profileManager as unknown as {
-            extractSavedEndpoint: (consensusNode: ConsensusNode, nodeSeq: number) => Promise<Address | undefined>;
-          },
-          'extractSavedEndpoint',
-        )
-        .resolves();
-
-      const externalAddressStub: sinon.SinonStub = sinon
-        .stub(Address, 'getExternalAddress')
-        .resolves(new Address(50_211, 'fallback-node1.test'));
-
-      const nodeAccountMap: Map<NodeAlias, string> = new Map([[consensusNodes[0].name as NodeAlias, '0.0.3']]);
-      const configTxtPath: string = await profileManager.prepareConfigTxt(
-        nodeAccountMap,
-        [consensusNodes[0]],
-        destinationPath,
-        constants.HEDERA_APP_NAME,
-        constants.HEDERA_CHAIN_ID,
-        false,
-      );
-
-      expect(extractSavedEndpointStub.calledOnce).to.equal(true);
-      expect(externalAddressStub.calledOnce).to.equal(true);
-      expect(externalAddressStub.firstCall.args[3]).to.equal(false);
-      expect(fs.readFileSync(configTxtPath, 'utf8')).to.contain('fallback-node1.test, 50211');
     });
   });
 

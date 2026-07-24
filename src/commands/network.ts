@@ -1645,7 +1645,7 @@ export class NetworkCommand extends BaseCommand {
             const {namespace, chartDirectory, soloChartVersion, clusterRefs} = config;
 
             // Update the chartValuesMap with the external IP addresses
-            // This regenerates the config.txt and genesis-network.json files with the external IP addresses
+            // This regenerates the genesis-network.json file with the external IP addresses
             config.chartValuesMap = await this.prepareHelmChartValuesMap(config);
 
             // Perform a helm upgrade for each cluster

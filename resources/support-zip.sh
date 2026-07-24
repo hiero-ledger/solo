@@ -14,7 +14,6 @@ readonly RESEARCH_ZIP=${HOSTNAME}-log-config.zip
 readonly OUTPUT_DIR=output
 readonly ZIP_FULLPATH=${HAPI_DIR}/${DATA_DIR}/${RESEARCH_ZIP}
 readonly FILE_LIST=${HAPI_DIR}/support-zip-file-list.txt
-readonly CONFIG_TXT=config.txt
 readonly SETTINGS_TXT=settings.txt
 readonly SETTINGS_USED_TXT=settingsUsed.txt
 readonly HEDERA_CRT=hedera.crt
@@ -58,7 +57,6 @@ cd ${HAPI_DIR}
 pwd | tee -a ${LOG_FILE}
 echo -n > ${FILE_LIST}
 (journalctl > ${JOURNAL_CTL_LOG} 2>/dev/null) || true
-AddToFileList ${CONFIG_TXT}
 AddToFileList ${SETTINGS_TXT}
 AddToFileList ${SETTINGS_USED_TXT}
 if [[ "${excludeSensitiveData}" != "true" ]]; then

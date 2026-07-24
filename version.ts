@@ -6,7 +6,6 @@ import path from 'node:path';
 import {PathEx} from './src/business/utils/path-ex.js';
 import fs from 'node:fs';
 import * as constants from './src/core/constants.js';
-import {SemanticVersion} from './src/business/utils/semantic-version.js';
 
 /**
  * This file should only contain versions for dependencies and the function to get the Solo version.
@@ -66,7 +65,6 @@ export const BLOCK_NODE_EDGE_VERSION: string =
 
 // -------------------------------------------------------------------- //
 
-export const LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT: string = 'v0.70.0';
 export const MEMORY_ENHANCEMENTS_MIRROR_NODE_VERSION: string = '0.152.0';
 export const MINIMUM_MIRROR_NODE_VERSION_FOR_ARM64_WEB3_NATIVE_IMAGE: string = '0.155.0';
 
@@ -79,10 +77,6 @@ export const NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72: string = '0.14.0'
 export const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
 export const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
 export const MINIMUM_SOLO_CHART_VERSION: string = '0.64.0';
-export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
-  const versionTag: SemanticVersion<string> = new SemanticVersion(releaseTag || HEDERA_PLATFORM_VERSION);
-  return versionTag.lessThanOrEqual(LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
-}
 
 export function getSoloVersion(): Version {
   const __filename: string = fileURLToPath(import.meta.url);
