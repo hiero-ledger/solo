@@ -137,6 +137,8 @@ import {ClusterSetupFailedSoloError} from './classes/deployment/cluster-setup-fa
 import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-failed-solo-error.js';
 import {MinioInstallFailedSoloError} from './classes/deployment/minio-install-failed-solo-error.js';
 import {PrometheusInstallFailedSoloError} from './classes/deployment/prometheus-install-failed-solo-error.js';
+import {GrafanaAlloyInstallFailedSoloError} from './classes/deployment/grafana-alloy-install-failed-solo-error.js';
+import {LokiInstallFailedSoloError} from './classes/deployment/loki-install-failed-solo-error.js';
 import {MetricsServerInstallFailedSoloError} from './classes/deployment/metrics-server-install-failed-solo-error.js';
 import {ClusterRoleInstallFailedSoloError} from './classes/deployment/cluster-role-install-failed-solo-error.js';
 import {ClusterApiServerTimeoutSoloError} from './classes/deployment/cluster-api-server-timeout-solo-error.js';
@@ -333,6 +335,8 @@ export class SoloErrors {
     readonly clusterResetFailed: typeof ClusterResetFailedSoloError;
     readonly minioInstallFailed: typeof MinioInstallFailedSoloError;
     readonly prometheusInstallFailed: typeof PrometheusInstallFailedSoloError;
+    readonly grafanaAlloyInstallFailed: typeof GrafanaAlloyInstallFailedSoloError;
+    readonly lokiInstallFailed: typeof LokiInstallFailedSoloError;
     readonly metricsServerInstallFailed: typeof MetricsServerInstallFailedSoloError;
     readonly clusterRoleInstallFailed: typeof ClusterRoleInstallFailedSoloError;
     readonly clusterApiServerTimeout: typeof ClusterApiServerTimeoutSoloError;
@@ -365,6 +369,8 @@ export class SoloErrors {
     clusterResetFailed: ClusterResetFailedSoloError,
     minioInstallFailed: MinioInstallFailedSoloError,
     prometheusInstallFailed: PrometheusInstallFailedSoloError,
+    grafanaAlloyInstallFailed: GrafanaAlloyInstallFailedSoloError,
+    lokiInstallFailed: LokiInstallFailedSoloError,
     metricsServerInstallFailed: MetricsServerInstallFailedSoloError,
     clusterRoleInstallFailed: ClusterRoleInstallFailedSoloError,
     clusterApiServerTimeout: ClusterApiServerTimeoutSoloError,
