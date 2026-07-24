@@ -8,7 +8,7 @@ import {Flags as flags} from '../flags.js';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {FilePermissions} from '../../business/utils/file-permissions.js';
-import {inject, injectable} from 'tsyringe-neo';
+import {container, inject, injectable} from 'tsyringe-neo';
 import {type CommandDefinition, type InitDependenciesOptions, type SoloListrTask} from '../../types/index.js';
 import {InitConfig} from './init-config.js';
 import {InitContext} from './init-context.js';
@@ -16,6 +16,9 @@ import {Listr, ListrRendererValue} from 'listr2';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {ClusterTaskManager} from '../../core/cluster-task-manager.js';
+import {type Deprecation} from '../../types/deprecation.js';
+import {Deprecations} from '../../core/deprecations.js';
+import {type DeprecationRegistry} from '../../core/deprecation-registry.js';
 
 /**
  * Defines the core functionalities of 'init' command
@@ -25,6 +28,11 @@ export class InitCommand extends BaseCommand {
   public static readonly COMMAND_NAME: string = 'init';
   public static readonly INIT_COMMAND_NAME: string = InitCommand.COMMAND_NAME;
   private static hasShownDevSystemFileLists: boolean = false;
+  private static readonly DEPRECATION: Deprecation = {
+    since: '0.84.0',
+    removalIssue: 5181,
+    reason: 'Running it is no longer required.',
+  };
 
   public constructor(
     @inject(InjectTokens.PodmanInstallationDirectory) protected readonly podmanInstallationDirectory: string,
@@ -175,14 +183,6 @@ export class InitCommand extends BaseCommand {
   public async init(argv: any): Promise<boolean> {
     const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.initTasks(argv);
 
-    this.logger.showUser(
-      chalk.grey('**********************************************************************************'),
-    );
-    this.logger.showUser(chalk.grey("'solo init' is now deprecated, you don't need to run it anymore."));
-    this.logger.showUser(
-      chalk.grey('**********************************************************************************\n'),
-    );
-
     if (tasks.isRoot()) {
       try {
         await tasks.run();
@@ -199,9 +199,14 @@ export class InitCommand extends BaseCommand {
    * @returns A object representing the Yargs command definition
    */
   public getCommandDefinition(): CommandDefinition {
+    const deprecationRegistry: DeprecationRegistry = container.resolve<DeprecationRegistry>(
+      InjectTokens.DeprecationRegistry,
+    );
+    deprecationRegistry.registerCommand(InitCommand.COMMAND_NAME, 'command', InitCommand.DEPRECATION);
+
     return {
       command: InitCommand.COMMAND_NAME,
-      desc: 'Initialize local environment',
+      desc: `Initialize local environment [DEPRECATED: ${Deprecations.formatHelpMarker(InitCommand.DEPRECATION)}]`,
       builder: (y: any): void => {
         // set the quiet flag even though it isn't used for consistency across all commands
         flags.setOptionalCommandFlags(y, flags.cacheDir, flags.quiet, flags.username);

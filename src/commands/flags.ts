@@ -4,6 +4,8 @@ import {IllegalArgumentError} from '../core/errors/classes/validation/illegal-ar
 import * as constants from '../core/constants.js';
 import * as version from '../../version.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
+import {type Definition} from '../types/definition.js';
+import {Deprecations} from '../core/deprecations.js';
 import fs from 'node:fs';
 import {SoloErrors} from '../core/errors/solo-errors.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
@@ -113,6 +115,17 @@ export class Flags {
   }
 
   /**
+   * Translates a flag {@link Definition} into the options object yargs understands. The structured
+   * {@link Definition.deprecated} metadata is converted into yargs' native `deprecated` marker (a string),
+   * so the rich object never reaches yargs and the `[deprecated: ...]` annotation appears in `--help`
+   * (and, because the docs are scraped from `--help`, in the generated documentation).
+   */
+  private static toYargsOptions(definition: Definition): AnyObject {
+    const {deprecated, ...yargsOptions}: Definition = definition;
+    return deprecated ? {...yargsOptions, deprecated: Deprecations.formatHelpMarker(deprecated)} : {...yargsOptions};
+  }
+
+  /**
    * Set flag from the flag option
    * @param y instance of yargs
    * @param commandFlags a set of command flags
@@ -120,7 +133,7 @@ export class Flags {
    */
   public static setRequiredCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]): void {
     for (const flag of commandFlags) {
-      y.option(flag.name, {...flag.definition, demandOption: true});
+      y.option(flag.name, {...Flags.toYargsOptions(flag.definition), demandOption: true});
     }
   }
 
@@ -135,7 +148,7 @@ export class Flags {
       const defaultValue: string | number | boolean =
         flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
       y.option(flag.name, {
-        ...flag.definition,
+        ...Flags.toYargsOptions(flag.definition),
         default: defaultValue,
       });
     }
@@ -519,10 +532,11 @@ export class Flags {
     constName: 'releaseTag',
     name: 'release-tag',
     definition: {
-      describe: `DEPRECATED: use --consensus-node-version (e.g. ${version.HEDERA_PLATFORM_VERSION})`,
+      describe: `Consensus node release tag (e.g. ${version.HEDERA_PLATFORM_VERSION})`,
       alias: 't',
       defaultValue: version.HEDERA_PLATFORM_VERSION,
       type: 'string',
+      deprecated: {since: '0.84.0', removalIssue: 5181, replacement: '--consensus-node-version'},
     },
     prompt: async function promptReleaseTag(
       task: SoloListrTaskWrapper<AnyListrContext>,
@@ -554,9 +568,10 @@ export class Flags {
     constName: 'imageTag',
     name: 'image-tag',
     definition: {
-      describe: '[Deprecated] Use --component-image instead. Overrides the Docker image tag (e.g. 0.36.0-SNAPSHOT).',
+      describe: 'Overrides the Docker image tag (e.g. 0.36.0-SNAPSHOT).',
       defaultValue: '',
       type: 'string',
+      deprecated: {since: '0.84.0', removalIssue: 5181, replacement: '--component-image'},
     },
     prompt: undefined,
   };
@@ -580,9 +595,10 @@ export class Flags {
     constName: 'relayReleaseTag',
     name: 'relay-release',
     definition: {
-      describe: 'DEPRECATED: use --relay-version (e.g. v0.48.0)',
+      describe: 'Relay release tag (e.g. v0.48.0)',
       defaultValue: version.HEDERA_JSON_RPC_RELAY_VERSION,
       type: 'string',
+      deprecated: {since: '0.84.0', removalIssue: 5181, replacement: '--relay-version'},
     },
     prompt: async function promptRelayReleaseTag(
       task: SoloListrTaskWrapper<AnyListrContext>,
@@ -1264,9 +1280,10 @@ export class Flags {
     constName: 'chartVersion',
     name: 'chart-version',
     definition: {
-      describe: 'DEPRECATED: use --block-node-version',
+      describe: 'Block node chart version',
       defaultValue: version.BLOCK_NODE_VERSION,
       type: 'string',
+      deprecated: {since: '0.84.0', removalIssue: 5181, replacement: '--block-node-version'},
     },
     prompt: async function promptBlockNodeChartVersion(
       task: SoloListrTaskWrapper<AnyListrContext>,
