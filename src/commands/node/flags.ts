@@ -296,6 +296,7 @@ export const START_FLAGS: CommandFlags = {
     flags.externalAddress,
     flags.wrapsKeyPath,
     flags.grpcWebEndpoints,
+    flags.skipGrpcWebEndpoint,
   ],
 };
 

@@ -24,9 +24,9 @@ import {
 } from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
-  AccountBalance,
-  AccountBalanceQuery,
   AccountId,
+  type AccountInfo,
+  AccountInfoQuery,
   AccountUpdateTransaction,
   type Client,
   FileAppendTransaction,
@@ -190,6 +190,8 @@ import {ContainerName} from '../../integration/kube/resources/container/containe
 const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
   return !(path.includes('data/keys') || path.includes('data/config') || path.includes('data/upgrade'));
 };
+
+const NETWORK_PROXY_INITIAL_READY_ATTEMPTS: number = 15;
 
 const {gray, cyan, red, green, yellow} = chalk;
 
@@ -581,8 +583,10 @@ export class NodeCommandTasks {
       },
     );
 
+    const runSequentially: boolean = enableDebugger || status === NodeStatusCodes.ACTIVE;
+
     return task.newListr(subTasks, {
-      concurrent: !enableDebugger, // Run sequentially when debugging to avoid multiple prompts
+      concurrent: !runSequentially, // ACTIVE checks include SDK readiness through shared AccountManager state.
       rendererOptions: {
         collapseSubtasks: false,
       },
@@ -740,14 +744,42 @@ export class NodeCommandTasks {
         task: async (context_): Promise<void> => {
           const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           const k8: K8 = this.k8Factory.getK8(context);
-          await k8
-            .pods()
-            .waitForReadyStatus(
-              context_.config.namespace,
-              [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'],
-              constants.NETWORK_PROXY_MAX_ATTEMPTS,
-              constants.NETWORK_PROXY_DELAY,
-            );
+          const labels: string[] = [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
+
+          try {
+            await k8
+              .pods()
+              .waitForReadyStatus(
+                context_.config.namespace,
+                labels,
+                NETWORK_PROXY_INITIAL_READY_ATTEMPTS,
+                constants.NETWORK_PROXY_DELAY,
+              );
+          } catch {
+            // HAProxy can remain unready when it starts before its consensus-node backend is available.
+            // Recreate only the affected proxy after the node has had time to start, then wait for the
+            // replacement rather than spending the full readiness timeout polling a stuck pod.
+            const replacementCreatedAfter: Date = new Date();
+            const pods: Pod[] = await k8.pods().list(context_.config.namespace, labels);
+
+            this.logger.warn(`HAProxy for node '${nodeAlias}' is not ready; recreating ${pods.length} pod(s)`);
+            for (const pod of pods) {
+              if (pod.podReference) {
+                await k8.pods().delete(pod.podReference);
+              }
+            }
+
+            await k8
+              .pods()
+              .waitForReadyStatus(
+                context_.config.namespace,
+                labels,
+                constants.NETWORK_PROXY_MAX_ATTEMPTS,
+                constants.NETWORK_PROXY_DELAY,
+                replacementCreatedAfter,
+                true,
+              );
+          }
         },
       });
     }
@@ -848,26 +880,26 @@ export class NodeCommandTasks {
     client.setOperator(treasuryAccountId, treasuryPrivateKey);
 
     // check balance
-    let treasuryBalance: AccountBalance;
+    let treasuryAccountInfo: AccountInfo;
     try {
-      treasuryBalance = await new AccountBalanceQuery().setAccountId(treasuryAccountId).execute(client);
+      treasuryAccountInfo = await new AccountInfoQuery().setAccountId(treasuryAccountId).execute(client);
     } catch (error) {
       throw new SoloErrors.component.accountBalanceQueryFailed(treasuryAccountId, error);
     }
 
-    this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
+    this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryAccountInfo.balance}`);
 
     // get some initial balance
     await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
 
     // check balance
-    let balance: AccountBalance;
+    let accountInfo: AccountInfo;
     try {
-      balance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
+      accountInfo = await new AccountInfoQuery().setAccountId(accountId).execute(client);
     } catch (error) {
       throw new SoloErrors.component.accountBalanceQueryFailed(accountId, error);
     }
-    this.logger.debug(`Account ${accountId} balance: ${balance.hbars}`);
+    this.logger.debug(`Account ${accountId} balance: ${accountInfo.balance}`);
 
     // Create the transaction
     const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
@@ -1000,14 +1032,14 @@ export class NodeCommandTasks {
         const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
 
         // query the balance
-        let balance: AccountBalance;
+        let accountInfo: AccountInfo;
         try {
-          balance = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
+          accountInfo = await new AccountInfoQuery().setAccountId(freezeAccountId).execute(nodeClient);
         } catch (error) {
           throw new SoloErrors.component.accountBalanceQueryFailed(freezeAccountId, error);
         }
 
-        this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
+        this.logger.debug(`Freeze admin account balance: ${accountInfo.balance}`);
 
         // transfer some tiny amount to the freeze admin account
         await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
@@ -1061,14 +1093,14 @@ export class NodeCommandTasks {
         const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
 
         // query the balance
-        let balance: AccountBalance;
+        let accountInfo: AccountInfo;
         try {
-          balance = await new AccountBalanceQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
+          accountInfo = await new AccountInfoQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
         } catch (error) {
           throw new SoloErrors.component.accountBalanceQueryFailed(freezeAdminAccountId, error);
         }
 
-        this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
+        this.logger.debug(`Freeze admin account balance: ${accountInfo.balance}`);
 
         nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
         let freezeUpgradeReceipt: TransactionReceipt;
@@ -1388,9 +1420,6 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass & {stateFile?: string} = context_.config;
 
-        // Get the source node ID from the first consensus node (the state file's original node)
-        const sourceNodeId: NodeId = config.consensusNodes[0].nodeId;
-
         for (const nodeAlias of context_.config.nodeAliases) {
           const kubeContext: Optional<string> = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
@@ -1421,8 +1450,16 @@ export class NodeCommandTasks {
 
           stateInputPath = PathEx.resolve(stateInputPath);
 
+          // sourceNodeId tracks which node's state directory is inside the zip so the
+          // rename-state-node-id script can move it to the right place.
+          let sourceNodeId: NodeId;
+
           if (fs.statSync(stateInputPath).isDirectory()) {
-            // It's a directory - find the state file for this specific pod
+            // Directory restore: each pod has its own zip that was captured from that same
+            // pod.  The zip therefore already contains the correct node-ID directory for the
+            // target pod, so no rename is required.
+            sourceNodeId = targetNodeId;
+
             const podName: string = podReference.name.name;
             const statesDirectory: string = PathEx.join(
               stateInputPath,
@@ -1449,7 +1486,9 @@ export class NodeCommandTasks {
             zipFile = PathEx.join(statesDirectory, stateFiles[0]);
             this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
           } else {
-            // It's a single file or use default from config
+            // Single-file restore (e.g. node add): the zip is from the first consensus node
+            // and needs to be renamed to match each target node.
+            sourceNodeId = config.consensusNodes[0].nodeId;
             zipFile = stateInputPath;
           }
 
@@ -1530,6 +1569,12 @@ export class NodeCommandTasks {
               targetNodeId.toString(),
             ]);
           }
+
+          await container.execContainer([
+            'bash',
+            '-c',
+            `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+          ]);
         }
       },
       skip,
@@ -1773,7 +1818,15 @@ export class NodeCommandTasks {
       title: 'set gRPC Web endpoint',
       skip: ({config: {app}}): boolean => {
         // skip setting the gRPC Web endpoint if we are not running a Consensus Node
-        return app !== constants.HEDERA_APP_NAME;
+        if (app !== constants.HEDERA_APP_NAME) {
+          return true;
+        }
+        // skip if caller opted out (e.g. restore flow where endpoint is already correct
+        // in the restored state and re-sending triggers the CN v0.74 CHECKING bug)
+        if (this.configManager.getFlag<boolean>(flags.skipGrpcWebEndpoint)) {
+          return true;
+        }
+        return false;
       },
       task: async ({config}): Promise<void> => {
         const {namespace, deployment, adminKey} = config;
@@ -2076,6 +2129,18 @@ export class NodeCommandTasks {
       // Fail fast when the helper is missing so callers immediately know the image
       // does not satisfy Solo's lifecycle contract.
       `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
+      [
+        "if ps -ef | grep -q '[c]om.hedera.node.app.ServicesMain'",
+        "then curl -sf http://localhost:9999/metrics | grep 'platform_PlatformStatus' | grep -q ' 2[.]0$' && true < /dev/tcp/127.0.0.1/50211",
+        'else false',
+        'fi',
+      ].join('\n'),
+      // ACTIVE nodes only need the autostart marker restored; the full helper start
+      // path deliberately forces a down/up cycle for transitional or frozen nodes.
+      `if [ $? -eq 0 ]; then "${lifecycleHelperPath}" enable-autostart; exit 0; fi`,
+      // A JVM can remain alive with only background threads after the main platform
+      // exits. Clear any non-ready process before asking the helper to start it.
+      `"${lifecycleHelperPath}" stop-and-disable-autostart`,
       // The helper owns both service control and autostart marker semantics.
       `"${lifecycleHelperPath}" start-and-enable-autostart`,
     ].join('\n');
@@ -3437,6 +3502,22 @@ export class NodeCommandTasks {
     };
   }
 
+  public removeCachedKeys(): SoloListrTask<NodeUpdateContext | NodeAddContext> {
+    return {
+      title: 'Remove cached keys',
+      // copyNodeKeysToSecrets already uploaded the keys to the cluster secrets, and later commands re-read them
+      // from those secrets, so delete the on-disk copies to avoid leaving private keys in SOLO_CACHE_DIR. Kept
+      // when --debug is enabled. Runs last so every task that consumes keysDir has already read it.
+      skip: (): boolean | string =>
+        this.configManager.getFlag<boolean>(flags.debugMode) ? '--debug enabled, keeping cached keys on disk' : false,
+      task: ({config: {keysDir}}): void => {
+        if (keysDir && fs.existsSync(keysDir)) {
+          fs.rmSync(keysDir, {recursive: true, force: true});
+        }
+      },
+    };
+  }
+
   public addWrapsLib(): SoloListrTask<NodeAddContext | NodeUpdateContext> {
     return {
       title: 'Copy wraps lib over',
@@ -4259,14 +4340,19 @@ export class NodeCommandTasks {
 
         const extractCommand: string = `unzip ${PathEx.basename(config.lastStateZipPath)}`;
 
+        const normalizePreconsensusEventsCommand: string = [
+          `cd ${savedStatePath}`,
+          extractCommand,
+          `if [ -d preconsensus-events/0 ] && [ "${nodeId}" != "0" ]; then ` +
+            `rm -rf preconsensus-events/${nodeId} && mv preconsensus-events/0 preconsensus-events/${nodeId}; ` +
+            'fi',
+          `rm -f ${PathEx.basename(config.lastStateZipPath)}`,
+        ].join(' && ');
+
         await k8
           .containers()
           .readByRef(containerReference)
-          .execContainer([
-            'bash',
-            '-c',
-            `cd ${savedStatePath} && ${extractCommand} && mv preconsensus-events/0 preconsensus-events/${nodeId} && rm -f ${PathEx.basename(config.lastStateZipPath)}`,
-          ]);
+          .execContainer(['bash', '-c', normalizePreconsensusEventsCommand]);
       },
     };
   }
