@@ -593,7 +593,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.componentImage = `${constants.BLOCK_NODE_IMAGE_NAME}:${config.imageTag}`;
             }
 
-            config.livenessCheckPort = constants.BLOCK_NODE_PORT;
+            config.livenessCheckPort = this.getLivenessCheckPortNumber(config);
 
             await this.persistBlockNodeMessageSizeOverrides(
               config.blockNodeMessageSizeSoftLimitBytes,
@@ -1380,6 +1380,31 @@ export class BlockNodeCommand extends BaseCommand {
         }
       },
     };
+  }
+
+  /// Returns the port used for the block node liveness/readiness check.
+  ///
+  /// Block node >= v0.39.0 serves its health endpoints (`/healthz/readyz`) from a dedicated
+  /// web server on `BLOCK_NODE_HEALTH_PORT`; earlier versions served them from the gRPC port
+  /// (`BLOCK_NODE_PORT`). The effective version is the higher of the chart version and a local
+  /// image tag (when set), mirroring `updateBlockNodeVersionInRemoteConfig`.
+  private getLivenessCheckPortNumber(config: BlockNodeDeployConfigClass): number {
+    let blockNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(config.chartVersion);
+
+    if (config.componentImage && this.isLocalImageReference(config.componentImage)) {
+      const tag: string = this.splitImageNameTag(config.componentImage).tag;
+      const imageVersion: SemanticVersion<string> = new SemanticVersion<string>(tag);
+      if (blockNodeVersion.lessThan(imageVersion)) {
+        blockNodeVersion = imageVersion;
+      }
+    }
+
+    const minimumVersion: SemanticVersion<string> = new SemanticVersion<string>(
+      versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_DEDICATED_HEALTH_PORT,
+    );
+    return blockNodeVersion.greaterThanOrEqual(minimumVersion)
+      ? constants.BLOCK_NODE_HEALTH_PORT
+      : constants.BLOCK_NODE_PORT;
   }
 
   private async updateBlockNodeVersionInRemoteConfig(

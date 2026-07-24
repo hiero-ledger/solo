@@ -501,6 +501,11 @@ export const BLOCK_NODE_ACTIVE_TIMEOUT: number = +getEnvironmentVariable('BLOCK_
 
 export const BLOCK_NODE_PORT: number = +getEnvironmentVariable('BLOCK_NODE_PORT') || 40_840;
 
+// Block node >= v0.39.0 serves its health endpoints (/healthz/livez, /healthz/readyz) from a
+// dedicated web server on this port, separate from the gRPC port (BLOCK_NODE_PORT). See
+// hiero-ledger/hiero-block-node#3216.
+export const BLOCK_NODE_HEALTH_PORT: number = +getEnvironmentVariable('BLOCK_NODE_HEALTH_PORT') || 40_983;
+
 export const BLOCK_ITEM_BATCH_SIZE: number = +getEnvironmentVariable('BLOCK_ITEM_BATCH_SIZE') || 256;
 
 // Filename suffix used for log/config archive files
