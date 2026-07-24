@@ -296,7 +296,9 @@ tasks:
           $SOLO_COMMAND explorer node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --mirrorNamespace {{ .NAMESPACE }} \
             --enable-explorer-tls --tls-cluster-issuer-type acme-staging --enable-ingress -q --dev
           echo "📡 Deploying Relay on Cluster 2..."
-          $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev
+          $SOLO_COMMAND relay node add --deployment {{ .DEPLOYMENT }} --cluster-ref solo-e2e-c2 \
+            --node-aliases {{ .NODE_ALIASES }} --quiet-mode --dev \
+            --values-file {{ .TASKFILE_DIR }}/relay-values.yaml
           echo "✅ Explorer and Relay deployed"
 
       - cmd: echo "✅ Initial deployment completed successfully!"
