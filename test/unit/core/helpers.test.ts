@@ -200,6 +200,14 @@ describe('Helpers', (): void => {
         'blockStream.writerMode=FILE_AND_GRPC',
       ]);
     });
+
+    it('disables wrapped record block publishing for BOTH mode when requested', (): void => {
+      const lines: string[] = ['blockStream.streamMode=BOTH', 'blockStream.streamWrappedRecordBlocks=true'];
+
+      Helpers.ensureWrappedRecordBlocksDisabled(lines, 'BOTH');
+
+      expect(lines).to.deep.equal(['blockStream.streamMode=BOTH', 'blockStream.streamWrappedRecordBlocks=false']);
+    });
   });
 
   describe('generateExtraEnvironmentValuesFile', (): void => {

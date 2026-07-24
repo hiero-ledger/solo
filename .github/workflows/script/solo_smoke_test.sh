@@ -44,8 +44,7 @@ function setup_smart_contract_test ()
   echo "RETRY_DELAY=5000 # ms" >> .env
   echo "MAX_RETRY=5" >> .env
   echo "MIRROR_NODE_REST_URL=http://127.0.0.1:38081/api/v1" >> .env
-  cat .env
-
+  
   cd -
 }
 

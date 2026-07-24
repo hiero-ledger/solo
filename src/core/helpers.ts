@@ -164,11 +164,8 @@ export class Helpers {
   }
 
   public static ensureWrappedRecordBlocksDisabled(lines: string[], streamMode: string): void {
-    if (
-      streamMode === 'BOTH' &&
-      !lines.some((line: string): boolean => line.startsWith('blockStream.streamWrappedRecordBlocks='))
-    ) {
-      lines.push('blockStream.streamWrappedRecordBlocks=false');
+    if (streamMode === 'BOTH') {
+      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'false');
     }
   }
 
