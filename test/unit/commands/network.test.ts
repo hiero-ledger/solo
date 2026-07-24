@@ -557,6 +557,44 @@ describe('NetworkCommand unit tests', (): void => {
       }
     });
 
+    it('keeps MinIO enabled for CN 0.74+ with block nodes when TSS is disabled', async (): Promise<void> => {
+      const originalConsensusNodeVersion: string = argv.getArg<string>(flags.consensusNodeVersion);
+      const originalTssEnabled: boolean = argv.getArg<boolean>(flags.tssEnabled);
+
+      try {
+        argv.setArg(flags.consensusNodeVersion, 'v0.74.0');
+        argv.setArg(flags.tssEnabled, false);
+
+        const task: SinonStub = sinon.stub();
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'cluster', 'context-1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context-1']);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(new Map<string, string>([['cluster', 'context1']]));
+
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // @ts-expect-error - to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([{}]);
+        networkCommand.configManager.update(argv.build());
+
+        // @ts-expect-error - to access private method
+        const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
+        const chartValueArguments: string[] = config.chartValuesMap['cluster'].toArguments();
+
+        expect(config.minioEnabled).to.equal(true);
+        expect(chartValueArguments).to.not.include('cloud.minio.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.recordStreamUploader.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.eventStreamUploader.enabled=false');
+        expect(chartValueArguments).to.not.include('defaults.sidecars.blockstreamUploader.enabled=false');
+      } finally {
+        argv.setArg(flags.consensusNodeVersion, originalConsensusNodeVersion);
+        argv.setArg(flags.tssEnabled, originalTssEnabled);
+        sinon.restore();
+      }
+    });
+
     it('keeps MinIO enabled for CN 0.74+ with block nodes when block stream mode is BOTH', async (): Promise<void> => {
       const originalConsensusNodeVersion: string = argv.getArg<string>(flags.consensusNodeVersion);
       const originalBlockStreamMode: string | undefined = process.env.BLOCK_STREAM_STREAM_MODE;

@@ -313,7 +313,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodesAreFrozen('existingNodeAliases'),
       this.tasks.downloadNodeGeneratedFilesForDynamicAddressBook(),
       this.tasks.prepareStagingDirectory('allNodeAliases'),
-      this.tasks.copyNodeKeysToSecrets(),
+      this.tasks.copyNodeKeysToSecrets(undefined, false),
       this.tasks.getNodeLogsAndConfigs(),
       this.tasks.updateChartWithConfigMap(
         'Update chart to use new configMap due to account number change',
@@ -324,6 +324,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkNodePodsAreRunning(),
       this.tasks.fetchPlatformSoftware('allNodeAliases'),
       this.tasks.setupNetworkNodes('allNodeAliases', false),
+      this.tasks.refreshBlockNodeRsaBootstrapStateTask(),
       this.tasks.addWrapsLib(),
       this.tasks.startNodes('allNodeAliases'),
       this.tasks.enablePortForwarding(),

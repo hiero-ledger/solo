@@ -34,6 +34,9 @@ interface MirrorNodeRemoteConfigTestState {
     consensusNode: {greaterThanOrEqual: () => boolean};
     blockNodeChart: {greaterThanOrEqual: () => boolean};
   };
+  state?: {
+    tssEnabled?: boolean;
+  };
 }
 
 interface MirrorNodeCommandInternal {
@@ -494,6 +497,46 @@ describe('MirrorNodeCommand unit tests', (): void => {
         },
       };
       mirrorNodeCommandInternal.remoteConfig.phase = 'loaded';
+
+      const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
+        cacheDir: cacheDirection,
+        clusterReference: 'kind-a',
+        mirrorNodeVersion: versions.MIRROR_NODE_VERSION,
+      });
+
+      expect(chartValues.toArguments()).to.deep.equal([]);
+    } finally {
+      fs.rmSync(cacheDirection, {recursive: true, force: true});
+    }
+  });
+
+  it('should leave mirror node on consensus streams when TSS is disabled', (): void => {
+    const mirrorNodeCommandInternal: MirrorNodeCommandInternal =
+      mirrorNodeCommand as unknown as MirrorNodeCommandInternal;
+    const cacheDirection: string = fs.mkdtempSync(path.join(os.tmpdir(), 'mirror-bn-values-'));
+
+    try {
+      mirrorNodeCommandInternal.remoteConfig = {
+        configuration: {
+          clusters: [{name: 'kind-a', dnsBaseDomain: 'cluster.local'}],
+          components: {
+            state: {
+              blockNodes: [{metadata: {id: 1, cluster: 'kind-a', namespace: 'solo'}}],
+            },
+          },
+          versions: {
+            consensusNode: {
+              greaterThanOrEqual: (): boolean => true,
+            },
+            blockNodeChart: {
+              greaterThanOrEqual: (): boolean => true,
+            },
+          },
+          state: {
+            tssEnabled: false,
+          },
+        },
+      };
 
       const chartValues: HelmChartValues = mirrorNodeCommandInternal.prepareBlockNodeIntegrationValues({
         cacheDir: cacheDirection,

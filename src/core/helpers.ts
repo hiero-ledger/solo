@@ -62,13 +62,14 @@ export class Helpers {
   public static getBlockStreamModeForConsensusVersion(
     consensusNodeVersion: SemanticVersion<string> | string | undefined,
     blockNodeIntegrationEnabled: boolean,
+    tssEnabled: boolean = true,
   ): string {
     const version: SemanticVersion<string> = new SemanticVersion<string>(
       consensusNodeVersion?.toString() || versions.HEDERA_PLATFORM_VERSION,
     );
 
     if (version.greaterThanOrEqual(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
-      if (!blockNodeIntegrationEnabled) {
+      if (!blockNodeIntegrationEnabled || !tssEnabled) {
         return 'RECORDS';
       }
 
@@ -85,12 +86,13 @@ export class Helpers {
     consensusNodeVersion?: SemanticVersion<string> | string,
     blockNodeIntegrationEnabled: boolean = false,
     streamWrappedRecordBlocksEnabled: boolean = false,
+    tssEnabled: boolean = true,
   ): string {
     const version: SemanticVersion<string> = new SemanticVersion<string>(
       consensusNodeVersion?.toString() || versions.HEDERA_PLATFORM_VERSION,
     );
 
-    if (blockNodeIntegrationEnabled) {
+    if (blockNodeIntegrationEnabled && tssEnabled) {
       // Preserve the current stream mode only when it is already the correct mode for the
       // consensus version. CN 0.74+ with block nodes must use pure block streaming by default.
       if (
@@ -106,7 +108,7 @@ export class Helpers {
       return existingStreamMode;
     }
 
-    return Helpers.getBlockStreamModeForConsensusVersion(consensusNodeVersion, blockNodeIntegrationEnabled);
+    return Helpers.getBlockStreamModeForConsensusVersion(consensusNodeVersion, blockNodeIntegrationEnabled, tssEnabled);
   }
 
   public static parseBlockStreamMode(applicationPropertiesText: string): string | undefined {
@@ -814,6 +816,7 @@ export class Helpers {
     k8Factory: K8Factory,
     allowEmpty: boolean = false,
     consensusNodeVersion?: SemanticVersion<string> | string,
+    tssEnabled: boolean = true,
   ): Promise<void> {
     const {
       nodeId,
@@ -883,6 +886,7 @@ export class Helpers {
       consensusNodeVersion,
       true,
       Helpers.parseStreamWrappedRecordBlocks(applicationPropertiesData),
+      tssEnabled,
     );
     Helpers.updateBlockStreamPropertiesForMode(lines, blockStreamMode);
 

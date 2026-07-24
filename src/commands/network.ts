@@ -968,11 +968,17 @@ export class NetworkCommand extends BaseCommand {
     const blockStreamMode: string = Helpers.getBlockStreamModeForConsensusVersion(
       config.releaseTag,
       blockNodeConfigured,
+      config.tssEnabled,
     );
     // CN >= 0.74 can stream blocks directly to a block node. If the effective stream
     // mode is forced back to BOTH/RECORDS for compatibility, keep MinIO enabled so
     // record uploaders and mirror importer use the same source.
-    config.minioEnabled = !(tssByDefaultSupported && blockNodeConfigured && blockStreamMode === 'BLOCKS');
+    config.minioEnabled = !(
+      tssByDefaultSupported &&
+      config.tssEnabled &&
+      blockNodeConfigured &&
+      blockStreamMode === 'BLOCKS'
+    );
 
     config.chartValuesMap = await this.prepareHelmChartValuesMap(config);
 
@@ -1865,6 +1871,7 @@ export class NetworkCommand extends BaseCommand {
                   this.k8Factory,
                   false,
                   this.remoteConfig.configuration.versions.consensusNode,
+                  this.remoteConfig.configuration.state.tssEnabled,
                 );
               }
             } catch (error) {
