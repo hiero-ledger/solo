@@ -26,7 +26,7 @@ import {type ClusterChecks} from '../core/cluster-checks.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {KeyManager} from '../core/key-manager.js';
-import {INGRESS_CONTROLLER_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../version.js';
+import {EXPLORER_VERSION, INGRESS_CONTROLLER_VERSION, MINIMUM_SOLO_CHART_VERSION} from '../../version.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
 import {Lock} from '../core/lock/lock.js';
@@ -37,6 +37,7 @@ import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
+import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
 import {Duration} from '../core/time/duration.js';
 import {ExplorerStateSchema} from '../data/schema/model/remote/state/explorer-state-schema.js';
 import {K8} from '../integration/kube/k8.js';
@@ -822,10 +823,20 @@ export class ExplorerCommand extends BaseCommand {
             config.mirrorNamespace = mirrorNamespace;
             config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
+            const currentExplorerVersion: SemanticVersion<string> = this.remoteConfig.getComponentVersion(
+              ComponentTypes.Explorer,
+            );
+
+            config.explorerVersion = UpgradeVersionResolver.resolve(
+              this.configManager.wasFlagProvidedByUser(flags.explorerVersion) ? config.explorerVersion : undefined,
+              currentExplorerVersion,
+              EXPLORER_VERSION,
+            );
+
             assertUpgradeVersionNotOlder(
               'Explorer',
               config.explorerVersion,
-              this.remoteConfig.getComponentVersion(ComponentTypes.Explorer),
+              currentExplorerVersion,
               optionFromFlag(flags.explorerVersion),
             );
 

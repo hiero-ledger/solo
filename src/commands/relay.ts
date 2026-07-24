@@ -39,6 +39,8 @@ import {type RelayNodeStateSchema} from '../data/schema/model/remote/state/relay
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {HEDERA_JSON_RPC_RELAY_VERSION} from '../../version.js';
+import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {ImageReference, type ParsedImageReference} from '../business/utils/image-reference.js';
@@ -783,10 +785,23 @@ export class RelayCommand extends BaseCommand {
               config.mirrorNamespace = mirrorNamespace;
               config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
+              const relayVersionProvidedByUser: boolean =
+                this.configManager.wasFlagProvidedByUser(flags.relayVersion) ||
+                this.configManager.wasFlagProvidedByUser(flags.relayReleaseTag);
+              const currentRelayVersion: SemanticVersion<string> = this.remoteConfig.getComponentVersion(
+                ComponentTypes.RelayNodes,
+              );
+
+              config.relayReleaseTag = UpgradeVersionResolver.resolve(
+                relayVersionProvidedByUser ? config.relayReleaseTag : undefined,
+                currentRelayVersion,
+                HEDERA_JSON_RPC_RELAY_VERSION,
+              );
+
               assertUpgradeVersionNotOlder(
                 'Relay',
                 config.relayReleaseTag,
-                this.remoteConfig.getComponentVersion(ComponentTypes.RelayNodes),
+                currentRelayVersion,
                 optionFromFlag(flags.relayVersion),
               );
 

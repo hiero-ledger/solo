@@ -199,6 +199,10 @@ export class Middlewares {
         /* empty */
       }
 
+      // capture which flags the user explicitly supplied, before precedence backfills defaults
+      // and rewrites legacy aliases (needed to resolve upgrade versions from remote config)
+      configManager.recordUserSuppliedFlags(argv, yargs.parsed?.defaulted ?? {});
+
       // apply precedence for flags
       argv = configManager.applyPrecedence(argv, yargs.parsed.aliases);
 

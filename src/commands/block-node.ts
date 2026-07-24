@@ -39,6 +39,7 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {Templates} from '../core/templates.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import {assertUpgradeVersionNotOlder} from '../core/upgrade-version-guard.js';
+import {UpgradeVersionResolver} from '../core/upgrade-version-resolver.js';
 import {PvcReference} from '../integration/kube/resources/pvc/pvc-reference.js';
 import {PvcName} from '../integration/kube/resources/pvc/pvc-name.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
@@ -1031,7 +1032,11 @@ export class BlockNodeCommand extends BaseCommand {
               : this.renderReleaseName(config.id);
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
-            config.upgradeVersion ||= versions.BLOCK_NODE_VERSION;
+            config.upgradeVersion = UpgradeVersionResolver.resolve(
+              this.configManager.wasFlagProvidedByUser(flags.upgradeVersion) ? config.upgradeVersion : undefined,
+              this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode),
+              versions.BLOCK_NODE_VERSION,
+            );
             config.currentVersion =
               this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode)?.toString() ?? '0.0.0';
 
