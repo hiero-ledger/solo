@@ -33,14 +33,15 @@ platform.
     * [Node](#node)
   * [Cluster Ref](#cluster-ref-1)
     * [Config](#config)
+    * [State](#state)
   * [Consensus](#consensus-1)
     * [Network](#network)
     * [Node](#node-1)
-    * [State](#state)
+    * [State](#state-1)
   * [Deployment](#deployment-1)
     * [Cluster](#cluster)
     * [Config](#config-1)
-    * [State](#state-1)
+    * [State](#state-2)
     * [Diagnostics](#diagnostics)
   * [Explorer](#explorer-1)
     * [Node](#node-2)
@@ -136,6 +137,7 @@ flags may be specified at any level of the command hierarchy.
 |-------------|--------------------|------------------------------------------------------------------------------------|
 | block       | node               | < list & info & logs & add & upgrade & destroy >                                   |
 | cluster-ref | config             | < list & info & connect & disconnect >                                             |
+| cluster-ref | state              | < start & stop & info >                                                            |
 | consensus   | network            | < info & deploy & freeze & upgrade & destroy >                                     |
 | consensus   | node               | < list & info & logs & add & update & destroy & start & stop & restart & refresh > |
 | consensus   | state              | < list & download & upload >                                                       |
@@ -159,10 +161,12 @@ flags may be specified at any level of the command hierarchy.
 | one-shot    | < single & multi > | < info & deploy & destroy >                                                        |
 | cache       | < images & charts > | < pull & load & list & clear & prune & status >                                   |
 
-
 #### Example Commands
 
 ```bash
+solo cluster-ref state start # Start Docker Desktop / Podman machine and the existing Kind cluster containers if needed
+solo cluster-ref state stop # Stop the Kind cluster containers to conserve resources
+solo cluster-ref state info # Show the container engine and Kind cluster container state
 solo cluster-ref config connect --cluster-ref <name> --context <context>
 solo deployment config create --deployment <name> --namespace <name> 
 solo deployment config list
@@ -220,7 +224,6 @@ The CLI application is designed around the following high-level entities (aka co
 | **One Shot**      |                               | `one-shot`                    |                                           | Quick start commands for new and returning users who need a preset environment type. These commands use reasonable defaults to provide a single command out of box experience. |
 | **Cache**         |                               | `cache`                       |                                           | Manage solo cached items.                                                                                                                                                      |
 
-
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
 </p>
@@ -258,9 +261,10 @@ associated with each group.
 
 ### Cluster Ref
 
-| Resource Name | Command Syntax | Description                                                                                            |
-|---------------|----------------|--------------------------------------------------------------------------------------------------------|
-| **Config**    | `config`       | List, create, manage, and remove associations between Kubernetes contexts and Solo cluster references. |
+| Resource Name | Command Syntax | Description                                                                                                             |
+|---------------|----------------|-------------------------------------------------------------------------------------------------------------------------|
+| **Config**    | `config`       | List, create, manage, and remove associations between Kubernetes contexts and Solo cluster references.                  |
+| **State**     | `state`        | Detect, start, and stop the local container engine (Docker Desktop / Podman machine) and its Kind cluster containers.   |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -387,6 +391,18 @@ operations associated with each resource.
 | **Info**       | `info`         | Displays the status information and attached deployments for a given Solo cluster reference mapping.                                          |
 | **Connect**    | `connect`      | Creates a new internal Solo cluster name to a Kubernetes context or maps a Kubernetes context to an existing internal Solo cluster reference. |
 | **Disconnect** | `disconnect`   | Removes the Kubernetes context associated with an internal Solo cluster reference.                                                            |
+
+<p align="right">
+:arrow_up_small: <a href="#table-of-contents">Back to top</a>
+</p>
+
+#### State
+
+| Operation Name | Command Syntax | Description                                                                                                              |
+|----------------|----------------|--------------------------------------------------------------------------------------------------------------------------|
+| **Start**      | `start`        | Starts the container engine (Docker Desktop / Podman machine) and the existing Kind cluster containers if needed.        |
+| **Stop**       | `stop`         | Stops the Kind cluster containers if needed.                                                                             |
+| **Info**       | `info`         | Displays the container engine and Kind cluster container state.                                                          |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
@@ -870,6 +886,56 @@ solo cluster-ref config disconnect --cluster-ref <name>
 | Flag            | Type   | Required | Valid Values                                  | Default Value | Description                                                                                               |
 |-----------------|--------|----------|-----------------------------------------------|---------------|-----------------------------------------------------------------------------------------------------------|
 | `--cluster-ref` | string | Yes      | Any string matching the regex: `[a-z0-9\-_]+` |               | The name of an existing cluster reference which was created via the "cluster-ref config connect" command. |
+
+<p align="right">
+:arrow_up_small: <a href="#table-of-contents">Back to top</a>
+</p>
+
+#### State
+
+##### Start
+
+###### Syntax
+
+```bash
+solo cluster-ref state start
+```
+
+###### Flags
+
+None (global flags only).
+
+<p align="right">
+:arrow_up_small: <a href="#table-of-contents">Back to top</a>
+</p>
+
+##### Stop
+
+###### Syntax
+
+```bash
+solo cluster-ref state stop
+```
+
+###### Flags
+
+None (global flags only).
+
+<p align="right">
+:arrow_up_small: <a href="#table-of-contents">Back to top</a>
+</p>
+
+##### Info
+
+###### Syntax
+
+```bash
+solo cluster-ref state info
+```
+
+###### Flags
+
+None (global flags only).
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>
