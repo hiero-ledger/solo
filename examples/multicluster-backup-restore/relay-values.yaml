@@ -1,0 +1,24 @@
+# Multicluster backup/restore runs consensus nodes, block nodes, mirror node,
+# explorer, relay, and PostgreSQL in two kind clusters. Relay 0.77.0 can exceed
+# the base 250Mi memory limit during startup in this environment, causing exit
+# code 137 before readiness succeeds.
+relay:
+  config:
+    NODE_OPTIONS: --max-old-space-size=384
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+ws:
+  config:
+    NODE_OPTIONS: --max-old-space-size=384
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 250m
+      memory: 512Mi

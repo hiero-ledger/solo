@@ -1960,8 +1960,8 @@ export class NodeCommandTasks {
         if (app !== constants.HEDERA_APP_NAME) {
           return true;
         }
-        // skip if caller opted out (e.g. restore flow where endpoint is already correct
-        // in the restored state and re-sending triggers the CN v0.74 CHECKING bug)
+        // skip if caller opted out, for example restore flows where the endpoint is already
+        // correct in restored state and re-sending can trigger TSS re-evaluation.
         if (this.configManager.getFlag<boolean>(flags.skipGrpcWebEndpoint)) {
           return true;
         }

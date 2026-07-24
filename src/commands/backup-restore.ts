@@ -474,7 +474,7 @@ export class BackupRestoreCommand extends BaseCommand {
               fs.mkdirSync(blockNodeBackupDirectory, {recursive: true});
 
               // Export tss-bootstrap-roster.json — written by BlockHasher after block 0 is
-              // verified; needed to restore TSS state so CN v0.74 TSS-signed blocks can be
+              // verified; needed to restore TSS state so CN v0.74+ TSS-signed blocks can be
               // verified after cluster recreate.
               const tssSourcePath: string = '/opt/hiero/block-node/application-state/tss-bootstrap-roster.json';
               const hasTssFile: boolean = await blockNodeContainer.hasFile(tssSourcePath).catch((): boolean => false);
@@ -681,7 +681,7 @@ export class BackupRestoreCommand extends BaseCommand {
               }
               // After restore, CN's first block is typically ~7 behind BN's lastPersistedBlockNumber
               // (the archive max).  BN's default duplicateBlockSkipWindow=5 sends END_DUPLICATE for
-              // blocks more than 5 behind lastPersistedBlockNumber; CN v0.74 cannot recover from
+              // blocks more than 5 behind lastPersistedBlockNumber; CN v0.74+ cannot recover from
               // DUPLICATE_BLOCK and stops streaming.  Raise the window to the maximum allowed (10)
               // so CN's post-restore blocks receive SKIP (stream stays open) instead of END_DUPLICATE,
               // letting CN fast-forward until BN accepts the first truly new block via streamBeforeEmbOrElse.
@@ -1881,7 +1881,7 @@ export class BackupRestoreCommand extends BaseCommand {
    * importConfigMaps() already restored the correct EMB from backup — do NOT overwrite it.
    * importConfigMaps() also sets PRODUCER_DUPLICATE_BLOCK_SKIP_WINDOW=10 so that CN's
    * post-restore blocks (which are typically ~7 behind BN's lastPersistedBlockNumber) receive
-   * SKIP instead of END_DUPLICATE — CN v0.74 cannot recover from DUPLICATE_BLOCK and stops
+   * SKIP instead of END_DUPLICATE — CN v0.74+ cannot recover from DUPLICATE_BLOCK and stops
    * streaming.  With the higher window the blocks get SKIP (stream stays open) and CN
    * fast-forwards until BN accepts the first truly new block via streamBeforeEmbOrElse.
    */
