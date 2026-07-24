@@ -57,6 +57,7 @@ import {Middlewares} from '../middlewares.js';
 import {NpmClient} from '../../integration/npm/npm-client.js';
 import {SoloPinoLogger} from '../logging/solo-pino-logger.js';
 import {DefaultSoloEventBus} from '../events/default-solo-event-bus.js';
+import {DeprecationRegistry} from '../deprecation-registry.js';
 import {SingletonContainer} from './singleton-container.js';
 import {ValueContainer} from './value-container.js';
 import {BlockNodeCommand} from '../../commands/block-node.js';
@@ -135,6 +136,7 @@ export class Container {
   private static singletonContainers(): SingletonContainer[] {
     return [
       new SingletonContainer(InjectTokens.SoloEventBus, DefaultSoloEventBus),
+      new SingletonContainer(InjectTokens.DeprecationRegistry, DeprecationRegistry),
       new SingletonContainer(InjectTokens.SoloLogger, SoloPinoLogger),
       new SingletonContainer(InjectTokens.LockRenewalService, IntervalLockRenewalService),
       new SingletonContainer(InjectTokens.LockManager, LockManager),

@@ -34,6 +34,8 @@ export class ArgumentProcessor {
       [
         middlewares.detectLocalSoloPackages(),
         middlewares.printCustomHelp(rootCmd),
+        middlewares.warnDeprecatedFlags(),
+        middlewares.warnDeprecatedCommands(),
         middlewares.setLoggerDebugFlag(),
         // @ts-expect-error - TS2322: To assign middlewares
         middlewares.processArgumentsAndDisplayHeader(),
