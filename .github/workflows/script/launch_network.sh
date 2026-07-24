@@ -560,13 +560,6 @@ dump_bn_log() {
   echo "=== [BN_DIAG end] ==="
 }
 
-# Builds a base64-encoded NodeAddressBook JSON string for the BN RSA bootstrap file.
-# Queries mirror's /api/v1/network/nodes BEFORE the CN upgrade to capture RSA public
-# keys while the address book still has them. After a CN freeze upgrade, file 0.0.101
-# is rebuilt without RSA_PubKey entries, so mirror serves empty public_key afterward.
-# BN v0.37+ reads rsa-bootstrap-roster.json at startup (app.state.rsaBootstrapFilePath)
-# so it can verify WRB blocks without waiting for mirror to re-index RSA keys.
-
 fromSoloVersion="${1}"
 toConsensusNodeVersion="${2}"
 if [[ -z "${fromSoloVersion}" ]]; then
@@ -633,9 +626,7 @@ else
   kind create cluster -n "${SOLO_CLUSTER_NAME}"
 fi
 
-solo cache image pull
-solo cache image load
-# rm -rf ~/.solo/*
+rm -rf ~/.solo/*
 echo "::endgroup::"
 
 echo "::group::Launch solo using released Solo version ${fromSoloVersion}"
