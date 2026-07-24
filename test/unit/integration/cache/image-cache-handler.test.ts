@@ -268,6 +268,58 @@ describe('ImageCacheHandler load', (): void => {
     expect(loadArchiveStub).to.have.been.calledOnceWithExactly('/tmp/busybox.tar', 'my-cluster');
   });
 
+  it('skips loading an archive already present in the cluster', async (): Promise<void> => {
+    const loadArchiveStub: SinonStub = sinon.stub().resolves();
+    const engine: ContainerEngineClient = {
+      pullImage: async (): Promise<void> => undefined,
+      saveImage: async (): Promise<void> => undefined,
+      saveImageArchive: async (): Promise<void> => undefined,
+      loadImage: async (): Promise<void> => undefined,
+      loadImageArchiveIntoCluster: loadArchiveStub,
+      removeImage: async (): Promise<void> => undefined,
+      listLoadedImagesInCluster: async (): Promise<readonly string[]> => ['docker.io/library/busybox:1.36.1'],
+    };
+
+    const handler: ImageCacheHandler = new ImageCacheHandler(
+      engine,
+      new StaticCacheTargetProvider([target]),
+      store,
+      inspector,
+      logger,
+    );
+
+    await runReturnedLoadTasks(handler, 'my-cluster');
+
+    expect(loadArchiveStub).to.not.have.been.called;
+  });
+
+  it('loads the archive when listing the cluster images fails', async (): Promise<void> => {
+    const loadArchiveStub: SinonStub = sinon.stub().resolves();
+    const engine: ContainerEngineClient = {
+      pullImage: async (): Promise<void> => undefined,
+      saveImage: async (): Promise<void> => undefined,
+      saveImageArchive: async (): Promise<void> => undefined,
+      loadImage: async (): Promise<void> => undefined,
+      loadImageArchiveIntoCluster: loadArchiveStub,
+      removeImage: async (): Promise<void> => undefined,
+      listLoadedImagesInCluster: async (): Promise<readonly string[]> => {
+        throw new Error('cluster unreachable');
+      },
+    };
+
+    const handler: ImageCacheHandler = new ImageCacheHandler(
+      engine,
+      new StaticCacheTargetProvider([target]),
+      store,
+      inspector,
+      logger,
+    );
+
+    await runReturnedLoadTasks(handler, 'my-cluster');
+
+    expect(loadArchiveStub).to.have.been.calledOnceWithExactly('/tmp/busybox.tar', 'my-cluster');
+  });
+
   it('records a failure and never throws when a load fails', async (): Promise<void> => {
     const engine: ContainerEngineClient = {
       pullImage: async (): Promise<void> => undefined,

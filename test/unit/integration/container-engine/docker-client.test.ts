@@ -6,6 +6,7 @@ import {afterEach, beforeEach, describe, it} from 'mocha';
 import {DockerClient} from '../../../../src/integration/container-engine/docker-client.js';
 import {ShellRunner} from '../../../../src/core/shell-runner.js';
 import {DefaultKindClientBuilder} from '../../../../src/integration/kind/impl/default-kind-client-builder.js';
+import {SubprocessCommandProfile} from '../../../../src/core/subprocess-command-profile.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {type DependencyManager} from '../../../../src/core/dependency-managers/index.js';
 import {type KindClient} from '../../../../src/integration/kind/kind-client.js';
@@ -45,6 +46,7 @@ describe('DockerClient', (): void => {
     expect(shellRunnerRunStub).to.have.been.calledWithExactly(
       'docker',
       DockerClientTestBuilder.listImagesArguments('solo-cluster-control-plane'),
+      {commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE},
     );
   });
 

@@ -5,6 +5,7 @@ import {type MetricsServer} from '../api/metrics-server.js';
 import {NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Context} from '../../../types/index.js';
 import {ShellRunner} from '../../../core/shell-runner.js';
+import {SubprocessCommandProfile} from '../../../core/subprocess-command-profile.js';
 import {PodName} from '../../../integration/kube/resources/pod/pod-name.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
@@ -38,6 +39,15 @@ export class MetricsServerImpl implements MetricsServer {
       installationDirectory,
       InjectTokens.KubectlInstallationDirectory,
       this.constructor.name,
+    );
+  }
+
+  /** True when the pod hosts the mirror node postgres DB (shared-resources, embedded, or legacy topology). */
+  public static isMirrorNodePostgresPodName(podName: string): boolean {
+    return (
+      podName.startsWith('solo-shared-resources-postgres') ||
+      (podName.startsWith('mirror-') && podName.includes('postgres')) ||
+      podName.startsWith('my-postgresql')
     );
   }
 
@@ -87,8 +97,8 @@ export class MetricsServerImpl implements MetricsServer {
         if (podName.startsWith('network-node1-0')) {
           clusterNamespace = namespace;
         }
-        // Capture both internal mirror node postgres and external postgres pods
-        if ((podName.startsWith('mirror-') && podName.includes('postgres')) || podName.startsWith('my-postgresql')) {
+        // Capture the mirror node postgres pod across shared-resources, embedded, and legacy topologies.
+        if (MetricsServerImpl.isMirrorNodePostgresPodName(podName)) {
           mirrorNodePostgresPodName = podName;
           mirrorNodePostgresNamespace = namespace;
         }
@@ -236,6 +246,7 @@ export class MetricsServerImpl implements MetricsServer {
     }
     const results: string[] = await new ShellRunner().run('kubectl', kubectlArguments, {
       verbose: true,
+      commandProfile: SubprocessCommandProfile.KUBECTL,
       environmentVariablesToAppend: {
         PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
       },

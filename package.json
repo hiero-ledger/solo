@@ -1,6 +1,6 @@
 {
   "name": "@hashgraph/solo",
-  "version": "0.82.0",
+  "version": "0.83.0",
   "description": "An opinionated CLI tool to deploy and manage private Hedera Networks.",
   "main": "./dist/src/index.js",
   "type": "module",
@@ -58,7 +58,7 @@
     "tsyringe-neo": "5.1.0",
     "uuid": "14.0.1",
     "validator": "13.15.35",
-    "ws": "8.21.0",
+    "ws": "8.21.1",
     "yaml": "2.9.0",
     "yargs": "18.0.0"
   },

@@ -6,6 +6,8 @@ import path from 'node:path';
 import {format} from 'node:util';
 import {SoloErrors} from './errors/solo-errors.js';
 import {Templates} from './templates.js';
+import {SubprocessEnvironment} from './subprocess-environment.js';
+import {SubprocessCommandProfile} from './subprocess-command-profile.js';
 import * as constants from './constants.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
@@ -164,6 +166,17 @@ export class Helpers {
       return match[1].toLowerCase() === 'true';
     }
     return undefined;
+  }
+
+  public static parseNumericApplicationProperty(
+    applicationPropertiesText: string,
+    propertyKey: string,
+  ): number | undefined {
+    const escapedPropertyKey: string = propertyKey.replaceAll('.', String.raw`\.`);
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      new RegExp(String.raw`^\s*${escapedPropertyKey}\s*=\s*(\d+)\s*$`, 'm'),
+    );
+    return match ? Number(match[1]) : undefined;
   }
 
   public static readGossipFqdnRestrictedFromFile(filePath: string): boolean | undefined {
@@ -648,6 +661,7 @@ export class Helpers {
       const output: string = execFileSync('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}'], {
         encoding: 'utf8',
         stdio: 'pipe',
+        env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.CONTAINER_ENGINE),
       });
       return output
         .split(/\r?\n/)
@@ -692,31 +706,47 @@ export class Helpers {
     };
   }
 
+  /**
+   * Best-effort extraction of the deployment names recorded in a remote-config ConfigMap.
+   * Tolerates both the current (array) and legacy (map keyed by cluster name) cluster layouts.
+   */
+  public static extractRemoteConfigDeploymentNames(remoteConfig: ConfigMap): string[] {
+    const deploymentNames: string[] = [];
+    try {
+      const remoteConfigData: unknown = yaml.parse(remoteConfig.data?.[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
+      let clustersData: unknown = undefined;
+      if (typeof remoteConfigData === 'object' && remoteConfigData !== null && 'clusters' in remoteConfigData) {
+        clustersData = (remoteConfigData as Record<string, unknown>).clusters;
+      }
+      const clustersArray: unknown[] = [];
+
+      if (Array.isArray(clustersData)) {
+        clustersArray.push(...clustersData);
+      } else if (typeof clustersData === 'object' && clustersData !== null) {
+        clustersArray.push(...Object.values(clustersData));
+      }
+
+      for (const clusterData of clustersArray) {
+        if (typeof clusterData === 'object' && clusterData !== null && 'deployment' in clusterData) {
+          const deployment: unknown = (clusterData as Record<string, unknown>).deployment;
+          if (typeof deployment === 'string' && deployment.length > 0) {
+            deploymentNames.push(deployment);
+          }
+        }
+      }
+    } catch {
+      // best-effort: treat absent or unparseable remote-config data as containing no deployments
+    }
+    return deploymentNames;
+  }
+
   public static remoteConfigsToDeploymentsTable(remoteConfigs: ConfigMap[]): string[] {
     const rows: string[] = [];
     if (remoteConfigs.length > 0) {
       rows.push('Namespace : deployment');
       for (const remoteConfig of remoteConfigs) {
-        const remoteConfigData: unknown = yaml.parse(remoteConfig.data?.['remote-config-data']);
-        let clustersData: unknown = undefined;
-        if (typeof remoteConfigData === 'object' && remoteConfigData !== null && 'clusters' in remoteConfigData) {
-          clustersData = (remoteConfigData as Record<string, unknown>).clusters;
-        }
-        const clustersArray: unknown[] = [];
-
-        if (Array.isArray(clustersData)) {
-          clustersArray.push(...clustersData);
-        } else if (typeof clustersData === 'object' && clustersData !== null) {
-          clustersArray.push(...Object.values(clustersData));
-        }
-
-        for (const clusterData of clustersArray) {
-          if (typeof clusterData === 'object' && clusterData !== null && 'deployment' in clusterData) {
-            const deployment: unknown = (clusterData as Record<string, unknown>).deployment;
-            if (typeof deployment === 'string') {
-              rows.push(`${remoteConfig.namespace.name} : ${deployment}`);
-            }
-          }
+        for (const deployment of Helpers.extractRemoteConfigDeploymentNames(remoteConfig)) {
+          rows.push(`${remoteConfig.namespace.name} : ${deployment}`);
         }
       }
     }
@@ -816,7 +846,16 @@ export class Helpers {
       lines.push(`blockStream.streamMode=${blockStreamMode}`);
     }
 
-    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
+    let writerModeUpdated: boolean = false;
+    for (const line of lines) {
+      if (line.startsWith('blockStream.writerMode=')) {
+        lines[lines.indexOf(line)] = `blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`;
+        writerModeUpdated = true;
+        break;
+      }
+    }
+
+    if (!writerModeUpdated) {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
 

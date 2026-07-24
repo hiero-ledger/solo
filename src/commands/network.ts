@@ -145,6 +145,7 @@ export class NetworkCommand extends BaseCommand {
       flags.grpcWebTlsKeyPath,
       flags.haproxyIps,
       flags.envoyIps,
+      flags.networkNodeIps,
       flags.storageType,
       flags.gcsWriteAccessKey,
       flags.gcsWriteSecrets,
@@ -167,6 +168,7 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
+      flags.clusterSetupNamespace,
       flags.javaFlightRecorderConfiguration,
       flags.wrapsEnabled,
       flags.wrapsKeyPath,
@@ -673,6 +675,14 @@ export class NetworkCommand extends BaseCommand {
     // Iterate over each node and set static IPs for Envoy Proxy
     this.addValueForEachRecord(config.envoyIpsParsed, config.consensusNodes, chartValuesMap, 'envoyProxyStaticIP');
 
+    // Iterate over each node and set static IPs for consensus node services
+    this.addValueForEachRecord(
+      config.networkNodeIpsParsed,
+      config.consensusNodes,
+      chartValuesMap,
+      'networkNodeStaticIP',
+    );
+
     if (config.resolvedThrottlesFile) {
       // repairing the path, this avoid helm failing when running on windows
       const throttlesFilePath: string = config.resolvedThrottlesFile.replaceAll('\\', '/');
@@ -692,8 +702,19 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (config.enableMonitoringSupport) {
+      // the Prometheus stack is installed by `cluster-ref setup` into the cluster setup namespace,
+      // which is configurable, so the Alloy sidecar's remote-write target is composed rather than
+      // defaulted in the chart
+      const remoteWriteEndpoint: string =
+        `http://${constants.PROMETHEUS_RELEASE_NAME}-prometheus.${config.clusterSetupNamespace.name}` +
+        '.svc:9090/api/v1/write';
+
       for (const clusterReference of clusterReferences) {
-        chartValuesMap[clusterReference].set('crs.podLog.enabled', true).set('crs.serviceMonitor.enabled', true);
+        chartValuesMap[clusterReference]
+          .set('crs.podLog.enabled', true)
+          .set('crs.serviceMonitor.enabled', true)
+          .set('defaults.sidecars.grafanaAlloy.enabled', true)
+          .setLiteral('defaults.sidecars.grafanaAlloy.remoteWrite.endpoint', remoteWriteEndpoint);
       }
     }
 
@@ -714,13 +735,29 @@ export class NetworkCommand extends BaseCommand {
     valueName: string,
   ): void {
     if (records) {
+      const nodeIndexByClusterAndName: Map<string, number> = new Map();
+      const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
+
       for (const consensusNode of consensusNodes) {
-        if (records[consensusNode.name]) {
-          chartValuesMap[consensusNode.cluster].setLiteral(
-            `hedera.nodes[${consensusNode.nodeId}].${valueName}`,
-            records[consensusNode.name],
-          );
+        const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
+        nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
+        nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
+      }
+
+      for (const consensusNode of consensusNodes) {
+        const recordValue: string | undefined = records[consensusNode.name];
+        if (!recordValue) {
+          continue;
         }
+
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
+
+        chartValuesMap[consensusNode.cluster].setLiteral(`hedera.nodes[${nodeIndex}].${valueName}`, recordValue);
       }
     }
   }
@@ -857,6 +894,7 @@ export class NetworkCommand extends BaseCommand {
       flags.grpcWebTlsKeyPath,
       flags.haproxyIps,
       flags.envoyIps,
+      flags.networkNodeIps,
       flags.storageType,
       flags.gcsWriteAccessKey,
       flags.gcsWriteSecrets,
@@ -911,6 +949,10 @@ export class NetworkCommand extends BaseCommand {
 
     if (config.envoyIps) {
       config.envoyIpsParsed = Templates.parseNodeAliasToIpMapping(config.envoyIps);
+    }
+
+    if (config.networkNodeIps) {
+      config.networkNodeIpsParsed = Templates.parseNodeAliasToIpMapping(config.networkNodeIps);
     }
 
     if (config.domainNames) {
@@ -1134,6 +1176,54 @@ export class NetworkCommand extends BaseCommand {
     });
 
     await Promise.all(promises);
+  }
+
+  /** Installs the solo-deployment chart with bounded retries to ride out transient API server outages. */
+  private async installSoloDeploymentChart(
+    config: NetworkDeployConfigClass,
+    clusterReference: ClusterReferenceName,
+  ): Promise<void> {
+    const kubeContext: Context = config.clusterRefs.get(clusterReference);
+
+    for (let attempt: number = 1; attempt <= constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS; attempt++) {
+      try {
+        await this.chartManager.upgrade(
+          config.namespace,
+          constants.SOLO_DEPLOYMENT_CHART,
+          constants.SOLO_DEPLOYMENT_CHART,
+          config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+          config.soloChartVersion,
+          config.chartValuesMap[clusterReference],
+          kubeContext,
+          false,
+          true,
+        );
+        return;
+      } catch (error) {
+        if (attempt === constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS) {
+          throw error;
+        }
+
+        this.logger.warn(
+          `Attempt ${attempt} of ${constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS} to install chart ` +
+            `'${constants.SOLO_DEPLOYMENT_CHART}' failed, retrying in ` +
+            `${constants.NETWORK_CHART_INSTALL_RETRY_DELAY_SECS} seconds`,
+          error,
+        );
+        await sleep(Duration.ofSeconds(constants.NETWORK_CHART_INSTALL_RETRY_DELAY_SECS));
+
+        try {
+          // remove the release left behind by the failed attempt so the retry starts from a clean state
+          await this.chartManager.uninstall(config.namespace, constants.SOLO_DEPLOYMENT_CHART, kubeContext);
+        } catch (uninstallError) {
+          // best-effort cleanup: a persistent failure will surface on the next upgrade attempt
+          this.logger.warn(
+            `Failed to uninstall chart '${constants.SOLO_DEPLOYMENT_CHART}' before retry`,
+            uninstallError,
+          );
+        }
+      }
+    }
   }
 
   private async crdExists(context: string, crdName: string): Promise<boolean> {
@@ -1486,7 +1576,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async ({config}): Promise<void> => {
-            const {namespace, clusterRefs, chartValuesMap, chartDirectory} = config;
+            const {namespace, clusterRefs} = config;
 
             for (const [clusterReference] of clusterRefs) {
               const isInstalled: boolean = await this.chartManager.isChartInstalled(
@@ -1510,17 +1600,7 @@ export class NetworkCommand extends BaseCommand {
                 versions.MINIMUM_SOLO_CHART_VERSION,
               );
 
-              await this.chartManager.upgrade(
-                namespace,
-                constants.SOLO_DEPLOYMENT_CHART,
-                constants.SOLO_DEPLOYMENT_CHART,
-                chartDirectory || constants.SOLO_TESTING_CHART_URL,
-                config.soloChartVersion,
-                chartValuesMap[clusterReference],
-                clusterRefs.get(clusterReference),
-                false,
-                true,
-              );
+              await this.installSoloDeploymentChart(config, clusterReference);
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
           },

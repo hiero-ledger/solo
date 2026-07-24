@@ -461,9 +461,9 @@ export class ExplorerCommand extends BaseCommand {
         const explorerChartValues: HelmChartValues = new HelmChartValues().filesFromCommaSeparatedInput(
           config.valuesFile,
         );
-        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues().add(
-          HelmSchedulingValues.buildSchedulingChartValues(explorerChartValues, 'controller'),
-        );
+        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues()
+          .file(constants.INGRESS_CONTROLLER_VALUES_FILE)
+          .add(HelmSchedulingValues.buildSchedulingChartValues(explorerChartValues, 'controller'));
 
         if (config.explorerStaticIp !== '') {
           explorerIngressControllerChartValues.setLiteral('controller.service.loadBalancerIP', config.explorerStaticIp);

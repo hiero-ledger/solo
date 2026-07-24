@@ -7,6 +7,7 @@ import {ClusterReferenceResolutionFailedError} from './classes/deployment/cluste
 import {ContextNotFoundForClusterError} from './classes/deployment/context-not-found-for-cluster-error.js';
 import {DeploymentDeleteFailedError} from './classes/deployment/deployment-delete-failed-error.js';
 import {DeploymentHasRemoteResourcesError} from './classes/deployment/deployment-has-remote-resources-error.js';
+import {DeploymentImportFailedSoloError} from './classes/deployment/deployment-import-failed-solo-error.js';
 import {DeploymentListFailedError} from './classes/deployment/deployment-list-failed-error.js';
 import {DeploymentListPortsFailedError} from './classes/deployment/deployment-list-ports-failed-error.js';
 import {DeploymentNotFoundError} from './classes/deployment/deployment-not-found-error.js';
@@ -160,6 +161,7 @@ import {NodeClientLoadFailedSoloError} from './classes/component/node-client-loa
 import {NodeClientRefreshFailedSoloError} from './classes/component/node-client-refresh-failed-solo-error.js';
 import {NodeClientSetupFailedSoloError} from './classes/component/node-client-setup-failed-solo-error.js';
 import {SdkPingFailedSoloError} from './classes/component/sdk-ping-failed-solo-error.js';
+import {SdkClientNoHealthyNodesSoloError} from './classes/component/sdk-client-no-healthy-nodes-solo-error.js';
 import {NodeServicesRetrievalFailedSoloError} from './classes/component/node-services-retrieval-failed-solo-error.js';
 import {NodeServiceNotFoundSoloError} from './classes/component/node-service-not-found-solo-error.js';
 import {GossipKeySecretCreationFailedSoloError} from './classes/component/gossip-key-secret-creation-failed-solo-error.js';
@@ -241,6 +243,7 @@ import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-fai
 import {HelmChartGenericInstallFailedSoloError} from './classes/system/helm-chart-generic-install-failed-solo-error.js';
 import {HelmChartUninstallFailedSoloError} from './classes/system/helm-chart-uninstall-failed-solo-error.js';
 import {HelmChartUpgradeFailedSoloError} from './classes/system/helm-chart-upgrade-failed-solo-error.js';
+import {HelmChartPullNoArchiveSoloError} from './classes/system/helm-chart-pull-no-archive-solo-error.js';
 import {FileNotFoundSoloError} from './classes/system/file-not-found-solo-error.js';
 import {FileCopyFailedSoloError} from './classes/system/file-copy-failed-solo-error.js';
 import {FileEmptySoloError} from './classes/system/file-empty-solo-error.js';
@@ -319,6 +322,7 @@ export class SoloErrors {
     readonly createFailed: typeof CreateDeploymentSoloError;
     readonly deleteFailed: typeof DeploymentDeleteFailedError;
     readonly hasRemoteResources: typeof DeploymentHasRemoteResourcesError;
+    readonly importFailed: typeof DeploymentImportFailedSoloError;
     readonly listFailed: typeof DeploymentListFailedError;
     readonly listPortsFailed: typeof DeploymentListPortsFailedError;
     readonly namespaceNotSet: typeof NamespaceNotSetError;
@@ -350,6 +354,7 @@ export class SoloErrors {
     createFailed: CreateDeploymentSoloError,
     deleteFailed: DeploymentDeleteFailedError,
     hasRemoteResources: DeploymentHasRemoteResourcesError,
+    importFailed: DeploymentImportFailedSoloError,
     listFailed: DeploymentListFailedError,
     listPortsFailed: DeploymentListPortsFailedError,
     namespaceNotSet: NamespaceNotSetError,
@@ -434,6 +439,7 @@ export class SoloErrors {
     readonly nodeClientRefreshFailed: typeof NodeClientRefreshFailedSoloError;
     readonly nodeClientSetupFailed: typeof NodeClientSetupFailedSoloError;
     readonly sdkPingFailed: typeof SdkPingFailedSoloError;
+    readonly sdkClientNoHealthyNodes: typeof SdkClientNoHealthyNodesSoloError;
     readonly nodeServicesRetrievalFailed: typeof NodeServicesRetrievalFailedSoloError;
     readonly nodeServiceNotFound: typeof NodeServiceNotFoundSoloError;
     readonly gossipKeySecretCreationFailed: typeof GossipKeySecretCreationFailedSoloError;
@@ -524,6 +530,7 @@ export class SoloErrors {
     nodeClientRefreshFailed: NodeClientRefreshFailedSoloError,
     nodeClientSetupFailed: NodeClientSetupFailedSoloError,
     sdkPingFailed: SdkPingFailedSoloError,
+    sdkClientNoHealthyNodes: SdkClientNoHealthyNodesSoloError,
     nodeServicesRetrievalFailed: NodeServicesRetrievalFailedSoloError,
     nodeServiceNotFound: NodeServiceNotFoundSoloError,
     gossipKeySecretCreationFailed: GossipKeySecretCreationFailedSoloError,
@@ -750,6 +757,7 @@ export class SoloErrors {
     readonly helmChartGenericInstallFailed: typeof HelmChartGenericInstallFailedSoloError;
     readonly helmChartUninstallFailed: typeof HelmChartUninstallFailedSoloError;
     readonly helmChartUpgradeFailed: typeof HelmChartUpgradeFailedSoloError;
+    readonly helmChartPullNoArchive: typeof HelmChartPullNoArchiveSoloError;
     readonly fileNotFound: typeof FileNotFoundSoloError;
     readonly fileCopyFailed: typeof FileCopyFailedSoloError;
     readonly fileEmpty: typeof FileEmptySoloError;
@@ -827,6 +835,7 @@ export class SoloErrors {
     helmChartGenericInstallFailed: HelmChartGenericInstallFailedSoloError,
     helmChartUninstallFailed: HelmChartUninstallFailedSoloError,
     helmChartUpgradeFailed: HelmChartUpgradeFailedSoloError,
+    helmChartPullNoArchive: HelmChartPullNoArchiveSoloError,
     fileNotFound: FileNotFoundSoloError,
     fileCopyFailed: FileCopyFailedSoloError,
     fileEmpty: FileEmptySoloError,

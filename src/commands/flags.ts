@@ -904,6 +904,20 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly skipGrpcWebEndpoint: CommandFlag = {
+    constName: 'skipGrpcWebEndpoint',
+    name: 'skip-grpc-web-endpoint',
+    definition: {
+      describe:
+        'Skip submitting the NodeUpdateTransaction that sets the gRPC web proxy endpoint.' +
+        '\nUse during restore when the endpoint is already correct in the restored state' +
+        ' to avoid triggering TSS re-evaluation.',
+      type: 'boolean',
+      defaultValue: false,
+    },
+    prompt: undefined,
+  };
+
   public static readonly mirrorNodeId: CommandFlag = {
     constName: 'mirrorNodeId',
     name: 'mirror-node-id',
@@ -1986,6 +2000,53 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly backupExternalDatabase: CommandFlag = {
+    constName: 'backupExternalDatabase',
+    name: 'backup-external-database',
+    definition: {
+      describe:
+        'Export external Mirror Node database dump during backup and save connection/credential parameters to JSON',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly externalDbParamsFile: CommandFlag = {
+    constName: 'externalDbParamsFile',
+    name: 'external-db-params-file',
+    definition: {
+      describe:
+        'Path to external database parameters JSON. Backup writes it; restore reads it to avoid passing many DB flags',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly expectedLbIpsFile: CommandFlag = {
+    constName: 'expectedLbIpsFile',
+    name: 'expected-lb-ips-file',
+    definition: {
+      describe:
+        'Path to KEY=VALUE file with expected LoadBalancer IP mappings, for example KIND_<CONTEXT>_NETWORK_NODE1_SVC=172.x.x.x',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly skipIpTracking: CommandFlag = {
+    constName: 'skipIpTracking',
+    name: 'skip-ip-tracking',
+    definition: {
+      describe: 'Skip LoadBalancer IP tracking and enforcement during restore-network',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly adminKey: CommandFlag = {
     constName: 'adminKey',
     name: 'admin-key',
@@ -2518,6 +2579,18 @@ export class Flags {
       describe:
         'IP mapping where key = value is node alias and static ip for envoy proxy, ' +
         '(e.g.: --envoy-ips node1=127.0.0.1,node2=127.0.0.1)',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly networkNodeIps: CommandFlag = {
+    constName: 'networkNodeIps',
+    name: 'network-node-ips',
+    definition: {
+      describe:
+        'IP mapping where key = value is node alias and static ip for the network-node LoadBalancer service, ' +
+        '(e.g.: --network-node-ips node1=127.0.0.1,node2=127.0.0.2)',
       type: 'string',
     },
     prompt: undefined,
@@ -3171,6 +3244,7 @@ export class Flags {
     Flags.enableTimeout,
     Flags.endpointType,
     Flags.envoyIps,
+    Flags.networkNodeIps,
     Flags.force,
     Flags.forcePortForward,
     Flags.externalAddress,
@@ -3192,6 +3266,11 @@ export class Flags {
     Flags.explorerStaticIp,
     Flags.explorerVersion,
     Flags.inputDir,
+    Flags.backupExternalDatabase,
+    Flags.externalDbParamsFile,
+    Flags.expectedLbIpsFile,
+    Flags.skipIpTracking,
+
     Flags.loadBalancerEnabled,
     Flags.localBuildPath,
     Flags.log4j2Xml,
@@ -3303,6 +3382,7 @@ export class Flags {
     Flags.externalBlockNodeMapping,
     Flags.grpcWebEndpoints,
     Flags.grpcWebEndpoint,
+    Flags.skipGrpcWebEndpoint,
     Flags.wrapsEnabled,
     Flags.wrapsKeyPath,
     Flags.tssEnabled,

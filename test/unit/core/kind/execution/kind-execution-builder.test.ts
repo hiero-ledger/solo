@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
-import Sinon from 'sinon';
+import Sinon, {type SinonSpy} from 'sinon';
 import {KindExecutionBuilder} from '../../../../../src/integration/kind/execution/kind-execution-builder.js';
 import {KindExecution} from '../../../../../src/integration/kind/execution/kind-execution.js';
+import {SubprocessEnvironment} from '../../../../../src/core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../../../../src/core/subprocess-command-profile.js';
 
 describe('KindExecutionBuilder', (): void => {
   let builder: KindExecutionBuilder;
@@ -140,6 +142,23 @@ describe('KindExecutionBuilder', (): void => {
       expect(execution).to.be.instanceOf(KindExecution);
       // More detailed verification would require inspection of private fields
       // or mocking the KindExecution constructor
+    });
+
+    it('builds a minimal kind environment: keeps KUBECONFIG, drops arbitrary secrets', (): void => {
+      process.env.KUBECONFIG = '/home/user/.kube/config';
+      process.env.LEAKY_SECRET_FOR_KIND = 'do-not-leak';
+      const forCommandSpy: SinonSpy = Sinon.spy(SubprocessEnvironment, 'forCommand');
+      try {
+        builder.subcommands('get', 'clusters').build();
+
+        expect(forCommandSpy.calledWith(SubprocessCommandProfile.KIND)).to.equal(true);
+        const environment: Record<string, string> = forCommandSpy.returnValues[0] as Record<string, string>;
+        expect(environment).to.have.property('KUBECONFIG');
+        expect(environment).to.not.have.property('LEAKY_SECRET_FOR_KIND');
+      } finally {
+        delete process.env.KUBECONFIG;
+        delete process.env.LEAKY_SECRET_FOR_KIND;
+      }
     });
   });
 });
