@@ -3,6 +3,7 @@
 import {expect} from 'chai';
 import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {DeploymentNotFoundError} from '../../../../src/core/errors/classes/deployment/deployment-not-found-error.js';
+import {RefreshLocalConfigSourceError} from '../../../../src/core/errors/classes/config/refresh-local-config-source-error.js';
 import {getTemporaryDirectory} from '../../../test-utility.js';
 import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
@@ -71,5 +72,20 @@ describe('LocalConfigRuntimeState', (): void => {
     await createDeployment();
     const shard: Shard = runtimeState.configuration.shardForDeployment('deployment-1');
     expect(shard).to.equal(2);
+  });
+
+  it('should name the file path and suggest config import when the config file is malformed', async (): Promise<void> => {
+    const filePath: string = PathEx.join(basePath, testFileName);
+    fs.writeFileSync(filePath, 'deployments: [unclosed');
+
+    try {
+      await runtimeState.load();
+      expect.fail('load() should have thrown RefreshLocalConfigSourceError');
+    } catch (error) {
+      expect(error).to.be.instanceOf(RefreshLocalConfigSourceError);
+      const soloError: RefreshLocalConfigSourceError = error as RefreshLocalConfigSourceError;
+      expect(soloError.message).to.include(filePath);
+      expect(soloError.getTroubleshootingSteps().join('\n')).to.include('solo deployment config import');
+    }
   });
 });
