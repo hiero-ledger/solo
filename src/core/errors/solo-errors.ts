@@ -7,6 +7,7 @@ import {ClusterReferenceResolutionFailedError} from './classes/deployment/cluste
 import {ContextNotFoundForClusterError} from './classes/deployment/context-not-found-for-cluster-error.js';
 import {DeploymentDeleteFailedError} from './classes/deployment/deployment-delete-failed-error.js';
 import {DeploymentHasRemoteResourcesError} from './classes/deployment/deployment-has-remote-resources-error.js';
+import {DeploymentImportFailedSoloError} from './classes/deployment/deployment-import-failed-solo-error.js';
 import {DeploymentListFailedError} from './classes/deployment/deployment-list-failed-error.js';
 import {DeploymentListPortsFailedError} from './classes/deployment/deployment-list-ports-failed-error.js';
 import {DeploymentNotFoundError} from './classes/deployment/deployment-not-found-error.js';
@@ -321,6 +322,7 @@ export class SoloErrors {
     readonly createFailed: typeof CreateDeploymentSoloError;
     readonly deleteFailed: typeof DeploymentDeleteFailedError;
     readonly hasRemoteResources: typeof DeploymentHasRemoteResourcesError;
+    readonly importFailed: typeof DeploymentImportFailedSoloError;
     readonly listFailed: typeof DeploymentListFailedError;
     readonly listPortsFailed: typeof DeploymentListPortsFailedError;
     readonly namespaceNotSet: typeof NamespaceNotSetError;
@@ -352,6 +354,7 @@ export class SoloErrors {
     createFailed: CreateDeploymentSoloError,
     deleteFailed: DeploymentDeleteFailedError,
     hasRemoteResources: DeploymentHasRemoteResourcesError,
+    importFailed: DeploymentImportFailedSoloError,
     listFailed: DeploymentListFailedError,
     listPortsFailed: DeploymentListPortsFailedError,
     namespaceNotSet: NamespaceNotSetError,
