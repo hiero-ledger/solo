@@ -46,6 +46,8 @@ import * as version from '../../version.js';
 import find from 'find-process';
 import type ProcessInfo from 'find-process';
 import {SoloErrors} from '../core/errors/solo-errors.js';
+import {IncompleteLocalConfigError} from '../core/errors/classes/config/incomplete-local-config-error.js';
+import {RefreshLocalConfigSourceError} from '../core/errors/classes/config/refresh-local-config-source-error.js';
 import {DeploymentStateSchema} from '../data/schema/model/remote/deployment-state-schema.js';
 import yaml from 'yaml';
 import {PathEx} from '../business/utils/path-ex.js';
@@ -581,7 +583,21 @@ export class DeploymentCommand extends BaseCommand {
         {
           title: 'Initialize',
           task: async (context_: ImportTaskContext): Promise<void> => {
-            await this.localConfig.load();
+            // The import command is the recovery path for a broken local config, so it must not die on one.
+            try {
+              await this.localConfig.load();
+            } catch (error) {
+              if (error instanceof RefreshLocalConfigSourceError || error instanceof IncompleteLocalConfigError) {
+                this.logger.showUser(
+                  chalk.yellow(
+                    'The existing local configuration could not be loaded and will be regenerated: ' + error.message,
+                  ),
+                );
+                await this.localConfig.persist();
+              } else {
+                throw error;
+              }
+            }
 
             this.configManager.update(argv);
 

@@ -23,6 +23,7 @@ import {type ConfigMap} from '../../../src/integration/kube/resources/config-map
 import {PodReference} from '../../../src/integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../../../src/integration/kube/resources/pod/pod-name.js';
 import * as constants from '../../../src/core/constants.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
 
 describe('DeploymentCommand unit tests', (): void => {
   type K8StubbedMethods = Pick<
@@ -344,6 +345,23 @@ describe('DeploymentCommand unit tests', (): void => {
         (deployment: Deployment): boolean => deployment.name === importedDeploymentName,
       );
       expect(untouched?.namespace).to.equal(conflictingNamespaceName);
+    });
+
+    it('should regenerate a partial local config instead of failing on it', async (): Promise<void> => {
+      const localConfigPath: string = PathEx.join('test', 'data', 'tmp', constants.DEFAULT_LOCAL_CONFIG_FILE);
+      fs.writeFileSync(localConfigPath, 'userIdentity:\n  name: john\n  hostname: localhost\n');
+
+      const deploymentCommand: DeploymentCommand = container.resolve(InjectTokens.DeploymentCommand);
+      const localConfig: LocalConfigRuntimeState = container.resolve(InjectTokens.LocalConfigRuntimeState);
+
+      await expect(deploymentCommand.importConfig(buildImportArgv().build())).to.eventually.be.true;
+
+      await localConfig.load();
+      const imported: Deployment | undefined = localConfig.configuration.deployments.find(
+        (deployment: Deployment): boolean => deployment.name === importedDeploymentName,
+      );
+      expect(imported).to.not.be.undefined;
+      expect(imported?.namespace).to.equal(importedNamespaceName);
     });
   });
 

@@ -101,6 +101,31 @@ describe('File Storage Backend', (): void => {
     await expect(backend.writeBytes(key, Buffer.from('test', 'utf8'))).to.be.rejectedWith('error writing file');
   });
 
+  it('test writeBytes overwrites an existing file and leaves no temp file behind', async (): Promise<void> => {
+    const key: string = `${testName}-file-overwrite.txt`;
+    const temporaryFile: string = PathEx.join(temporaryDirectory, key);
+    fs.writeFileSync(temporaryFile, 'old content');
+    const backend: FileStorageBackend = new FileStorageBackend(temporaryDirectory);
+    await backend.writeBytes(key, Buffer.from('new content', 'utf8'));
+    expect(fs.readFileSync(temporaryFile, 'utf8')).to.equal('new content');
+    const leftoverTemporaryFiles: string[] = fs
+      .readdirSync(temporaryDirectory)
+      .filter((entry: string): boolean => entry.startsWith(key) && entry.endsWith('.tmp'));
+    expect(leftoverTemporaryFiles).to.be.empty;
+  });
+
+  it('test writeBytes leaves no temp file behind when the write fails', async (): Promise<void> => {
+    const key: string = `${testName}-file-dir-cleanup`;
+    const temporaryFile: string = PathEx.join(temporaryDirectory, key);
+    fs.mkdirSync(temporaryFile);
+    const backend: FileStorageBackend = new FileStorageBackend(temporaryDirectory);
+    await expect(backend.writeBytes(key, Buffer.from('test', 'utf8'))).to.be.rejectedWith('error writing file');
+    const leftoverTemporaryFiles: string[] = fs
+      .readdirSync(temporaryDirectory)
+      .filter((entry: string): boolean => entry.startsWith(key) && entry.endsWith('.tmp'));
+    expect(leftoverTemporaryFiles).to.be.empty;
+  });
+
   it('test delete', async (): Promise<void> => {
     const key: string = `${testName}-file4.txt`;
     const temporaryFile: string = PathEx.join(temporaryDirectory, key);

@@ -4,6 +4,7 @@ import {expect} from 'chai';
 import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {DeploymentNotFoundError} from '../../../../src/core/errors/classes/deployment/deployment-not-found-error.js';
 import {RefreshLocalConfigSourceError} from '../../../../src/core/errors/classes/config/refresh-local-config-source-error.js';
+import {IncompleteLocalConfigError} from '../../../../src/core/errors/classes/config/incomplete-local-config-error.js';
 import {getTemporaryDirectory} from '../../../test-utility.js';
 import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
@@ -72,6 +73,60 @@ describe('LocalConfigRuntimeState', (): void => {
     await createDeployment();
     const shard: Shard = runtimeState.configuration.shardForDeployment('deployment-1');
     expect(shard).to.equal(2);
+  });
+
+  it('should reject a parseable-but-partial config file naming the missing keys and the import command', async (): Promise<void> => {
+    const filePath: string = PathEx.join(basePath, testFileName);
+    fs.writeFileSync(filePath, 'userIdentity:\n  name: john\n  hostname: localhost\n');
+
+    try {
+      await runtimeState.load();
+      expect.fail('load() should have thrown IncompleteLocalConfigError');
+    } catch (error) {
+      expect(error).to.be.instanceOf(IncompleteLocalConfigError);
+      const soloError: IncompleteLocalConfigError = error as IncompleteLocalConfigError;
+      expect(soloError.message).to.include(filePath);
+      expect(soloError.message).to.include('clusterRefs');
+      expect(soloError.message).to.include('deployments');
+      expect(soloError.getTroubleshootingSteps().join('\n')).to.include('solo deployment config import');
+    }
+  });
+
+  it('should reject a partial config file missing a single required key', async (): Promise<void> => {
+    const filePath: string = PathEx.join(basePath, testFileName);
+    fs.writeFileSync(filePath, 'clusterRefs: {}\n');
+
+    try {
+      await runtimeState.load();
+      expect.fail('load() should have thrown IncompleteLocalConfigError');
+    } catch (error) {
+      expect(error).to.be.instanceOf(IncompleteLocalConfigError);
+      const soloError: IncompleteLocalConfigError = error as IncompleteLocalConfigError;
+      expect(soloError.message).to.include('(missing: deployments)');
+    }
+  });
+
+  it('should still migrate a legacy config file without a schemaVersion', async (): Promise<void> => {
+    const filePath: string = PathEx.join(basePath, testFileName);
+    fs.writeFileSync(
+      filePath,
+      'clusterRefs:\n' +
+        '  cluster-1: context-1\n' +
+        'deployments:\n' +
+        '  deployment-legacy:\n' +
+        '    clusters:\n' +
+        '      - cluster-1\n' +
+        '    namespace: namespace-legacy\n' +
+        'soloVersion: 0.35.1\n' +
+        'userEmailAddress: john.doe@example.com\n',
+    );
+
+    await runtimeState.load();
+    const deployment: Deployment = runtimeState.configuration.deployments.find(
+      (d: Deployment): boolean => d.name === 'deployment-legacy',
+    );
+    expect(deployment).to.not.be.undefined;
+    expect(deployment.namespace).to.equal('namespace-legacy');
   });
 
   it('should name the file path and suggest config import when the config file is malformed', async (): Promise<void> => {

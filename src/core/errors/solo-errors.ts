@@ -28,6 +28,7 @@ import {GitHubApiResponseParseFailedError} from './classes/system/github-api-res
 import {PortForwardRefreshFailedError} from './classes/system/port-forward-refresh-failed-error.js';
 import {PortForwardStatusFailedError} from './classes/system/port-forward-status-failed-error.js';
 import {ResourceNotFoundError} from './classes/system/resource-not-found-error.js';
+import {IncompleteLocalConfigError} from './classes/config/incomplete-local-config-error.js';
 import {LocalConfigNotFoundSoloError} from './classes/config/local-config-not-found-solo-error.js';
 import {ReadRemoteConfigBeforeLoadError} from './classes/internal/read-remote-config-before-load-error.js';
 import {RefreshLocalConfigSourceError} from './classes/config/refresh-local-config-source-error.js';
@@ -300,11 +301,13 @@ import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-
 export class SoloErrors {
   // 1xxx - Configuration: Local/remote config lifecycle
   public static readonly config: {
+    readonly incompleteLocalConfig: typeof IncompleteLocalConfigError;
     readonly localNotFound: typeof LocalConfigNotFoundSoloError;
     readonly refreshLocalConfigSource: typeof RefreshLocalConfigSourceError;
     readonly remoteMismatch: typeof RemoteConfigsMismatchSoloError;
     readonly writeLocalConfig: typeof WriteLocalConfigFileError;
   } = Object.freeze({
+    incompleteLocalConfig: IncompleteLocalConfigError,
     localNotFound: LocalConfigNotFoundSoloError,
     refreshLocalConfigSource: RefreshLocalConfigSourceError,
     remoteMismatch: RemoteConfigsMismatchSoloError,

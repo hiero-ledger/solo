@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from '../../../../core/errors/solo-errors.js';
+import {IncompleteLocalConfigError} from '../../../../core/errors/classes/config/incomplete-local-config-error.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
 import {LocalConfigSource} from '../../../../data/configuration/impl/local-config-source.js';
@@ -78,16 +79,39 @@ export class LocalConfigRuntimeState {
       return await this.persist();
     }
 
+    const configFilePath: string = PathEx.join(this.basePath, this.fileName);
     try {
+      await this.assertConfigFileComplete(configFilePath);
       await this.source.refresh();
       this.refresh();
     } catch (error) {
-      throw new SoloErrors.config.refreshLocalConfigSource(PathEx.join(this.basePath, this.fileName), error);
+      if (error instanceof IncompleteLocalConfigError) {
+        throw error;
+      }
+      throw new SoloErrors.config.refreshLocalConfigSource(configFilePath, error);
     }
     await this.persist();
 
     await this.migrateCacheDirectories();
     this.isLoaded = true;
+  }
+
+  // Every schema version of the local config, including legacy pre-schemaVersion files, carries these keys.
+  private static readonly REQUIRED_TOP_LEVEL_KEYS: string[] = ['clusterRefs', 'deployments'];
+
+  /**
+   * Rejects a config file that parses as YAML but is missing required top-level keys, so a partial
+   * file (interrupted write, manual edit) fails fast instead of silently loading as an empty config.
+   */
+  private async assertConfigFileComplete(configFilePath: string): Promise<void> {
+    const rawConfig: object = await this.backend.readObject(this.fileName);
+    const isRecord: boolean = typeof rawConfig === 'object' && rawConfig !== null && !Array.isArray(rawConfig);
+    const missingKeys: string[] = isRecord
+      ? LocalConfigRuntimeState.REQUIRED_TOP_LEVEL_KEYS.filter((key: string): boolean => !(key in rawConfig))
+      : LocalConfigRuntimeState.REQUIRED_TOP_LEVEL_KEYS;
+    if (missingKeys.length > 0) {
+      throw new SoloErrors.config.incompleteLocalConfig(configFilePath, missingKeys);
+    }
   }
 
   /**
