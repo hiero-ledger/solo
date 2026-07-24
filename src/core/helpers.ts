@@ -168,6 +168,17 @@ export class Helpers {
     return undefined;
   }
 
+  public static parseNumericApplicationProperty(
+    applicationPropertiesText: string,
+    propertyKey: string,
+  ): number | undefined {
+    const escapedPropertyKey: string = propertyKey.replaceAll('.', String.raw`\.`);
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      new RegExp(String.raw`^\s*${escapedPropertyKey}\s*=\s*(\d+)\s*$`, 'm'),
+    );
+    return match ? Number(match[1]) : undefined;
+  }
+
   public static readGossipFqdnRestrictedFromFile(filePath: string): boolean | undefined {
     if (!fs.existsSync(filePath)) {
       return undefined;
@@ -695,31 +706,47 @@ export class Helpers {
     };
   }
 
+  /**
+   * Best-effort extraction of the deployment names recorded in a remote-config ConfigMap.
+   * Tolerates both the current (array) and legacy (map keyed by cluster name) cluster layouts.
+   */
+  public static extractRemoteConfigDeploymentNames(remoteConfig: ConfigMap): string[] {
+    const deploymentNames: string[] = [];
+    try {
+      const remoteConfigData: unknown = yaml.parse(remoteConfig.data?.[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
+      let clustersData: unknown = undefined;
+      if (typeof remoteConfigData === 'object' && remoteConfigData !== null && 'clusters' in remoteConfigData) {
+        clustersData = (remoteConfigData as Record<string, unknown>).clusters;
+      }
+      const clustersArray: unknown[] = [];
+
+      if (Array.isArray(clustersData)) {
+        clustersArray.push(...clustersData);
+      } else if (typeof clustersData === 'object' && clustersData !== null) {
+        clustersArray.push(...Object.values(clustersData));
+      }
+
+      for (const clusterData of clustersArray) {
+        if (typeof clusterData === 'object' && clusterData !== null && 'deployment' in clusterData) {
+          const deployment: unknown = (clusterData as Record<string, unknown>).deployment;
+          if (typeof deployment === 'string' && deployment.length > 0) {
+            deploymentNames.push(deployment);
+          }
+        }
+      }
+    } catch {
+      // best-effort: treat absent or unparseable remote-config data as containing no deployments
+    }
+    return deploymentNames;
+  }
+
   public static remoteConfigsToDeploymentsTable(remoteConfigs: ConfigMap[]): string[] {
     const rows: string[] = [];
     if (remoteConfigs.length > 0) {
       rows.push('Namespace : deployment');
       for (const remoteConfig of remoteConfigs) {
-        const remoteConfigData: unknown = yaml.parse(remoteConfig.data?.['remote-config-data']);
-        let clustersData: unknown = undefined;
-        if (typeof remoteConfigData === 'object' && remoteConfigData !== null && 'clusters' in remoteConfigData) {
-          clustersData = (remoteConfigData as Record<string, unknown>).clusters;
-        }
-        const clustersArray: unknown[] = [];
-
-        if (Array.isArray(clustersData)) {
-          clustersArray.push(...clustersData);
-        } else if (typeof clustersData === 'object' && clustersData !== null) {
-          clustersArray.push(...Object.values(clustersData));
-        }
-
-        for (const clusterData of clustersArray) {
-          if (typeof clusterData === 'object' && clusterData !== null && 'deployment' in clusterData) {
-            const deployment: unknown = (clusterData as Record<string, unknown>).deployment;
-            if (typeof deployment === 'string') {
-              rows.push(`${remoteConfig.namespace.name} : ${deployment}`);
-            }
-          }
+        for (const deployment of Helpers.extractRemoteConfigDeploymentNames(remoteConfig)) {
+          rows.push(`${remoteConfig.namespace.name} : ${deployment}`);
         }
       }
     }

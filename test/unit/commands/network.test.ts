@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import sinon, {type SinonStub} from 'sinon';
+import sinon, {type SinonSpyCall, type SinonStub} from 'sinon';
 import {before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
@@ -42,6 +42,7 @@ import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
+import {Duration} from '../../../src/core/time/duration.js';
 
 const testName: string = 'network-cmd-unit';
 const namespace: NamespaceName = NamespaceName.of(testName);
@@ -281,6 +282,61 @@ describe('NetworkCommand unit tests', (): void => {
         expect(options.chartManager.upgrade.args[0][1]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
         expect(options.chartManager.upgrade.args[0][2]).to.equal(constants.SOLO_DEPLOYMENT_CHART);
         expect(options.chartManager.upgrade.args[0][3]).to.equal(constants.SOLO_TESTING_CHART_URL);
+      } finally {
+        sinon.restore();
+      }
+    });
+
+    it('retries the solo-deployment chart install after a transient failure', async (): Promise<void> => {
+      try {
+        // collapse the retry backoff so the test does not wait for the real delay
+        const ofSecondsStub: SinonStub = sinon.stub(Duration, 'ofSeconds');
+        ofSecondsStub.callThrough();
+        ofSecondsStub.withArgs(constants.NETWORK_CHART_INSTALL_RETRY_DELAY_SECS).returns(Duration.ofMillis(1));
+
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'solo-e2e', 'context1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
+        const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.updateComponentVersion = sinon.stub();
+        options.remoteConfig.configuration.state = {};
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePodLogsCrd = sinon.stub().returns(true);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
+
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.componentFactory = {
+          createNewEnvoyProxyComponent: sinon.stub(),
+          createNewHaProxyComponent: sinon.stub(),
+        };
+
+        const upgradeStub: SinonStub = sinon.stub();
+        upgradeStub.resolves(true);
+        upgradeStub
+          .onFirstCall()
+          .rejects(new Error('Post "https://127.0.0.1:6443/apis/monitoring.grafana.com/v1alpha2/podlogs": EOF'));
+        options.chartManager.upgrade = upgradeStub;
+
+        await networkCommand.deploy(argv.build());
+
+        const upgradeCalls: SinonSpyCall[] = upgradeStub
+          .getCalls()
+          .filter((call: SinonSpyCall): boolean => call.args[1] === constants.SOLO_DEPLOYMENT_CHART);
+        expect(upgradeCalls).to.have.lengthOf(2);
+
+        const uninstallCalls: SinonSpyCall[] = options.chartManager.uninstall
+          .getCalls()
+          .filter((call: SinonSpyCall): boolean => call.args[1] === constants.SOLO_DEPLOYMENT_CHART);
+        // one uninstall for the pre-existing release plus one clean-up between the failed and retried attempts
+        expect(uninstallCalls).to.have.lengthOf(2);
       } finally {
         sinon.restore();
       }
