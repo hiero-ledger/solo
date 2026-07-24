@@ -9,11 +9,11 @@ import {ClusterStateService} from '../../../../src/integration/container-engine/
 import {type ContainerEngineState} from '../../../../src/integration/container-engine/container-engine-state.js';
 import {type KindClusterContainer} from '../../../../src/integration/container-engine/kind-cluster-container.js';
 
+const buildService: () => ClusterStateService = (): ClusterStateService => new ClusterStateService({} as SoloLogger);
+
 describe('ClusterStateService', (): void => {
   let sandbox: SinonSandbox;
   let shellRunnerRunStub: SinonStub;
-
-  const buildService: () => ClusterStateService = (): ClusterStateService => new ClusterStateService({} as SoloLogger);
 
   beforeEach((): void => {
     sandbox = sinon.createSandbox();

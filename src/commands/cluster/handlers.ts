@@ -114,7 +114,7 @@ export class ClusterCommandHandlers extends CommandHandler {
       [this.tasks.startClusterState()],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'cluster-ref state start',
-      null,
+      undefined,
       'cluster-ref state start',
     );
 
@@ -130,7 +130,7 @@ export class ClusterCommandHandlers extends CommandHandler {
       [this.tasks.stopClusterState()],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'cluster-ref state stop',
-      null,
+      undefined,
       'cluster-ref state stop',
     );
 
@@ -146,7 +146,6 @@ export class ClusterCommandHandlers extends CommandHandler {
       [this.tasks.showClusterStateInfo()],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       'cluster-ref state info',
-      null,
     );
 
     return true;
