@@ -15,6 +15,7 @@ import {type ArgvStruct} from '../../../src/types/aliases.js';
 interface RelayCommandInternal {
   prepareNetworkJsonString: (nodeAliases: string[], namespace: NamespaceName, deployment: string) => Promise<string>;
   prepareHelmChartValuesForRelay: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
+  isLocalImageAvailableInDocker: (componentImage: string) => boolean;
 }
 
 const prepareRelayValueArguments: (
@@ -53,6 +54,7 @@ describe('RelayCommand unit tests', (): void => {
   beforeEach((): void => {
     resetForTest();
     relayCommand = container.resolve(RelayCommand);
+    sinon.stub(relayCommand as unknown as RelayCommandInternal, 'isLocalImageAvailableInDocker').returns(false);
   });
 
   afterEach((): void => {
