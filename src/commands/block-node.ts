@@ -212,8 +212,9 @@ export class BlockNodeCommand extends BaseCommand {
   private static readonly MIGRATION_COMPONENT_KEY: string = 'block-node';
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       // Keep legacy flag visible as a separate deprecated option.
       flags.blockNodeChartVersion,
       flags.blockNodeVersion,
@@ -238,8 +239,9 @@ export class BlockNodeCommand extends BaseCommand {
   };
 
   public static readonly ADD_EXTERNAL_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment, flags.externalBlockNodeAddress],
+    required: [flags.externalBlockNodeAddress],
     optional: [
+      flags.deployment,
       flags.clusterRef,
       flags.debugMode,
       flags.quiet,
@@ -250,23 +252,32 @@ export class BlockNodeCommand extends BaseCommand {
   };
 
   public static readonly DELETE_EXTERNAL_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.clusterRef, flags.debugMode, flags.force, flags.quiet, flags.id],
+    required: [],
+    optional: [flags.deployment, flags.clusterRef, flags.debugMode, flags.force, flags.quiet, flags.id],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.debugMode, flags.force, flags.quiet, flags.id],
+    required: [],
+    optional: [
+      flags.deployment,
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.debugMode,
+      flags.force,
+      flags.quiet,
+      flags.id,
+    ],
   };
 
   public static readonly COLLECT_JFR_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.clusterRef, flags.debugMode, flags.quiet, flags.id],
+    required: [],
+    optional: [flags.deployment, flags.clusterRef, flags.debugMode, flags.quiet, flags.id],
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.chartDirectory,
       flags.blockNodeChartDirectory,
       flags.clusterRef,
