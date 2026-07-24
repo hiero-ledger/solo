@@ -145,6 +145,7 @@ export class NetworkCommand extends BaseCommand {
       flags.grpcWebTlsKeyPath,
       flags.haproxyIps,
       flags.envoyIps,
+      flags.networkNodeIps,
       flags.storageType,
       flags.gcsWriteAccessKey,
       flags.gcsWriteSecrets,
@@ -674,6 +675,14 @@ export class NetworkCommand extends BaseCommand {
     // Iterate over each node and set static IPs for Envoy Proxy
     this.addValueForEachRecord(config.envoyIpsParsed, config.consensusNodes, chartValuesMap, 'envoyProxyStaticIP');
 
+    // Iterate over each node and set static IPs for consensus node services
+    this.addValueForEachRecord(
+      config.networkNodeIpsParsed,
+      config.consensusNodes,
+      chartValuesMap,
+      'networkNodeStaticIP',
+    );
+
     if (config.resolvedThrottlesFile) {
       // repairing the path, this avoid helm failing when running on windows
       const throttlesFilePath: string = config.resolvedThrottlesFile.replaceAll('\\', '/');
@@ -726,13 +735,29 @@ export class NetworkCommand extends BaseCommand {
     valueName: string,
   ): void {
     if (records) {
+      const nodeIndexByClusterAndName: Map<string, number> = new Map();
+      const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
+
       for (const consensusNode of consensusNodes) {
-        if (records[consensusNode.name]) {
-          chartValuesMap[consensusNode.cluster].setLiteral(
-            `hedera.nodes[${consensusNode.nodeId}].${valueName}`,
-            records[consensusNode.name],
-          );
+        const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
+        nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
+        nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
+      }
+
+      for (const consensusNode of consensusNodes) {
+        const recordValue: string | undefined = records[consensusNode.name];
+        if (!recordValue) {
+          continue;
         }
+
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
+
+        chartValuesMap[consensusNode.cluster].setLiteral(`hedera.nodes[${nodeIndex}].${valueName}`, recordValue);
       }
     }
   }
@@ -869,6 +894,7 @@ export class NetworkCommand extends BaseCommand {
       flags.grpcWebTlsKeyPath,
       flags.haproxyIps,
       flags.envoyIps,
+      flags.networkNodeIps,
       flags.storageType,
       flags.gcsWriteAccessKey,
       flags.gcsWriteSecrets,
@@ -923,6 +949,10 @@ export class NetworkCommand extends BaseCommand {
 
     if (config.envoyIps) {
       config.envoyIpsParsed = Templates.parseNodeAliasToIpMapping(config.envoyIps);
+    }
+
+    if (config.networkNodeIps) {
+      config.networkNodeIpsParsed = Templates.parseNodeAliasToIpMapping(config.networkNodeIps);
     }
 
     if (config.domainNames) {
