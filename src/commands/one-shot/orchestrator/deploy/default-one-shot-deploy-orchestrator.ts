@@ -89,6 +89,8 @@ import {RelayNodeStateSchema} from '../../../../data/schema/model/remote/state/r
 import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../../../../core/config/remote/enumerations/component-types.js';
 import {ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
+import {ServiceReference} from '../../../../integration/kube/resources/service/service-reference.js';
+import {ServiceName} from '../../../../integration/kube/resources/service/service-name.js';
 import chalk from 'chalk';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -101,6 +103,7 @@ import {CacheCommandDefinition} from '../../../command-definitions/cache-command
 import {MessageLevel} from '../../../../core/logging/message-level.js';
 import {isDeploymentPhaseAtLeast} from '../../../../data/schema/model/remote/deployment-phase-helper.js';
 import {SpinnerListrOptions} from '../../../../core/spinner-listr-options.js';
+import {ClusterTaskManager} from '../../../../core/cluster-task-manager.js';
 
 const SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
 
@@ -123,6 +126,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
     @inject(InjectTokens.MirrorNodeCommand) private readonly mirrorNodeCommand: MirrorNodeCommand,
     @inject(InjectTokens.ContainerEngineResourceInspector)
     private readonly containerEngineResourceInspector: ContainerEngineResourceInspector,
+    @inject(InjectTokens.ClusterTaskManager) private readonly clusterTaskManager: ClusterTaskManager,
   ) {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
@@ -142,6 +146,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
       InjectTokens.ContainerEngineResourceInspector,
       this.constructor.name,
     );
+    this.clusterTaskManager = patchInject(clusterTaskManager, InjectTokens.ClusterTaskManager, this.constructor.name);
   }
 
   public buildDeployPipeline(
@@ -202,6 +207,9 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             config.networkConfiguration = {};
             config.setupConfiguration = {};
             config.versions = versions;
+            // The dependency-install preamble ran before this pipeline; if it created the Kind
+            // cluster, the one-shot extraPortMappings exist and port-forwards can be skipped.
+            config.clusterHasOneShotPortMappings = this.clusterTaskManager.createdClusterWithOneShotPortMappings;
 
             config.cacheDir ??= constants.SOLO_CACHE_DIR;
 
@@ -767,6 +775,7 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
             this.logger.info(`Output directory: ${outputDirectory}`);
             this.showOneShotUserNotes(context_, PathEx.join(outputDirectory, 'notes'));
             this.showVersions(PathEx.join(outputDirectory, 'versions'), deployConfig);
+            await this.exposeNodePortServices(deployConfig);
             this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
             this.showCacheImageFailures();
             this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
@@ -1022,6 +1031,104 @@ export class DefaultOneShotDeployOrchestrator implements OneShotDeployOrchestrat
   private showCacheImageFailures(): void {
     if (this.logger.getMessageGroupKeys().includes(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP)) {
       this.logger.showMessageGroup(constants.CACHE_IMAGE_FAILURE_MESSAGE_GROUP, MessageLevel.WARN);
+    }
+  }
+
+  /**
+   * Exposes the one-shot endpoints through the Kind cluster's extraPortMappings instead of kubectl
+   * port-forward tunnels, and adds their stable access URLs to the port-forwarding message group
+   * (reused so showPortForwards renders and files them). The mirror node is already exposed via its
+   * ingress-controller NodePort values file; for the explorer, JSON RPC relay, and consensus node
+   * gRPC this creates a fixed-NodePort service selecting the component's pods. NodePort and host
+   * port values must match resources/templates/small-memory/kind-config.yaml.
+   */
+  private async exposeNodePortServices(config: OneShotSingleDeployConfigClass): Promise<void> {
+    if (!config.clusterHasOneShotPortMappings) {
+      // The Kind cluster pre-existed (or used a custom config), so the one-shot host port mappings
+      // are absent; the subcommands kept their legacy kubectl port-forwards instead.
+      return;
+    }
+
+    if (!this.logger.getMessageGroupKeys().includes(constants.PORT_FORWARDING_MESSAGE_GROUP)) {
+      this.logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
+    }
+
+    // Only node1 gets a static gRPC host mapping — Kind extraPortMappings are fixed at cluster
+    // creation, so additional consensus nodes cannot be mapped afterwards.
+    // Fresh one-shot deploys always assign component id 1 to their single explorer/relay instance.
+    const nodePortTargets: {
+      deployed: boolean;
+      hostPort: number;
+      label: string;
+      nodePort: number;
+      podPort: number;
+      selectorLabels: string[];
+      serviceName: string;
+    }[] = [
+      {
+        deployed: true,
+        hostPort: constants.ONE_SHOT_CONSENSUS_GRPC_HOST_PORT,
+        label: 'Consensus Node gRPC',
+        nodePort: constants.ONE_SHOT_CONSENSUS_GRPC_NODE_PORT,
+        podPort: constants.GRPC_PORT,
+        selectorLabels: Templates.renderHaProxyLabels(1),
+        serviceName: 'one-shot-consensus-grpc-nodeport',
+      },
+      {
+        deployed: config.deployExplorer || config.minimalSetup,
+        hostPort: constants.ONE_SHOT_EXPLORER_HOST_PORT,
+        label: 'Explorer',
+        nodePort: constants.ONE_SHOT_EXPLORER_NODE_PORT,
+        podPort: constants.EXPLORER_PORT,
+        selectorLabels: Templates.renderExplorerLabels(1),
+        serviceName: 'one-shot-explorer-nodeport',
+      },
+      {
+        deployed: config.deployRelay || config.minimalSetup,
+        hostPort: constants.ONE_SHOT_RELAY_HOST_PORT,
+        label: 'JSON RPC Relay',
+        nodePort: constants.ONE_SHOT_RELAY_NODE_PORT,
+        podPort: constants.JSON_RPC_RELAY_PORT,
+        selectorLabels: Templates.renderRelayLabels(1),
+        serviceName: 'one-shot-relay-nodeport',
+      },
+    ];
+
+    for (const target of nodePortTargets) {
+      if (!target.deployed) {
+        continue;
+      }
+      const selector: Record<string, string> = Object.fromEntries(
+        target.selectorLabels.map((labelPair: string): string[] => labelPair.split('=')),
+      ) as Record<string, string>;
+      try {
+        await this.k8Factory
+          .getK8(config.context)
+          .services()
+          .create(
+            ServiceReference.of(config.namespace, ServiceName.of(target.serviceName)),
+            {'app.kubernetes.io/managed-by': 'solo-one-shot'},
+            target.podPort,
+            target.podPort,
+            selector,
+            target.nodePort,
+          );
+      } catch (error) {
+        // best-effort: the service may already exist from a previous run of this task; warn instead
+        // of failing the whole deploy so a re-run stays idempotent.
+        this.logger.warn(`Failed to create NodePort service ${target.serviceName}: ${error.message}`);
+      }
+      this.logger.addMessageGroupMessage(
+        constants.PORT_FORWARDING_MESSAGE_GROUP,
+        `${target.label} available on ${constants.LOCAL_HOST}:${target.hostPort} (NodePort)`,
+      );
+    }
+
+    if (config.deployMirrorNode) {
+      this.logger.addMessageGroupMessage(
+        constants.PORT_FORWARDING_MESSAGE_GROUP,
+        `Mirror Node REST API available on ${constants.LOCAL_HOST}:${constants.ONE_SHOT_MIRROR_REST_HOST_PORT} (NodePort)`,
+      );
     }
   }
 

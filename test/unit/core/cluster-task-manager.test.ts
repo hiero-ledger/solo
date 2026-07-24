@@ -77,4 +77,42 @@ describe('ClusterTaskManager', (): void => {
     expect(patchesMount?.hostPath).to.equal(expectedPatchesDirectory);
     expect(path.isAbsolute(patchesMount?.hostPath ?? '')).to.equal(true);
   });
+
+  it('should expose the one-shot NodePorts via Kind extraPortMappings', (): void => {
+    const manager: ClusterTaskManager = createClusterTaskManager();
+    const configPath: string = getConfigFilePath(manager, true);
+
+    const renderedConfig: {
+      nodes?: {extraPortMappings?: {containerPort?: number; hostPort?: number; protocol?: string}[]}[];
+    } = yaml.parse(fs.readFileSync(configPath, 'utf8'));
+
+    const portMappings: {containerPort?: number; hostPort?: number; protocol?: string}[] = renderedConfig.nodes
+      ? renderedConfig.nodes.flatMap(
+          (node): {containerPort?: number; hostPort?: number; protocol?: string}[] => node.extraPortMappings ?? [],
+        )
+      : [];
+
+    // containerPort values are NodePorts (range 30000-32767): 30003/30004 must match
+    // resources/one-shot/mirror-ingress-controller-nodeport-values.yaml, the rest the
+    // ONE_SHOT_*_NODE_PORT constants. Each hostPort is the legacy port-forward port so existing
+    // localhost URLs keep working without a flaky kubectl port-forward tunnel.
+    const expectedMappings: {containerPort: number; hostPort: number}[] = [
+      {containerPort: 30_003, hostPort: constants.ONE_SHOT_MIRROR_REST_HOST_PORT},
+      {containerPort: 30_004, hostPort: 30_004},
+      {containerPort: constants.ONE_SHOT_EXPLORER_NODE_PORT, hostPort: constants.ONE_SHOT_EXPLORER_HOST_PORT},
+      {containerPort: constants.ONE_SHOT_RELAY_NODE_PORT, hostPort: constants.ONE_SHOT_RELAY_HOST_PORT},
+      {
+        containerPort: constants.ONE_SHOT_CONSENSUS_GRPC_NODE_PORT,
+        hostPort: constants.ONE_SHOT_CONSENSUS_GRPC_HOST_PORT,
+      },
+    ];
+    for (const expected of expectedMappings) {
+      const mapping: {containerPort?: number; hostPort?: number; protocol?: string} | undefined = portMappings.find(
+        (entry): boolean => entry.containerPort === expected.containerPort,
+      );
+      expect(mapping, `extraPortMapping for ${expected.containerPort} should be present`).to.not.equal(undefined);
+      expect(mapping?.hostPort).to.equal(expected.hostPort);
+      expect(expected.containerPort).to.be.greaterThanOrEqual(30_000).and.lessThanOrEqual(32_767);
+    }
+  });
 });

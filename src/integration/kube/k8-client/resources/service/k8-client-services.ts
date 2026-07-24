@@ -70,6 +70,8 @@ export class K8ClientServices extends K8ClientBase implements Services {
     labels: Record<string, string>,
     servicePort: number,
     podTargetPort: number,
+    selector?: Record<string, string>,
+    nodePort?: number,
   ): Promise<Service> {
     const v1SvcMetadata: V1ObjectMeta = new V1ObjectMeta();
     v1SvcMetadata.name = serviceReference.name.toString();
@@ -79,9 +81,18 @@ export class K8ClientServices extends K8ClientBase implements Services {
     const v1SvcPort: V1ServicePort = new V1ServicePort();
     v1SvcPort.port = servicePort;
     v1SvcPort.targetPort = podTargetPort;
+    if (nodePort) {
+      v1SvcPort.nodePort = nodePort;
+    }
 
     const v1SvcSpec: V1ServiceSpec = new V1ServiceSpec();
     v1SvcSpec.ports = [v1SvcPort];
+    if (selector) {
+      v1SvcSpec.selector = selector;
+    }
+    if (nodePort) {
+      v1SvcSpec.type = 'NodePort';
+    }
 
     const v1Svc: V1Service = new V1Service();
     v1Svc.metadata = v1SvcMetadata;

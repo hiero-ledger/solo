@@ -25,6 +25,8 @@ export interface Services {
    * @param labels - the labels for the service
    * @param servicePort - the service port
    * @param podTargetPort - the target port
+   * @param selector - optional pod label selector for the service
+   * @param nodePort - optional fixed node port; when set the service is created with type NodePort
    * @returns the service
    * @throws {SoloError} if the service could not be created
    */
@@ -33,5 +35,7 @@ export interface Services {
     labels: Record<string, string>,
     servicePort: number,
     podTargetPort: number,
+    selector?: Record<string, string>,
+    nodePort?: number,
   ): Promise<Service>;
 }

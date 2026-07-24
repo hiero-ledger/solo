@@ -307,6 +307,31 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'ingress-controller-values.yaml',
 );
+// One-shot only: layer this on top of INGRESS_CONTROLLER_VALUES_FILE to expose the mirror node
+// ingress controller as NodePort. The nodePort values match the extraPortMappings in the one-shot
+// Kind config (resources/templates/small-memory/kind-config.yaml), giving the host a stable Docker
+// port mapping instead of a flaky kubectl port-forward tunnel.
+export const ONE_SHOT_MIRROR_INGRESS_NODEPORT_VALUES_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'one-shot',
+  'mirror-ingress-controller-nodeport-values.yaml',
+);
+// Host port the one-shot deployment publishes for the mirror node REST API. Matches the legacy
+// kubectl port-forward port (MIRROR_NODE_PORT default) so existing URLs keep working; the Kind
+// extraPortMappings map it to ingress-controller NodePort 30003 inside the cluster. Must match the
+// hostPort in resources/templates/small-memory/kind-config.yaml.
+export const ONE_SHOT_MIRROR_REST_HOST_PORT: number = 38_081;
+// One-shot only: fixed NodePorts for the explorer, JSON RPC relay, and consensus node gRPC
+// (node1 HAProxy) services created by the one-shot deploy orchestrator, plus the host ports the
+// Kind extraPortMappings publish them on. Each host port matches the legacy kubectl port-forward
+// port so existing URLs keep working. NodePort and host port values must match the
+// extraPortMappings in resources/templates/small-memory/kind-config.yaml.
+export const ONE_SHOT_EXPLORER_NODE_PORT: number = 30_005;
+export const ONE_SHOT_EXPLORER_HOST_PORT: number = 38_080;
+export const ONE_SHOT_RELAY_NODE_PORT: number = 30_006;
+export const ONE_SHOT_RELAY_HOST_PORT: number = 37_546;
+export const ONE_SHOT_CONSENSUS_GRPC_NODE_PORT: number = 30_007;
+export const ONE_SHOT_CONSENSUS_GRPC_HOST_PORT: number = 35_211;
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
 export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
