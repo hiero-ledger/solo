@@ -237,13 +237,15 @@ describe('ProfileManager', (): void => {
       expect(savedAddress?.port).to.equal(50_211);
     });
 
-    it('decodes saved ipAddressV4 and validates it against the expected node service', async (): Promise<void> => {
-      const savedIpAddress: string = '10.1.2.3';
-      const encodedIpAddress: string = Buffer.from([10, 1, 2, 3]).toString('base64');
+    it('decodes saved ipAddressV4 and validates it against the expected node service load balancer', async (): Promise<void> => {
+      const savedIpAddress: string = '172.19.1.1';
+      const encodedIpAddress: string = Buffer.from([172, 19, 1, 1]).toString('base64');
       const networkJsonContent: string = JSON.stringify({
         nodeMetadata: [{rosterEntry: {gossipEndpoint: [{port: 50_211, ipAddressV4: encodedIpAddress}]}}],
       });
-      const serviceReadStub: sinon.SinonStub = sinon.stub().resolves({spec: {clusterIP: savedIpAddress}});
+      const serviceReadStub: sinon.SinonStub = sinon
+        .stub()
+        .resolves({spec: {clusterIP: '10.96.1.1'}, status: {loadBalancer: {ingress: [{ip: savedIpAddress}]}}});
       const getK8Stub: sinon.SinonStub = sinon.stub().returns({
         pods: (): {list: () => Promise<Array<{podReference: unknown}>>} => ({
           list: async (): Promise<Array<{podReference: unknown}>> => [{podReference: {}}],
