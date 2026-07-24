@@ -223,7 +223,7 @@ export const SOLO_MIRROR_WEB3_NAME_LABEL: string = 'app.kubernetes.io/name=web3'
 export const SOLO_MIRROR_POSTGRES_NAME_LABEL: string = 'app.kubernetes.io/name=postgres';
 export const SOLO_MIRROR_REDIS_NAME_LABEL: string = 'app.kubernetes.io/name=redis';
 export const SOLO_MIRROR_RESTJAVA_NAME_LABEL: string = 'app.kubernetes.io/name=restjava';
-export const SOLO_BLOCK_NODE_NAME_LABEL: string = 'app.kubernetes.io/name=block-node-1';
+export const SOLO_BLOCK_NODE_NAME_LABEL: string = 'block-node.hiero.com/type=block-node';
 export const SOLO_INGRESS_CONTROLLER_NAME_LABEL: string = 'app.kubernetes.io/name=haproxy-ingress';
 
 export const DEFAULT_CHART_REPO: Map<string, string> = new Map()
@@ -275,7 +275,6 @@ export const POD_CONDITION_READY: string = 'Ready';
 export const POD_CONDITION_POD_SCHEDULED: string = 'PodScheduled';
 export const POD_CONDITION_STATUS_TRUE: string = 'True';
 
-export const BLOCK_NODE_SOLO_DEV_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-solo-dev.yaml');
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
 export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
@@ -308,6 +307,7 @@ export const INGRESS_CONTROLLER_VALUES_FILE: string = PathEx.joinWithRealPath(
   'ingress-controller-values.yaml',
 );
 export const BLOCK_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'block-node-values.yaml');
+export const BLOCK_NODE_SOLO_DEV_FILE: string = BLOCK_NODE_VALUES_FILE;
 export const BLOCK_NODE_MESSAGING_WORKAROUND_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'block-node-messaging-workaround.yaml',

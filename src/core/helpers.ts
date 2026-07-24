@@ -62,21 +62,19 @@ export class Helpers {
   public static getBlockStreamModeForConsensusVersion(
     consensusNodeVersion: SemanticVersion<string> | string | undefined,
     blockNodeIntegrationEnabled: boolean,
+    tssEnabled: boolean = true,
   ): string {
     const version: SemanticVersion<string> = new SemanticVersion<string>(
       consensusNodeVersion?.toString() || versions.HEDERA_PLATFORM_VERSION,
     );
 
     if (version.greaterThanOrEqual(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
-      if (!blockNodeIntegrationEnabled) {
+      if (!blockNodeIntegrationEnabled || !tssEnabled) {
         return 'RECORDS';
       }
 
       // CN >= v0.74.0 defaults to BLOCKS (pure block-node streaming, no MinIO record streams).
-      // BLOCK_STREAM_STREAM_MODE env var overrides this default — used in performance tests as a
-      // workaround for SmartContractLoadTest returning INVALID_TRANSACTION_BODY in BLOCKS mode.
-      // TODO: remove the override from flow-performance-test.yaml once
-      //   https://github.com/hiero-ledger/hiero-consensus-node/issues/25883 is resolved.
+      // Keep BLOCK_STREAM_STREAM_MODE as a legacy override for explicit compatibility testing.
       return constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
     }
 
@@ -87,12 +85,21 @@ export class Helpers {
     existingStreamMode: string | undefined,
     consensusNodeVersion?: SemanticVersion<string> | string,
     blockNodeIntegrationEnabled: boolean = false,
+    streamWrappedRecordBlocksEnabled: boolean = false,
+    tssEnabled: boolean = true,
   ): string {
-    if (blockNodeIntegrationEnabled) {
-      // Preserve an already block-node-compatible setting during upgrades. This prevents
-      // networks created on older CN versions (for example 0.73 with BOTH) from being
-      // silently flipped to the newer 0.74+ default during later maintenance steps.
-      if (existingStreamMode === 'BOTH' || existingStreamMode === 'BLOCKS') {
+    const version: SemanticVersion<string> = new SemanticVersion<string>(
+      consensusNodeVersion?.toString() || versions.HEDERA_PLATFORM_VERSION,
+    );
+
+    if (blockNodeIntegrationEnabled && tssEnabled) {
+      // Preserve the current stream mode only when it is already the correct mode for the
+      // consensus version. CN 0.74+ with block nodes must use pure block streaming by default.
+      if (
+        existingStreamMode === 'BLOCKS' ||
+        (existingStreamMode === 'BOTH' &&
+          (version.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) || streamWrappedRecordBlocksEnabled))
+      ) {
         return existingStreamMode;
       }
     } else if (existingStreamMode === 'BOTH' || existingStreamMode === 'RECORDS') {
@@ -101,7 +108,7 @@ export class Helpers {
       return existingStreamMode;
     }
 
-    return Helpers.getBlockStreamModeForConsensusVersion(consensusNodeVersion, blockNodeIntegrationEnabled);
+    return Helpers.getBlockStreamModeForConsensusVersion(consensusNodeVersion, blockNodeIntegrationEnabled, tssEnabled);
   }
 
   public static parseBlockStreamMode(applicationPropertiesText: string): string | undefined {
@@ -111,12 +118,54 @@ export class Helpers {
     return match?.[1];
   }
 
+  public static parseStreamWrappedRecordBlocks(applicationPropertiesText: string): boolean {
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      /^\s*blockStream\.streamWrappedRecordBlocks\s*=\s*(\S+)\s*$/m,
+    );
+    return match?.[1] === 'true';
+  }
+
+  public static updateBlockStreamPropertiesForMode(
+    lines: string[],
+    streamMode: string,
+    writerMode: string = constants.BLOCK_STREAM_WRITER_MODE,
+  ): void {
+    Helpers.upsertApplicationProperty(lines, 'blockStream.streamMode', streamMode);
+    Helpers.upsertApplicationProperty(lines, 'blockStream.writerMode', writerMode);
+
+    if (streamMode === 'BLOCKS') {
+      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'false');
+    } else if (streamMode === 'BOTH') {
+      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'true');
+    }
+  }
+
+  public static upsertApplicationProperty(lines: string[], key: string, value: string): void {
+    const propertyPrefix: string = `${key}=`;
+    let propertyUpdated: boolean = false;
+
+    for (let index: number = 0; index < lines.length; index++) {
+      if (!lines[index].startsWith(propertyPrefix)) {
+        continue;
+      }
+
+      if (propertyUpdated) {
+        lines.splice(index, 1);
+        index--;
+      } else {
+        lines[index] = `${key}=${value}`;
+        propertyUpdated = true;
+      }
+    }
+
+    if (!propertyUpdated) {
+      lines.push(`${key}=${value}`);
+    }
+  }
+
   public static ensureWrappedRecordBlocksDisabled(lines: string[], streamMode: string): void {
-    if (
-      streamMode === 'BOTH' &&
-      !lines.some((line: string): boolean => line.startsWith('blockStream.streamWrappedRecordBlocks='))
-    ) {
-      lines.push('blockStream.streamWrappedRecordBlocks=false');
+    if (streamMode === 'BOTH') {
+      Helpers.upsertApplicationProperty(lines, 'blockStream.streamWrappedRecordBlocks', 'false');
     }
   }
 
@@ -764,6 +813,7 @@ export class Helpers {
     k8Factory: K8Factory,
     allowEmpty: boolean = false,
     consensusNodeVersion?: SemanticVersion<string> | string,
+    tssEnabled: boolean = true,
   ): Promise<void> {
     const {
       nodeId,
@@ -832,32 +882,10 @@ export class Helpers {
       Helpers.parseBlockStreamMode(applicationPropertiesData),
       consensusNodeVersion,
       true,
+      Helpers.parseStreamWrappedRecordBlocks(applicationPropertiesData),
+      tssEnabled,
     );
-    let streamModeUpdated: boolean = false;
-    for (const line of lines) {
-      if (line.startsWith('blockStream.streamMode=')) {
-        lines[lines.indexOf(line)] = `blockStream.streamMode=${blockStreamMode}`;
-        streamModeUpdated = true;
-        break;
-      }
-    }
-
-    if (!streamModeUpdated) {
-      lines.push(`blockStream.streamMode=${blockStreamMode}`);
-    }
-
-    let writerModeUpdated: boolean = false;
-    for (const line of lines) {
-      if (line.startsWith('blockStream.writerMode=')) {
-        lines[lines.indexOf(line)] = `blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`;
-        writerModeUpdated = true;
-        break;
-      }
-    }
-
-    if (!writerModeUpdated) {
-      lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
-    }
+    Helpers.updateBlockStreamPropertiesForMode(lines, blockStreamMode);
 
     // streamMode=BOTH (used by performance tests) produces both native block-stream blocks
     // (BLOCK_HEADER) and Wrapped Record Blocks (ROUND_HEADER). The mirror importer rejects

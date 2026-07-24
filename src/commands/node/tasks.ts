@@ -68,6 +68,7 @@ import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
 import {
   HEDERA_PLATFORM_VERSION,
+  MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
   MINIMUM_SOLO_CHART_VERSION,
   needsConfigTxtForConsensusVersion,
 } from '../../../version.js';
@@ -161,6 +162,7 @@ import {type Container} from '../../integration/kube/resources/container/contain
 import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
+import {type BlockNodeStateSchema} from '../../data/schema/model/remote/state/block-node-state-schema.js';
 import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import net from 'node:net';
 import {type NodeConnectionsContext} from './config-interfaces/node-connections-context.js';
@@ -198,6 +200,132 @@ const {gray, cyan, red, green, yellow} = chalk;
 @injectable()
 export class NodeCommandTasks {
   private readonly soloConfig: SoloConfig;
+  private static readonly GENERATED_GOSSIP_LOAD_BALANCER_MAX_ATTEMPTS: number = 60;
+  private static readonly GENERATED_GOSSIP_LOAD_BALANCER_RETRY_DELAY: Duration = Duration.ofSeconds(1);
+  private static readonly GRPC_TLS_PORT: number = 50_212;
+  private static readonly BLOCK_NODE_RSA_BOOTSTRAP_FILE: string = 'rsa-bootstrap-roster.json';
+  private static readonly BLOCK_NODE_APPLICATION_STATE_DIRECTORY: string = '/opt/hiero/block-node/application-state';
+
+  private static getDefaultBlockNodeIdsForCluster(
+    blockNodes: BlockNodeStateSchema[],
+    clusterReference: ClusterReferenceName,
+  ): ComponentId[] {
+    const clusterBlockNodeIds: ComponentId[] = blockNodes
+      .filter((node: BlockNodeStateSchema): boolean => node.metadata.cluster === clusterReference)
+      .map((node: BlockNodeStateSchema): ComponentId => node.metadata.id);
+
+    return clusterBlockNodeIds.length > 0
+      ? clusterBlockNodeIds
+      : blockNodes.map((node: BlockNodeStateSchema): ComponentId => node.metadata.id);
+  }
+
+  private static serviceEndpointFromAddress(address: Address): ServiceEndpoint {
+    if (address.domainName) {
+      return new ServiceEndpoint({
+        port: address.port,
+        domainName: address.domainName,
+      });
+    }
+
+    return new ServiceEndpoint({
+      port: address.port,
+      ipAddressV4: parseIpAddressToUint8Array(address.ipAddressV4),
+    });
+  }
+
+  private static shouldAvoidGossipFqdn(consensusNodes: ConsensusNode[], gossipFqdnRestricted: boolean): boolean {
+    return gossipFqdnRestricted || NodeCommandTasks.hasMultipleKubernetesContexts(consensusNodes);
+  }
+
+  private static hasMultipleKubernetesContexts(consensusNodes: ConsensusNode[]): boolean {
+    const contexts: Set<string> = new Set(consensusNodes.map((node: ConsensusNode): string => node.context));
+    return contexts.size > 1;
+  }
+
+  private static buildRsaAddressBookHistory(consensusNodes: ConsensusNode[], keysDirectory: string): string {
+    const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = [];
+    for (const consensusNode of consensusNodes) {
+      const publicKeyFile: string = PathEx.join(
+        keysDirectory,
+        Templates.renderGossipPemPublicKeyFile(consensusNode.name),
+      );
+      const certPem: string = fs.readFileSync(publicKeyFile, 'utf8');
+      const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
+        format: 'der',
+        type: 'spki',
+      }) as Buffer;
+      nodeAddresses.push({
+        RSAPubKey: spkiDer.toString('hex'),
+        nodeId: Templates.nodeIdFromNodeAlias(consensusNode.name),
+      });
+    }
+
+    return JSON.stringify({
+      addressBooks: [{addressBook: {nodeAddress: nodeAddresses}, startBlock: '0', endBlock: '-1'}],
+    });
+  }
+
+  private static buildNetworkNodeServiceManifest(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    nodeId: NodeId,
+    accountId: string,
+  ): AnyObject {
+    return {
+      apiVersion: 'v1',
+      kind: 'Service',
+      metadata: {
+        annotations: {
+          'meta.helm.sh/release-name': constants.SOLO_DEPLOYMENT_CHART,
+          'meta.helm.sh/release-namespace': namespace.name,
+        },
+        labels: {
+          'app.kubernetes.io/managed-by': 'Helm',
+          'solo.hedera.com/account-id': accountId,
+          'solo.hedera.com/node-id': nodeId.toString(),
+          'solo.hedera.com/node-name': nodeAlias,
+          'solo.hedera.com/prometheus-endpoint': 'active',
+          'solo.hedera.com/type': 'network-node-svc',
+        },
+        name: Templates.renderNetworkSvcName(nodeAlias),
+        namespace: namespace.name,
+      },
+      spec: {
+        externalTrafficPolicy: 'Local',
+        ports: [
+          {
+            name: 'gossip',
+            port: +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+            protocol: 'TCP',
+            targetPort: +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+          },
+          {
+            name: 'grpc-non-tls',
+            port: +constants.GRPC_PORT,
+            protocol: 'TCP',
+            targetPort: +constants.GRPC_PORT,
+          },
+          {
+            name: 'grpc-tls',
+            port: NodeCommandTasks.GRPC_TLS_PORT,
+            protocol: 'TCP',
+            targetPort: NodeCommandTasks.GRPC_TLS_PORT,
+          },
+          {
+            name: 'prometheus',
+            port: 9090,
+            protocol: 'TCP',
+            targetPort: 9999,
+          },
+        ],
+        publishNotReadyAddresses: true,
+        selector: {
+          app: `network-${nodeAlias}`,
+        },
+        type: 'LoadBalancer',
+      },
+    };
+  }
 
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
@@ -515,7 +643,18 @@ export class NodeCommandTasks {
       subTasks.push({
         title: `Update node: ${chalk.yellow(nodeAlias)} [ platformVersion = ${releaseTag}, context = ${context} ]`,
         task: async (): Promise<void> => {
-          await platformInstaller.fetchPlatform(podReference, releaseTag, zipPath, checksumPath, context);
+          for (let retryIndex: number = 0; retryIndex < constants.LOCAL_BUILD_COPY_RETRY; retryIndex++) {
+            try {
+              await platformInstaller.fetchPlatform(podReference, releaseTag, zipPath, checksumPath, context);
+              return;
+            } catch (error: Error | unknown) {
+              if (retryIndex === constants.LOCAL_BUILD_COPY_RETRY - 1) {
+                throw error;
+              }
+
+              await sleep(Duration.ofSeconds(2));
+            }
+          }
         },
       });
     }
@@ -2572,7 +2711,7 @@ export class NodeCommandTasks {
         const yamlRoot: AnyObject = {};
 
         if (!this.isDefaultFlagValue(flags.log4j2Xml)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.log4j2Xml',
             'log4j2.xml',
             stagingDirectory,
@@ -2581,7 +2720,7 @@ export class NodeCommandTasks {
         }
 
         if (!this.isDefaultFlagValue(flags.settingTxt)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.settingsTxt',
             'settings.txt',
             stagingDirectory,
@@ -2590,16 +2729,17 @@ export class NodeCommandTasks {
         }
 
         if (!this.isDefaultFlagValue(flags.applicationProperties)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.applicationProperties',
             constants.APPLICATION_PROPERTIES,
             stagingDirectory,
             yamlRoot,
+            config.deployment,
           );
         }
 
         if (!this.isDefaultFlagValue(flags.apiPermissionProperties)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.apiPermissionsProperties',
             'api-permission.properties',
             stagingDirectory,
@@ -2608,7 +2748,7 @@ export class NodeCommandTasks {
         }
 
         if (!this.isDefaultFlagValue(flags.bootstrapProperties)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.bootstrapProperties',
             'bootstrap.properties',
             stagingDirectory,
@@ -2617,13 +2757,20 @@ export class NodeCommandTasks {
         }
 
         if (!this.isDefaultFlagValue(flags.applicationEnv)) {
-          this.profileManager.resourcesForNetworkUpgrade(
+          await this.profileManager.resourcesForNetworkUpgrade(
             'hedera.configMaps.applicationEnv',
             'application.env',
             stagingDirectory,
             yamlRoot,
           );
         }
+
+        this.profileManager.addBlockNodesJsonValues(
+          config.consensusNodes,
+          config.nodeAliases,
+          config.deployment,
+          yamlRoot,
+        );
 
         for (const node of config.consensusNodes) {
           const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
@@ -2687,11 +2834,6 @@ export class NodeCommandTasks {
           config.valuesFile,
         ).chartValuesMap;
 
-        // `helm upgrade` triggers a rolling restart of the node pods when there is a change to items from the
-        // StatefulSet's pod template spec, which only includes application.env from the possible configuration files
-        // that can be updated in this task.
-        const skipRecreate: boolean = config.applicationEnv === flags.applicationEnv.definition.defaultValue;
-        const upgradeTimestamp: Date = new Date();
         const subTasks: SoloListrTask<NodeConnectionsContext>[] = [
           {
             title: 'Update all charts',
@@ -2724,34 +2866,44 @@ export class NodeCommandTasks {
             },
           },
           {
-            title: 'Check node pods are running',
-            skip: (): boolean => skipRecreate,
-            task: (_, task): SoloListr<NodeConnectionsContext> => {
-              const waitSubTasks: SoloListrTask<NodeConnectionsContext>[] = [];
-              for (const node of config.consensusNodes) {
-                waitSubTasks.push({
-                  title: `Check Node: ${chalk.yellow(node.name)}, Cluster: ${chalk.yellow(node.cluster)}`,
-                  task: async (): Promise<void> => {
-                    await this.k8Factory
-                      .getK8(node.context)
-                      .pods()
-                      .waitForReadyStatus(
-                        NamespaceName.of(node.namespace),
-                        [`solo.hedera.com/node-name=${node.name}`, 'solo.hedera.com/type=network-node'],
-                        constants.PODS_RUNNING_MAX_ATTEMPTS,
-                        constants.PODS_RUNNING_DELAY,
-                        upgradeTimestamp,
-                      );
-                  },
-                });
-              }
+            title: 'Re-apply configuration files to nodes after chart update',
+            task: async (): Promise<void> => {
+              // The Helm chart upgrade triggers a StatefulSet rolling update, which restarts pods
+              // and runs the init-copier init container. That container copies the ConfigMap
+              // (which may have stale values) to the PVC, overwriting what was copied above.
+              // Wait for each pod to be Ready, then re-copy the staging application.properties
+              // so that CN reads the correct values on startup.
+              if (!this.isDefaultFlagValue(flags.applicationProperties)) {
+                for (const node of config.consensusNodes) {
+                  const labels: string[] = [
+                    `solo.hedera.com/node-name=${node.name}`,
+                    'solo.hedera.com/type=network-node',
+                  ];
+                  await this.k8Factory
+                    .getK8(node.context)
+                    .pods()
+                    .waitForReadyStatus(NamespaceName.of(node.namespace), labels, 120, 1000, undefined, true);
 
-              return task.newListr(waitSubTasks, {
-                concurrent: true,
-                rendererOptions: {
-                  collapseSubtasks: false,
-                },
-              });
+                  const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                    NamespaceName.of(node.namespace),
+                    node.name,
+                  );
+
+                  const sourcePath: string = PathEx.join(
+                    stagingDirectory,
+                    'templates',
+                    constants.APPLICATION_PROPERTIES,
+                  );
+                  const destinationPath: string = ConsensusNodePathTemplates.DATA_CONFIG;
+
+                  await container.copyTo(sourcePath, destinationPath);
+                  await container.execContainer([
+                    'bash',
+                    '-c',
+                    `chown hedera:hedera ${destinationPath}/${constants.APPLICATION_PROPERTIES} 2>/dev/null || true`,
+                  ]);
+                }
+              }
             },
           },
         ];
@@ -3232,6 +3384,82 @@ export class NodeCommandTasks {
     return this._generateGossipKeys(false) as SoloListrTask<NodeAddContext>;
   }
 
+  private async createGeneratedGossipLoadBalancerService(
+    config: NodeAddConfigClass,
+    k8: K8,
+    nodeId: NodeId,
+    accountId: string,
+  ): Promise<void> {
+    let serviceList: Service[] = await k8
+      .services()
+      .list(config.namespace, Templates.renderNodeSvcLabelsFromNodeId(nodeId));
+
+    if (!serviceList || serviceList.length === 0) {
+      serviceList = await k8
+        .services()
+        .list(config.namespace, [
+          `solo.hedera.com/node-name=${config.nodeAlias},solo.hedera.com/type=network-node-svc`,
+        ]);
+    }
+
+    if (serviceList && serviceList.length > 0) {
+      return;
+    }
+
+    const manifest: AnyObject = NodeCommandTasks.buildNetworkNodeServiceManifest(
+      config.namespace,
+      config.nodeAlias,
+      nodeId,
+      accountId,
+    );
+    const baseDirectory: string = config.stagingDir || config.cacheDir || constants.SOLO_CACHE_DIR;
+    fs.mkdirSync(baseDirectory, {recursive: true});
+    const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(baseDirectory, 'generated-gossip-service-'));
+    const manifestPath: string = PathEx.join(
+      temporaryDirectory,
+      `${Templates.renderNetworkSvcName(config.nodeAlias)}.json`,
+    );
+
+    try {
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, undefined, 2));
+      await k8.manifests().applyManifest(manifestPath);
+    } finally {
+      fs.rmSync(temporaryDirectory, {force: true, recursive: true});
+    }
+  }
+
+  private async getGeneratedGossipExternalAddress(
+    consensusNode: ConsensusNode,
+    k8: K8,
+    gossipFqdnRestricted: boolean,
+    loadBalancerRequired: boolean,
+  ): Promise<Address> {
+    if (!loadBalancerRequired) {
+      return await Address.getExternalAddress(
+        consensusNode,
+        k8,
+        +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+        gossipFqdnRestricted,
+      );
+    }
+
+    for (let attempt: number = 1; attempt <= NodeCommandTasks.GENERATED_GOSSIP_LOAD_BALANCER_MAX_ATTEMPTS; attempt++) {
+      const loadBalancerAddress: Address | undefined = await Address.getLoadBalancerAddress(
+        consensusNode,
+        k8,
+        +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+      );
+
+      if (loadBalancerAddress) {
+        return loadBalancerAddress;
+      }
+
+      await sleep(NodeCommandTasks.GENERATED_GOSSIP_LOAD_BALANCER_RETRY_DELAY);
+    }
+
+    throw new SoloErrors.system.loadBalancerNotFound();
+  }
+
   public generateGrpcTlsKeys(): SoloListrTask<NodeKeysContext> {
     return this._generateGrpcTlsKeys(true) as SoloListrTask<NodeKeysContext>;
   }
@@ -3271,52 +3499,64 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass = context_.config;
 
-        let endpoints: string[] = [];
         if (config.gossipEndpoints) {
-          endpoints = splitFlagInput(config.gossipEndpoints);
-        } else {
-          const context: string = extractContextFromConsensusNodes(
-            config.consensusNodes[0].name,
-            context_.config.consensusNodes,
+          context_.gossipEndpoints = prepareEndpoints(
+            config.endpointType,
+            splitFlagInput(config.gossipEndpoints),
+            constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
           );
-
-          const k8: K8 = this.k8Factory.getK8(context);
-          const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(config, k8);
-
-          const externalEndpointAddress: Address = await Address.getExternalAddress(
-            new ConsensusNode(
-              config.nodeAlias,
-              Templates.nodeIdFromNodeAlias(config.nodeAlias),
-              config.namespace.name,
-              undefined,
-              context,
-              config.consensusNodes[0].dnsBaseDomain,
-              config.consensusNodes[0].dnsConsensusNodePattern,
-              Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
-              [],
-              [],
-            ),
-            k8,
-            +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
-            gossipFqdnRestricted,
-          );
-
-          endpoints = [
-            `${constants.LOCAL_HOST}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
-            `${externalEndpointAddress.formattedAddress()}`,
-          ];
+          return;
         }
 
-        context_.gossipEndpoints = prepareEndpoints(
-          config.endpointType,
-          endpoints,
-          constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
+        const context: string = extractContextFromConsensusNodes(
+          config.consensusNodes[0].name,
+          context_.config.consensusNodes,
         );
+
+        const k8: K8 = this.k8Factory.getK8(context);
+        const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(config, k8);
+        const shouldAvoidGossipFqdn: boolean = NodeCommandTasks.shouldAvoidGossipFqdn(
+          config.consensusNodes,
+          gossipFqdnRestricted,
+        );
+        const loadBalancerRequired: boolean = NodeCommandTasks.hasMultipleKubernetesContexts(config.consensusNodes);
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+
+        if (loadBalancerRequired) {
+          await this.createGeneratedGossipLoadBalancerService(config, k8, nodeId, context_.newNode.accountId);
+        }
+
+        const newConsensusNode: ConsensusNode = new ConsensusNode(
+          config.nodeAlias,
+          nodeId,
+          config.namespace.name,
+          undefined,
+          context,
+          config.consensusNodes[0].dnsBaseDomain,
+          config.consensusNodes[0].dnsConsensusNodePattern,
+          Templates.renderFullyQualifiedNetworkSvcName(config.namespace, config.nodeAlias),
+          [],
+          [],
+        );
+
+        const externalEndpointAddress: Address = await this.getGeneratedGossipExternalAddress(
+          newConsensusNode,
+          k8,
+          shouldAvoidGossipFqdn,
+          loadBalancerRequired,
+        );
+
+        context_.gossipEndpoints = [
+          NodeCommandTasks.serviceEndpointFromAddress(
+            new Address(+constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT, constants.LOCAL_HOST),
+          ),
+          NodeCommandTasks.serviceEndpointFromAddress(externalEndpointAddress),
+        ];
       },
     };
   }
 
-  private async getGossipFqdnRestricted(config: NodeAddConfigClass, k8: K8): Promise<boolean> {
+  private async getGossipFqdnRestricted(config: NodeAddConfigClass | NodeUpdateConfigClass, k8: K8): Promise<boolean> {
     return await resolveGossipFqdnRestricted({
       k8,
       namespace: config.namespace,
@@ -3369,6 +3609,40 @@ export class NodeCommandTasks {
     };
   }
 
+  private async prepareNodeUpdateGossipEndpoints(config: NodeUpdateConfigClass): Promise<ServiceEndpoint[]> {
+    if (config.gossipEndpoints) {
+      return prepareEndpoints(
+        config.endpointType,
+        splitFlagInput(config.gossipEndpoints),
+        constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT,
+      );
+    }
+
+    const consensusNode: ConsensusNode | undefined = config.consensusNodes.find(
+      (node: ConsensusNode): boolean => node.name === config.nodeAlias,
+    );
+
+    if (!consensusNode) {
+      throw new SoloErrors.system.consensusNodeNotInConfig(config.nodeAlias);
+    }
+
+    const context: string = extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+    const k8: K8 = this.k8Factory.getK8(context);
+    const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(config, k8);
+    const shouldAvoidGossipFqdn: boolean = NodeCommandTasks.shouldAvoidGossipFqdn(
+      config.consensusNodes,
+      gossipFqdnRestricted,
+    );
+    const externalEndpointAddress: Address = await Address.getExternalAddress(
+      consensusNode,
+      k8,
+      +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+      shouldAvoidGossipFqdn,
+    );
+
+    return [NodeCommandTasks.serviceEndpointFromAddress(externalEndpointAddress)];
+  }
+
   public sendNodeUpdateTransaction(): SoloListrTask<NodeUpdateContext> {
     return {
       title: 'Send node update transaction',
@@ -3389,6 +3663,7 @@ export class NodeCommandTasks {
         }
 
         let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
+        nodeUpdateTx = nodeUpdateTx.setGossipEndpoints(await this.prepareNodeUpdateGossipEndpoints(config));
 
         if (config.tlsPublicKey && config.tlsPrivateKey) {
           this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
@@ -3486,20 +3761,153 @@ export class NodeCommandTasks {
 
   public copyNodeKeysToSecrets(
     nodeListOverride?: string,
+    refreshBlockNodeRsaBootstrapState: boolean = true,
   ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
     return {
       title: 'Copy node keys to secrets',
       task: (context_, task): any => {
+        const consensusNodes: ConsensusNode[] = nodeListOverride
+          ? context_.config[nodeListOverride]
+          : context_.config.consensusNodes;
         const subTasks: any[] = this.platformInstaller.copyNodeKeys(
           context_.config.keysDir,
-          nodeListOverride ? context_.config[nodeListOverride] : context_.config.consensusNodes,
+          consensusNodes,
           context_.config.contexts,
         );
 
-        // set up the sub-tasks for copying node keys to secrets
-        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+        return task.newListr(
+          [
+            {
+              title: 'Copy keys',
+              task: (_subContext, subTask): SoloListr<any> => {
+                return subTask.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+              },
+            },
+            {
+              title: 'Refresh block node RSA bootstrap state',
+              skip: (): boolean =>
+                !refreshBlockNodeRsaBootstrapState ||
+                !this.shouldRefreshBlockNodeRsaBootstrapState(context_.config, consensusNodes),
+              task: async (): Promise<void> => {
+                await this.refreshBlockNodeRsaBootstrapState(context_.config, consensusNodes);
+              },
+            },
+          ],
+          constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+        );
       },
     };
+  }
+
+  public refreshBlockNodeRsaBootstrapStateTask(
+    nodeListOverride?: string,
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext> {
+    return {
+      title: 'Refresh block node RSA bootstrap state',
+      skip: (context_: NodeUpdateContext | NodeAddContext | NodeDestroyContext): boolean =>
+        !this.shouldRefreshBlockNodeRsaBootstrapState(
+          context_.config,
+          nodeListOverride ? context_.config[nodeListOverride] : context_.config.consensusNodes,
+        ),
+      task: async (context_: NodeUpdateContext | NodeAddContext | NodeDestroyContext): Promise<void> => {
+        const consensusNodes: ConsensusNode[] = nodeListOverride
+          ? context_.config[nodeListOverride]
+          : context_.config.consensusNodes;
+
+        await this.refreshBlockNodeRsaBootstrapState(context_.config, consensusNodes);
+      },
+    };
+  }
+
+  private shouldRefreshBlockNodeRsaBootstrapState(
+    config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
+    consensusNodes: ConsensusNode[],
+  ): boolean {
+    if (this.remoteConfig.configuration.state.blockNodes.length === 0 || consensusNodes.length === 0) {
+      return false;
+    }
+
+    const consensusNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(
+      this.remoteConfig.configuration.versions?.consensusNode?.toString() || HEDERA_PLATFORM_VERSION,
+    );
+    if (consensusNodeVersion.lessThan(MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS)) {
+      return false;
+    }
+
+    const blockStreamMode: string = constants.getEnvironmentVariable('BLOCK_STREAM_STREAM_MODE') ?? 'BLOCKS';
+    if (blockStreamMode !== 'BLOCKS' && blockStreamMode !== 'BOTH') {
+      return false;
+    }
+
+    for (const consensusNode of consensusNodes) {
+      const publicKeyFile: string = PathEx.join(
+        config.keysDir,
+        Templates.renderGossipPemPublicKeyFile(consensusNode.name),
+      );
+      if (!fs.existsSync(publicKeyFile)) {
+        this.logger.debug(`Skipping block node RSA bootstrap refresh, missing ${publicKeyFile}`);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private async refreshBlockNodeRsaBootstrapState(
+    config: NodeUpdateConfigClass | NodeAddConfigClass | NodeDestroyConfigClass,
+    consensusNodes: ConsensusNode[],
+  ): Promise<void> {
+    const bootstrapJson: string = NodeCommandTasks.buildRsaAddressBookHistory(consensusNodes, config.keysDir);
+    const bootstrapFilePath: string = PathEx.join(config.keysDir, NodeCommandTasks.BLOCK_NODE_RSA_BOOTSTRAP_FILE);
+    fs.writeFileSync(bootstrapFilePath, bootstrapJson, 'utf8');
+
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+    for (const blockNode of this.remoteConfig.configuration.state.blockNodes) {
+      const context: Context | undefined = clusterReferences.get(blockNode.metadata.cluster);
+      if (!context) {
+        throw new SoloErrors.deployment.blockNodeClusterContextNotFound(String(blockNode.metadata.id));
+      }
+
+      const namespace: NamespaceName = NamespaceName.of(blockNode.metadata.namespace.toString());
+      const podName: string = `${Templates.renderBlockNodeName(blockNode.metadata.id)}-0`;
+      const k8: K8 = this.k8Factory.getK8(context);
+      const containerReference: ContainerReference = ContainerReference.of(
+        PodReference.of(namespace, PodName.of(podName)),
+        constants.BLOCK_NODE_CONTAINER_NAME,
+      );
+      const podReference: PodReference = containerReference.parentReference;
+      const pod: Pod = await k8.pods().read(podReference);
+      const blockNodeContainer: Container = k8.containers().readByRef(containerReference);
+
+      await blockNodeContainer.execContainer(['mkdir', '-p', NodeCommandTasks.BLOCK_NODE_APPLICATION_STATE_DIRECTORY]);
+      await blockNodeContainer.copyTo(bootstrapFilePath, NodeCommandTasks.BLOCK_NODE_APPLICATION_STATE_DIRECTORY);
+      await blockNodeContainer.execContainer([
+        'test',
+        '-r',
+        `${NodeCommandTasks.BLOCK_NODE_APPLICATION_STATE_DIRECTORY}/${NodeCommandTasks.BLOCK_NODE_RSA_BOOTSTRAP_FILE}`,
+      ]);
+
+      await k8.pods().delete(podReference);
+
+      await this.waitForBlockNodePodRecreated(k8, podReference, pod.creationTimestamp);
+    }
+  }
+
+  private async waitForBlockNodePodRecreated(
+    k8: K8,
+    podReference: PodReference,
+    previousCreationTimestamp?: Date,
+  ): Promise<void> {
+    await k8
+      .pods()
+      .waitForReadyStatus(
+        podReference.namespace,
+        [`statefulset.kubernetes.io/pod-name=${podReference.name.toString()}`],
+        constants.BLOCK_NODE_PODS_RUNNING_MAX_ATTEMPTS,
+        constants.BLOCK_NODE_PODS_RUNNING_DELAY,
+        previousCreationTimestamp,
+        true,
+      );
   }
 
   public removeCachedKeys(): SoloListrTask<NodeUpdateContext | NodeAddContext> {
@@ -4273,6 +4681,16 @@ export class NodeCommandTasks {
     };
   }
 
+  public drainBlockStreamAfterFreeze(): SoloListrTask<NodeUpgradeContext> {
+    return {
+      title: 'Drain block stream after freeze',
+      task: async (context_: NodeUpgradeContext): Promise<void> => {
+        const drainSeconds: number = context_.config.freezeBlockDrainSeconds ?? 20;
+        await sleep(Duration.ofSeconds(drainSeconds));
+      },
+    };
+  }
+
   public downloadLastState(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Download last state from an existing node',
@@ -4429,7 +4847,14 @@ export class NodeCommandTasks {
         let txResp: TransactionResponse;
         let nodeCreateReceipt: TransactionReceipt;
         try {
-          signedTransaction = await nodeCreateTransaction.sign(context_.adminKey);
+          const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
+            context_.newNode.accountId,
+            config.namespace,
+          );
+
+          // v0.75+ requires accountId signature when the account already exists.
+          signedTransaction = await nodeCreateTransaction.sign(PrivateKey.fromString(accountKeys.privateKey));
+          signedTransaction = await signedTransaction.sign(context_.adminKey);
           txResp = await signedTransaction.execute(config.nodeClient);
           nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
         } catch (error) {
@@ -4530,8 +4955,9 @@ export class NodeCommandTasks {
         const blockNodeIdsRaw: string = this.configManager.getFlag(flags.blockNodeMapping);
         const externalBlockNodeIdsRaw: string = this.configManager.getFlag(flags.externalBlockNodeMapping);
 
-        const fallbackIdsForBlockNodes: ComponentId[] = this.remoteConfig.configuration.state.blockNodes.map(
-          (node): ComponentId => node.metadata.id,
+        const fallbackIdsForBlockNodes: ComponentId[] = NodeCommandTasks.getDefaultBlockNodeIdsForCluster(
+          this.remoteConfig.configuration.state.blockNodes,
+          clusterReference,
         );
 
         const fallbackIdsForExternalBlockNodes: ComponentId[] =
@@ -4620,6 +5046,7 @@ export class NodeCommandTasks {
             this.k8Factory,
             false,
             this.remoteConfig.configuration.versions.consensusNode,
+            this.remoteConfig.configuration.state.tssEnabled,
           );
         }
       },

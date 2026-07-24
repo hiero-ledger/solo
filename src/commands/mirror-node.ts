@@ -333,26 +333,38 @@ export class MirrorNodeCommand extends BaseCommand {
       return new HelmChartValues();
     }
 
-    let shouldConfigureMirrorNodeToPullFromBlockNode: boolean;
-
-    if (config.forceBlockNodeIntegration) {
-      // Bypass following checks
-      this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
-      shouldConfigureMirrorNodeToPullFromBlockNode = true;
-    } else {
-      // Block node integration requires a consensus node new enough to support TSS. The block node chart
-      // and mirror node are always recent enough within the supported version window.
-      shouldConfigureMirrorNodeToPullFromBlockNode =
-        this.remoteConfig.configuration.versions.consensusNode.greaterThanOrEqual(
-          versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
-        );
-    }
-
-    if (!shouldConfigureMirrorNodeToPullFromBlockNode) {
+    if (!config.forceBlockNodeIntegration && configuration.state?.tssEnabled === false) {
       this.logger.info(
-        'Mirror node will remain configured to pull from consensus node because version requirements were not met',
+        `Mirror node will remain configured to pull from consensus node; TSS is disabled in deployment ${config.deployment}`,
       );
       return new HelmChartValues();
+    }
+
+    const hasSupportedConsensusNodeVersion: boolean =
+      this.remoteConfig.configuration.versions.consensusNode.greaterThanOrEqual(
+        versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS,
+      );
+
+    if (!config.forceBlockNodeIntegration && !hasSupportedConsensusNodeVersion) {
+      this.logger.info(
+        `Mirror node will remain configured to pull from consensus node; consensus node version must be at least ${versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS} or use ${optionFromFlag(flags.forceBlockNodeIntegration)} to enable block node integration`,
+      );
+      return new HelmChartValues();
+    }
+
+    if (config.forceBlockNodeIntegration && !hasSupportedConsensusNodeVersion) {
+      this.logger.warn('Force flag enabled, bypassing version checks for block node integration');
+    }
+
+    if (!config.forceBlockNodeIntegration && constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+      this.logger.info(
+        'Mirror node will remain configured to pull from consensus node; DISABLE_IMPORTER_SPRING_PROFILES=true disables automatic block node integration',
+      );
+      return new HelmChartValues();
+    } else if (constants.DISABLE_IMPORTER_SPRING_PROFILES) {
+      this.logger.showUser(
+        `DISABLE_IMPORTER_SPRING_PROFILES=true is set, but ${optionFromFlag(flags.forceBlockNodeIntegration)} overrides it; injecting SPRING_PROFILES_ACTIVE for block node integration`,
+      );
     }
 
     const clusterSchemas: ReadonlyArray<Readonly<ClusterSchema>> = configuration.clusters;
