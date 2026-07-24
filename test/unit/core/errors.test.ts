@@ -9,6 +9,8 @@ import {MissingArgumentError} from '../../../src/core/errors/classes/validation/
 import {IllegalArgumentError} from '../../../src/core/errors/classes/validation/illegal-argument-error.js';
 import {DataValidationError} from '../../../src/core/errors/classes/internal/data-validation-error.js';
 import {SdkPingFailedSoloError} from '../../../src/core/errors/classes/component/sdk-ping-failed-solo-error.js';
+import {SdkClientNoHealthyNodesSoloError} from '../../../src/core/errors/classes/component/sdk-client-no-healthy-nodes-solo-error.js';
+import {SdkErrorTranslator} from '../../../src/core/errors/sdk-error-translator.js';
 
 describe('Errors', (): void => {
   const message: string = 'errorMessage';
@@ -72,5 +74,29 @@ describe('Errors', (): void => {
     expect(error.message).to.equal(
       'SDK ping to network node 127.0.0.1:30213 failed after 5 retries; last consensus node platform status: STARTING_UP',
     );
+  });
+
+  it('should translate the raw SDK "failed to find a healthy working node" error', (): void => {
+    const sdkError: Error = new Error('failed to find a healthy working node');
+    const translated: SoloError | undefined = SdkErrorTranslator.tryTranslate(sdkError);
+    expect(translated).to.be.instanceof(SdkClientNoHealthyNodesSoloError);
+    expect(translated.message).to.not.include('healthy working node');
+    expect(translated.message).to.include('may still be ACTIVE');
+    expect(translated.cause).to.equal(sdkError);
+  });
+
+  it('should translate the SDK error when buried in a cause chain', (): void => {
+    const wrapped: SoloError = new SoloError(
+      'relay deploy failed',
+      new SoloError('account creation failed', new Error('failed to find a healthy working node')),
+    );
+    const translated: SoloError | undefined = SdkErrorTranslator.tryTranslate(wrapped);
+    expect(translated).to.be.instanceof(SdkClientNoHealthyNodesSoloError);
+    expect(translated.cause).to.equal(wrapped);
+  });
+
+  it('should not translate unrelated errors', (): void => {
+    expect(SdkErrorTranslator.tryTranslate(new Error('something else'))).to.equal(undefined);
+    expect(SdkErrorTranslator.tryTranslate('not an error')).to.equal(undefined);
   });
 });

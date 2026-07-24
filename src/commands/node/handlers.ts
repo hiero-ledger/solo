@@ -279,6 +279,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.loadAdminKey(),
       this.tasks.setGrpcWebEndpoint('newNodeAliases', NodeSubcommandType.ADD),
       this.tasks.finalize(),
+      this.tasks.removeCachedKeys(),
     ];
   }
 
@@ -324,6 +325,7 @@ export class NodeCommandHandlers extends CommandHandler {
       this.tasks.checkAllNodeProxiesAreActive(),
       this.tasks.triggerStakeWeightCalculate<NodeUpdateContext>(NodeSubcommandType.UPDATE),
       this.tasks.finalize(),
+      this.tasks.removeCachedKeys(),
     ];
   }
 
@@ -1088,8 +1090,8 @@ export class NodeCommandHandlers extends CommandHandler {
         this.tasks.identifyExistingNodes(),
         this.tasks.uploadStateFiles(({config}): boolean => config.stateFile.length === 0),
         this.tasks.startNodes('nodeAliases'),
-        this.tasks.enablePortForwarding(true),
         this.tasks.checkNodesAndProxiesAreActive('nodeAliases'),
+        this.tasks.enablePortForwarding(true),
         this.tasks.waitForTss(),
         this.tasks.setGrpcWebEndpoint('nodeAliases', NodeSubcommandType.START),
         this.changeAllNodePhases(DeploymentPhase.STARTED, LedgerPhase.INITIALIZED),
