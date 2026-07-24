@@ -523,7 +523,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     let currentDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
 
     if (!deploymentName) {
-      deploymentName = await promptTheUserForDeployment(this.configManager);
+      deploymentName = await promptTheUserForDeployment(this.configManager, undefined, this.localConfig);
       currentDeployment = this.localConfig.configuration.deploymentByName(deploymentName);
       // TODO: Fix once we have the DataManager,
       //       without this the user will be prompted a second time for the deployment

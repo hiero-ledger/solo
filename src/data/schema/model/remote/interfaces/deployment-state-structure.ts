@@ -10,7 +10,7 @@ import {type EnvoyProxyStateSchema} from '../state/envoy-proxy-state-schema.js';
 import {type ExplorerStateSchema} from '../state/explorer-state-schema.js';
 import {type PostgresStateSchema} from '../state/postgres-state-schema.js';
 import {type RedisStateSchema} from '../state/redis-state-schema.js';
-import {type ComponentIdsStructure} from './components-ids-structure.js';
+import {type ComponentIdsStructure} from './component-ids-structure.js';
 
 export interface DeploymentStateStructure {
   ledgerPhase: LedgerPhase;

@@ -55,7 +55,17 @@ export class K8ClientPods extends K8ClientBase implements Pods {
    * Terminated reasons for container states that are non-recoverable (e.g. out-of-memory kill).
    */
   private static readonly FATAL_TERMINATED_REASONS: ReadonlySet<string> = new Set(['OOMKilled']);
+
   private static readonly FATAL_ERROR_RETRY_THRESHOLD: number = 3;
+
+  /**
+   * Higher retry allowance for the Docker Desktop containerd-socket error, which is a
+   * transient race condition on macOS during Docker Desktop startup. Giving it more
+   * attempts before we surface the actionable error message avoids false positives while
+   * still failing fast when the socket is persistently unavailable.
+   */
+  private static readonly CONTAINERD_SOCKET_FATAL_THRESHOLD: number = 5;
+
   private static readonly NON_RECOVERABLE_IMAGE_PULL_PATTERNS: ReadonlyArray<RegExp> = [
     /not found/i,
     /manifest unknown/i,
@@ -67,7 +77,26 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     /invalid reference format/i,
   ];
 
+  /**
+   * Patterns that identify a Docker Desktop containerd-socket error inside an
+   * ImageInspectError message.  This occurs on macOS when the "Use containerd for
+   * pulling and storing images" toggle is enabled in Docker Desktop settings.
+   */
+  private static readonly CONTAINERD_SOCKET_PATTERNS: ReadonlyArray<RegExp> = [
+    /dial unix.*containerd\.sock.*connection refused/i,
+    /containerd\.sock.*connection refused/i,
+    /transport.*Error while dialing.*containerd/i,
+    /rpc error.*Unavailable.*containerd/i,
+  ];
+
   private readonly logger: SoloLogger;
+
+  public static isContainerdSocketError(message?: string): boolean {
+    if (!message) {
+      return false;
+    }
+    return K8ClientPods.CONTAINERD_SOCKET_PATTERNS.some((pattern): boolean => pattern.test(message));
+  }
 
   public constructor(
     private readonly kubeClient: CoreV1Api,
@@ -98,6 +127,17 @@ export class K8ClientPods extends K8ClientBase implements Pods {
             containerStatus.waitingReason === 'ImageInspectError') &&
           !K8ClientPods.isNonRecoverableImagePullError(containerStatus.waitingMessage)
         ) {
+          if (
+            containerStatus.waitingReason === 'ImageInspectError' &&
+            K8ClientPods.isContainerdSocketError(containerStatus.waitingMessage)
+          ) {
+            const detail: string = containerStatus.waitingMessage ? `: ${containerStatus.waitingMessage}` : '';
+            return (
+              `Pod "${podName}" container "${containerStatus.name}" failed to inspect image due to a containerd socket error${detail}. ` +
+              'This is likely caused by Docker Desktop\'s "Use containerd for pulling and storing images" setting. ' +
+              'To fix: open Docker Desktop -> Settings -> General -> uncheck "Use containerd for pulling and storing images" -> restart Docker Desktop.'
+            );
+          }
           continue;
         }
         const detail: string = containerStatus.waitingMessage ? `: ${containerStatus.waitingMessage}` : '';
@@ -169,9 +209,8 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         )
       : [];
 
-    return sortedItems.map(
-      (item: V1Pod): Pod =>
-        K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig, this.kubectlInstallationDirectory),
+    return sortedItems.map((item: V1Pod): Pod =>
+      K8ClientPod.fromV1Pod(item, this, this.kubeClient, this.kubeConfig, this.kubectlInstallationDirectory),
     );
   }
 
@@ -360,13 +399,17 @@ export class K8ClientPods extends K8ClientBase implements Pods {
                 const nextCount: number = previous?.error === fatalError ? previous.count + 1 : 1;
                 fatalErrorStreakByPod.set(podName, {count: nextCount, error: fatalError});
 
-                if (nextCount >= K8ClientPods.FATAL_ERROR_RETRY_THRESHOLD) {
+                // Use a higher threshold for containerd socket errors to tolerate transient
+                // Docker Desktop startup races on macOS before surfacing the actionable hint.
+                const threshold: number = K8ClientPods.isContainerdSocketError(fatalError)
+                  ? K8ClientPods.CONTAINERD_SOCKET_FATAL_THRESHOLD
+                  : K8ClientPods.FATAL_ERROR_RETRY_THRESHOLD;
+
+                if (nextCount >= threshold) {
                   return reject(new KubePodCreationFailedError(fatalError));
                 }
 
-                this.logger.info(
-                  `Detected fatal pod state for "${podName}" (${nextCount}/${K8ClientPods.FATAL_ERROR_RETRY_THRESHOLD}); retrying`,
-                );
+                this.logger.info(`Detected fatal pod state for "${podName}" (${nextCount}/${threshold}); retrying`);
               } else {
                 fatalErrorStreakByPod.delete(podName);
               }
@@ -525,7 +568,11 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     }
   }
 
-  public async readLogs(podReference: PodReference, timestamps: boolean = true): Promise<string> {
+  public async readLogs(
+    podReference: PodReference,
+    timestamps: boolean = true,
+    previous: boolean = false,
+  ): Promise<string> {
     const namespace: string = podReference.namespace.toString();
     const name: string = podReference.name.toString();
     const pod: V1Pod = await this.kubeClient.readNamespacedPod({name, namespace});
@@ -540,6 +587,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
         name,
         namespace,
         timestamps,
+        previous,
       });
       return log ?? '';
     }
@@ -552,6 +600,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
           namespace,
           container: containerName,
           timestamps,
+          previous,
         });
         containerLogs.push(`===== Container: ${containerName} =====\n${containerLog ?? ''}`.trimEnd());
       } catch (error) {

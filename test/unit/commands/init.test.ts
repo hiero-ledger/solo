@@ -31,7 +31,7 @@ describe('InitCommand unit tests', (): void => {
   });
 
   it('should print dev system file lists only once per process', async (): Promise<void> => {
-    const setupTasks: SoloListrTask<InitContext>[] = initCommand.setupSystemFilesTasks({dev: true});
+    const setupTasks: SoloListrTask<InitContext>[] = initCommand.setupSystemFilesTasks({debug: true});
     const copyTemplatesTask: SoloListrTask<InitContext> = setupTasks[COPY_TEMPLATES_TASK_INDEX];
     const context: InitContext = {
       repoURLs: ['https://example.com/charts'],

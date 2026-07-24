@@ -112,6 +112,37 @@ tasks:
           printf "\r::endgroup::--------------\n"
         fi
 
+  build:error:docs:
+    desc: "Generate the SoloError documentation page bodies"
+    silent: true
+    dir: ../..
+    sources:
+      - src/core/errors/**/*.ts
+      - scripts/docs/generate-error-documentation.ts
+    generates:
+      - docs/site/build/solo-docs-content/troubleshooting/errors/_index.md
+    cmds:
+      - |
+        printf "\r::group::Generating SoloError documentation\n"
+        npx tsx scripts/docs/generate-error-documentation.ts
+        printf "\r::endgroup::--------------\n"
+
+  build:docs:content:
+    desc: "Bundle solo-cli.md and the SoloError pages into solo-docs-content.tar.gz for the solo-docs site"
+    silent: true
+    dir: ../..
+    cmds:
+      - task: "build:cli:help"
+      - task: "build:error:docs"
+      - |
+        printf "\r::group::Bundling solo-docs content archive\n"
+        STAGING=docs/site/build/solo-docs-content
+        mkdir -p "${STAGING}/cli"
+        cp docs/site/build/solo-cli.md "${STAGING}/cli/solo-cli.md"
+        tar -czf docs/site/build/solo-docs-content.tar.gz -C "${STAGING}" .
+        echo "Created docs/site/build/solo-docs-content.tar.gz"
+        printf "\r::endgroup::--------------\n"
+
   build:solo:command:output:
     desc: "Build Solo Command Output"
     silent: true

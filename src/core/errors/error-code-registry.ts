@@ -38,6 +38,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   INIT_FAILED: 'SOLO-2028',
   BLOCK_NODE_CLUSTER_CONTEXT_NOT_FOUND: 'SOLO-2029',
   MIRROR_NODE_CLUSTER_CONTEXT_NOT_FOUND: 'SOLO-2030',
+  DEPLOYMENT_IMPORT_FAILED: 'SOLO-2031',
 
   // 3xxx - Component: Relay, Mirror Node, Explorer, CN runtime
   NODE_TRANSACTION_FAILED: 'SOLO-3001',
@@ -128,6 +129,9 @@ export const ErrorCodeRegistry: Record<string, string> = {
   PREDEFINED_ACCOUNTS_CREATION_FAILED: 'SOLO-3087',
   FILE_CONTENT_MISMATCH: 'SOLO-3088',
   NODE_SERVICE_NOT_FOUND: 'SOLO-3089',
+  BLOCK_NODE_JFR_COLLECTION_FAILED: 'SOLO-3090',
+  GOSSIP_KEY_SECRET_RESTORE_FAILED: 'SOLO-3091',
+  SDK_CLIENT_NO_HEALTHY_NODES: 'SOLO-3092',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -206,6 +210,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   BACKUP_INPUT_MUST_BE_ZIP: 'SOLO-4074',
   BACKUP_NO_LOG_FILES: 'SOLO-4075',
   FLAG_INPUT_FAILED: 'SOLO-4076',
+  CONFIRMATION_REQUIRED: 'SOLO-4077',
 
   // 5xxx - System / Environment: kubectl, DNS, permissions, timeouts
   RESOURCE_NOT_FOUND: 'SOLO-5001',
@@ -281,6 +286,9 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CACHE_PROVIDER_NOT_CONFIGURED: 'SOLO-5071',
   POD_TERMINATION_TIMEOUT: 'SOLO-5072',
   CLUSTER_ROLE_CHECK_FAILED: 'SOLO-5073',
+  UNSUPPORTED_LINUX_DISTRIBUTION: 'SOLO-5074',
+  BLOCK_NODES_JSON_EMPTY: 'SOLO-5075',
+  HELM_CHART_PULL_NO_ARCHIVE: 'SOLO-5076',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
@@ -295,4 +303,5 @@ export const ErrorCodeRegistry: Record<string, string> = {
   REMOTE_CONFIG_CONTEXT_UNAVAILABLE: 'SOLO-9010',
   CACHE_IMAGE_TEMPLATE_UNDECLARED: 'SOLO-9011',
   INJECTED_FAILURE: 'SOLO-9012',
+  PIPELINE_CANCELLED: 'SOLO-9013',
 } as const;

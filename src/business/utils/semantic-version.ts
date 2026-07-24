@@ -408,13 +408,15 @@ export class SemanticVersion<T extends string | number> {
    * @param versionString - The version string to validate
    * @param isNeedPrefix - If true, adds 'v' prefix if missing; if false, removes 'v' prefix if present
    * @param label - Label to use in error messages (e.g., 'Release tag', 'SemanticVersion')
+   * @param minimumVersion - Optional minimum version; throws if versionString is below it
    * @returns The processed version string with proper prefix handling
-   * @throws SoloError or IllegalArgumentError if the version string is invalid
+   * @throws SoloError or IllegalArgumentError if the version string is invalid or below minimum
    */
   public static getValidSemanticVersion(
     versionString: string,
     isNeedPrefix: boolean = false,
     label: string = 'SemanticVersion',
+    minimumVersion?: string,
   ): string {
     if (!versionString) {
       throw new SoloErrors.validation.illegalArgument(`${label} cannot be empty`);
@@ -426,6 +428,16 @@ export class SemanticVersion<T extends string | number> {
     }
 
     const value: SemanticVersion<string> = new SemanticVersion<string>(versionString);
+
+    if (minimumVersion !== undefined) {
+      const minimum: SemanticVersion<string> = new SemanticVersion<string>(minimumVersion);
+      if (value.lessThan(minimum)) {
+        throw new IllegalArgumentError(
+          `${label} ${versionString} is below the minimum supported version ${minimumVersion}`,
+          versionString,
+        );
+      }
+    }
 
     return isNeedPrefix ? value.toPrefixedString() : value.toString();
   }

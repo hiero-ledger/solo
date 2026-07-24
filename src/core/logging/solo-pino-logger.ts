@@ -13,10 +13,10 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {type SoloLogger} from './solo-logger.js';
+import {OneShotState} from '../one-shot-state.js';
 import {SoloErrors} from '../errors/solo-errors.js';
 import {SoloError} from '../errors/solo-error.js';
 import {MessageLevel} from './message-level.js';
-import {SOLO_SILENT_MODE} from '../constants.js';
 
 type ChalkColor = typeof chalk.red;
 
@@ -33,6 +33,7 @@ export class SoloPinoLogger implements SoloLogger {
   private traceId?: string;
   private readonly logBindings: Record<string, unknown> = {};
   private messageGroupMap: Map<string, string[]> = new Map();
+  private deferredUserOutput: string[] | undefined;
   private readonly MINOR_LINE_SEPARATOR: string =
     '-------------------------------------------------------------------------------';
 
@@ -46,6 +47,7 @@ export class SoloPinoLogger implements SoloLogger {
   public constructor(
     @inject(InjectTokens.LogLevel) logLevel?: string,
     @inject(InjectTokens.DevelopmentMode) private developmentMode?: boolean,
+    @inject(InjectTokens.OneShotState) private readonly oneShotState?: OneShotState,
   ) {
     logLevel = patchInject(logLevel, InjectTokens.LogLevel, this.constructor.name) ?? 'info';
     this.developmentMode = patchInject(developmentMode, InjectTokens.DevelopmentMode, this.constructor.name);
@@ -171,11 +173,47 @@ export class SoloPinoLogger implements SoloLogger {
 
   public showUser(message: unknown, ...arguments_: unknown[]): void {
     const formatted: string = util.format(String(message), ...arguments_.map(String));
-    if (!constants.SOLO_SILENT_MODE) {
-      console.log(formatted);
-    }
+    this.writeUser(formatted);
     // Mirror existing behavior: also persist to logs at info level
     this.info(formatted);
+  }
+
+  public showUserUnlessOneShot(message: string): void {
+    if (this.oneShotState?.isActive()) {
+      this.debug(message);
+    } else {
+      this.showUser(message);
+    }
+  }
+
+  /**
+   * Single sink for user-facing terminal output. Honors silent mode and the deferred-output buffer.
+   * Does not write to the structured log file; callers persist to the log separately.
+   */
+  private writeUser(line: string): void {
+    if (constants.SOLO_SILENT_MODE) {
+      return;
+    }
+    if (this.deferredUserOutput) {
+      this.deferredUserOutput.push(line);
+      return;
+    }
+    console.log(line);
+  }
+
+  public beginDeferredUserOutput(): void {
+    this.deferredUserOutput ??= [];
+  }
+
+  public flushDeferredUserOutput(): void {
+    const buffered: string[] | undefined = this.deferredUserOutput;
+    this.deferredUserOutput = undefined;
+    if (!buffered || constants.SOLO_SILENT_MODE) {
+      return;
+    }
+    for (const line of buffered) {
+      console.log(line);
+    }
   }
 
   private stripAnsi(text: string): string {
@@ -238,16 +276,25 @@ export class SoloPinoLogger implements SoloLogger {
       lines.push(...errorMessage.split('\n').map((line: string): string => chalk.red(line)));
     }
 
-    if (error instanceof SoloError) {
-      const documentUrl: string | undefined = error.getDocumentUrl();
-      if (!this.developmentMode) {
-        const troubleshootingSteps: ReadonlyArray<string> | undefined = error.getTroubleshootingSteps();
-        if (troubleshootingSteps && troubleshootingSteps.length > 0) {
-          for (const step of troubleshootingSteps) {
-            lines.push(chalk.cyan('  →') + ' ' + step);
-          }
+    if (!this.developmentMode) {
+      // The outermost error is often a generic wrapper (e.g. one-shot deploy failed); the deepest
+      // SoloError in the cause chain carries the most specific troubleshooting guidance. The chain is
+      // ordered outermost-first, so the last qualifying entry is the deepest one.
+      let troubleshootingSource: SoloError | undefined;
+      for (const entry of causeChain) {
+        if (entry instanceof SoloError && (entry.getTroubleshootingSteps()?.length ?? 0) > 0) {
+          troubleshootingSource = entry;
         }
       }
+      const troubleshootingSteps: ReadonlyArray<string> | undefined = troubleshootingSource?.getTroubleshootingSteps();
+      if (troubleshootingSteps && troubleshootingSteps.length > 0) {
+        for (const step of troubleshootingSteps) {
+          lines.push(chalk.cyan('  →') + ' ' + step);
+        }
+      }
+    }
+    if (error instanceof SoloError) {
+      const documentUrl: string | undefined = error.getDocumentUrl();
       if (documentUrl) {
         lines.push('', chalk.cyan(`Learn more: ${documentUrl}`));
       }
@@ -309,12 +356,10 @@ export class SoloPinoLogger implements SoloLogger {
       level: 'ERROR',
       message: this.getFormattedCode(error) + error.message,
       stack: error.stack,
-      causes: causeChain.slice(1).map(
-        (cause: Error): Record<string, unknown> => ({
-          message: this.getFormattedCode(cause) + cause.message,
-          stack: cause.stack,
-        }),
-      ),
+      causes: causeChain.slice(1).map((cause: Error): Record<string, unknown> => ({
+        message: this.getFormattedCode(cause) + cause.message,
+        stack: cause.stack,
+      })),
     };
   }
 
@@ -363,12 +408,18 @@ export class SoloPinoLogger implements SoloLogger {
     return true;
   }
 
+  public showListIfNotEmpty(title: string, items: string[] = []): boolean {
+    if (items.length === 0) {
+      return false;
+    }
+    return this.showList(title, items);
+  }
+
   public showJSON(title: string, object: object): void {
     this.showUser(chalk.green(`\n *** ${title} ***`));
     this.showUser(chalk.green(this.MINOR_LINE_SEPARATOR));
-    if (!SOLO_SILENT_MODE) {
-      console.log(JSON.stringify(object, undefined, 2));
-    }
+    const serialized: string = JSON.stringify(object, undefined, 2);
+    this.writeUser(serialized);
   }
 
   public getMessageGroup(key: string): string[] {

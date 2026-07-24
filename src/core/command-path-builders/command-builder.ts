@@ -13,10 +13,12 @@ import {patchInject} from '../dependency-injection/container-helper.js';
 import {type TaskList} from '../task-list/task-list.js';
 import {ListrContext, ListrRendererValue} from 'listr2';
 import * as constants from '../constants.js';
+import {SpinnerListrOptions} from '../spinner-listr-options.js';
 
 export const ONE_SHOT_COMMAND: string = 'one-shot';
 export const SINGLE_SUBCOMMAND: string = 'single';
 export const SINGLE_DEPLOY: string = 'deploy';
+export const SINGLE_DESTROY: string = 'destroy';
 
 @injectable()
 export class Subcommand {
@@ -37,7 +39,10 @@ export class Subcommand {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
   }
 
-  public async installDependencies(useSmallMemoryCluster: boolean = false): Promise<void> {
+  public async installDependencies(
+    useSmallMemoryCluster: boolean = false,
+    collapseTasks: boolean = false,
+  ): Promise<void> {
     const tasks: any = this.taskList.newTaskList(
       [
         ...this.initCommand.installDependenciesTasks({
@@ -46,7 +51,7 @@ export class Subcommand {
           useSmallMemoryCluster,
         }),
       ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      collapseTasks ? SpinnerListrOptions.build(true) : constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
       undefined,
       this.name,
     );
@@ -120,12 +125,19 @@ export class CommandBuilder {
                       subcommand.commandHandlerClass,
                     );
 
-                    let useSmallMemoryCluster: boolean = false;
-                    if (commandPath === `${ONE_SHOT_COMMAND} ${SINGLE_SUBCOMMAND} ${SINGLE_DEPLOY}`) {
-                      useSmallMemoryCluster = true;
-                    }
+                    const isOneShotSingleDeploy: boolean =
+                      commandPath === `${ONE_SHOT_COMMAND} ${SINGLE_SUBCOMMAND} ${SINGLE_DEPLOY}`;
+                    const isOneShotSingleDestroy: boolean =
+                      commandPath === `${ONE_SHOT_COMMAND} ${SINGLE_SUBCOMMAND} ${SINGLE_DESTROY}`;
+                    const useSmallMemoryCluster: boolean = isOneShotSingleDeploy;
 
-                    await subcommand.installDependencies(useSmallMemoryCluster);
+                    // Collapse the dependency-install preamble (e.g. 'Check dependencies', 'Setup chart
+                    // manager') to single spinner lines for one-shot single deploy (gated on parallel
+                    // mode) and one-shot single destroy, matching their respective pipelines.
+                    const collapseDependencyTasks: boolean =
+                      (isOneShotSingleDeploy && argv[flags.parallelDeploy.name] !== false) || isOneShotSingleDestroy;
+
+                    await subcommand.installDependencies(useSmallMemoryCluster, collapseDependencyTasks);
                     const response: boolean = await handlerCallback(argv);
 
                     logger.info(`==== Finished running '${commandPath}'====`);

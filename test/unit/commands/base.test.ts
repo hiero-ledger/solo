@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {expect} from 'chai';
+import fs from 'node:fs';
+import os from 'node:os';
 
 import {type DependencyManager} from '../../../src/core/dependency-managers/index.js';
 import {type ChartManager} from '../../../src/core/chart-manager.js';
@@ -13,15 +15,27 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {resetForTest} from '../../test-container.js';
 import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens.js';
-import {type ClusterReferences} from '../../../src/types/index.js';
+import {type ClusterReferences, type Context, type SoloListrTask} from '../../../src/types/index.js';
 import {ConsensusNode} from '../../../src/core/model/consensus-node.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
-import {type NodeAlias} from '../../../src/types/aliases.js';
+import {type AnyListrContext, type NodeAlias} from '../../../src/types/aliases.js';
 import {type HelmClient} from '../../../src/integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../../../src/business/runtime-state/api/remote-config-runtime-state-api.js';
 import {RemoteConfigRuntimeState} from '../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
+import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
+import {OperatingSystem} from '../../../src/business/utils/operating-system.js';
+import {PathEx} from '../../../src/business/utils/path-ex.js';
+
+class TestBaseCommand extends BaseCommand {
+  public async close(): Promise<void> {}
+
+  public async runDockerDesktopPreflightTask(): Promise<void> {
+    const task: SoloListrTask<AnyListrContext> = this.dockerDesktopPreflightTask();
+    await (task.task as () => Promise<void>)();
+  }
+}
 
 describe('BaseCommand', (): void => {
   let helm: HelmClient;
@@ -47,10 +61,12 @@ describe('BaseCommand', (): void => {
       remoteConfig = container.resolve(InjectTokens.RemoteConfigRuntimeState);
 
       sandbox = sinon.createSandbox();
-      sandbox.stub(K8Client.prototype, 'init').callsFake(() => this);
-      const k8Factory = container.resolve(InjectTokens.K8Factory);
+      sandbox.stub(K8Client.prototype, 'init').callsFake(function (this: K8Client): K8Client {
+        return this;
+      });
+      const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
 
-      // @ts-ignore
+      // @ts-expect-error - allow to create instance of abstract class
       baseCmd = new BaseCommand({
         logger: testLogger,
         helm,
@@ -188,14 +204,14 @@ describe('BaseCommand', (): void => {
       ];
 
       remoteConfig.getConsensusNodes.returns(mockConsensusNodes);
-      remoteConfig.getContexts.returns(mockConsensusNodes.map(node => node.context));
+      remoteConfig.getContexts.returns(mockConsensusNodes.map((node: ConsensusNode): Context => node.context));
       const mockedClusterReferenceMap: ClusterReferences = new Map<string, string>([
         ['cluster', 'context1'],
         ['cluster2', 'context2'],
       ]);
       remoteConfig.getClusterRefs.returns(mockedClusterReferenceMap);
 
-      const k8Factory = sinon.stub();
+      const k8Factory: SinonStub = sinon.stub();
 
       // @ts-expect-error - allow to create instance of abstract class
       baseCmd = new BaseCommand(
@@ -228,19 +244,160 @@ describe('BaseCommand', (): void => {
 
     it('should return contexts', (): void => {
       // @ts-expect-error - TS2445: to access private property
-      const contexts = baseCmd.remoteConfig.getContexts();
+      const contexts: Context[] = baseCmd.remoteConfig.getContexts();
       expect(contexts).to.be.an('array');
       expect(contexts[0]).to.equal('context1');
       expect(contexts[1]).to.equal('context2');
     });
 
     it('should return clusters references', (): void => {
-      const expectedClusterReferences = {cluster: 'context1', cluster2: 'context2'};
+      const expectedClusterReferences: Record<string, string> = {cluster: 'context1', cluster2: 'context2'};
       // @ts-expect-error - TS2445: to access private property
       const clusterReferences: ClusterReferences = baseCmd.remoteConfig.getClusterRefs();
       for (const [clusterReference] of clusterReferences) {
         expect(clusterReferences.get(clusterReference)).to.equal(expectedClusterReferences[clusterReference]);
       }
+    });
+  });
+
+  describe('isLocalImageReference', (): void => {
+    before((): void => {
+      resetForTest();
+      // @ts-expect-error - allow to create instance of abstract class
+      baseCmd = new BaseCommand();
+    });
+
+    const localCases: string[] = [
+      'block-node-server:0.36.0-SNAPSHOT',
+      'hiero-explorer:my-build',
+      'hiero-json-rpc-relay:local',
+      'myimage:latest',
+    ];
+
+    const registryCases: string[] = [
+      'ghcr.io/hiero-ledger/block-node-server:0.36.0',
+      'docker.io/library/redis:7',
+      'localhost:5000/myimage:tag',
+      'registry.example.com/org/image:v1',
+    ];
+
+    for (const reference of localCases) {
+      it(`should identify '${reference}' as local`, (): void => {
+        // @ts-expect-error - TS2445: protected method
+        expect(baseCmd.isLocalImageReference(reference)).to.be.true;
+      });
+    }
+
+    for (const reference of registryCases) {
+      it(`should identify '${reference}' as registry`, (): void => {
+        // @ts-expect-error - TS2445: protected method
+        expect(baseCmd.isLocalImageReference(reference)).to.be.false;
+      });
+    }
+  });
+
+  describe('kindClusterNameFromContext', (): void => {
+    before((): void => {
+      resetForTest();
+      // @ts-expect-error - allow to create instance of abstract class
+      baseCmd = new BaseCommand();
+    });
+
+    it('should strip kind- prefix from context', (): void => {
+      // @ts-expect-error - TS2445: protected method
+      expect(baseCmd.kindClusterNameFromContext('kind-solo-cluster')).to.equal('solo-cluster');
+    });
+
+    it('should return context unchanged when no kind- prefix', (): void => {
+      // @ts-expect-error - TS2445: protected method
+      expect(baseCmd.kindClusterNameFromContext('my-cluster')).to.equal('my-cluster');
+    });
+  });
+
+  describe('dockerDesktopPreflightTask', (): void => {
+    let command: TestBaseCommand;
+    let temporaryDirectory: string;
+    let warnStub: SinonStub;
+
+    beforeEach((): void => {
+      resetForTest();
+      sandbox = sinon.createSandbox();
+      temporaryDirectory = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'solo-docker-desktop-test-'));
+      command = new TestBaseCommand();
+      warnStub = sandbox.stub();
+      command.logger = {warn: warnStub} as unknown as SoloLogger;
+    });
+
+    afterEach((): void => {
+      sandbox.restore();
+      if (fs.existsSync(temporaryDirectory)) {
+        fs.rmSync(temporaryDirectory, {recursive: true});
+      }
+    });
+
+    it('does not warn when running on Linux', async (): Promise<void> => {
+      sandbox.stub(OperatingSystem, 'isLinux').returns(true);
+
+      await command.runDockerDesktopPreflightTask();
+
+      expect(warnStub).to.not.have.been.called;
+    });
+
+    it('does not warn when no Docker Desktop settings file exists', async (): Promise<void> => {
+      sandbox.stub(OperatingSystem, 'isLinux').returns(false);
+      sandbox.stub(os, 'homedir').returns(PathEx.join(temporaryDirectory, 'nonexistent'));
+
+      await command.runDockerDesktopPreflightTask();
+
+      expect(warnStub).to.not.have.been.called;
+    });
+
+    it('does not warn when useContainerdSnapshotter is false', async (): Promise<void> => {
+      sandbox.stub(OperatingSystem, 'isLinux').returns(false);
+      const dockerDirectory: string = PathEx.join(temporaryDirectory, '.docker');
+      fs.mkdirSync(dockerDirectory, {recursive: true});
+      fs.writeFileSync(
+        PathEx.join(dockerDirectory, 'settings-store.json'),
+        JSON.stringify({useContainerdSnapshotter: false}),
+      );
+      sandbox.stub(os, 'homedir').returns(temporaryDirectory);
+
+      await command.runDockerDesktopPreflightTask();
+
+      expect(warnStub).to.not.have.been.called;
+    });
+
+    it('warns when useContainerdSnapshotter is true', async (): Promise<void> => {
+      sandbox.stub(OperatingSystem, 'isLinux').returns(false);
+      const dockerDirectory: string = PathEx.join(temporaryDirectory, '.docker');
+      fs.mkdirSync(dockerDirectory, {recursive: true});
+      fs.writeFileSync(
+        PathEx.join(dockerDirectory, 'settings-store.json'),
+        JSON.stringify({useContainerdSnapshotter: true}),
+      );
+      sandbox.stub(os, 'homedir').returns(temporaryDirectory);
+
+      await command.runDockerDesktopPreflightTask();
+
+      expect(warnStub).to.have.been.calledOnce;
+      expect(warnStub.firstCall.args[0]).to.include('Docker Desktop');
+      expect(warnStub.firstCall.args[0]).to.include('containerd');
+    });
+
+    it('skips invalid JSON and continues checking settings files', async (): Promise<void> => {
+      sandbox.stub(OperatingSystem, 'isLinux').returns(false);
+      const dockerDirectory: string = PathEx.join(temporaryDirectory, '.docker');
+      fs.mkdirSync(dockerDirectory, {recursive: true});
+      fs.writeFileSync(PathEx.join(dockerDirectory, 'settings-store.json'), '{not valid json}');
+      fs.writeFileSync(
+        PathEx.join(dockerDirectory, 'settings.json'),
+        JSON.stringify({useContainerdSnapshotter: false}),
+      );
+      sandbox.stub(os, 'homedir').returns(temporaryDirectory);
+
+      await command.runDockerDesktopPreflightTask();
+
+      expect(warnStub).to.not.have.been.called;
     });
   });
 });

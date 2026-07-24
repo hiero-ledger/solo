@@ -97,6 +97,14 @@ The layered config system (`EnvironmentConfigSource`, prefix `SOLO`) allows envi
 
 This is **not** the same as plain `UPPER_SNAKE_CASE` — dashes within a segment represent camelCase word boundaries, not underscores.
 
+**Environment variable aliases.** Because the generated names are awkward (embedded dashes) and cannot
+match legacy fixed names, a field may also declare one or more fixed alias env var names with the
+`@EnvironmentAliasRegistry.alias('SOLO_TSS_READY_MAX_ATTEMPTS')` property decorator (see
+`src/data/schema/decorators/environment-alias-registry.ts`). The generated `SOLO_*` name always takes
+precedence; the alias applies only when the generated name is absent, and using an alias logs a notice.
+Aliases may only be placed on a uniquely-typed schema field (a reused type such as `HelmChartSchema`
+fails fast). When adding/removing an alias, keep this section and any env var docs in sync.
+
 ## Architecture and Design
 
 Before implementing a new feature or undertaking a major refactor, review the architecture and
@@ -138,7 +146,100 @@ Run `task format` to auto-fix formatting and lint issues before committing. Note
 `task format` fixes Prettier and some ESLint issues automatically, but **abbreviation violations
 and missing type annotations must be fixed manually** — they appear as errors in the lint output.
 
+### Dead Code Removal
+
+When modifying any file, remove code that is no longer reachable or referenced as a result of your
+changes. This includes methods, functions, classes, imports, constants, and type aliases that
+nothing calls or imports after the edit. Do not leave orphaned code "just in case" — if it is
+needed later it can be recovered from git history.
+
+### Enhance Before Creating
+
+Before introducing a new method, function, or class to satisfy a requirement, check whether an
+existing one can be extended or generalised to cover the new case. Prefer augmenting an existing
+abstraction over adding a parallel one that increases the maintenance surface. A new abstraction is
+justified only when the existing one cannot cleanly accommodate the change without becoming
+misleading or overloaded.
+
 ## Repository Gotchas
+
+### Environment Variable Access — Always Use `getEnvironmentVariable()`
+
+In `src/**/*.ts`, always read environment variables through `getEnvironmentVariable()` (exported from
+`src/core/constants.ts`). **Never** use `process.env['VAR_NAME']` or `process.env[variable]`
+(bracket notation) to read env vars — this is enforced as an ESLint **error** for all `src/` files
+except `src/core/constants.ts` itself.
+
+```typescript
+// wrong — bypasses the utility and env.md tracking
+const mirror: string = process.env['KIND_DOCKER_REGISTRY_MIRRORS'];
+
+// correct
+import {getEnvironmentVariable} from '../core/constants.js';
+const mirror: string = getEnvironmentVariable('KIND_DOCKER_REGISTRY_MIRRORS');
+```
+
+Property-access reads for OS-level variables (`process.env.PATH`, `process.env.HOME`) and spreading
+the environment for subprocess invocation (`{...process.env}`) are fine and are not covered by this
+rule. The restriction targets application-level env var reads that must be tracked in `env.md`.
+
+Adding `getEnvironmentVariable()` calls also triggers the documentation requirement in CLAUDE.md
+"Environment Variable Documentation".
+
+### Catch Blocks — Comment Required When Swallowing Errors
+
+When a `catch` block does not re-throw (returns a default, returns `undefined`, or no-ops), it
+**must** include a comment explaining why the error is intentionally swallowed. §4.9 of the
+TypeScript style guide bans empty or unexplained catch blocks.
+
+```typescript
+// wrong — silent swallow with no explanation
+} catch {
+  return [];
+}
+
+// correct
+} catch {
+  // best-effort: fall back to empty list when kind-config is absent or unparseable
+  return [];
+}
+```
+
+This applies even when the catch body contains statements — the comment documents the *intent*,
+not just the code.
+
+### Shell Scripts in `.github/` — SPDX Header Required
+
+All shell scripts under `.github/workflows/script/` must include a SPDX license identifier on the
+line immediately after the shebang:
+
+```bash
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+```
+
+The ESLint `headers/header-format` rule enforces this for TypeScript files but does not cover shell
+scripts — it must be applied manually. Any PR that adds or significantly modifies a `.sh` file in
+`.github/` should add the header if it is missing.
+
+### CLI Architecture Documentation
+
+`docs/design/architecture/system/presentation_layer_cli_architecture.md` is the authoritative
+reference for the CLI's command/subcommand structure. It must stay in sync with the source.
+
+**Trigger:** any edit to a file in `src/commands/command-definitions/` that adds, removes, renames,
+or reorders a command, subcommand (command group), or operation (leaf subcommand).
+
+**What to update:**
+
+- **"Final Vision" table** — each row is `<group> | <resource> | <operations>`. Reflect any
+  command name, subcommand name, or operation list change here.
+- **"Example Commands" block** — update or add example invocations when the command surface changes.
+- **"Resources by Group" and "Operations by Resource" sections** — add, remove, or rename the
+  matching heading and table rows.
+- **Table of Contents** — update anchor links to match any renamed headings.
+
+The documentation update must be included in the same commit as the code change.
 
 ### Adding CLI Flags
 

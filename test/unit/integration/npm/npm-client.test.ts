@@ -26,7 +26,7 @@ describe('NpmClient', (): void => {
 
       await npmClient.listGlobal();
 
-      expect(shellRunnerRunStub).to.have.been.calledOnceWith('npm list --global --depth=0');
+      expect(shellRunnerRunStub).to.have.been.calledOnceWith('npm', ['list', '--global', '--depth=0']);
     });
 
     it('should return the lines from npm list output', async (): Promise<void> => {

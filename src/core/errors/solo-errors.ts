@@ -7,6 +7,7 @@ import {ClusterReferenceResolutionFailedError} from './classes/deployment/cluste
 import {ContextNotFoundForClusterError} from './classes/deployment/context-not-found-for-cluster-error.js';
 import {DeploymentDeleteFailedError} from './classes/deployment/deployment-delete-failed-error.js';
 import {DeploymentHasRemoteResourcesError} from './classes/deployment/deployment-has-remote-resources-error.js';
+import {DeploymentImportFailedSoloError} from './classes/deployment/deployment-import-failed-solo-error.js';
 import {DeploymentListFailedError} from './classes/deployment/deployment-list-failed-error.js';
 import {DeploymentListPortsFailedError} from './classes/deployment/deployment-list-ports-failed-error.js';
 import {DeploymentNotFoundError} from './classes/deployment/deployment-not-found-error.js';
@@ -38,6 +39,7 @@ import {BlockNodeConfigFailedSoloError} from './classes/component/block-node-con
 import {BlockNodeDeleteExternalFailedSoloError} from './classes/component/block-node-delete-external-failed-solo-error.js';
 import {BlockNodeDeployFailedSoloError} from './classes/component/block-node-deploy-failed-solo-error.js';
 import {BlockNodeDestroyFailedSoloError} from './classes/component/block-node-destroy-failed-solo-error.js';
+import {BlockNodeJfrCollectionFailedSoloError} from './classes/component/block-node-jfr-collection-failed-solo-error.js';
 import {BlockNodeHealthCheckFailedSoloError} from './classes/component/block-node-health-check-failed-solo-error.js';
 import {BlockNodeUpgradeFailedSoloError} from './classes/component/block-node-upgrade-failed-solo-error.js';
 import {ChartInstallFailedSoloError} from './classes/component/chart-install-failed-solo-error.js';
@@ -68,7 +70,6 @@ import {NodeVersionMismatchSoloError} from './classes/validation/node-version-mi
 import {NonInteractivePromptSoloError} from './classes/validation/non-interactive-prompt-solo-error.js';
 import {OutputDirectoryNotSpecifiedSoloError} from './classes/validation/output-directory-not-specified-solo-error.js';
 import {PvcFlagNotEnabledSoloError} from './classes/validation/pvc-flag-not-enabled-solo-error.js';
-import {RealmShardVersionConstraintSoloError} from './classes/validation/realm-shard-version-constraint-solo-error.js';
 import {UpgradeVersionNotFoundSoloError} from './classes/validation/upgrade-version-not-found-solo-error.js';
 import {WrapsKeyPathNotFoundSoloError} from './classes/validation/wraps-key-path-not-found-solo-error.js';
 import {WrapsVersionConstraintSoloError} from './classes/validation/wraps-version-constraint-solo-error.js';
@@ -117,6 +118,7 @@ import {FalconValuesPreparationFailedSoloError} from './classes/component/falcon
 import {BlockNodeNotInRemoteConfigSoloError} from './classes/system/block-node-not-in-remote-config-solo-error.js';
 import {BlockNodeNotReadySoloError} from './classes/system/block-node-not-ready-solo-error.js';
 import {BlockNodePodNotFoundSoloError} from './classes/system/block-node-pod-not-found-solo-error.js';
+import {BlockNodesJsonEmptySoloError} from './classes/system/block-nodes-json-empty-solo-error.js';
 import {ExternalBlockNodeNotInRemoteConfigSoloError} from './classes/system/external-block-node-not-in-remote-config-solo-error.js';
 import {ExplorerPodNotFoundSoloError} from './classes/system/explorer-pod-not-found-solo-error.js';
 import {ExplorerNotInRemoteConfigSoloError} from './classes/system/explorer-not-in-remote-config-solo-error.js';
@@ -127,12 +129,9 @@ import {MirrorIngressControllerPodNotFoundSoloError} from './classes/system/mirr
 import {MirrorNodeNotInRemoteConfigSoloError} from './classes/system/mirror-node-not-in-remote-config-solo-error.js';
 import {ClusterNotFoundInRemoteConfigSoloError} from './classes/system/cluster-not-found-in-remote-config-solo-error.js';
 import {BlockNodeInvalidComponentIdSoloError} from './classes/validation/block-node-invalid-component-id-solo-error.js';
-import {BlockNodeLivenessPortVersionIncompatibleSoloError} from './classes/validation/block-node-liveness-port-version-incompatible-solo-error.js';
 import {BlockNodeLocalImageNotFoundSoloError} from './classes/validation/block-node-local-image-not-found-solo-error.js';
-import {BlockNodePlatformVersionTooLowSoloError} from './classes/validation/block-node-platform-version-too-low-solo-error.js';
 import {ExplorerInvalidComponentIdSoloError} from './classes/validation/explorer-invalid-component-id-solo-error.js';
 import {RelayInvalidComponentIdSoloError} from './classes/validation/relay-invalid-component-id-solo-error.js';
-import {OneShotCachedDeploymentNotFoundSoloError} from './classes/validation/one-shot-cached-deployment-not-found-solo-error.js';
 import {MirrorNodeInvalidComponentIdSoloError} from './classes/validation/mirror-node-invalid-component-id-solo-error.js';
 import {ClusterSetupFailedSoloError} from './classes/deployment/cluster-setup-failed-solo-error.js';
 import {ClusterResetFailedSoloError} from './classes/deployment/cluster-reset-failed-solo-error.js';
@@ -162,9 +161,11 @@ import {NodeClientLoadFailedSoloError} from './classes/component/node-client-loa
 import {NodeClientRefreshFailedSoloError} from './classes/component/node-client-refresh-failed-solo-error.js';
 import {NodeClientSetupFailedSoloError} from './classes/component/node-client-setup-failed-solo-error.js';
 import {SdkPingFailedSoloError} from './classes/component/sdk-ping-failed-solo-error.js';
+import {SdkClientNoHealthyNodesSoloError} from './classes/component/sdk-client-no-healthy-nodes-solo-error.js';
 import {NodeServicesRetrievalFailedSoloError} from './classes/component/node-services-retrieval-failed-solo-error.js';
 import {NodeServiceNotFoundSoloError} from './classes/component/node-service-not-found-solo-error.js';
 import {GossipKeySecretCreationFailedSoloError} from './classes/component/gossip-key-secret-creation-failed-solo-error.js';
+import {GossipKeySecretRestoreFailedSoloError} from './classes/component/gossip-key-secret-restore-failed-solo-error.js';
 import {TlsKeySecretCreationFailedSoloError} from './classes/component/tls-key-secret-creation-failed-solo-error.js';
 import {TlsKeyGenerationFailedSoloError} from './classes/component/tls-key-generation-failed-solo-error.js';
 import {SigningKeyGenerationFailedSoloError} from './classes/component/signing-key-generation-failed-solo-error.js';
@@ -235,12 +236,14 @@ import {BackupInputPathNotFoundSoloError} from './classes/validation/backup-inpu
 import {BackupInputMustBeZipSoloError} from './classes/validation/backup-input-must-be-zip-solo-error.js';
 import {BackupNoLogFilesSoloError} from './classes/validation/backup-no-log-files-solo-error.js';
 import {FlagInputFailedSoloError} from './classes/validation/flag-input-failed-solo-error.js';
+import {ConfirmationRequiredSoloError} from './classes/validation/confirmation-required-solo-error.js';
 import {HelmRepoSetupFailedSoloError} from './classes/system/helm-repo-setup-failed-solo-error.js';
 import {HelmRepoCheckFailedSoloError} from './classes/system/helm-repo-check-failed-solo-error.js';
 import {HelmChartListFailedSoloError} from './classes/system/helm-chart-list-failed-solo-error.js';
 import {HelmChartGenericInstallFailedSoloError} from './classes/system/helm-chart-generic-install-failed-solo-error.js';
 import {HelmChartUninstallFailedSoloError} from './classes/system/helm-chart-uninstall-failed-solo-error.js';
 import {HelmChartUpgradeFailedSoloError} from './classes/system/helm-chart-upgrade-failed-solo-error.js';
+import {HelmChartPullNoArchiveSoloError} from './classes/system/helm-chart-pull-no-archive-solo-error.js';
 import {FileNotFoundSoloError} from './classes/system/file-not-found-solo-error.js';
 import {FileCopyFailedSoloError} from './classes/system/file-copy-failed-solo-error.js';
 import {FileEmptySoloError} from './classes/system/file-empty-solo-error.js';
@@ -258,6 +261,7 @@ import {GitHubReleasesNotFoundSoloError} from './classes/system/github-releases-
 import {GitHubReleaseTagNotFoundSoloError} from './classes/system/github-release-tag-not-found-solo-error.js';
 import {GitHubReleaseAssetNotFoundSoloError} from './classes/system/github-release-asset-not-found-solo-error.js';
 import {HomebrewInstallFailedSoloError} from './classes/system/homebrew-install-failed-solo-error.js';
+import {UnsupportedLinuxDistributionSoloError} from './classes/system/unsupported-linux-distribution-solo-error.js';
 import {PodmanMachineInspectFailedSoloError} from './classes/system/podman-machine-inspect-failed-solo-error.js';
 import {DockerAuthStaleSoloError} from './classes/system/docker-auth-stale-solo-error.js';
 import {PvcCreationFailedSoloError} from './classes/system/pvc-creation-failed-solo-error.js';
@@ -282,6 +286,7 @@ import {RemoteConfigDeploymentNotSetError} from './classes/internal/remote-confi
 import {RemoteConfigContextUnavailableError} from './classes/internal/remote-config-context-unavailable-error.js';
 import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-template-undeclared-error.js';
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
+import {PipelineCancelledSoloError} from './classes/internal/pipeline-cancelled-solo-error.js';
 
 /**
  * Registry of typed Solo error constructors, grouped by error code category.
@@ -317,6 +322,7 @@ export class SoloErrors {
     readonly createFailed: typeof CreateDeploymentSoloError;
     readonly deleteFailed: typeof DeploymentDeleteFailedError;
     readonly hasRemoteResources: typeof DeploymentHasRemoteResourcesError;
+    readonly importFailed: typeof DeploymentImportFailedSoloError;
     readonly listFailed: typeof DeploymentListFailedError;
     readonly listPortsFailed: typeof DeploymentListPortsFailedError;
     readonly namespaceNotSet: typeof NamespaceNotSetError;
@@ -348,6 +354,7 @@ export class SoloErrors {
     createFailed: CreateDeploymentSoloError,
     deleteFailed: DeploymentDeleteFailedError,
     hasRemoteResources: DeploymentHasRemoteResourcesError,
+    importFailed: DeploymentImportFailedSoloError,
     listFailed: DeploymentListFailedError,
     listPortsFailed: DeploymentListPortsFailedError,
     namespaceNotSet: NamespaceNotSetError,
@@ -383,6 +390,7 @@ export class SoloErrors {
     readonly blockNodeConfigFailed: typeof BlockNodeConfigFailedSoloError;
     readonly blockNodeDeployFailed: typeof BlockNodeDeployFailedSoloError;
     readonly blockNodeDestroyFailed: typeof BlockNodeDestroyFailedSoloError;
+    readonly blockNodeJfrCollectionFailed: typeof BlockNodeJfrCollectionFailedSoloError;
     readonly blockNodeUpgradeFailed: typeof BlockNodeUpgradeFailedSoloError;
     readonly blockNodeAddExternalFailed: typeof BlockNodeAddExternalFailedSoloError;
     readonly blockNodeDeleteExternalFailed: typeof BlockNodeDeleteExternalFailedSoloError;
@@ -431,9 +439,11 @@ export class SoloErrors {
     readonly nodeClientRefreshFailed: typeof NodeClientRefreshFailedSoloError;
     readonly nodeClientSetupFailed: typeof NodeClientSetupFailedSoloError;
     readonly sdkPingFailed: typeof SdkPingFailedSoloError;
+    readonly sdkClientNoHealthyNodes: typeof SdkClientNoHealthyNodesSoloError;
     readonly nodeServicesRetrievalFailed: typeof NodeServicesRetrievalFailedSoloError;
     readonly nodeServiceNotFound: typeof NodeServiceNotFoundSoloError;
     readonly gossipKeySecretCreationFailed: typeof GossipKeySecretCreationFailedSoloError;
+    readonly gossipKeySecretRestoreFailed: typeof GossipKeySecretRestoreFailedSoloError;
     readonly tlsKeySecretCreationFailed: typeof TlsKeySecretCreationFailedSoloError;
     readonly tlsKeyGenerationFailed: typeof TlsKeyGenerationFailedSoloError;
     readonly signingKeyGenerationFailed: typeof SigningKeyGenerationFailedSoloError;
@@ -471,6 +481,7 @@ export class SoloErrors {
     blockNodeConfigFailed: BlockNodeConfigFailedSoloError,
     blockNodeDeployFailed: BlockNodeDeployFailedSoloError,
     blockNodeDestroyFailed: BlockNodeDestroyFailedSoloError,
+    blockNodeJfrCollectionFailed: BlockNodeJfrCollectionFailedSoloError,
     blockNodeUpgradeFailed: BlockNodeUpgradeFailedSoloError,
     blockNodeAddExternalFailed: BlockNodeAddExternalFailedSoloError,
     blockNodeDeleteExternalFailed: BlockNodeDeleteExternalFailedSoloError,
@@ -519,9 +530,11 @@ export class SoloErrors {
     nodeClientRefreshFailed: NodeClientRefreshFailedSoloError,
     nodeClientSetupFailed: NodeClientSetupFailedSoloError,
     sdkPingFailed: SdkPingFailedSoloError,
+    sdkClientNoHealthyNodes: SdkClientNoHealthyNodesSoloError,
     nodeServicesRetrievalFailed: NodeServicesRetrievalFailedSoloError,
     nodeServiceNotFound: NodeServiceNotFoundSoloError,
     gossipKeySecretCreationFailed: GossipKeySecretCreationFailedSoloError,
+    gossipKeySecretRestoreFailed: GossipKeySecretRestoreFailedSoloError,
     tlsKeySecretCreationFailed: TlsKeySecretCreationFailedSoloError,
     tlsKeyGenerationFailed: TlsKeyGenerationFailedSoloError,
     signingKeyGenerationFailed: SigningKeyGenerationFailedSoloError,
@@ -554,8 +567,6 @@ export class SoloErrors {
   public static readonly validation: {
     readonly blockNodeLocalImageNotFound: typeof BlockNodeLocalImageNotFoundSoloError;
     readonly blockNodeInvalidComponentId: typeof BlockNodeInvalidComponentIdSoloError;
-    readonly blockNodePlatformVersionTooLow: typeof BlockNodePlatformVersionTooLowSoloError;
-    readonly blockNodeLivenessPortVersionIncompatible: typeof BlockNodeLivenessPortVersionIncompatibleSoloError;
     readonly consensusNodeCountRequired: typeof ConsensusNodeCountRequiredError;
     readonly illegalArgument: typeof IllegalArgumentError;
     readonly invalidOutputFormat: typeof InvalidOutputFormatError;
@@ -574,7 +585,6 @@ export class SoloErrors {
     readonly upgradeVersionNotFound: typeof UpgradeVersionNotFoundSoloError;
     readonly pvcFlagNotEnabled: typeof PvcFlagNotEnabledSoloError;
     readonly nonInteractivePrompt: typeof NonInteractivePromptSoloError;
-    readonly realmShardVersionConstraint: typeof RealmShardVersionConstraintSoloError;
     readonly wrapsVersionConstraint: typeof WrapsVersionConstraintSoloError;
     readonly stateFilePathNotFound: typeof StateFilePathNotFoundSoloError;
     readonly stateFileNotFound: typeof StateFileNotFoundSoloError;
@@ -583,7 +593,6 @@ export class SoloErrors {
     readonly explorerInvalidComponentId: typeof ExplorerInvalidComponentIdSoloError;
     readonly relayInvalidComponentId: typeof RelayInvalidComponentIdSoloError;
     readonly mirrorNodeInvalidComponentId: typeof MirrorNodeInvalidComponentIdSoloError;
-    readonly oneShotCachedDeploymentNotFound: typeof OneShotCachedDeploymentNotFoundSoloError;
     readonly invalidHbarAmount: typeof InvalidHbarAmountSoloError;
     readonly invalidFileIdFormat: typeof InvalidFileIdFormatSoloError;
     readonly invalidEndpointFormat: typeof InvalidEndpointFormatSoloError;
@@ -628,11 +637,10 @@ export class SoloErrors {
     readonly backupInputMustBeZip: typeof BackupInputMustBeZipSoloError;
     readonly backupNoLogFiles: typeof BackupNoLogFilesSoloError;
     readonly flagInputFailed: typeof FlagInputFailedSoloError;
+    readonly confirmationRequired: typeof ConfirmationRequiredSoloError;
   } = Object.freeze({
     blockNodeLocalImageNotFound: BlockNodeLocalImageNotFoundSoloError,
     blockNodeInvalidComponentId: BlockNodeInvalidComponentIdSoloError,
-    blockNodePlatformVersionTooLow: BlockNodePlatformVersionTooLowSoloError,
-    blockNodeLivenessPortVersionIncompatible: BlockNodeLivenessPortVersionIncompatibleSoloError,
     consensusNodeCountRequired: ConsensusNodeCountRequiredError,
     illegalArgument: IllegalArgumentError,
     invalidOutputFormat: InvalidOutputFormatError,
@@ -651,7 +659,6 @@ export class SoloErrors {
     upgradeVersionNotFound: UpgradeVersionNotFoundSoloError,
     pvcFlagNotEnabled: PvcFlagNotEnabledSoloError,
     nonInteractivePrompt: NonInteractivePromptSoloError,
-    realmShardVersionConstraint: RealmShardVersionConstraintSoloError,
     wrapsVersionConstraint: WrapsVersionConstraintSoloError,
     stateFilePathNotFound: StateFilePathNotFoundSoloError,
     stateFileNotFound: StateFileNotFoundSoloError,
@@ -660,7 +667,6 @@ export class SoloErrors {
     explorerInvalidComponentId: ExplorerInvalidComponentIdSoloError,
     relayInvalidComponentId: RelayInvalidComponentIdSoloError,
     mirrorNodeInvalidComponentId: MirrorNodeInvalidComponentIdSoloError,
-    oneShotCachedDeploymentNotFound: OneShotCachedDeploymentNotFoundSoloError,
     invalidHbarAmount: InvalidHbarAmountSoloError,
     invalidFileIdFormat: InvalidFileIdFormatSoloError,
     invalidEndpointFormat: InvalidEndpointFormatSoloError,
@@ -705,6 +711,7 @@ export class SoloErrors {
     backupInputMustBeZip: BackupInputMustBeZipSoloError,
     backupNoLogFiles: BackupNoLogFilesSoloError,
     flagInputFailed: FlagInputFailedSoloError,
+    confirmationRequired: ConfirmationRequiredSoloError,
   });
 
   // 5xxx — System / Environment: kubectl, DNS, permissions, timeouts
@@ -712,6 +719,7 @@ export class SoloErrors {
     readonly blockNodePodNotFound: typeof BlockNodePodNotFoundSoloError;
     readonly blockNodeNotReady: typeof BlockNodeNotReadySoloError;
     readonly blockNodeNotInRemoteConfig: typeof BlockNodeNotInRemoteConfigSoloError;
+    readonly blockNodesJsonEmpty: typeof BlockNodesJsonEmptySoloError;
     readonly externalBlockNodeNotInRemoteConfig: typeof ExternalBlockNodeNotInRemoteConfigSoloError;
     readonly clusterConnectionFailed: typeof ClusterConnectionFailedError;
     readonly githubApiHttpResponseError: typeof GitHubApiHttpResponseError;
@@ -749,6 +757,7 @@ export class SoloErrors {
     readonly helmChartGenericInstallFailed: typeof HelmChartGenericInstallFailedSoloError;
     readonly helmChartUninstallFailed: typeof HelmChartUninstallFailedSoloError;
     readonly helmChartUpgradeFailed: typeof HelmChartUpgradeFailedSoloError;
+    readonly helmChartPullNoArchive: typeof HelmChartPullNoArchiveSoloError;
     readonly fileNotFound: typeof FileNotFoundSoloError;
     readonly fileCopyFailed: typeof FileCopyFailedSoloError;
     readonly fileEmpty: typeof FileEmptySoloError;
@@ -766,6 +775,7 @@ export class SoloErrors {
     readonly gitHubReleaseTagNotFound: typeof GitHubReleaseTagNotFoundSoloError;
     readonly gitHubReleaseAssetNotFound: typeof GitHubReleaseAssetNotFoundSoloError;
     readonly homebrewInstallFailed: typeof HomebrewInstallFailedSoloError;
+    readonly unsupportedLinuxDistribution: typeof UnsupportedLinuxDistributionSoloError;
     readonly podmanMachineInspectFailed: typeof PodmanMachineInspectFailedSoloError;
     readonly dockerAuthStale: typeof DockerAuthStaleSoloError;
     readonly pvcCreationFailed: typeof PvcCreationFailedSoloError;
@@ -787,6 +797,7 @@ export class SoloErrors {
     blockNodePodNotFound: BlockNodePodNotFoundSoloError,
     blockNodeNotReady: BlockNodeNotReadySoloError,
     blockNodeNotInRemoteConfig: BlockNodeNotInRemoteConfigSoloError,
+    blockNodesJsonEmpty: BlockNodesJsonEmptySoloError,
     externalBlockNodeNotInRemoteConfig: ExternalBlockNodeNotInRemoteConfigSoloError,
     clusterConnectionFailed: ClusterConnectionFailedError,
     githubApiHttpResponseError: GitHubApiHttpResponseError,
@@ -824,6 +835,7 @@ export class SoloErrors {
     helmChartGenericInstallFailed: HelmChartGenericInstallFailedSoloError,
     helmChartUninstallFailed: HelmChartUninstallFailedSoloError,
     helmChartUpgradeFailed: HelmChartUpgradeFailedSoloError,
+    helmChartPullNoArchive: HelmChartPullNoArchiveSoloError,
     fileNotFound: FileNotFoundSoloError,
     fileCopyFailed: FileCopyFailedSoloError,
     fileEmpty: FileEmptySoloError,
@@ -841,6 +853,7 @@ export class SoloErrors {
     gitHubReleaseTagNotFound: GitHubReleaseTagNotFoundSoloError,
     gitHubReleaseAssetNotFound: GitHubReleaseAssetNotFoundSoloError,
     homebrewInstallFailed: HomebrewInstallFailedSoloError,
+    unsupportedLinuxDistribution: UnsupportedLinuxDistributionSoloError,
     podmanMachineInspectFailed: PodmanMachineInspectFailedSoloError,
     dockerAuthStale: DockerAuthStaleSoloError,
     pvcCreationFailed: PvcCreationFailedSoloError,
@@ -873,6 +886,7 @@ export class SoloErrors {
     readonly remoteConfigContextUnavailable: typeof RemoteConfigContextUnavailableError;
     readonly cacheImageTemplateUndeclared: typeof CacheImageTemplateUndeclaredError;
     readonly injectedFailure: typeof InjectedFailureSoloError;
+    readonly pipelineCancelled: typeof PipelineCancelledSoloError;
   } = Object.freeze({
     unsupportedOperation: UnsupportedOperationError,
     readRemoteConfigBeforeLoad: ReadRemoteConfigBeforeLoadError,
@@ -885,5 +899,6 @@ export class SoloErrors {
     remoteConfigContextUnavailable: RemoteConfigContextUnavailableError,
     cacheImageTemplateUndeclared: CacheImageTemplateUndeclaredError,
     injectedFailure: InjectedFailureSoloError,
+    pipelineCancelled: PipelineCancelledSoloError,
   });
 }

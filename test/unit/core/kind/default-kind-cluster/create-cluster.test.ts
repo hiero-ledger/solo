@@ -8,12 +8,12 @@ import {KindExecutionBuilder} from '../../../../../src/integration/kind/executio
 import {ClusterCreateResponse} from '../../../../../src/integration/kind/model/create-cluster/cluster-create-response.js';
 import {KindExecution} from '../../../../../src/integration/kind/execution/kind-execution.js';
 
-describe('DefaultKindClient - createCluster', () => {
+describe('DefaultKindClient - createCluster', (): void => {
   let client: DefaultKindClient;
   let executionBuilderStub: sinon.SinonStubbedInstance<KindExecutionBuilder>;
   let executionStub: sinon.SinonStubbedInstance<KindExecution>;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     client = new DefaultKindClient('/usr/local/bin/kind');
     executionBuilderStub = sinon.createStubInstance(KindExecutionBuilder);
     executionStub = sinon.createStubInstance(KindExecution);
@@ -23,17 +23,17 @@ describe('DefaultKindClient - createCluster', () => {
     sinon.stub(KindExecutionBuilder.prototype, 'build').returns(executionStub as any);
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     sinon.restore();
   });
 
-  it('should create a cluster and parse the response correctly', async () => {
+  it('should create a cluster and parse the response correctly', async (): Promise<void> => {
     // Use a different name pattern to test regex extraction
     const clusterName: string = 'dev-cluster';
     const contextName: string = 'kind-dev-cluster';
 
     // Create output that contains the necessary patterns but with different text
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<ClusterCreateResponse> => {
       const output: string = `Creating cluster "${clusterName}" ... ✓ Various steps completed ✓ Set kubectl context to "${contextName}"`;
       return Promise.resolve(new responseClass(output));
     });
@@ -45,7 +45,7 @@ describe('DefaultKindClient - createCluster', () => {
     expect(result.context).to.equal(contextName);
   });
 
-  it('should throw if responseAs throws', async () => {
+  it('should throw if responseAs throws', async (): Promise<void> => {
     executionStub.responseAs.rejects(new Error('fail'));
 
     try {
@@ -56,11 +56,11 @@ describe('DefaultKindClient - createCluster', () => {
     }
   });
 
-  it('should extract cluster name with special characters', async () => {
+  it('should extract cluster name with special characters', async (): Promise<void> => {
     const clusterName: string = 'my.cluster-with_special-chars_123';
     const contextName: string = `kind-${clusterName}`;
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<ClusterCreateResponse> => {
       const output: string = `Creating cluster "${clusterName}" ... [some logs] Set kubectl context to "${contextName}"`;
       return Promise.resolve(new responseClass(output));
     });
@@ -71,10 +71,10 @@ describe('DefaultKindClient - createCluster', () => {
     expect(result.context).to.equal(contextName);
   });
 
-  it('should handle missing context information gracefully', async () => {
+  it('should handle missing context information gracefully', async (): Promise<void> => {
     const clusterName: string = 'partial-output-cluster';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<ClusterCreateResponse> => {
       // Output missing the context part
       const output: string = `Creating cluster "${clusterName}" ... ✓ Various steps completed`;
       return Promise.resolve(new responseClass(output));
@@ -86,7 +86,7 @@ describe('DefaultKindClient - createCluster', () => {
     expect(result.context).to.be.undefined;
   });
 
-  it('should pass cluster name and options to execution builder', async () => {
+  it('should pass cluster name and options to execution builder', async (): Promise<void> => {
     const clusterName: string = 'options-test-cluster';
     const options: ClusterCreateOptions = {
       config: './custom-config.yaml',
@@ -122,7 +122,7 @@ describe('DefaultKindClient - createCluster', () => {
     expect(flagSpy.calledWith('retain')).to.be.true;
   });
 
-  it('should handle boolean options correctly', async () => {
+  it('should handle boolean options correctly', async (): Promise<void> => {
     const clusterName: string = 'boolean-options-cluster';
 
     // Test with boolean options turned on and off
@@ -147,7 +147,7 @@ describe('DefaultKindClient - createCluster', () => {
     expect(argumentSpy.calledWith('name', clusterName)).to.be.true;
   });
 
-  it('should handle string options correctly', async () => {
+  it('should handle string options correctly', async (): Promise<void> => {
     const clusterName: string = 'mixed-options-cluster';
     const options: ClusterCreateOptions = {
       wait: '60s',
@@ -168,11 +168,11 @@ describe('DefaultKindClient - createCluster', () => {
     expect(argumentSpy.calledWith('image', 'kindest/node:v1.29.0')).to.be.true;
   });
 
-  it('should handle no options provided', async () => {
+  it('should handle no options provided', async (): Promise<void> => {
     const clusterName: string = 'default-options-cluster';
     const contextName: string = 'kind-default-options-cluster';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<ClusterCreateResponse> => {
       const output: string = `Creating cluster "${clusterName}" ... completed ... Set kubectl context to "${contextName}"`;
       return Promise.resolve(new responseClass(output));
     });

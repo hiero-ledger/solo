@@ -46,4 +46,16 @@ describe('core/templates', (): void => {
       expect(fqdn).to.equal(node.fullyQualifiedDomainName);
     }
   });
+
+  it('should render mirror node service URLs', (): void => {
+    expect(Templates.renderMirrorNodeIngressControllerUrl('solo')).to.equal(
+      'http://mirror-ingress-controller-solo.solo.svc.cluster.local',
+    );
+    expect(Templates.renderMirrorNodeRestServiceUrl('mirror-1', 'solo')).to.equal(
+      'http://mirror-1-rest.solo.svc.cluster.local',
+    );
+    expect(Templates.renderMirrorNodeWeb3ServiceUrl('mirror-1', 'solo')).to.equal(
+      'http://mirror-1-web3.solo.svc.cluster.local',
+    );
+  });
 });

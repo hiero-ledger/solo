@@ -197,10 +197,58 @@ describe('SharedResourceManager', (): void => {
       await manager.installChart(namespace, '', chartVersion, context);
 
       const valueArguments: string[] = chartValueArguments();
+      const postgresNodeSelectorArgument: string = String.raw`postgresql.primary.nodeSelector.solo\.hashgraph\.io/role=database`;
 
-      expect(valueArguments).to.include(String.raw`postgresql.primary.nodeSelector.solo\.hashgraph\.io/role=database`);
+      expect(valueArguments).to.include(postgresNodeSelectorArgument);
+      expect(valueArguments[valueArguments.indexOf(postgresNodeSelectorArgument) - 1]).to.equal('--set-string');
       expect(valueArguments).to.include('postgresql.primary.tolerations[0].value=adhoc-single-day-test');
       expect(valueArguments).to.include('redis.replica.tolerations[0].value=adhoc-performance-test');
+    });
+
+    it('adds role scheduling to redis from mirror components when redis does not define it', async (): Promise<void> => {
+      const valuesFilePath: string = PathEx.join(temporaryDirectory, 'redis-role-fallback-values.yaml');
+      fs.writeFileSync(
+        valuesFilePath,
+        [
+          'nodeSelector:',
+          '  solo.hashgraph.io/owner: "adhoc-performance-test"',
+          '  solo.hashgraph.io/network-id: "7"',
+          'tolerations:',
+          '  - key: "solo.hashgraph.io/owner"',
+          '    operator: "Equal"',
+          '    value: "adhoc-performance-test"',
+          '    effect: "NoSchedule"',
+          '  - key: "solo.hashgraph.io/network-id"',
+          '    operator: "Equal"',
+          '    value: "7"',
+          '    effect: "NoSchedule"',
+          'redis:',
+          '  enabled: true',
+          'importer:',
+          '  nodeSelector:',
+          '    solo.hashgraph.io/role: "consensus-node"',
+          '  tolerations:',
+          '    - key: "solo.hashgraph.io/role"',
+          '      operator: "Equal"',
+          '      value: "consensus-node"',
+          '      effect: "NoSchedule"',
+          '',
+        ].join('\n'),
+      );
+
+      manager.setSchedulingChartValues(new HelmChartValues().file(valuesFilePath));
+
+      await manager.installChart(namespace, '', chartVersion, context);
+
+      const valueArguments: string[] = chartValueArguments();
+      const redisRoleSelectorArgument: string = String.raw`redis.replica.nodeSelector.solo\.hashgraph\.io/role=consensus-node`;
+
+      expect(valueArguments).to.include(redisRoleSelectorArgument);
+      expect(valueArguments[valueArguments.indexOf(redisRoleSelectorArgument) - 1]).to.equal('--set-string');
+      expect(valueArguments).to.include('redis.replica.tolerations[2].key=solo.hashgraph.io/role');
+      expect(valueArguments).to.include('redis.replica.tolerations[2].value=consensus-node');
+      expect(valueArguments).to.include('redis.master.tolerations[2].key=solo.hashgraph.io/role');
+      expect(valueArguments).to.include('redis.master.tolerations[2].value=consensus-node');
     });
 
     it('installs chart with the correct release name and chart name', async (): Promise<void> => {

@@ -5,53 +5,54 @@ import {Forest} from '../../../../../src/data/key/lexer/forest.js';
 import {ConfigKeyFormatter} from '../../../../../src/data/key/config-key-formatter.js';
 import {Lexer} from '../../../../../src/data/key/lexer/lexer.js';
 import {EnvironmentKeyFormatter} from '../../../../../src/data/key/environment-key-formatter.js';
+import {type Node} from '../../../../../src/data/key/lexer/node.js';
 
-describe('Lexer: Forest', () => {
+describe('Lexer: Forest', (): void => {
   for (const item of [
     {formatter: ConfigKeyFormatter.instance(), type: 'config'},
     {formatter: EnvironmentKeyFormatter.instance(), type: 'environment'},
   ]) {
-    describe(`Using ${item.formatter.constructor.name}`, () => {
-      it('constructor with null lexer should throw error', () => {
+    describe(`Using ${item.formatter.constructor.name}`, (): void => {
+      it('constructor with null lexer should throw error', (): void => {
         // @ts-expect-error - testing private constructor
-        expect(() => new Forest(null, item.formatter)).to.throw('lexer must not be null or undefined');
+        expect((): Forest => new Forest(null, item.formatter)).to.throw('lexer must not be null or undefined');
       });
 
-      it('constructor with null formatter should throw error', () => {
+      it('constructor with null formatter should throw error', (): void => {
         // @ts-expect-error - testing private constructor
-        expect(() => new Forest(new Lexer(new Map<string, string>(), item.formatter), null)).to.throw(
+        expect((): Forest => new Forest(new Lexer(new Map<string, string>(), item.formatter), null)).to.throw(
           'formatter must not be null or undefined',
         );
       });
 
-      it('has with null key should throw error', () => {
+      it('has with null key should throw error', (): void => {
         const forest: Forest = Forest.from(new Map<string, string>(), item.formatter);
-        expect(() => forest.has(null)).to.throw('key must not be null or undefined');
+        expect((): boolean => forest.has(null)).to.throw('key must not be null or undefined');
       });
 
-      it('valueFor with null key should throw error', () => {
+      it('valueFor with null key should throw error', (): void => {
         const forest: Forest = Forest.from(new Map<string, string>(), item.formatter);
-        expect(() => forest.valueFor(null)).to.throw('key must not be null or undefined');
+        expect((): string => forest.valueFor(null)).to.throw('key must not be null or undefined');
       });
 
-      it('nodeFor with null key should throw error', () => {
+      it('nodeFor with null key should throw error', (): void => {
         const forest: Forest = Forest.from(new Map<string, string>(), item.formatter);
-        expect(() => forest.nodeFor(null)).to.throw('key must not be null or undefined');
+        expect((): Node => forest.nodeFor(null)).to.throw('key must not be null or undefined');
       });
 
-      it('nodeFor with empty key should throw error', () => {
+      it('nodeFor with empty key should throw error', (): void => {
         const forest: Forest = Forest.from(new Map<string, string>(), item.formatter);
-        expect(() => forest.nodeFor(item.type === 'config' ? '.' : '_')).to.throw('key must not be empty');
+        expect((): Node => forest.nodeFor(item.type === 'config' ? '.' : '_')).to.throw('key must not be empty');
       });
 
-      it('from with empty data should return empty forest', () => {
+      it('from with empty data should return empty forest', (): void => {
         const forest: Forest = Forest.from(new Map<string, string>(), item.formatter);
         expect(forest.has(convertKey('key', item.type))).to.be.false;
         expect(forest.valueFor(convertKey('key', item.type))).to.be.null;
         expect(forest.nodeFor(convertKey('key', item.type))).to.be.null;
       });
 
-      it('from with data should return forest', () => {
+      it('from with data should return forest', (): void => {
         const data: Map<string, string> = new Map<string, string>([
           [convertKey('root.leaf', item.type), 'value'],
           [convertKey('root.internal.leaf2', item.type), 'value2'],
@@ -65,13 +66,13 @@ describe('Lexer: Forest', () => {
         expect(forest.nodeFor(convertKey('root.internal.leaf2', item.type))).to.not.be.null;
       });
 
-      it('valueFor with a key that does not exist should return null', () => {
+      it('valueFor with a key that does not exist should return null', (): void => {
         const data: Map<string, string> = new Map<string, string>([[convertKey('root.leaf', item.type), 'value']]);
         const forest: Forest = Forest.from(data, item.formatter);
         expect(forest.valueFor(convertKey('root.internal.leaf2', item.type))).to.be.null;
       });
 
-      it('valueFor an internal node should return null', () => {
+      it('valueFor an internal node should return null', (): void => {
         const data: Map<string, string> = new Map<string, string>([
           [convertKey('root.internal.leaf', item.type), 'value'],
         ]);
@@ -80,12 +81,12 @@ describe('Lexer: Forest', () => {
         expect(forest.valueFor(convertKey('root.internal.leaf2', item.type))).to.be.null;
       });
 
-      it('toObject with empty data should return empty object', () => {
+      it('toObject with empty data should return empty object', (): void => {
         const forest: Forest = Forest.from(new Map<string, string>(), item.formatter);
         expect(forest.toObject()).to.eql({});
       });
 
-      it('toObject with data should return object', () => {
+      it('toObject with data should return object', (): void => {
         const data: Map<string, string> = new Map<string, string>([
           [convertKey('root.leaf', item.type), 'value'],
           [convertKey('root.internal.leaf2', item.type), 'value2'],
@@ -112,7 +113,7 @@ describe('Lexer: Forest', () => {
         }
       });
 
-      it('toObject with simple data should return object', () => {
+      it('toObject with simple data should return object', (): void => {
         const data: Map<string, string> = new Map<string, string>([[convertKey('root', item.type), 'stump']]);
         const forest: Forest = Forest.from(data, item.formatter);
         if (item.type === 'config') {

@@ -101,7 +101,7 @@ describe('KindDependencyManager', (): void => {
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
       runStub = sandbox.stub(kindDependencyManager, 'run');
-      runStub.withArgs(`"${fakeGlobalKindPath}" --version`).resolves([`kind version ${version.KIND_VERSION}`]);
+      runStub.withArgs(fakeGlobalKindPath, ['--version']).resolves([`kind version ${version.KIND_VERSION}`]);
       existsSyncStub = sandbox.stub(fs, 'existsSync').returns(true);
       existsSyncStub.withArgs(`${installationDirectory}/kind`).returns(false);
 

@@ -23,6 +23,7 @@ import {IntervalLockRenewalService} from '../lock/interval-lock-renewal.js';
 import {LockManager} from '../lock/lock-manager.js';
 import {OneShotState} from '../one-shot-state.js';
 import {CertificateManager} from '../certificate-manager.js';
+import {mkdirSync} from 'node:fs';
 import os from 'node:os';
 import * as version from '../../../version.js';
 import {NetworkNodes} from '../network-nodes.js';
@@ -66,7 +67,8 @@ import {ComponentFactory} from '../config/remote/component-factory.js';
 import {RemoteConfigValidator} from '../config/remote/remote-config-validator.js';
 import {type ConfigProvider} from '../../data/configuration/api/config-provider.js';
 import {DefaultConfigSource} from '../../data/configuration/impl/default-config-source.js';
-import {type SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
+import {SoloConfigSchema} from '../../data/schema/model/solo/solo-config-schema.js';
+import {EnvironmentAliasRegistry} from '../../data/schema/decorators/environment-alias-registry.js';
 import {SoloConfigSchemaDefinition} from '../../data/schema/migration/impl/solo/solo-config-schema-definition.js';
 import {BeanFactorySupplier} from './bean-factory-supplier.js';
 import {DefaultOneShotCommand} from '../../commands/one-shot/default-one-shot.js';
@@ -93,9 +95,7 @@ import {RapidFireCommand} from '../../commands/rapid-fire.js';
 import {RapidFireCommandDefinition} from '../../commands/command-definitions/rapid-fire-command-definition.js';
 import {BackupRestoreCommand} from '../../commands/backup-restore.js';
 import {BackupRestoreCommandDefinition} from '../../commands/command-definitions/backup-restore-command-definition.js';
-import {BrewPackageManager} from '../package-managers/brew-package-manager.js';
 import {OsPackageManager} from '../package-managers/os-package-manager.js';
-import {AptGetPackageManager} from '../package-managers/apt-get-package-manager.js';
 import {ClusterTaskManager} from '../cluster-task-manager.js';
 import {PostgresSharedResource} from '../shared-resources/postgres.js';
 import {SharedResourceManager} from '../shared-resources/shared-resource-manager.js';
@@ -104,6 +104,7 @@ import {CacheCommandDefinition} from '../../commands/command-definitions/cache-c
 import {CacheCommand} from '../../commands/cache.js';
 import {ImageCacheHandlerBuilder} from '../../integration/cache/impl/image-cache-handler-builder.js';
 import {DockerClient} from '../../integration/container-engine/docker-client.js';
+import {ContainerEngineResourceInspector} from '../../integration/container-engine/container-engine-resource-inspector.js';
 import {DefaultCacheHandlerRegistry} from '../../integration/cache/impl/default-cache-handler-registry.js';
 import {DefaultCacheHealthInspector} from '../../integration/cache/impl/default-cache-health-inspector.js';
 import {FileSystemCacheCatalogStore} from '../../integration/cache/impl/file-system-cache-catalog-store.js';
@@ -199,8 +200,6 @@ export class Container {
       new SingletonContainer(InjectTokens.TaskList, DefaultTaskList),
       new SingletonContainer(InjectTokens.Commands, Commands),
       new SingletonContainer(InjectTokens.MetricsServer, MetricsServerImpl),
-      new SingletonContainer(InjectTokens.BrewPackageManager, BrewPackageManager),
-      new SingletonContainer(InjectTokens.AptGetPackageManager, AptGetPackageManager),
       new SingletonContainer(InjectTokens.OsPackageManager, OsPackageManager),
       new SingletonContainer(InjectTokens.ClusterTaskManager, ClusterTaskManager),
       new SingletonContainer(InjectTokens.PostgresSharedResource, PostgresSharedResource),
@@ -212,6 +211,7 @@ export class Container {
       new SingletonContainer(InjectTokens.CacheHealthInspector, DefaultCacheHealthInspector),
       new SingletonContainer(InjectTokens.ImageCacheHandlerBuilder, ImageCacheHandlerBuilder),
       new SingletonContainer(InjectTokens.ContainerEngineClient, DockerClient),
+      new SingletonContainer(InjectTokens.ContainerEngineResourceInspector, ContainerEngineResourceInspector),
 
       // Command Definitions
       new SingletonContainer(InjectTokens.BackupRestoreCommandDefinition, BackupRestoreCommandDefinition),
@@ -277,6 +277,10 @@ export class Container {
         (container: DependencyContainer): ConfigProvider => {
           const objectMapper: ClassToObjectMapper = container.resolve<ClassToObjectMapper>(InjectTokens.ObjectMapper);
 
+          // Register the root schema so environment variable aliases
+          // can be resolved by the EnvironmentConfigSource.
+          EnvironmentAliasRegistry.registerRootSchema(SoloConfigSchema);
+
           const helmChartConfigSource: DefaultConfigSource<SoloConfigSchema> =
             new DefaultConfigSource<SoloConfigSchema>(
               'helm-chart-config.yaml',
@@ -324,6 +328,9 @@ export class Container {
       container.resolve<SoloLogger>(InjectTokens.SoloLogger).debug('Container already initialized');
       return;
     }
+
+    // Services such as the local config storage backend require the home directory to exist at construction time.
+    mkdirSync(homeDirectory, {recursive: true});
 
     const singletonContainers: SingletonContainer[] = Container.singletonContainers();
 

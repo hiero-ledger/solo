@@ -10,7 +10,7 @@ import {KindExecution} from '../../../../../src/integration/kind/execution/kind-
 import {LoadDockerImageResponse} from '../../../../../src/integration/kind/model/load-docker-image/load-docker-image-response.js';
 import {LoadDockerImageOptions} from '../../../../../src/integration/kind/model/load-docker-image/load-docker-image-options.js';
 
-describe('DefaultKindClient.loadDockerImage', () => {
+describe('DefaultKindClient.loadDockerImage', (): void => {
   let client: DefaultKindClient;
   let executionBuilderStub: sinon.SinonStubbedInstance<KindExecutionBuilder>;
   let executionStub: sinon.SinonStubbedInstance<KindExecution>;
@@ -18,7 +18,7 @@ describe('DefaultKindClient.loadDockerImage', () => {
   let builderPositionals: string[];
   let builderSubcommands: string[];
 
-  beforeEach(() => {
+  beforeEach((): void => {
     client = new DefaultKindClient('/usr/local/bin/kind');
     executionBuilderStub = sinon.createStubInstance(KindExecutionBuilder);
     executionStub = sinon.createStubInstance(KindExecution);
@@ -31,32 +31,36 @@ describe('DefaultKindClient.loadDockerImage', () => {
     sinon.stub(KindExecutionBuilder.prototype, 'build').returns(executionStub as any);
 
     // Track the arguments and subcommands for verification
-    sinon.stub(KindExecutionBuilder.prototype, 'argument').callsFake((name: string, value: string) => {
-      builderArguments.set(name, value);
-      return KindExecutionBuilder.prototype;
-    });
-    sinon.stub(KindExecutionBuilder.prototype, 'positional').callsFake((value: string) => {
+    sinon
+      .stub(KindExecutionBuilder.prototype, 'argument')
+      .callsFake((name: string, value: string): KindExecutionBuilder => {
+        builderArguments.set(name, value);
+        return KindExecutionBuilder.prototype;
+      });
+    sinon.stub(KindExecutionBuilder.prototype, 'positional').callsFake((value: string): KindExecutionBuilder => {
       builderPositionals.push(value);
       return KindExecutionBuilder.prototype;
     });
 
-    sinon.stub(KindExecutionBuilder.prototype, 'subcommands').callsFake((...commands: string[]) => {
-      builderSubcommands.push(...commands);
-      return KindExecutionBuilder.prototype;
-    });
+    sinon
+      .stub(KindExecutionBuilder.prototype, 'subcommands')
+      .callsFake((...commands: string[]): KindExecutionBuilder => {
+        builderSubcommands.push(...commands);
+        return KindExecutionBuilder.prototype;
+      });
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     sinon.restore();
   });
 
-  it('should call the correct subcommands when loading a docker image', async () => {
+  it('should call the correct subcommands when loading a docker image', async (): Promise<void> => {
     const imageName: string = 'test-image:latest';
     const imageId: string = 'sha256:1234567890abcdef';
     const mockOutput: string = `Image: "${imageName}" with ID "${imageId}"`;
 
     // Create output that contains the necessary patterns but with different text
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<LoadDockerImageResponse> => {
       return Promise.resolve(new responseClass(mockOutput));
     });
 
@@ -71,7 +75,7 @@ describe('DefaultKindClient.loadDockerImage', () => {
     expect(builderSubcommands).to.include('docker-image');
   });
 
-  it('should throw if responseAs rejects', async () => {
+  it('should throw if responseAs rejects', async (): Promise<void> => {
     const imageName: string = 'test-image:fail';
     executionStub.responseAs.rejects(new Error('Failed to load image'));
 
@@ -83,13 +87,13 @@ describe('DefaultKindClient.loadDockerImage', () => {
     }
   });
 
-  it('should pass nodes parameter when provided in options', async () => {
+  it('should pass nodes parameter when provided in options', async (): Promise<void> => {
     const imageName: string = 'test-image:latest';
     const nodes: string = 'control-plane,worker1,worker2';
     const options: LoadDockerImageOptions = new LoadDockerImageOptions(undefined, undefined, nodes);
     const mockOutput: string = `Image: "${imageName}" with ID "sha256:1234567890abcdef"`;
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<LoadDockerImageResponse> => {
       return Promise.resolve(new responseClass(mockOutput));
     });
 
@@ -99,14 +103,14 @@ describe('DefaultKindClient.loadDockerImage', () => {
     expect(builderArguments.get('nodes')).to.equal(nodes);
   });
 
-  it('should handle all parameters', async () => {
+  it('should handle all parameters', async (): Promise<void> => {
     const imageName: string = 'test-image:latest';
     const clusterName: string = 'custom-cluster';
     const nodes: string = 'worker1,worker2';
     const options: LoadDockerImageOptions = new LoadDockerImageOptions(imageName, clusterName, nodes);
     const mockOutput: string = `Image: "${imageName}" with ID "sha256:1234567890abcdef"`;
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<LoadDockerImageResponse> => {
       return Promise.resolve(new responseClass(mockOutput));
     });
 
@@ -119,12 +123,12 @@ describe('DefaultKindClient.loadDockerImage', () => {
     expect(builderArguments.get('nodes')).to.equal(nodes);
   });
 
-  it('should parse complex image names correctly', async () => {
+  it('should parse complex image names correctly', async (): Promise<void> => {
     const imageName: string = 'registry.example.com:5000/org/repo/image:v1.2.3-alpha.1';
     const imageId: string = 'sha256:abcdef1234567890';
     const mockOutput: string = `Image: "${imageName}" with ID "${imageId}"`;
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<LoadDockerImageResponse> => {
       return Promise.resolve(new responseClass(mockOutput));
     });
 
@@ -135,11 +139,11 @@ describe('DefaultKindClient.loadDockerImage', () => {
     expect(result.imageId).to.equal(imageId);
   });
 
-  it('should handle malformed output format gracefully', async () => {
+  it('should handle malformed output format gracefully', async (): Promise<void> => {
     const imageName: string = 'test-image:latest';
     const mockOutput: string = 'Kind loaded something but in an unexpected format';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<LoadDockerImageResponse> => {
       return Promise.resolve(new responseClass(mockOutput));
     });
 
@@ -151,11 +155,11 @@ describe('DefaultKindClient.loadDockerImage', () => {
     expect(result.imageId).to.be.undefined;
   });
 
-  it('should handle output with only image name but no ID', async () => {
+  it('should handle output with only image name but no ID', async (): Promise<void> => {
     const imageName: string = 'test-image:latest';
     const mockOutput: string = `Image: "${imageName}" loaded successfully`;
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<LoadDockerImageResponse> => {
       return Promise.resolve(new responseClass(mockOutput));
     });
 
@@ -166,7 +170,7 @@ describe('DefaultKindClient.loadDockerImage', () => {
     expect(result.imageId).to.be.undefined;
   });
 
-  it('should handle multi-line output format', async () => {
+  it('should handle multi-line output format', async (): Promise<void> => {
     const imageName: string = 'test-image:latest';
     const imageId: string = 'sha256:abcdef1234567890';
     const mockOutput: string = `Loading image: "${imageName}"
@@ -174,7 +178,7 @@ Processing...
 Complete!
 Image: "${imageName}" with ID "${imageId}"`;
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<LoadDockerImageResponse> => {
       return Promise.resolve(new responseClass(mockOutput));
     });
 

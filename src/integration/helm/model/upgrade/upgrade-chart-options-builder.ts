@@ -13,6 +13,7 @@ export class UpgradeChartOptionsBuilder {
   private _version?: string;
   private _install: boolean = false;
   private _createNamespace: boolean = false;
+  private _dependencyUpdate: boolean = false;
 
   private constructor() {}
 
@@ -88,6 +89,16 @@ export class UpgradeChartOptionsBuilder {
     return this;
   }
 
+  /**
+   * Sets whether to run helm dependency update before upgrading.
+   * @param dependencyUpdate Whether to update dependencies.
+   * @returns This builder instance.
+   */
+  public dependencyUpdate(dependencyUpdate: boolean): UpgradeChartOptionsBuilder {
+    this._dependencyUpdate = dependencyUpdate;
+    return this;
+  }
+
   public build(): UpgradeChartOptions {
     return new UpgradeChartOptions(
       this._namespace,
@@ -97,6 +108,7 @@ export class UpgradeChartOptionsBuilder {
       this._version,
       this._install,
       this._createNamespace,
+      this._dependencyUpdate,
     );
   }
 }

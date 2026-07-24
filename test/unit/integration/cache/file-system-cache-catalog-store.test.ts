@@ -9,6 +9,7 @@ import fs from 'node:fs/promises';
 import {FileSystemCacheCatalogStore} from '../../../../src/integration/cache/impl/file-system-cache-catalog-store.js';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
 import {CacheArtifactEnum} from '../../../../src/integration/cache/enums/cache-artifact-enum.js';
+import {type CacheCatalog} from '../../../../src/integration/cache/models/impl/cache-catalog.js';
 
 describe('FileSystemCacheCatalogStore', (): void => {
   let store: FileSystemCacheCatalogStore;
@@ -34,7 +35,7 @@ describe('FileSystemCacheCatalogStore', (): void => {
   afterEach((): void => sinon.restore());
 
   it('should save catalog to cache-catalog.json', async (): Promise<void> => {
-    const catalog = {items: [{id: '1'}]};
+    const catalog: {items: {id: string}[]} = {items: [{id: '1'}]};
 
     await store.save(catalog as never);
 
@@ -45,7 +46,7 @@ describe('FileSystemCacheCatalogStore', (): void => {
   it('should load catalog from cache-catalog.json', async (): Promise<void> => {
     readFileStub.resolves('{"items":[{"id":"1"}]}');
 
-    const result = await store.load();
+    const result: CacheCatalog = await store.load();
 
     expect(readFileStub).to.have.been.calledOnceWith(catalogPath, 'utf8');
     expect(result).to.deep.equal({items: [{id: '1'}]});
@@ -70,7 +71,7 @@ describe('FileSystemCacheCatalogStore', (): void => {
   });
 
   it('should resolve safe artifact path', (): void => {
-    const target = {
+    const target: {name: string; version: string} = {
       name: 'ghcr.io/hashgraph/solo:test',
       version: '1.2.3',
     };

@@ -7,7 +7,7 @@ import {CacheArtifactEnum} from '../../../../src/integration/cache/enums/cache-a
 describe('DefaultCacheHandlerRegistry', (): void => {
   it('should register and retrieve a handler by type', (): void => {
     const registry: DefaultCacheHandlerRegistry = new DefaultCacheHandlerRegistry();
-    const handler = {
+    const handler: {getType: () => CacheArtifactEnum} = {
       getType: (): CacheArtifactEnum => CacheArtifactEnum.IMAGE,
     };
 
@@ -19,13 +19,19 @@ describe('DefaultCacheHandlerRegistry', (): void => {
   it('should throw when handler is not registered', (): void => {
     const registry: DefaultCacheHandlerRegistry = new DefaultCacheHandlerRegistry();
 
-    expect(() => registry.getHandler(CacheArtifactEnum.IMAGE)).to.throw('No handler registered for type: images');
+    expect((): unknown => registry.getHandler(CacheArtifactEnum.IMAGE)).to.throw(
+      'No handler registered for type: images',
+    );
   });
 
   it('should return all registered handlers', (): void => {
     const registry: DefaultCacheHandlerRegistry = new DefaultCacheHandlerRegistry();
-    const imageHandler = {getType: (): CacheArtifactEnum => CacheArtifactEnum.IMAGE};
-    const chartHandler = {getType: (): CacheArtifactEnum => CacheArtifactEnum.HELM_CHART};
+    const imageHandler: {getType: () => CacheArtifactEnum} = {
+      getType: (): CacheArtifactEnum => CacheArtifactEnum.IMAGE,
+    };
+    const chartHandler: {getType: () => CacheArtifactEnum} = {
+      getType: (): CacheArtifactEnum => CacheArtifactEnum.HELM_CHART,
+    };
 
     registry.registerHandler(imageHandler as never);
     registry.registerHandler(chartHandler as never);
@@ -35,8 +41,8 @@ describe('DefaultCacheHandlerRegistry', (): void => {
 
   it('should replace handler for same type', (): void => {
     const registry: DefaultCacheHandlerRegistry = new DefaultCacheHandlerRegistry();
-    const handler1 = {getType: (): CacheArtifactEnum => CacheArtifactEnum.IMAGE};
-    const handler2 = {getType: (): CacheArtifactEnum => CacheArtifactEnum.IMAGE};
+    const handler1: {getType: () => CacheArtifactEnum} = {getType: (): CacheArtifactEnum => CacheArtifactEnum.IMAGE};
+    const handler2: {getType: () => CacheArtifactEnum} = {getType: (): CacheArtifactEnum => CacheArtifactEnum.IMAGE};
 
     registry.registerHandler(handler1 as never);
     registry.registerHandler(handler2 as never);

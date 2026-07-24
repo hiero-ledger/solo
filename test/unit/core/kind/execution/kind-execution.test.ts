@@ -12,8 +12,14 @@ class MockKindExecution {
   private errOutput: string[] = [];
   private exitCodeValue: number | null = null;
   private mockProcess: EventEmitter;
+  private readonly command: string[];
+  private readonly workingDirectory: string;
+  private readonly environmentVariables: Record<string, string>;
 
-  constructor(_command: string[], _workingDirectory: string, _environmentVariables: Record<string, string>) {
+  constructor(command: string[], workingDirectory: string, environmentVariables: Record<string, string>) {
+    this.command = command;
+    this.workingDirectory = workingDirectory;
+    this.environmentVariables = environmentVariables;
     // eslint-disable-next-line unicorn/prefer-event-target
     this.mockProcess = new EventEmitter();
     // @ts-expect-error TS2339: Property stdout does not exist on type EventEmitter<DefaultEventMap>
@@ -29,10 +35,10 @@ class MockKindExecution {
 
     // Listen for events from our mock process
     // @ts-expect-error TS2339: Property stdout does not exist on type EventEmitter<DefaultEventMap>
-    this.mockProcess.stdout.on('data', data => this.output.push(data.toString()));
+    this.mockProcess.stdout.on('data', (data): number => this.output.push(data.toString()));
     // @ts-expect-error TS2339: Property stderr does not exist on type EventEmitter<DefaultEventMap>
-    this.mockProcess.stderr.on('data', data => this.errOutput.push(data.toString()));
-    this.mockProcess.on('exit', code => {
+    this.mockProcess.stderr.on('data', (data): number => this.errOutput.push(data.toString()));
+    this.mockProcess.on('exit', (code): void => {
       this.exitCodeValue = code ?? 0;
     });
   }
@@ -58,14 +64,14 @@ class MockKindExecution {
 
   // Implement the methods being tested
   public async waitForCompletion(timeout?: number): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject): void => {
       if (timeout) {
-        setTimeout(() => {
+        setTimeout((): void => {
           reject(new Error('Timed out waiting for the process to complete'));
         }, timeout);
       }
 
-      this.mockProcess.on('exit', code => {
+      this.mockProcess.on('exit', (code): void => {
         if (code === 0) {
           resolve();
         } else {
@@ -73,7 +79,7 @@ class MockKindExecution {
         }
       });
 
-      this.mockProcess.on('error', error => {
+      this.mockProcess.on('error', (error): void => {
         reject(error);
       });
     });
@@ -84,7 +90,7 @@ class MockKindExecution {
       await this.waitForCompletion();
 
       try {
-        const constructor = clazz as unknown as {fromString(string_: string): T};
+        const constructor: {fromString(string_: string): T} = clazz as unknown as {fromString(string_: string): T};
         return constructor.fromString(this.output.join(''));
       } catch (error) {
         throw new KindParserException(
@@ -104,15 +110,15 @@ class MockKindExecution {
     try {
       await this.waitForCompletion();
 
-      const lines = this.output
+      const lines: string[] = this.output
         .join('')
         .split('\n')
-        .filter(line => line.trim().length > 0);
+        .filter((line): boolean => line.trim().length > 0);
       const result: T[] = [];
 
       for (const line of lines) {
         try {
-          const constructor = clazz as unknown as {fromString(string_: string): T};
+          const constructor: {fromString(string_: string): T} = clazz as unknown as {fromString(string_: string): T};
           result.push(constructor.fromString(line));
         } catch (error) {
           throw new KindParserException(
@@ -132,27 +138,27 @@ class MockKindExecution {
   }
 }
 
-describe('KindExecution', () => {
+describe('KindExecution', (): void => {
   let execution: MockKindExecution;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     // Create a test execution using our mock class
     execution = new MockKindExecution(['kind', 'create', 'cluster'], '/test/working/dir', {TEST_ENV: 'value'});
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     Sinon.restore();
   });
 
-  describe('constructor', () => {
-    it('should initialize the mock process correctly', () => {
+  describe('constructor', (): void => {
+    it('should initialize the mock process correctly', (): void => {
       expect(execution).to.be.instanceOf(MockKindExecution);
     });
   });
 
-  describe('waitForCompletion', () => {
-    it('should resolve when process exits with code 0', async () => {
-      const promise = execution.waitForCompletion();
+  describe('waitForCompletion', (): void => {
+    it('should resolve when process exits with code 0', async (): Promise<void> => {
+      const promise: Promise<void> = execution.waitForCompletion();
 
       // Emit exit event with success code
       execution.emitExit(0);
@@ -160,8 +166,8 @@ describe('KindExecution', () => {
       await expect(promise).to.be.fulfilled;
     });
 
-    it('should reject when process exits with non-zero code', async () => {
-      const promise = execution.waitForCompletion();
+    it('should reject when process exits with non-zero code', async (): Promise<void> => {
+      const promise: Promise<void> = execution.waitForCompletion();
 
       // Emit stdout and stderr data
       execution.emitStdout('Some output');
@@ -173,8 +179,8 @@ describe('KindExecution', () => {
       await expect(promise).to.be.rejectedWith(KindExecutionException);
     });
 
-    it('should reject when process has an error', async () => {
-      const promise = execution.waitForCompletion();
+    it('should reject when process has an error', async (): Promise<void> => {
+      const promise: Promise<void> = execution.waitForCompletion();
 
       // Emit error event
       execution.emitError(new Error('Process error'));
@@ -182,9 +188,9 @@ describe('KindExecution', () => {
       await expect(promise).to.be.rejectedWith(Error, 'Process error');
     });
 
-    it('should timeout if the process takes too long', async () => {
-      const clock = Sinon.useFakeTimers();
-      const promise = execution.waitForCompletion(100); // 100ms timeout
+    it('should timeout if the process takes too long', async (): Promise<void> => {
+      const clock: any = Sinon.useFakeTimers();
+      const promise: Promise<void> = execution.waitForCompletion(100); // 100ms timeout
 
       // Advance the timer beyond the timeout
       clock.tick(200);
@@ -194,25 +200,25 @@ describe('KindExecution', () => {
     });
   });
 
-  describe('responseAs', () => {
+  describe('responseAs', (): void => {
     // Create a test class for responseAs testing
     class TestResponse {
       public value: string = '';
 
       public static fromString(string_: string): TestResponse {
-        const instance = new TestResponse();
+        const instance: TestResponse = new TestResponse();
         instance.value = string_.trim();
         return instance;
       }
     }
 
-    it('should parse successful response into the specified class', async () => {
-      const allPassing = await Promise.all([
+    it('should parse successful response into the specified class', async (): Promise<void> => {
+      const allPassing: Awaited<boolean>[] = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, _reject) => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
-            const result = await execution.responseAs(TestResponse);
+            const result: TestResponse = await execution.responseAs(TestResponse);
             expect(result).to.be.instanceOf(TestResponse);
             expect(result.value).to.equal('test response');
             resolve(true);
@@ -221,7 +227,7 @@ describe('KindExecution', () => {
           }
         }),
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async resolve => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           execution.emitStdout('test response');
           execution.emitExit(0);
           resolve(true);
@@ -231,10 +237,10 @@ describe('KindExecution', () => {
       expect(allPassing).to.deep.equal([true, true]);
     });
 
-    it('should reject if the process exits with error', async () => {
-      const allPassing = await Promise.all([
+    it('should reject if the process exits with error', async (): Promise<void> => {
+      const allPassing: Awaited<boolean>[] = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, _reject) => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestResponse is not assignable to parameter of type
             await execution.responseAs(TestResponse);
@@ -245,7 +251,7 @@ describe('KindExecution', () => {
           }
         }),
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async resolve => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           execution.emitStderr('error output');
           execution.emitExit(1);
           resolve(true);
@@ -255,7 +261,7 @@ describe('KindExecution', () => {
       expect(allPassing).to.deep.equal([false, true]);
     });
 
-    it('should reject if parsing fails', async () => {
+    it('should reject if parsing fails', async (): Promise<void> => {
       // Setup a class that will throw during parsing
       class FailingClass {
         public static fromString(): FailingClass {
@@ -263,9 +269,9 @@ describe('KindExecution', () => {
         }
       }
 
-      const allPassing = await Promise.all([
+      const allPassing: Awaited<boolean>[] = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, _reject) => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof FailingClass is not assignable to parameter of type
             await execution.responseAs(FailingClass);
@@ -276,7 +282,7 @@ describe('KindExecution', () => {
           }
         }),
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async resolve => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           execution.emitStdout('some output');
           execution.emitExit(0);
           resolve(true);
@@ -287,24 +293,24 @@ describe('KindExecution', () => {
     });
   });
 
-  describe('responseAsList', () => {
+  describe('responseAsList', (): void => {
     class TestItem {
       public value: string = '';
 
       public static fromString(string_: string): TestItem {
-        const instance = new TestItem();
+        const instance: TestItem = new TestItem();
         instance.value = string_.trim();
         return instance;
       }
     }
 
-    it('should parse successful response into a list of the specified class', async () => {
-      const allPassing = await Promise.all([
+    it('should parse successful response into a list of the specified class', async (): Promise<void> => {
+      const allPassing: Awaited<boolean>[] = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, _reject) => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestItem is not assignable to parameter of type
-            const result = await execution.responseAsList(TestItem);
+            const result: TestItem[] = await execution.responseAsList(TestItem);
             expect(result).to.be.an('array').with.lengthOf(3);
             expect(result[0]).to.be.instanceOf(TestItem);
             expect(result[0].value).to.equal('item1');
@@ -316,7 +322,7 @@ describe('KindExecution', () => {
           }
         }),
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async resolve => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           execution.emitStdout('item1\nitem2\nitem3');
           execution.emitExit(0);
           resolve(true);
@@ -326,13 +332,13 @@ describe('KindExecution', () => {
       expect(allPassing).to.deep.equal([true, true]);
     });
 
-    it('should handle empty output', async () => {
-      const allPassing = await Promise.all([
+    it('should handle empty output', async (): Promise<void> => {
+      const allPassing: Awaited<boolean>[] = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, _reject) => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof TestItem is not assignable to parameter of type
-            const result = await execution.responseAsList(TestItem);
+            const result: TestItem[] = await execution.responseAsList(TestItem);
             expect(result).to.be.an('array').with.lengthOf(0);
             resolve(true);
           } catch {
@@ -340,7 +346,7 @@ describe('KindExecution', () => {
           }
         }),
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async resolve => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           execution.emitStdout('');
           execution.emitExit(0);
           resolve(true);
@@ -350,19 +356,19 @@ describe('KindExecution', () => {
       expect(allPassing).to.deep.equal([true, true]);
     });
 
-    it('should reject if parsing fails', async () => {
+    it('should reject if parsing fails', async (): Promise<void> => {
       class FailingItem {
         public static fromString(): FailingItem {
           throw new Error('Parsing error');
         }
       }
 
-      const allPassing = await Promise.all([
+      const allPassing: Awaited<boolean>[] = await Promise.all([
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async (resolve, _reject) => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           try {
             // @ts-expect-error TS2345: Argument of type typeof FailingItem is not assignable to parameter of type
-            const result = await execution.responseAsList(FailingItem);
+            const result: FailingItem[] = await execution.responseAsList(FailingItem);
             expect(result).to.be.an('array').with.lengthOf(0);
             resolve(true);
           } catch (error) {
@@ -371,7 +377,7 @@ describe('KindExecution', () => {
           }
         }),
         // eslint-disable-next-line no-async-promise-executor
-        new Promise<boolean>(async resolve => {
+        new Promise<boolean>(async (resolve): Promise<void> => {
           execution.emitStdout('item1\nitem2');
           execution.emitExit(0);
           resolve(true);

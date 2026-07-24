@@ -21,15 +21,64 @@ import {AddRepoOptionsBuilder} from '../integration/helm/model/add/add-repo-opti
 import {AddRepoOptions} from '../integration/helm/model/add/add-repo-options.js';
 import {UnInstallChartOptions} from '../integration/helm/model/install/un-install-chart-options.js';
 import {HelmChartValues} from '../integration/helm/model/values.js';
+import fs from 'node:fs/promises';
+import {type Stats} from 'node:fs';
+import {CacheTarget} from '../integration/cache/models/impl/cache-target.js';
+import {CacheArtifactEnum} from '../integration/cache/enums/cache-artifact-enum.js';
+import {type CacheCatalogStore} from '../integration/cache/api/cache-catalog-store.js';
+import {type CacheHealthInspector} from '../integration/cache/api/cache-health-inspector.js';
 
 @injectable()
 export class ChartManager {
+  /** Log-message fragment emitted when a chart is installed or upgraded from the local chart cache. */
+  public static readonly INSTALLED_FROM_CACHE_MESSAGE_FRAGMENT: string = 'from cached chart archive';
+
   public constructor(
     @inject(InjectTokens.Helm) private readonly helm?: HelmClient,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
+    @inject(InjectTokens.CacheCatalogStore) private readonly cacheCatalogStore?: CacheCatalogStore,
+    @inject(InjectTokens.CacheHealthInspector) private readonly cacheHealthInspector?: CacheHealthInspector,
   ) {
     this.helm = patchInject(helm, InjectTokens.Helm, this.constructor.name);
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+    this.cacheCatalogStore = patchInject(cacheCatalogStore, InjectTokens.CacheCatalogStore, this.constructor.name);
+    this.cacheHealthInspector = patchInject(
+      cacheHealthInspector,
+      InjectTokens.CacheHealthInspector,
+      this.constructor.name,
+    );
+  }
+
+  /**
+   * Resolves the local path to a cached chart tarball for the given chart, when one is available.
+   *
+   * Returns undefined (so callers fall back to a normal network install) when the version is empty,
+   * when {@link repoName} points to an explicit local chart directory (dev mode must not be overridden),
+   * or when no matching tarball has been pulled into the cache via `solo cache chart pull`.
+   */
+  private async resolveCachedChartPath(
+    chartName: string,
+    version: string,
+    repoName: string,
+  ): Promise<string | undefined> {
+    if (!version) {
+      return undefined;
+    }
+
+    try {
+      const stats: Stats = await fs.stat(repoName);
+      if (stats.isDirectory()) {
+        // An explicit local chart directory was provided; honor it over the cache.
+        return undefined;
+      }
+    } catch {
+      // repoName is a remote reference (repository URL, OCI reference, or alias), not a local path — continue.
+    }
+
+    const target: CacheTarget = new CacheTarget(CacheArtifactEnum.HELM_CHART, chartName, version);
+    const archivePath: string = this.cacheCatalogStore.resolvePath(target, CacheArtifactEnum.HELM_CHART);
+
+    return (await this.cacheHealthInspector.exists(archivePath)) ? archivePath : undefined;
   }
 
   /**
@@ -127,6 +176,7 @@ export class ChartManager {
     kubeContext: string,
     atomic: boolean = false,
     waitFor: boolean = false,
+    dependencyUpdate: boolean = false,
   ): Promise<boolean> {
     try {
       const isInstalled: boolean = await this.isChartInstalled(namespaceName, chartReleaseName, kubeContext);
@@ -135,13 +185,17 @@ export class ChartManager {
       } else {
         this.logger.debug(`> installing chart:${chartName}`);
 
+        const cachedChartPath: string | undefined = await this.resolveCachedChartPath(chartName, version, repoName);
+
         const builder: InstallChartOptionsBuilder = InstallChartOptionsBuilder.builder()
           .kubeContext(kubeContext)
           .atomic(atomic)
           .waitFor(waitFor)
-          .valueArguments(chartValues.toArguments());
+          .valueArguments(chartValues.toArguments())
+          .dependencyUpdate(dependencyUpdate);
 
-        if (version) {
+        // A local chart tarball is self-describing; `helm install` rejects `--version` for a local chart.
+        if (version && !cachedChartPath) {
           builder.version(version);
         }
 
@@ -151,7 +205,15 @@ export class ChartManager {
         }
 
         const options: InstallChartOptions = builder.build();
-        await this.helm.installChart(chartReleaseName, new Chart(chartName, repoName), options);
+        const chart: Chart = cachedChartPath ? new Chart(cachedChartPath) : new Chart(chartName, repoName);
+
+        if (cachedChartPath) {
+          this.logger.debug(
+            `Installing ${chartName} ${ChartManager.INSTALLED_FROM_CACHE_MESSAGE_FRAGMENT}: ${cachedChartPath}`,
+          );
+        }
+
+        await this.helm.installChart(chartReleaseName, chart, options);
         this.logger.debug(`OK: chart is installed: ${chartReleaseName} (${chartName}) (${repoName})`);
       }
     } catch (error) {
@@ -218,9 +280,12 @@ export class ChartManager {
     reuseValues: boolean = false,
     install: boolean = false,
     createNamespace: boolean = false,
+    dependencyUpdate: boolean = false,
   ): Promise<boolean> {
     try {
       this.logger.debug(chalk.cyan('> upgrading chart:'), chalk.yellow(`${chartReleaseName}`));
+
+      const cachedChartPath: string | undefined = await this.resolveCachedChartPath(chartName, version, repoName);
 
       const builder: UpgradeChartOptionsBuilder = UpgradeChartOptionsBuilder.builder()
         .reuseValues(reuseValues)
@@ -228,14 +293,22 @@ export class ChartManager {
         .createNamespace(createNamespace)
         .namespace(namespaceName.name)
         .kubeContext(kubeContext)
-        .valueArguments(chartValues.toArguments());
+        .valueArguments(chartValues.toArguments())
+        .dependencyUpdate(dependencyUpdate);
 
-      if (version) {
+      // A local chart tarball is self-describing; `helm upgrade` rejects `--version` for a local chart.
+      if (version && !cachedChartPath) {
         builder.version(version);
       }
 
       const options: UpgradeChartOptions = builder.build();
-      const chart: Chart = new Chart(chartName, repoName);
+      const chart: Chart = cachedChartPath ? new Chart(cachedChartPath) : new Chart(chartName, repoName);
+
+      if (cachedChartPath) {
+        this.logger.debug(
+          `Upgrading ${chartReleaseName} ${ChartManager.INSTALLED_FROM_CACHE_MESSAGE_FRAGMENT}: ${cachedChartPath}`,
+        );
+      }
 
       await this.helm.upgradeChart(chartReleaseName, chart, options);
       this.logger.debug(chalk.green('OK'), `chart '${chartReleaseName}' is upgraded`);

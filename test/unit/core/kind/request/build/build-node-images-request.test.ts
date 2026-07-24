@@ -6,23 +6,23 @@ import {BuildNodeImagesRequest} from '../../../../../../src/integration/kind/req
 import {type KindExecutionBuilder} from '../../../../../../src/integration/kind/execution/kind-execution-builder.js';
 import {type BuildNodeImagesOptions} from '../../../../../../src/integration/kind/model/build-node-images/build-node-images-options.js';
 
-describe('BuildNodeImagesRequest', () => {
+describe('BuildNodeImagesRequest', (): void => {
   let builder: KindExecutionBuilder;
   let request: BuildNodeImagesRequest;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     // Create a stub for the builder
     builder = {
       subcommands: Sinon.stub().returnsThis(),
     } as unknown as KindExecutionBuilder;
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     Sinon.restore();
   });
 
-  describe('apply', () => {
-    it('should add build node-image subcommands to the builder', () => {
+  describe('apply', (): void => {
+    it('should add build node-image subcommands to the builder', (): void => {
       // Create request with null options
       request = new BuildNodeImagesRequest(null as unknown as BuildNodeImagesOptions);
 
@@ -33,9 +33,9 @@ describe('BuildNodeImagesRequest', () => {
       expect(builder.subcommands).to.have.been.calledOnceWith('build', 'node-image');
     });
 
-    it('should delegate to options.apply when options are provided', () => {
+    it('should delegate to options.apply when options are provided', (): void => {
       // Create mock options with a stub for apply method
-      const options = {apply: Sinon.stub()} as unknown as BuildNodeImagesOptions;
+      const options: BuildNodeImagesOptions = {apply: Sinon.stub()} as unknown as BuildNodeImagesOptions;
 
       // Create request with options
       request = new BuildNodeImagesRequest(options);

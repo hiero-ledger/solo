@@ -42,10 +42,10 @@ import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js'
 import {inject} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
-import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
 import {KindClient} from '../integration/kind/kind-client.js';
 import {type ClusterCreateResponse} from '../integration/kind/model/create-cluster/cluster-create-response.js';
 import {ShellRunner} from '../core/shell-runner.js';
+import {SubprocessCommandProfile} from '../core/subprocess-command-profile.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {Chart} from '../integration/helm/model/chart.js';
 import {Repository} from '../integration/helm/model/repository.js';
@@ -59,11 +59,9 @@ import {Container} from '../integration/kube/resources/container/container.js';
 @injectable()
 export class BackupRestoreCommand extends BaseCommand {
   public constructor(
-    @inject(InjectTokens.KindBuilder) protected readonly kindBuilder: DefaultKindClientBuilder,
     @inject(InjectTokens.KubectlInstallationDirectory) private readonly kubectlInstallationDirectory: string,
   ) {
     super();
-    this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, BackupRestoreCommand.name);
     this.kubectlInstallationDirectory = patchInject(
       kubectlInstallationDirectory,
       InjectTokens.KubectlInstallationDirectory,
@@ -290,7 +288,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Download Node Logs',
-          task: async (context_, task): Promise<void> => {
+          task: async (_, task): Promise<void> => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const [clusterReference, context] of clusterReferences.entries()) {
               const logsDirectory: string = PathEx.join(outputDirectory, clusterReference, 'logs');
@@ -301,7 +299,7 @@ export class BackupRestoreCommand extends BaseCommand {
         },
         {
           title: 'Download Node State Files',
-          task: async (context_, task): Promise<void> => {
+          task: async (_, task): Promise<void> => {
             const networkNodes: NetworkNodes = container.resolve<NetworkNodes>(InjectTokens.NetworkNodes);
             for (const node of consensusNodes) {
               const nodeAlias: NodeAlias = node.name;
@@ -322,9 +320,13 @@ export class BackupRestoreCommand extends BaseCommand {
           task: async (): Promise<void> => {
             const zipPassword: string = this.configManager.getFlag<string>(flags.zipPassword);
             const zipFile: string = this.configManager.getFlag<string>(flags.zipFile);
-            const compressionCommand: string = `cd "${outputDirectory}" && zip -rX -P "${zipPassword}" "${zipFile}" .`;
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
-            await shellRunner.run(compressionCommand, [], true, false);
+            // Run zip from the output directory (cwd) with an explicit argument array and no shell, so the
+            // password and file names cannot be interpreted by a shell.
+            await shellRunner.run('zip', ['-rX', '-P', zipPassword, zipFile, '.'], {
+              verbose: true,
+              workingDirectory: outputDirectory,
+            });
             this.logger.showUser(chalk.green(`Backup compressed to ${zipFile}`));
           },
         },
@@ -1368,9 +1370,9 @@ export class BackupRestoreCommand extends BaseCommand {
       fs.mkdirSync(targetDirectory, {recursive: true});
     }
 
-    const unzipCommand: string = `unzip -o -P "${zipPassword}" "${inputPath}" -d "${targetDirectory}"`;
     const shellRunner: ShellRunner = new ShellRunner(this.logger);
-    await shellRunner.run(unzipCommand, [], true, false);
+    // Explicit argument array, no shell: the password and paths cannot be interpreted by a shell.
+    await shellRunner.run('unzip', ['-o', '-P', zipPassword, inputPath, '-d', targetDirectory], {verbose: true});
 
     this.configManager.setFlag(flags.inputDir, targetDirectory);
 
@@ -1392,13 +1394,23 @@ export class BackupRestoreCommand extends BaseCommand {
     const tasks: SoloListrTask<any>[] = [
       {
         title: 'Setup Docker network for multi-cluster',
-        skip: (context_: any): boolean => !context_.clusters || context_.clusters.length <= 1,
-        task: async (context_: any): Promise<void> => {
+        skip: (context_): boolean => !context_.clusters || context_.clusters.length <= 1,
+        task: async (context_): Promise<void> => {
           this.logger.info(`Multiple clusters detected (${context_.clusters.length}), creating Kind Docker network...`);
           try {
             const shellRunner: ShellRunner = new ShellRunner(this.logger);
+            // Remove any pre-existing network, then create it.
+            try {
+              await shellRunner.run('docker', ['network', 'rm', '-f', 'kind'], {
+                commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
+              });
+            } catch {
+              // network may not exist yet; safe to ignore
+            }
             await shellRunner.run(
-              'docker network rm -f kind || true && docker network create kind --scope local --subnet 172.19.0.0/16 --driver bridge',
+              'docker',
+              ['network', 'create', 'kind', '--scope', 'local', '--subnet', '172.19.0.0/16', '--driver', 'bridge'],
+              {commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE},
             );
 
             // Add MetalLB Helm repository for multi-cluster load balancing

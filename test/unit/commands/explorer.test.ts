@@ -16,6 +16,7 @@ import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 import {SoloError} from '../../../src/core/errors/solo-error.js';
 import {type CommandFlag} from '../../../src/types/flag-types.js';
 import {ListrLock} from '../../../src/core/lock/listr-lock.js';
+import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
 
 type TaskContext = {
   config?: Record<string, unknown>;
@@ -56,6 +57,10 @@ type ExplorerHarness = {
   tasks: TaskLike[];
   fakeTask: TaskWrapper;
   promptRunStub: SinonStub;
+};
+
+type ExplorerCommandInternal = {
+  prepareHederaExplorerChartValues: (config: Record<string, unknown>) => Promise<HelmChartValues>;
 };
 
 const createNamespace: (namespaceName: string) => NamespaceName = (namespaceName: string): NamespaceName =>
@@ -99,7 +104,7 @@ const createDeployConfig: (namespaceName: string) => Record<string, unknown> = (
   isLegacyChartInstalled: false,
   mirrorNodeId: 1,
   mirrorNamespace: 'mirror-ns',
-  mirrorNodeReleaseName: 'mirror-node-1',
+  mirrorNodeReleaseName: 'mirror-1',
   isMirrorNodeLegacyChartInstalled: false,
 });
 
@@ -133,7 +138,7 @@ const createUpgradeConfig: (namespaceName: string) => Record<string, unknown> = 
   isLegacyChartInstalled: false,
   mirrorNodeId: 1,
   mirrorNamespace: 'mirror-ns',
-  mirrorNodeReleaseName: 'mirror-node-1',
+  mirrorNodeReleaseName: 'mirror-1',
   isMirrorNodeLegacyChartInstalled: false,
 });
 
@@ -324,11 +329,9 @@ const createHarness: (sandbox: SinonSandbox) => Promise<ExplorerHarness> = async
     contexts: (): Record<string, unknown> => ({readCurrent: (): string => 'cluster-context-1'}),
   });
 
-  sandbox.stub(componentFactory, 'createNewExplorerComponent').callsFake(
-    (): Record<string, unknown> => ({
-      metadata: {id: 1, phase: DeploymentPhase.REQUESTED},
-    }),
-  );
+  sandbox.stub(componentFactory, 'createNewExplorerComponent').callsFake((): Record<string, unknown> => ({
+    metadata: {id: 1, phase: DeploymentPhase.REQUESTED},
+  }));
 
   // @ts-expect-error: Sinon stub typing requires unsafe cast for mocking private methods
   sandbox.stub(command, 'getClusterReference').returns('cluster-ref-1');
@@ -338,7 +341,7 @@ const createHarness: (sandbox: SinonSandbox) => Promise<ExplorerHarness> = async
   sandbox.stub(command, 'inferMirrorNodeData').resolves({
     mirrorNodeId: 1,
     mirrorNamespace: 'mirror-ns',
-    mirrorNodeReleaseName: 'mirror-node-1',
+    mirrorNodeReleaseName: 'mirror-1',
   });
   // @ts-expect-error: Sinon stub typing requires unsafe cast for mocking private methods
   sandbox.stub(command, 'throwIfNamespaceIsMissing').resolves();
@@ -391,6 +394,15 @@ describe('ExplorerCommand unit tests', (): void => {
 
   afterEach((): void => {
     sandbox.restore();
+  });
+
+  it('should use the direct mirror node REST service for API proxying', async (): Promise<void> => {
+    resetForTest();
+    const command: ExplorerCommandInternal = container.resolve(ExplorerCommand) as unknown as ExplorerCommandInternal;
+
+    const chartValues: HelmChartValues = await command.prepareHederaExplorerChartValues(createDeployConfig('explorer'));
+
+    expect(chartValues.toArguments()).to.include('proxyPass./api=http://mirror-1-rest.mirror-ns.svc.cluster.local');
   });
 
   it('add builds the expected task flow and updates explorer state after successful install', async (): Promise<void> => {

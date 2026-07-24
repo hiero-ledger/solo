@@ -5,8 +5,8 @@ import {expect} from 'chai';
 import {MathEx} from '../../../../src/core/util/math-ex.js';
 import {ArithmeticError} from '../../../../src/core/util/arithmetic-error.js';
 
-describe('MathEx', () => {
-  it('testLongExact', () => {
+describe('MathEx', (): void => {
+  it('testLongExact', (): void => {
     testLongExactTwice(0, 0);
     testLongExactTwice(1, 1);
     testLongExactTwice(1, -1);
@@ -26,7 +26,7 @@ describe('MathEx', () => {
     testLongExactTwice(Math.trunc(Number.MAX_SAFE_INTEGER / 2), 2);
   });
 
-  it('testLongFloorDivMod', () => {
+  it('testLongFloorDivMod', (): void => {
     testLongFloorDivModulo(4, 0, 0, 0, true, true);
     testLongFloorDivModulo(4, 3, 1, 1, false, false);
     testLongFloorDivModulo(3, 3, 1, 0, false, false);
@@ -73,11 +73,11 @@ describe('MathEx', () => {
   });
 });
 
-function testLongExact(x: number, y: number) {
+function testLongExact(x: number, y: number): void {
   let resultBig: bigint;
   try {
     resultBig = BigInt(x) + BigInt(y);
-    const sum = MathEx.addExact(x, y);
+    const sum: number = MathEx.addExact(x, y);
 
     checkResult('addExact', x, y, sum, resultBig);
   } catch (error: ArithmeticError | any) {
@@ -86,7 +86,7 @@ function testLongExact(x: number, y: number) {
 
   try {
     resultBig = BigInt(x) - BigInt(y);
-    const diff = MathEx.subtractExact(x, y);
+    const diff: number = MathEx.subtractExact(x, y);
 
     checkResult('subtractExact', x, y, diff, resultBig);
   } catch (error: ArithmeticError | any) {
@@ -95,7 +95,7 @@ function testLongExact(x: number, y: number) {
 
   try {
     resultBig = BigInt(x) * BigInt(y);
-    const product = MathEx.multiplyExact(x, y);
+    const product: number = MathEx.multiplyExact(x, y);
 
     checkResult('multiplyExact', x, y, product, resultBig);
   } catch (error: ArithmeticError | any) {
@@ -103,12 +103,12 @@ function testLongExact(x: number, y: number) {
   }
 }
 
-function testLongExactTwice(x: number, y: number) {
+function testLongExactTwice(x: number, y: number): void {
   testLongExact(x, y);
   testLongExact(y, x);
 }
 
-function checkError(message: string, x: number, y: number, resultBig: bigint, error: Error) {
+function checkError(message: string, x: number, y: number, resultBig: bigint, error: Error): void {
   if (!(error instanceof ArithmeticError)) {
     throw error;
   }
@@ -118,9 +118,9 @@ function checkError(message: string, x: number, y: number, resultBig: bigint, er
   }
 }
 
-function checkResult(message: string, x: number, y: number, result: number, expected: bigint) {
-  const resultBig = BigInt(result);
-  const finalMessage = `${message}(${x}, ${y}) = ${result}`;
+function checkResult(message: string, x: number, y: number, result: number, expected: bigint): void {
+  const resultBig: bigint = BigInt(result);
+  const finalMessage: string = `${message}(${x}, ${y}) = ${result}`;
   if (!Number.isSafeInteger(Number(resultBig))) {
     expect.fail(`${finalMessage}; expected an arithmetic error`);
   } else if (resultBig !== expected) {
@@ -135,14 +135,14 @@ function testLongFloorDivModulo(
   moduloExpected: number,
   divThrows: boolean,
   moduloThrows: boolean,
-) {
+): void {
   testLongFloorDiv(x, y, divExpected, divThrows);
   testLongFloorModulo(x, y, moduloExpected, moduloThrows);
 }
 
-function testLongFloorDiv(x: number, y: number, expected: number, shouldThrow: boolean) {
+function testLongFloorDiv(x: number, y: number, expected: number, shouldThrow: boolean): void {
   try {
-    const result = MathEx.floorDiv(x, y);
+    const result: number = MathEx.floorDiv(x, y);
     if (result !== expected) {
       expect.fail(`floorDiv(${x}, ${y}) = ${result}; expected ${expected}`);
     }
@@ -161,9 +161,9 @@ function testLongFloorDiv(x: number, y: number, expected: number, shouldThrow: b
   }
 }
 
-function testLongFloorModulo(x: number, y: number, expected: number, shouldThrow: boolean) {
+function testLongFloorModulo(x: number, y: number, expected: number, shouldThrow: boolean): void {
   try {
-    const result = MathEx.floorModulo(x, y);
+    const result: number = MathEx.floorModulo(x, y);
     if (result !== expected) {
       expect.fail(`floorMod(${x}, ${y}) = ${result}; expected ${expected}`);
     }

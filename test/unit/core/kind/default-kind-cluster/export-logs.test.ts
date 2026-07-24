@@ -7,12 +7,12 @@ import {KindExecutionBuilder} from '../../../../../src/integration/kind/executio
 import {KindExecution} from '../../../../../src/integration/kind/execution/kind-execution.js';
 import {ExportLogsResponse} from '../../../../../src/integration/kind/model/export-logs/export-logs-response.js';
 
-describe('DefaultKindClient - exportLogs', () => {
+describe('DefaultKindClient - exportLogs', (): void => {
   let client: DefaultKindClient;
   let executionBuilderStub: sinon.SinonStubbedInstance<KindExecutionBuilder>;
   let executionStub: sinon.SinonStubbedInstance<KindExecution>;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     client = new DefaultKindClient('/usr/local/bin/kind');
     executionBuilderStub = sinon.createStubInstance(KindExecutionBuilder);
     executionStub = sinon.createStubInstance(KindExecution);
@@ -22,26 +22,26 @@ describe('DefaultKindClient - exportLogs', () => {
     sinon.stub(KindExecutionBuilder.prototype, 'build').returns(executionStub as any);
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     sinon.restore();
   });
 
-  it('should export logs and parse the response correctly', async () => {
-    const clusterName = 'test-cluster';
-    const exportPath = '/tmp/kind-logs-test-cluster-2025-07-10T12-34-56';
+  it('should export logs and parse the response correctly', async (): Promise<void> => {
+    const clusterName: string = 'test-cluster';
+    const exportPath: string = '/tmp/kind-logs-test-cluster-2025-07-10T12-34-56';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
-      const output = exportPath;
+    executionStub.responseAs.callsFake((responseClass: any): Promise<ExportLogsResponse> => {
+      const output: string = exportPath;
       return Promise.resolve(new responseClass(output));
     });
 
-    const result = await client.exportLogs(clusterName);
+    const result: ExportLogsResponse = await client.exportLogs(clusterName);
 
     expect(result).to.be.instanceOf(ExportLogsResponse);
     expect(result.exportPath).to.equal(exportPath);
   });
 
-  it('should throw if responseAs throws', async () => {
+  it('should throw if responseAs throws', async (): Promise<void> => {
     executionStub.responseAs.rejects(new Error('export logs failed'));
 
     try {
@@ -52,8 +52,8 @@ describe('DefaultKindClient - exportLogs', () => {
     }
   });
 
-  it('should pass cluster name to execution builder correctly', async () => {
-    const clusterName = 'options-test-cluster';
+  it('should pass cluster name to execution builder correctly', async (): Promise<void> => {
+    const clusterName: string = 'options-test-cluster';
 
     // Create spies to track method calls
     const subcommandsSpy: SinonSpy<string[], KindExecutionBuilder> = sinon.spy(
@@ -74,7 +74,7 @@ describe('DefaultKindClient - exportLogs', () => {
     expect(argumentSpy.calledWith('name', clusterName)).to.be.true;
   });
 
-  it('should handle undefined cluster name', async () => {
+  it('should handle undefined cluster name', async (): Promise<void> => {
     // Create a spy for subcommands and argument methods
     const subcommandsSpy: SinonSpy<string[], KindExecutionBuilder> = sinon.spy(
       KindExecutionBuilder.prototype,
@@ -86,12 +86,12 @@ describe('DefaultKindClient - exportLogs', () => {
     );
 
     // Output with default 'kind' cluster name
-    const output = '/tmp/kind-logs-kind-2025-07-10T12-34-56';
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    const output: string = '/tmp/kind-logs-kind-2025-07-10T12-34-56';
+    executionStub.responseAs.callsFake((responseClass: any): Promise<ExportLogsResponse> => {
       return Promise.resolve(new responseClass(output));
     });
 
-    const result = await client.exportLogs();
+    const result: ExportLogsResponse = await client.exportLogs();
 
     // Verify subcommands were called correctly
     expect(subcommandsSpy.calledWith('export', 'logs')).to.be.true;

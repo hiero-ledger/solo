@@ -58,6 +58,7 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly CONFIG_DELETE: string = 'delete';
   public static readonly CONFIG_INFO: string = 'info';
   public static readonly CONFIG_PORTS: string = 'ports';
+  public static readonly CONFIG_IMPORT: string = 'import';
 
   public static readonly DIAGNOSTICS_ALL: string = 'all';
   public static readonly DIAGNOSTICS_ANALYZE: string = 'analyze';
@@ -66,6 +67,8 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
   public static readonly DIAGNOSTICS_CONNECTIONS: string = 'connections';
   public static readonly DIAGNOSTICS_REPORT: string = 'report';
   public static readonly REFRESH_PORT_FORWARDS: string = 'port-forwards';
+
+  public static readonly STATE_IMAGES: string = 'images';
 
   public static readonly CREATE_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_CREATE}` as const;
@@ -90,6 +93,9 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
 
   public static readonly PORTS_COMMAND: string =
     `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.CONFIG_PORTS}` as const;
+
+  public static readonly IMAGES_COMMAND: string =
+    `${DeploymentCommandDefinition.COMMAND_NAME} ${DeploymentCommandDefinition.STATE_SUBCOMMAND_NAME} ${DeploymentCommandDefinition.STATE_IMAGES}` as const;
 
   public getCommandDefinition(): CommandDefinition {
     return new CommandBuilder(
@@ -166,7 +172,33 @@ export class DeploymentCommandDefinition extends BaseCommandDefinition {
               DeploymentCommand.PORTS_FLAGS_LIST,
               [],
             ),
+          )
+          .addSubcommand(
+            new Subcommand(
+              DeploymentCommandDefinition.CONFIG_IMPORT,
+              "Imports a deployment into the local configuration from an existing cluster's remote config.",
+              this.deploymentCommand,
+              this.deploymentCommand.importConfig,
+              DeploymentCommand.IMPORT_FLAGS_LIST,
+              [],
+            ),
           ),
+      )
+      .addCommandGroup(
+        new CommandGroup(
+          DeploymentCommandDefinition.STATE_SUBCOMMAND_NAME,
+          DeploymentCommandDefinition.STATE_SUBCOMMAND_DESCRIPTION,
+        ).addSubcommand(
+          new Subcommand(
+            DeploymentCommandDefinition.STATE_IMAGES,
+            'Lists every pod in the deployment namespace and shows its running container image. ' +
+              'Useful to verify that a locally-built image was loaded correctly.',
+            this.deploymentCommand,
+            this.deploymentCommand.images,
+            DeploymentCommand.IMAGES_FLAGS_LIST,
+            [constants.KUBECTL],
+          ),
+        ),
       )
       .addCommandGroup(
         new CommandGroup(

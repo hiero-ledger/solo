@@ -68,7 +68,7 @@ export class ClusterCommandTasks {
     const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
 
     if (isMinioInstalled) {
-      this.logger.showUser(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
+      this.logger.showUserUnlessOneShot(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
       return;
     }
 
@@ -83,7 +83,7 @@ export class ClusterCommandTasks {
         context,
       );
 
-      this.logger.showUser(`✅ MinIO Operator chart installed successfully on context ${context}`);
+      this.logger.showUserUnlessOneShot(`✅ MinIO Operator chart installed successfully on context ${context}`);
     } catch (error) {
       this.logger.debug('Error installing MinIO Operator chart', error);
       try {
@@ -149,7 +149,9 @@ export class ClusterCommandTasks {
         task.title += clusterRef;
 
         if (this.localConfig.configuration.clusterRefs.get(clusterRef)) {
-          this.logger.showUser(chalk.yellow(`Cluster ref ${clusterRef} already exists inside local config`));
+          this.logger.showUserUnlessOneShot(
+            chalk.yellow(`Cluster ref ${clusterRef} already exists inside local config`),
+          );
         }
       },
     };
@@ -158,10 +160,12 @@ export class ClusterCommandTasks {
   /** Show list of installed chart */
   private async showInstalledChartList(clusterSetupNamespace: NamespaceName, context?: string): Promise<void> {
     // TODO convert to logger.addMessageGroup() & logger.addMessageGroupMessage()
-    this.logger.showList(
-      'Installed Charts',
-      await this.chartManager.getInstalledCharts(clusterSetupNamespace, context),
-    );
+    const installedCharts: string[] = await this.chartManager.getInstalledCharts(clusterSetupNamespace, context);
+    if (this.oneShotState.isActive()) {
+      this.logger.showListIfNotEmpty('Installed Charts', installedCharts);
+    } else {
+      this.logger.showList('Installed Charts', installedCharts);
+    }
   }
 
   public initialize(
@@ -240,7 +244,7 @@ export class ClusterCommandTasks {
                 .join('\n')
             : '\n  - None';
 
-        this.logger.showUser(task.output);
+        this.logger.showUserUnlessOneShot(task.output);
       },
     };
   }
@@ -268,7 +272,7 @@ export class ClusterCommandTasks {
         );
 
         if (isPrometheusInstalled) {
-          this.logger.showUser('⏭️  Prometheus Stack chart already installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  Prometheus Stack chart already installed, skipping');
         } else {
           try {
             await this.chartManager.install(
@@ -277,10 +281,10 @@ export class ClusterCommandTasks {
               constants.PROMETHEUS_STACK_CHART,
               constants.PROMETHEUS_STACK_CHART,
               versions.PROMETHEUS_STACK_VERSION,
-              new HelmChartValues(),
+              new HelmChartValues().set('prometheus.prometheusSpec.enableRemoteWriteReceiver', true),
               context_.config.context,
             );
-            this.logger.showUser('✅ Prometheus Stack chart installed successfully');
+            this.logger.showUserUnlessOneShot('✅ Prometheus Stack chart installed successfully');
           } catch (error) {
             this.logger.debug('Error installing Prometheus Stack chart', error);
             try {
@@ -311,7 +315,7 @@ export class ClusterCommandTasks {
         );
 
         if (isMetricsServerInstalled) {
-          this.logger.showUser('⏭️  metrics-server chart already installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  metrics-server chart already installed, skipping');
           return;
         }
 
@@ -325,7 +329,7 @@ export class ClusterCommandTasks {
             new HelmChartValues().setLiteral('args[0]', '--kubelet-insecure-tls'),
             context,
           );
-          this.logger.showUser('metrics-server chart installed successfully');
+          this.logger.showUserUnlessOneShot('metrics-server chart installed successfully');
         } catch (error) {
           this.logger.debug('Error installing metrics-server chart', error);
           try {
@@ -358,7 +362,7 @@ export class ClusterCommandTasks {
           throw new SoloErrors.system.clusterRoleCheckFailed(constants.POD_MONITOR_ROLE, error as Error);
         }
         if (podMonitorRoleExists) {
-          this.logger.showUser(
+          this.logger.showUserUnlessOneShot(
             `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
           );
           return;
@@ -382,7 +386,7 @@ export class ClusterCommandTasks {
             ],
             {'solo.hedera.com/type': 'cluster-role'},
           );
-          this.logger.showUser(
+          this.logger.showUserUnlessOneShot(
             `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
           );
         } catch (installError) {
@@ -403,10 +407,10 @@ export class ClusterCommandTasks {
 
           // ClusterRole exists, delete it
           await this.k8Factory.getK8(context).rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
-          this.logger.showUser('✅ ClusterRole pod-monitor-role uninstalled successfully');
+          this.logger.showUserUnlessOneShot('✅ ClusterRole pod-monitor-role uninstalled successfully');
         } catch {
           // ClusterRole doesn't exist, skip
-          this.logger.showUser('⏭️  ClusterRole pod-monitor-role not found, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  ClusterRole pod-monitor-role not found, skipping');
         }
       },
     };
@@ -437,7 +441,7 @@ export class ClusterCommandTasks {
 
         const result: SoloListr<ClusterReferenceSetupContext> = await task.newListr(subtasks, {concurrent: false});
 
-        if (argv.dev) {
+        if (argv.debug) {
           await this.showInstalledChartList(context_.config.clusterSetupNamespace, context_.config.context);
         }
         return result;
@@ -467,9 +471,9 @@ export class ClusterCommandTasks {
         if (isMinioInstalled) {
           await this.chartManager.uninstall(namespace, releaseName, context);
 
-          this.logger.showUser('✅ MinIO Operator chart uninstalled successfully');
+          this.logger.showUserUnlessOneShot('✅ MinIO Operator chart uninstalled successfully');
         } else {
-          this.logger.showUser('⏭️  MinIO Operator chart not installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  MinIO Operator chart not installed, skipping');
         }
       },
     };
@@ -487,9 +491,9 @@ export class ClusterCommandTasks {
 
         if (isPrometheusInstalled) {
           await this.chartManager.uninstall(clusterSetupNamespace, constants.PROMETHEUS_RELEASE_NAME, context);
-          this.logger.showUser('✅ Prometheus Stack chart uninstalled successfully');
+          this.logger.showUserUnlessOneShot('✅ Prometheus Stack chart uninstalled successfully');
         } else {
-          this.logger.showUser('⏭️  Prometheus Stack chart not installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  Prometheus Stack chart not installed, skipping');
         }
       },
     };
@@ -511,9 +515,9 @@ export class ClusterCommandTasks {
             constants.METRICS_SERVER_RELEASE_NAME,
             context,
           );
-          this.logger.showUser('Metrics-server chart uninstalled successfully');
+          this.logger.showUserUnlessOneShot('Metrics-server chart uninstalled successfully');
         } else {
-          this.logger.showUser('Metrics-server chart not installed, skipping');
+          this.logger.showUserUnlessOneShot('Metrics-server chart not installed, skipping');
         }
       },
     };
@@ -539,7 +543,7 @@ export class ClusterCommandTasks {
           }
         }
 
-        if (argv.dev) {
+        if (argv.debug) {
           await this.showInstalledChartList(clusterSetupNamespace);
         }
 

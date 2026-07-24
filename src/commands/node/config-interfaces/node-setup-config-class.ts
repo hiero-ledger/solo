@@ -2,14 +2,14 @@
 
 import {type NodeAlias} from '../../../types/aliases.js';
 import {type PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
-import {type NodeCommonConfigWithNodeAliases} from './node-common-config-class.js';
+import {type NodeCommonConfigWithNodeAliases} from './node-common-config-with-node-aliases.js';
 
 export interface NodeSetupConfigClass extends NodeCommonConfigWithNodeAliases {
   app: string;
   appConfig: string;
   adminKey: string;
   cacheDir: string;
-  devMode: boolean;
+  debugMode: boolean;
   localBuildPath: string;
   releaseTag: string;
   podRefs: Record<NodeAlias, PodReference>;

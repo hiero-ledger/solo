@@ -8,6 +8,7 @@ import {container} from 'tsyringe-neo';
 import {ListrLogger} from 'listr2';
 
 import * as constants from './core/constants.js';
+import {type AnyObject} from './types/aliases.js';
 import {CustomProcessOutput} from './core/process-output.js';
 import {type SoloLogger} from './core/logging/solo-logger.js';
 import {Container} from './core/dependency-injection/container-init.js';
@@ -16,6 +17,7 @@ import {SoloErrors} from './core/errors/solo-errors.js';
 import {type SoloError} from './core/errors/solo-error.js';
 import {SilentBreak} from './core/errors/silent-break.js';
 import {ArgumentProcessor} from './argument-processor.js';
+import {VersionUpdateNotifier} from './core/version-update-notifier.js';
 import {getSoloVersion} from '../version.js';
 
 if (!process.stdout.isTTY) {
@@ -25,7 +27,11 @@ if (!process.stdout.isTTY) {
 // eslint-disable-next-line solo/no-exported-function
 export async function main(argv: string[], context?: {logger: SoloLogger}): Promise<any> {
   try {
-    const developerMode: boolean = argv.includes('--dev');
+    // New files default to 0640 and new directories to 0750. No-op on Windows.
+    process.umask(0o027);
+
+    // `--dev` is the deprecated alias of `--debug`; accept either to raise the log level early.
+    const developerMode: boolean = argv.includes('--debug') || argv.includes('--dev');
     const soloLogLevel: string = developerMode || constants.SOLO_DEV_OUTPUT ? 'debug' : constants.SOLO_LOG_LEVEL;
     Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, soloLogLevel);
   } catch (incomingError) {
@@ -109,5 +115,7 @@ export async function main(argv: string[], context?: {logger: SoloLogger}): Prom
     throw new SilentBreak('displayed version information, exiting');
   }
 
-  return await ArgumentProcessor.process(argv);
+  const result: AnyObject = await ArgumentProcessor.process(argv);
+  await VersionUpdateNotifier.notifyIfUpdateAvailable(logger);
+  return result;
 }

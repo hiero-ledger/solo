@@ -27,6 +27,7 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
@@ -37,15 +38,7 @@ import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
 import {Numbers} from '../business/utils/numbers.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
-
-export interface ProfileManagerStagingOptions {
-  // These values are intentionally passed from the command's resolved config so profile generation
-  // does not depend on mutable global flags that can be changed by concurrently running subcommands.
-  cacheDir: DirectoryPath;
-  releaseTag: string;
-  appName: string;
-  chainId: string;
-}
+import {type ProfileManagerStagingOptions} from './profile-manager-staging-options.js';
 
 @injectable()
 export class ProfileManager {
@@ -190,7 +183,6 @@ export class ProfileManager {
         accountMap,
         consensusNodes,
         stagingDirectory,
-        resolvedStagingOptions.releaseTag,
         resolvedStagingOptions.appName,
         resolvedStagingOptions.chainId,
         gossipFqdnRestricted,
@@ -258,6 +250,9 @@ export class ProfileManager {
         fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
       }
     }
+
+    // Files staged via cpSync inherit the (wider) source mode and bypass the process umask.
+    FilePermissions.restrictTreeToOwner(PathEx.join(stagingDirectory, 'templates'));
 
     const bootstrapPropertiesPath: string = PathEx.join(stagingDirectory, 'templates', 'bootstrap.properties');
     await this.updateBoostrapPropertiesWithChainId(bootstrapPropertiesPath, resolvedStagingOptions.chainId);
@@ -581,6 +576,14 @@ export class ProfileManager {
       lines.push(`blockStream.writerMode=${writerMode}`);
     }
 
+    // streamMode=BOTH sends both native blocks (BLOCK_HEADER) and Wrapped Record Blocks
+    // (ROUND_HEADER) to the block node.  The block node silently drops ROUND_HEADER items
+    // because they fail its hasBlockHeader() check, creating gaps that permanently stall the
+    // mirror importer on NOT_AVAILABLE.  Set this here so the CN pod reads it at first startup;
+    // the post-start ConfigMap update in createAndCopyBlockNodeJsonFileForConsensusNode is too
+    // late because the JVM has already cached its configuration by then.
+    Helpers.ensureWrappedRecordBlocksDisabled(lines, streamMode);
+
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
 
@@ -809,7 +812,6 @@ export class ProfileManager {
    * @param nodeAccountMap - the map of node aliases to account IDs
    * @param consensusNodes - the list of consensus nodes
    * @param destinationPath
-   * @param releaseTagOverride - release tag override
    * @param [appName] - the app name (default: HederaNode.jar)
    * @param [chainId] - chain ID (298 for local network)
    * @returns the config.txt file path
@@ -818,18 +820,12 @@ export class ProfileManager {
     nodeAccountMap: Map<NodeAlias, string>,
     consensusNodes: ConsensusNode[],
     destinationPath: string,
-    releaseTagOverride: string,
     appName: string = constants.HEDERA_APP_NAME,
     chainId: string = constants.HEDERA_CHAIN_ID,
     gossipFqdnRestricted: boolean = true,
   ): Promise<string> {
-    let releaseTag: string = releaseTagOverride;
     if (!nodeAccountMap || nodeAccountMap.size === 0) {
       throw new SoloErrors.validation.missingArgument('nodeAccountMap the map of node IDs to account IDs is required');
-    }
-
-    if (!releaseTag) {
-      releaseTag = versions.HEDERA_PLATFORM_VERSION;
     }
 
     if (!fs.existsSync(destinationPath)) {
@@ -849,18 +845,12 @@ export class ProfileManager {
     const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
     const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
-    const releaseVersion: SemanticVersion<string> = new SemanticVersion(releaseTag);
-
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
 
       let nodeSeq: number = 0;
       for (const consensusNode of consensusNodes) {
-        const internalIP: string = Helpers.getInternalAddress(
-          releaseVersion,
-          NamespaceName.of(consensusNode.namespace),
-          consensusNode.name as NodeAlias,
-        );
+        const internalIP: string = constants.LOCAL_HOST;
 
         // First try to extract endpoint from saved state (migration scenario)
         let address: Address | undefined = await this.extractSavedEndpoint(consensusNode, nodeSeq);
@@ -882,11 +872,6 @@ export class ProfileManager {
         );
 
         nodeSeq += 1;
-      }
-
-      // TODO: remove once we no longer need less than v0.56
-      if (releaseVersion.minor >= 41 && releaseVersion.minor < 56) {
-        configLines.push(`nextNodeId, ${nodeSeq}`);
       }
 
       fs.writeFileSync(configFilePath, configLines.join('\n'));

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Exclude, Expose} from 'class-transformer';
-import {ComponentIdsStructure} from '../interfaces/components-ids-structure.js';
+import {ComponentIdsStructure} from '../interfaces/component-ids-structure.js';
 
 @Exclude()
 export class ComponentIdsSchema implements ComponentIdsStructure {

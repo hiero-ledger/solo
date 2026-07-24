@@ -9,12 +9,12 @@ import {GetNodesResponse} from '../../../../../src/integration/kind/model/get-no
 import {GetNodesOptionsBuilder} from '../../../../../src/integration/kind/model/get-nodes/get-nodes-options-builder.js';
 import {type GetNodesOptions} from '../../../../../src/integration/kind/model/get-nodes/get-nodes-options.js';
 
-describe('DefaultKindClient - getNodes', () => {
+describe('DefaultKindClient - getNodes', (): void => {
   let client: DefaultKindClient;
   let executionBuilderStub: sinon.SinonStubbedInstance<KindExecutionBuilder>;
   let executionStub: sinon.SinonStubbedInstance<KindExecution>;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     client = new DefaultKindClient('/usr/local/bin/kind');
     executionBuilderStub = sinon.createStubInstance(KindExecutionBuilder);
     executionStub = sinon.createStubInstance(KindExecution);
@@ -24,15 +24,15 @@ describe('DefaultKindClient - getNodes', () => {
     sinon.stub(KindExecutionBuilder.prototype, 'build').returns(executionStub as any);
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     sinon.restore();
   });
 
-  it('should get nodes and parse the response correctly', async () => {
+  it('should get nodes and parse the response correctly', async (): Promise<void> => {
     const contextName: string = 'test-cluster';
     const nodesList: string = 'test-cluster-control-plane\ntest-cluster-worker\ntest-cluster-worker2';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<GetNodesResponse> => {
       return Promise.resolve(new responseClass(nodesList));
     });
 
@@ -42,30 +42,30 @@ describe('DefaultKindClient - getNodes', () => {
     expect(result.nodes).to.deep.equal(['test-cluster-control-plane', 'test-cluster-worker', 'test-cluster-worker2']);
   });
 
-  it('should handle "no nodes found" response', async () => {
+  it('should handle "no nodes found" response', async (): Promise<void> => {
     const contextName: string = 'empty-cluster';
     const noNodesOutput: string = 'No kind nodes found for cluster "empty-cluster".';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<GetNodesResponse> => {
       return Promise.resolve(new responseClass(noNodesOutput));
     });
 
-    const result = await client.getNodes(contextName);
+    const result: GetNodesResponse = await client.getNodes(contextName);
 
     expect(result).to.be.instanceOf(GetNodesResponse);
     expect(result.nodes).to.be.an('array').that.is.empty;
   });
 
-  it('should handle multiple nodes from multiple clusters', async () => {
+  it('should handle multiple nodes from multiple clusters', async (): Promise<void> => {
     const multiClusterOutput: string = 'solo-main-control-plane\nsolo-main-2-control-plane\ntest-cluster-control-plane';
 
-    executionStub.responseAs.callsFake((responseClass: any) => {
+    executionStub.responseAs.callsFake((responseClass: any): Promise<GetNodesResponse> => {
       return Promise.resolve(new responseClass(multiClusterOutput));
     });
 
-    const options = GetNodesOptionsBuilder.builder().allClusters(true).build();
+    const options: GetNodesOptions = GetNodesOptionsBuilder.builder().allClusters(true).build();
 
-    const result = await client.getNodes(undefined, options);
+    const result: GetNodesResponse = await client.getNodes(undefined, options);
 
     expect(result).to.be.instanceOf(GetNodesResponse);
     expect(result.nodes).to.deep.equal([
@@ -75,7 +75,7 @@ describe('DefaultKindClient - getNodes', () => {
     ]);
   });
 
-  it('should throw if responseAs throws', async () => {
+  it('should throw if responseAs throws', async (): Promise<void> => {
     executionStub.responseAs.rejects(new Error('get nodes failed'));
 
     try {
@@ -86,7 +86,7 @@ describe('DefaultKindClient - getNodes', () => {
     }
   });
 
-  it('should pass context name to execution builder correctly', async () => {
+  it('should pass context name to execution builder correctly', async (): Promise<void> => {
     const contextName: string = 'options-test-cluster';
 
     // Create spies to track method calls
@@ -108,7 +108,7 @@ describe('DefaultKindClient - getNodes', () => {
     expect(argumentSpy.calledWith('name', contextName)).to.be.true;
   });
 
-  it('should handle additional options correctly', async () => {
+  it('should handle additional options correctly', async (): Promise<void> => {
     const contextName: string = 'test-cluster';
 
     // Create spies to track method calls
@@ -123,7 +123,7 @@ describe('DefaultKindClient - getNodes', () => {
     expect(flagSpy.calledWith('--all-clusters')).to.be.true;
   });
 
-  it('should handle undefined context name', async () => {
+  it('should handle undefined context name', async (): Promise<void> => {
     // Create a spy for the argument method
     const argumentSpy: SinonSpy<[name: string, value: string], KindExecutionBuilder> = sinon.spy(
       KindExecutionBuilder.prototype,
@@ -137,7 +137,7 @@ describe('DefaultKindClient - getNodes', () => {
     expect(argumentSpy.called).to.be.false;
   });
 
-  it('should properly combine context name and options', async () => {
+  it('should properly combine context name and options', async (): Promise<void> => {
     const contextName: string = 'combined-options-cluster';
 
     // Create spies

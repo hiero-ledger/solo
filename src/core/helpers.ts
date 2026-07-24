@@ -6,6 +6,8 @@ import path from 'node:path';
 import {format} from 'node:util';
 import {SoloErrors} from './errors/solo-errors.js';
 import {Templates} from './templates.js';
+import {SubprocessEnvironment} from './subprocess-environment.js';
+import {SubprocessCommandProfile} from './subprocess-command-profile.js';
 import * as constants from './constants.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {PrivateKey, ServiceEndpoint, type Long} from '@hiero-ledger/sdk';
@@ -22,7 +24,7 @@ import chalk from 'chalk';
 import {type ConfigManager} from './config-manager.js';
 import {Flags as flags} from '../commands/flags.js';
 import {type Realm, type Shard} from './../types/index.js';
-import {execSync} from 'node:child_process';
+import {execFileSync} from 'node:child_process';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import yaml from 'yaml';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
@@ -32,15 +34,7 @@ import {K8Helper} from '../business/utils/k8-helper.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 import * as versions from '../../version.js';
-
-export interface ResolveGossipFqdnRestrictedOptions {
-  k8?: K8;
-  namespace?: NamespaceName;
-  stagingDir?: string;
-  cacheDir?: string;
-  resourcesDir?: string;
-  applicationPropertiesPath?: string;
-}
+import {type ResolveGossipFqdnRestrictedOptions} from './resolve-gossip-fqdn-restricted-options.js';
 
 type AddLoadContext = AnyListrContext & {
   config: NodeAddConfigClass;
@@ -65,16 +59,6 @@ type AddLoadContextData = {
 };
 
 export class Helpers {
-  public static getInternalAddress(
-    releaseVersion: SemanticVersion<string> | string,
-    namespaceName: NamespaceName,
-    nodeAlias: NodeAlias,
-  ): string {
-    return new SemanticVersion(releaseVersion).greaterThanOrEqual('0.58.5')
-      ? '127.0.0.1'
-      : Templates.renderFullyQualifiedNetworkPodName(namespaceName, nodeAlias);
-  }
-
   public static getBlockStreamModeForConsensusVersion(
     consensusNodeVersion: SemanticVersion<string> | string | undefined,
     blockNodeIntegrationEnabled: boolean,
@@ -127,6 +111,15 @@ export class Helpers {
     return match?.[1];
   }
 
+  public static ensureWrappedRecordBlocksDisabled(lines: string[], streamMode: string): void {
+    if (
+      streamMode === 'BOTH' &&
+      !lines.some((line: string): boolean => line.startsWith('blockStream.streamWrappedRecordBlocks='))
+    ) {
+      lines.push('blockStream.streamWrappedRecordBlocks=false');
+    }
+  }
+
   public static sleep(duration: Duration): Promise<void> {
     return new Promise<void>((resolve: (value: PromiseLike<void> | void) => void): void => {
       setTimeout(resolve, duration.toMillis());
@@ -173,6 +166,17 @@ export class Helpers {
       return match[1].toLowerCase() === 'true';
     }
     return undefined;
+  }
+
+  public static parseNumericApplicationProperty(
+    applicationPropertiesText: string,
+    propertyKey: string,
+  ): number | undefined {
+    const escapedPropertyKey: string = propertyKey.replaceAll('.', String.raw`\.`);
+    const match: RegExpMatchArray | null = applicationPropertiesText.match(
+      new RegExp(String.raw`^\s*${escapedPropertyKey}\s*=\s*(\d+)\s*$`, 'm'),
+    );
+    return match ? Number(match[1]) : undefined;
   }
 
   public static readGossipFqdnRestrictedFromFile(filePath: string): boolean | undefined {
@@ -654,13 +658,20 @@ export class Helpers {
   public static checkDockerImageExists(imageName: string, imageTag: string): boolean {
     const fullImageName: string = `${imageName}:${imageTag}`;
     try {
-      // Execute the 'docker images' command and filter by the image name
-      // The --format "{{.Repository}}:{{.Tag}}" ensures consistent output
-      // We use grep to filter for the exact image:tag
-      const command: string = `docker images --format "{{.Repository}}:{{.Tag}}" | grep -E "^${fullImageName}$"`;
-      const output: string = execSync(command, {encoding: 'utf8', stdio: 'pipe'});
-      return output.trim() === fullImageName;
+      const output: string = execFileSync('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}'], {
+        encoding: 'utf8',
+        stdio: 'pipe',
+        env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.CONTAINER_ENGINE),
+      });
+      return output
+        .split(/\r?\n/)
+        .map((line: string): string => line.trim())
+        .includes(fullImageName);
     } catch (error) {
+      // grep exits 1 when no lines match — image simply not found, not an error
+      if (error?.status === 1) {
+        return false;
+      }
       if (!constants.SOLO_SILENT_MODE) {
         console.error(`Error checking Docker image ${fullImageName}:`, error.message);
       }
@@ -695,31 +706,47 @@ export class Helpers {
     };
   }
 
+  /**
+   * Best-effort extraction of the deployment names recorded in a remote-config ConfigMap.
+   * Tolerates both the current (array) and legacy (map keyed by cluster name) cluster layouts.
+   */
+  public static extractRemoteConfigDeploymentNames(remoteConfig: ConfigMap): string[] {
+    const deploymentNames: string[] = [];
+    try {
+      const remoteConfigData: unknown = yaml.parse(remoteConfig.data?.[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
+      let clustersData: unknown = undefined;
+      if (typeof remoteConfigData === 'object' && remoteConfigData !== null && 'clusters' in remoteConfigData) {
+        clustersData = (remoteConfigData as Record<string, unknown>).clusters;
+      }
+      const clustersArray: unknown[] = [];
+
+      if (Array.isArray(clustersData)) {
+        clustersArray.push(...clustersData);
+      } else if (typeof clustersData === 'object' && clustersData !== null) {
+        clustersArray.push(...Object.values(clustersData));
+      }
+
+      for (const clusterData of clustersArray) {
+        if (typeof clusterData === 'object' && clusterData !== null && 'deployment' in clusterData) {
+          const deployment: unknown = (clusterData as Record<string, unknown>).deployment;
+          if (typeof deployment === 'string' && deployment.length > 0) {
+            deploymentNames.push(deployment);
+          }
+        }
+      }
+    } catch {
+      // best-effort: treat absent or unparseable remote-config data as containing no deployments
+    }
+    return deploymentNames;
+  }
+
   public static remoteConfigsToDeploymentsTable(remoteConfigs: ConfigMap[]): string[] {
     const rows: string[] = [];
     if (remoteConfigs.length > 0) {
       rows.push('Namespace : deployment');
       for (const remoteConfig of remoteConfigs) {
-        const remoteConfigData: unknown = yaml.parse(remoteConfig.data?.['remote-config-data']);
-        let clustersData: unknown = undefined;
-        if (typeof remoteConfigData === 'object' && remoteConfigData !== null && 'clusters' in remoteConfigData) {
-          clustersData = (remoteConfigData as Record<string, unknown>).clusters;
-        }
-        const clustersArray: unknown[] = [];
-
-        if (Array.isArray(clustersData)) {
-          clustersArray.push(...clustersData);
-        } else if (typeof clustersData === 'object' && clustersData !== null) {
-          clustersArray.push(...Object.values(clustersData));
-        }
-
-        for (const clusterData of clustersArray) {
-          if (typeof clusterData === 'object' && clusterData !== null && 'deployment' in clusterData) {
-            const deployment: unknown = (clusterData as Record<string, unknown>).deployment;
-            if (typeof deployment === 'string') {
-              rows.push(`${remoteConfig.namespace.name} : ${deployment}`);
-            }
-          }
+        for (const deployment of Helpers.extractRemoteConfigDeploymentNames(remoteConfig)) {
+          rows.push(`${remoteConfig.namespace.name} : ${deployment}`);
         }
       }
     }
@@ -735,6 +762,7 @@ export class Helpers {
     consensusNode: ConsensusNode,
     logger: SoloLogger,
     k8Factory: K8Factory,
+    allowEmpty: boolean = false,
     consensusNodeVersion?: SemanticVersion<string> | string,
   ): Promise<void> {
     const {
@@ -750,10 +778,15 @@ export class Helpers {
 
     const blockNodesJsonData: string = new BlockNodesJsonWrapper(blockNodeMap, externalBlockNodeMap).toJSON();
 
+    const parsedBlockNodesJson: {nodes: unknown[]} = JSON.parse(blockNodesJsonData) as {nodes: unknown[]};
+    if (!allowEmpty && parsedBlockNodesJson.nodes.length === 0) {
+      throw new SoloErrors.system.blockNodesJsonEmpty(nodeAlias);
+    }
+
     const blockNodesJsonFilename: string = `${constants.BLOCK_NODES_JSON_FILE.replace('.json', '')}-${nodeId}.json`;
     const blockNodesJsonPath: string = PathEx.join(constants.SOLO_CACHE_DIR, blockNodesJsonFilename);
 
-    fs.writeFileSync(blockNodesJsonPath, JSON.stringify(JSON.parse(blockNodesJsonData), undefined, 2));
+    fs.writeFileSync(blockNodesJsonPath, JSON.stringify(parsedBlockNodesJson, undefined, 2));
 
     // Check if the file exists before copying
     if (!fs.existsSync(blockNodesJsonPath)) {
@@ -783,6 +816,11 @@ export class Helpers {
     await container.execContainer(
       `mv ${targetDirectory}/${sourceFilename} ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE}`,
     );
+    await container.execContainer([
+      'bash',
+      '-c',
+      `chown hedera:hedera ${targetDirectory}/${constants.BLOCK_NODES_JSON_FILE} 2>/dev/null || true`,
+    ]);
 
     const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`;
 
@@ -812,6 +850,12 @@ export class Helpers {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
 
+    // streamMode=BOTH (used by performance tests) produces both native block-stream blocks
+    // (BLOCK_HEADER) and Wrapped Record Blocks (ROUND_HEADER). The mirror importer rejects
+    // ROUND_HEADER; its rapid retries trigger the block node's HTTP/2 rapid-reset protection,
+    // cutting off block ingestion. Disable WRBs only when BOTH mode is active.
+    Helpers.ensureWrappedRecordBlocksDisabled(lines, blockStreamMode);
+
     const updatedApplicationPropertiesData: string = lines.join('\n');
     if (updatedApplicationPropertiesData !== applicationPropertiesData) {
       await k8.configMaps().update(namespace, 'network-node-data-config-cm', {
@@ -836,11 +880,15 @@ export class Helpers {
     if (updatedApplicationPropertiesData !== applicationPropertiesData) {
       fs.writeFileSync(updatedApplicationPropertiesFilePath, updatedApplicationPropertiesData);
       await container.copyTo(updatedApplicationPropertiesFilePath, targetDirectory);
+      await container.execContainer([
+        'bash',
+        '-c',
+        `chown hedera:hedera ${targetDirectory}/${constants.APPLICATION_PROPERTIES} 2>/dev/null || true`,
+      ]);
     }
   }
 }
 
-export const getInternalAddress: typeof Helpers.getInternalAddress = Helpers.getInternalAddress;
 export const sleep: typeof Helpers.sleep = Helpers.sleep;
 export const parseNodeAliases: typeof Helpers.parseNodeAliases = Helpers.parseNodeAliases;
 export const splitFlagInput: typeof Helpers.splitFlagInput = Helpers.splitFlagInput;

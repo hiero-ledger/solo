@@ -22,6 +22,8 @@ readonly HEDERA_KEY=hedera.key
 readonly ADDRESS_BOOK_DIR=${DATA_DIR}/saved/address_book
 readonly CONFIG_DIR=${DATA_DIR}/config
 readonly KEYS_DIR=${DATA_DIR}/keys
+# WRAPs proving key files are large and should not be bundled in diagnostics.
+readonly WRAPS_KEYS_PATTERN="^${KEYS_DIR}/wraps[^/]*(/.*)?$"
 readonly ONBOARD_DIR=${DATA_DIR}/onboard
 readonly UPGRADE_DIR=${DATA_DIR}/upgrade
 readonly STATS_DIR=${DATA_DIR}/stats
@@ -74,6 +76,7 @@ AddToFileList ${UPGRADE_DIR}
 AddToFileList ${STATS_DIR}
 
 echo "creating zip file ${ZIP_FULLPATH}" | tee -a ${LOG_FILE}
+awk -v pattern="${WRAPS_KEYS_PATTERN}" '$0 !~ pattern {print}' "${FILE_LIST}" > "${FILE_LIST}.filtered" && mv "${FILE_LIST}.filtered" "${FILE_LIST}"
 sed -i '/^$/d' "${FILE_LIST}" # Removes empty lines
 if [[ "$useZip" = "true" ]]; then
   echo "Using zip" | tee -a ${LOG_FILE}

@@ -4,6 +4,7 @@ export enum SoloEventType {
   NetworkDeployed = 'NetworkDeployed',
   NodesStarted = 'NodesStarted',
   MirrorNodeDeployed = 'MirrorNodeDeployed',
+  BlockNodeDeployed = 'BlockNodeDeployed',
 }
 
 export abstract class SoloEvent {

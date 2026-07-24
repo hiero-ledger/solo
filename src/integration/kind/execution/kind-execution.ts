@@ -33,6 +33,7 @@ export class KindExecution {
   private output: string[] = [];
   private errOutput: string[] = [];
   private exitCodeValue: number | null = null;
+  private spawnError: Error | undefined;
 
   /**
    * Creates a new KindExecution instance.
@@ -40,9 +41,15 @@ export class KindExecution {
    * @param environmentVariables The environment variables to set
    */
   public constructor(command: string[], environmentVariables: Record<string, string>) {
-    this.process = spawn(command.join(' '), {
-      shell: true,
-      env: {...process.env, ...environmentVariables},
+    const [executable, ...commandArguments]: string[] = command;
+    this.process = spawn(executable, commandArguments, {
+      shell: false,
+      env: environmentVariables,
+    });
+    // With shell:false a missing/invalid executable surfaces as an async 'error' event; capture it so it
+    // is never an unhandled exception and can be surfaced by waitFor()/waitForTimeout().
+    this.process.on('error', (error: Error): void => {
+      this.spawnError = error;
     });
   }
 
@@ -52,6 +59,15 @@ export class KindExecution {
    */
   private async waitFor(): Promise<void> {
     return new Promise((resolve, reject) => {
+      const rejectWithSpawnError: (error: Error) => void = (error: Error): void => {
+        reject(new KindExecutionException(1, `Failed to start process: ${error.message}`, '', error.message));
+      };
+      if (this.spawnError) {
+        rejectWithSpawnError(this.spawnError);
+        return;
+      }
+      this.process.on('error', rejectWithSpawnError);
+
       // const output: string[] = [];
       this.process.stdout.on('data', (d): void => {
         const items: string[] = d.toString().split(/\r?\n/);
@@ -99,7 +115,17 @@ export class KindExecution {
       setTimeout((): void => resolve(false), timeout.toMillis());
     });
 
-    const successPromise: Promise<boolean> = new Promise((resolve): void => {
+    const successPromise: Promise<boolean> = new Promise((resolve, reject): void => {
+      // Reject (rather than resolve false) on a spawn failure so the real start-up error surfaces instead
+      // of being masked as a generic timeout by responseAsTimeout()/callTimeout().
+      const rejectWithSpawnError: (error: Error) => void = (error: Error): void => {
+        reject(new KindExecutionException(1, `Failed to start process: ${error.message}`, '', error.message));
+      };
+      if (this.spawnError) {
+        rejectWithSpawnError(this.spawnError);
+        return;
+      }
+      this.process.on('error', rejectWithSpawnError);
       this.process.on('close', (code): void => {
         resolve(code === 0);
       });

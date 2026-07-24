@@ -16,16 +16,17 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {type LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
+import {type NodeAlias} from '../../../src/types/aliases.js';
 
-describe('Certificate Manager', () => {
-  const argv = Argv.initializeEmpty();
+describe('Certificate Manager', (): void => {
+  const argv: Argv = Argv.initializeEmpty();
   const k8Factory: K8Factory = container.resolve(InjectTokens.K8Factory);
 
   const k8InitSpy: K8Client = new K8Client(undefined, k8Factory.default().getKubectlExecutablePath());
 
   let certificateManager: CertificateManager;
 
-  before(async () => {
+  before(async (): Promise<void> => {
     resetForTest();
     sinon.stub(K8Client.prototype, 'init').returns(k8InitSpy);
     sinon.stub(K8ClientSecrets.prototype, 'create').resolves(true);
@@ -39,37 +40,34 @@ describe('Certificate Manager', () => {
     await localConfig.load();
   });
 
-  after(() => {
+  after((): void => {
     sinon.restore();
   });
 
-  it('should throw if and error if nodeAlias is not provided', async () => {
-    const input = '=/usr/bin/fake.cert';
+  it('should throw if and error if nodeAlias is not provided', async (): Promise<void> => {
+    const input: string = '=/usr/bin/fake.cert';
 
-    // @ts-expect-error - TS2341: to access private property
-    expect(() => certificateManager.parseAndValidate(input, 'testing')).to.throw(
-      SoloError,
-      'Failed to parse testing input',
-    );
+    expect((): {nodeAlias: NodeAlias; filePath: string}[] =>
+      // @ts-expect-error - TS2341: to access private property
+      certificateManager.parseAndValidate(input, 'testing'),
+    ).to.throw(SoloError, 'Failed to parse testing input');
   });
 
-  it('should throw if and error if path is not provided', async () => {
-    const input = 'node=';
+  it('should throw if and error if path is not provided', async (): Promise<void> => {
+    const input: string = 'node=';
 
-    // @ts-expect-error - TS2341: to access private property
-    expect(() => certificateManager.parseAndValidate(input, 'testing')).to.throw(
-      SoloError,
-      'Failed to parse testing input',
-    );
+    expect((): {nodeAlias: NodeAlias; filePath: string}[] =>
+      // @ts-expect-error - TS2341: to access private property
+      certificateManager.parseAndValidate(input, 'testing'),
+    ).to.throw(SoloError, 'Failed to parse testing input');
   });
 
-  it('should throw if and error if type is not valid', () => {
-    const input = 'node=/invalid/path';
+  it('should throw if and error if type is not valid', (): void => {
+    const input: string = 'node=/invalid/path';
 
-    // @ts-expect-error - TS2341: to access private property
-    expect(() => certificateManager.parseAndValidate(input, 'testing')).to.throw(
-      SoloError,
-      'Certificate file not found at path',
-    );
+    expect((): {nodeAlias: NodeAlias; filePath: string}[] =>
+      // @ts-expect-error - TS2341: to access private property
+      certificateManager.parseAndValidate(input, 'testing'),
+    ).to.throw(SoloError, 'Certificate file not found at path');
   });
 });

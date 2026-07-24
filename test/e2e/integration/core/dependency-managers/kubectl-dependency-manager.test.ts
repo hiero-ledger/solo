@@ -121,7 +121,7 @@ describe('KubectlDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub.withArgs(`"${fakeGlobalKubectlPath}" version --client`).resolves(mockVersionOutputValid.split('\n'));
+      runStub.withArgs(fakeGlobalKubectlPath, ['version', '--client']).resolves(mockVersionOutputValid.split('\n'));
       existsSyncStub.withArgs(`${localInstallationDirectory}/kubectl`).returns(false);
 
       try {

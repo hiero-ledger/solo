@@ -6,11 +6,11 @@ import {expect} from 'chai';
 import fs from 'node:fs';
 import {PathEx} from '../../../../../src/business/utils/path-ex.js';
 
-describe('YAML File Storage Backend', () => {
+describe('YAML File Storage Backend', (): void => {
   const testName: string = 'yaml-file-storage-backend';
   const temporaryDirectory: string = getTemporaryDirectory();
 
-  it('test readObject and writeObject', async () => {
+  it('test readObject and writeObject', async (): Promise<void> => {
     const key: string = `${testName}-file.yaml`;
     const backend: YamlFileStorageBackend = new YamlFileStorageBackend(temporaryDirectory);
     await backend.writeObject(key, {key: 'value'});
@@ -19,7 +19,7 @@ describe('YAML File Storage Backend', () => {
     expect(data).to.deep.equal({key: 'value'});
   });
 
-  it('test readObject with empty file', async () => {
+  it('test readObject with empty file', async (): Promise<void> => {
     const key: string = `${testName}-file2.yaml`;
     const temporaryFile: string = PathEx.join(temporaryDirectory, key);
     const backend: YamlFileStorageBackend = new YamlFileStorageBackend(temporaryDirectory);
@@ -27,7 +27,7 @@ describe('YAML File Storage Backend', () => {
     await expect(backend.readObject(key)).to.be.rejectedWith('file is empty');
   });
 
-  it('test readObject with invalid yaml file', async () => {
+  it('test readObject with invalid yaml file', async (): Promise<void> => {
     const key: string = `${testName}-file3.yaml`;
     const temporaryFile: string = PathEx.join(temporaryDirectory, key);
     const backend: YamlFileStorageBackend = new YamlFileStorageBackend(temporaryDirectory);
@@ -35,13 +35,13 @@ describe('YAML File Storage Backend', () => {
     await expect(backend.readObject(key)).to.be.rejectedWith('error parsing yaml file');
   });
 
-  it('test writeObject with null data', async () => {
+  it('test writeObject with null data', async (): Promise<void> => {
     const key: string = `${testName}-file4.yaml`;
     const backend: YamlFileStorageBackend = new YamlFileStorageBackend(temporaryDirectory);
     await expect(backend.writeObject(key, null)).to.be.rejectedWith('data must not be null');
   });
 
-  it('test writeObject with invalid key', async () => {
+  it('test writeObject with invalid key', async (): Promise<void> => {
     const key: string = '';
     const backend: YamlFileStorageBackend = new YamlFileStorageBackend(temporaryDirectory);
     await expect(backend.writeObject(key, {key: 'value'})).to.be.rejectedWith('error writing yaml file');

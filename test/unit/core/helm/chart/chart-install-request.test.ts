@@ -9,39 +9,43 @@ import {type InstallChartOptions} from '../../../../../src/integration/helm/mode
 import {ChartInstallRequest} from '../../../../../src/integration/helm/request/chart/chart-install-request.js';
 import {InstallChartOptionsBuilder} from '../../../../../src/integration/helm/model/install/install-chart-options-builder.js';
 
-describe('ChartInstallRequest Tests', () => {
-  it('Test ChartInstallRequest Chart constructor validation', () => {
-    const chart = new Chart('apache', 'bitnami/apache');
-    const chartInstallRequest = new ChartInstallRequest('apache', chart);
+describe('ChartInstallRequest Tests', (): void => {
+  it('Test ChartInstallRequest Chart constructor validation', (): void => {
+    const chart: Chart = new Chart('apache', 'bitnami/apache');
+    const chartInstallRequest: ChartInstallRequest = new ChartInstallRequest('apache', chart);
     expect(chartInstallRequest.chart).to.equal(chart);
     expect(chartInstallRequest).to.not.be.null;
     expect(chartInstallRequest.releaseName).to.equal('apache');
 
-    const options = InstallChartOptionsBuilder.builder().timeout('9m0s').atomic(true).build();
-    const nonDefaultOptRequest = new ChartInstallRequest('apache', chart, options);
+    const options: InstallChartOptions = InstallChartOptionsBuilder.builder().timeout('9m0s').atomic(true).build();
+    const nonDefaultOptRequest: ChartInstallRequest = new ChartInstallRequest('apache', chart, options);
 
     expect(nonDefaultOptRequest.options).to.equal(options);
     expect(nonDefaultOptRequest.options).to.not.be.null;
     expect(nonDefaultOptRequest.options).not.equal(InstallChartOptionsBuilder.builder().build());
   });
 
-  it('Test ChartInstallRequest apply with unqualified chart', () => {
-    const installChartOptionsMock = {
+  it('Test ChartInstallRequest apply with unqualified chart', (): void => {
+    const installChartOptionsMock: InstallChartOptions = {
       repo: sinon.stub().returns('mockedRepo'),
       apply: sinon.stub(),
     } as unknown as InstallChartOptions;
 
-    const chartMock = {
+    const chartMock: Chart = {
       unqualified: sinon.stub().returns('mockedUnqualified'),
       qualified: sinon.stub().returns('mockedQualified'),
     } as unknown as Chart;
 
-    const helmExecutionBuilderMock = {
+    const helmExecutionBuilderMock: HelmExecutionBuilder = {
       subcommands: sinon.stub().returnsThis(),
       positional: sinon.stub().returnsThis(),
     } as unknown as HelmExecutionBuilder;
 
-    const chartInstallRequest = new ChartInstallRequest('mocked', chartMock, installChartOptionsMock);
+    const chartInstallRequest: ChartInstallRequest = new ChartInstallRequest(
+      'mocked',
+      chartMock,
+      installChartOptionsMock,
+    );
 
     // Verify request properties
     expect(chartInstallRequest).to.not.be.null;
@@ -68,23 +72,27 @@ describe('ChartInstallRequest Tests', () => {
     expect(helmExecutionBuilderMock.positional).to.have.been.calledTwice;
   });
 
-  it('Test ChartInstallRequest apply with qualified chart', () => {
-    const installChartOptionsMock = {
+  it('Test ChartInstallRequest apply with qualified chart', (): void => {
+    const installChartOptionsMock: InstallChartOptions = {
       repo: sinon.stub().returns(null),
       apply: sinon.stub(),
     } as unknown as InstallChartOptions;
 
-    const chartMock = {
+    const chartMock: Chart = {
       unqualified: sinon.stub().returns('mockedUnqualified'),
       qualified: sinon.stub().returns('mockedQualified'),
     } as unknown as Chart;
 
-    const helmExecutionBuilderMock = {
+    const helmExecutionBuilderMock: HelmExecutionBuilder = {
       subcommands: sinon.stub().returnsThis(),
       positional: sinon.stub().returnsThis(),
     } as unknown as HelmExecutionBuilder;
 
-    const chartInstallRequest = new ChartInstallRequest('mocked', chartMock, installChartOptionsMock);
+    const chartInstallRequest: ChartInstallRequest = new ChartInstallRequest(
+      'mocked',
+      chartMock,
+      installChartOptionsMock,
+    );
     chartInstallRequest.apply(helmExecutionBuilderMock);
 
     expect(helmExecutionBuilderMock.subcommands).to.have.been.calledOnceWith('install');

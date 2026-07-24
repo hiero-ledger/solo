@@ -167,7 +167,7 @@ describe('HelmDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub.withArgs(`"${fakeGlobalHelmPath}" version --short`).resolves(['v4.1.3+gc94d381']);
+      runStub.withArgs(fakeGlobalHelmPath, ['version', '--short']).resolves(['v4.1.3+gc94d381']);
 
       try {
         // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private
@@ -195,7 +195,7 @@ describe('HelmDependencyManager', (): void => {
         }
         throw Object.assign(new Error('ENOENT'), {code: 'ENOENT'});
       });
-      runStub.withArgs(`"${fakeGlobalHelmPath}" version --short`).resolves(['v0.1.0+gabcdef']);
+      runStub.withArgs(fakeGlobalHelmPath, ['version', '--short']).resolves(['v0.1.0+gabcdef']);
 
       try {
         // @ts-expect-error TS2341: Property isInstalledGloballyAndMeetsRequirements is private

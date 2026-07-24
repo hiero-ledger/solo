@@ -57,6 +57,32 @@ export class Templates {
     return `https://raw.githubusercontent.com/hiero-ledger/hiero-mirror-node/refs/tags/${release}/importer/src/main/resources/db/scripts/init.sh`;
   }
 
+  public static renderMirrorNodeIngressControllerUrl(mirrorNamespace: NamespaceNameAsString): string {
+    return `http://${constants.MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
+  }
+
+  public static renderMirrorNodeRestServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+  ): string {
+    return Templates.renderMirrorNodeServiceUrl(mirrorNodeReleaseName, mirrorNamespace, 'rest');
+  }
+
+  public static renderMirrorNodeWeb3ServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+  ): string {
+    return Templates.renderMirrorNodeServiceUrl(mirrorNodeReleaseName, mirrorNamespace, 'web3');
+  }
+
+  private static renderMirrorNodeServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+    serviceName: string,
+  ): string {
+    return `http://${mirrorNodeReleaseName}-${serviceName}.${mirrorNamespace}.svc.cluster.local`;
+  }
+
   public static renderGossipPemPrivateKeyFile(nodeAlias: NodeAlias): string {
     return `${constants.SIGNING_KEY_PREFIX}-private-${nodeAlias}.pem`;
   }

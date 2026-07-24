@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {type ShellRunOptions} from '../shell-run-options.js';
+
 export interface PackageManager {
   installPackages(dependencies: string[]): Promise<void>;
   uninstallPackages(dependencies: string[]): Promise<void>;
@@ -8,5 +10,7 @@ export interface PackageManager {
   install(): Promise<boolean>;
   uninstall(): Promise<void>;
   isAvailable(): Promise<boolean>;
-  run(cmd: string, arguments_: string[], verbose: boolean, detached: boolean): Promise<string[]>;
+  setOnSudoRequested(callback: (message: string) => void): void;
+  setOnSudoGranted(callback: (message: string) => void): void;
+  run(cmd: string, arguments_?: string[], options?: ShellRunOptions): Promise<string[]>;
 }

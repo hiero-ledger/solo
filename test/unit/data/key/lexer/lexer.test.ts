@@ -18,7 +18,7 @@ function overlappingPathLexer(): {
   deploymentsArrayIndexNode: LexerInternalNode;
   clustersNode: LexerInternalNode;
 } {
-  const lexerMap = new Map<string, string>([
+  const lexerMap: Map<string, string> = new Map<string, string>([
     ['root.object.value1', '1'],
     ['root.object.value2', '2'],
     ['root.object.value3', '3'],
@@ -31,19 +31,25 @@ function overlappingPathLexer(): {
     ['deployments.0.settings.0.1', 'charlie'],
   ]);
 
-  const lexer = new Lexer(lexerMap);
+  const lexer: Lexer = new Lexer(lexerMap);
   lexer.renderTrees();
   expect(lexer.rootNodes).to.have.lengthOf(2);
 
-  const rootNode: LexerInternalNode = lexer.rootNodes.find(v => v.name === 'root') as LexerInternalNode;
+  const rootNode: LexerInternalNode = lexer.rootNodes.find(
+    (v: Node): boolean => v.name === 'root',
+  ) as LexerInternalNode;
   expect(rootNode.name).to.equal('root');
   expect(rootNode.children).to.have.lengthOf(2);
 
-  const subObjectNode: LexerInternalNode = rootNode.children.find(v => v.name === 'object') as LexerInternalNode;
+  const subObjectNode: LexerInternalNode = rootNode.children.find(
+    (v: Node): boolean => v.name === 'object',
+  ) as LexerInternalNode;
   expect(subObjectNode).to.not.be.undefined.and.not.be.null;
   expect(subObjectNode.children).to.have.lengthOf(3);
 
-  const subArrayNode: LexerInternalNode = rootNode.children.find(v => v.name === 'array') as LexerInternalNode;
+  const subArrayNode: LexerInternalNode = rootNode.children.find(
+    (v: Node): boolean => v.name === 'array',
+  ) as LexerInternalNode;
   expect(subArrayNode).to.not.be.undefined.and.not.be.null;
   expect(subArrayNode.children).to.have.lengthOf(1);
   expect(subArrayNode.isArray()).to.be.true;
@@ -54,12 +60,16 @@ function overlappingPathLexer(): {
   expect(subArrayIndexNode.isArrayIndex()).to.be.true;
   expect(subArrayIndexNode.children).to.have.lengthOf(3);
 
-  const index1Node = subArrayIndexNode.children.find(v => v.name === 'index1') as LexerLeafNode;
+  const index1Node: LexerLeafNode = subArrayIndexNode.children.find(
+    (v: Node): boolean => v.name === 'index1',
+  ) as LexerLeafNode;
   expect(index1Node).to.not.be.undefined.and.not.be.null;
   expect(index1Node.isLeaf()).to.be.true;
   expect(index1Node.value).to.be.equal('4');
 
-  const deploymentsNode: LexerInternalNode = lexer.rootNodes.find(v => v.name === 'deployments') as LexerInternalNode;
+  const deploymentsNode: LexerInternalNode = lexer.rootNodes.find(
+    (v: Node): boolean => v.name === 'deployments',
+  ) as LexerInternalNode;
   expect(deploymentsNode).to.not.be.undefined.and.not.be.null;
   expect(deploymentsNode.children).to.have.lengthOf(1);
   expect(deploymentsNode.isArray()).to.be.true;
@@ -68,43 +78,43 @@ function overlappingPathLexer(): {
   expect(deploymentsArrayIndexNode).to.not.be.undefined.and.not.be.null;
   expect(deploymentsArrayIndexNode.isArrayIndex()).to.be.true;
 
-  const clustersNode = deploymentsArrayIndexNode.children[0] as LexerInternalNode;
+  const clustersNode: LexerInternalNode = deploymentsArrayIndexNode.children[0] as LexerInternalNode;
   expect(clustersNode).to.not.be.undefined.and.not.be.null;
   expect(clustersNode.name).to.equal('clusters');
   expect(clustersNode.isArray()).to.be.true;
   expect(clustersNode.children).to.have.lengthOf(2);
 
-  const clustersArrayIndex0Node = clustersNode.children[0] as LexerLeafNode;
+  const clustersArrayIndex0Node: LexerLeafNode = clustersNode.children[0] as LexerLeafNode;
   expect(clustersArrayIndex0Node).to.not.be.undefined.and.not.be.null;
   expect(clustersArrayIndex0Node.isArrayIndex()).to.be.true;
   expect(clustersArrayIndex0Node.isLeaf()).to.be.true;
   expect(clustersArrayIndex0Node.value).to.be.equal('true');
 
-  const clustersArrayIndex1Node = clustersNode.children[1] as LexerLeafNode;
+  const clustersArrayIndex1Node: LexerLeafNode = clustersNode.children[1] as LexerLeafNode;
   expect(clustersArrayIndex1Node).to.not.be.undefined.and.not.be.null;
   expect(clustersArrayIndex1Node.isArrayIndex()).to.be.true;
   expect(clustersArrayIndex1Node.isLeaf()).to.be.true;
   expect(clustersArrayIndex1Node.value).to.be.equal('false');
 
-  const settingsNode = deploymentsArrayIndexNode.children[1] as LexerInternalNode;
+  const settingsNode: LexerInternalNode = deploymentsArrayIndexNode.children[1] as LexerInternalNode;
   expect(settingsNode).to.not.be.undefined.and.not.be.null;
   expect(settingsNode.name).to.equal('settings');
   expect(settingsNode.isArray()).to.be.true;
   expect(settingsNode.children).to.have.lengthOf(1);
 
-  const settingsArrayIndex0Node = settingsNode.children[0] as LexerInternalNode;
+  const settingsArrayIndex0Node: LexerInternalNode = settingsNode.children[0] as LexerInternalNode;
   expect(settingsArrayIndex0Node).to.not.be.undefined.and.not.be.null;
   expect(settingsArrayIndex0Node.name).to.equal('0');
   expect(settingsArrayIndex0Node.isArrayIndex()).to.be.true;
   expect(settingsArrayIndex0Node.children).to.have.lengthOf(2);
 
-  const settingsArrayIndex0Index0Node = settingsArrayIndex0Node.children[0] as LexerLeafNode;
+  const settingsArrayIndex0Index0Node: LexerLeafNode = settingsArrayIndex0Node.children[0] as LexerLeafNode;
   expect(settingsArrayIndex0Index0Node).to.not.be.undefined.and.not.be.null;
   expect(settingsArrayIndex0Index0Node.name).to.equal('0');
   expect(settingsArrayIndex0Index0Node.isLeaf()).to.be.true;
   expect(settingsArrayIndex0Index0Node.value).to.be.equal('bob');
 
-  const settingsArrayIndex0Index1Node = settingsArrayIndex0Node.children[1] as LexerLeafNode;
+  const settingsArrayIndex0Index1Node: LexerLeafNode = settingsArrayIndex0Node.children[1] as LexerLeafNode;
   expect(settingsArrayIndex0Index1Node).to.not.be.undefined.and.not.be.null;
   expect(settingsArrayIndex0Index1Node.name).to.equal('1');
   expect(settingsArrayIndex0Index1Node.isLeaf()).to.be.true;
@@ -122,34 +132,34 @@ function overlappingPathLexer(): {
   };
 }
 
-describe('Lexer', () => {
-  it('with empty token in constructor should throw error', () => {
-    expect(() => {
+describe('Lexer', (): void => {
+  it('with empty token in constructor should throw error', (): void => {
+    expect((): void => {
       new Lexer(null);
     }).to.throw('tokens must be provided');
   });
 
-  it('with empty formatter in constructor should throw error', () => {
-    expect(() => {
+  it('with empty formatter in constructor should throw error', (): void => {
+    expect((): void => {
       new Lexer(new Map(), null);
     }).to.throw('formatter must be provided');
   });
 
-  it('get rootNodes should return empty array', () => {
-    const lexer = new Lexer(new Map());
+  it('get rootNodes should return empty array', (): void => {
+    const lexer: Lexer = new Lexer(new Map());
     expect(lexer.rootNodes).to.be.empty;
   });
 
-  it('rootNodeFor with array segment', () => {
-    const lexer = new Lexer(new Map());
+  it('rootNodeFor with array segment', (): void => {
+    const lexer: Lexer = new Lexer(new Map());
     // @ts-expect-error - access private method for testing
-    const node = lexer.rootNodeFor(['secret', '42', 'everything', 'is', '42', 'true']);
+    const node: Node = lexer.rootNodeFor(['secret', '42', 'everything', 'is', '42', 'true']);
     expect(node.name).to.equal('secret');
     expect(node.isArray()).to.be.true;
   });
 
-  it('processKeys with an array segment', () => {
-    const lexerMap = new Map<string, string>([
+  it('processKeys with an array segment', (): void => {
+    const lexerMap: Map<string, string> = new Map<string, string>([
       ['secret.42.is.everything', 'true'],
       ['everything-is-42', 'true'],
       ['secret.42.is.42', 'true'],
@@ -158,9 +168,9 @@ describe('Lexer', () => {
       ['array.1.is.everything', 'true'],
       ['array.alpha.2.is.everything', 'true'],
     ]);
-    let lexer = new Lexer(lexerMap);
+    let lexer: Lexer = new Lexer(lexerMap);
 
-    expect(() => lexer.rootNodes).to.throw(
+    expect((): Node[] => lexer.rootNodes).to.throw(
       ConfigKeyError,
       "Cannot add a leaf node to an array node [ parent: 'secret.42.is', child: 'everything' ]",
     );
@@ -171,7 +181,7 @@ describe('Lexer', () => {
     expect(nodes).to.have.lengthOf(4);
   });
 
-  it('processKeys works with overlapping paths', () => {
+  it('processKeys works with overlapping paths', (): void => {
     overlappingPathLexer();
   });
 
@@ -212,7 +222,7 @@ describe('Lexer', () => {
     expect(clusterReference.value).to.be.equal('SoloCheck');
   });
 
-  it('replaceValue works with overlapping paths', () => {
+  it('replaceValue works with overlapping paths', (): void => {
     const {lexer, rootNode, subObjectNode, subArrayNode, subArrayIndexNode} = overlappingPathLexer();
     const forest: Forest = Forest.fromLexer(lexer);
     lexer.replaceValue(forest.nodeFor('root.array.0.index1'), '9');
@@ -224,12 +234,16 @@ describe('Lexer', () => {
     expect(subArrayNode.children).to.have.lengthOf(1);
     expect(subArrayIndexNode.children).to.have.lengthOf(3);
 
-    const index1Node = subArrayIndexNode.children.find(v => v.name === 'index1') as LexerLeafNode;
+    const index1Node: LexerLeafNode = subArrayIndexNode.children.find(
+      (v: Node): boolean => v.name === 'index1',
+    ) as LexerLeafNode;
     expect(index1Node).to.not.be.undefined.and.not.be.null;
     expect(index1Node.isLeaf()).to.be.true;
     expect(index1Node.value).to.be.equal('9');
 
-    const value1Node = subObjectNode.children.find(v => v.name === 'value1') as LexerLeafNode;
+    const value1Node: LexerLeafNode = subObjectNode.children.find(
+      (v: Node): boolean => v.name === 'value1',
+    ) as LexerLeafNode;
     expect(value1Node).to.not.be.undefined.and.not.be.null;
     expect(value1Node.isLeaf()).to.be.true;
     expect(value1Node.value).to.be.equal('10');

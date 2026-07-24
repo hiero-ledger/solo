@@ -113,7 +113,7 @@ function prepareComponentsData(namespace: NamespaceName): ComponentsData {
   return {namespace, components, labelRecord, componentsDataWrapper, podNames, componentFactory};
 }
 
-describe('RemoteConfigValidator', () => {
+describe('RemoteConfigValidator', (): void => {
   const namespace: NamespaceName = NamespaceName.of('remote-config-validator');
 
   let k8Factory: K8Factory;
@@ -127,7 +127,7 @@ describe('RemoteConfigValidator', () => {
   let state: any;
   let remoteConfigValidator: RemoteConfigValidator;
 
-  before(async () => {
+  before(async (): Promise<void> => {
     resetForTest(namespace.name, `${getTestCacheDirectory('LocalConfig')}`, false);
     k8Factory = container.resolve(InjectTokens.K8Factory);
     localConfig = container.resolve(InjectTokens.LocalConfigRuntimeState);
@@ -136,7 +136,7 @@ describe('RemoteConfigValidator', () => {
     remoteConfigValidator = new RemoteConfigValidator(k8Factory, localConfig);
   });
 
-  beforeEach(() => {
+  beforeEach((): void => {
     const testData: ComponentsData = prepareComponentsData(namespace);
     podNames = testData.podNames;
     components = testData.components;
@@ -146,7 +146,7 @@ describe('RemoteConfigValidator', () => {
     state = componentsDataWrapper.state;
   });
 
-  after(async function () {
+  after(async function (): Promise<void> {
     this.timeout(Duration.ofMinutes(5).toMillis());
     await k8Factory.default().namespaces().delete(namespace);
   });
@@ -186,8 +186,8 @@ describe('RemoteConfigValidator', () => {
   ];
 
   for (const {componentKey, displayName, type} of testCasesForIndividualComponents) {
-    describe(`${displayName} validation`, () => {
-      it('should fail if component is not present', async () => {
+    describe(`${displayName} validation`, (): void => {
+      it('should fail if component is not present', async (): Promise<void> => {
         const component: BaseStateSchema = components[componentKey];
 
         componentsDataWrapper.addNewComponent(component, type);
@@ -203,7 +203,7 @@ describe('RemoteConfigValidator', () => {
         }
       });
 
-      it('should succeed if component is present', async () => {
+      it('should succeed if component is present', async (): Promise<void> => {
         await createPod(podNames[componentKey], labelRecord[componentKey]);
 
         await remoteConfigValidator.validateComponents(namespace, false, state);
@@ -211,8 +211,8 @@ describe('RemoteConfigValidator', () => {
     });
   }
 
-  describe('Additional test cases', () => {
-    it('Should not validate consensus nodes if skipConsensusNodes is enabled', async () => {
+  describe('Additional test cases', (): void => {
+    it('Should not validate consensus nodes if skipConsensusNodes is enabled', async (): Promise<void> => {
       const skipConsensusNodes: boolean = true;
 
       const nodeIds: NodeId[] = [0, 1, 2];
@@ -236,7 +236,7 @@ describe('RemoteConfigValidator', () => {
     const nodeStates: DeploymentPhase[] = [DeploymentPhase.REQUESTED, DeploymentPhase.STOPPED];
 
     for (const nodeState of nodeStates) {
-      it(`Should not validate consensus nodes if status is ${nodeState} `, async () => {
+      it(`Should not validate consensus nodes if status is ${nodeState} `, async (): Promise<void> => {
         const nodeIds: NodeId[] = [0, 1, 2];
 
         const consensusNodeComponents: ConsensusNodeStateSchema[] =

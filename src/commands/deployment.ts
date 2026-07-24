@@ -2,7 +2,7 @@
 
 import {Listr} from 'listr2';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
-import {select as selectPrompt} from '@inquirer/prompts';
+import {confirm as confirmPrompt, select as selectPrompt} from '@inquirer/prompts';
 import {BaseCommand} from './base.js';
 import {Flags, Flags as flags} from './flags.js';
 import * as constants from '../core/constants.js';
@@ -33,11 +33,13 @@ import {Deployment} from '../business/runtime-state/config/local/deployment.js';
 import {CommandFlags} from '../types/flag-types.js';
 import {type ConfigMap} from '../integration/kube/resources/config-map/config-map.js';
 import {type FacadeArray} from '../business/runtime-state/collection/facade-array.js';
-import {remoteConfigsToDeploymentsTable} from '../core/helpers.js';
+import {Helpers, remoteConfigsToDeploymentsTable} from '../core/helpers.js';
+import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
 import {MessageLevel} from '../core/logging/message-level.js';
 import {PodReference} from '../integration/kube/resources/pod/pod-reference.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {Pod} from '../integration/kube/resources/pod/pod.js';
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 import * as version from '../../version.js';
@@ -49,34 +51,31 @@ import yaml from 'yaml';
 import {PathEx} from '../business/utils/path-ex.js';
 import fs from 'node:fs/promises';
 import {DEFAULT_SOLO_NAMESPACE_LABELS} from '../core/constants.js';
-
-interface DeploymentAddClusterConfig {
-  quiet: boolean;
-  context: string;
-  namespace: NamespaceName;
-  deployment: DeploymentName;
-  clusterRef: ClusterReferenceName;
-
-  enableCertManager: boolean;
-  numberOfConsensusNodes: number;
-  dnsBaseDomain: string;
-  dnsConsensusNodePattern: string;
-
-  ledgerPhase?: LedgerPhase;
-  nodeAliases: NodeAliases;
-
-  existingNodesCount: number;
-  existingClusterContext?: string;
-}
-
-export interface DeploymentAddClusterContext {
-  config: DeploymentAddClusterConfig;
-}
+import {type DeploymentAddClusterContext} from './deployment-add-cluster-context.js';
+export {type DeploymentAddClusterContext} from './deployment-add-cluster-context.js';
 
 interface PortEntry {
   componentId: number;
   localPort: number;
   podPort: number;
+}
+
+interface ImagesConfig {
+  quiet: boolean;
+  namespace: NamespaceName;
+  deployment: DeploymentName;
+  context: string;
+}
+
+interface ImagesContext {
+  config: ImagesConfig;
+}
+
+interface ImageRow {
+  component: string;
+  pod: string;
+  container: string;
+  image: string;
 }
 
 function collectPortEntries(components: BaseStateSchema[]): PortEntry[] {
@@ -140,9 +139,19 @@ export class DeploymentCommand extends BaseCommand {
     optional: [flags.quiet],
   };
 
+  public static IMAGES_FLAGS_LIST: CommandFlags = {
+    required: [flags.deployment],
+    optional: [flags.clusterRef, flags.quiet],
+  };
+
   public static PORTS_FLAGS_LIST: CommandFlags = {
     required: [flags.deployment],
     optional: [flags.clusterRef, flags.quiet, flags.output, flags.cacheDir],
+  };
+
+  public static IMPORT_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [flags.context, flags.deployment, flags.namespace, flags.quiet],
   };
 
   /**
@@ -324,10 +333,12 @@ export class DeploymentCommand extends BaseCommand {
               }
 
               if (remoteConfigExists || existingConfigMaps.length > 0) {
-                throw new SoloErrors.deployment.hasRemoteResources(
-                  deployment,
-                  clusterReference,
-                  Flags.getFormattedFlagKey(Flags.deployment),
+                // Best-effort, never-blocking: do not abort local-config cleanup when remote resources
+                // still exist. The one-shot destroy flow tears these down first; a standalone delete
+                // simply warns so the user can run the network/component destroy commands.
+                this.logger.warn(
+                  `Deployment '${deployment}' still has remote resources in cluster-ref '${clusterReference}'; ` +
+                    'continuing with local config cleanup. Run the network/component destroy commands to remove them.',
                 );
               }
             }
@@ -341,6 +352,20 @@ export class DeploymentCommand extends BaseCommand {
               const actualDeployment: Deployment = this.localConfig.configuration.deploymentByName(deployment);
               if (actualDeployment) {
                 this.localConfig.configuration.deployments.remove(actualDeployment);
+              }
+
+              // Prune cluster-refs that are no longer referenced by any remaining deployment, so destroy
+              // converges to a clean local config. Idempotent: deleting an absent cluster-ref is a no-op.
+              const referencedClusterReferences: Set<string> = new Set<string>();
+              for (const remainingDeployment of this.localConfig.configuration.deployments) {
+                for (const cluster of remainingDeployment.clusters) {
+                  referencedClusterReferences.add(cluster.toString());
+                }
+              }
+              for (const clusterReference of this.localConfig.configuration.clusterRefs.keys()) {
+                if (!referencedClusterReferences.has(clusterReference)) {
+                  this.localConfig.configuration.clusterRefs.delete(clusterReference);
+                }
               }
 
               await this.localConfig.persist();
@@ -414,17 +439,41 @@ export class DeploymentCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_): Promise<void> => {
+          task: async (context_, task): Promise<void> => {
             await this.localConfig.load();
 
             this.configManager.update(argv);
 
-            const clusterName: ClusterReferenceName | undefined = this.configManager.getFlag<ClusterReferenceName>(
-              flags.clusterRef,
-            );
+            let clusterName: ClusterReferenceName | undefined = this.configManager.getFlag(flags.clusterRef);
 
-            // Note: cluster-ref is now optional. If not provided, we list local deployments.
-            // We no longer prompt for cluster-ref to allow listing all deployments without requiring cluster access.
+            // --cluster-ref is optional.
+            // When it is not provided, prompt the user to either filter by one of the
+            // cluster references found in local config or list all deployments.
+            //
+            // --quiet (or no cluster references in local config)
+            // lists all deployments without prompting.
+            if (!clusterName) {
+              const isQuiet: boolean = this.configManager.getFlag<boolean>(flags.quiet);
+              const clusterReferences: ClusterReferenceName[] = [...this.localConfig.configuration.clusterRefs.keys()];
+
+              if (!isQuiet && clusterReferences.length > 0) {
+                const selectedClusterReference: string = (await task
+                  .prompt(ListrInquirerPromptAdapter)
+                  .run(selectPrompt, {
+                    message: 'Select cluster-ref to filter deployments by:',
+                    choices: [
+                      {name: 'All deployments', value: ''},
+                      ...clusterReferences.map((clusterReference): {name: string; value: string} => ({
+                        name: `${clusterReference} (${this.localConfig.configuration.clusterRefs.get(clusterReference)?.toString() ?? 'no-context'})`,
+                        value: clusterReference,
+                      })),
+                    ],
+                  })) as string;
+
+                clusterName = selectedClusterReference || undefined;
+              }
+            }
+
             context_.config = {
               clusterName,
             } as Config;
@@ -504,6 +553,340 @@ export class DeploymentCommand extends BaseCommand {
     }
 
     return true;
+  }
+
+  /**
+   * Reconstruct the local configuration for an existing deployment from a cluster's remote config.
+   */
+  public async importConfig(argv: ArgvStruct): Promise<boolean> {
+    interface Config {
+      quiet: boolean;
+      kubeContext: Context;
+      namespace: Optional<NamespaceName>;
+      deploymentFilter: Optional<DeploymentName>;
+      configMap: Optional<ConfigMap>;
+    }
+
+    interface ImportTaskContext {
+      config: Config;
+    }
+
+    interface DiscoveredDeployment {
+      configMap: ConfigMap;
+      deploymentName: string;
+    }
+
+    const tasks: ReturnType<typeof this.taskList.newTaskList> = this.taskList.newTaskList(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_: ImportTaskContext): Promise<void> => {
+            await this.localConfig.load();
+
+            this.configManager.update(argv);
+
+            const namespaceValue: string = this.configManager.getFlag<string>(flags.namespace);
+
+            context_.config = {
+              quiet: this.configManager.getFlag<boolean>(flags.quiet),
+              kubeContext:
+                this.configManager.getFlag<Context>(flags.context) || this.k8Factory.default().contexts().readCurrent(),
+              namespace: namespaceValue ? NamespaceName.of(namespaceValue) : undefined,
+              deploymentFilter: this.configManager.getFlag<DeploymentName>(flags.deployment) || undefined,
+              configMap: undefined,
+            };
+          },
+        },
+        {
+          title: 'Discover Solo deployments in the cluster',
+          task: async (context_: ImportTaskContext, task): Promise<void> => {
+            const {kubeContext, namespace, deploymentFilter, quiet} = context_.config;
+
+            const labels: string[] = Templates.renderConfigMapRemoteConfigLabels();
+            const configMaps: ConfigMap[] = await (namespace
+              ? this.k8Factory.getK8(kubeContext).configMaps().list(namespace, labels)
+              : this.k8Factory.getK8(kubeContext).configMaps().listForAllNamespaces(labels));
+
+            let discovered: DiscoveredDeployment[] = configMaps
+              .map((configMap: ConfigMap): Optional<DiscoveredDeployment> => {
+                const deploymentName: Optional<string> = Helpers.extractRemoteConfigDeploymentNames(configMap)[0];
+                return deploymentName ? {configMap, deploymentName} : undefined;
+              })
+              .filter((entry: Optional<DiscoveredDeployment>): entry is DiscoveredDeployment => entry !== undefined);
+
+            if (deploymentFilter) {
+              discovered = discovered.filter(
+                (entry: DiscoveredDeployment): boolean => entry.deploymentName === deploymentFilter,
+              );
+            }
+
+            const searchScope: string =
+              `kube context '${kubeContext}'` + (namespace ? ` and namespace '${namespace.name}'` : '');
+
+            if (discovered.length === 0) {
+              throw new SoloErrors.deployment.importFailed(`no Solo deployment found in ${searchScope}`);
+            }
+
+            let selected: DiscoveredDeployment = discovered[0];
+            if (discovered.length > 1) {
+              if (quiet) {
+                const candidates: string = discovered
+                  .map((entry: DiscoveredDeployment): string => {
+                    return `${entry.configMap.namespace.name}:${entry.deploymentName}`;
+                  })
+                  .join(', ');
+                throw new SoloErrors.deployment.importFailed(
+                  `multiple Solo deployments found in ${searchScope} (${candidates}); narrow the selection with ` +
+                    `the ${Flags.getFormattedFlagKey(flags.deployment)} or ${Flags.getFormattedFlagKey(flags.namespace)} ` +
+                    `flag, or run without ${Flags.getFormattedFlagKey(flags.quiet)} to select interactively`,
+                );
+              }
+
+              const selectedIndex: number = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+                message: 'Select the deployment to import:',
+                choices: discovered.map(
+                  (entry: DiscoveredDeployment, index: number): {name: string; value: number} => ({
+                    name: `${entry.deploymentName} (namespace: ${entry.configMap.namespace.name})`,
+                    value: index,
+                  }),
+                ),
+              })) as number;
+              selected = discovered[selectedIndex];
+            }
+
+            context_.config.configMap = selected.configMap;
+            task.title += `: found '${selected.deploymentName}' in namespace '${selected.configMap.namespace.name}'`;
+          },
+        },
+        {
+          title: 'Load remote configuration',
+          task: async (context_: ImportTaskContext): Promise<void> => {
+            const {configMap, kubeContext} = context_.config;
+            await this.remoteConfig.populateFromExisting(configMap.namespace, kubeContext);
+          },
+        },
+        {
+          title: 'Import deployment into local configuration',
+          task: async (context_: ImportTaskContext, task): Promise<void> => {
+            const {kubeContext, quiet, configMap} = context_.config;
+
+            const clusters: ReadonlyArray<Readonly<ClusterSchema>> = this.remoteConfig.configuration.clusters;
+            if (clusters.length === 0) {
+              throw new SoloErrors.deployment.importFailed('the remote config does not reference any clusters');
+            }
+
+            const deploymentName: DeploymentName = clusters[0].deployment as DeploymentName;
+            const namespaceName: string = clusters[0].namespace;
+
+            task.title = `Import deployment '${deploymentName}' into local configuration`;
+
+            const existing: Deployment = this.localConfig.configuration.deployments.find(
+              (candidate: Deployment): boolean => candidate.name === deploymentName,
+            );
+            if (existing) {
+              const matchesRemote: boolean =
+                existing.namespace === namespaceName &&
+                clusters.every((cluster: Readonly<ClusterSchema>): boolean =>
+                  existing.clusters.some(
+                    (clusterReference: StringFacade): boolean => clusterReference.toString() === cluster.name,
+                  ),
+                );
+
+              if (!matchesRemote) {
+                if (quiet) {
+                  throw new SoloErrors.deployment.importFailed(
+                    `deployment '${deploymentName}' already exists in the local config with different settings; ` +
+                      `run without ${Flags.getFormattedFlagKey(flags.quiet)} to confirm overwriting it`,
+                  );
+                }
+
+                const overwrite: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+                  default: false,
+                  message:
+                    `Deployment '${deploymentName}' already exists in the local config ` +
+                    'with different settings. Overwrite it?',
+                });
+
+                if (!overwrite) {
+                  this.logger.showUser(chalk.yellow('Import aborted; local configuration left unchanged.'));
+                  return;
+                }
+
+                this.localConfig.configuration.deployments.remove(existing);
+              }
+            }
+
+            // Map cluster-refs to kube contexts without overwriting mappings that already exist locally.
+            for (const cluster of clusters) {
+              const clusterReference: ClusterReferenceName = cluster.name;
+              const mappedContext: Optional<string> = this.localConfig.configuration.clusterRefs
+                .get(clusterReference)
+                ?.toString();
+
+              if (mappedContext) {
+                if (mappedContext !== kubeContext) {
+                  this.logger.showUser(
+                    chalk.yellow(
+                      `Keeping existing mapping for cluster-ref '${clusterReference}' → '${mappedContext}'.`,
+                    ),
+                  );
+                }
+                continue;
+              }
+
+              if (clusters.length === 1) {
+                this.localConfig.configuration.clusterRefs.set(clusterReference, new StringFacade(kubeContext));
+                continue;
+              }
+
+              if (quiet) {
+                throw new SoloErrors.deployment.importFailed(
+                  `cluster-ref '${clusterReference}' is not mapped to a kube context in the local config; ` +
+                    `run without ${Flags.getFormattedFlagKey(flags.quiet)} to select the context interactively`,
+                );
+              }
+
+              const selectedContext: string = (await task.prompt(ListrInquirerPromptAdapter).run(selectPrompt, {
+                message: `Select the kube context for cluster-ref '${clusterReference}':`,
+                choices: this.k8Factory
+                  .default()
+                  .contexts()
+                  .list()
+                  .map((contextName: string): {name: string; value: string} => ({
+                    name: contextName,
+                    value: contextName,
+                  })),
+                default: kubeContext,
+              })) as string;
+              this.localConfig.configuration.clusterRefs.set(clusterReference, new StringFacade(selectedContext));
+            }
+
+            let deployment: Deployment = this.localConfig.configuration.deployments.find(
+              (candidate: Deployment): boolean => candidate.name === deploymentName,
+            );
+            if (!deployment) {
+              const {realm, shard} = await this.readRealmAndShardFromConsensusNode(kubeContext, configMap.namespace);
+              deployment = this.localConfig.configuration.deployments.addNew();
+              deployment.name = deploymentName;
+              deployment.namespace = namespaceName;
+              deployment.realm = realm;
+              deployment.shard = shard;
+            }
+
+            for (const cluster of clusters) {
+              const alreadyListed: boolean = deployment.clusters.some(
+                (clusterReference: StringFacade): boolean => clusterReference.toString() === cluster.name,
+              );
+              if (!alreadyListed) {
+                deployment.clusters.add(new StringFacade(cluster.name));
+              }
+            }
+
+            await this.localConfig.persist();
+
+            this.logger.showList(
+              `Imported deployment '${deploymentName}'`,
+              clusters.map((cluster: Readonly<ClusterSchema>): string => {
+                const mapped: string =
+                  this.localConfig.configuration.clusterRefs.get(cluster.name)?.toString() ?? '<none>';
+                return `${deploymentName} | namespace=${namespaceName} | cluster-ref=${cluster.name} | context=${mapped}`;
+              }),
+            );
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+      undefined,
+      'deployment config import',
+    );
+
+    if (tasks.isRoot()) {
+      try {
+        await tasks.run();
+      } catch (error) {
+        throw error instanceof SoloErrors.deployment.importFailed
+          ? error
+          : new SoloErrors.deployment.importFailed('could not complete the import', error);
+      }
+    }
+
+    return true;
+  }
+
+  /** Read the realm and shard from the deployment's application.properties, warning and defaulting when unreachable. */
+  private async readRealmAndShardFromConsensusNode(
+    kubeContext: Context,
+    namespace: NamespaceName,
+  ): Promise<{realm: Realm; shard: Shard}> {
+    const defaultRealm: Realm = flags.realm.definition.defaultValue as Realm;
+    const defaultShard: Shard = flags.shard.definition.defaultValue as Shard;
+
+    const applicationProperties: Optional<string> = await this.readApplicationPropertiesFromCluster(
+      kubeContext,
+      namespace,
+    );
+    const realm: Optional<number> = applicationProperties
+      ? Helpers.parseNumericApplicationProperty(applicationProperties, 'hedera.realm')
+      : undefined;
+    const shard: Optional<number> = applicationProperties
+      ? Helpers.parseNumericApplicationProperty(applicationProperties, 'hedera.shard')
+      : undefined;
+
+    if (realm === undefined || shard === undefined) {
+      this.logger.showUser(
+        chalk.yellow(
+          "Could not read the realm and shard from the deployment's consensus nodes; " +
+            `defaulting to realm ${defaultRealm}, shard ${defaultShard}.`,
+        ),
+      );
+    }
+
+    return {realm: realm ?? defaultRealm, shard: shard ?? defaultShard};
+  }
+
+  /** Fetch application.properties from the first reachable consensus node pod, else from the shared data ConfigMap. */
+  private async readApplicationPropertiesFromCluster(
+    kubeContext: Context,
+    namespace: NamespaceName,
+  ): Promise<Optional<string>> {
+    const k8: K8 = this.k8Factory.getK8(kubeContext);
+    const applicationPropertiesPath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`;
+
+    try {
+      const pods: Pod[] = await k8.pods().list(namespace, ['solo.hedera.com/type=network-node']);
+      for (const pod of pods) {
+        if (!pod?.podReference) {
+          continue;
+        }
+        try {
+          const containerReference: ContainerReference = ContainerReference.of(
+            pod.podReference,
+            constants.ROOT_CONTAINER,
+          );
+          const applicationProperties: string = await k8
+            .containers()
+            .readByRef(containerReference)
+            .execContainer(`cat ${applicationPropertiesPath}`);
+          if (applicationProperties) {
+            return applicationProperties;
+          }
+        } catch {
+          // best-effort: this pod may not be running; try the next consensus node
+        }
+      }
+    } catch {
+      // best-effort: pod listing may fail when the network is down; fall through to the ConfigMap
+    }
+
+    try {
+      const configMap: ConfigMap = await k8
+        .configMaps()
+        .read(namespace, constants.NETWORK_NODE_SHARED_DATA_CONFIG_MAP_NAME);
+      return configMap.data?.[constants.APPLICATION_PROPERTIES];
+    } catch {
+      // best-effort: the shared data ConfigMap may be absent; the caller falls back to defaults
+      return undefined;
+    }
   }
 
   public async close(): Promise<void> {} // no-op
@@ -670,6 +1053,99 @@ export class DeploymentCommand extends BaseCommand {
       await tasks.run();
     } catch (error) {
       throw new SoloErrors.deployment.listPortsFailed(error);
+    }
+
+    return true;
+  }
+
+  public async images(argv: ArgvStruct): Promise<boolean> {
+    const tasks: SoloListr<ImagesContext> = this.taskList.newTaskList<ImagesContext>(
+      [
+        {
+          title: 'Initialize',
+          task: async (context_: ImagesContext): Promise<void> => {
+            await this.localConfig.load();
+            await this.remoteConfig.loadAndValidate(argv);
+            this.configManager.update(argv);
+
+            const deployment: DeploymentName = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            const deploymentConfig: Deployment = this.localConfig.configuration.deploymentByName(deployment);
+            if (!deploymentConfig) {
+              throw new SoloErrors.deployment.notFound(`Deployment ${deployment} not found in local config`);
+            }
+            const namespace: NamespaceName = NamespaceName.of(deploymentConfig.namespace);
+            const clusterReference: ClusterReferenceName = this.getClusterReference();
+            const clusterContext: string = this.getClusterContext(clusterReference);
+
+            context_.config = {
+              quiet: this.configManager.getFlag<boolean>(flags.quiet),
+              namespace,
+              deployment,
+              context: clusterContext,
+            };
+          },
+        },
+        {
+          title: 'Collect running images',
+          task: async ({config}: ImagesContext): Promise<void> => {
+            const pods: Pod[] = await this.k8Factory.getK8(config.context).pods().list(config.namespace, []);
+
+            if (pods.length === 0) {
+              this.logger.showUser(chalk.yellow(`No pods found in namespace: ${config.namespace.name}`));
+              return;
+            }
+
+            const rows: ImageRow[] = pods
+              .filter((pod: Pod): boolean => Boolean(pod.containerImage))
+              .map((pod: Pod): ImageRow => {
+                const podName: string = pod.podReference?.name?.toString() ?? '';
+                const component: string =
+                  pod.labels?.['app.kubernetes.io/instance'] ??
+                  pod.labels?.['app.kubernetes.io/name'] ??
+                  podName
+                    .replace(/-[a-z0-9]{5}$/, '') // strip Deployment pod-id suffix
+                    .replace(/-[a-z0-9]{7,10}$/, '') // strip Deployment replicaset hash
+                    .replace(/-\d+$/, ''); // strip StatefulSet index
+                return {
+                  component: component || '<unknown>',
+                  pod: podName || '<unknown>',
+                  container: pod.containerName?.toString() ?? '<unknown>',
+                  image: pod.containerImage ?? '<unknown>',
+                };
+              });
+
+            const headers: ImageRow = {component: 'COMPONENT', pod: 'POD', container: 'CONTAINER', image: 'IMAGE'};
+            const colWidth: (key: keyof ImageRow) => number = (key: keyof ImageRow): number =>
+              Math.max(headers[key].length, ...rows.map((row: ImageRow): number => row[key].length));
+            const widths: Record<'component' | 'pod' | 'container', number> = {
+              component: colWidth('component'),
+              pod: colWidth('pod'),
+              container: colWidth('container'),
+            };
+
+            const formatRow: (row: ImageRow) => string = (row: ImageRow): string =>
+              `  ${row.component.padEnd(widths.component)}  ${row.pod.padEnd(widths.pod)}  ${row.container.padEnd(widths.container)}  ${row.image}`;
+
+            const separator: string = '-'.repeat(widths.component + widths.pod + widths.container + 40);
+
+            this.logger.showUser(chalk.green(`\n *** Running images in deployment: ${config.deployment} ***`));
+            this.logger.showUser(chalk.green(separator));
+            this.logger.showUser(chalk.bold.white(formatRow(headers)));
+            this.logger.showUser(chalk.green(separator));
+            for (const row of rows) {
+              this.logger.showUser(chalk.cyan(formatRow(row)));
+            }
+            this.logger.showUser('');
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloErrors.deployment.listFailed(error);
     }
 
     return true;
@@ -894,7 +1370,9 @@ export class DeploymentCommand extends BaseCommand {
             `Cluster-ref: ${clusterRef} already exists for deployment: ${deployment} in local config`,
           );
         } else {
-          this.logger.showUser(`Adding cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`);
+          this.logger.showUserUnlessOneShot(
+            `Adding cluster-ref: ${clusterRef} for deployment: ${deployment} in local config`,
+          );
           this.localConfig.configuration.deploymentByName(deployment).clusters.add(new StringFacade(clusterRef));
         }
 

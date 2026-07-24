@@ -45,6 +45,31 @@ export interface SoloLogger {
 
   showUser(message: any, ...arguments_: any): void;
 
+  /**
+   * Shows {@link message} to the user when running a standalone command, or demotes it to debug-level
+   * (log file only) when running inside a one-shot command, where the one-shot Finish phase prints
+   * the consolidated summary and extra mechanics would just be noise.
+   */
+  showUserUnlessOneShot(message: string): void;
+
+  /**
+   * Starts buffering user-facing output (showUser/showJSON/showList/showMessageGroup).
+   *
+   * While deferred, those messages are written to the structured log file but not printed to the
+   * terminal. This avoids corrupting a live Listr render (e.g. the concurrent one-shot deploy),
+   * where direct console writes collide with the renderer's cursor control. Errors
+   * (showUserError) are never buffered.
+   */
+  beginDeferredUserOutput(): void;
+
+  /**
+   * Prints any buffered user-facing output and disables buffering.
+   *
+   * Intended to be called once the live renderer has stopped, so the human-facing summary prints
+   * cleanly in one block.
+   */
+  flushDeferredUserOutput(): void;
+
   showUserError(error: Error | any): void;
 
   error(message: any, ...arguments_: any): void;
@@ -56,6 +81,8 @@ export interface SoloLogger {
   debug(message: any, ...arguments_: any): void;
 
   showList(title: string, items: string[]): void;
+
+  showListIfNotEmpty(title: string, items: string[]): void;
 
   showJSON(title: string, object: object): void;
 

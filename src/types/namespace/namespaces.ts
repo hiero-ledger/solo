@@ -14,8 +14,12 @@ export interface Namespaces {
   /**
    * Delete a namespace
    * @param namespace - the name of the namespace
+   * @param gracePeriodSeconds - optional termination grace period in seconds. Pass 0 for a
+   *   non-graceful (forced) deletion that uses background propagation so the call does not block on
+   *   contained resources draining their default grace periods (e.g. during destroy). When omitted,
+   *   the cluster's default graceful deletion is used.
    */
-  delete(namespace: NamespaceName): Promise<boolean>;
+  delete(namespace: NamespaceName, gracePeriodSeconds?: number): Promise<boolean>;
 
   /**
    * Get a namespace

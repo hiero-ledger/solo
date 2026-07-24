@@ -293,7 +293,6 @@ describe('ProfileManager', (): void => {
         nodeAccountMap,
         [consensusNodes[0]],
         destinationPath,
-        version.HEDERA_PLATFORM_VERSION,
         constants.HEDERA_APP_NAME,
         constants.HEDERA_CHAIN_ID,
         false,

@@ -71,8 +71,6 @@ export class InjectTokens {
   public static MetricsServer: symbol = Symbol.for('MetricsServer');
   public static BackupRestoreCommand: symbol = Symbol.for('BackupRestoreCommand');
   public static OsPackageManager: symbol = Symbol.for('OsPackageManager');
-  public static BrewPackageManager: symbol = Symbol.for('BrewPackageManager');
-  public static AptGetPackageManager: symbol = Symbol.for('AptGetPackageManager');
   public static ClusterTaskManager: symbol = Symbol.for('ClusterTaskManager');
   public static GitClient: symbol = Symbol.for('GitClient');
   public static IgnorePodMetrics: symbol = Symbol.for('IgnorePodMetrics');
@@ -113,6 +111,7 @@ export class InjectTokens {
   public static CacheHealthInspector: symbol = Symbol.for('CacheHealthInspector');
   public static ImageCacheHandlerBuilder: symbol = Symbol.for('ImageCacheHandlerBuilder');
   public static ContainerEngineClient: symbol = Symbol.for('ContainerEngineClient');
+  public static ContainerEngineResourceInspector: symbol = Symbol.for('ContainerEngineResourceInspector');
 
   // Command Definitions
   public static BackupRestoreCommandDefinition: symbol = Symbol.for('BackupRestoreCommandDefinition');
