@@ -139,8 +139,9 @@ export class RapidFireCommand extends BaseCommand {
   private static readonly RTT_WARMUP_SECONDS_NAME: string = 'rttWarmupSeconds';
 
   public static readonly START_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment, flags.nlgArguments, flags.performanceTest],
+    required: [flags.nlgArguments, flags.performanceTest],
     optional: [
+      flags.deployment,
       flags.debugMode,
       flags.force,
       flags.quiet,
@@ -154,13 +155,13 @@ export class RapidFireCommand extends BaseCommand {
   };
 
   public static readonly STOP_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment, flags.performanceTest],
-    optional: [flags.debugMode, flags.force, flags.quiet, flags.packageName],
+    required: [flags.performanceTest],
+    optional: [flags.deployment, flags.debugMode, flags.force, flags.quiet, flags.packageName],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.debugMode, flags.force, flags.quiet],
+    required: [],
+    optional: [flags.deployment, flags.debugMode, flags.force, flags.quiet],
   };
 
   private nglChartIsDeployed(context_: RapidFireStartContext): Promise<boolean> {

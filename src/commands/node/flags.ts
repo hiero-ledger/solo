@@ -3,8 +3,9 @@
 import {Flags as flags} from '../flags.js';
 import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 
-const PREPARE_UPGRADE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
+const PREPARE_UPGRADE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [];
 const PREPARE_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
+  flags.deployment,
   flags.cacheDir,
   flags.debugMode,
   flags.quiet,
@@ -15,8 +16,9 @@ export const PREPARE_UPGRADE_FLAGS: {optional: CommandFlag[]; required: CommandF
   optional: PREPARE_UPGRADE_FLAGS_OPTIONAL_FLAGS,
 };
 
-const COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
+const COMMON_UPGRADE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [];
 const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
+  flags.deployment,
   flags.app,
   flags.cacheDir,
   flags.debugNodeAlias,
@@ -30,8 +32,9 @@ const COMMON_UPGRADE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.upgradeZipFile,
 ];
 
-const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
+const COMMON_UPDATE_FLAGS_REQUIRED_FLAGS: CommandFlag[] = [];
 const COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS: CommandFlag[] = [
+  flags.deployment,
   flags.app,
   flags.cacheDir,
   flags.debugNodeAlias,
@@ -121,9 +124,10 @@ export const UPDATE_EXECUTE_FLAGS: CommandFlags = {
   optional: [...COMMON_UPDATE_FLAGS_OPTIONAL_FLAGS, flags.adminKey, flags.newAdminKey, flags.newAccountNumber],
 };
 
-const COMMON_DESTROY_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment, flags.nodeAlias];
+const COMMON_DESTROY_REQUIRED_FLAGS: CommandFlag[] = [flags.nodeAlias];
 
 const COMMON_DESTROY_OPTIONAL_FLAGS: CommandFlag[] = [
+  flags.deployment,
   flags.cacheDir,
   flags.app,
   flags.chainId,
@@ -141,9 +145,10 @@ const COMMON_DESTROY_OPTIONAL_FLAGS: CommandFlag[] = [
   flags.consensusNodeVersion,
 ];
 
-const COMMON_ADD_REQUIRED_FLAGS: CommandFlag[] = [flags.deployment];
+const COMMON_ADD_REQUIRED_FLAGS: CommandFlag[] = [];
 
 const COMMON_ADD_OPTIONAL_FLAGS: CommandFlag[] = [
+  flags.deployment,
   flags.app,
   flags.chainId,
   flags.clusterRef,
@@ -231,13 +236,14 @@ export const ANALYZE_FLAGS: CommandFlags = {
 };
 
 export const STATES_FLAGS: CommandFlags = {
-  required: [flags.deployment, flags.nodeAliasesUnparsed],
-  optional: [flags.clusterRef, flags.quiet],
+  required: [flags.nodeAliasesUnparsed],
+  optional: [flags.deployment, flags.clusterRef, flags.quiet],
 };
 
 export const REFRESH_FLAGS: CommandFlags = {
-  required: [flags.deployment],
+  required: [],
   optional: [
+    flags.deployment,
     flags.app,
     flags.localBuildPath,
     flags.debugMode,
@@ -252,8 +258,9 @@ export const REFRESH_FLAGS: CommandFlags = {
 };
 
 export const KEYS_FLAGS: CommandFlags = {
-  required: [flags.deployment],
+  required: [],
   optional: [
+    flags.deployment,
     flags.cacheDir,
     flags.generateGossipKeys,
     flags.generateTlsKeys,
@@ -266,18 +273,19 @@ export const KEYS_FLAGS: CommandFlags = {
 };
 
 export const STOP_FLAGS: CommandFlags = {
-  required: [flags.deployment],
-  optional: [flags.quiet, flags.nodeAliasesUnparsed],
+  required: [],
+  optional: [flags.deployment, flags.quiet, flags.nodeAliasesUnparsed],
 };
 
 export const FREEZE_FLAGS: CommandFlags = {
-  required: [flags.deployment],
-  optional: [flags.quiet],
+  required: [],
+  optional: [flags.deployment, flags.quiet],
 };
 
 export const START_FLAGS: CommandFlags = {
-  required: [flags.deployment],
+  required: [],
   optional: [
+    flags.deployment,
     flags.app,
     flags.quiet,
     flags.nodeAliasesUnparsed,
@@ -293,13 +301,14 @@ export const START_FLAGS: CommandFlags = {
 };
 
 export const RESTART_FLAGS: CommandFlags = {
-  required: [flags.deployment],
-  optional: [flags.quiet, flags.wrapsKeyPath],
+  required: [],
+  optional: [flags.deployment, flags.quiet, flags.wrapsKeyPath],
 };
 
 export const SETUP_FLAGS: CommandFlags = {
-  required: [flags.deployment],
+  required: [],
   optional: [
+    flags.deployment,
     flags.cacheDir,
     // Keep deprecated legacy flag accepted for backward compatibility.
     flags.releaseTag,
@@ -316,8 +325,8 @@ export const SETUP_FLAGS: CommandFlags = {
 };
 
 export const COLLECT_JFR_FLAGS: CommandFlags = {
-  required: [flags.deployment, flags.nodeAlias],
-  optional: [flags.quiet, flags.debugMode],
+  required: [flags.nodeAlias],
+  optional: [flags.deployment, flags.quiet, flags.debugMode],
 };
 
 export const DIAGNOSTICS_CONNECTIONS: CommandFlags = {
