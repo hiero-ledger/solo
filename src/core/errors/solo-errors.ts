@@ -161,6 +161,7 @@ import {NodeClientLoadFailedSoloError} from './classes/component/node-client-loa
 import {NodeClientRefreshFailedSoloError} from './classes/component/node-client-refresh-failed-solo-error.js';
 import {NodeClientSetupFailedSoloError} from './classes/component/node-client-setup-failed-solo-error.js';
 import {SdkPingFailedSoloError} from './classes/component/sdk-ping-failed-solo-error.js';
+import {SdkClientNoHealthyNodesSoloError} from './classes/component/sdk-client-no-healthy-nodes-solo-error.js';
 import {NodeServicesRetrievalFailedSoloError} from './classes/component/node-services-retrieval-failed-solo-error.js';
 import {NodeServiceNotFoundSoloError} from './classes/component/node-service-not-found-solo-error.js';
 import {GossipKeySecretCreationFailedSoloError} from './classes/component/gossip-key-secret-creation-failed-solo-error.js';
@@ -438,6 +439,7 @@ export class SoloErrors {
     readonly nodeClientRefreshFailed: typeof NodeClientRefreshFailedSoloError;
     readonly nodeClientSetupFailed: typeof NodeClientSetupFailedSoloError;
     readonly sdkPingFailed: typeof SdkPingFailedSoloError;
+    readonly sdkClientNoHealthyNodes: typeof SdkClientNoHealthyNodesSoloError;
     readonly nodeServicesRetrievalFailed: typeof NodeServicesRetrievalFailedSoloError;
     readonly nodeServiceNotFound: typeof NodeServiceNotFoundSoloError;
     readonly gossipKeySecretCreationFailed: typeof GossipKeySecretCreationFailedSoloError;
@@ -528,6 +530,7 @@ export class SoloErrors {
     nodeClientRefreshFailed: NodeClientRefreshFailedSoloError,
     nodeClientSetupFailed: NodeClientSetupFailedSoloError,
     sdkPingFailed: SdkPingFailedSoloError,
+    sdkClientNoHealthyNodes: SdkClientNoHealthyNodesSoloError,
     nodeServicesRetrievalFailed: NodeServicesRetrievalFailedSoloError,
     nodeServiceNotFound: NodeServiceNotFoundSoloError,
     gossipKeySecretCreationFailed: GossipKeySecretCreationFailedSoloError,
