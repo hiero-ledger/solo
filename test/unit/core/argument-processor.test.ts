@@ -196,7 +196,8 @@ describe('ArgumentProcessor', (): void => {
     });
 
     it('should throw SilentBreak for a missing required argument so no internal error is displayed', async (): Promise<void> => {
-      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'destroy'];
+      // `--deployment` is optional everywhere now, so use a command whose own flag (--account-id) is still required
+      const argv: string[] = ['node', 'solo.ts', 'ledger', 'account', 'update'];
       process.exitCode = undefined;
 
       try {
