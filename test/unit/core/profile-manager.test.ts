@@ -542,7 +542,9 @@ describe('ProfileManager', (): void => {
       const networkJsonContent: string = JSON.stringify({
         nodeMetadata: [{rosterEntry: {gossipEndpoint: [{port: 50_211, ipAddressV4: encodedIpAddress}]}}],
       });
-      const serviceReadStub: sinon.SinonStub = sinon.stub().resolves({spec: {clusterIP: savedIpAddress}});
+      const serviceReadStub: sinon.SinonStub = sinon
+        .stub()
+        .resolves({spec: {clusterIP: '10.96.1.1'}, status: {loadBalancer: {ingress: [{ip: savedIpAddress}]}}});
       const getK8Stub: sinon.SinonStub = sinon.stub().returns({
         pods: (): {list: () => Promise<Array<{podReference: unknown}>>} => ({
           list: async (): Promise<Array<{podReference: unknown}>> => [{podReference: {}}],
