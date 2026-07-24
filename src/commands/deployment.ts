@@ -24,7 +24,7 @@ import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {type ArgvStruct, type NodeAliases} from '../types/aliases.js';
 import {Templates} from '../core/templates.js';
-import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
+import {promptTheUserForDeployment, resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {DeploymentStates} from '../core/config/remote/enumerations/deployment-states.js';
 import {LedgerPhase} from '../data/schema/model/remote/ledger-phase.js';
@@ -109,13 +109,14 @@ export class DeploymentCommand extends BaseCommand {
   };
 
   public static DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.quiet],
+    required: [],
+    optional: [flags.deployment, flags.quiet],
   };
 
   public static ADD_CLUSTER_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment, flags.clusterRef],
+    required: [flags.clusterRef],
     optional: [
+      flags.deployment,
       flags.quiet,
       flags.enableCertManager,
       flags.numberOfConsensusNodes,
@@ -135,18 +136,18 @@ export class DeploymentCommand extends BaseCommand {
   };
 
   public static REFRESH_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.quiet],
+    required: [],
+    optional: [flags.deployment, flags.quiet],
   };
 
   public static IMAGES_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.clusterRef, flags.quiet],
+    required: [],
+    optional: [flags.deployment, flags.clusterRef, flags.quiet],
   };
 
   public static PORTS_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.clusterRef, flags.quiet, flags.output, flags.cacheDir],
+    required: [],
+    optional: [flags.deployment, flags.clusterRef, flags.quiet, flags.output, flags.cacheDir],
   };
 
   public static IMPORT_FLAGS_LIST: CommandFlags = {
@@ -287,7 +288,7 @@ export class DeploymentCommand extends BaseCommand {
 
             this.configManager.update(argv);
 
-            await this.configManager.executePrompt(task, [flags.deployment]);
+            await promptTheUserForDeployment(this.configManager, task, this.localConfig);
 
             context_.config = {
               quiet: this.configManager.getFlag(flags.quiet),
@@ -1162,7 +1163,7 @@ export class DeploymentCommand extends BaseCommand {
 
         this.configManager.update(argv);
 
-        await this.configManager.executePrompt(task, [flags.deployment, flags.clusterRef]);
+        await this.configManager.executePrompt(task, [flags.clusterRef]);
 
         context_.config = {
           quiet: this.configManager.getFlag<boolean>(flags.quiet),
@@ -1479,10 +1480,12 @@ export class DeploymentCommand extends BaseCommand {
       [
         {
           title: 'Initialize',
-          task: async (context_): Promise<void> => {
+          task: async (context_, task): Promise<void> => {
             await this.localConfig.load();
 
             this.configManager.update(argv);
+
+            await promptTheUserForDeployment(this.configManager, task, this.localConfig);
 
             context_.config = {
               quiet: this.configManager.getFlag<boolean>(flags.quiet),
@@ -1491,11 +1494,6 @@ export class DeploymentCommand extends BaseCommand {
 
             // Get namespace from deployment
             const deployment: Deployment = this.localConfig.configuration.deploymentByName(context_.config.deployment);
-            if (!deployment) {
-              throw new SoloErrors.deployment.notFound(
-                `Deployment ${context_.config.deployment} not found in local config`,
-              );
-            }
 
             context_.namespace = NamespaceName.of(deployment.namespace);
           },
