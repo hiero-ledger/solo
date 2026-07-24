@@ -583,3 +583,8 @@ export const SPRING_PROFILES_ACTIVE: string = getEnvironmentVariable('SPRING_PRO
 export const SOLO_CREATED_BY_LABEL: string = 'app.kubernetes.io/created-by';
 export const SOLO_CREATED_BY_VALUE: string = 'solo';
 export const DEFAULT_SOLO_NAMESPACE_LABELS: Record<string, string> = {[SOLO_CREATED_BY_LABEL]: SOLO_CREATED_BY_VALUE};
+
+// Log rotation configuration
+export const LOG_MAX_FILE_SIZE: string = '50M';
+export const LOG_MAX_FILES: number = 5;
+export const LOG_ROTATION_INTERVAL: string = '1d';
