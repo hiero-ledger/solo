@@ -1630,8 +1630,12 @@ export class DeploymentCommand extends BaseCommand {
                         this.logger.showUser(chalk.green(restoredDetail));
                         restoredCount++;
                       } else {
-                        const errorDetail: string = `  ↳ Could not find pod for ${componentLabel}`;
-                        this.logger.showUser(chalk.red(errorDetail));
+                        this.logger.showUser(
+                          chalk.red(`  ↳ Could not find pod for ${componentLabel}; restore it manually:`),
+                        );
+                        this.logger.showUser(
+                          `      kubectl -n ${namespaceName.name} port-forward pods/<POD_NAME> ${localPort}:${podPort}`,
+                        );
                       }
                     } catch (error) {
                       const errorDetail: string = `  ↳ Failed to restore: ${error.message}`;
@@ -1960,12 +1964,11 @@ export class DeploymentCommand extends BaseCommand {
           }
         }
         if (componentType === 'MirrorNode') {
+          // Only bind the mirror ingress pod; never fall back to pods[0], which can be another haproxy-ingress (e.g. Explorer).
           const mirrorIngressPod: Pod | undefined = pods.find((pod): boolean =>
             pod.podReference?.name?.toString()?.startsWith(constants.MIRROR_INGRESS_CONTROLLER),
           );
-          if (mirrorIngressPod) {
-            return mirrorIngressPod.podReference.name;
-          }
+          return mirrorIngressPod?.podReference?.name;
         }
         return pods[0].podReference.name;
       }
