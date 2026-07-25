@@ -16,10 +16,10 @@ import {type NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';
 import {sleep} from '../src/core/helpers.js';
 import {
-  type AccountBalance,
-  AccountBalanceQuery,
   AccountCreateTransaction,
   type AccountId,
+  type AccountInfo,
+  AccountInfoQuery,
   Hbar,
   HbarUnit,
   PrivateKey,
@@ -430,11 +430,11 @@ export async function queryBalance(
   );
   expect(accountManager._nodeClient).to.not.be.undefined;
 
-  const balance: AccountBalance = await new AccountBalanceQuery()
+  const accountInfo: AccountInfo = await new AccountInfoQuery()
     .setAccountId(accountManager._nodeClient.getOperator().accountId)
     .execute(accountManager._nodeClient);
 
-  expect(balance.hbars).to.not.be.null;
+  expect(accountInfo.balance).to.not.be.null;
   await sleep(Duration.ofSeconds(1));
 }
 
