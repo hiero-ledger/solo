@@ -462,7 +462,7 @@ export class ProfileManager {
 
     for (const line of lines) {
       if (line.startsWith('hedera.config.version=')) {
-        const version: number = Number.parseInt(line.split('=')[1], 10) + 1;
+        const version: number = Number.parseInt(line.split('=', 2)[1], 10) + 1;
         lines[lines.indexOf(line)] = `hedera.config.version=${version}`;
         break;
       }
@@ -819,6 +819,7 @@ export class ProfileManager {
    * @param destinationPath
    * @param [appName] - the app name (default: HederaNode.jar)
    * @param [chainId] - chain ID (298 for local network)
+   * @param [gossipFqdnRestricted] - whether gossip FQDN is restricted
    * @returns the config.txt file path
    */
   public async prepareConfigTxt(
