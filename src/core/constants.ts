@@ -527,6 +527,11 @@ export const LOAD_BALANCER_CHECK_DELAY_SECS: number = +getEnvironmentVariable('L
 export const LOAD_BALANCER_CHECK_MAX_ATTEMPTS: number =
   +getEnvironmentVariable('LOAD_BALANCER_CHECK_MAX_ATTEMPTS') || 60;
 
+export const NETWORK_CHART_INSTALL_MAX_ATTEMPTS: number =
+  +getEnvironmentVariable('NETWORK_CHART_INSTALL_MAX_ATTEMPTS') || 3;
+export const NETWORK_CHART_INSTALL_RETRY_DELAY_SECS: number =
+  +getEnvironmentVariable('NETWORK_CHART_INSTALL_RETRY_DELAY_SECS') || 15;
+
 export const NETWORK_DESTROY_WAIT_TIMEOUT: number = +getEnvironmentVariable('NETWORK_DESTROY_WAIT_TIMEOUT') || 120;
 
 export const DEFAULT_LOCAL_CONFIG_FILE: string = 'local-config.yaml';
@@ -578,3 +583,8 @@ export const SPRING_PROFILES_ACTIVE: string = getEnvironmentVariable('SPRING_PRO
 export const SOLO_CREATED_BY_LABEL: string = 'app.kubernetes.io/created-by';
 export const SOLO_CREATED_BY_VALUE: string = 'solo';
 export const DEFAULT_SOLO_NAMESPACE_LABELS: Record<string, string> = {[SOLO_CREATED_BY_LABEL]: SOLO_CREATED_BY_VALUE};
+
+// Log rotation configuration
+export const LOG_MAX_FILE_SIZE: string = '50M';
+export const LOG_MAX_FILES: number = 5;
+export const LOG_ROTATION_INTERVAL: string = '1d';
