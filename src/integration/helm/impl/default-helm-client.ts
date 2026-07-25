@@ -209,6 +209,7 @@ export class DefaultHelmClient implements HelmClient {
           'Detected expired Docker authentication for GHCR (ghcr.io).',
           'Fix: run one of the following and retry:',
           '  - docker logout ghcr.io',
+          // eslint-disable-next-line unicorn/prefer-https
           '  - docker logout http://ghcr.io/',
         ].join('\n'),
       );

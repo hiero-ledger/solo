@@ -68,21 +68,21 @@ export class Lexer {
     let currentNode: Node = this.tree.get(segments[0]);
 
     if (!currentNode) {
-      return null;
+      return undefined;
     }
 
     for (let index: number = 1; index < segments.length; index++) {
       const segment: string = segments[index];
 
       if (currentNode.isLeaf()) {
-        return null;
+        return undefined;
       }
 
       const inode: LexerInternalNode = currentNode as LexerInternalNode;
       const nextNode: Node = inode.children.find((n): boolean => n.name === segment);
 
       if (!nextNode) {
-        return null;
+        return undefined;
       }
 
       currentNode = nextNode;
@@ -110,7 +110,7 @@ export class Lexer {
     }
 
     const normalizedKey: string = this.formatter.normalize(key);
-    this.addOrReplaceValue(normalizedKey, null);
+    this.addOrReplaceValue(normalizedKey);
 
     if (!value) {
       return;
@@ -152,12 +152,12 @@ export class Lexer {
 
   private addOrReplaceArrayElement<T>(normalizedKey: string, index: number, value: T | null): void {
     if (value === null || value === undefined) {
-      this.addOrReplaceValue(this.formatter.join(normalizedKey, index.toString()), null);
+      this.addOrReplaceValue(this.formatter.join(normalizedKey, index.toString()));
     }
 
-    const valueType = typeof value;
+    const valueType: string = typeof value;
 
-    if (valueType === 'string' || valueType === 'number' || valueType === 'boolean' || valueType === 'bigint') {
+    if (['string', 'number', 'boolean', 'bigint'].includes(valueType)) {
       this.addOrReplaceValue(this.formatter.join(normalizedKey, index.toString()), value.toString());
     } else {
       const flatMap: Map<string, string> = this.flatMapper.flatten(value as object);
@@ -167,7 +167,7 @@ export class Lexer {
     }
   }
 
-  public addOrReplaceValue(key: string, value: string | null): void {
+  public addOrReplaceValue(key: string, value?: string | null): void {
     if (!key) {
       throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
@@ -187,7 +187,7 @@ export class Lexer {
     }
 
     if (node.isRoot()) {
-      this._roots.set(node.name, new LexerLeafNode(null, node.name, value, this.formatter));
+      this._roots.set(node.name, new LexerLeafNode(undefined, node.name, value, this.formatter));
       this.tokens.set(node.name, value);
     } else {
       this.tokens.set(node.path(), value);
@@ -241,9 +241,9 @@ export class Lexer {
       if (KeyName.isArraySegment(nextSegment)) {
         array = true;
       }
-      root = new LexerInternalNode(null, rootName, [], array, false, this.formatter);
+      root = new LexerInternalNode(undefined, rootName, [], array, false, this.formatter);
     } else {
-      root = new LexerLeafNode(null, rootName, this.tokens.get(rootName), this.formatter);
+      root = new LexerLeafNode(undefined, rootName, this.tokens.get(rootName), this.formatter);
     }
 
     this._roots.set(rootName, root);
