@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import pino, {type Logger as PinoLogger, type TransportTargetOptions, type LoggerOptions, type StreamEntry} from 'pino';
+import pino, {type Logger as PinoLogger, type LoggerOptions, type StreamEntry} from 'pino';
 import pinoPretty from 'pino-pretty';
+import {createStream, type Options as RotatingFileStreamOptions, type RotatingFileStream} from 'rotating-file-stream';
+import {type Writable} from 'node:stream';
 import {mkdirSync} from 'node:fs';
 import {v4 as uuidv4} from 'uuid';
 // eslint-disable-next-line unicorn/import-style
@@ -34,6 +36,9 @@ export class SoloPinoLogger implements SoloLogger {
   private readonly logBindings: Record<string, unknown> = {};
   private messageGroupMap: Map<string, string[]> = new Map();
   private deferredUserOutput: string[] | undefined;
+  // Streams that pino.multistream writes to when file rotation is active; flush() ends them to
+  // drain their asynchronous buffers to disk before the process exits. Empty on the CI path.
+  private readonly rotatingStreams: Writable[] = [];
   private readonly MINOR_LINE_SEPARATOR: string =
     '-------------------------------------------------------------------------------';
 
@@ -63,26 +68,19 @@ export class SoloPinoLogger implements SoloLogger {
     }
 
     // Configure dual outputs: NDJSON (machine) + pretty (human)
-    const ndjsonTarget: TransportTargetOptions = {
-      target: 'pino/file',
-      level: logLevel,
-      options: {destination: PathEx.join(logsDirectory, 'solo.ndjson')},
-    };
+    const ndjsonFileName: string = 'solo.ndjson';
+    const prettyFileName: string = 'solo.log';
 
-    const prettyTarget: TransportTargetOptions = {
-      target: 'pino-pretty',
-      level: logLevel,
-      options: {
-        destination: PathEx.join(logsDirectory, 'solo.log'), // write formatted logs to <logsDirectory>/solo.log
-        translateTime: 'HH:MM:ss.l', // prepend timestamp as [HH:MM:ss.ms]
-        colorize: false, // disable pino-pretty color output (avoid ANSI codes)
-        messageKey: 'msg', // use the 'msg' property as the main log message
-        messageFormat: '{msg} [traceId="{traceId}"]', // format line: message + traceId suffix
-        ignore: 'pid,hostname,traceId', // exclude these fields from printed output
-        colorizeObjects: false, // don't colorize objects or nested values
-        crlf: false, // use '\n' (Unix newlines) instead of '\r\n' (Windows)
-        hideObject: false, // don't hide full object payloads after message
-      },
+    // Shared pino-pretty formatting options; the destination is supplied per output below.
+    const prettyOptions: NonNullable<Parameters<typeof pinoPretty>[0]> = {
+      translateTime: 'HH:MM:ss.l', // prepend timestamp as [HH:MM:ss.ms]
+      colorize: false, // disable pino-pretty color output (avoid ANSI codes)
+      messageKey: 'msg', // use the 'msg' property as the main log message
+      messageFormat: '{msg} [traceId="{traceId}"]', // format line: message + traceId suffix
+      ignore: 'pid,hostname,traceId', // exclude these fields from printed output
+      colorizeObjects: false, // don't colorize objects or nested values
+      crlf: false, // use '\n' (Unix newlines) instead of '\r\n' (Windows)
+      hideObject: false, // don't hide full object payloads after message
     };
 
     const baseOptions: LoggerOptions = {
@@ -100,14 +98,15 @@ export class SoloPinoLogger implements SoloLogger {
     };
 
     if (process.env.CI === 'true') {
+      // Note: log rotation is not necessary in CI environments
       const ndjsonStream: ReturnType<typeof pino.destination> = pino.destination({
-        dest: PathEx.join(logsDirectory, 'solo.ndjson'),
+        dest: PathEx.join(logsDirectory, ndjsonFileName),
         sync: true,
       });
       const prettyStream: ReturnType<typeof pinoPretty> = pinoPretty({
-        ...prettyTarget.options,
+        ...prettyOptions,
         destination: pino.destination({
-          dest: PathEx.join(logsDirectory, 'solo.log'),
+          dest: PathEx.join(logsDirectory, prettyFileName),
           sync: true,
         }),
       });
@@ -119,7 +118,26 @@ export class SoloPinoLogger implements SoloLogger {
         ] as StreamEntry[]),
       );
     } else {
-      this.pinoLogger = pino(baseOptions, pino.transport({targets: [ndjsonTarget, prettyTarget]}));
+      const rotationOptions: RotatingFileStreamOptions = {
+        path: logsDirectory,
+        size: constants.LOG_MAX_FILE_SIZE,
+        interval: constants.LOG_ROTATION_INTERVAL,
+        maxFiles: constants.LOG_MAX_FILES,
+      };
+      const ndjsonStream: RotatingFileStream = createStream(ndjsonFileName, rotationOptions);
+      const prettyStream: ReturnType<typeof pinoPretty> = pinoPretty({
+        ...prettyOptions,
+        destination: createStream(prettyFileName, rotationOptions),
+      });
+      // Track the streams multistream writes to so flush() can drain them before the process exits.
+      this.rotatingStreams.push(ndjsonStream, prettyStream);
+      this.pinoLogger = pino(
+        baseOptions,
+        pino.multistream([
+          {level: logLevel, stream: ndjsonStream},
+          {level: logLevel, stream: prettyStream},
+        ] as StreamEntry[]),
+      );
     }
   }
 
@@ -499,7 +517,39 @@ export class SoloPinoLogger implements SoloLogger {
 
   public flush(callback: (error?: Error) => void): void {
     this.info('Flushing logs and exiting...');
-    this.pinoLogger.flush(callback);
+
+    // CI (and any non-rotating setup): destinations are synchronous, so defer to pino's own flush.
+    if (this.rotatingStreams.length === 0) {
+      this.pinoLogger.flush(callback);
+      return;
+    }
+
+    // pino.multistream exposes no flush(), and rotating-file-stream writes asynchronously. Ending each
+    // stream drains its buffer to disk (the pretty stream flushes through to, and closes, its rotating
+    // destination). Wait for every stream to close before invoking the callback, with a safety timeout
+    // so the CLI can never hang on exit if a 'close' event is missed.
+    let pending: number = this.rotatingStreams.length;
+    let settled: boolean = false;
+    const settle: () => void = (): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      callback();
+    };
+    const onStreamClosed: () => void = (): void => {
+      pending -= 1;
+      if (pending === 0) {
+        settle();
+      }
+    };
+    // unref() so the timer alone never keeps the process alive; the settled guard prevents a
+    // double callback if a stream closes after the timeout has already fired.
+    setTimeout(settle, 2000).unref();
+    for (const stream of this.rotatingStreams) {
+      stream.once('close', onStreamClosed);
+      stream.end();
+    }
   }
 
   private toPino(level: 'info' | 'warn' | 'error' | 'debug', message: unknown, arguments_: unknown[]): void {

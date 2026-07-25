@@ -487,6 +487,57 @@ describe('NetworkCommand unit tests', (): void => {
       }
     });
 
+    it('sets static IP chart values for haproxy, envoy, and network node services', async (): Promise<void> => {
+      const originalHaproxyIps: string = argv.getArg<string>(flags.haproxyIps);
+      const originalEnvoyIps: string = argv.getArg<string>(flags.envoyIps);
+      const originalNetworkNodeIps: string = argv.getArg<string>(flags.networkNodeIps);
+
+      try {
+        argv.setArg(flags.haproxyIps, 'node1=172.19.1.0,node2=172.19.2.0');
+        argv.setArg(flags.envoyIps, 'node1=172.19.1.2,node2=172.19.2.2');
+        argv.setArg(flags.networkNodeIps, 'node1=172.19.1.1,node2=172.19.2.1');
+
+        const task: SinonStub = sinon.stub();
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e-c1', 'cluster1', 'context-1', 'base', 'pattern', 'fqdn1', [], []),
+            new ConsensusNode('node2', 1, 'solo-e2e-c2', 'cluster2', 'context-2', 'base', 'pattern', 'fqdn2', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context-1', 'context-2']);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(
+          new Map<string, string>([
+            ['cluster1', 'context-1'],
+            ['cluster2', 'context-2'],
+          ]),
+        );
+
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // @ts-expect-error - to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+        networkCommand.configManager.update(argv.build());
+
+        // @ts-expect-error - to access private method
+        const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
+
+        expect(config.chartValuesMap['cluster1'].toArguments()).to.include.members([
+          'hedera.nodes[0].haproxyStaticIP=172.19.1.0',
+          'hedera.nodes[0].envoyProxyStaticIP=172.19.1.2',
+          'hedera.nodes[0].networkNodeStaticIP=172.19.1.1',
+        ]);
+        expect(config.chartValuesMap['cluster2'].toArguments()).to.include.members([
+          'hedera.nodes[0].haproxyStaticIP=172.19.2.0',
+          'hedera.nodes[0].envoyProxyStaticIP=172.19.2.2',
+          'hedera.nodes[0].networkNodeStaticIP=172.19.2.1',
+        ]);
+      } finally {
+        argv.setArg(flags.haproxyIps, originalHaproxyIps);
+        argv.setArg(flags.envoyIps, originalEnvoyIps);
+        argv.setArg(flags.networkNodeIps, originalNetworkNodeIps);
+        sinon.restore();
+      }
+    });
+
     it('keeps MinIO enabled for CN 0.74+ when no block node is deployed', async (): Promise<void> => {
       const originalConsensusNodeVersion: string = argv.getArg<string>(flags.consensusNodeVersion);
 
