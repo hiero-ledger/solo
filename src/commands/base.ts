@@ -270,7 +270,7 @@ export abstract class BaseCommand extends ShellRunner {
     const withoutTag: string = imageReference.includes(':')
       ? imageReference.slice(0, imageReference.lastIndexOf(':'))
       : imageReference;
-    const firstSegment: string = withoutTag.split('/')[0];
+    const firstSegment: string = withoutTag.split('/', 1)[0];
     return !firstSegment.includes('.') && !firstSegment.includes(':') && firstSegment !== 'localhost';
   }
 

@@ -255,7 +255,7 @@ export class MetricsServerImpl implements MetricsServer {
       const columns: string[] = results[0].trim().split(/\s+/);
       const cpuColumn: string | undefined = columns[4];
       if (cpuColumn) {
-        return Number.parseInt(cpuColumn.split('m')[0]);
+        return Number.parseInt(cpuColumn.split('m', 1)[0]);
       }
     }
     return 0;

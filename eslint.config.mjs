@@ -300,6 +300,7 @@ export default [
       'unicorn/consistent-function-scoping': 'warn', // TODO error (2 errors)
       'unicorn/error-message': 'warn', // TODO error (1 error)
       'unicorn/import-style': 'warn', // TODO error (8 errors)
+      'unicorn/better-dom-traversing': 'off', // TODO seems to be misidentifying some of our custom classes as Arrays
     },
   },
   {
