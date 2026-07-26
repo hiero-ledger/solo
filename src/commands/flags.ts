@@ -2202,9 +2202,14 @@ export class Flags {
     constName: 'deployment',
     name: 'deployment',
     definition: {
-      describe: 'The name the user will reference locally to link to a deployment',
+      describe:
+        'The name the user will reference locally to link to a deployment. ' +
+        'Falls back to the SOLO_DEPLOYMENT environment variable, or is selected automatically ' +
+        'when the local configuration contains exactly one deployment',
       alias: 'd',
-      defaultValue: '',
+      get defaultValue(): string {
+        return constants.getEnvironmentVariable('SOLO_DEPLOYMENT') ?? '';
+      },
       type: 'string',
     },
     prompt: async function promptDeployment(

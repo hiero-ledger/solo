@@ -290,7 +290,7 @@ export function endToEndTestSuite(
     containerOverrides,
     deployNetwork,
   }: Cmd & {startNodes?: boolean; deployNetwork?: boolean},
-  testsCallBack: (bootstrapResp: BootstrapResponse) => void = (): void => {},
+  testsCallback: (bootstrapResp: BootstrapResponse) => void = (): void => {},
 ): void {
   const testLogger: SoloLogger = getTestLogger();
   const testNamespace: NamespaceName = getTestNamespace(argv);
@@ -322,6 +322,7 @@ export function endToEndTestSuite(
       await localConfig.load();
     });
 
+    // eslint-disable-next-line unicorn/no-this-outside-of-class
     this.bail(true); // stop on first failure, nothing else will matter if network doesn't come up correctly
 
     describe(`Bootstrap network for test [release ${argv.getArg(flags.releaseTag)}]`, (): void => {
@@ -332,15 +333,13 @@ export function endToEndTestSuite(
 
       // TODO: add rest of prerequisites for setup
 
-      after(async function (): Promise<void> {
-        this.timeout(Duration.ofMinutes(5).toMillis());
-
+      after(async (): Promise<void> => {
         // Use shared diagnostic log collection helper
         const deployment: string = argv.getArg(flags.deployment) as string;
         await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
 
         testLogger.showUser(`------------------------- END: bootstrap (${testName}) ----------------------------`);
-      });
+      }).timeout(Duration.ofMinutes(5).toMillis());
 
       it('should cleanup previous deployment', async (): Promise<void> => {
         if (await k8Factory.default().namespaces().has(namespace)) {
@@ -406,7 +405,7 @@ export function endToEndTestSuite(
     });
 
     describe(testName, (): void => {
-      testsCallBack(bootstrapResp);
+      testsCallback(bootstrapResp);
     });
   });
 }

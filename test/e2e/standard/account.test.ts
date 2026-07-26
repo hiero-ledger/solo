@@ -102,13 +102,11 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
       testLogger = getTestLogger();
     });
 
-    after(async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(3).toMillis());
-
+    after(async (): Promise<void> => {
       await k8Factory.default().namespaces().delete(namespace);
       await accountManager.close();
       await nodeCmd.close();
-    });
+    }).timeout(Duration.ofMinutes(3).toMillis());
 
     describe('node proxies should be UP', (): void => {
       for (const nodeAlias of argv.getArg<string>(flags.nodeAliasesUnparsed).split(',')) {
@@ -142,21 +140,18 @@ endToEndTestSuite(testName, argv, {containerOverrides: overrides}, (bootstrapRes
         const realm: Realm = argv.getArg(flags.realm);
         const shard: Shard = argv.getArg(flags.shard);
 
-        before(async function (): Promise<void> {
-          this.timeout(Duration.ofSeconds(20).toMillis());
-
+        before(async (): Promise<void> => {
           await accountManager.loadNodeClient(
             namespace,
             remoteConfig.getClusterRefs(),
             argv.getArg<DeploymentName>(flags.deployment),
             argv.getArg<boolean>(flags.forcePortForward),
           );
-        });
+        }).timeout(Duration.ofSeconds(20).toMillis());
 
-        after(async function (): Promise<void> {
-          this.timeout(Duration.ofSeconds(20).toMillis());
+        after(async (): Promise<void> => {
           await accountManager.close();
-        });
+        }).timeout(Duration.ofSeconds(20).toMillis());
 
         it('Node admin key should have been updated, not equal to genesis key', async (): Promise<void> => {
           const nodeAliases: NodeAliases = Helpers.parseNodeAliases(
