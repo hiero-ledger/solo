@@ -40,6 +40,9 @@
     "postcss": "8.5.22",
     "typedoc": "0.28.20"
   },
+  "overrides": {
+    "tar": "7.5.21"
+  },
   "main": "index.js",
   "keywords": []
 }
