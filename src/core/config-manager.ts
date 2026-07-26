@@ -328,10 +328,13 @@ export class ConfigManager {
             this[`_${flag.constName}`] = constNameValue;
             Object.defineProperty(this, flag.constName, {
               get(): unknown {
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 this.usedConfigs.set(flag.constName, this.usedConfigs.get(flag.constName) + 1 || 1);
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 return this[`_${flag.constName}`];
               },
               set(value: unknown): void {
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 this[`_${flag.constName}`] = value;
               },
             });
@@ -347,10 +350,13 @@ export class ConfigManager {
             this[`_${name}`] = '';
             Object.defineProperty(this, name, {
               get(): unknown {
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 this.usedConfigs.set(name, this.usedConfigs.get(name) + 1 || 1);
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 return this[`_${name}`];
               },
               set(value: unknown): void {
+                // eslint-disable-next-line unicorn/no-this-outside-of-class
                 this[`_${name}`] = value;
               },
             });

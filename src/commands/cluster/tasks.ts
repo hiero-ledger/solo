@@ -281,7 +281,7 @@ export class ClusterCommandTasks {
               constants.PROMETHEUS_STACK_CHART,
               constants.PROMETHEUS_STACK_CHART,
               versions.PROMETHEUS_STACK_VERSION,
-              new HelmChartValues().set('prometheus.prometheusSpec.enableRemoteWriteReceiver', true),
+              new HelmChartValues().file(constants.PROMETHEUS_STACK_VALUES_FILE),
               context_.config.context,
             );
             this.logger.showUserUnlessOneShot('✅ Prometheus Stack chart installed successfully');
