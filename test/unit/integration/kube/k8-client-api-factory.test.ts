@@ -57,17 +57,14 @@ describe('K8ClientApiFactory', (): void => {
     return kubeConfig;
   }
 
-  it('creates a client that retries a request throttled by the API server', async function (): Promise<void> {
-    // The retry waits out the 1 second Retry-After delay on real timers.
-    this.timeout(10_000);
-
+  it('creates a client that retries a request throttled by the API server', async (): Promise<void> => {
     const client: CoreV1Api = K8ClientApiFactory.makeApiClient(buildKubeConfig(), CoreV1Api);
 
     const namespaceList: V1NamespaceList = await client.listNamespace();
 
     expect(requestCount, 'the throttled request must be resent once').to.equal(2);
     expect(namespaceList.items).to.be.an('array').that.is.empty;
-  });
+  }).timeout(10_000);
 
   it('throws when the kube config has no current cluster', (): void => {
     expect((): void => {

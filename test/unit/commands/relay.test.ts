@@ -15,6 +15,7 @@ import {type ArgvStruct} from '../../../src/types/aliases.js';
 interface RelayCommandInternal {
   prepareNetworkJsonString: (nodeAliases: string[], namespace: NamespaceName, deployment: string) => Promise<string>;
   prepareHelmChartValuesForRelay: (configuration: Record<string, unknown>) => Promise<HelmChartValues>;
+  isLocalImageAvailableInDocker: (componentImage: string) => boolean;
 }
 
 const prepareRelayValueArguments: (
@@ -53,6 +54,7 @@ describe('RelayCommand unit tests', (): void => {
   beforeEach((): void => {
     resetForTest();
     relayCommand = container.resolve(RelayCommand);
+    sinon.stub(relayCommand as unknown as RelayCommandInternal, 'isLocalImageAvailableInDocker').returns(false);
   });
 
   afterEach((): void => {
@@ -89,12 +91,15 @@ describe('RelayCommand unit tests', (): void => {
     );
 
     expect(valueArguments).to.include(
+      // eslint-disable-next-line unicorn/prefer-https
       'relay.config.MIRROR_NODE_URL=http://mirror-ingress-controller-mirror-ns.mirror-ns.svc.cluster.local',
     );
     expect(valueArguments).to.include(
+      // eslint-disable-next-line unicorn/prefer-https
       'relay.config.MIRROR_NODE_URL_WEB3=http://mirror-1-web3.mirror-ns.svc.cluster.local',
     );
     expect(valueArguments).to.include(
+      // eslint-disable-next-line unicorn/prefer-https
       'ws.config.MIRROR_NODE_URL=http://mirror-ingress-controller-mirror-ns.mirror-ns.svc.cluster.local',
     );
   });

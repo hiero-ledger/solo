@@ -28,11 +28,13 @@ describe('SubprocessEnvironment', (): void => {
 
   it('includes common base variables that are set in the parent environment', (): void => {
     setTemporaryEnvironmentVariable('LANG', 'en_US.UTF-8');
+    // eslint-disable-next-line unicorn/prefer-https
     setTemporaryEnvironmentVariable('HTTPS_PROXY', 'http://proxy.example:8080');
 
     const environment: Record<string, string> = SubprocessEnvironment.forCommand(SubprocessCommandProfile.GENERIC);
 
     expect(environment.LANG).to.equal('en_US.UTF-8');
+    // eslint-disable-next-line unicorn/prefer-https
     expect(environment.HTTPS_PROXY).to.equal('http://proxy.example:8080');
   });
 

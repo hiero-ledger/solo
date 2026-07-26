@@ -428,22 +428,22 @@ export class NodeCommandTasks {
 
       // The local build path points to the `data` directory itself (containing apps/ and lib/).
       // Validate that it contains jar files in each subdirectory to catch incorrect paths early.
-      const applicationsSubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'apps');
-      const librarySubDirectory: string = PathEx.join(localDataLibraryBuildPath, 'lib');
-      if (!fs.existsSync(applicationsSubDirectory) || !fs.existsSync(librarySubDirectory)) {
+      const applicationsSubdirectory: string = PathEx.join(localDataLibraryBuildPath, 'apps');
+      const librarySubdirectory: string = PathEx.join(localDataLibraryBuildPath, 'lib');
+      if (!fs.existsSync(applicationsSubdirectory) || !fs.existsSync(librarySubdirectory)) {
         throw new SoloErrors.validation.localBuildMissingSubdirectories(localDataLibraryBuildPath);
       }
       const applicationsJarFiles: string[] = fs
-        .readdirSync(applicationsSubDirectory)
+        .readdirSync(applicationsSubdirectory)
         .filter((file: string): boolean => file.endsWith('.jar'));
       if (applicationsJarFiles.length === 0) {
-        throw new SoloErrors.validation.localBuildNoJarFiles(applicationsSubDirectory);
+        throw new SoloErrors.validation.localBuildNoJarFiles(applicationsSubdirectory);
       }
       const libraryJarFiles: string[] = fs
-        .readdirSync(librarySubDirectory)
+        .readdirSync(librarySubdirectory)
         .filter((file: string): boolean => file.endsWith('.jar'));
       if (libraryJarFiles.length === 0) {
-        throw new SoloErrors.validation.localBuildNoJarFiles(librarySubDirectory);
+        throw new SoloErrors.validation.localBuildNoJarFiles(librarySubdirectory);
       }
 
       const k8: K8 = this.k8Factory.getK8(context);
@@ -583,8 +583,10 @@ export class NodeCommandTasks {
       },
     );
 
+    const runSequentially: boolean = enableDebugger || status === NodeStatusCodes.ACTIVE;
+
     return task.newListr(subTasks, {
-      concurrent: !enableDebugger, // Run sequentially when debugging to avoid multiple prompts
+      concurrent: !runSequentially, // ACTIVE checks include SDK readiness through shared AccountManager state.
       rendererOptions: {
         collapseSubtasks: false,
       },
@@ -1418,9 +1420,6 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass & {stateFile?: string} = context_.config;
 
-        // Get the source node ID from the first consensus node (the state file's original node)
-        const sourceNodeId: NodeId = config.consensusNodes[0].nodeId;
-
         for (const nodeAlias of context_.config.nodeAliases) {
           const kubeContext: Optional<string> = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
@@ -1451,8 +1450,16 @@ export class NodeCommandTasks {
 
           stateInputPath = PathEx.resolve(stateInputPath);
 
+          // sourceNodeId tracks which node's state directory is inside the zip so the
+          // rename-state-node-id script can move it to the right place.
+          let sourceNodeId: NodeId;
+
           if (fs.statSync(stateInputPath).isDirectory()) {
-            // It's a directory - find the state file for this specific pod
+            // Directory restore: each pod has its own zip that was captured from that same
+            // pod.  The zip therefore already contains the correct node-ID directory for the
+            // target pod, so no rename is required.
+            sourceNodeId = targetNodeId;
+
             const podName: string = podReference.name.name;
             const statesDirectory: string = PathEx.join(
               stateInputPath,
@@ -1479,7 +1486,9 @@ export class NodeCommandTasks {
             zipFile = PathEx.join(statesDirectory, stateFiles[0]);
             this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
           } else {
-            // It's a single file or use default from config
+            // Single-file restore (e.g. node add): the zip is from the first consensus node
+            // and needs to be renamed to match each target node.
+            sourceNodeId = config.consensusNodes[0].nodeId;
             zipFile = stateInputPath;
           }
 
@@ -1560,6 +1569,12 @@ export class NodeCommandTasks {
               targetNodeId.toString(),
             ]);
           }
+
+          await container.execContainer([
+            'bash',
+            '-c',
+            `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+          ]);
         }
       },
       skip,
@@ -1803,7 +1818,15 @@ export class NodeCommandTasks {
       title: 'set gRPC Web endpoint',
       skip: ({config: {app}}): boolean => {
         // skip setting the gRPC Web endpoint if we are not running a Consensus Node
-        return app !== constants.HEDERA_APP_NAME;
+        if (app !== constants.HEDERA_APP_NAME) {
+          return true;
+        }
+        // skip if caller opted out (e.g. restore flow where endpoint is already correct
+        // in the restored state and re-sending triggers the CN v0.74 CHECKING bug)
+        if (this.configManager.getFlag<boolean>(flags.skipGrpcWebEndpoint)) {
+          return true;
+        }
+        return false;
       },
       task: async ({config}): Promise<void> => {
         const {namespace, deployment, adminKey} = config;
@@ -1958,7 +1981,9 @@ export class NodeCommandTasks {
     let adminPublicKeys: string[] = [];
     adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
       ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
-      : (Array.from({length: consensusNodes.length}).fill(constants.GENESIS_PUBLIC_KEY.toString()) as string[]);
+      : (Array.from({length: consensusNodes.length}, (): string =>
+          constants.GENESIS_PUBLIC_KEY.toString(),
+        ) as string[]);
     const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
@@ -2106,6 +2131,18 @@ export class NodeCommandTasks {
       // Fail fast when the helper is missing so callers immediately know the image
       // does not satisfy Solo's lifecycle contract.
       `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
+      [
+        "if ps -ef | grep -q '[c]om.hedera.node.app.ServicesMain'",
+        "then curl -sf http://localhost:9999/metrics | grep 'platform_PlatformStatus' | grep -q ' 2[.]0$' && true < /dev/tcp/127.0.0.1/50211",
+        'else false',
+        'fi',
+      ].join('\n'),
+      // ACTIVE nodes only need the autostart marker restored; the full helper start
+      // path deliberately forces a down/up cycle for transitional or frozen nodes.
+      `if [ $? -eq 0 ]; then "${lifecycleHelperPath}" enable-autostart; exit 0; fi`,
+      // A JVM can remain alive with only background threads after the main platform
+      // exits. Clear any non-ready process before asking the helper to start it.
+      `"${lifecycleHelperPath}" stop-and-disable-autostart`,
       // The helper owns both service control and autostart marker semantics.
       `"${lifecycleHelperPath}" start-and-enable-autostart`,
     ].join('\n');
@@ -3049,7 +3086,7 @@ export class NodeCommandTasks {
           textData += gray('Latest block number: ') + yellow(blockNumber) + '\n';
 
           // Get Account balance
-          const accountEvmAddress: string = `0x${newAccount.accountAlias.split('.')[2]}`;
+          const accountEvmAddress: string = `0x${newAccount.accountAlias.split('.', 3)[2]}`;
           const balanceHex: string = await rpc('eth_getBalance', [accountEvmAddress, 'latest']);
           const balance: number = Number.parseInt(balanceHex, 16);
           textData += gray('Account balance: ') + yellow(`${balance} wei`) + '\n';
@@ -4071,8 +4108,9 @@ export class NodeCommandTasks {
           throw new SoloErrors.validation.inputDirectoryNotSpecified();
         }
 
-        // @ts-expect-error - TS2345
-        const contextData: any = JSON.parse(fs.readFileSync(PathEx.joinWithRealPath(inputDirectory, targetFile)));
+        const contextData: any = JSON.parse(
+          fs.readFileSync(PathEx.joinWithRealPath(inputDirectory, targetFile), 'utf8'),
+        );
         parser(context_, contextData);
       },
     };
@@ -4305,14 +4343,19 @@ export class NodeCommandTasks {
 
         const extractCommand: string = `unzip ${PathEx.basename(config.lastStateZipPath)}`;
 
+        const normalizePreconsensusEventsCommand: string = [
+          `cd ${savedStatePath}`,
+          extractCommand,
+          `if [ -d preconsensus-events/0 ] && [ "${nodeId}" != "0" ]; then ` +
+            `rm -rf preconsensus-events/${nodeId} && mv preconsensus-events/0 preconsensus-events/${nodeId}; ` +
+            'fi',
+          `rm -f ${PathEx.basename(config.lastStateZipPath)}`,
+        ].join(' && ');
+
         await k8
           .containers()
           .readByRef(containerReference)
-          .execContainer([
-            'bash',
-            '-c',
-            `cd ${savedStatePath} && ${extractCommand} && mv preconsensus-events/0 preconsensus-events/${nodeId} && rm -f ${PathEx.basename(config.lastStateZipPath)}`,
-          ]);
+          .execContainer(['bash', '-c', normalizePreconsensusEventsCommand]);
       },
     };
   }
@@ -4856,7 +4899,7 @@ export class NodeCommandTasks {
           const servicesMainProcess: string = resultLines.find((line: string): boolean =>
             line.includes('com.hedera.node.app.ServicesMain'),
           );
-          pid = servicesMainProcess.trim().split(' ')[0];
+          pid = servicesMainProcess.trim().split(' ', 1)[0];
         } catch (error) {
           throw new SoloErrors.component.nodeJfrExecutionFailed(
             'Failed to get process list',
