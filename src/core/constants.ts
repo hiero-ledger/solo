@@ -279,6 +279,10 @@ export const BLOCK_NODE_SOLO_DEV_FILE: string = PathEx.joinWithRealPath(RESOURCE
 export const EXPLORER_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'hiero-explorer-values.yaml');
 export const RELAY_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'relay-values.yaml');
 export const MIRROR_NODE_VALUES_FILE: string = PathEx.joinWithRealPath(RESOURCES_DIR, 'mirror-node-values.yaml');
+export const PROMETHEUS_STACK_VALUES_FILE: string = PathEx.joinWithRealPath(
+  RESOURCES_DIR,
+  'prometheus-stack-values.yaml',
+);
 export const ONE_SHOT_FALCON_PREPARE_SPEC_FILE: string = PathEx.joinWithRealPath(
   RESOURCES_DIR,
   'one-shot-falcon-prepare.yaml',
