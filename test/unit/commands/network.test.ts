@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import sinon, {type SinonStub} from 'sinon';
+import sinon, {type SinonSpyCall, type SinonStub} from 'sinon';
 import {before, beforeEach, describe, it} from 'mocha';
 import {expect} from 'chai';
 
@@ -42,6 +42,7 @@ import {type RemoteConfigRuntimeState} from '../../../src/business/runtime-state
 import {StringFacade} from '../../../src/business/runtime-state/facade/string-facade.js';
 import {SemanticVersion} from '../../../src/business/utils/semantic-version.js';
 import {HelmChartValues} from '../../../src/integration/helm/model/values.js';
+import {Duration} from '../../../src/core/time/duration.js';
 
 const testName: string = 'network-cmd-unit';
 const namespace: NamespaceName = NamespaceName.of(testName);
@@ -286,6 +287,61 @@ describe('NetworkCommand unit tests', (): void => {
       }
     });
 
+    it('retries the solo-deployment chart install after a transient failure', async (): Promise<void> => {
+      try {
+        // collapse the retry backoff so the test does not wait for the real delay
+        const ofSecondsStub: SinonStub = sinon.stub(Duration, 'ofSeconds');
+        ofSecondsStub.callThrough();
+        ofSecondsStub.withArgs(constants.NETWORK_CHART_INSTALL_RETRY_DELAY_SECS).returns(Duration.ofMillis(1));
+
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e', 'solo-e2e', 'context1', 'base', 'pattern', 'fqdn', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context1']);
+        const stubbedClusterReferences: ClusterReferences = new Map([['solo-e2e', 'context1']]);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(stubbedClusterReferences);
+        options.remoteConfig.updateComponentVersion = sinon.stub();
+        options.remoteConfig.configuration.state = {};
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePodLogsCrd = sinon.stub().returns(true);
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.ensurePrometheusOperatorCrds = sinon.stub().returns(true);
+
+        // @ts-expect-error - TS2341: to mock
+        networkCommand.componentFactory = {
+          createNewEnvoyProxyComponent: sinon.stub(),
+          createNewHaProxyComponent: sinon.stub(),
+        };
+
+        const upgradeStub: SinonStub = sinon.stub();
+        upgradeStub.resolves(true);
+        upgradeStub
+          .onFirstCall()
+          .rejects(new Error('Post "https://127.0.0.1:6443/apis/monitoring.grafana.com/v1alpha2/podlogs": EOF'));
+        options.chartManager.upgrade = upgradeStub;
+
+        await networkCommand.deploy(argv.build());
+
+        const upgradeCalls: SinonSpyCall[] = upgradeStub
+          .getCalls()
+          .filter((call: SinonSpyCall): boolean => call.args[1] === constants.SOLO_DEPLOYMENT_CHART);
+        expect(upgradeCalls).to.have.lengthOf(2);
+
+        const uninstallCalls: SinonSpyCall[] = options.chartManager.uninstall
+          .getCalls()
+          .filter((call: SinonSpyCall): boolean => call.args[1] === constants.SOLO_DEPLOYMENT_CHART);
+        // one uninstall for the pre-existing release plus one clean-up between the failed and retried attempts
+        expect(uninstallCalls).to.have.lengthOf(2);
+      } finally {
+        sinon.restore();
+      }
+    });
+
     it('normalizes duplicate comma-joined consensus-node-version values before semantic parsing', async (): Promise<void> => {
       const originalConsensusNodeVersion: string = argv.getArg<string>(flags.consensusNodeVersion);
       try {
@@ -427,6 +483,57 @@ describe('NetworkCommand unit tests', (): void => {
         expect(commonValuesFileIndex).to.be.lt(values1FileIndex);
         expect(values1FileIndex).to.be.lt(values2FileIndex);
       } finally {
+        sinon.restore();
+      }
+    });
+
+    it('sets static IP chart values for haproxy, envoy, and network node services', async (): Promise<void> => {
+      const originalHaproxyIps: string = argv.getArg<string>(flags.haproxyIps);
+      const originalEnvoyIps: string = argv.getArg<string>(flags.envoyIps);
+      const originalNetworkNodeIps: string = argv.getArg<string>(flags.networkNodeIps);
+
+      try {
+        argv.setArg(flags.haproxyIps, 'node1=172.19.1.0,node2=172.19.2.0');
+        argv.setArg(flags.envoyIps, 'node1=172.19.1.2,node2=172.19.2.2');
+        argv.setArg(flags.networkNodeIps, 'node1=172.19.1.1,node2=172.19.2.1');
+
+        const task: SinonStub = sinon.stub();
+        options.remoteConfig.getConsensusNodes = sinon
+          .stub()
+          .returns([
+            new ConsensusNode('node1', 0, 'solo-e2e-c1', 'cluster1', 'context-1', 'base', 'pattern', 'fqdn1', [], []),
+            new ConsensusNode('node2', 1, 'solo-e2e-c2', 'cluster2', 'context-2', 'base', 'pattern', 'fqdn2', [], []),
+          ]);
+        options.remoteConfig.getContexts = sinon.stub().returns(['context-1', 'context-2']);
+        options.remoteConfig.getClusterRefs = sinon.stub().returns(
+          new Map<string, string>([
+            ['cluster1', 'context-1'],
+            ['cluster2', 'context-2'],
+          ]),
+        );
+
+        const networkCommand: NetworkCommand = container.resolve(NetworkCommand);
+        // @ts-expect-error - to mock
+        networkCommand.getBlockNodes = sinon.stub().returns([]);
+        networkCommand.configManager.update(argv.build());
+
+        // @ts-expect-error - to access private method
+        const config: NetworkDeployConfigClass = await networkCommand.prepareConfig(task, argv.build());
+
+        expect(config.chartValuesMap['cluster1'].toArguments()).to.include.members([
+          'hedera.nodes[0].haproxyStaticIP=172.19.1.0',
+          'hedera.nodes[0].envoyProxyStaticIP=172.19.1.2',
+          'hedera.nodes[0].networkNodeStaticIP=172.19.1.1',
+        ]);
+        expect(config.chartValuesMap['cluster2'].toArguments()).to.include.members([
+          'hedera.nodes[0].haproxyStaticIP=172.19.2.0',
+          'hedera.nodes[0].envoyProxyStaticIP=172.19.2.2',
+          'hedera.nodes[0].networkNodeStaticIP=172.19.2.1',
+        ]);
+      } finally {
+        argv.setArg(flags.haproxyIps, originalHaproxyIps);
+        argv.setArg(flags.envoyIps, originalEnvoyIps);
+        argv.setArg(flags.networkNodeIps, originalNetworkNodeIps);
         sinon.restore();
       }
     });
