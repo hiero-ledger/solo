@@ -402,6 +402,7 @@ describe('ExplorerCommand unit tests', (): void => {
 
     const chartValues: HelmChartValues = await command.prepareHederaExplorerChartValues(createDeployConfig('explorer'));
 
+    // eslint-disable-next-line unicorn/prefer-https
     expect(chartValues.toArguments()).to.include('proxyPass./api=http://mirror-1-rest.mirror-ns.svc.cluster.local');
   });
 

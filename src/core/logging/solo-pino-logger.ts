@@ -155,7 +155,8 @@ export class SoloPinoLogger implements SoloLogger {
   }
 
   public setLogBinding(key: string, value: unknown): void {
-    if (value === undefined || value === null || value === '') {
+    // disable-eslint-next-line unicorn/no-null
+    if (([undefined, null, ''] as unknown[]).includes(value)) {
       delete this.logBindings[key];
       return;
     }
