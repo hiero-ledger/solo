@@ -5,6 +5,8 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {ExecutionBuilder} from '../../execution-builder.js';
+import {SubprocessEnvironment} from '../../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../../core/subprocess-command-profile.js';
 
 /**
  * A builder for creating a kind command execution.
@@ -167,7 +169,7 @@ export class KindExecutionBuilder extends ExecutionBuilder {
    */
   public build(): KindExecution {
     const command: string[] = this.buildCommand();
-    const environment: Record<string, string> = {...process.env};
+    const environment: Record<string, string> = SubprocessEnvironment.forCommand(SubprocessCommandProfile.KIND);
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }

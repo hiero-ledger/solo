@@ -106,13 +106,18 @@ export class ImageCacheHandler implements CacheOperationHandler {
 
   public async load(target: string): Promise<SoloListrTask<AnyListrContext>[]> {
     const items: readonly CachedItem[] = await this.resolveExpectedCachedItems();
-
+    const loadedImages: ReadonlySet<string> = await this.resolveLoadedClusterImages(target);
     return items.map((item): SoloListrTask<AnyListrContext> => {
       const name: string = `${item.target.name}:${item.target.version}`;
 
       return {
         title: `Loading ${name} into ${target}`,
         task: async (_, task): Promise<void> => {
+          if (loadedImages.has(name)) {
+            task.title += ' - ' + chalk.green('already loaded, skipped');
+            return;
+          }
+
           if (!(await this.inspector.exists(item.localPath))) {
             // Not cached (surfaced by pull / `cache image status`); keep it visible but non-fatal.
             task.title += ' - ' + chalk.yellow('archive not cached, skipped');
@@ -132,6 +137,17 @@ export class ImageCacheHandler implements CacheOperationHandler {
         },
       };
     });
+  }
+
+  private async resolveLoadedClusterImages(clusterName: string): Promise<ReadonlySet<string>> {
+    try {
+      const images: readonly string[] = await this.engine.listLoadedImagesInCluster(clusterName);
+      return new Set<string>(images);
+    } catch (error) {
+      const message: string = ImageCacheHandler.getErrorMessage(error);
+      this.logger.debug(`Unable to list images already loaded in cluster ${clusterName}: ${message}`);
+      return new Set<string>();
+    }
   }
 
   public async clear(): Promise<void> {

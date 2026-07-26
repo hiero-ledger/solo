@@ -209,6 +209,7 @@ export class DefaultHelmClient implements HelmClient {
           'Detected expired Docker authentication for GHCR (ghcr.io).',
           'Fix: run one of the following and retry:',
           '  - docker logout ghcr.io',
+          // eslint-disable-next-line unicorn/prefer-https
           '  - docker logout http://ghcr.io/',
         ].join('\n'),
       );
@@ -221,7 +222,12 @@ export class DefaultHelmClient implements HelmClient {
     await this.executeAsync(new RepositoryUpdateRequest());
   }
 
-  public async pullChartPackage(chart: Chart, version: string, destinationDirectory: string): Promise<void> {
-    await this.executeAsync(new ChartPullRequest(chart, version, destinationDirectory));
+  public async pullChartPackage(
+    chart: Chart,
+    version: string,
+    destinationDirectory: string,
+    repositoryUrl?: string,
+  ): Promise<void> {
+    await this.executeAsync(new ChartPullRequest(chart, version, destinationDirectory, repositoryUrl));
   }
 }

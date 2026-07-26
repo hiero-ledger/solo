@@ -25,6 +25,8 @@ import {sleep} from '../../../../../core/helpers.js';
 import {Duration} from '../../../../../core/time/duration.js';
 import type Stream from 'node:stream';
 import * as constants from '../../../../../core/constants.js';
+import {SubprocessEnvironment} from '../../../../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../../../../core/subprocess-command-profile.js';
 import type * as stream from 'node:stream';
 import {platform} from 'node:process';
 import {PathEx} from '../../../../../business/utils/path-ex.js';
@@ -80,7 +82,9 @@ export class K8ClientContainer implements Container {
         constants.KUBECTL,
         fullArguments,
         {
-          env: {...process.env, PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`},
+          env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.KUBECTL, {
+            PATH: `${this.kubectlInstallationDirectory}${path.delimiter}${process.env.PATH}`,
+          }),
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: os.platform() === 'win32',
         },
@@ -338,10 +342,10 @@ export class K8ClientContainer implements Container {
 
     const arguments_: string[] = ['exec', podName, '-n', namespace.name, '-c', containerName, '--', ...command];
 
-    // During rolling restarts, kubelet may report "container not found" for a few seconds
-    // even when the pod object is present. Retry that transient state.
+    // Retry transient exec failures that occur before the command runs: kubelet reporting "container not found" during rolling restarts, and API server to kubelet tunnel errors (connection upgrade, dial, timeout).
     const maxAttempts: number = 30;
-    const retryableContainerNotReady: RegExp = /(container not found|unable to upgrade connection)/i;
+    const retryableTransientFailure: RegExp =
+      /(container not found|unable to upgrade connection|internal error occurred: timeout occurred|error dialing backend)/i;
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -349,10 +353,13 @@ export class K8ClientContainer implements Container {
       } catch (error) {
         const message: string = error instanceof Error ? error.message : `${error}`;
 
-        if (!retryableContainerNotReady.test(message) || attempt === maxAttempts) {
+        if (!retryableTransientFailure.test(message) || attempt === maxAttempts) {
           throw error;
         }
 
+        this.logger.warn(
+          `execContainer: transient failure on attempt ${attempt} of ${maxAttempts} [podName: ${podName} -n ${namespace.name} -c ${containerName}], retrying: ${message}`,
+        );
         await sleep(Duration.ofMillis(1000));
       }
     }

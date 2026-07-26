@@ -169,7 +169,7 @@ export class PackageDownloader {
         const checksum: Hash = crypto.createHash(algo);
         const s: ReadStream = fs.createReadStream(filePath);
         s.on('data', (d): void => {
-          checksum.update(d as crypto.BinaryLike);
+          checksum.update(d);
         });
         s.on('end', (): void => {
           const d: string = checksum.digest('hex');
@@ -255,7 +255,7 @@ export class PackageDownloader {
           if (!checksumData) {
             throw new SoloErrors.system.checksumReadFailed(checksumFile);
           }
-          checksum = checksumData.split(' ')[0];
+          checksum = checksumData.split(' ', 1)[0];
         } else {
           checksum = checksumDataOrURL;
         }
