@@ -337,7 +337,7 @@ export class Helpers {
 
   public static getEnvironmentValue(environmentVariableArray: string[], name: string): string {
     const kvPair: string = environmentVariableArray.find((v): boolean => v.startsWith(`${name}=`));
-    return kvPair ? kvPair.split('=')[1] : undefined;
+    return kvPair ? kvPair.split('=', 2)[1] : undefined;
   }
 
   public static parseIpAddressToUint8Array(ipAddress: string): Uint8Array<ArrayBuffer> {
@@ -846,7 +846,16 @@ export class Helpers {
       lines.push(`blockStream.streamMode=${blockStreamMode}`);
     }
 
-    if (!lines.some((line): boolean => line.startsWith('blockStream.writerMode='))) {
+    let writerModeUpdated: boolean = false;
+    for (const line of lines) {
+      if (line.startsWith('blockStream.writerMode=')) {
+        lines[lines.indexOf(line)] = `blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`;
+        writerModeUpdated = true;
+        break;
+      }
+    }
+
+    if (!writerModeUpdated) {
       lines.push(`blockStream.writerMode=${constants.BLOCK_STREAM_WRITER_MODE}`);
     }
 

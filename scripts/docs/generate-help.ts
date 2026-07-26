@@ -74,7 +74,7 @@ async function getTopLevelCommands(): Promise<SoloCommand> {
           return accumulator;
         }
         if (accumulator.inCommands && line.trim()) {
-          accumulator.commands.push(line.trim().split(/\s+/)[0]);
+          accumulator.commands.push(line.trim().split(/\s+/, 1)[0]);
         }
         return accumulator;
       },
@@ -102,7 +102,7 @@ async function getSecondLevelCommands(topLevelCommand: TopLevelCommand): Promise
     const commands: string[] = topLevelCommand.output
       .split('\n')
       .filter((l): boolean => l.trim().startsWith(topLevelCommand.topCommand + ' '))
-      .map((l): string => l.trim().split(/\s+/)[1]);
+      .map((l): string => l.trim().split(/\s+/, 2)[1]);
 
     for (const secondLevelCommand of commands) {
       topLevelCommand.secondLevelCommands.push({
@@ -131,7 +131,7 @@ async function getThirdLevelCommands(secondLevelCommand: SecondLevelCommand): Pr
     const commands: string[] = secondLevelCommand.output
       .split('\n')
       .filter((l): boolean => l.trim().startsWith(`${topCommand} ${secondCommand} `))
-      .map((l): string => l.trim().split(/\s+/)[2]);
+      .map((l): string => l.trim().split(/\s+/, 3)[2]);
 
     for (const thirdLevelCommand of commands) {
       secondLevelCommand.thirdLevelCommands.push({

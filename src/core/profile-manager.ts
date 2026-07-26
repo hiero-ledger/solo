@@ -462,7 +462,7 @@ export class ProfileManager {
 
     for (const line of lines) {
       if (line.startsWith('hedera.config.version=')) {
-        const version: number = Number.parseInt(line.split('=')[1], 10) + 1;
+        const version: number = Number.parseInt(line.split('=', 2)[1], 10) + 1;
         lines[lines.indexOf(line)] = `hedera.config.version=${version}`;
         break;
       }
@@ -782,13 +782,18 @@ export class ProfileManager {
 
         // Validate the saved IP still belongs to this node service.
         const serviceName: string = `network-${consensusNode.name}-svc`;
-        const service: {spec?: {clusterIP?: string}} | undefined = await k8
-          .services()
-          .read(NamespaceName.of(consensusNode.namespace), serviceName);
-        const serviceIpAddress: string | undefined = service?.spec?.clusterIP;
-        if (serviceIpAddress !== ipAddress) {
+        const service:
+          {spec?: {clusterIP?: string}; status?: {loadBalancer?: {ingress?: Array<{ip?: string}>}}} | undefined =
+          await k8.services().read(NamespaceName.of(consensusNode.namespace), serviceName);
+        const serviceIpAddresses: string[] = [
+          ...(service?.status?.loadBalancer?.ingress ?? [])
+            .map((ingress: {ip?: string}): string | undefined => ingress.ip)
+            .filter(Boolean),
+          ...(service?.spec?.clusterIP && service.spec.clusterIP !== 'None' ? [service.spec.clusterIP] : []),
+        ];
+        if (!serviceIpAddresses.includes(ipAddress)) {
           this.logger.warn(
-            `Saved endpoint ${ipAddress}:${port} for ${consensusNode.name} does not match current ${serviceName} ClusterIP ${serviceIpAddress ?? 'undefined'}, falling back to current service address`,
+            `Saved endpoint ${ipAddress}:${port} for ${consensusNode.name} does not match current ${serviceName} IPs ${serviceIpAddresses.join(',') || 'undefined'}, falling back to current service address`,
           );
           return undefined;
         }
@@ -814,6 +819,7 @@ export class ProfileManager {
    * @param destinationPath
    * @param [appName] - the app name (default: HederaNode.jar)
    * @param [chainId] - chain ID (298 for local network)
+   * @param [gossipFqdnRestricted] - whether gossip FQDN is restricted
    * @returns the config.txt file path
    */
   public async prepareConfigTxt(

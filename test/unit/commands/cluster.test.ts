@@ -24,6 +24,7 @@ import {type SoloLogger} from '../../../src/core/logging/solo-logger.js';
 import {LocalConfigRuntimeState} from '../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {ClusterCommandTasks} from '../../../src/commands/cluster/tasks.js';
 import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
+import {type HelmChartValues} from '../../../src/integration/helm/model/values.js';
 
 type BaseCommandOptions = {
   logger: SinonStubbedInstance<SoloLogger>;
@@ -125,6 +126,25 @@ describe('ClusterCommand unit tests', (): void => {
       await clusterCommandHandlers.setup(argv.build());
 
       expect(options.chartManager.install.args[0][2]).to.equal(constants.MINIO_OPERATOR_CHART);
+    });
+
+    it('Prometheus stack install passes the solo prometheus values file', async (): Promise<void> => {
+      argv.setArg(flags.deployPrometheusStack, true);
+
+      const clusterCommandHandlers: ClusterCommandHandlers = container.resolve(ClusterCommandHandlers);
+      await clusterCommandHandlers.setup(argv.build());
+
+      const prometheusInstall: unknown[] | undefined = options.chartManager.install.args.find(
+        (callArguments: unknown[]): boolean => callArguments[1] === constants.PROMETHEUS_RELEASE_NAME,
+      );
+      expect(prometheusInstall, 'expected a chart install call for the prometheus stack').to.not.equal(undefined);
+      expect(prometheusInstall[4]).to.equal(version.PROMETHEUS_STACK_VERSION);
+      expect((prometheusInstall[5] as HelmChartValues).toArguments()).to.deep.equal([
+        '--values',
+        constants.PROMETHEUS_STACK_VALUES_FILE,
+      ]);
+
+      argv.setArg(flags.deployPrometheusStack, false);
     });
   });
 });

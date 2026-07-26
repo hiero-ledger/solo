@@ -282,7 +282,6 @@ import {ClusterRoleCheckFailedSoloError} from './classes/system/cluster-role-che
 import {LoggerMessageGroupNotFoundError} from './classes/internal/logger-message-group-not-found-error.js';
 import {CommandReturnedFalseError} from './classes/internal/command-returned-false-error.js';
 import {RemoteConfigUnsupportedComponentError} from './classes/internal/remote-config-unsupported-component-error.js';
-import {RemoteConfigDeploymentNotSetError} from './classes/internal/remote-config-deployment-not-set-error.js';
 import {RemoteConfigContextUnavailableError} from './classes/internal/remote-config-context-unavailable-error.js';
 import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-template-undeclared-error.js';
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
@@ -882,7 +881,6 @@ export class SoloErrors {
     readonly loggerMessageGroupNotFound: typeof LoggerMessageGroupNotFoundError;
     readonly commandReturnedFalse: typeof CommandReturnedFalseError;
     readonly remoteConfigUnsupportedComponent: typeof RemoteConfigUnsupportedComponentError;
-    readonly remoteConfigDeploymentNotSet: typeof RemoteConfigDeploymentNotSetError;
     readonly remoteConfigContextUnavailable: typeof RemoteConfigContextUnavailableError;
     readonly cacheImageTemplateUndeclared: typeof CacheImageTemplateUndeclaredError;
     readonly injectedFailure: typeof InjectedFailureSoloError;
@@ -895,7 +893,6 @@ export class SoloErrors {
     loggerMessageGroupNotFound: LoggerMessageGroupNotFoundError,
     commandReturnedFalse: CommandReturnedFalseError,
     remoteConfigUnsupportedComponent: RemoteConfigUnsupportedComponentError,
-    remoteConfigDeploymentNotSet: RemoteConfigDeploymentNotSetError,
     remoteConfigContextUnavailable: RemoteConfigContextUnavailableError,
     cacheImageTemplateUndeclared: CacheImageTemplateUndeclaredError,
     injectedFailure: InjectedFailureSoloError,
