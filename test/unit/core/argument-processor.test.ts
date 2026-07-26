@@ -164,7 +164,7 @@ describe('ArgumentProcessor', (): void => {
 
   describe('Missing Required Arguments - Level 3 (Actions)', (): void => {
     it('should show error when missing required argument', async (): Promise<void> => {
-      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'deploy'];
+      const argv: string[] = ['node', 'solo.ts', 'deployment', 'config', 'create', '--namespace', 'solo-e2e'];
 
       try {
         await ArgumentProcessor.process(argv);
@@ -178,8 +178,8 @@ describe('ArgumentProcessor', (): void => {
       expect(output).to.include('deployment');
     });
 
-    it('should fail for destroy without deployment and include exact message', async (): Promise<void> => {
-      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'destroy'];
+    it('should fail for create without deployment and include exact message', async (): Promise<void> => {
+      const argv: string[] = ['node', 'solo.ts', 'deployment', 'config', 'create', '--namespace', 'solo-e2e'];
       process.exitCode = undefined;
 
       try {
@@ -196,7 +196,8 @@ describe('ArgumentProcessor', (): void => {
     });
 
     it('should throw SilentBreak for a missing required argument so no internal error is displayed', async (): Promise<void> => {
-      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'destroy'];
+      // `--deployment` is optional everywhere now, so use a command whose own flag (--account-id) is still required
+      const argv: string[] = ['node', 'solo.ts', 'ledger', 'account', 'update'];
       process.exitCode = undefined;
 
       try {
@@ -419,7 +420,7 @@ describe('ArgumentProcessor', (): void => {
 
   describe('Error Message Quality', (): void => {
     it('should provide clear error message for missing required argument', async (): Promise<void> => {
-      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'deploy'];
+      const argv: string[] = ['node', 'solo.ts', 'deployment', 'config', 'create', '--namespace', 'solo-e2e'];
 
       try {
         await ArgumentProcessor.process(argv);
@@ -465,7 +466,7 @@ describe('ArgumentProcessor', (): void => {
     });
 
     it('should throw SoloError for actual errors', async (): Promise<void> => {
-      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'deploy'];
+      const argv: string[] = ['node', 'solo.ts', 'deployment', 'config', 'create', '--namespace', 'solo-e2e'];
 
       try {
         await ArgumentProcessor.process(argv);
@@ -495,7 +496,7 @@ describe('ArgumentProcessor', (): void => {
     });
 
     it('should set error exit code for missing required arguments', async (): Promise<void> => {
-      const argv: string[] = ['node', 'solo.ts', 'consensus', 'network', 'deploy'];
+      const argv: string[] = ['node', 'solo.ts', 'deployment', 'config', 'create', '--namespace', 'solo-e2e'];
       process.exitCode = undefined;
 
       try {

@@ -91,12 +91,15 @@ describe('RelayCommand unit tests', (): void => {
     );
 
     expect(valueArguments).to.include(
+      // eslint-disable-next-line unicorn/prefer-https
       'relay.config.MIRROR_NODE_URL=http://mirror-ingress-controller-mirror-ns.mirror-ns.svc.cluster.local',
     );
     expect(valueArguments).to.include(
+      // eslint-disable-next-line unicorn/prefer-https
       'relay.config.MIRROR_NODE_URL_WEB3=http://mirror-1-web3.mirror-ns.svc.cluster.local',
     );
     expect(valueArguments).to.include(
+      // eslint-disable-next-line unicorn/prefer-https
       'ws.config.MIRROR_NODE_URL=http://mirror-ingress-controller-mirror-ns.mirror-ns.svc.cluster.local',
     );
   });
