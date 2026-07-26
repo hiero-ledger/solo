@@ -591,6 +591,16 @@ export class KeyManager {
     } catch (error: Error | any) {
       throw new SoloErrors.component.explorerTlsSecretCreationFailed(error);
     }
+
+    // The self-signed cert/key now live in the cluster secret, so remove the on-disk copies to avoid
+    // leaving the private key behind in the cache; they are regenerated on the next deploy when needed.
+    for (const generatedFilePath of [keyPath, certificatePath]) {
+      try {
+        fs.rmSync(generatedFilePath, {force: true});
+      } catch {
+        // best-effort: the secret is already created, so a failed cache cleanup must not fail the deploy
+      }
+    }
   }
 
   /**

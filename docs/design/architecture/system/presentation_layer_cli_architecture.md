@@ -167,6 +167,7 @@ solo cluster-ref config connect --cluster-ref <name> --context <context>
 solo deployment config create --deployment <name> --namespace <name> 
 solo deployment config list
 solo deployment config info [--deployment <name>]
+solo deployment config import [--namespace <name>] [--context <context>] # Reconstructs the local config from an existing cluster's remote config
 solo deployment cluster attach --deployment <name> --cluster-ref <name> --num-consensus-nodes 3 
 solo keys consensus generate --deployment <name> --gossip-tls-keys --grpc-tls-keys
 solo block node add --deployment <name> --cluster-ref <name> 
@@ -475,7 +476,7 @@ operations associated with each resource.
 | **Info**       | `info`         | Displays deployment metadata, component versions, and port-forward status. If `--deployment` is omitted, it iterates all local deployments.  |
 | **Create**     | `create`       | Creates a new local deployment configuration.                                                                                                   |
 | **Delete**     | `delete`       | Removes a local deployment configuration.                                                                                                       |
-| **Import**     | `import`       | Imports deployment config from a file.                                                                                                          |
+| **Import**     | `import`       | Imports a deployment into the local configuration from an existing cluster's remote config.                                                     |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>

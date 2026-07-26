@@ -166,8 +166,9 @@ export class ExplorerCommand extends BaseCommand {
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.cacheDir,
       flags.chartDirectory,
       flags.explorerChartDirectory,
@@ -196,8 +197,9 @@ export class ExplorerCommand extends BaseCommand {
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.clusterRef,
       flags.cacheDir,
       flags.chartDirectory,
@@ -227,8 +229,8 @@ export class ExplorerCommand extends BaseCommand {
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.debugMode],
+    required: [],
+    optional: [flags.deployment, flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.debugMode],
   };
 
   private async prepareHederaExplorerChartValues(
@@ -462,9 +464,9 @@ export class ExplorerCommand extends BaseCommand {
         const explorerChartValues: HelmChartValues = new HelmChartValues().filesFromCommaSeparatedInput(
           config.valuesFile,
         );
-        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues().add(
-          HelmSchedulingValues.buildSchedulingChartValues(explorerChartValues, 'controller'),
-        );
+        const explorerIngressControllerChartValues: HelmChartValues = new HelmChartValues()
+          .file(constants.INGRESS_CONTROLLER_VALUES_FILE)
+          .add(HelmSchedulingValues.buildSchedulingChartValues(explorerChartValues, 'controller'));
 
         if (config.explorerStaticIp !== '') {
           explorerIngressControllerChartValues.setLiteral('controller.service.loadBalancerIP', config.explorerStaticIp);
@@ -957,14 +959,14 @@ export class ExplorerCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .ingressClasses()
               .list();
-            existingIngressClasses.map((ingressClass: IngressClass): void => {
+            for (const ingressClass of existingIngressClasses) {
               if (ingressClass.name === context_.config.ingressReleaseName) {
-                this.k8Factory
+                await this.k8Factory
                   .getK8(context_.config.clusterContext)
                   .ingressClasses()
                   .delete(context_.config.ingressReleaseName);
               }
-            });
+            }
           },
         },
         this.disableMirrorNodeExplorerComponents(),

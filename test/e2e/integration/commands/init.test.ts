@@ -20,7 +20,9 @@ describe('InitCommand', (): void => {
 
   before((): void => {
     sandbox = sinon.createSandbox();
+    // eslint-disable-next-line unicorn/no-this-outside-of-class
     sandbox.stub(K8Client.prototype, 'init').callsFake((): K8 => this);
+    // eslint-disable-next-line unicorn/no-this-outside-of-class
     sandbox.stub(DefaultKindClient.prototype, 'createCluster').callsFake((): Promise<ClusterCreateResponse> => this);
     initCmd = container.resolve(InjectTokens.InitCommand);
   });

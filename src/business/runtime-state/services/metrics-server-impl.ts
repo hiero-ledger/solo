@@ -42,6 +42,15 @@ export class MetricsServerImpl implements MetricsServer {
     );
   }
 
+  /** True when the pod hosts the mirror node postgres DB (shared-resources, embedded, or legacy topology). */
+  public static isMirrorNodePostgresPodName(podName: string): boolean {
+    return (
+      podName.startsWith('solo-shared-resources-postgres') ||
+      (podName.startsWith('mirror-') && podName.includes('postgres')) ||
+      podName.startsWith('my-postgresql')
+    );
+  }
+
   public async getMetrics(
     snapshotName: string,
     namespaceLookup: NamespaceName = undefined,
@@ -88,8 +97,8 @@ export class MetricsServerImpl implements MetricsServer {
         if (podName.startsWith('network-node1-0')) {
           clusterNamespace = namespace;
         }
-        // Capture both internal mirror node postgres and external postgres pods
-        if ((podName.startsWith('mirror-') && podName.includes('postgres')) || podName.startsWith('my-postgresql')) {
+        // Capture the mirror node postgres pod across shared-resources, embedded, and legacy topologies.
+        if (MetricsServerImpl.isMirrorNodePostgresPodName(podName)) {
           mirrorNodePostgresPodName = podName;
           mirrorNodePostgresNamespace = namespace;
         }
@@ -246,7 +255,7 @@ export class MetricsServerImpl implements MetricsServer {
       const columns: string[] = results[0].trim().split(/\s+/);
       const cpuColumn: string | undefined = columns[4];
       if (cpuColumn) {
-        return Number.parseInt(cpuColumn.split('m')[0]);
+        return Number.parseInt(cpuColumn.split('m', 1)[0]);
       }
     }
     return 0;
