@@ -1,3 +1,8 @@
 controller:
   config:
     path-type-order: exact,regex,prefix,begin
+    # The chart default of 2000 makes haproxy require ~4200 file descriptors; on runners
+    # whose soft nofile limit is 1024 (e.g. ARC-based GitHub runners) raising the limit
+    # fails and haproxy exits on reload ("Cannot raise FD limit"), leaving the ingress
+    # controller permanently unready. 256 connections (~700 FDs) stays under the limit.
+    max-connections: "256"

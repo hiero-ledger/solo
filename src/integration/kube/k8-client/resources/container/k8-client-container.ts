@@ -342,10 +342,10 @@ export class K8ClientContainer implements Container {
 
     const arguments_: string[] = ['exec', podName, '-n', namespace.name, '-c', containerName, '--', ...command];
 
-    // During rolling restarts, kubelet may report "container not found" for a few seconds
-    // even when the pod object is present. Retry that transient state.
+    // Retry transient exec failures that occur before the command runs: kubelet reporting "container not found" during rolling restarts, and API server to kubelet tunnel errors (connection upgrade, dial, timeout).
     const maxAttempts: number = 30;
-    const retryableContainerNotReady: RegExp = /(container not found|unable to upgrade connection)/i;
+    const retryableTransientFailure: RegExp =
+      /(container not found|unable to upgrade connection|internal error occurred: timeout occurred|error dialing backend)/i;
 
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -353,10 +353,13 @@ export class K8ClientContainer implements Container {
       } catch (error) {
         const message: string = error instanceof Error ? error.message : `${error}`;
 
-        if (!retryableContainerNotReady.test(message) || attempt === maxAttempts) {
+        if (!retryableTransientFailure.test(message) || attempt === maxAttempts) {
           throw error;
         }
 
+        this.logger.warn(
+          `execContainer: transient failure on attempt ${attempt} of ${maxAttempts} [podName: ${podName} -n ${namespace.name} -c ${containerName}], retrying: ${message}`,
+        );
         await sleep(Duration.ofMillis(1000));
       }
     }
