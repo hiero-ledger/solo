@@ -12,7 +12,7 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   cacheDir: string;
   chainId: string;
   chartDirectory: string;
-  devMode: boolean;
+  debugMode: boolean;
   debugNodeAlias: NodeAlias;
   endpointType: string;
   soloChartVersion: string;
@@ -33,7 +33,6 @@ export interface NodeAddConfigClass extends NodeCommonConfigWithNodeAlias, Check
   nodeClient: Client;
   treasuryKey: PrivateKey;
   stagingDir: string;
-  stagingKeysDir: string;
   grpcTlsCertificatePath: string;
   grpcWebTlsCertificatePath: string;
   grpcTlsKeyPath: string;

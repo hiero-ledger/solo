@@ -141,11 +141,15 @@ export class Flags {
     }
   }
 
-  public static readonly devMode: CommandFlag = {
-    constName: 'devMode',
-    name: 'dev',
+  // TODO(#1560): `--dev` was renamed to `--debug` and deprecated on 2026-06-30. The `dev` alias is
+  //  retained only for backwards compatibility and should be removed once the first LTS release that
+  //  ships this deprecation reaches end-of-life (see README "Current Releases" / legacy-versions.md).
+  public static readonly debugMode: CommandFlag = {
+    constName: 'debugMode',
+    name: 'debug',
     definition: {
-      describe: 'Enable developer mode',
+      describe: 'Enable debug mode',
+      alias: 'dev',
       defaultValue: constants.SOLO_DEV_OUTPUT,
       type: 'boolean',
     },
@@ -896,6 +900,20 @@ export class Flags {
         `\n(Default port: ${constants.GRPC_WEB_PORT ?? 8080})` +
         '\n[Format: <address>[:<port>]]',
       type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly skipGrpcWebEndpoint: CommandFlag = {
+    constName: 'skipGrpcWebEndpoint',
+    name: 'skip-grpc-web-endpoint',
+    definition: {
+      describe:
+        'Skip submitting the NodeUpdateTransaction that sets the gRPC web proxy endpoint.' +
+        '\nUse during restore when the endpoint is already correct in the restored state' +
+        ' to avoid triggering TSS re-evaluation.',
+      type: 'boolean',
+      defaultValue: false,
     },
     prompt: undefined,
   };
@@ -1982,6 +2000,53 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly backupExternalDatabase: CommandFlag = {
+    constName: 'backupExternalDatabase',
+    name: 'backup-external-database',
+    definition: {
+      describe:
+        'Export external Mirror Node database dump during backup and save connection/credential parameters to JSON',
+      defaultValue: false,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly externalDbParamsFile: CommandFlag = {
+    constName: 'externalDbParamsFile',
+    name: 'external-db-params-file',
+    definition: {
+      describe:
+        'Path to external database parameters JSON. Backup writes it; restore reads it to avoid passing many DB flags',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly expectedLbIpsFile: CommandFlag = {
+    constName: 'expectedLbIpsFile',
+    name: 'expected-lb-ips-file',
+    definition: {
+      describe:
+        'Path to KEY=VALUE file with expected LoadBalancer IP mappings, for example KIND_<CONTEXT>_NETWORK_NODE1_SVC=172.x.x.x',
+      defaultValue: '',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly skipIpTracking: CommandFlag = {
+    constName: 'skipIpTracking',
+    name: 'skip-ip-tracking',
+    definition: {
+      describe: 'Skip LoadBalancer IP tracking and enforcement during restore-network',
+      defaultValue: true,
+      type: 'boolean',
+    },
+    prompt: undefined,
+  };
+
   public static readonly adminKey: CommandFlag = {
     constName: 'adminKey',
     name: 'admin-key',
@@ -2137,9 +2202,14 @@ export class Flags {
     constName: 'deployment',
     name: 'deployment',
     definition: {
-      describe: 'The name the user will reference locally to link to a deployment',
+      describe:
+        'The name the user will reference locally to link to a deployment. ' +
+        'Falls back to the SOLO_DEPLOYMENT environment variable, or is selected automatically ' +
+        'when the local configuration contains exactly one deployment',
       alias: 'd',
-      defaultValue: '',
+      get defaultValue(): string {
+        return constants.getEnvironmentVariable('SOLO_DEPLOYMENT') ?? '';
+      },
       type: 'string',
     },
     prompt: async function promptDeployment(
@@ -2514,6 +2584,18 @@ export class Flags {
       describe:
         'IP mapping where key = value is node alias and static ip for envoy proxy, ' +
         '(e.g.: --envoy-ips node1=127.0.0.1,node2=127.0.0.1)',
+      type: 'string',
+    },
+    prompt: undefined,
+  };
+
+  public static readonly networkNodeIps: CommandFlag = {
+    constName: 'networkNodeIps',
+    name: 'network-node-ips',
+    definition: {
+      describe:
+        'IP mapping where key = value is node alias and static ip for the network-node LoadBalancer service, ' +
+        '(e.g.: --network-node-ips node1=127.0.0.1,node2=127.0.0.2)',
       type: 'string',
     },
     prompt: undefined,
@@ -2948,6 +3030,18 @@ export class Flags {
     prompt: undefined,
   };
 
+  public static readonly maxRtt: CommandFlag = {
+    constName: 'maxRtt',
+    name: 'max-rtt',
+    definition: {
+      describe:
+        'Maximum allowed end-to-end round-trip time in milliseconds, from transaction submission to mirror node availability',
+      type: 'number',
+      defaultValue: 0,
+    },
+    prompt: undefined,
+  };
+
   public static readonly performanceTest: CommandFlag = {
     constName: 'performanceTest',
     name: 'test',
@@ -3147,7 +3241,7 @@ export class Flags {
     Flags.deployPrometheusStack,
     Flags.deployment,
     Flags.deploymentClusters,
-    Flags.devMode,
+    Flags.debugMode,
     Flags.ecdsaPrivateKey,
     Flags.ed25519PrivateKey,
     Flags.enableIngress,
@@ -3155,6 +3249,7 @@ export class Flags {
     Flags.enableTimeout,
     Flags.endpointType,
     Flags.envoyIps,
+    Flags.networkNodeIps,
     Flags.force,
     Flags.forcePortForward,
     Flags.externalAddress,
@@ -3176,6 +3271,11 @@ export class Flags {
     Flags.explorerStaticIp,
     Flags.explorerVersion,
     Flags.inputDir,
+    Flags.backupExternalDatabase,
+    Flags.externalDbParamsFile,
+    Flags.expectedLbIpsFile,
+    Flags.skipIpTracking,
+
     Flags.loadBalancerEnabled,
     Flags.localBuildPath,
     Flags.log4j2Xml,
@@ -3281,11 +3381,13 @@ export class Flags {
     Flags.zipPassword,
     Flags.zipFile,
     Flags.maxTps,
+    Flags.maxRtt,
     Flags.enableMonitoringSupport,
     Flags.blockNodeMapping,
     Flags.externalBlockNodeMapping,
     Flags.grpcWebEndpoints,
     Flags.grpcWebEndpoint,
+    Flags.skipGrpcWebEndpoint,
     Flags.wrapsEnabled,
     Flags.wrapsKeyPath,
     Flags.tssEnabled,
@@ -3328,7 +3430,7 @@ export class Flags {
 
   public static readonly DEFAULT_FLAGS: CommandFlags = {
     required: [],
-    optional: [Flags.namespace, Flags.cacheDir, Flags.releaseTag, Flags.devMode, Flags.quiet],
+    optional: [Flags.namespace, Flags.cacheDir, Flags.releaseTag, Flags.debugMode, Flags.quiet],
   };
 
   /**

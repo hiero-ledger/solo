@@ -21,11 +21,15 @@ import {
 } from '../../../command-helpers.js';
 import * as constants from '../../../../core/constants.js';
 import * as version from '../../../../../version.js';
-import {type AnyObject, type ArgvStruct} from '../../../../types/aliases.js';
+import {type AnyObject, type ArgvStruct, type NodeAlias} from '../../../../types/aliases.js';
 import {CacheCommandDefinition} from '../../../command-definitions/cache-command-definition.js';
+import {SINGLE_DESTROY_COMMAND} from '../../one-shot-command-paths.js';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import yaml from 'yaml';
+import {Templates} from '../../../../core/templates.js';
 import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 const MIRROR_NODE_ID: number = 1;
@@ -58,6 +62,21 @@ export class DeployArgvBuilders {
     return this.isBlockNodeEnvironmentEnabled();
   }
 
+  /**
+   * Builds the argv for `one-shot single destroy`, used by the deploy pipeline to auto-clean any
+   * pre-existing one-shot state before a fresh deploy. Runs quietly against the same deployment.
+   */
+  public static buildOneShotSingleDestroyArgv(config: OneShotSingleDeployConfigClass): string[] {
+    const argv: string[] = newArgv();
+    argv.push(
+      ...SINGLE_DESTROY_COMMAND.split(' '),
+      optionFromFlag(Flags.deployment),
+      config.deployment,
+      optionFromFlag(Flags.quiet),
+    );
+    return argvPushGlobalFlags(argv);
+  }
+
   public static buildBlockNodeArgv(config: OneShotSingleDeployConfigClass): string[] {
     const argv: string[] = newArgv();
     argv.push(...BlockCommandDefinition.ADD_COMMAND.split(' '), optionFromFlag(Flags.deployment), config.deployment);
@@ -88,16 +107,113 @@ export class DeployArgvBuilders {
     // Build a local copy with the dev image values file appended, without mutating
     // config.blockNodeConfiguration — it may be an alias for another section's object
     // (e.g. via YAML anchors), causing the values file to leak into other commands.
+    // When ONE_SHOT_BLOCK_NODE_PERF=true, also inject the messaging workaround values
+    // (larger Disruptor ring buffer + memory, no JFR) before the solo-dev image override
+    // so the settings apply but the image is still the solo-dev image.
     const blockExistingValuesFile: string = blockNodeConfiguration?.[Flags.getFormattedFlagKey(Flags.valuesFile)];
+    const isPerfMode: boolean = constants.ONE_SHOT_BLOCK_NODE_PERF.toLowerCase() === 'true';
+    const perfValuesFile: string | undefined = isPerfMode ? constants.BLOCK_NODE_MESSAGING_WORKAROUND_FILE : undefined;
+    // Placeholder: inject RSA bootstrap roster into the block node's application-state PVC
+    // via a Helm init-container override when ONE_SHOT_BLOCK_NODE_PERF=true.
+    // BAD_BLOCK_PROOF was observed in runs 28988949642/28991564151 when keyByNodeId was empty
+    // (ExtendedMerkleTreeSession.verifyRsaProof rejected all WRB/RSA blocks).
+    // Currently ONE_SHOT_BLOCK_NODE_PERF=false so this path is inactive; re-enable if
+    // BAD_BLOCK_PROOF reappears with a future block node version.
+    const rsaBootstrapValuesFile: string | undefined = isPerfMode
+      ? DeployArgvBuilders.writeRsaBootstrapInitContainerValuesFile(config.cacheDir, config.numberOfConsensusNodes)
+      : undefined;
     const blockLocalConfig: AnyObject = {
       [optionFromFlag(Flags.blockNodeVersion)]: config.versions.blockNode,
       ...blockNodeConfiguration,
-      [Flags.getFormattedFlagKey(Flags.valuesFile)]: blockExistingValuesFile
-        ? `${blockExistingValuesFile},${constants.BLOCK_NODE_SOLO_DEV_FILE}`
-        : constants.BLOCK_NODE_SOLO_DEV_FILE,
+      [Flags.getFormattedFlagKey(Flags.valuesFile)]: [
+        blockExistingValuesFile,
+        perfValuesFile,
+        rsaBootstrapValuesFile,
+        constants.BLOCK_NODE_SOLO_DEV_FILE,
+      ]
+        .filter(Boolean)
+        .join(','),
     };
     appendConfigToArgv(argv, blockLocalConfig);
     return argvPushGlobalFlags(argv);
+  }
+
+  /**
+   * Writes a Helm values YAML that overrides the block node's init container to also write the
+   * RSA bootstrap roster file into the application-state PVC before the block node starts.
+   *
+   * Writing the file in the init container means the block node loads the RSA keys on its very
+   * first startup — no pod restart is needed and the consensus node's gRPC publisher stream is
+   * never interrupted by a restart.
+   *
+   * The file is written in RangedAddressBookHistory JSON format (block node v0.37.1+). When the
+   * block node detects this format it treats it as a pre-loaded history and skips all Mirror Node
+   * queries. Without this, the mirror eventually returns a TSS-era address book with a blank
+   * rsaPubKey, which clears keyByNodeId, causing BAD_BLOCK_PROOF on the first WRB block.
+   */
+  private static writeRsaBootstrapInitContainerValuesFile(
+    cacheDirectory: string,
+    numberOfConsensusNodes: number,
+  ): string {
+    const keysDirectory: string = path.join(cacheDirectory, 'keys');
+    const nodeAliases: NodeAlias[] = Templates.renderNodeAliasesFromCount(numberOfConsensusNodes, 0);
+    const nodeAddresses: Array<{RSAPubKey: string; nodeId: number}> = nodeAliases.map(
+      (alias: NodeAlias): {RSAPubKey: string; nodeId: number} => {
+        const certPem: string = fs.readFileSync(
+          path.join(keysDirectory, Templates.renderGossipPemPublicKeyFile(alias)),
+          'utf8',
+        );
+        const spkiDer: Buffer = new crypto.X509Certificate(certPem).publicKey.export({
+          format: 'der',
+          type: 'spki',
+        }) as Buffer;
+        return {RSAPubKey: spkiDer.toString('hex'), nodeId: Templates.nodeIdFromNodeAlias(alias)};
+      },
+    );
+    // RangedAddressBookHistory format: single open-ended era (endBlock: "-1" = sentinel).
+    // The block node parses this as history, records metrics, and returns without scheduling any
+    // Mirror Node queries — so the TSS-era address book (blank rsaPubKey) never clears keyByNodeId.
+    const bootstrapJson: string = JSON.stringify({
+      addressBooks: [{addressBook: {nodeAddress: nodeAddresses}, startBlock: '0', endBlock: '-1'}],
+    });
+
+    // Reconstruct the full init-storage-dirs init container, extending its command to also write
+    // the RSA bootstrap file. Helm replaces list values entirely, so we must include all mounts.
+    const content: string = yaml.stringify({
+      blockNode: {
+        initContainers: [
+          {
+            name: 'init-storage-dirs',
+            image: 'busybox',
+            command: [
+              'sh',
+              '-c',
+              [
+                'mkdir -p /application-state-pvc',
+                'chown 2000:2000 /application-state-pvc',
+                'chmod 700 /application-state-pvc',
+                `printf '%s' '${bootstrapJson}' > /application-state-pvc/rsa-bootstrap-roster.json`,
+                'mkdir -p /archive-pvc/archive-data',
+                'chown 2000:2000 /archive-pvc/archive-data',
+                'chmod 700 /archive-pvc/archive-data',
+                'mkdir -p /live-pvc/live-data',
+                'chown 2000:2000 /live-pvc/live-data',
+                'chmod 700 /live-pvc/live-data',
+              ].join(' && \\\n'),
+            ],
+            volumeMounts: [
+              {name: 'application-state-storage', mountPath: '/application-state-pvc'},
+              {name: 'archive-storage', mountPath: '/archive-pvc'},
+              {name: 'live-storage', mountPath: '/live-pvc'},
+              {name: 'logging-storage', mountPath: '/logging-pvc'},
+            ],
+          },
+        ],
+      },
+    });
+    const filePath: string = path.join(os.tmpdir(), 'bn-rsa-bootstrap-init-container.yaml');
+    fs.writeFileSync(filePath, content, 'utf8');
+    return filePath;
   }
 
   public static buildMirrorNodeArgv(config: OneShotSingleDeployConfigClass, deployPinger: boolean = true): string[] {

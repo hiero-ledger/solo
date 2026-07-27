@@ -15,10 +15,13 @@ export interface OneShotDestroyOrchestrator {
    * @param argv
    * @param flagsList
    * @param leaseReference
+   * @param skipDeploymentLock - when true, the deployment-lock phase is skipped because the caller
+   *   (for example one-shot deploy's auto-clean step) already owns the lock for this deployment.
    */
   buildDestroyPipeline(
     argv: ArgvStruct,
     flagsList: CommandFlags,
     leaseReference: {value?: Lock},
+    skipDeploymentLock?: boolean,
   ): OrchestratorPipeline<OneShotSingleDestroyContext>;
 }

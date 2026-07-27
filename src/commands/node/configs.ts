@@ -18,6 +18,7 @@ import {type ConfigManager} from '../../core/config-manager.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {FilePermissions} from '../../business/utils/file-permissions.js';
 import {type NodeSetupConfigClass} from './config-interfaces/node-setup-config-class.js';
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
 import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-class.js';
@@ -90,20 +91,15 @@ export class NodeCommandConfigs {
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
     config.stagingDir = Templates.renderStagingDir(config.cacheDir, config.releaseTag);
-    config.stagingKeysDir = PathEx.join(config.stagingDir, 'keys');
 
     if (!(await k8Factory.default().namespaces().has(config.namespace))) {
       throw new SoloErrors.system.namespaceNotFound(String(config.namespace));
     }
 
-    // prepare staging keys directory
-    if (!fs.existsSync(config.stagingKeysDir)) {
-      fs.mkdirSync(config.stagingKeysDir, {recursive: true});
-    }
-
     // create cached keys dir if it does not exist yet
     if (!fs.existsSync(config.keysDir)) {
-      fs.mkdirSync(config.keysDir);
+      fs.mkdirSync(config.keysDir, {mode: 0o700});
+      FilePermissions.restrictToOwner(config.keysDir, true);
     }
   }
 
@@ -155,7 +151,6 @@ export class NodeCommandConfigs {
       'nodeClient',
       'podRefs',
       'stagingDir',
-      'stagingKeysDir',
       'namespace',
       'consensusNodes',
       'contexts',
@@ -233,7 +228,6 @@ export class NodeCommandConfigs {
       'podRefs',
       'serviceMap',
       'stagingDir',
-      'stagingKeysDir',
       'treasuryKey',
       'namespace',
       'consensusNodes',
@@ -298,7 +292,6 @@ export class NodeCommandConfigs {
       'podRefs',
       'serviceMap',
       'stagingDir',
-      'stagingKeysDir',
       'treasuryKey',
       'namespace',
       'consensusNodes',
@@ -358,7 +351,6 @@ export class NodeCommandConfigs {
       'podRefs',
       'serviceMap',
       'stagingDir',
-      'stagingKeysDir',
       'treasuryKey',
       'namespace',
       'consensusNodes',
@@ -529,7 +521,8 @@ export class NodeCommandConfigs {
     context_.config.keysDir = PathEx.join(this.configManager.getFlag(flags.cacheDir), 'keys');
 
     if (!fs.existsSync(context_.config.keysDir)) {
-      fs.mkdirSync(context_.config.keysDir);
+      fs.mkdirSync(context_.config.keysDir, {mode: 0o700});
+      FilePermissions.restrictToOwner(context_.config.keysDir, true);
     }
     return context_.config;
   }

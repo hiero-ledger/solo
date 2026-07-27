@@ -6,23 +6,23 @@ import {ExportLogsRequest} from '../../../../../../src/integration/kind/request/
 import {type KindExecutionBuilder} from '../../../../../../src/integration/kind/execution/kind-execution-builder.js';
 import {type ExportLogsOptions} from '../../../../../../src/integration/kind/model/export-logs/export-logs-options.js';
 
-describe('ExportLogsRequest', () => {
+describe('ExportLogsRequest', (): void => {
   let builder: KindExecutionBuilder;
   let request: ExportLogsRequest;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     // Create a stub for the builder
     builder = {
       subcommands: Sinon.stub().returnsThis(),
     } as unknown as KindExecutionBuilder;
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     Sinon.restore();
   });
 
-  describe('apply', () => {
-    it('should add export logs subcommands to the builder', () => {
+  describe('apply', (): void => {
+    it('should add export logs subcommands to the builder', (): void => {
       // Create request with null options
       request = new ExportLogsRequest(null as unknown as ExportLogsOptions);
 
@@ -33,9 +33,9 @@ describe('ExportLogsRequest', () => {
       expect(builder.subcommands).to.have.been.calledOnceWith('export', 'logs');
     });
 
-    it('should delegate to options.apply when options are provided', () => {
+    it('should delegate to options.apply when options are provided', (): void => {
       // Create mock options with a stub for apply method
-      const options = {apply: Sinon.stub()} as unknown as ExportLogsOptions;
+      const options: ExportLogsOptions = {apply: Sinon.stub()} as unknown as ExportLogsOptions;
 
       // Create request with options
       request = new ExportLogsRequest(options);

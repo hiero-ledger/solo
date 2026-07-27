@@ -67,20 +67,18 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
           await container.resolve<LocalConfigRuntimeState>(InjectTokens.LocalConfigRuntimeState).load();
         });
 
-        after(async function (): Promise<void> {
+        after(async (): Promise<void> => {
           // @ts-expect-error: TS2339 - to restore
           SoloPinoLogger.prototype.showUser.restore();
           // @ts-expect-error: TS2339 - to restore
           SoloPinoLogger.prototype.showJSON.restore();
-
-          this.timeout(Duration.ofMinutes(3).toMillis());
 
           await preDestroy(endToEndTestSuite);
 
           await k8Factory.default().namespaces().delete(namespace);
 
           ClusterReferenceTest.setup(options);
-        });
+        }).timeout(Duration.ofMinutes(3).toMillis());
 
         // give a few ticks so that connections can close
         afterEach(async (): Promise<void> => await sleep(Duration.ofMillis(20)));

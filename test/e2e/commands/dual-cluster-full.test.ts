@@ -26,6 +26,7 @@ import {RelayTest} from './tests/relay-test.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
 import * as constants from '../../../src/core/constants.js';
 import {BlockNodeTest} from './tests/block-node-test.js';
+import {KeysAndPermissionsTest} from './tests/keys-and-permissions-test.js';
 import {type NodeAlias, type NodeAliases} from '../../../src/types/aliases.js';
 import {destroyEnabled} from '../../test-utility.js';
 
@@ -112,6 +113,10 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         NetworkTest.deploy(options);
         ConsensusNodeTest.setup(options);
         ConsensusNodeTest.start(options, true);
+
+        // Verify the SA8 hardening and that each node's gossip keys match the cluster secrets.
+        KeysAndPermissionsTest.verifyConsensusNodeKeysMatchSecrets(options);
+        KeysAndPermissionsTest.verifySoloHomeFilePermissions(options);
 
         // Use dual-cluster specific values file with higher memory limits
         MirrorNodeTest.add({...options, valuesFile: dualClusterValuesFile});

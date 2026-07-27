@@ -82,16 +82,27 @@ export class Middlewares {
     };
   }
 
-  public setLoggerDevFlag(): (argv: ArgvStruct) => AnyObject {
+  public setLoggerDebugFlag(): (argv: ArgvStruct) => AnyObject {
     const logger: SoloLogger = this.logger;
 
     /**
      * @param argv - listr Argv
      */
     return (argv: ArgvStruct): AnyObject => {
-      if (argv.dev) {
-        logger.debug('Setting logger dev flag');
-        logger.setDevMode(argv.dev);
+      // `--dev` is the deprecated alias of `--debug` (yargs mirrors the value onto both keys), so
+      // detect the literal token in the raw process arguments to warn only when the user typed it.
+      // TODO(#1560): remove this deprecation warning when the `dev` alias is dropped from `flags.debugMode`.
+      if (process.argv.includes('--dev')) {
+        logger.showUser(
+          chalk.yellow(
+            'Warning: `--dev` is deprecated and will be removed in a future release; use `--debug` instead.',
+          ),
+        );
+      }
+
+      if (argv.debug) {
+        logger.debug('Setting logger debug flag');
+        logger.setDevMode(argv.debug);
       }
 
       return argv;

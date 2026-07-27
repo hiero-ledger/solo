@@ -23,7 +23,7 @@ describe('HelmExecution', (): void => {
     sinon.restore();
   });
 
-  it('Test call with timeout throws exception and logs warning message', async () => {
+  it('Test call with timeout throws exception and logs warning message', async (): Promise<void> => {
     const timeout: Duration = Duration.ofMillis(1000);
 
     try {
@@ -34,7 +34,7 @@ describe('HelmExecution', (): void => {
     }
   });
 
-  it('Test response as list throws exception and logs warning message', async () => {
+  it('Test response as list throws exception and logs warning message', async (): Promise<void> => {
     const timeout: Duration = Duration.ofMillis(1000);
     try {
       await helmExecution.responseAsListTimeout(Repository, timeout);
@@ -44,7 +44,7 @@ describe('HelmExecution', (): void => {
     }
   });
 
-  it('Test response as throws exception and logs warning message', async () => {
+  it('Test response as throws exception and logs warning message', async (): Promise<void> => {
     const timeout: Duration = Duration.ofMillis(1000);
     try {
       await helmExecution.responseAsTimeout(Repository, timeout);

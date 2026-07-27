@@ -20,12 +20,12 @@ describe('VersionRange', (): void => {
       expect(range.end.major).to.equal(end.major);
     });
 
-    it('should throw a RangeError if begin is greater than or equal to end', () => {
-      expect(() => new VersionRange(new SemanticVersion(5), new SemanticVersion(1))).to.throw(
+    it('should throw a RangeError if begin is greater than or equal to end', (): void => {
+      expect((): VersionRange<number> => new VersionRange(new SemanticVersion(5), new SemanticVersion(1))).to.throw(
         RangeError,
         'Invalid version range',
       );
-      expect(() => new VersionRange(new SemanticVersion(5), new SemanticVersion(5))).to.throw(
+      expect((): VersionRange<number> => new VersionRange(new SemanticVersion(5), new SemanticVersion(5))).to.throw(
         RangeError,
         'Invalid version range',
       );
@@ -67,7 +67,10 @@ describe('VersionRange', (): void => {
     it('should throw a RangeError for invalid SemanticVersion<string> bounds', (): void => {
       const begin: SemanticVersion<string> = new SemanticVersion('2.0.0');
       const end: SemanticVersion<string> = new SemanticVersion('1.0.0');
-      expect(() => VersionRange.fromSemanticVersionBounds(begin, end)).to.throw(RangeError, 'Invalid version range');
+      expect((): VersionRange<string> => VersionRange.fromSemanticVersionBounds(begin, end)).to.throw(
+        RangeError,
+        'Invalid version range',
+      );
     });
   });
 

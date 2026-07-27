@@ -4,12 +4,12 @@ import {expect} from 'chai';
 import {EnvironmentStorageBackend} from '../../../../../src/data/backend/impl/environment-storage-backend.js';
 import {StorageOperation} from '../../../../../src/data/backend/api/storage-operation.js';
 
-describe('EnvironmentStorageBackend', () => {
-  before(() => {
+describe('EnvironmentStorageBackend', (): void => {
+  before((): void => {
     process.env.ENV_STORAGE_PATH = 'test';
   });
 
-  it('test isSupported', () => {
+  it('test isSupported', (): void => {
     const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend();
     expect(backend.isSupported(StorageOperation.List)).to.be.true;
     expect(backend.isSupported(StorageOperation.ReadBytes)).to.be.true;
@@ -18,15 +18,15 @@ describe('EnvironmentStorageBackend', () => {
     expect(backend.isSupported(StorageOperation.ReadObject)).to.be.false;
   });
 
-  it('test list', async () => {
+  it('test list', async (): Promise<void> => {
     const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend();
     const keys: string[] = await backend.list();
     expect(keys).to.be.an('array');
     const expectedKey: string = 'ENV_STORAGE_PATH'.toLowerCase().replaceAll('_', '.');
-    expect(keys.filter(key => key === expectedKey)).to.have.lengthOf(1);
+    expect(keys.filter((key: string): boolean => key === expectedKey)).to.have.lengthOf(1);
   });
 
-  it('list with no process.env', async () => {
+  it('list with no process.env', async (): Promise<void> => {
     const environment: NodeJS.ProcessEnv = process.env;
     try {
       delete process.env;
@@ -41,7 +41,7 @@ describe('EnvironmentStorageBackend', () => {
     }
   });
 
-  it('readBytes from environment variable with prefix', async () => {
+  it('readBytes from environment variable with prefix', async (): Promise<void> => {
     process.env.ENV_TEST_NBR1 = '42';
     const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend('env');
     const data: string = Buffer.from(await backend.readBytes('test.nbr1')).toString();
@@ -49,7 +49,7 @@ describe('EnvironmentStorageBackend', () => {
     expect(data).to.equal('42');
   });
 
-  it('readBytes from environment variable', async () => {
+  it('readBytes from environment variable', async (): Promise<void> => {
     process.env.ENV_TEST_NBR1 = '42';
     const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend();
     const data: string = Buffer.from(await backend.readBytes('env.test.nbr1')).toString();
@@ -57,7 +57,7 @@ describe('EnvironmentStorageBackend', () => {
     expect(data).to.equal('42');
   });
 
-  it('readBytes with empty key', async () => {
+  it('readBytes with empty key', async (): Promise<void> => {
     const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend();
     try {
       await backend.readBytes('');
@@ -68,7 +68,7 @@ describe('EnvironmentStorageBackend', () => {
     }
   });
 
-  it('readBytes with no process.env', async () => {
+  it('readBytes with no process.env', async (): Promise<void> => {
     const environment: NodeJS.ProcessEnv = process.env;
     try {
       delete process.env;
@@ -87,7 +87,7 @@ describe('EnvironmentStorageBackend', () => {
     }
   });
 
-  it('writeBytes', async () => {
+  it('writeBytes', async (): Promise<void> => {
     const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend();
     try {
       await backend.writeBytes('test', Buffer.from('test'));
@@ -98,7 +98,7 @@ describe('EnvironmentStorageBackend', () => {
     }
   });
 
-  it('delete', async () => {
+  it('delete', async (): Promise<void> => {
     const backend: EnvironmentStorageBackend = new EnvironmentStorageBackend();
     try {
       await backend.delete('test');

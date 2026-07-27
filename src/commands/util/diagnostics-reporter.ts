@@ -7,6 +7,8 @@ import {spawnSync, type SpawnSyncReturns} from 'node:child_process';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {Listr} from 'listr2';
 import {ShellRunner} from '../../core/shell-runner.js';
+import {SubprocessEnvironment} from '../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
 import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import * as constants from '../../core/constants.js';
@@ -281,7 +283,10 @@ export class DiagnosticsReporter {
    * @returns           The `SpawnSyncReturns` result from the `gh` process.
    */
   public static executeGhCommand(arguments_: string[]): SpawnSyncReturns<string> {
-    return spawnSync('gh', arguments_, {encoding: 'utf8', env: process.env});
+    return spawnSync('gh', arguments_, {
+      encoding: 'utf8',
+      env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.GITHUB_CLI),
+    });
   }
 
   /**

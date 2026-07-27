@@ -27,6 +27,7 @@ import {type PodReference} from '../integration/kube/resources/pod/pod-reference
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
@@ -250,6 +251,9 @@ export class ProfileManager {
       }
     }
 
+    // Files staged via cpSync inherit the (wider) source mode and bypass the process umask.
+    FilePermissions.restrictTreeToOwner(PathEx.join(stagingDirectory, 'templates'));
+
     const bootstrapPropertiesPath: string = PathEx.join(stagingDirectory, 'templates', 'bootstrap.properties');
     await this.updateBoostrapPropertiesWithChainId(bootstrapPropertiesPath, resolvedStagingOptions.chainId);
 
@@ -458,7 +462,7 @@ export class ProfileManager {
 
     for (const line of lines) {
       if (line.startsWith('hedera.config.version=')) {
-        const version: number = Number.parseInt(line.split('=')[1], 10) + 1;
+        const version: number = Number.parseInt(line.split('=', 2)[1], 10) + 1;
         lines[lines.indexOf(line)] = `hedera.config.version=${version}`;
         break;
       }
@@ -571,6 +575,14 @@ export class ProfileManager {
     if (!writerModeUpdated) {
       lines.push(`blockStream.writerMode=${writerMode}`);
     }
+
+    // streamMode=BOTH sends both native blocks (BLOCK_HEADER) and Wrapped Record Blocks
+    // (ROUND_HEADER) to the block node.  The block node silently drops ROUND_HEADER items
+    // because they fail its hasBlockHeader() check, creating gaps that permanently stall the
+    // mirror importer on NOT_AVAILABLE.  Set this here so the CN pod reads it at first startup;
+    // the post-start ConfigMap update in createAndCopyBlockNodeJsonFileForConsensusNode is too
+    // late because the JVM has already cached its configuration by then.
+    Helpers.ensureWrappedRecordBlocksDisabled(lines, streamMode);
 
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
   }
@@ -770,13 +782,18 @@ export class ProfileManager {
 
         // Validate the saved IP still belongs to this node service.
         const serviceName: string = `network-${consensusNode.name}-svc`;
-        const service: {spec?: {clusterIP?: string}} | undefined = await k8
-          .services()
-          .read(NamespaceName.of(consensusNode.namespace), serviceName);
-        const serviceIpAddress: string | undefined = service?.spec?.clusterIP;
-        if (serviceIpAddress !== ipAddress) {
+        const service:
+          {spec?: {clusterIP?: string}; status?: {loadBalancer?: {ingress?: Array<{ip?: string}>}}} | undefined =
+          await k8.services().read(NamespaceName.of(consensusNode.namespace), serviceName);
+        const serviceIpAddresses: string[] = [
+          ...(service?.status?.loadBalancer?.ingress ?? [])
+            .map((ingress: {ip?: string}): string | undefined => ingress.ip)
+            .filter(Boolean),
+          ...(service?.spec?.clusterIP && service.spec.clusterIP !== 'None' ? [service.spec.clusterIP] : []),
+        ];
+        if (!serviceIpAddresses.includes(ipAddress)) {
           this.logger.warn(
-            `Saved endpoint ${ipAddress}:${port} for ${consensusNode.name} does not match current ${serviceName} ClusterIP ${serviceIpAddress ?? 'undefined'}, falling back to current service address`,
+            `Saved endpoint ${ipAddress}:${port} for ${consensusNode.name} does not match current ${serviceName} IPs ${serviceIpAddresses.join(',') || 'undefined'}, falling back to current service address`,
           );
           return undefined;
         }
@@ -802,6 +819,7 @@ export class ProfileManager {
    * @param destinationPath
    * @param [appName] - the app name (default: HederaNode.jar)
    * @param [chainId] - chain ID (298 for local network)
+   * @param [gossipFqdnRestricted] - whether gossip FQDN is restricted
    * @returns the config.txt file path
    */
   public async prepareConfigTxt(

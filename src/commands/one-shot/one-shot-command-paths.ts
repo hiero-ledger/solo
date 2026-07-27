@@ -9,3 +9,4 @@
  */
 export const FALCON_PREPARE_COMMAND: string = 'one-shot falcon prepare';
 export const FALCON_DEPLOY_COMMAND: string = 'one-shot falcon deploy';
+export const SINGLE_DESTROY_COMMAND: string = 'one-shot single destroy';

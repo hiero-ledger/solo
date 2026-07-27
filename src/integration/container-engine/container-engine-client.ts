@@ -13,12 +13,19 @@ export interface ContainerEngineClient {
   pullImage(image: string): Promise<void>;
 
   /**
-   * Saves an image to a local archive file.
+   * Saves an image to a local docker-format archive, loadable into the local engine via {@link loadImage}.
    */
   saveImage(image: string, archivePath: string): Promise<void>;
 
   /**
-   * Loads an image archive into the local container engine.
+   * Saves an image to a local OCI-format archive, loadable into a cluster via
+   * {@link loadImageArchiveIntoCluster}. Unlike {@link saveImage}, this handles images published with
+   * OCI media types (which the docker-format archive cannot represent).
+   */
+  saveImageArchive(image: string, archivePath: string): Promise<void>;
+
+  /**
+   * Loads a docker-format image archive into the local container engine.
    */
   loadImage(archivePath: string): Promise<void>;
 

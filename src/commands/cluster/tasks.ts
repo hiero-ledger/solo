@@ -281,7 +281,7 @@ export class ClusterCommandTasks {
               constants.PROMETHEUS_STACK_CHART,
               constants.PROMETHEUS_STACK_CHART,
               versions.PROMETHEUS_STACK_VERSION,
-              new HelmChartValues(),
+              new HelmChartValues().file(constants.PROMETHEUS_STACK_VALUES_FILE),
               context_.config.context,
             );
             this.logger.showUserUnlessOneShot('✅ Prometheus Stack chart installed successfully');
@@ -441,7 +441,7 @@ export class ClusterCommandTasks {
 
         const result: SoloListr<ClusterReferenceSetupContext> = await task.newListr(subtasks, {concurrent: false});
 
-        if (argv.dev) {
+        if (argv.debug) {
           await this.showInstalledChartList(context_.config.clusterSetupNamespace, context_.config.context);
         }
         return result;
@@ -543,7 +543,7 @@ export class ClusterCommandTasks {
           }
         }
 
-        if (argv.dev) {
+        if (argv.debug) {
           await this.showInstalledChartList(clusterSetupNamespace);
         }
 

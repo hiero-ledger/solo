@@ -147,13 +147,12 @@ export class HelmSchedulingValues {
       .filter((toleration: unknown): toleration is HelmValuesObject =>
         HelmSchedulingValues.isHelmValuesObject(toleration),
       )
-      .map(
-        (toleration: HelmValuesObject): HelmToleration =>
-          Object.fromEntries(
-            Object.entries(toleration).filter((entry: [string, unknown]): entry is [string, HelmChartValue] =>
-              HelmSchedulingValues.isHelmChartValue(entry[1]),
-            ),
+      .map((toleration: HelmValuesObject): HelmToleration =>
+        Object.fromEntries(
+          Object.entries(toleration).filter((entry: [string, unknown]): entry is [string, HelmChartValue] =>
+            HelmSchedulingValues.isHelmChartValue(entry[1]),
           ),
+        ),
       )
       .filter((toleration: HelmToleration): boolean => Object.keys(toleration).length > 0);
   }

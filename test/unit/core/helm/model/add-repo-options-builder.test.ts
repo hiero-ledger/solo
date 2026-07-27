@@ -30,16 +30,16 @@ describe('AddRepoOptions Tests', (): void => {
   });
 
   it('should apply --force-update flag when set', (): void => {
-    const flagStub = sinon.stub().returnsThis();
-    const builderMock = {flag: flagStub} as unknown as HelmExecutionBuilder;
+    const flagStub: sinon.SinonStub = sinon.stub().returnsThis();
+    const builderMock: HelmExecutionBuilder = {flag: flagStub} as unknown as HelmExecutionBuilder;
     const options: AddRepoOptions = new AddRepoOptions(true);
     options.apply(builderMock);
     expect(flagStub.calledWith('--force-update')).to.be.true;
   });
 
   it('should not apply --force-update flag when not set', (): void => {
-    const flagStub = sinon.stub().returnsThis();
-    const builderMock = {flag: flagStub} as unknown as HelmExecutionBuilder;
+    const flagStub: sinon.SinonStub = sinon.stub().returnsThis();
+    const builderMock: HelmExecutionBuilder = {flag: flagStub} as unknown as HelmExecutionBuilder;
     const options: AddRepoOptions = new AddRepoOptions(false);
     options.apply(builderMock);
     expect(flagStub.calledWith('--force-update')).to.be.false;

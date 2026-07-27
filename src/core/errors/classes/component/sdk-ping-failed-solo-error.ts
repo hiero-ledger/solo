@@ -15,10 +15,12 @@ export class SdkPingFailedSoloError extends SoloError {
   protected override readonly retryable: boolean = true;
   protected override readonly ownership: ErrorOwnership = ErrorOwnership.Infrastructure;
 
-  public constructor(nodeAlias: string, maxRetries: number, cause?: Error) {
+  public constructor(nodeAlias: string, maxRetries: number, cause?: Error, lastPlatformStatus?: string) {
     super(
       {
-        message: `SDK ping to network node ${nodeAlias} failed after ${maxRetries} retries`,
+        message:
+          `SDK ping to network node ${nodeAlias} failed after ${maxRetries} retries` +
+          (lastPlatformStatus ? `; last consensus node platform status: ${lastPlatformStatus}` : ''),
         code: ErrorCodeRegistry.SDK_PING_FAILED,
         troubleshootingSteps:
           'Check solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +

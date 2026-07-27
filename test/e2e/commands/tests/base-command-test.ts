@@ -36,7 +36,7 @@ export class BaseCommandTest {
     shouldSetTestCacheDirectory: boolean = false,
     shouldSetChartDirectory: boolean = false,
   ): string[] {
-    argv.push(BaseCommandTest.optionFromFlag(Flags.devMode), BaseCommandTest.optionFromFlag(Flags.quiet));
+    argv.push(BaseCommandTest.optionFromFlag(Flags.debugMode), BaseCommandTest.optionFromFlag(Flags.quiet));
 
     const soloChartsDirectory: string = getEnvironmentVariable('SOLO_CHARTS_DIR');
     if (shouldSetChartDirectory && soloChartsDirectory && soloChartsDirectory !== '') {

@@ -68,8 +68,8 @@ export class SimpleConfigSourceFixture implements ConfigSource, Refreshable {
       }
 
       return parsedValue
-        .filter(item => typeof item === 'object' && item !== null)
-        .map(item => {
+        .filter((item): boolean => typeof item === 'object' && item !== null)
+        .map((item): T => {
           const instance: T = new cls();
           Object.assign(instance, item);
           return instance;

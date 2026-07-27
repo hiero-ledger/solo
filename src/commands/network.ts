@@ -37,7 +37,6 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
-  type PrivateKeyAndCertificateObject,
   type Realm,
   type Shard,
   type SoloListr,
@@ -49,6 +48,7 @@ import {SecretType} from '../integration/kube/resources/secret/secret-type.js';
 import {Duration} from '../core/time/duration.js';
 import {type Pod} from '../integration/kube/resources/pod/pod.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
@@ -110,13 +110,14 @@ export class NetworkCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
+    required: [],
+    optional: [flags.deployment, flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
   };
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.apiPermissionProperties,
       flags.app,
       flags.applicationEnv,
@@ -145,6 +146,7 @@ export class NetworkCommand extends BaseCommand {
       flags.grpcWebTlsKeyPath,
       flags.haproxyIps,
       flags.envoyIps,
+      flags.networkNodeIps,
       flags.storageType,
       flags.gcsWriteAccessKey,
       flags.gcsWriteSecrets,
@@ -167,6 +169,7 @@ export class NetworkCommand extends BaseCommand {
       flags.serviceMonitor,
       flags.podLog,
       flags.enableMonitoringSupport,
+      flags.clusterSetupNamespace,
       flags.javaFlightRecorderConfiguration,
       flags.wrapsEnabled,
       flags.wrapsKeyPath,
@@ -456,6 +459,20 @@ export class NetworkCommand extends BaseCommand {
         // generated file can include them and avoid Helm array replacement silently dropping
         // env vars set by user-provided values files.
         const existingValuesFilePaths: string[] = valueFilePathsMap[clusterReference] ?? [];
+        const userValueFilePaths: string[] = valuesFiles[clusterReference]?.userValueFilePaths() ?? [];
+        const extraEnvironmentWarnings: string[] = helmValuesHelper.describeUserProvidedExtraEnvironmentWarnings(
+          userValueFilePaths,
+          clusterConsensusNodes,
+          {
+            wrapsEnabled: config.wrapsEnabled,
+            tss: this.soloConfig.tss,
+            debugNodeAlias: config.debugNodeAlias,
+            useJavaMainClass: config.app !== constants.HEDERA_APP_NAME,
+          },
+        );
+        for (const warning of extraEnvironmentWarnings) {
+          this.logger.showUserUnlessOneShot(chalk.yellow(warning));
+        }
 
         const clusterExtraEnvironmentValuesFile: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
           clusterConsensusNodes,
@@ -486,12 +503,16 @@ export class NetworkCommand extends BaseCommand {
       // values file can replace array elements and drop fields like node labels/account IDs.
       const chartValues: HelmChartValues = valuesFiles[clusterReference].clone();
 
-      // Add per-cluster extraEnv values file if any extraEnv customizations are needed
-      if (perClusterExtraEnvironmentValuesFiles[clusterReference]) {
-        chartValues.file(perClusterExtraEnvironmentValuesFiles[clusterReference]);
-      }
-
       chartValues.add(clusterChartValues[clusterReference] ?? new HelmChartValues());
+
+      // Add per-cluster extraEnv values file last (after user files) so that Solo-injected
+      // env vars like TSS_LIB_WRAPS_ARTIFACTS_PATH are not wiped out by a user-provided
+      // values file that also defines hedera.nodes[*].root.extraEnv. The generated file
+      // already contains the user's extraEnv entries merged in via baseExtraEnvironmentVariables,
+      // so placing it last is safe.
+      if (perClusterExtraEnvironmentValuesFiles[clusterReference]) {
+        chartValues.userFile(perClusterExtraEnvironmentValuesFiles[clusterReference]);
+      }
 
       chartValuesMap[clusterReference] = chartValues;
       this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
@@ -546,9 +567,9 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (
-      config.storageType === constants.StorageType.GCS_ONLY ||
-      config.storageType === constants.StorageType.AWS_ONLY ||
-      config.storageType === constants.StorageType.AWS_AND_GCS
+      [constants.StorageType.GCS_ONLY, constants.StorageType.AWS_ONLY, constants.StorageType.AWS_AND_GCS].includes(
+        config.storageType,
+      )
     ) {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', false);
@@ -655,6 +676,14 @@ export class NetworkCommand extends BaseCommand {
     // Iterate over each node and set static IPs for Envoy Proxy
     this.addValueForEachRecord(config.envoyIpsParsed, config.consensusNodes, chartValuesMap, 'envoyProxyStaticIP');
 
+    // Iterate over each node and set static IPs for consensus node services
+    this.addValueForEachRecord(
+      config.networkNodeIpsParsed,
+      config.consensusNodes,
+      chartValuesMap,
+      'networkNodeStaticIP',
+    );
+
     if (config.resolvedThrottlesFile) {
       // repairing the path, this avoid helm failing when running on windows
       const throttlesFilePath: string = config.resolvedThrottlesFile.replaceAll('\\', '/');
@@ -674,8 +703,19 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (config.enableMonitoringSupport) {
+      // the Prometheus stack is installed by `cluster-ref setup` into the cluster setup namespace,
+      // which is configurable, so the Alloy sidecar's remote-write target is composed rather than
+      // defaulted in the chart
+      const remoteWriteEndpoint: string =
+        `http://${constants.PROMETHEUS_RELEASE_NAME}-prometheus.${config.clusterSetupNamespace.name}` +
+        '.svc:9090/api/v1/write';
+
       for (const clusterReference of clusterReferences) {
-        chartValuesMap[clusterReference].set('crs.podLog.enabled', true).set('crs.serviceMonitor.enabled', true);
+        chartValuesMap[clusterReference]
+          .set('crs.podLog.enabled', true)
+          .set('crs.serviceMonitor.enabled', true)
+          .set('defaults.sidecars.grafanaAlloy.enabled', true)
+          .setLiteral('defaults.sidecars.grafanaAlloy.remoteWrite.endpoint', remoteWriteEndpoint);
       }
     }
 
@@ -696,13 +736,29 @@ export class NetworkCommand extends BaseCommand {
     valueName: string,
   ): void {
     if (records) {
+      const nodeIndexByClusterAndName: Map<string, number> = new Map();
+      const nextNodeIndexByCluster: Map<ClusterReferenceName, number> = new Map();
+
       for (const consensusNode of consensusNodes) {
-        if (records[consensusNode.name]) {
-          chartValuesMap[consensusNode.cluster].setLiteral(
-            `hedera.nodes[${consensusNode.nodeId}].${valueName}`,
-            records[consensusNode.name],
-          );
+        const nodeIndex: number = nextNodeIndexByCluster.get(consensusNode.cluster) ?? 0;
+        nextNodeIndexByCluster.set(consensusNode.cluster, nodeIndex + 1);
+        nodeIndexByClusterAndName.set(`${consensusNode.cluster}:${consensusNode.name}`, nodeIndex);
+      }
+
+      for (const consensusNode of consensusNodes) {
+        const recordValue: string | undefined = records[consensusNode.name];
+        if (!recordValue) {
+          continue;
         }
+
+        const nodeIndex: number | undefined = nodeIndexByClusterAndName.get(
+          `${consensusNode.cluster}:${consensusNode.name}`,
+        );
+        if (nodeIndex === undefined) {
+          continue;
+        }
+
+        chartValuesMap[consensusNode.cluster].setLiteral(`hedera.nodes[${nodeIndex}].${valueName}`, recordValue);
       }
     }
   }
@@ -839,6 +895,7 @@ export class NetworkCommand extends BaseCommand {
       flags.grpcWebTlsKeyPath,
       flags.haproxyIps,
       flags.envoyIps,
+      flags.networkNodeIps,
       flags.storageType,
       flags.gcsWriteAccessKey,
       flags.gcsWriteSecrets,
@@ -872,7 +929,6 @@ export class NetworkCommand extends BaseCommand {
         'keysDir',
         'nodeAliases',
         'stagingDir',
-        'stagingKeysDir',
         'chartValuesMap',
         'resolvedThrottlesFile',
         'namespace',
@@ -896,6 +952,10 @@ export class NetworkCommand extends BaseCommand {
       config.envoyIpsParsed = Templates.parseNodeAliasToIpMapping(config.envoyIps);
     }
 
+    if (config.networkNodeIps) {
+      config.networkNodeIpsParsed = Templates.parseNodeAliasToIpMapping(config.networkNodeIps);
+    }
+
     if (config.domainNames) {
       config.domainNamesMapping = Templates.parseNodeAliasToDomainNameMapping(config.domainNames);
     }
@@ -903,7 +963,6 @@ export class NetworkCommand extends BaseCommand {
     // compute other config parameters
     config.keysDir = PathEx.join(config.cacheDir, 'keys');
     config.stagingDir = Templates.renderStagingDir(config.cacheDir, config.releaseTag);
-    config.stagingKeysDir = PathEx.join(config.stagingDir, 'keys');
 
     config.resolvedThrottlesFile = resolveValidJsonFilePath(
       config.genesisThrottlesFile,
@@ -946,14 +1005,10 @@ export class NetworkCommand extends BaseCommand {
     config.namespace = namespace;
     await this.prepareNamespaces(config);
 
-    // prepare staging keys directory
-    if (!fs.existsSync(config.stagingKeysDir)) {
-      fs.mkdirSync(config.stagingKeysDir, {recursive: true});
-    }
-
     // create cached keys dir if it does not exist yet
     if (!fs.existsSync(config.keysDir)) {
-      fs.mkdirSync(config.keysDir);
+      fs.mkdirSync(config.keysDir, {mode: 0o700});
+      FilePermissions.restrictToOwner(config.keysDir, true);
     }
 
     this.logger.debug('Preparing storage secrets');
@@ -1124,6 +1179,54 @@ export class NetworkCommand extends BaseCommand {
     await Promise.all(promises);
   }
 
+  /** Installs the solo-deployment chart with bounded retries to ride out transient API server outages. */
+  private async installSoloDeploymentChart(
+    config: NetworkDeployConfigClass,
+    clusterReference: ClusterReferenceName,
+  ): Promise<void> {
+    const kubeContext: Context = config.clusterRefs.get(clusterReference);
+
+    for (let attempt: number = 1; attempt <= constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS; attempt++) {
+      try {
+        await this.chartManager.upgrade(
+          config.namespace,
+          constants.SOLO_DEPLOYMENT_CHART,
+          constants.SOLO_DEPLOYMENT_CHART,
+          config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+          config.soloChartVersion,
+          config.chartValuesMap[clusterReference],
+          kubeContext,
+          false,
+          true,
+        );
+        return;
+      } catch (error) {
+        if (attempt === constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS) {
+          throw error;
+        }
+
+        this.logger.warn(
+          `Attempt ${attempt} of ${constants.NETWORK_CHART_INSTALL_MAX_ATTEMPTS} to install chart ` +
+            `'${constants.SOLO_DEPLOYMENT_CHART}' failed, retrying in ` +
+            `${constants.NETWORK_CHART_INSTALL_RETRY_DELAY_SECS} seconds`,
+          error,
+        );
+        await sleep(Duration.ofSeconds(constants.NETWORK_CHART_INSTALL_RETRY_DELAY_SECS));
+
+        try {
+          // remove the release left behind by the failed attempt so the retry starts from a clean state
+          await this.chartManager.uninstall(config.namespace, constants.SOLO_DEPLOYMENT_CHART, kubeContext);
+        } catch (uninstallError) {
+          // best-effort cleanup: a persistent failure will surface on the next upgrade attempt
+          this.logger.warn(
+            `Failed to uninstall chart '${constants.SOLO_DEPLOYMENT_CHART}' before retry`,
+            uninstallError,
+          );
+        }
+      }
+    }
+  }
+
   private async crdExists(context: string, crdName: string): Promise<boolean> {
     return await this.k8Factory.getK8(context).crds().ifExists(crdName);
   }
@@ -1215,6 +1318,9 @@ export class NetworkCommand extends BaseCommand {
           }
         }
       }
+
+      // The cached CRD file may have been copyFileSync'd from a packaged (0755) source, bypassing umask.
+      FilePermissions.restrictTreeToOwner(temporaryFile);
 
       await this.k8Factory.getK8(context).manifests().applyManifest(temporaryFile);
     }
@@ -1426,42 +1532,28 @@ export class NetworkCommand extends BaseCommand {
             !grpcTlsCertificatePath && !grpcWebTlsCertificatePath,
         },
         {
-          title: 'Prepare staging directory',
-          task: (_, parentTask): SoloListr<NetworkDeployContext> => {
+          title: 'Copy node keys to secrets',
+          task: ({config: {keysDir, consensusNodes, contexts}}, parentTask): SoloListr<NetworkDeployContext> => {
+            // set up the subtasks
             return parentTask.newListr(
-              [
-                {
-                  title: 'Copy Gossip keys to staging',
-                  task: ({config: {keysDir, stagingKeysDir, nodeAliases}}): void => {
-                    this.keyManager.copyGossipKeysToStaging(keysDir, stagingKeysDir, nodeAliases);
-                  },
-                },
-                {
-                  title: 'Copy gRPC TLS keys to staging',
-                  task: ({config: {nodeAliases, keysDir, stagingKeysDir}}): void => {
-                    for (const nodeAlias of nodeAliases) {
-                      const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTlsKeyFilePaths(
-                        nodeAlias,
-                        keysDir,
-                      );
-
-                      this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, stagingKeysDir);
-                    }
-                  },
-                },
-              ],
-              constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+              this.platformInstaller.copyNodeKeys(keysDir, consensusNodes, contexts),
+              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
             );
           },
         },
         {
-          title: 'Copy node keys to secrets',
-          task: ({config: {stagingDir, consensusNodes, contexts}}, parentTask): SoloListr<NetworkDeployContext> => {
-            // set up the subtasks
-            return parentTask.newListr(
-              this.platformInstaller.copyNodeKeys(stagingDir, consensusNodes, contexts),
-              constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY,
-            );
+          title: 'Remove cached keys',
+          // When --debug is off, the keys now live only in the cluster secrets (uploaded by the task above), so
+          // remove the on-disk copies to avoid leaving private keys in SOLO_CACHE_DIR. Later node commands
+          // re-read them from the secrets in-memory when rebuilding the secrets.
+          skip: (): boolean | string =>
+            this.configManager.getFlag<boolean>(flags.debugMode)
+              ? '--debug enabled, keeping cached keys on disk'
+              : false,
+          task: ({config: {keysDir}}): void => {
+            if (keysDir && fs.existsSync(keysDir)) {
+              fs.rmSync(keysDir, {recursive: true, force: true});
+            }
           },
         },
         {
@@ -1485,7 +1577,7 @@ export class NetworkCommand extends BaseCommand {
         {
           title: `Install chart '${constants.SOLO_DEPLOYMENT_CHART}'`,
           task: async ({config}): Promise<void> => {
-            const {namespace, clusterRefs, chartValuesMap, chartDirectory} = config;
+            const {namespace, clusterRefs} = config;
 
             for (const [clusterReference] of clusterRefs) {
               const isInstalled: boolean = await this.chartManager.isChartInstalled(
@@ -1509,17 +1601,7 @@ export class NetworkCommand extends BaseCommand {
                 versions.MINIMUM_SOLO_CHART_VERSION,
               );
 
-              await this.chartManager.upgrade(
-                namespace,
-                constants.SOLO_DEPLOYMENT_CHART,
-                constants.SOLO_DEPLOYMENT_CHART,
-                chartDirectory || constants.SOLO_TESTING_CHART_URL,
-                config.soloChartVersion,
-                chartValuesMap[clusterReference],
-                clusterRefs.get(clusterReference),
-                false,
-                true,
-              );
+              await this.installSoloDeploymentChart(config, clusterReference);
               showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion);
             }
           },
@@ -1786,6 +1868,23 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
+            // CN >= v0.76 loads the WRAPS proving key from a tarball at data/keys/wraps.tar.gz
+            // (tss.wrapsProvingKeyPath) at genesis, not from the pre-extracted
+            // TSS_LIB_WRAPS_ARTIFACTS_PATH directory. If the wraps-key-path directory carries the
+            // tarball, stage it under that exact name so the library is ready for the genesis history
+            // proof (construction #1). Without it the CN races a ~2 GB runtime download that finishes
+            // just after construction #1 finalizes, leaving it WRAPS-extensible=false forever.
+            let wrapsTarball: string | undefined;
+            if (config.wrapsKeyPath) {
+              const tarballName: string | undefined = fs
+                .readdirSync(config.wrapsKeyPath)
+                .find((file: string): boolean => file.endsWith('.tar.gz'));
+              if (tarballName) {
+                wrapsTarball = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps.tar.gz');
+                fs.copyFileSync(PathEx.join(config.wrapsKeyPath, tarballName), wrapsTarball);
+              }
+            }
+
             for (const consensusNode of config.consensusNodes) {
               const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
                 config.namespace,
@@ -1793,6 +1892,10 @@ export class NetworkCommand extends BaseCommand {
               );
 
               await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+
+              if (wrapsTarball) {
+                await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+              }
             }
           },
         },
@@ -1831,10 +1934,13 @@ export class NetworkCommand extends BaseCommand {
                     const container: Container = await new K8Helper(
                       consensusNode.context,
                     ).getConsensusNodeRootContainer(NamespaceName.of(consensusNode.namespace), consensusNode.name);
-                    await container.copyTo(
-                      javaFlightRecorderConfiguration,
-                      `${constants.HEDERA_HAPI_PATH}/data/config`,
-                    );
+                    const destinationDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/config`;
+                    await container.copyTo(javaFlightRecorderConfiguration, destinationDirectory);
+                    await container.execContainer([
+                      'bash',
+                      '-c',
+                      `chown hedera:hedera ${destinationDirectory}/${path.basename(javaFlightRecorderConfiguration)} 2>/dev/null || true`,
+                    ]);
                   } catch (error) {
                     throw new SoloErrors.component.blockNodeConfigFailed(error);
                   }
@@ -1916,8 +2022,8 @@ export class NetworkCommand extends BaseCommand {
               force: this.configManager.getFlag(flags.force),
               contexts: remoteConfigLoaded
                 ? this.remoteConfig.getContexts()
-                : [...this.localConfig.configuration.clusterRefs.values()].map(
-                    (context): Context => context.toString(),
+                : [...this.localConfig.configuration.clusterRefs.values()].map((context): Context =>
+                    context.toString(),
                   ),
             };
 

@@ -34,6 +34,8 @@ interface PodLogErrorSuppression {
   transientMessagePattern?: RegExp;
   /** Suppress matching message lines only during the file's startup window. */
   startupTransientMessagePattern?: RegExp;
+  /** Suppress startup entries when any line in the log entry block matches. */
+  startupTransientBlockPattern?: RegExp;
   /** Suppress any error line within this many seconds from first log timestamp. */
   startupWindowSeconds?: number;
   /** Conditional suppression rules activated by success markers in the same file. */
@@ -186,8 +188,20 @@ export class DiagnosticsAnalyzer {
       ],
       startupTransientMessagePattern:
         /Startup healthcheck failed DbError:\s+password authentication failed for user "mirror_rest"/i,
+      startupTransientBlockPattern: /password authentication failed for user "mirror_rest"/i,
       startupWindowSeconds: 60,
       reason: 'Mirror Node REST retry succeeded after initial connection errors',
+    },
+    {
+      // Mirror Node REST health checks can run before dependent services are
+      // ready. In minified Node.js logs the ERROR header and the readiness
+      // exception can be split across separate lines, so match the full log
+      // entry block during the startup window.
+      logFilePattern: /mirror[^/]*-rest[^/]*\.log$/i,
+      startupTransientMessagePattern: /Startup healthcheck failed .*Application readiness check failed/i,
+      startupTransientBlockPattern: /Application readiness check failed/i,
+      startupWindowSeconds: 180,
+      reason: 'Mirror Node REST readiness healthcheck during startup',
     },
   ];
 
@@ -803,6 +817,17 @@ export class DiagnosticsAnalyzer {
     return patterns;
   }
 
+  private getLogEntryBlockText(lines: readonly string[], startIndex: number): string {
+    const blockLines: string[] = [];
+    for (let index: number = startIndex; index < lines.length; index++) {
+      if (index > startIndex && DiagnosticsAnalyzer.LOG_LINE_TIMESTAMP_PATTERN.test(lines[index])) {
+        break;
+      }
+      blockLines.push(lines[index]);
+    }
+    return blockLines.join('\n');
+  }
+
   private getActiveConditionalSuppressions(
     suppressions: readonly PodLogErrorSuppression[],
     lines: readonly string[],
@@ -931,7 +956,9 @@ export class DiagnosticsAnalyzer {
     const startupReferenceTime: Date | undefined = hasStartupSuppression ? this.findFirstTimestamp(content) : undefined;
     const hasStartupTransientSuppression: boolean = matchingSuppressions.some(
       (suppression: PodLogErrorSuppression): boolean =>
-        suppression.startupTransientMessagePattern !== undefined && suppression.startupWindowSeconds !== undefined,
+        (suppression.startupTransientMessagePattern !== undefined ||
+          suppression.startupTransientBlockPattern !== undefined) &&
+        suppression.startupWindowSeconds !== undefined,
     );
     const activeConditionalSuppressions: readonly ActiveConditionalLogSuppression[] =
       this.getActiveConditionalSuppressions(matchingSuppressions, lines);
@@ -977,13 +1004,21 @@ export class DiagnosticsAnalyzer {
       const isStartupTransientMessage: boolean =
         startupReferenceTime !== undefined &&
         hasStartupTransientSuppression &&
-        matchingSuppressions.some(
-          (suppression: PodLogErrorSuppression): boolean =>
-            suppression.startupTransientMessagePattern !== undefined &&
-            suppression.startupWindowSeconds !== undefined &&
-            suppression.startupTransientMessagePattern.test(line) &&
-            this.isWithinStartupWindow(line, startupReferenceTime, suppression.startupWindowSeconds),
-        );
+        matchingSuppressions.some((suppression: PodLogErrorSuppression): boolean => {
+          if (
+            suppression.startupWindowSeconds === undefined ||
+            !this.isWithinStartupWindow(line, startupReferenceTime, suppression.startupWindowSeconds)
+          ) {
+            return false;
+          }
+          if (suppression.startupTransientMessagePattern?.test(line)) {
+            return true;
+          }
+          return (
+            suppression.startupTransientBlockPattern !== undefined &&
+            suppression.startupTransientBlockPattern.test(this.getLogEntryBlockText(lines, index))
+          );
+        });
       if (isStartupTransientMessage) {
         suppressed++;
         blockSuppressed = true;

@@ -37,8 +37,6 @@ import * as constants from '../../../../core/constants.js';
 import {ListrLock} from '../../../../core/lock/listr-lock.js';
 import {MissingArgumentError} from '../../../../core/errors/classes/validation/missing-argument-error.js';
 import {resolveNamespaceFromDeployment} from '../../../../core/resolvers.js';
-import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
-import {NoKubeConfigContextError} from '../../../../business/runtime-state/errors/no-kube-config-context-error.js';
 import {type Deployment} from '../../../../business/runtime-state/config/local/deployment.js';
 import {type StringFacade} from '../../../../business/runtime-state/facade/string-facade.js';
 import {DestroyArgvBuilders} from './destroy-argv-builders.js';
@@ -80,6 +78,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
     argv: ArgvStruct,
     flagsList: CommandFlags,
     leaseReference: {value?: Lock},
+    skipDeploymentLock: boolean = false,
   ): OrchestratorPipeline<OneShotSingleDestroyContext> {
     let config: OneShotSingleDestroyConfigClass;
     const getConfigGlobal: () => OneShotSingleDestroyConfigClass = (): OneShotSingleDestroyConfigClass => config;
@@ -140,7 +139,11 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
               MirrorCommandDefinition.DESTROY_COMMAND,
               (): string[] => DestroyArgvBuilders.buildDestroyMirrorNodeArgv(getConfig()),
               this.taskList,
-              (): boolean => getConfig().skipAll || !getConfig().deployment || !getConfig().hasMirrorNodes,
+              (): boolean =>
+                getConfig().skipAll ||
+                getConfig().skipClusterCleanup ||
+                !getConfig().deployment ||
+                !getConfig().hasMirrorNodes,
             ),
         },
         undefined,
@@ -156,7 +159,11 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
               BlockCommandDefinition.DESTROY_COMMAND,
               (): string[] => DestroyArgvBuilders.buildDestroyBlockNodeArgv(getConfig()),
               this.taskList,
-              (): boolean => getConfig().skipAll || !getConfig().deployment || getConfig().hasBlockNodes === false,
+              (): boolean =>
+                getConfig().skipAll ||
+                getConfig().skipClusterCleanup ||
+                !getConfig().deployment ||
+                getConfig().hasBlockNodes === false,
             ),
         },
         undefined,
@@ -172,7 +179,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
               ConsensusCommandDefinition.DESTROY_COMMAND,
               (): string[] => DestroyArgvBuilders.buildDestroyConsensusNodeArgv(getConfig()),
               this.taskList,
-              (): boolean => getConfig().skipAll || !getConfig().deployment,
+              (): boolean => getConfig().skipAll || getConfig().skipClusterCleanup || !getConfig().deployment,
             ),
         },
         undefined,
@@ -188,7 +195,7 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
               ClusterReferenceCommandDefinition.RESET_COMMAND,
               (): string[] => DestroyArgvBuilders.buildClusterResetArgv(getConfig()),
               this.taskList,
-              (): boolean => getConfig().skipAll || !getConfig().deployment,
+              (): boolean => getConfig().skipAll || getConfig().skipClusterCleanup || !getConfig().deployment,
             ),
         },
         undefined,
@@ -252,6 +259,9 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
             ) as OneShotSingleDestroyConfigClass;
 
             config = context_.config;
+
+            config.skipAll = false;
+            config.skipClusterCleanup = false;
 
             await this.localConfig.load();
 
@@ -333,43 +343,33 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
                 .contexts()
                 .testContextConnection(config.context);
               if (!kubeContextConnectionSuccessful) {
-                config.skipAll = true;
-                return;
-              }
-            } catch (error) {
-              this.logger.error(`Error connecting to cluster with context ${config.context}:`, error);
-            }
-            try {
-              if (config.deployment && config.namespace && config.context) {
-                await this.remoteConfig.loadAndValidate(argv);
-                config.skipAll = false;
-              } else {
-                config.skipAll = true;
-                return;
-              }
-            } catch (error) {
-              if (
-                error instanceof ResourceNotFoundError ||
-                (error as {cause?: unknown}).cause instanceof ResourceNotFoundError ||
-                error instanceof NoKubeConfigContextError ||
-                (error as {cause?: unknown}).cause instanceof NoKubeConfigContextError
-              ) {
-                this.logger.showUser(
-                  'Remote config not found. This may indicate that the deployment has already been deleted or there is an issue with the cluster. Proceeding with best effort cleanup.',
+                this.logger.warn(
+                  `Cluster context '${config.context}' is unreachable; skipping cluster-side teardown and cleaning local config only.`,
                 );
-                this.logger.error('Error loading remote config:', error);
-                config.skipAll = true;
+                config.skipClusterCleanup = true;
                 return;
-              } else {
-                throw error;
               }
+            } catch (error) {
+              this.logger.warn(
+                `Error connecting to cluster with context '${config.context}'; skipping cluster-side teardown and cleaning local config only.`,
+                error,
+              );
+              config.skipClusterCleanup = true;
+              return;
             }
-            config.hasExplorers = this.remoteConfig.configuration.components.state.explorers.length > 0;
-            config.hasRelays = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
-            config.hasMirrorNodes = this.remoteConfig.configuration.components.state.mirrorNodes.length > 0;
+            // We cannot reason about a missing remote config safely, so we do not special-case it:
+            // if the remote config loaded, use it to detect which components exist; if it did not load,
+            // assume every network component is already missing so the per-component destroy steps below
+            // skip. Local config cleanup always runs regardless.
+            config.hasExplorers =
+              remoteConfigLoaded && this.remoteConfig.configuration.components.state.explorers.length > 0;
+            config.hasRelays =
+              remoteConfigLoaded && this.remoteConfig.configuration.components.state.relayNodes.length > 0;
+            config.hasMirrorNodes =
+              remoteConfigLoaded && this.remoteConfig.configuration.components.state.mirrorNodes.length > 0;
             config.hasBlockNodes = remoteConfigLoaded
               ? this.remoteConfig.configuration.components.state.blockNodes.length > 0
-              : undefined;
+              : false;
           },
         }),
       }),
@@ -385,7 +385,9 @@ export class DefaultOneShotDestroyOrchestrator implements OneShotDestroyOrchestr
             leaseReference.value = await this.leaseManager.create();
             return ListrLock.newAcquireLockTask(leaseReference.value, task);
           },
-          skip: (): boolean => getConfig().skipAll,
+          // The lock lives in the cluster; skip it when there is nothing to do, the cluster is
+          // unreachable, or the caller already holds the lock (e.g. one-shot deploy's auto-clean).
+          skip: (): boolean => skipDeploymentLock || getConfig().skipAll || getConfig().skipClusterCleanup,
         }),
       }),
       OrchestratorPipelinePhase.composite(

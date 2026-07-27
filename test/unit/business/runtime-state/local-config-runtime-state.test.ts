@@ -11,7 +11,7 @@ import {type Deployment} from '../../../../src/business/runtime-state/config/loc
 import {type FacadeArray} from '../../../../src/business/runtime-state/collection/facade-array.js';
 import {type DeploymentSchema} from '../../../../src/data/schema/model/local/deployment-schema.js';
 
-describe('LocalConfigRuntimeState', () => {
+describe('LocalConfigRuntimeState', (): void => {
   let runtimeState: LocalConfigRuntimeState;
   let basePath: string;
   const testFileName: string = 'local-config.yaml';

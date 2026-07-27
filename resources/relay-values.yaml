@@ -2,6 +2,7 @@
 relay:
   config:
     WORKERS_POOL_ENABLED: false
+    NODE_OPTIONS: --max-old-space-size=192
     LOG_LEVEL: error
     PRETTY_LOGS_ENABLED: false
     REDIS_ENABLED: false
@@ -27,8 +28,8 @@ relay:
     timeoutSeconds: 2
   resources:
     requests:
-      cpu: 0
-      memory: 0
+      cpu: 250m
+      memory: 128Mi
     limits:
       cpu: 500m
       memory: 250Mi
@@ -36,6 +37,7 @@ ws:
   enabled: true
   config:
     WORKERS_POOL_ENABLED: false
+    NODE_OPTIONS: --max-old-space-size=192
     LOG_LEVEL: error
     PRETTY_LOGS_ENABLED: false
     REDIS_ENABLED: false

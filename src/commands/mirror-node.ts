@@ -230,8 +230,9 @@ export class MirrorNodeCommand extends BaseCommand {
   private static readonly UPGRADE_CONFIGS_NAME: string = 'upgradeConfigs';
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.cacheDir,
       flags.chartDirectory,
       flags.mirrorNodeChartDirectory,
@@ -269,8 +270,9 @@ export class MirrorNodeCommand extends BaseCommand {
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.clusterRef,
       flags.cacheDir,
       flags.chartDirectory,
@@ -308,8 +310,16 @@ export class MirrorNodeCommand extends BaseCommand {
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.force, flags.quiet, flags.devMode, flags.id],
+    required: [],
+    optional: [
+      flags.deployment,
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.force,
+      flags.quiet,
+      flags.debugMode,
+      flags.id,
+    ],
   };
 
   private prepareBlockNodeIntegrationValues(
@@ -1069,10 +1079,7 @@ export class MirrorNodeCommand extends BaseCommand {
               title: 'Prepare address book',
               task: async (context_): Promise<void> => {
                 if (this.oneShotState.isActive()) {
-                  context_.addressBook = await this.accountManager.buildAddressBookBase64(
-                    PathEx.join(context_.config.cacheDir, 'keys'),
-                    context_.config.deployment,
-                  );
+                  context_.addressBook = await this.accountManager.buildAddressBookBase64(context_.config.deployment);
 
                   context_.config.chartValues.setLiteral('importer.addressBook', context_.addressBook);
                 } else {
@@ -1135,9 +1142,49 @@ export class MirrorNodeCommand extends BaseCommand {
                 await this.deployMirrorNode(context_, commandType);
               },
             },
+            this.waitForMirrorNodeSchemaTask(),
           ],
           constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
         ),
+    };
+  }
+
+  /**
+   * Waits for the importer to become ready — and thus for its Flyway schema migrations to complete —
+   * before dependent components are health-checked. Without this gate, a slow first-run schema build
+   * lets REST/REST-Java/Web3/gRPC query a partially-migrated database and fail the deployment.
+   */
+  private waitForMirrorNodeSchemaTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Wait for mirror node database schema',
+      task: async (context_): Promise<void> => {
+        const config: MirrorNodeDeployConfigClass | MirrorNodeUpgradeConfigClass = context_.config;
+        const importerLabels: string[] = [
+          'app.kubernetes.io/component=importer',
+          `app.kubernetes.io/instance=${config.releaseName}`,
+        ];
+        const pods: Pods = this.k8Factory.getK8(config.clusterContext).pods();
+
+        try {
+          await pods.waitForRunningPhase(
+            config.namespace,
+            importerLabels,
+            constants.MIRROR_NODE_IMPORTER_DETECT_MAX_ATTEMPTS,
+            constants.MIRROR_NODE_IMPORTER_DETECT_DELAY,
+          );
+        } catch {
+          // importer disabled via custom values — no schema build to wait for
+          this.logger.info(`No importer pod found for release ${config.releaseName}; skipping mirror node schema wait`);
+          return;
+        }
+
+        await pods.waitForReadyStatus(
+          config.namespace,
+          importerLabels,
+          constants.MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS,
+          constants.MIRROR_NODE_SCHEMA_READY_DELAY,
+        );
+      },
     };
   }
 
@@ -2094,14 +2141,14 @@ export class MirrorNodeCommand extends BaseCommand {
               .getK8(context_.config.clusterContext)
               .ingressClasses()
               .list();
-            existingIngressClasses.map((ingressClass): void => {
+            for (const ingressClass of existingIngressClasses) {
               if (ingressClass.name === constants.MIRROR_INGRESS_CLASS_NAME) {
-                this.k8Factory
+                await this.k8Factory
                   .getK8(context_.config.clusterContext)
                   .ingressClasses()
                   .delete(constants.MIRROR_INGRESS_CLASS_NAME);
               }
-            });
+            }
           },
         },
         this.disableMirrorNodeComponents(),

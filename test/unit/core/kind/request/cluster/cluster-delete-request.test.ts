@@ -6,12 +6,12 @@ import {ClusterDeleteRequest} from '../../../../../../src/integration/kind/reque
 import {type KindExecutionBuilder} from '../../../../../../src/integration/kind/execution/kind-execution-builder.js';
 import {type ClusterDeleteOptions} from '../../../../../../src/integration/kind/model/delete-cluster/cluster-delete-options.js';
 
-describe('ClusterDeleteRequest', () => {
+describe('ClusterDeleteRequest', (): void => {
   let builder: KindExecutionBuilder;
   let options: ClusterDeleteOptions;
   let request: ClusterDeleteRequest;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     // Create a stub for the builder
     builder = {
       subcommands: Sinon.stub().returnsThis(),
@@ -24,30 +24,30 @@ describe('ClusterDeleteRequest', () => {
     request = new ClusterDeleteRequest(options);
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     Sinon.restore();
   });
 
-  describe('constructor', () => {
-    it('should create an instance with valid options', () => {
+  describe('constructor', (): void => {
+    it('should create an instance with valid options', (): void => {
       expect(request).to.be.instanceOf(ClusterDeleteRequest);
     });
 
-    it('should throw an error if options are null', () => {
-      expect(() => new ClusterDeleteRequest(null as unknown as ClusterDeleteOptions)).to.throw(
+    it('should throw an error if options are null', (): void => {
+      expect((): ClusterDeleteRequest => new ClusterDeleteRequest(null as unknown as ClusterDeleteOptions)).to.throw(
         'options must not be null',
       );
     });
   });
 
-  describe('apply', () => {
-    it('should add correct subcommands to the builder', () => {
+  describe('apply', (): void => {
+    it('should add correct subcommands to the builder', (): void => {
       request.apply(builder);
 
       expect(builder.subcommands).to.have.been.calledOnceWith('delete', 'cluster');
     });
 
-    it('should delegate to options.apply', () => {
+    it('should delegate to options.apply', (): void => {
       request.apply(builder);
 
       expect(options.apply).to.have.been.calledOnceWith(builder);

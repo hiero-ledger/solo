@@ -70,7 +70,7 @@ interface BlockNodeDeployConfigClass {
   blockNodeTssOverlay: boolean;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   domainName: Optional<string>;
   enableIngress: boolean;
   quiet: boolean;
@@ -98,7 +98,7 @@ interface BlockNodeDestroyConfigClass {
   chartDirectory: string;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   namespace: NamespaceName;
   context: string;
@@ -119,7 +119,7 @@ interface BlockNodeUpgradeConfigClass {
   blockNodeTssOverlay: boolean;
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   valuesFile: Optional<string>;
   namespace: NamespaceName;
@@ -143,7 +143,7 @@ interface BlockNodeUpgradeContext {
 interface BlockNodeAddExternalConfigClass {
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   context: string;
   externalBlockNodeAddress: string;
@@ -161,7 +161,7 @@ interface BlockNodeAddExternalContext {
 interface BlockNodeDeleteExternalConfigClass {
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   namespace: NamespaceName;
   context: string;
@@ -175,7 +175,7 @@ interface BlockNodeDeleteExternalContext {
 interface BlockNodeCollectJfrConfigClass {
   clusterRef: ClusterReferenceName;
   deployment: DeploymentName;
-  devMode: boolean;
+  debugMode: boolean;
   quiet: boolean;
   namespace: NamespaceName;
   context: string;
@@ -222,8 +222,9 @@ export class BlockNodeCommand extends BaseCommand {
   private static readonly MIGRATION_COMPONENT_KEY: string = 'block-node';
 
   public static readonly ADD_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       // Keep legacy flag visible as a separate deprecated option.
       flags.blockNodeChartVersion,
       flags.blockNodeVersion,
@@ -233,7 +234,7 @@ export class BlockNodeCommand extends BaseCommand {
       flags.blockNodeMessageSizeHardLimitBytes,
       flags.chartDirectory,
       flags.clusterRef,
-      flags.devMode,
+      flags.debugMode,
       flags.domainName,
       flags.enableIngress,
       flags.quiet,
@@ -248,10 +249,11 @@ export class BlockNodeCommand extends BaseCommand {
   };
 
   public static readonly ADD_EXTERNAL_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment, flags.externalBlockNodeAddress],
+    required: [flags.externalBlockNodeAddress],
     optional: [
+      flags.deployment,
       flags.clusterRef,
-      flags.devMode,
+      flags.debugMode,
       flags.quiet,
       flags.priorityMapping,
       flags.blockNodeMessageSizeSoftLimitBytes,
@@ -260,27 +262,36 @@ export class BlockNodeCommand extends BaseCommand {
   };
 
   public static readonly DELETE_EXTERNAL_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.clusterRef, flags.devMode, flags.force, flags.quiet, flags.id],
+    required: [],
+    optional: [flags.deployment, flags.clusterRef, flags.debugMode, flags.force, flags.quiet, flags.id],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.chartDirectory, flags.clusterRef, flags.devMode, flags.force, flags.quiet, flags.id],
+    required: [],
+    optional: [
+      flags.deployment,
+      flags.chartDirectory,
+      flags.clusterRef,
+      flags.debugMode,
+      flags.force,
+      flags.quiet,
+      flags.id,
+    ],
   };
 
   public static readonly COLLECT_JFR_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.clusterRef, flags.devMode, flags.quiet, flags.id],
+    required: [],
+    optional: [flags.deployment, flags.clusterRef, flags.debugMode, flags.quiet, flags.id],
   };
 
   public static readonly UPGRADE_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.chartDirectory,
       flags.blockNodeChartDirectory,
       flags.clusterRef,
-      flags.devMode,
+      flags.debugMode,
       flags.force,
       flags.quiet,
       flags.valuesFile,
@@ -767,7 +778,7 @@ export class BlockNodeCommand extends BaseCommand {
               config.componentImage = `${constants.BLOCK_NODE_IMAGE_NAME}:${config.imageTag}`;
             }
 
-            config.livenessCheckPort = constants.BLOCK_NODE_PORT;
+            config.livenessCheckPort = this.getLivenessCheckPortNumber(config);
 
             await this.persistBlockNodeMessageSizeOverrides(
               config.blockNodeMessageSizeSoftLimitBytes,
@@ -1559,6 +1570,31 @@ export class BlockNodeCommand extends BaseCommand {
         }
       },
     };
+  }
+
+  /// Returns the port used for the block node liveness/readiness check.
+  ///
+  /// Block node >= v0.39.0 serves its health endpoints (`/healthz/readyz`) from a dedicated
+  /// web server on `BLOCK_NODE_HEALTH_PORT`; earlier versions served them from the gRPC port
+  /// (`BLOCK_NODE_PORT`). The effective version is the higher of the chart version and a local
+  /// image tag (when set), mirroring `updateBlockNodeVersionInRemoteConfig`.
+  private getLivenessCheckPortNumber(config: BlockNodeDeployConfigClass): number {
+    let blockNodeVersion: SemanticVersion<string> = new SemanticVersion<string>(config.chartVersion);
+
+    if (config.componentImage && this.isLocalImageReference(config.componentImage)) {
+      const tag: string = this.splitImageNameTag(config.componentImage).tag;
+      const imageVersion: SemanticVersion<string> = new SemanticVersion<string>(tag);
+      if (blockNodeVersion.lessThan(imageVersion)) {
+        blockNodeVersion = imageVersion;
+      }
+    }
+
+    const minimumVersion: SemanticVersion<string> = new SemanticVersion<string>(
+      versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_DEDICATED_HEALTH_PORT,
+    );
+    return blockNodeVersion.greaterThanOrEqual(minimumVersion)
+      ? constants.BLOCK_NODE_HEALTH_PORT
+      : constants.BLOCK_NODE_PORT;
   }
 
   private async updateBlockNodeVersionInRemoteConfig(
