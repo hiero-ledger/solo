@@ -93,7 +93,7 @@ This will:
 * Stop and destroy the mirror node and consensus network
 * Recreate PostgreSQL database
 * Import database dump
-* Create new consensus network with same configuration
+* Recreate the consensus network with the original deployment metadata and key material
 * Upload saved state to new nodes
 * Start nodes with restored state
 * Reconnect mirror node to database
@@ -171,7 +171,7 @@ The `init.sh` script sets up the PostgreSQL database with:
 
 1. **Database Recreation**: Deploys fresh PostgreSQL and runs `init.sh` to create database structure (database, schemas, roles, users, extensions)
 2. **Database Restore**: Imports database dump which drops and recreates tables with all data
-3. **Fresh Network Deployment**: Regenerates consensus keys, redeploys the consensus network, and runs node setup for the new pods
+3. **Fresh Network Deployment**: Reuses the original deployment metadata and consensus key material, redeploys the consensus network, and runs node setup for the new pods
 4. **Restore Input Build**: Builds `./saved-states/restore-input/states/<cluster-ref>/<namespace>/` and copies each node's state zip
 5. **State Upload and Start**: Starts all nodes together with `solo consensus node start --state-file ./saved-states/restore-input`
    * State files are extracted to `data/saved/`
@@ -187,7 +187,7 @@ The `init.sh` script sets up the PostgreSQL database with:
 * External PostgreSQL database provides data persistence and queryability
 * State restoration maintains transaction history and account balances
 * Mirror node will resume from the restored state point
-* **Per-node State Restore**: Uses each node's own state zip and starts all nodes together on a freshly redeployed network
+* **Per-node State Restore**: Uses each node's own state zip and starts all nodes together on a freshly redeployed network with the original consensus keys
 * Database dump includes all mirror node data (transactions, accounts, etc.)
 
 ### View Logs

@@ -215,7 +215,6 @@ tasks:
     cmds:
       - task: destroy-network
       - task: destroy-database
-      - task: init-solo
       - task: deploy-external-database
       - task: deploy-network-with-state
       - task: restore-database
@@ -227,8 +226,6 @@ tasks:
     desc: Deploy a fresh network and start nodes from saved state
     cmds:
       - cmd: echo "Deploying network with saved state..."
-      - cmd: |
-          $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }}
       - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: |
@@ -310,7 +307,7 @@ tasks:
       - cmd: echo "Destroying mirror node and consensus network..."
       - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force || true
       - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} || true
-      - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force --delete-pvcs --delete-secrets -q || true
+      - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force -q || true
       - cmd: echo "✅ Network resources destroyed"
 
 
