@@ -2,6 +2,7 @@
 
 import {inject, injectable} from 'tsyringe-neo';
 import {ShellRunner} from './shell-runner.js';
+import {SubprocessCommandProfile} from './subprocess-command-profile.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {OsPackageManager} from './package-managers/os-package-manager.js';
 import {BrewPackageManager} from './package-managers/brew-package-manager.js';
@@ -132,7 +133,9 @@ export class ClusterTaskManager extends ShellRunner {
         title: 'Install podman...',
         task: async (): Promise<void> => {
           try {
-            const podmanVersion: string[] = await this.run('podman', ['--version']);
+            const podmanVersion: string[] = await this.run('podman', ['--version'], {
+              commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
+            });
             this.logger.info(`Podman already installed: ${podmanVersion}`);
           } catch {
             this.logger.info('Podman not found, installing Podman...');
@@ -175,6 +178,7 @@ export class ClusterTaskManager extends ShellRunner {
             false,
             false,
             sudoEnvironment,
+            SubprocessCommandProfile.KIND,
           );
 
           // Merge kubeconfig data from root user into normal user's kubeconfig
@@ -283,16 +287,21 @@ export class ClusterTaskManager extends ShellRunner {
               try {
                 await this.run(podmanExecutable, ['machine', 'inspect', constants.PODMAN_MACHINE_NAME], {
                   environmentVariablesToAppend: podmanEnvironment,
+                  commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
                 });
               } catch (error) {
                 if (error.message.includes('VM does not exist')) {
                   await this.run(
                     podmanExecutable,
                     ['machine', 'init', constants.PODMAN_MACHINE_NAME, '--memory=16384'], // 16GB
-                    {environmentVariablesToAppend: podmanEnvironment},
+                    {
+                      environmentVariablesToAppend: podmanEnvironment,
+                      commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
+                    },
                   );
                   await this.run(podmanExecutable, ['machine', 'start', constants.PODMAN_MACHINE_NAME], {
                     environmentVariablesToAppend: podmanEnvironment,
+                    commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
                   });
                 } else {
                   throw new SoloErrors.system.podmanMachineInspectFailed(error);

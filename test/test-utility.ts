@@ -16,10 +16,10 @@ import {type NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';
 import {sleep} from '../src/core/helpers.js';
 import {
-  type AccountBalance,
-  AccountBalanceQuery,
   AccountCreateTransaction,
   type AccountId,
+  type AccountInfo,
+  AccountInfoQuery,
   Hbar,
   HbarUnit,
   PrivateKey,
@@ -290,7 +290,7 @@ export function endToEndTestSuite(
     containerOverrides,
     deployNetwork,
   }: Cmd & {startNodes?: boolean; deployNetwork?: boolean},
-  testsCallBack: (bootstrapResp: BootstrapResponse) => void = (): void => {},
+  testsCallback: (bootstrapResp: BootstrapResponse) => void = (): void => {},
 ): void {
   const testLogger: SoloLogger = getTestLogger();
   const testNamespace: NamespaceName = getTestNamespace(argv);
@@ -322,6 +322,7 @@ export function endToEndTestSuite(
       await localConfig.load();
     });
 
+    // eslint-disable-next-line unicorn/no-this-outside-of-class
     this.bail(true); // stop on first failure, nothing else will matter if network doesn't come up correctly
 
     describe(`Bootstrap network for test [release ${argv.getArg(flags.releaseTag)}]`, (): void => {
@@ -332,15 +333,13 @@ export function endToEndTestSuite(
 
       // TODO: add rest of prerequisites for setup
 
-      after(async function (): Promise<void> {
-        this.timeout(Duration.ofMinutes(5).toMillis());
-
+      after(async (): Promise<void> => {
         // Use shared diagnostic log collection helper
         const deployment: string = argv.getArg(flags.deployment) as string;
         await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
 
         testLogger.showUser(`------------------------- END: bootstrap (${testName}) ----------------------------`);
-      });
+      }).timeout(Duration.ofMinutes(5).toMillis());
 
       it('should cleanup previous deployment', async (): Promise<void> => {
         if (await k8Factory.default().namespaces().has(namespace)) {
@@ -406,7 +405,7 @@ export function endToEndTestSuite(
     });
 
     describe(testName, (): void => {
-      testsCallBack(bootstrapResp);
+      testsCallback(bootstrapResp);
     });
   });
 }
@@ -430,11 +429,11 @@ export async function queryBalance(
   );
   expect(accountManager._nodeClient).to.not.be.undefined;
 
-  const balance: AccountBalance = await new AccountBalanceQuery()
+  const accountInfo: AccountInfo = await new AccountInfoQuery()
     .setAccountId(accountManager._nodeClient.getOperator().accountId)
     .execute(accountManager._nodeClient);
 
-  expect(balance.hbars).to.not.be.null;
+  expect(accountInfo.balance).to.not.be.null;
   await sleep(Duration.ofSeconds(1));
 }
 

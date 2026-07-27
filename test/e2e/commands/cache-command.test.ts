@@ -73,6 +73,12 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         CacheTest.status(options);
         CacheTest.load(options);
         CacheTest.clear(options);
+
+        CacheTest.chartPull(options);
+        CacheTest.chartList(options);
+        CacheTest.chartStatus(options);
+        CacheTest.chartInstallUsesCache(options);
+        CacheTest.chartClear(options);
       });
     },
   )

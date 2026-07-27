@@ -38,6 +38,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   INIT_FAILED: 'SOLO-2028',
   BLOCK_NODE_CLUSTER_CONTEXT_NOT_FOUND: 'SOLO-2029',
   MIRROR_NODE_CLUSTER_CONTEXT_NOT_FOUND: 'SOLO-2030',
+  DEPLOYMENT_IMPORT_FAILED: 'SOLO-2031',
 
   // 3xxx - Component: Relay, Mirror Node, Explorer, CN runtime
   NODE_TRANSACTION_FAILED: 'SOLO-3001',
@@ -130,6 +131,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   NODE_SERVICE_NOT_FOUND: 'SOLO-3089',
   BLOCK_NODE_JFR_COLLECTION_FAILED: 'SOLO-3090',
   GOSSIP_KEY_SECRET_RESTORE_FAILED: 'SOLO-3091',
+  SDK_CLIENT_NO_HEALTHY_NODES: 'SOLO-3092',
 
   // 4xxx - Validation: User input, flags, IDs, formatting
   MISSING_ARGUMENT: 'SOLO-4001',
@@ -286,6 +288,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   CLUSTER_ROLE_CHECK_FAILED: 'SOLO-5073',
   UNSUPPORTED_LINUX_DISTRIBUTION: 'SOLO-5074',
   BLOCK_NODES_JSON_EMPTY: 'SOLO-5075',
+  HELM_CHART_PULL_NO_ARCHIVE: 'SOLO-5076',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',

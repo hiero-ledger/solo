@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {SoloErrors} from '../errors/solo-errors.js';
+import {SubprocessEnvironment} from '../subprocess-environment.js';
+import {SubprocessCommandProfile} from '../subprocess-command-profile.js';
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -157,6 +159,7 @@ export class LockHolder {
         const stat: string = execFileSync('ps', ['-o', 'stat=', '-p', String(this._processId)], {
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'ignore'],
+          env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.GENERIC),
         }).trim();
         return stat.startsWith('T');
       }

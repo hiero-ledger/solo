@@ -45,6 +45,8 @@ interface MirrorNodeCommandInternal {
   addMirrorNodeImageTagOverrides: (chartValues: HelmChartValues, mirrorNodeVersion: string) => void;
   initializeSharedPostgresDatabaseTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
   primePostgresSecretTask: () => SoloListrTask<MirrorNodeDatabaseTaskContext>;
+  waitForMirrorNodeSchemaTask: () => SoloListrTask<MirrorNodeSchemaWaitTaskContext>;
+  k8Factory: {getK8: (context: string) => {pods: () => MirrorNodeSchemaWaitPodsStub}};
   prepareBlockNodeIntegrationValues: (config: {
     cacheDir: string;
     clusterReference: string;
@@ -65,11 +67,37 @@ interface MirrorNodeDatabaseTaskContext {
   };
 }
 
+interface MirrorNodeSchemaWaitTaskContext {
+  config: {
+    releaseName: string;
+    clusterContext: string;
+    namespace: {name: string};
+  };
+}
+
+interface MirrorNodeSchemaWaitPodsStub {
+  waitForRunningPhase: sinon.SinonStub;
+  waitForReadyStatus: sinon.SinonStub;
+}
+
 type MirrorNodeDatabaseSkip = (context: MirrorNodeDatabaseTaskContext) => boolean;
 
 function getSkipFunction(task: SoloListrTask<MirrorNodeDatabaseTaskContext>): MirrorNodeDatabaseSkip {
   expect(task.skip).to.be.a('function');
   return task.skip as MirrorNodeDatabaseSkip;
+}
+
+function stubImporterPods(
+  command: MirrorNodeCommand,
+  podsStub: MirrorNodeSchemaWaitPodsStub,
+): MirrorNodeCommandInternal {
+  const mirrorNodeCommandInternal: MirrorNodeCommandInternal = command as unknown as MirrorNodeCommandInternal;
+  mirrorNodeCommandInternal.k8Factory = {
+    getK8: (): {pods: () => MirrorNodeSchemaWaitPodsStub} => ({
+      pods: (): MirrorNodeSchemaWaitPodsStub => podsStub,
+    }),
+  };
+  return mirrorNodeCommandInternal;
 }
 
 interface MirrorNodeIntegrationValues {
@@ -421,5 +449,48 @@ describe('MirrorNodeCommand unit tests', (): void => {
     } finally {
       fs.rmSync(cacheDirection, {recursive: true, force: true});
     }
+  });
+
+  describe('waitForMirrorNodeSchemaTask', (): void => {
+    const schemaWaitContext: MirrorNodeSchemaWaitTaskContext = {
+      config: {
+        releaseName: 'mirror-1',
+        clusterContext: 'kind-a',
+        namespace: {name: 'solo'},
+      },
+    };
+
+    it('should wait for importer readiness with the schema budget once the importer pod is running', async (): Promise<void> => {
+      const podsStub: MirrorNodeSchemaWaitPodsStub = {
+        waitForRunningPhase: sinon.stub().resolves([{}]),
+        waitForReadyStatus: sinon.stub().resolves([{}]),
+      };
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal = stubImporterPods(mirrorNodeCommand, podsStub);
+
+      const task: SoloListrTask<MirrorNodeSchemaWaitTaskContext> =
+        mirrorNodeCommandInternal.waitForMirrorNodeSchemaTask();
+      await (task.task as (context: MirrorNodeSchemaWaitTaskContext) => Promise<void>)(schemaWaitContext);
+
+      const expectedLabels: string[] = ['app.kubernetes.io/component=importer', 'app.kubernetes.io/instance=mirror-1'];
+      expect(podsStub.waitForRunningPhase.calledOnce).to.equal(true);
+      expect(podsStub.waitForReadyStatus.calledOnce).to.equal(true);
+      expect(podsStub.waitForReadyStatus.firstCall.args[1]).to.deep.equal(expectedLabels);
+      expect(podsStub.waitForReadyStatus.firstCall.args[2]).to.equal(constants.MIRROR_NODE_SCHEMA_READY_MAX_ATTEMPTS);
+      expect(podsStub.waitForReadyStatus.firstCall.args[3]).to.equal(constants.MIRROR_NODE_SCHEMA_READY_DELAY);
+    });
+
+    it('should skip the schema wait when no importer pod appears', async (): Promise<void> => {
+      const podsStub: MirrorNodeSchemaWaitPodsStub = {
+        waitForRunningPhase: sinon.stub().rejects(new Error('no pods found')),
+        waitForReadyStatus: sinon.stub().resolves([{}]),
+      };
+      const mirrorNodeCommandInternal: MirrorNodeCommandInternal = stubImporterPods(mirrorNodeCommand, podsStub);
+
+      const task: SoloListrTask<MirrorNodeSchemaWaitTaskContext> =
+        mirrorNodeCommandInternal.waitForMirrorNodeSchemaTask();
+      await (task.task as (context: MirrorNodeSchemaWaitTaskContext) => Promise<void>)(schemaWaitContext);
+
+      expect(podsStub.waitForReadyStatus.called).to.equal(false);
+    });
   });
 });
