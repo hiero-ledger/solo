@@ -386,7 +386,7 @@ export class Helpers {
 
   public static getEnvironmentValue(environmentVariableArray: string[], name: string): string {
     const kvPair: string = environmentVariableArray.find((v): boolean => v.startsWith(`${name}=`));
-    return kvPair ? kvPair.split('=')[1] : undefined;
+    return kvPair ? kvPair.split('=', 2)[1] : undefined;
   }
 
   public static parseIpAddressToUint8Array(ipAddress: string): Uint8Array<ArrayBuffer> {

@@ -111,13 +111,14 @@ export class NetworkCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
+    required: [],
+    optional: [flags.deployment, flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
   };
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.apiPermissionProperties,
       flags.app,
       flags.applicationEnv,
@@ -567,9 +568,9 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (
-      config.storageType === constants.StorageType.GCS_ONLY ||
-      config.storageType === constants.StorageType.AWS_ONLY ||
-      config.storageType === constants.StorageType.AWS_AND_GCS
+      [constants.StorageType.GCS_ONLY, constants.StorageType.AWS_ONLY, constants.StorageType.AWS_AND_GCS].includes(
+        config.storageType,
+      )
     ) {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', false);

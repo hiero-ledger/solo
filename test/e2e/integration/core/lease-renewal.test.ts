@@ -21,20 +21,18 @@ describe('LeaseRenewalService', async (): Promise<void> => {
   const renewalService: LockRenewalService = container.resolve(InjectTokens.LockRenewalService);
   const testNamespace: NamespaceName = NamespaceName.of('lease-renewal-e2e');
 
-  before(async function (): Promise<void> {
-    this.timeout(defaultTimeout);
+  before(async (): Promise<void> => {
     if (await k8Factory.default().namespaces().has(testNamespace)) {
       await k8Factory.default().namespaces().delete(testNamespace);
       await sleep(Duration.ofSeconds(5));
     }
 
     await k8Factory.default().namespaces().create(testNamespace);
-  });
+  }).timeout(defaultTimeout);
 
-  after(async function (): Promise<void> {
-    this.timeout(defaultTimeout);
+  after(async (): Promise<void> => {
     await k8Factory.default().namespaces().delete(testNamespace);
-  });
+  }).timeout(defaultTimeout);
 
   it('acquired leases should be scheduled', async (): Promise<void> => {
     const lease: IntervalLock = new IntervalLock(
@@ -54,9 +52,7 @@ describe('LeaseRenewalService', async (): Promise<void> => {
     expect(await renewalService.isScheduled(lease.scheduleId)).to.be.false;
   });
 
-  it('acquired leases should be renewed', async function (): Promise<void> {
-    this.timeout(defaultTimeout);
-
+  it('acquired leases should be renewed', async (): Promise<void> => {
     const lease: IntervalLock = new IntervalLock(
       k8Factory,
       renewalService,
@@ -92,11 +88,9 @@ describe('LeaseRenewalService', async (): Promise<void> => {
     await lease?.release();
     expect(await renewalService.isScheduled(lease.scheduleId)).to.be.false;
     expect(lease.scheduleId).to.be.null;
-  });
+  }).timeout(defaultTimeout);
 
-  it('acquired leases with cancelled schedules should not be renewed', async function (): Promise<void> {
-    this.timeout(defaultTimeout);
-
+  it('acquired leases with cancelled schedules should not be renewed', async (): Promise<void> => {
     const lease: IntervalLock = new IntervalLock(
       k8Factory,
       renewalService,
@@ -131,5 +125,5 @@ describe('LeaseRenewalService', async (): Promise<void> => {
     await lease?.release();
     expect(await renewalService.isScheduled(lease.scheduleId)).to.be.false;
     // expect(lease.scheduleId).to.be.null
-  });
+  }).timeout(defaultTimeout);
 });
