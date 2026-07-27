@@ -7,6 +7,7 @@ import {ClusterReferenceResolutionFailedError} from './classes/deployment/cluste
 import {ContextNotFoundForClusterError} from './classes/deployment/context-not-found-for-cluster-error.js';
 import {DeploymentDeleteFailedError} from './classes/deployment/deployment-delete-failed-error.js';
 import {DeploymentHasRemoteResourcesError} from './classes/deployment/deployment-has-remote-resources-error.js';
+import {DeploymentImportFailedSoloError} from './classes/deployment/deployment-import-failed-solo-error.js';
 import {DeploymentListFailedError} from './classes/deployment/deployment-list-failed-error.js';
 import {DeploymentListPortsFailedError} from './classes/deployment/deployment-list-ports-failed-error.js';
 import {DeploymentNotFoundError} from './classes/deployment/deployment-not-found-error.js';
@@ -161,6 +162,7 @@ import {NodeClientLoadFailedSoloError} from './classes/component/node-client-loa
 import {NodeClientRefreshFailedSoloError} from './classes/component/node-client-refresh-failed-solo-error.js';
 import {NodeClientSetupFailedSoloError} from './classes/component/node-client-setup-failed-solo-error.js';
 import {SdkPingFailedSoloError} from './classes/component/sdk-ping-failed-solo-error.js';
+import {SdkClientNoHealthyNodesSoloError} from './classes/component/sdk-client-no-healthy-nodes-solo-error.js';
 import {NodeServicesRetrievalFailedSoloError} from './classes/component/node-services-retrieval-failed-solo-error.js';
 import {NodeServiceNotFoundSoloError} from './classes/component/node-service-not-found-solo-error.js';
 import {GossipKeySecretCreationFailedSoloError} from './classes/component/gossip-key-secret-creation-failed-solo-error.js';
@@ -281,7 +283,6 @@ import {ClusterRoleCheckFailedSoloError} from './classes/system/cluster-role-che
 import {LoggerMessageGroupNotFoundError} from './classes/internal/logger-message-group-not-found-error.js';
 import {CommandReturnedFalseError} from './classes/internal/command-returned-false-error.js';
 import {RemoteConfigUnsupportedComponentError} from './classes/internal/remote-config-unsupported-component-error.js';
-import {RemoteConfigDeploymentNotSetError} from './classes/internal/remote-config-deployment-not-set-error.js';
 import {RemoteConfigContextUnavailableError} from './classes/internal/remote-config-context-unavailable-error.js';
 import {CacheImageTemplateUndeclaredError} from './classes/internal/cache-image-template-undeclared-error.js';
 import {InjectedFailureSoloError} from './classes/internal/injected-failure-solo-error.js';
@@ -321,6 +322,7 @@ export class SoloErrors {
     readonly createFailed: typeof CreateDeploymentSoloError;
     readonly deleteFailed: typeof DeploymentDeleteFailedError;
     readonly hasRemoteResources: typeof DeploymentHasRemoteResourcesError;
+    readonly importFailed: typeof DeploymentImportFailedSoloError;
     readonly listFailed: typeof DeploymentListFailedError;
     readonly listPortsFailed: typeof DeploymentListPortsFailedError;
     readonly namespaceNotSet: typeof NamespaceNotSetError;
@@ -352,6 +354,7 @@ export class SoloErrors {
     createFailed: CreateDeploymentSoloError,
     deleteFailed: DeploymentDeleteFailedError,
     hasRemoteResources: DeploymentHasRemoteResourcesError,
+    importFailed: DeploymentImportFailedSoloError,
     listFailed: DeploymentListFailedError,
     listPortsFailed: DeploymentListPortsFailedError,
     namespaceNotSet: NamespaceNotSetError,
@@ -436,6 +439,7 @@ export class SoloErrors {
     readonly nodeClientRefreshFailed: typeof NodeClientRefreshFailedSoloError;
     readonly nodeClientSetupFailed: typeof NodeClientSetupFailedSoloError;
     readonly sdkPingFailed: typeof SdkPingFailedSoloError;
+    readonly sdkClientNoHealthyNodes: typeof SdkClientNoHealthyNodesSoloError;
     readonly nodeServicesRetrievalFailed: typeof NodeServicesRetrievalFailedSoloError;
     readonly nodeServiceNotFound: typeof NodeServiceNotFoundSoloError;
     readonly gossipKeySecretCreationFailed: typeof GossipKeySecretCreationFailedSoloError;
@@ -526,6 +530,7 @@ export class SoloErrors {
     nodeClientRefreshFailed: NodeClientRefreshFailedSoloError,
     nodeClientSetupFailed: NodeClientSetupFailedSoloError,
     sdkPingFailed: SdkPingFailedSoloError,
+    sdkClientNoHealthyNodes: SdkClientNoHealthyNodesSoloError,
     nodeServicesRetrievalFailed: NodeServicesRetrievalFailedSoloError,
     nodeServiceNotFound: NodeServiceNotFoundSoloError,
     gossipKeySecretCreationFailed: GossipKeySecretCreationFailedSoloError,
@@ -879,7 +884,6 @@ export class SoloErrors {
     readonly loggerMessageGroupNotFound: typeof LoggerMessageGroupNotFoundError;
     readonly commandReturnedFalse: typeof CommandReturnedFalseError;
     readonly remoteConfigUnsupportedComponent: typeof RemoteConfigUnsupportedComponentError;
-    readonly remoteConfigDeploymentNotSet: typeof RemoteConfigDeploymentNotSetError;
     readonly remoteConfigContextUnavailable: typeof RemoteConfigContextUnavailableError;
     readonly cacheImageTemplateUndeclared: typeof CacheImageTemplateUndeclaredError;
     readonly injectedFailure: typeof InjectedFailureSoloError;
@@ -892,7 +896,6 @@ export class SoloErrors {
     loggerMessageGroupNotFound: LoggerMessageGroupNotFoundError,
     commandReturnedFalse: CommandReturnedFalseError,
     remoteConfigUnsupportedComponent: RemoteConfigUnsupportedComponentError,
-    remoteConfigDeploymentNotSet: RemoteConfigDeploymentNotSetError,
     remoteConfigContextUnavailable: RemoteConfigContextUnavailableError,
     cacheImageTemplateUndeclared: CacheImageTemplateUndeclaredError,
     injectedFailure: InjectedFailureSoloError,

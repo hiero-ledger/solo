@@ -124,6 +124,7 @@ export class EndToEndTestSuite extends Suite {
   public runTestSuite(): void {
     const endToEndTestSuiteInstance: EndToEndTestSuite = this.endToEndTestSuiteInstance;
     describe(endToEndTestSuiteInstance.testSuiteName, function endToEndTestSuiteCallback(): void {
+      // eslint-disable-next-line unicorn/no-this-outside-of-class
       this.bail(true);
 
       endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance.options, EndToEndTestSuite.preDestroy);
