@@ -6,6 +6,7 @@ import sinon from 'sinon';
 import {container} from 'tsyringe-neo';
 import {BlockNodeCommand} from '../../../src/commands/block-node.js';
 import * as constants from '../../../src/core/constants.js';
+import {Templates} from '../../../src/core/templates.js';
 import {ClusterSchema} from '../../../src/data/schema/model/common/cluster-schema.js';
 import {DeploymentPhase} from '../../../src/data/schema/model/remote/deployment-phase.js';
 import {BlockNodeStateSchema} from '../../../src/data/schema/model/remote/state/block-node-state-schema.js';
@@ -98,6 +99,12 @@ describe('BlockNodeCommand unit tests', (): void => {
     expect(valueArguments).to.include(`blockNode.backfill.sources[0].port=${constants.BLOCK_NODE_PORT}`);
     expect(valueArguments).to.include('blockNode.backfill.sources[0].priority=1');
     expect(valueArguments).to.not.include('blockNode.sources[0].address=block-node-1.solo-ns.svc.cluster.local');
+  });
+
+  it('should use the block node release name as the Helm instance label selector', (): void => {
+    const labels: string[] = Templates.renderBlockNodeLabels(1);
+
+    expect(labels).to.deep.equal(['app.kubernetes.io/instance=block-node-1']);
   });
 
   it('should patch block node StatefulSets with peer host aliases', async (): Promise<void> => {
