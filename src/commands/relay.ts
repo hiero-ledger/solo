@@ -788,15 +788,14 @@ export class RelayCommand extends BaseCommand {
               config.mirrorNamespace = mirrorNamespace;
               config.mirrorNodeReleaseName = mirrorNodeReleaseName;
 
-              const relayVersionProvidedByUser: boolean =
-                this.configManager.wasFlagProvidedByUser(flags.relayVersion) ||
-                this.configManager.wasFlagProvidedByUser(flags.relayReleaseTag);
               const currentRelayVersion: SemanticVersion<string> = this.remoteConfig.getComponentVersion(
                 ComponentTypes.RelayNodes,
               );
 
-              config.relayReleaseTag = UpgradeVersionResolver.resolve(
-                relayVersionProvidedByUser ? config.relayReleaseTag : undefined,
+              config.relayReleaseTag = UpgradeVersionResolver.resolveFromFlags(
+                this.configManager,
+                [flags.relayVersion, flags.relayReleaseTag],
+                config.relayReleaseTag,
                 currentRelayVersion,
                 HEDERA_JSON_RPC_RELAY_VERSION,
               );

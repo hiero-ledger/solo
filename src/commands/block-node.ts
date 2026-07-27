@@ -1043,8 +1043,10 @@ export class BlockNodeCommand extends BaseCommand {
               : this.renderReleaseName(config.id);
 
             config.context = this.remoteConfig.getClusterRefs()[config.clusterRef];
-            config.upgradeVersion = UpgradeVersionResolver.resolve(
-              this.configManager.wasFlagProvidedByUser(flags.upgradeVersion) ? config.upgradeVersion : undefined,
+            config.upgradeVersion = UpgradeVersionResolver.resolveFromFlags(
+              this.configManager,
+              [flags.upgradeVersion],
+              config.upgradeVersion,
               this.remoteConfig.getComponentVersion(ComponentTypes.BlockNode),
               versions.BLOCK_NODE_VERSION,
             );

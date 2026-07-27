@@ -1692,8 +1692,10 @@ export class MirrorNodeCommand extends BaseCommand {
 
             context_.config = config;
 
-            config.mirrorNodeVersion = UpgradeVersionResolver.resolve(
-              this.configManager.wasFlagProvidedByUser(flags.mirrorNodeVersion) ? config.mirrorNodeVersion : undefined,
+            config.mirrorNodeVersion = UpgradeVersionResolver.resolveFromFlags(
+              this.configManager,
+              [flags.mirrorNodeVersion],
+              config.mirrorNodeVersion,
               this.remoteConfig.getComponentVersion(ComponentTypes.MirrorNode),
               versions.MIRROR_NODE_VERSION,
             );

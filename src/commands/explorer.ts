@@ -829,8 +829,10 @@ export class ExplorerCommand extends BaseCommand {
               ComponentTypes.Explorer,
             );
 
-            config.explorerVersion = UpgradeVersionResolver.resolve(
-              this.configManager.wasFlagProvidedByUser(flags.explorerVersion) ? config.explorerVersion : undefined,
+            config.explorerVersion = UpgradeVersionResolver.resolveFromFlags(
+              this.configManager,
+              [flags.explorerVersion],
+              config.explorerVersion,
               currentExplorerVersion,
               EXPLORER_VERSION,
             );
