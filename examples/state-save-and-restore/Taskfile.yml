@@ -51,7 +51,7 @@ tasks:
       - task: stop-network
       - task: save-state
       - cmd: echo ""
-      - cmd: echo "⏳ Waiting 10 seconds before restore..."
+      - cmd: echo "⏳ Waiting 10 seconds before destroy and restore..."
       - cmd: sleep 10
       - task: restore
       - cmd: echo ""
@@ -213,28 +213,27 @@ tasks:
   restore:
     desc: Recreate network and restore state with external database
     cmds:
+      - task: destroy-network
       - task: destroy-database
       - task: deploy-external-database
       - task: deploy-network-with-state
       - task: restore-database
+      - task: deploy-mirror-external
       - task: verify-state
       - cmd: echo "✅ Network and database restored!"
 
   deploy-network-with-state:
-    desc: Deploy network and upload saved state
+    desc: Deploy a fresh network and start nodes from saved state
     cmds:
       - cmd: echo "Deploying network with saved state..."
       - cmd: |
-          echo "Reusing existing consensus network pods for restore to keep service IPs stable..."
-          kubectl get pod network-node1-0 -n {{ .NAMESPACE }} >/dev/null
-          kubectl get pod network-node2-0 -n {{ .NAMESPACE }} >/dev/null
+          $SOLO_COMMAND keys consensus generate --gossip-keys --tls-keys --node-aliases {{ .NODE_ALIASES }} --deployment {{ .DEPLOYMENT }}
+      - cmd: $SOLO_COMMAND consensus network deploy --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
+      - cmd: $SOLO_COMMAND consensus node setup --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }}
       - cmd: |
-          echo "Validating stable per-node service DNS names..."
+          echo "Waiting for recreated consensus pods to exist before restore..."
           for node in $(echo {{ .NODE_ALIASES }} | tr ',' ' '); do
-            SERVICE_FQDN="network-${node}-svc.{{ .NAMESPACE }}.svc.cluster.local"
-            kubectl exec network-node1-0 -n {{ .NAMESPACE }} -c root-container -- \
-              getent hosts "${SERVICE_FQDN}" >/dev/null
-            echo "✅ ${SERVICE_FQDN} is resolvable"
+            kubectl wait --for=create pod/network-${node}-0 -n {{ .NAMESPACE }} --timeout=300s
           done
       - cmd: |
           # Build the directory layout expected by Solo for per-node state restore:
@@ -304,6 +303,15 @@ tasks:
       - cmd: $SOLO_COMMAND consensus network freeze --deployment {{ .DEPLOYMENT }}
       - cmd: echo "✅ Network frozen"
 
+  destroy-network:
+    desc: Destroy mirror node and consensus network while keeping cluster configuration
+    cmds:
+      - cmd: echo "Destroying mirror node and consensus network..."
+      - cmd: $SOLO_COMMAND mirror node destroy --deployment {{ .DEPLOYMENT }} --force || true
+      - cmd: $SOLO_COMMAND consensus node stop --deployment {{ .DEPLOYMENT }} --node-aliases {{ .NODE_ALIASES }} || true
+      - cmd: $SOLO_COMMAND consensus network destroy --deployment {{ .DEPLOYMENT }} --force --delete-pvcs --delete-secrets -q || true
+      - cmd: echo "✅ Network resources destroyed"
+
 
   destroy-database:
     desc: Destroy external database
@@ -317,6 +325,8 @@ tasks:
   destroy:
     desc: Destroy cluster and clean up all resources
     cmds:
+      - task: destroy-network
+      - task: destroy-database
       - cmd: kind delete cluster --name {{ .CLUSTER_NAME }}
       - cmd: echo "✅ Cluster destroyed"
       - task: clean-state
