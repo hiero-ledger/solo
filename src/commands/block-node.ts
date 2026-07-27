@@ -477,22 +477,32 @@ export class BlockNodeCommand extends BaseCommand {
 
       const statefulSetName: string = Templates.renderBlockNodeName(targetBlockNode.metadata.id);
 
-      await k8.manifests().patchObject({
-        apiVersion: 'apps/v1',
-        kind: 'StatefulSet',
-        metadata: {
-          namespace: targetBlockNode.metadata.namespace,
-          name: statefulSetName,
-        },
-        spec: {
-          template: {
-            spec: {
-              hostAliases,
+      try {
+        await k8.manifests().patchObject({
+          apiVersion: 'apps/v1',
+          kind: 'StatefulSet',
+          metadata: {
+            namespace: targetBlockNode.metadata.namespace,
+            name: statefulSetName,
+          },
+          spec: {
+            template: {
+              spec: {
+                hostAliases,
+              },
             },
           },
-        },
-      });
-      patched = true;
+        });
+        patched = true;
+      } catch (error) {
+        if (this.isStatefulSetNotFoundError(error, statefulSetName)) {
+          this.logger.warn(
+            `Skipping host alias patch for block node StatefulSet '${statefulSetName}': StatefulSet no longer exists`,
+          );
+          continue;
+        }
+        throw error;
+      }
 
       this.logger.debug(
         `Patched block node StatefulSet '${statefulSetName}' in namespace '${targetBlockNode.metadata.namespace}' ` +
@@ -1653,6 +1663,16 @@ export class BlockNodeCommand extends BaseCommand {
   private isImmutableStatefulSetError(error: unknown): boolean {
     const message: string = error instanceof Error ? error.message : String(error);
     return message.includes('StatefulSet.apps') && message.includes('spec: Forbidden');
+  }
+
+  private isStatefulSetNotFoundError(error: unknown, statefulSetName: string): boolean {
+    const message: string = error instanceof Error ? error.message : String(error);
+    return (
+      message.includes('HTTP-Code: 404') &&
+      message.includes('statefulsets.apps') &&
+      message.includes(statefulSetName) &&
+      message.includes('not found')
+    );
   }
 
   private async recreateBlockNodeChart(
