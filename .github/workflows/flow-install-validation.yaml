@@ -91,14 +91,24 @@ jobs:
             use_setup_node: true
           # Alpine is musl, so the glibc runtime actions/setup-node downloads cannot execute; the
           # apk-provided Node (22.x in 3.21) is used instead. GNU tar is required because busybox
-          # tar cannot serve the actions that unpack .tar.gz downloads.
+          # tar cannot serve the actions that unpack .tar.gz downloads. bash is absent from the base
+          # image (busybox provides only /bin/sh) and is required by every step after the bootstrap,
+          # which run under the workflow's default bash shell.
           - distro: alpine
             image: alpine:3.21
-            bootstrap: 'apk update && apk add git curl sudo ca-certificates tar nodejs npm'
+            bootstrap: 'apk update && apk add bash git curl sudo ca-certificates tar nodejs npm'
             use_setup_node: false
             podman_probe: 'apk search -x podman | grep -q podman'
     container:
       image: ${{ matrix.image }}
+      # Images that declare no PATH in their OCI config (quay.io/rockylinux/rockylinux:9 ships
+      # Env: ["container=oci"], opensuse/leap:16.0 ships Env: null) lose it entirely once an action
+      # prepends to GITHUB_PATH: the runner rebuilds the exec PATH from the container's declared
+      # PATH, so /usr/bin drops out and even bash stops resolving. Declaring the standard search
+      # path here gives every row something to prepend onto; all distributions in the matrix use
+      # these directories.
+      env:
+        PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -107,7 +117,11 @@ jobs:
 
       # The base distribution images ship none of git/curl/sudo. git and curl are needed for
       # checkout and the Node setup; sudo is needed because Solo elevates package installs via sudo.
+      # This is the only step that cannot use the workflow's default bash shell: on Alpine bash is
+      # one of the packages this very step installs, so requiring it here would be circular. Every
+      # distribution in the matrix ships /bin/sh, and every bootstrap command is plain POSIX sh.
       - name: Bootstrap Container
+        shell: sh
         run: ${{ matrix.bootstrap }}
 
       # Podman itself is installed through the Homebrew-on-Linux bootstrap (tracked separately by
