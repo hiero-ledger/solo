@@ -31,11 +31,6 @@ describe('Middlewares.warnDeprecatedFlags', (): void => {
   let originalArgv: string[];
 
   beforeEach((): void => {
-    Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, constants.SOLO_LOG_LEVEL);
-    middlewares = container.resolve<Middlewares>(InjectTokens.Middlewares);
-
-    Flags.allFlags.push(temporaryFlag);
-
     consoleOutput = [];
     originalConsoleLog = console.log;
     console.log = (...data: unknown[]): void => {
@@ -43,6 +38,11 @@ describe('Middlewares.warnDeprecatedFlags', (): void => {
     };
 
     originalArgv = process.argv;
+
+    Container.getInstance().init(constants.SOLO_HOME_DIR, constants.SOLO_CACHE_DIR, constants.SOLO_LOG_LEVEL);
+    middlewares = container.resolve<Middlewares>(InjectTokens.Middlewares);
+
+    Flags.allFlags.push(temporaryFlag);
   });
 
   afterEach((): void => {
