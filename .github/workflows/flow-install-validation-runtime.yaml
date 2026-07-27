@@ -67,6 +67,50 @@ jobs:
           version: 3.49.1
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install Matching Podman Network Helpers
+        run: |
+          # netavark and aardvark-dns are the only podman helpers Homebrew does not package, so
+          # helper_binaries_dir otherwise falls through to the netavark that shipped with the runner's
+          # preinstalled podman 4.x — and podman 6 hands it a network-options payload in a shape that
+          # the old netavark cannot deserialize, failing the container's network setup with "netavark:
+          # failed to load network options: IO error: invalid type: sequence, expected a map". That is
+          # the same version skew as the system crun described in the next step, except there is no
+          # brew binary to point at, so a matching pair is fetched here instead.
+          #
+          # v2.0.0 is the release line that pairs with podman 6.x. Homebrew tracks podman's latest, so
+          # this pin has to move whenever the brew podman major moves. The binaries come from the
+          # upstream containers/* GitHub releases — the same provenance Solo itself uses for podman,
+          # whose PodmanDependencyManager downloads from api.github.com/repos/containers/podman/releases
+          # — and each archive is checked against the sha256sum asset published with that release, so a
+          # bad or tampered download fails this step rather than being installed.
+          HELPER_VERSION='v2.0.0'
+          HELPER_DIRECTORY='/opt/podman-helpers'
+
+          # A dedicated directory: nothing is written into the brew prefix or the system podman
+          # directories, both of which belong to package managers that will overwrite them.
+          sudo mkdir -p "${HELPER_DIRECTORY}"
+
+          for HELPER in netavark aardvark-dns; do
+            RELEASE_URL="https://github.com/containers/${HELPER}/releases/download/${HELPER_VERSION}"
+            DOWNLOAD_DIRECTORY="$(mktemp -d)"
+
+            curl --fail --silent --show-error --location --output "${DOWNLOAD_DIRECTORY}/${HELPER}.gz" \
+              "${RELEASE_URL}/${HELPER}.gz"
+            curl --fail --silent --show-error --location --output "${DOWNLOAD_DIRECTORY}/sha256sum" \
+              "${RELEASE_URL}/sha256sum"
+
+            # The asset lists every file in the release, so --ignore-missing narrows the check to the
+            # one archive downloaded above; it still fails when that archive matches no listed entry.
+            if ! (cd "${DOWNLOAD_DIRECTORY}" && sha256sum --check --ignore-missing sha256sum); then
+              echo "::error::${HELPER}.gz does not match the checksum published for ${HELPER_VERSION}"
+              exit 1
+            fi
+
+            gunzip "${DOWNLOAD_DIRECTORY}/${HELPER}.gz"
+            sudo install --mode 0755 "${DOWNLOAD_DIRECTORY}/${HELPER}" "${HELPER_DIRECTORY}/${HELPER}"
+            "${HELPER_DIRECTORY}/${HELPER}" --version
+          done
+
       - name: Normalize System Container Configuration
         run: |
           # The GitHub-hosted ubuntu-latest image preinstalls podman 4.x along with the whole system
@@ -92,10 +136,13 @@ jobs:
           # create cluster` later in this job — and that kind step passes a short image name
           # (kindest/node:...), which only resolves via unqualified-search-registries.
           #
-          # Homebrew ships no netavark/aardvark-dns, so helper_binaries_dir keeps the system helper
-          # directories after the brew prefix. The brew binaries below do not exist yet — the brew
-          # bootstrap runs in the next step — which is why the diagnostics only report on them.
+          # helper_binaries_dir is searched in order, so the netavark/aardvark-dns pair installed by
+          # the previous step comes first, then the brew prefix, then the system helper directories
+          # that still supply every other helper podman looks up. The brew binaries below do not exist
+          # yet — the brew bootstrap runs in the next step — which is why the diagnostics only report
+          # on them.
           BREW_PREFIX='/home/linuxbrew/.linuxbrew'
+          HELPER_DIRECTORY='/opt/podman-helpers'
 
           for BINARY in /usr/bin/crun "${BREW_PREFIX}/bin/crun" "${BREW_PREFIX}/bin/conmon"; do
             if [[ -x "${BINARY}" ]]; then
@@ -122,7 +169,7 @@ jobs:
           [engine]
           runtime = "crun"
           conmon_path = ["${BREW_PREFIX}/bin/conmon"]
-          helper_binaries_dir = ["${BREW_PREFIX}/bin", "/usr/libexec/podman", "/usr/lib/podman"]
+          helper_binaries_dir = ["${HELPER_DIRECTORY}", "${BREW_PREFIX}/bin", "/usr/libexec/podman", "/usr/lib/podman"]
 
           [engine.runtimes]
           crun = ["${BREW_PREFIX}/bin/crun"]
