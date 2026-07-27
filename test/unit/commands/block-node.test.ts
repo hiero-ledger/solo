@@ -231,7 +231,7 @@ describe('BlockNodeCommand unit tests', (): void => {
       .rejects(
         new Error(
           'HTTP-Code: 404 Message: Unsuccessful HTTP Request Body: ' +
-            '"{\\"message\\":\\"statefulsets.apps \\\\\\"block-node-2\\\\\\" not found\\"}"',
+            String.raw`"{\"message\":\"statefulsets.apps \\\"block-node-2\\\" not found\"}"`,
         ),
       );
 
