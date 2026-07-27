@@ -164,9 +164,9 @@ flags may be specified at any level of the command hierarchy.
 #### Example Commands
 
 ```bash
-solo cluster-ref state start # Start Docker Desktop / Podman machine and the existing Kind cluster containers if needed
-solo cluster-ref state stop # Stop the Kind cluster containers to conserve resources
-solo cluster-ref state info # Show the container engine and Kind cluster container state
+solo cluster-ref state start # Start Docker Desktop / Podman machine, then any stopped Kind cluster containers of the configured cluster references
+solo cluster-ref state stop # Stop the running Kind cluster containers of the configured cluster references
+solo cluster-ref state info # Show the container engine state and every Kind cluster container, marking the Solo-managed ones
 solo cluster-ref config connect --cluster-ref <name> --context <context>
 solo deployment config create --deployment <name> --namespace <name> 
 solo deployment config list
@@ -398,11 +398,11 @@ operations associated with each resource.
 
 #### State
 
-| Operation Name | Command Syntax | Description                                                                                                              |
-|----------------|----------------|--------------------------------------------------------------------------------------------------------------------------|
-| **Start**      | `start`        | Starts the container engine (Docker Desktop / Podman machine) and the existing Kind cluster containers if needed.        |
-| **Stop**       | `stop`         | Stops the Kind cluster containers if needed.                                                                             |
-| **Info**       | `info`         | Displays the container engine and Kind cluster container state.                                                          |
+| Operation Name | Command Syntax | Description                                                                                                                                                                    |
+|----------------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Start**      | `start`        | Starts the container engine (Docker Desktop / Podman machine), then starts any stopped Kind cluster containers belonging to the configured cluster references.                 |
+| **Stop**       | `stop`         | Stops the running Kind cluster containers belonging to the configured cluster references. Kind clusters not managed by Solo are left untouched.                                |
+| **Info**       | `info`         | Displays the container engine state and the state of every Kind cluster container on the machine, marking which ones belong to a Solo cluster reference.                       |
 
 <p align="right">
 :arrow_up_small: <a href="#table-of-contents">Back to top</a>

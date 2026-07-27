@@ -105,7 +105,7 @@ export class ClusterCommandHandlers extends CommandHandler {
     return true;
   }
 
-  /** Starts the container engine (Docker Desktop / Podman machine) and the Kind cluster containers if needed. */
+  /** Starts the container engine (Docker Desktop / Podman machine) and any stopped Kind cluster containers of the configured cluster references. */
   public async stateStart(argv: ArgvStruct): Promise<boolean> {
     argv = addFlagsToArgv(argv, ContextFlags.NO_FLAGS);
 
@@ -121,7 +121,7 @@ export class ClusterCommandHandlers extends CommandHandler {
     return true;
   }
 
-  /** Stops the Kind cluster containers if needed. */
+  /** Stops the running Kind cluster containers of the configured cluster references. */
   public async stateStop(argv: ArgvStruct): Promise<boolean> {
     argv = addFlagsToArgv(argv, ContextFlags.NO_FLAGS);
 

@@ -119,7 +119,7 @@ export class ClusterStateService {
   private async launchEngine(engineName: string): Promise<void> {
     if (engineName === constants.PODMAN) {
       if (OperatingSystem.isLinux()) {
-        // ponytail: on Linux Podman runs daemonless; if `podman info` fails something deeper is wrong.
+        // on Linux Podman runs daemonless; if `podman info` fails something deeper is wrong
         throw new SoloErrors.system.containerEngineStartFailed(
           engineName,
           'Podman is installed but not responding and cannot be auto-started on Linux; ' +

@@ -147,7 +147,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               ClusterReferenceCommandDefinition.STATE_START,
-              'Starts the container engine (Docker Desktop / Podman machine) and the existing Kind cluster containers if needed.',
+              'Starts the container engine (Docker Desktop / Podman machine), then starts any stopped Kind cluster containers belonging to the configured cluster references. Already running containers are left untouched.',
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.stateStart,
               ContextFlags.NO_FLAGS,
@@ -157,7 +157,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               ClusterReferenceCommandDefinition.STATE_STOP,
-              'Stops the Kind cluster containers if needed.',
+              'Stops the running Kind cluster containers belonging to the configured cluster references, freeing local resources. Kind clusters not managed by Solo are left untouched.',
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.stateStop,
               ContextFlags.NO_FLAGS,
@@ -167,7 +167,7 @@ export class ClusterReferenceCommandDefinition extends BaseCommandDefinition {
           .addSubcommand(
             new Subcommand(
               ClusterReferenceCommandDefinition.STATE_INFO,
-              'Displays the container engine and Kind cluster container state.',
+              'Displays the container engine state and the state of every Kind cluster container on the machine, marking which ones belong to a Solo cluster reference.',
               this.clusterCommand.handlers,
               this.clusterCommand.handlers.stateInfo,
               ContextFlags.NO_FLAGS,
