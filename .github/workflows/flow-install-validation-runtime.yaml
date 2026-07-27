@@ -219,15 +219,33 @@ jobs:
           sudo env KIND_EXPERIMENTAL_PROVIDER=podman "PATH=${RUNTIME_PATH}" \
             kind create cluster --name "${CLUSTER_NAME}" --image "${KIND_NODE_IMAGE}"
 
-          if ! sudo env KIND_EXPERIMENTAL_PROVIDER=podman "PATH=${RUNTIME_PATH}" kind get clusters |
-            grep -qx "${CLUSTER_NAME}"; then
-            echo "::error::kind did not report cluster ${CLUSTER_NAME} after creation"
-            exit 1
-          fi
-
+          # Creation is asserted through podman and kubectl instead of `kind get clusters`, which cannot
+          # answer at all against podman 6:
+          #
+          #   ERROR: failed to list clusters: command "podman ps -a --filter
+          #   label=io.x-k8s.kind.cluster --format '{{index .Labels "io.x-k8s.kind.cluster"}}'" failed
+          #   Command Output: Error: template: ps:1:13: executing "ps" at
+          #   <index .Labels "io.x-k8s.kind.cluster">: error calling index: cannot index ...
+          #
+          # kind v0.29.0's podman provider lists clusters with exactly that Go template, and podman 6 no
+          # longer hands `--format` a .Labels value the `index` builtin can index, so every cluster
+          # listing errors out. Cluster creation is unaffected: it enumerates *nodes*
+          # (`podman ps --filter label=io.x-k8s.kind.cluster=<name> --format '{{.Names}}'`), which does
+          # not use the broken template. Solo pins kind v0.29.0 in version.ts while installing podman
+          # through Homebrew, which is now podman 6.x, so that pairing is what users get and
+          # KindClient.getClusters() (src/integration/kind/impl/default-kind-client.ts) hits the same
+          # break in the product, not only in this job. Tracked by hiero-ledger/solo#5354.
           if ! sudo env "PATH=${RUNTIME_PATH}" podman ps --filter "name=${CLUSTER_NAME}-control-plane" \
             --format '{{.Names}}' | grep -qx "${CLUSTER_NAME}-control-plane"; then
             echo "::error::podman has no running node container for cluster ${CLUSTER_NAME}"
+            exit 1
+          fi
+
+          # kubectl is preinstalled on the runner. kind wrote its kubeconfig under sudo, so the same
+          # `sudo env` wrapper reads it back through the context kind just set.
+          if ! sudo env "PATH=${RUNTIME_PATH}" kubectl wait --for=condition=Ready node --all \
+            --timeout=90s --context "kind-${CLUSTER_NAME}"; then
+            echo "::error::cluster ${CLUSTER_NAME} never reported a Ready node through kubectl"
             exit 1
           fi
 
@@ -243,18 +261,30 @@ jobs:
           fi
           RUNTIME_PATH="${PODMAN_DIRECTORY}:$(dirname "${KIND_PATH}"):${PATH}"
 
+          # kind's delete path may hit the same podman 6 listing defect as `kind get clusters` (see the
+          # previous step and hiero-ledger/solo#5354) — we do not yet know, and this run is how we find
+          # out. Its exit status is captured rather than allowed to abort the step, so the podman-based
+          # residue assertion below runs and reports either way.
+          DELETE_STATUS=0
           sudo env KIND_EXPERIMENTAL_PROVIDER=podman "PATH=${RUNTIME_PATH}" \
-            kind delete cluster --name "${CLUSTER_NAME}"
+            kind delete cluster --name "${CLUSTER_NAME}" || DELETE_STATUS=$?
 
-          if sudo env KIND_EXPERIMENTAL_PROVIDER=podman "PATH=${RUNTIME_PATH}" kind get clusters |
-            grep -qx "${CLUSTER_NAME}"; then
-            echo "::error::kind still lists cluster ${CLUSTER_NAME} after deletion"
-            exit 1
+          if [[ "${DELETE_STATUS}" -eq 0 ]]; then
+            echo "kind delete cluster --name ${CLUSTER_NAME} succeeded."
+          else
+            echo "::warning::kind delete cluster exited ${DELETE_STATUS}; the residue check decides this step"
           fi
 
+          # Residue is asserted through podman alone, for the same reason the creation step no longer
+          # calls `kind get clusters`.
           RESIDUAL_CONTAINERS="$(sudo env "PATH=${RUNTIME_PATH}" podman ps -a \
             --filter "name=${CLUSTER_NAME}" --format '{{.Names}}')"
           if [[ -n "${RESIDUAL_CONTAINERS}" ]]; then
-            echo "::error::podman left containers behind after deletion: ${RESIDUAL_CONTAINERS}"
+            # Leave the runner clean first — the names are newline-separated, so the unquoted expansion
+            # splits them into arguments — then fail loudly rather than pass on a half-deleted cluster.
+            sudo env "PATH=${RUNTIME_PATH}" podman rm --force --volumes ${RESIDUAL_CONTAINERS} ||
+              echo "::warning::podman could not force-remove every leftover container"
+            RESIDUAL_LIST="$(echo "${RESIDUAL_CONTAINERS}" | tr '\n' ' ')"
+            echo "::error::kind delete cluster did not clean up; podman force-removed: ${RESIDUAL_LIST}"
             exit 1
           fi
