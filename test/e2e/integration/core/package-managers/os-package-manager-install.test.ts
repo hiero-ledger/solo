@@ -25,12 +25,11 @@ function assertExecutableInstalled(executable: string): void {
   execFileSync('sh', ['-c', `command -v ${executable}`], {stdio: 'pipe'});
 }
 
+// eslint-disable-next-line prefer-arrow-callback
 describe('OsPackageManager real install validation', function (this: Mocha.Suite): void {
-  // A real package-index refresh plus install is well beyond the default unit-test timeout.
-  this.timeout(300_000);
-
   before(function (this: Mocha.Context): void {
     if (process.env[SOLO_OS_INSTALL_VALIDATION] !== 'true') {
+      // eslint-disable-next-line unicorn/no-this-outside-of-class
       this.skip();
     }
     resetForTest();
@@ -47,4 +46,4 @@ describe('OsPackageManager real install validation', function (this: Mocha.Suite
       expect((): void => assertExecutableInstalled(executable), `${executable} should be installed`).to.not.throw();
     }
   });
-});
+}).timeout(300_000);

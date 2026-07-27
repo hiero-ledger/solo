@@ -61,7 +61,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Release
-        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # 1.2.1
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # 1.3.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -71,7 +71,7 @@ jobs:
           node-registry: 'https://registry.npmjs.org/'
 
       - name: Setup JQ
-        uses: step-security/install-jq-action@6eecb102befc9cde313a218816ce91a941c1684c # v3.2.1
+        uses: step-security/install-jq-action@01c80bba4b4dfda4f9f5df20aa272d43e93a9fb1 # v4.0.1
         with:
           version: 1.7
 
@@ -167,7 +167,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # 1.2.1
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # 1.3.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -175,7 +175,7 @@ jobs:
           checkout-fetch-depth: '1'
 
       - name: Setup JQ
-        uses: step-security/install-jq-action@6eecb102befc9cde313a218816ce91a941c1684c # v3.2.1
+        uses: step-security/install-jq-action@01c80bba4b4dfda4f9f5df20aa272d43e93a9fb1 # v4.0.1
         with:
           version: 1.7
 
@@ -221,7 +221,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # 1.2.1
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # 1.3.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'
@@ -263,7 +263,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup JQ
-        uses: step-security/install-jq-action@6eecb102befc9cde313a218816ce91a941c1684c # v3.2.1
+        uses: step-security/install-jq-action@01c80bba4b4dfda4f9f5df20aa272d43e93a9fb1 # v4.0.1
         with:
           version: 1.7
 
@@ -537,7 +537,7 @@ jobs:
           egress-policy: audit
 
       - name: Prepare Job
-        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # 1.2.1
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # 1.3.0
         with:
           checkout: 'true'
           checkout-ref: '${{ github.ref }}'

@@ -122,9 +122,7 @@ export class K8ClientPods extends K8ClientBase implements Pods {
     for (const containerStatus of pod.allContainerStatuses ?? []) {
       if (containerStatus.waitingReason && K8ClientPods.FATAL_WAITING_REASONS.has(containerStatus.waitingReason)) {
         if (
-          (containerStatus.waitingReason === 'ErrImagePull' ||
-            containerStatus.waitingReason === 'ImagePullBackOff' ||
-            containerStatus.waitingReason === 'ImageInspectError') &&
+          ['ErrImagePull', 'ImagePullBackOff', 'ImageInspectError'].includes(containerStatus.waitingReason) &&
           !K8ClientPods.isNonRecoverableImagePullError(containerStatus.waitingMessage)
         ) {
           if (

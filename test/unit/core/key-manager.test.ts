@@ -5,7 +5,8 @@ import {describe, it} from 'mocha';
 
 import fs from 'node:fs';
 import os from 'node:os';
-import {type KeyManager} from '../../../src/core/key-manager.js';
+import sinon from 'sinon';
+import {KeyManager} from '../../../src/core/key-manager.js';
 import * as constants from '../../../src/core/constants.js';
 import {type NodeAlias} from '../../../src/types/aliases.js';
 import {Duration} from '../../../src/core/time/duration.js';
@@ -14,6 +15,8 @@ import {InjectTokens} from '../../../src/core/dependency-injection/inject-tokens
 import {PathEx} from '../../../src/business/utils/path-ex.js';
 import {type NodeKeyObject} from '../../../src/types/node-key-object.js';
 import {type PrivateKeyAndCertificateObject} from '../../../src/types/private-key-and-certificate-object.js';
+import {type K8Factory} from '../../../src/integration/kube/k8-factory.js';
+import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 
 describe('KeyManager', (): void => {
   const keyManager: KeyManager = container.resolve(InjectTokens.KeyManager);
@@ -79,6 +82,30 @@ describe('KeyManager', (): void => {
         signatureOnly: true,
       }),
     ).to.be.true;
+
+    fs.rmSync(temporaryDirectory, {recursive: true});
+  }).timeout(Duration.ofSeconds(20).toMillis());
+
+  it('createTlsSecret should remove the generated cert and key from disk after storing them in the secret', async (): Promise<void> => {
+    const temporaryDirectory: string = fs.mkdtempSync(PathEx.join(os.tmpdir(), 'tls-'));
+    const domainName: string = 'explorer.example.com';
+    const namespace: NamespaceName = NamespaceName.of('solo-e2e');
+    const certificatePath: string = PathEx.join(temporaryDirectory, `${domainName}.crt`);
+    const keyPath: string = PathEx.join(temporaryDirectory, `${domainName}.key`);
+
+    const k8FactoryStub: K8Factory = {
+      default: sinon.stub().returns({
+        secrets: sinon.stub().returns({
+          createOrReplace: sinon.stub().resolves(true),
+        }),
+      }),
+    } as unknown as K8Factory;
+
+    await KeyManager.createTlsSecret(k8FactoryStub, namespace, domainName, temporaryDirectory, 'ca-secret-test');
+
+    // The cert/key must be uploaded to the secret and then removed from the cache, leaving no private key behind.
+    expect(fs.existsSync(certificatePath)).to.be.false;
+    expect(fs.existsSync(keyPath)).to.be.false;
 
     fs.rmSync(temporaryDirectory, {recursive: true});
   }).timeout(Duration.ofSeconds(20).toMillis());
