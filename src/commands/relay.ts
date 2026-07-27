@@ -76,6 +76,7 @@ interface RelayDeployConfigClass {
   relayReleaseTag: string;
   componentImage: string;
   replicaCount: number;
+  loadBalancerEnabled: boolean;
   valuesFile: string;
   isChartInstalled: boolean;
   nodeAliases: NodeAliases;
@@ -113,6 +114,7 @@ interface RelayUpgradeConfigClass {
   relayReleaseTag: string;
   componentImage: string;
   replicaCount: number;
+  loadBalancerEnabled: boolean;
   valuesFile: string;
   isChartInstalled: boolean;
   nodeAliases: NodeAliases;
@@ -179,6 +181,7 @@ export class RelayCommand extends BaseCommand {
       flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
+      flags.loadBalancerEnabled,
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
@@ -209,6 +212,7 @@ export class RelayCommand extends BaseCommand {
       flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
+      flags.loadBalancerEnabled,
       flags.valuesFile,
       flags.domainName,
       flags.forcePortForward,
@@ -243,6 +247,7 @@ export class RelayCommand extends BaseCommand {
     relayReleaseTag,
     componentImage,
     replicaCount,
+    loadBalancerEnabled,
     operatorId,
     operatorKey,
     namespace,
@@ -291,6 +296,10 @@ export class RelayCommand extends BaseCommand {
 
     if (replicaCount) {
       chartValues.set('relay.replicaCount', replicaCount).set('ws.replicaCount', replicaCount);
+    }
+
+    if (loadBalancerEnabled) {
+      chartValues.set('relay.service.type', 'LoadBalancer').set('ws.service.type', 'LoadBalancer');
     }
 
     const operatorIdUsing: string = operatorId || this.accountManager.getOperatorAccountId(deployment).toString();
