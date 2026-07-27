@@ -92,12 +92,12 @@ export class K8Client implements K8 {
       throw new MissingActiveClusterError();
     }
 
-    this.kubeClient = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.CoreV1Api);
-    this.networkingApi = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.NetworkingV1Api);
+    this.kubeClient = this.kubeConfig.makeApiClient(k8s.CoreV1Api);
+    this.networkingApi = this.kubeConfig.makeApiClient(k8s.NetworkingV1Api);
     this.coordinationApiClient = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.CoordinationV1Api);
-    this.extensionApi = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.ApiextensionsV1Api);
-    this.rbacApi = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.RbacAuthorizationV1Api);
-    this.k8sObjectApi = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.KubernetesObjectApi);
+    this.extensionApi = this.kubeConfig.makeApiClient(k8s.ApiextensionsV1Api);
+    this.rbacApi = this.kubeConfig.makeApiClient(k8s.RbacAuthorizationV1Api);
+    this.k8sObjectApi = this.kubeConfig.makeApiClient(k8s.KubernetesObjectApi);
 
     this.k8Clusters = new K8ClientClusters(this.kubeConfig);
     this.k8ConfigMaps = new K8ClientConfigMaps(this.kubeClient);
