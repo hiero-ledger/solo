@@ -186,8 +186,8 @@ export class CommandBuilder {
 
                 if (subcommand.flags) {
                   handlerDefinition.builder = (y: AnyYargs): void => {
-                    flags.setRequiredCommandFlags(y, ...subcommand.flags.required);
-                    flags.setOptionalCommandFlags(y, ...subcommand.flags.optional);
+                    flags.setRequiredCommandFlags(y, subcommand.flags.required, subcommandPath);
+                    flags.setOptionalCommandFlags(y, subcommand.flags.optional, subcommandPath);
                   };
                 }
 

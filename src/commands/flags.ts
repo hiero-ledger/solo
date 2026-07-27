@@ -120,20 +120,23 @@ export class Flags {
    * so the rich object never reaches yargs and the `[deprecated: ...]` annotation appears in `--help`
    * (and, because the docs are scraped from `--help`, in the generated documentation).
    */
-  private static toYargsOptions(definition: Definition): AnyObject {
+  private static toYargsOptions(definition: Definition, commandPath: string = ''): AnyObject {
     const {deprecated, ...yargsOptions}: Definition = definition;
-    return deprecated ? {...yargsOptions, deprecated: Deprecations.formatHelpMarker(deprecated)} : {...yargsOptions};
+    return deprecated && Deprecations.appliesToCommand(deprecated, commandPath)
+      ? {...yargsOptions, deprecated: Deprecations.formatHelpMarker(deprecated)}
+      : {...yargsOptions};
   }
 
   /**
    * Set flag from the flag option
    * @param y instance of yargs
    * @param commandFlags a set of command flags
-   *
+   * @param commandPath the command the flags are being registered for, e.g. `relay node add`; supplied so
+   *   that a flag deprecated only for certain commands is marked deprecated only there
    */
-  public static setRequiredCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]): void {
+  public static setRequiredCommandFlags(y: AnyYargs, commandFlags: CommandFlag[], commandPath?: string): void {
     for (const flag of commandFlags) {
-      y.option(flag.name, {...Flags.toYargsOptions(flag.definition), demandOption: true});
+      y.option(flag.name, {...Flags.toYargsOptions(flag.definition, commandPath), demandOption: true});
     }
   }
 
@@ -141,14 +144,15 @@ export class Flags {
    * Set flag from the flag option
    * @param y instance of yargs
    * @param commandFlags a set of command flags
-   *
+   * @param commandPath the command the flags are being registered for, e.g. `relay node add`; supplied so
+   *   that a flag deprecated only for certain commands is marked deprecated only there
    */
-  public static setOptionalCommandFlags(y: AnyYargs, ...commandFlags: CommandFlag[]): void {
+  public static setOptionalCommandFlags(y: AnyYargs, commandFlags: CommandFlag[], commandPath?: string): void {
     for (const flag of commandFlags) {
       const defaultValue: string | number | boolean =
         flag.definition.defaultValue === '' ? undefined : flag.definition.defaultValue;
       y.option(flag.name, {
-        ...Flags.toYargsOptions(flag.definition),
+        ...Flags.toYargsOptions(flag.definition, commandPath),
         default: defaultValue,
       });
     }

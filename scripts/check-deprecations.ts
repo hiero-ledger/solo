@@ -39,22 +39,23 @@ class DeprecationChecker {
     console.log(chalk.bold(`Deprecated features (current Solo version v${currentVersion}):`));
 
     let pastDueCount: number = 0;
-    let upcomingCount: number = 0;
     for (const entry of deprecations) {
       const removeBy: string = Deprecations.resolveRemoveBy(entry.deprecation);
       const isPastDue: boolean = new SemanticVersion<string>(currentVersion).greaterThanOrEqual(removeBy);
+      const scope: string[] | undefined = Deprecations.commandScope(entry.deprecation);
+      const scopeDetail: string = scope ? ` (only for ${scope.join(', ')})` : '';
+      const detail: string = `${entry.kind} '${entry.feature}'${scopeDetail} — since v${entry.deprecation.since}, removal v${removeBy}, issue #${entry.deprecation.removalIssue}`;
 
       if (isPastDue) {
         pastDueCount += 1;
+        console.log(
+          chalk.yellow(
+            `⚠ ${detail} — was due for removal in v${removeBy} (current v${currentVersion}). Remove it or update issue #${entry.deprecation.removalIssue}.`,
+          ),
+        );
       } else {
-        upcomingCount += 1;
+        console.log(chalk.dim(`• ${detail}`));
       }
-    }
-
-    console.log(chalk.dim(`Total deprecated features: ${deprecations.length}`));
-
-    if (upcomingCount > 0) {
-      console.log(chalk.dim(`Not yet due for removal: ${upcomingCount}`));
     }
 
     if (pastDueCount > 0) {

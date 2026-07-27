@@ -3,7 +3,7 @@
 import {Flags as flags} from '../commands/flags.js';
 import chalk from 'chalk';
 import {type CommandFlag} from '../types/flag-types.js';
-import {type Deprecation} from '../types/deprecation.js';
+import {type FlagDeprecation} from '../types/flag-deprecation.js';
 import {type RegisteredDeprecation} from '../types/registered-deprecation.js';
 import {Deprecations} from './deprecations.js';
 import {type DeprecationRegistry} from './deprecation-registry.js';
@@ -110,19 +110,34 @@ export class Middlewares {
   }
 
   /**
-   * Warns the user, once per invocation, whenever a deprecated flag is supplied. Whole-flag deprecations are
-   * discovered from the flag registry ({@link Definition.deprecated}); the `--dev` alias of `--debug` is a
-   * narrower alias-only deprecation handled explicitly.
+   * Warns the user, once per invocation, whenever a deprecated flag is supplied. Flag deprecations are
+   * discovered from the flag registry ({@link Definition.deprecated}): a flag deprecated outright warns
+   * wherever it is supplied, while a flag deprecated only for certain commands
+   * ({@link FlagDeprecation.commands}) warns solely when one of those commands — or an operation beneath it
+   * — was invoked. The `--dev` alias of `--debug` is a narrower alias-only deprecation handled explicitly.
    */
   public warnDeprecatedFlags(): (argv: ArgvStruct) => AnyObject {
     const logger: SoloLogger = this.logger;
 
     return (argv: ArgvStruct): AnyObject => {
+      const commandPath: string = (argv._ ?? []).join(' ').trim();
+
       for (const flag of flags.allFlags) {
-        const deprecation: Deprecation | undefined = flag.definition.deprecated;
-        if (deprecation && Middlewares.isFlagSupplied(flag)) {
-          logger.showUser(chalk.yellow(`⚠ ${Deprecations.formatDeprecationMessage(`--${flag.name}`, deprecation)}`));
+        const deprecation: FlagDeprecation | undefined = flag.definition.deprecated;
+        if (!deprecation || !Middlewares.isFlagSupplied(flag)) {
+          continue;
         }
+
+        if (!Deprecations.appliesToCommand(deprecation, commandPath)) {
+          continue;
+        }
+
+        // Name the invoked command in the warning for a scoped deprecation, so it is clear the flag is
+        // still supported elsewhere.
+        const commandScope: string | undefined = Deprecations.commandScope(deprecation) ? commandPath : undefined;
+        logger.showUser(
+          chalk.yellow(`⚠ ${Deprecations.formatDeprecationMessage(`--${flag.name}`, deprecation, commandScope)}`),
+        );
       }
 
       // `--dev` is the deprecated alias of `--debug`. Only the alias is deprecated (the `--debug` flag itself

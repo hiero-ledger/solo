@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type Deprecation} from '../types/deprecation.js';
+import {type FlagDeprecation} from '../types/flag-deprecation.js';
 import {type Version} from '../types/index.js';
 import {SemanticVersion} from '../business/utils/semantic-version.js';
 
@@ -30,14 +31,41 @@ export class Deprecations {
   }
 
   /**
+   * Returns the command paths a flag deprecation is limited to, or `undefined` when the deprecation applies
+   * to every command that accepts the flag. Command and subcommand deprecations are never scoped, so they
+   * always yield `undefined`.
+   */
+  public static commandScope(deprecation: FlagDeprecation): string[] | undefined {
+    return deprecation.commands?.length ? deprecation.commands : undefined;
+  }
+
+  /**
+   * Returns true when a deprecation applies to the invoked command path. An unscoped deprecation applies
+   * everywhere; a scoped one applies to each listed command path and to every operation beneath it, so
+   * scoping to `relay node` also covers `relay node add`.
+   * @param deprecation - the structured deprecation metadata
+   * @param commandPath - the invoked command path, e.g. `relay node add` (empty when no command was given)
+   */
+  public static appliesToCommand(deprecation: FlagDeprecation, commandPath: string): boolean {
+    const scope: string[] | undefined = Deprecations.commandScope(deprecation);
+    if (!scope) {
+      return true;
+    }
+    return scope.some((command: string): boolean => commandPath === command || commandPath.startsWith(`${command} `));
+  }
+
+  /**
    * Builds the canonical warning shown to the user whenever a deprecated feature is used.
    * @param feature - the deprecated feature's identifier, e.g. `--relay-release`
    * @param deprecation - the structured deprecation metadata
+   * @param commandScope - the command the deprecation applies to, for a deprecation scoped to specific
+   *   commands; omitted for a feature that is deprecated outright
    */
-  public static formatDeprecationMessage(feature: string, deprecation: Deprecation): string {
+  public static formatDeprecationMessage(feature: string, deprecation: Deprecation, commandScope?: string): string {
     const removeBy: Version = Deprecations.resolveRemoveBy(deprecation);
+    const scope: string = commandScope ? ` for '${commandScope}'` : '';
     const parts: string[] = [
-      `'${feature}' is deprecated since v${deprecation.since} and will be removed in v${removeBy}.`,
+      `'${feature}' is deprecated${scope} since v${deprecation.since} and will be removed in v${removeBy}.`,
     ];
     if (deprecation.replacement) {
       parts.push(`Use '${deprecation.replacement}' instead.`);
@@ -45,7 +73,6 @@ export class Deprecations {
     if (deprecation.reason) {
       parts.push(deprecation.reason);
     }
-    parts.push(`(tracking issue: #${deprecation.removalIssue})`);
     return parts.join(' ');
   }
 

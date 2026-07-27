@@ -11,8 +11,9 @@ import {Flags} from '../commands/flags.js';
  * documentation.
  *
  * Flag deprecations are derived on demand from {@link Flags.allFlags}, so they never need explicit
- * registration. Command and subcommand deprecations are registered by {@link CommandBuilder.build} as the
- * command tree is assembled.
+ * registration; a flag deprecated only for certain commands is listed once, with its scope carried on the
+ * {@link FlagDeprecation.commands} metadata. Command and subcommand deprecations are registered by
+ * {@link CommandBuilder.build} as the command tree is assembled.
  */
 @injectable()
 export class DeprecationRegistry {

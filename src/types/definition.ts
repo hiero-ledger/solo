@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type Deprecation} from './deprecation.js';
+import {type FlagDeprecation} from './flag-deprecation.js';
 
 export interface Definition {
   describe: string;
@@ -9,5 +9,5 @@ export interface Definition {
   type?: string;
   disablePrompt?: boolean;
   dataMask?: string;
-  deprecated?: Deprecation;
+  deprecated?: FlagDeprecation;
 }

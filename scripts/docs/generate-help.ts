@@ -201,7 +201,12 @@ function renderDeprecatedFeaturesSection(): string {
       const removeBy: string = Deprecations.resolveRemoveBy(entry.deprecation);
       const replacement: string = entry.deprecation.replacement ? `\`${entry.deprecation.replacement}\`` : '—';
       const issue: string = `[#${entry.deprecation.removalIssue}](${ISSUE_URL_PREFIX}/${entry.deprecation.removalIssue})`;
-      return `| \`${entry.feature}\` | ${entry.kind} | v${entry.deprecation.since} | v${removeBy} | ${replacement} | ${issue} |`;
+      const scope: string[] | undefined = Deprecations.commandScope(entry.deprecation);
+      // A flag deprecated only for certain commands stays supported everywhere else — say so in the table.
+      const feature: string = scope
+        ? `\`${entry.feature}\` (only for ${scope.map((command: string): string => `\`${command}\``).join(', ')})`
+        : `\`${entry.feature}\``;
+      return `| ${feature} | ${entry.kind} | v${entry.deprecation.since} | v${removeBy} | ${replacement} | ${issue} |`;
     })
     .join('\n');
 
