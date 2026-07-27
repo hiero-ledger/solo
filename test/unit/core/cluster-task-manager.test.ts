@@ -83,14 +83,18 @@ describe('ClusterTaskManager', (): void => {
     const configPath: string = getConfigFilePath(manager, true);
 
     const renderedConfig: {
-      nodes?: {extraPortMappings?: {containerPort?: number; hostPort?: number; protocol?: string}[]}[];
+      nodes?: {
+        extraPortMappings?: {containerPort?: number; hostPort?: number; listenAddress?: string; protocol?: string}[];
+      }[];
     } = yaml.parse(fs.readFileSync(configPath, 'utf8'));
 
-    const portMappings: {containerPort?: number; hostPort?: number; protocol?: string}[] = renderedConfig.nodes
-      ? renderedConfig.nodes.flatMap(
-          (node): {containerPort?: number; hostPort?: number; protocol?: string}[] => node.extraPortMappings ?? [],
-        )
-      : [];
+    const portMappings: {containerPort?: number; hostPort?: number; listenAddress?: string; protocol?: string}[] =
+      renderedConfig.nodes
+        ? renderedConfig.nodes.flatMap(
+            (node): {containerPort?: number; hostPort?: number; listenAddress?: string; protocol?: string}[] =>
+              node.extraPortMappings ?? [],
+          )
+        : [];
 
     // containerPort values are NodePorts (range 30000-32767): 30003/30004 must match
     // resources/one-shot/mirror-ingress-controller-nodeport-values.yaml, the rest the
@@ -107,12 +111,18 @@ describe('ClusterTaskManager', (): void => {
       },
     ];
     for (const expected of expectedMappings) {
-      const mapping: {containerPort?: number; hostPort?: number; protocol?: string} | undefined = portMappings.find(
-        (entry): boolean => entry.containerPort === expected.containerPort,
-      );
+      const mapping:
+        {containerPort?: number; hostPort?: number; listenAddress?: string; protocol?: string} | undefined =
+        portMappings.find((entry): boolean => entry.containerPort === expected.containerPort);
       expect(mapping, `extraPortMapping for ${expected.containerPort} should be present`).to.not.equal(undefined);
       expect(mapping?.hostPort).to.equal(expected.hostPort);
       expect(expected.containerPort).to.be.greaterThanOrEqual(30_000).and.lessThanOrEqual(32_767);
+      // Must stay pinned to loopback: Kind defaults to 0.0.0.0, and a wildcard bind on a host port
+      // inside the Linux ephemeral range (32768-60999) collides with any outbound connection holding
+      // that port, failing the whole cluster creation with "bind: address already in use".
+      expect(mapping?.listenAddress, `extraPortMapping for ${expected.containerPort} must bind loopback only`).to.equal(
+        constants.LOCAL_HOST,
+      );
     }
   });
 });
