@@ -2,7 +2,6 @@
 
 import {type Contexts} from '../../../resources/context/contexts.js';
 import {type KubeConfig, CoreV1Api, type V1NamespaceList} from '@kubernetes/client-node';
-import {K8ClientApiFactory} from '../../k8-client-api-factory.js';
 import {NamespaceName} from '../../../../../types/namespace/namespace-name.js';
 
 export class K8ClientContexts implements Contexts {
