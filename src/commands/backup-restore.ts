@@ -145,8 +145,9 @@ export class BackupRestoreCommand extends BaseCommand {
   }
 
   public static BACKUP_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.quiet,
       flags.outputDir,
       flags.zipPassword,
@@ -157,8 +158,8 @@ export class BackupRestoreCommand extends BaseCommand {
   };
 
   public static RESTORE_CONFIG_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.quiet, flags.inputDir, flags.externalDbParamsFile],
+    required: [],
+    optional: [flags.deployment, flags.quiet, flags.inputDir, flags.externalDbParamsFile],
   };
 
   public static RESTORE_CLUSTERS_FLAGS_LIST: CommandFlags = {
@@ -177,8 +178,8 @@ export class BackupRestoreCommand extends BaseCommand {
   };
 
   public static BRIDGE_IMPORT_GAP_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.quiet, flags.externalDbParamsFile],
+    required: [],
+    optional: [flags.deployment, flags.quiet, flags.externalDbParamsFile],
   };
 
   /**

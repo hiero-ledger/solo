@@ -110,13 +110,14 @@ export class NetworkCommand extends BaseCommand {
   private static readonly DEPLOY_CONFIGS_NAME: string = 'deployConfigs';
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
-    optional: [flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
+    required: [],
+    optional: [flags.deployment, flags.deletePvcs, flags.deleteSecrets, flags.enableTimeout, flags.force, flags.quiet],
   };
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
-    required: [flags.deployment],
+    required: [],
     optional: [
+      flags.deployment,
       flags.apiPermissionProperties,
       flags.app,
       flags.applicationEnv,
@@ -566,9 +567,9 @@ export class NetworkCommand extends BaseCommand {
     }
 
     if (
-      config.storageType === constants.StorageType.GCS_ONLY ||
-      config.storageType === constants.StorageType.AWS_ONLY ||
-      config.storageType === constants.StorageType.AWS_AND_GCS
+      [constants.StorageType.GCS_ONLY, constants.StorageType.AWS_ONLY, constants.StorageType.AWS_AND_GCS].includes(
+        config.storageType,
+      )
     ) {
       for (const clusterReference of clusterReferences) {
         chartValuesMap[clusterReference].set('cloud.minio.enabled', false);
@@ -1867,6 +1868,23 @@ export class NetworkCommand extends BaseCommand {
               }
             }
 
+            // CN >= v0.76 loads the WRAPS proving key from a tarball at data/keys/wraps.tar.gz
+            // (tss.wrapsProvingKeyPath) at genesis, not from the pre-extracted
+            // TSS_LIB_WRAPS_ARTIFACTS_PATH directory. If the wraps-key-path directory carries the
+            // tarball, stage it under that exact name so the library is ready for the genesis history
+            // proof (construction #1). Without it the CN races a ~2 GB runtime download that finishes
+            // just after construction #1 finalizes, leaving it WRAPS-extensible=false forever.
+            let wrapsTarball: string | undefined;
+            if (config.wrapsKeyPath) {
+              const tarballName: string | undefined = fs
+                .readdirSync(config.wrapsKeyPath)
+                .find((file: string): boolean => file.endsWith('.tar.gz'));
+              if (tarballName) {
+                wrapsTarball = PathEx.join(constants.SOLO_CACHE_DIR, 'wraps.tar.gz');
+                fs.copyFileSync(PathEx.join(config.wrapsKeyPath, tarballName), wrapsTarball);
+              }
+            }
+
             for (const consensusNode of config.consensusNodes) {
               const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
                 config.namespace,
@@ -1874,6 +1892,10 @@ export class NetworkCommand extends BaseCommand {
               );
 
               await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+
+              if (wrapsTarball) {
+                await rootContainer.copyTo(wrapsTarball, `${constants.HEDERA_HAPI_PATH}/data/keys`);
+              }
             }
           },
         },
