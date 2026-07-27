@@ -562,7 +562,7 @@ export class BlockNodeCommand extends BaseCommand {
       skip: (): boolean => !this.remoteConfig.isLoaded(),
       task: async ({config}): Promise<void> => {
         const patchTime: Date = new Date();
-        const patched: boolean = await this.patchBlockNodePeerHostAliases(config.clusterRef, true);
+        const patched: boolean = await this.patchBlockNodePeerHostAliases(config.clusterRef, false);
         if (patched) {
           config.hostAliasesPatchTime = patchTime;
         }

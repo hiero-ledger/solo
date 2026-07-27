@@ -177,6 +177,51 @@ describe('BlockNodeCommand unit tests', (): void => {
     });
   });
 
+  it('should skip host alias patching when upgrading a single block node without peers', async (): Promise<void> => {
+    const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
+    const patchObjectStub: sinon.SinonStub = sinon.stub().resolves();
+
+    blockNodeCommandInternal.k8Factory = {
+      getK8: (): BlockNodeK8Stub => {
+        return {
+          services: (): BlockNodeServicesStub => {
+            return {
+              read: async (): Promise<{spec: {clusterIP: string}}> => {
+                return {spec: {clusterIP: '10.96.0.1'}};
+              },
+            };
+          },
+          manifests: (): BlockNodeManifestsStub => {
+            return {
+              patchObject: patchObjectStub,
+            };
+          },
+        };
+      },
+    };
+    blockNodeCommandInternal.remoteConfig = {
+      getClusterRefs: (): Record<string, string> => {
+        return {'cluster-a': 'kind-cluster-a'};
+      },
+      configuration: {
+        clusters: [new ClusterSchema('cluster-a', 'solo-ns', 'deployment', 'cluster.local')],
+        state: {
+          tssEnabled: false,
+          blockNodes: [
+            new BlockNodeStateSchema(
+              new ComponentStateMetadataSchema(1, 'solo-ns', 'cluster-a', DeploymentPhase.DEPLOYED, []),
+            ),
+          ],
+        },
+      },
+    };
+
+    const patched: boolean = await blockNodeCommandInternal.patchBlockNodePeerHostAliases('cluster-a', false);
+
+    expect(patched).to.equal(false);
+    expect(patchObjectStub).to.have.callCount(0);
+  });
+
   it('should prefer the current block node release when destroying id 1', async (): Promise<void> => {
     const blockNodeCommandInternal: BlockNodeCommandInternal = blockNodeCommand as unknown as BlockNodeCommandInternal;
 
