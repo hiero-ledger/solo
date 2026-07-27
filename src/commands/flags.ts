@@ -116,14 +116,18 @@ export class Flags {
 
   /**
    * Translates a flag {@link Definition} into the options object yargs understands. The structured
-   * {@link Definition.deprecated} metadata is converted into yargs' native `deprecated` marker (a string),
-   * so the rich object never reaches yargs and the `[deprecated: ...]` annotation appears in `--help`
-   * (and, because the docs are scraped from `--help`, in the generated documentation).
+   * {@link Definition.deprecated} metadata is reduced to yargs' native boolean `deprecated` marker, so the
+   * rich object never reaches yargs and `--help` renders a bare `[deprecated]` instead of an annotation wide
+   * enough to distort the option table. The version window, replacement, and tracking issue remain available
+   * in the warning printed when the flag is used and in the generated "Deprecated Features" table.
+   *
+   * A deprecation scoped to specific commands is marked only on those commands; the flag renders without the
+   * annotation everywhere else, including where the caller does not know its command path.
    */
   private static toYargsOptions(definition: Definition, commandPath: string = ''): AnyObject {
     const {deprecated, ...yargsOptions}: Definition = definition;
     return deprecated && Deprecations.appliesToCommand(deprecated, commandPath)
-      ? {...yargsOptions, deprecated: Deprecations.formatHelpMarker(deprecated)}
+      ? {...yargsOptions, deprecated: true}
       : {...yargsOptions};
   }
 
