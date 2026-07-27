@@ -562,6 +562,28 @@ export class ExplorerCommand extends BaseCommand {
     };
   }
 
+  private checkLoadBalancerIsAssignedTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Check load balancer is assigned',
+      skip: ({config}: ExplorerDeployContext | ExplorerUpgradeContext): boolean => !config.loadBalancerEnabled,
+      task: async ({config}: ExplorerDeployContext | ExplorerUpgradeContext): Promise<void> => {
+        try {
+          await this.k8Factory
+            .getK8(config.clusterContext)
+            .services()
+            .waitForLoadBalancerAddress(
+              config.namespace,
+              [`app.kubernetes.io/instance=${config.releaseName}`],
+              constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS,
+              Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS).toMillis(),
+            );
+        } catch (error) {
+          throw new SoloErrors.system.loadBalancerNotFound(error);
+        }
+      },
+    };
+  }
+
   private enablePortForwardingTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for explorer',
@@ -740,6 +762,7 @@ export class ExplorerCommand extends BaseCommand {
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
+        this.checkLoadBalancerIsAssignedTask(),
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
@@ -853,6 +876,7 @@ export class ExplorerCommand extends BaseCommand {
         this.installExplorerIngressControllerTask(),
         this.checkExplorerPodIsReadyTask(),
         this.checkExplorerIngressControllerPodIsReadyTask(),
+        this.checkLoadBalancerIsAssignedTask(),
         this.enablePortForwardingTask(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,

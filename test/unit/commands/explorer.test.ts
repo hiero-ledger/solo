@@ -453,6 +453,7 @@ describe('ExplorerCommand unit tests', (): void => {
       'Install explorer ingress controller',
       'Check explorer pod is ready',
       'Check haproxy ingress controller pod is ready',
+      'Check load balancer is assigned',
       'Enable port forwarding for explorer',
       'Show user messages',
     ]);
@@ -549,6 +550,7 @@ describe('ExplorerCommand unit tests', (): void => {
       'Install explorer ingress controller',
       'Check explorer pod is ready',
       'Check haproxy ingress controller pod is ready',
+      'Check load balancer is assigned',
       'Enable port forwarding for explorer',
     ]);
 

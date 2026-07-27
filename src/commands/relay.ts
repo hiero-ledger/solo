@@ -547,6 +547,28 @@ export class RelayCommand extends BaseCommand {
     };
   }
 
+  private checkLoadBalancerIsAssignedTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Check load balancer is assigned',
+      skip: ({config}: RelayDeployContext | RelayUpgradeContext): boolean => !config.loadBalancerEnabled,
+      task: async ({config}: RelayDeployContext | RelayUpgradeContext): Promise<void> => {
+        try {
+          await this.k8Factory
+            .getK8(config.context)
+            .services()
+            .waitForLoadBalancerAddress(
+              config.namespace,
+              [`app.kubernetes.io/instance=${config.releaseName}`],
+              constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS,
+              Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS).toMillis(),
+            );
+        } catch (error) {
+          throw new SoloErrors.system.loadBalancerNotFound(error);
+        }
+      },
+    };
+  }
+
   private enablePortForwardingTask(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for relay node',
@@ -690,6 +712,7 @@ export class RelayCommand extends BaseCommand {
         this.deployJsonRpcRelayTask(RelayCommandType.ADD),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
+        this.checkLoadBalancerIsAssignedTask(),
         this.enablePortForwardingTask(),
         {
           title: 'Show user messages',
@@ -815,6 +838,7 @@ export class RelayCommand extends BaseCommand {
         this.deployJsonRpcRelayTask(RelayCommandType.UPGRADE),
         this.checkRelayIsRunningTask(),
         this.checkRelayIsReadyTask(),
+        this.checkLoadBalancerIsAssignedTask(),
         this.enablePortForwardingTask(),
       ],
       constants.LISTR_DEFAULT_OPTIONS.DEFAULT,

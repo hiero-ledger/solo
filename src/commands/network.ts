@@ -55,8 +55,6 @@ import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {type CommandFlag, type CommandFlags} from '../types/flag-types.js';
 import {type K8} from '../integration/kube/k8.js';
 import {type Lock} from '../core/lock/lock.js';
-import {type LoadBalancerIngress} from '../integration/kube/resources/load-balancer-ingress.js';
-import {type Service} from '../integration/kube/resources/service/service.js';
 import {type Container} from '../integration/kube/resources/container/container.js';
 import {DeploymentPhase} from '../data/schema/model/remote/deployment-phase.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
@@ -1615,7 +1613,6 @@ export class NetworkCommand extends BaseCommand {
             }
           },
         },
-        // TODO: Move the check for load balancer logic to a utility method or class
         {
           title: 'Check for load balancer',
           skip: ({config: {loadBalancerEnabled}}): boolean => loadBalancerEnabled === false,
@@ -1627,34 +1624,19 @@ export class NetworkCommand extends BaseCommand {
               subTasks.push({
                 title: `Load balancer is assigned for: ${chalk.yellow(consensusNode.name)}, cluster: ${chalk.yellow(consensusNode.cluster)}`,
                 task: async (): Promise<void> => {
-                  let attempts: number = 0;
-                  let svc: Service[];
-
-                  while (attempts < constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS) {
-                    svc = await this.k8Factory
+                  try {
+                    await this.k8Factory
                       .getK8(consensusNode.context)
                       .services()
-                      .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId));
-
-                    if (svc && svc.length > 0 && svc[0].status?.loadBalancer?.ingress?.length > 0) {
-                      let shouldContinue: boolean = false;
-                      for (let index: number = 0; index < svc[0].status.loadBalancer.ingress.length; index++) {
-                        const ingress: LoadBalancerIngress = svc[0].status.loadBalancer.ingress[index];
-                        if (!ingress.hostname && !ingress.ip) {
-                          shouldContinue = true; // try again if there is neither a hostname nor an ip
-                          break;
-                        }
-                      }
-                      if (shouldContinue) {
-                        continue;
-                      }
-                      return;
-                    }
-
-                    attempts++;
-                    await sleep(Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS));
+                      .waitForLoadBalancerAddress(
+                        namespace,
+                        Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId),
+                        constants.LOAD_BALANCER_CHECK_MAX_ATTEMPTS,
+                        Duration.ofSeconds(constants.LOAD_BALANCER_CHECK_DELAY_SECS).toMillis(),
+                      );
+                  } catch (error) {
+                    throw new SoloErrors.system.loadBalancerNotFound(error);
                   }
-                  throw new SoloErrors.system.loadBalancerNotFound();
                 },
               });
             }
