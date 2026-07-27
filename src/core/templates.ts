@@ -25,7 +25,7 @@ export class Templates {
     return PodName.of(`network-${nodeAlias}-0`);
   }
 
-  private static renderNetworkSvcName(nodeAlias: NodeAlias): string {
+  public static renderNetworkSvcName(nodeAlias: NodeAlias): string {
     return `network-${nodeAlias}-svc`;
   }
 
