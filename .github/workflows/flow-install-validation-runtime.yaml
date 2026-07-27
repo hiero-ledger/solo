@@ -1,0 +1,152 @@
+##
+# Copyright (C) 2025 Hedera Hashgraph, LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+# Validates Solo's real Debian/Ubuntu container-runtime bootstrap: the Homebrew bootstrap plus
+# `brew install podman`, that the resulting podman runs a container rootfully (the mode Solo uses on
+# Linux), and that a kind cluster backed by that podman comes up and tears down with no residue.
+#
+# This job cannot live in the distribution-container matrix of flow-install-validation.yaml: podman
+# and kind need a VM-class runner, which a GitHub-hosted `ubuntu-latest` runner is.
+#
+# Tracked by hiero-ledger/solo#4888, closes hiero-ledger/solo#4910.
+name: 'Install Validation (Podman Runtime)'
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+env:
+  CLUSTER_NAME: solo-install-validation
+
+jobs:
+  podman-runtime-validation:
+    name: 'Install Validation (Podman Runtime)'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Task
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+        with:
+          version: 3.49.1
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate Homebrew Podman Install
+        env:
+          SOLO_PODMAN_RUNTIME_VALIDATION: 'true'
+        run: task test-podman-runtime-validation
+
+      - name: Resolve Pinned Versions and Podman Path
+        id: runtime
+        run: |
+          # kind's version and node image are read from the repo so this job cannot drift from the
+          # versions Solo actually pins.
+          source .github/workflows/script/helper.sh
+          echo "kind-version=$(extract_version KIND_VERSION version.ts)" >> "$GITHUB_OUTPUT"
+          echo "kind-node-image=$(extract_version KIND_NODE_IMAGE src/core/constants.ts)" >> "$GITHUB_OUTPUT"
+
+          # BrewPackageManager installs into this fixed prefix. Prefer it over any distribution
+          # podman, which is too old for kind; the PATH the previous step's brew bootstrap set lives
+          # in that test process only, not in this shell.
+          PODMAN_DIRECTORY="/home/linuxbrew/.linuxbrew/bin"
+          if [[ ! -x "${PODMAN_DIRECTORY}/podman" ]]; then
+            PODMAN_DIRECTORY="$(dirname "$(command -v podman)")"
+          fi
+          echo "podman-directory=${PODMAN_DIRECTORY}" >> "$GITHUB_OUTPUT"
+          "${PODMAN_DIRECTORY}/podman" --version
+
+      - name: Setup Kind
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        with:
+          # install_only keeps this to the kind binary — the cluster below is created with the
+          # podman provider, not the runner's docker daemon.
+          install_only: true
+          version: ${{ steps.runtime.outputs.kind-version }}
+
+      - name: Create Kind Cluster With Podman
+        env:
+          PODMAN_DIRECTORY: ${{ steps.runtime.outputs.podman-directory }}
+          KIND_NODE_IMAGE: ${{ steps.runtime.outputs.kind-node-image }}
+        run: |
+          RUNTIME_PATH="${PODMAN_DIRECTORY}:$(dirname "$(command -v kind)"):${PATH}"
+
+          # Same invocation shape as ClusterTaskManager: kind runs rootfully (PodmanMode.ROOTFUL on
+          # Linux) and sudo resets the PATH, so podman and kind are passed through `sudo env`.
+          sudo env KIND_EXPERIMENTAL_PROVIDER=podman "PATH=${RUNTIME_PATH}" \
+            kind create cluster --name "${CLUSTER_NAME}" --image "${KIND_NODE_IMAGE}"
+
+          if ! sudo env KIND_EXPERIMENTAL_PROVIDER=podman "PATH=${RUNTIME_PATH}" kind get clusters |
+            grep -qx "${CLUSTER_NAME}"; then
+            echo "::error::kind did not report cluster ${CLUSTER_NAME} after creation"
+            exit 1
+          fi
+
+          if ! sudo env "PATH=${RUNTIME_PATH}" podman ps --filter "name=${CLUSTER_NAME}-control-plane" \
+            --format '{{.Names}}' | grep -qx "${CLUSTER_NAME}-control-plane"; then
+            echo "::error::podman has no running node container for cluster ${CLUSTER_NAME}"
+            exit 1
+          fi
+
+      - name: Delete Kind Cluster And Assert No Residue
+        if: always()
+        env:
+          PODMAN_DIRECTORY: ${{ steps.runtime.outputs.podman-directory }}
+        run: |
+          KIND_PATH="$(command -v kind || true)"
+          if [[ -z "${PODMAN_DIRECTORY}" || -z "${KIND_PATH}" ]]; then
+            echo "Podman or kind was never resolved, so no cluster was created — nothing to clean up."
+            exit 0
+          fi
+          RUNTIME_PATH="${PODMAN_DIRECTORY}:$(dirname "${KIND_PATH}"):${PATH}"
+
+          sudo env KIND_EXPERIMENTAL_PROVIDER=podman "PATH=${RUNTIME_PATH}" \
+            kind delete cluster --name "${CLUSTER_NAME}"
+
+          if sudo env KIND_EXPERIMENTAL_PROVIDER=podman "PATH=${RUNTIME_PATH}" kind get clusters |
+            grep -qx "${CLUSTER_NAME}"; then
+            echo "::error::kind still lists cluster ${CLUSTER_NAME} after deletion"
+            exit 1
+          fi
+
+          RESIDUAL_CONTAINERS="$(sudo env "PATH=${RUNTIME_PATH}" podman ps -a \
+            --filter "name=${CLUSTER_NAME}" --format '{{.Names}}')"
+          if [[ -n "${RESIDUAL_CONTAINERS}" ]]; then
+            echo "::error::podman left containers behind after deletion: ${RESIDUAL_CONTAINERS}"
+            exit 1
+          fi
