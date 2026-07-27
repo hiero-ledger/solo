@@ -15,6 +15,9 @@ redis:
 # importer is a component of the hiero mirror node
 # config for subchart hiero-mirror/importer
 importer:
+  image:
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/importer
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -25,6 +28,25 @@ importer:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 200Mi
+    limits:
+      cpu: 1000m
+      memory: 220Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 300
   envFrom:
     - secretRef:
         name: mirror-passwords
@@ -54,6 +76,9 @@ importer:
               sidecar:
                 enabled: true
 grpc:
+  image:
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/grpc
   ingress:
     annotations:
       haproxy-ingress.github.io/backend-protocol: h2
@@ -67,7 +92,49 @@ grpc:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 100Mi
+    limits:
+      cpu: 500m
+      memory: 120Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+pinger:
+  enabled: true
+  resources:
+    requests:
+      cpu: 0
+      memory: 15Mi
+    limits:
+      cpu: 100m
+      memory: 20Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
 postgresql:
+  persistence:
+    size: 10Gi
   postgresql:
     nodeSelector: {}
     tolerations:
@@ -79,6 +146,13 @@ postgresql:
         operator: "Equal"
         value: "network"
         effect: "NoSchedule"
+    resources:
+      requests:
+        cpu: 0
+        memory: 0
+      limits:
+        cpu: 1000m
+        memory: 1000Mi
   pgpool:
     replicaCount: 0
 rest:
@@ -92,6 +166,25 @@ rest:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 120Mi
+    limits:
+      cpu: 500m
+      memory: 120Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
   monitor:
     enabled: false
   redis:
@@ -99,6 +192,9 @@ rest:
   global:
     hostname: "localhost"
 restjava:
+  image:
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/rest-java
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -109,7 +205,29 @@ restjava:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 175Mi
+    limits:
+      cpu: 2
+      memory: 200Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
 web3:
+  image:
+    registry: ghcr.io
+    repository: hiero-ledger/hiero-mirror-node/web3
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -120,11 +238,53 @@ web3:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 185Mi
+    limits:
+      cpu: 1000m
+      memory: 185Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  config:
+    hiero:
+      mirror:
+        web3:
+          # Enable opcode tracer to support debugging and transaction tracing in solo deployments
+          opcode:
+            tracer:
+              enabled: true
+
+          # Defaults to TESTNET, therefor it needs to be set to OTHER for solo deployments
+          evm:
+            network: OTHER
+
+          # This cache causes an issue where data about contractState, entity and tokens to be outdated for a short
+          # period after a transaction is imported into the mirror node, which forces users to hardcode sleep logic into
+          # their tests and scripts to wait for the cache to expire before they can access that data.
+          # Disabling the cache makes sure that the data is always up to date and eliminates the need for hardcoded
+          # sleep logic in tests and scripts, resulting in a more reliable results and improved user experience.
+          cache:
+            contractState: expireAfterWrite=0s,maximumSize=0
+            entity: expireAfterWrite=0s,maximumSize=0
+            token: expireAfterWrite=0s,maximumSize=0
 
 # config for subchart hiero-mirror/monitor
 # Sets up a Pinger service that periodically submits CRYPTO_TRANSFER transactions
 # Additional configuration for node addresses, operator id and key should be handled by infrastructure code or solo
 monitor:
+  enabled: false
   nodeSelector: {}
   tolerations:
     - key: "solo-scheduling.io/os"
@@ -135,6 +295,13 @@ monitor:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 1000Mi
   envFrom:
     - secretRef:
         name: mirror-passwords
@@ -171,3 +338,7 @@ monitor:
                 enabled: true
                 samplePercent: 1
           network: OTHER
+  readinessProbe:
+    failureThreshold: 60
+    initialDelaySeconds: 0
+    timeoutSeconds: 1

@@ -38,6 +38,10 @@ on:
       - main
       - 'release/*'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 defaults:
   run:
     shell: bash
@@ -49,12 +53,12 @@ jobs:
       matrix: ${{ steps.set_matrix.outputs.matrix }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Read JSON and Set Matrix Output
         id: set_matrix
@@ -81,7 +85,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     uses: ./.github/workflows/zxc-unit-test.yaml
-    if: ${{ github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' }}
+    if: ${{ (github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true') && !cancelled() }}
     needs:
       - generate_matrix
       - code-style
@@ -90,7 +94,7 @@ jobs:
 
   e2e-tests:
     name: E2E Tests (${{ matrix.e2e-test-type.name }})
-    if: ${{ github.event_name == 'push' || github.event.inputs.enable-e2e-tests == 'true' }}
+    if: ${{ (github.event_name == 'push' || github.event.inputs.enable-e2e-tests == 'true') && !cancelled() }}
     uses: ./.github/workflows/zxc-e2e-test.yaml
     needs:
       - code-style
@@ -109,6 +113,15 @@ jobs:
       cluster-name: ${{ matrix.e2e-test-type.coverage-subdirectory }}-${{ github.run_id }}-${{ github.run_attempt }}
       install-dependencies: ${{ matrix.e2e-test-type.install-dependencies }}
       runner: ${{ matrix.e2e-test-type.runner }}
+      kind-install: ${{ matrix.e2e-test-type.kind-install }}
+      kind-version: ${{ matrix.e2e-test-type.kind-version }}
+      kind-node-image: ${{ matrix.e2e-test-type.kind-node-image }}
+      kubectl-install: ${{ matrix.e2e-test-type.kubectl-install }}
+      kubectl-version: ${{ matrix.e2e-test-type.kubectl-version }}
+      helm-install: ${{ matrix.e2e-test-type.helm-install }}
+      helm-version: ${{ matrix.e2e-test-type.helm-version }}
+      node-version: ${{ matrix.e2e-test-type.node-version }}
+      test-timeout-minutes: ${{ matrix.e2e-test-type.test-timeout-minutes }}
 
   analyze:
     name: Analyze
@@ -116,7 +129,9 @@ jobs:
     needs:
       - unit-tests
       - e2e-tests
-    if: ${{ (github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' || github.event.inputs.enable-e2e-tests == 'true') && !failure() && !cancelled() }}
+    if: >-
+      ${{ (github.event_name == 'push' || github.event.inputs.enable-unit-tests == 'true' ||
+      github.event.inputs.enable-e2e-tests == 'true') && !failure() && !cancelled() }}
     with:
       custom-job-label: Source Code
       #enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}

@@ -5,30 +5,29 @@ import {type PriorityMapping, type ToJSON} from '../types/index.js';
 import * as constants from './constants.js';
 import {type BlockNodeStateSchema} from '../data/schema/model/remote/state/block-node-state-schema.js';
 import {type ClusterSchema} from '../data/schema/model/common/cluster-schema.js';
-import {lt} from 'semver';
-import * as versions from '../../version.js';
 import {inject} from 'tsyringe-neo';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {patchInject} from './dependency-injection/container-helper.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
 import {ExternalBlockNodeStateSchema} from '../data/schema/model/remote/state/external-block-node-state-schema.js';
+import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
+import {SoloConfigSchema} from '../data/schema/model/solo/solo-config-schema.js';
+import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
 
-type BlockNodeConnectionData =
-  | {
-      address: string;
-      port: number;
-      priority: number;
-    }
-  | {
-      address: string;
-      streamingPort: number;
-      servicePort: number;
-      priority: number;
-    };
+type BlockNodeConnectionDatabase = {
+  messageSizeSoftLimitBytes?: number;
+  messageSizeHardLimitBytes?: number;
+};
+
+type BlockNodeConnectionData = {
+  address: string;
+  streamingPort: number;
+  servicePort: number;
+  priority: number;
+} & BlockNodeConnectionDatabase;
 
 interface BlockNodesJsonStructure {
   nodes: BlockNodeConnectionData[];
-  blockItemBatchSize: number;
 }
 
 /**
@@ -37,30 +36,51 @@ interface BlockNodesJsonStructure {
  */
 export class BlockNodesJsonWrapper implements ToJSON {
   private readonly remoteConfig: RemoteConfigRuntimeStateApi;
+  private readonly configProvider: ConfigProvider;
   private readonly blockNodes: BlockNodeStateSchema[];
   private readonly externalBlockNodes: ExternalBlockNodeStateSchema[];
+  private readonly tssEnabled: boolean;
 
   public constructor(
     private readonly blockNodeMap: PriorityMapping[],
     private readonly externalBlockNodeMap: PriorityMapping[],
     @inject(InjectTokens.RemoteConfigRuntimeState) remoteConfig?: RemoteConfigRuntimeStateApi,
+    @inject(InjectTokens.ConfigProvider) configProvider?: ConfigProvider,
   ) {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
+    this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
     this.blockNodes = this.remoteConfig.configuration.state.blockNodes;
     this.externalBlockNodes = this.remoteConfig.configuration.state.externalBlockNodes;
+    this.tssEnabled = this.remoteConfig.configuration.state.tssEnabled ?? false;
   }
 
   public toJSON(): string {
     return JSON.stringify(this.buildBlockNodesJsonStructure());
   }
 
-  private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
-    // Figure out field name for port
-    const useLegacyPortName: boolean = lt(
-      this.remoteConfig.configuration.versions.consensusNode,
-      versions.MINIMUM_HIERO_CONSENSUS_NODE_VERSION_FOR_LEGACY_PORT_NAME_FOR_BLOCK_NODES_JSON_FILE,
-    );
+  /**
+   * Resolves the message-size limit fields written into each block-nodes.json entry. Only emitted when
+   * TSS is enabled. A deployment-wide override persisted in remote config (set via the block node
+   * `--block-node-message-size-*-limit-bytes` flags) takes precedence over the TSS config default.
+   */
+  private resolveMessageSizeFields(): BlockNodeConnectionDatabase {
+    if (!this.tssEnabled) {
+      return {};
+    }
 
+    const soloConfig: SoloConfig = new SoloConfig(this.configProvider.config().asObject(SoloConfigSchema));
+
+    return {
+      messageSizeSoftLimitBytes:
+        this.remoteConfig.configuration.state.blockNodeMessageSizeSoftLimitBytes ??
+        soloConfig.tss.messageSizeSoftLimitBytes,
+      messageSizeHardLimitBytes:
+        this.remoteConfig.configuration.state.blockNodeMessageSizeHardLimitBytes ??
+        soloConfig.tss.messageSizeHardLimitBytes,
+    };
+  }
+
+  private buildBlockNodesJsonStructure(): BlockNodesJsonStructure {
     const blockNodeConnectionData: BlockNodeConnectionData[] = [];
 
     for (const [id, priority] of this.blockNodeMap) {
@@ -78,17 +98,17 @@ export class BlockNodesJsonWrapper implements ToJSON {
         cluster.dnsBaseDomain,
       );
 
-      // Figure out the block node port
-      const useLegacyPort: boolean = lt(
-        this.remoteConfig.configuration.versions.blockNodeChart,
-        versions.MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_NEW_LIVENESS_CHECK_PORT,
-      );
+      const port: number = constants.BLOCK_NODE_PORT;
 
-      const port: number = useLegacyPort ? constants.BLOCK_NODE_PORT_LEGACY : constants.BLOCK_NODE_PORT;
+      const tssMessageSizeFields: BlockNodeConnectionDatabase = this.resolveMessageSizeFields();
 
-      blockNodeConnectionData.push(
-        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, servicePort: port, priority},
-      );
+      blockNodeConnectionData.push({
+        address,
+        streamingPort: port,
+        servicePort: port,
+        priority,
+        ...tssMessageSizeFields,
+      });
     }
 
     for (const [id, priority] of this.externalBlockNodeMap) {
@@ -99,14 +119,19 @@ export class BlockNodesJsonWrapper implements ToJSON {
       const address: string = blockNodeComponent.address;
       const port: number = blockNodeComponent.port;
 
-      blockNodeConnectionData.push(
-        useLegacyPortName ? {address, port, priority} : {address, streamingPort: port, servicePort: port, priority},
-      );
+      const tssMessageSizeFields: BlockNodeConnectionDatabase = this.resolveMessageSizeFields();
+
+      blockNodeConnectionData.push({
+        address,
+        streamingPort: port,
+        servicePort: port,
+        priority,
+        ...tssMessageSizeFields,
+      });
     }
 
     return {
       nodes: blockNodeConnectionData,
-      blockItemBatchSize: constants.BLOCK_ITEM_BATCH_SIZE,
     };
   }
 }

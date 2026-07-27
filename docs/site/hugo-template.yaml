@@ -1,4 +1,4 @@
-baseURL: https://solo.hiero.org/
+baseURL: https://hiero-ledger.github.io/
 title: Solo
 
 menu:
@@ -17,34 +17,6 @@ module:
     - path: github.com/google/docsy
       disable: false
   mounts:
-    - source: build/
-      target: content/docs
-      includeFiles:
-        - README.md
-        - legacy-versions.md
-    - source: build/
-      target: content/development
-      includeFiles: DEV.md
-    - source: build/
-      target: content/examples
-      includeFiles:
-        - address-book.md
-        - custom-network-config.md
-        - external-database-test.md
-        - hardhat-with-solo.md
-        - local-build-with-custom-config.md
-        - network-with-block-node.md
-        - network-with-domain-names.md
-        - node-create-transaction.md
-        - node-delete-transaction.md
-        - node-update-transaction.md
-        - one-shot-falcon.md
-        - rapid-fire.md
-        - state-save-and-restore.md
-        - version-upgrade-test.md
-        - multicluster-backup-restore.md
-    - source: ../../images
-      target: content/docs/readme/images
     - source: content/en
       target: content
       lang: en
@@ -148,7 +120,7 @@ params:
 
   # A link to latest version of the docs. Used in the "version-banner" partial to
   # point people to the main doc site.
-  url_latest_version: https://solo.hiero.org/
+  url_latest_version: https://hiero-ledger.github.io/solo/latest/
 
   # Repository configuration (URLs for in-page links to opening issues and suggesting changes)
   github_repo: https://github.com/hiero-ledger/solo
@@ -188,6 +160,8 @@ params:
     sidebar_menu_compact: false
     # Set to true to hide the sidebar search box (the top nav search box will still be displayed if search is enabled)
     sidebar_search_disable: true
+    # Enable light/dark mode toggle in the navbar
+    showLightDarkModeMenu: true
 
     # Adds a H2 section titled "Feedback" to the bottom of each doc. The responses are sent to Google Analytics as events.
     # This feature depends on [services.googleAnalytics] and will be disabled if "services.googleAnalytics.id" is not set.
@@ -241,5 +215,5 @@ params:
   # This menu appears only if you have at least one [params.versions] set.
   version_menu: Releases
   versions:
-    - {version: main, url: /main}
-    - {version: latest, url: /latest}
+    - {version: main, url: /solo/main}
+    - {version: latest, url: /solo/latest}

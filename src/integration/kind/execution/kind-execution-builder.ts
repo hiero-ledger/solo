@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import path from 'node:path';
 import {KindExecution} from './kind-execution.js';
+import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
+import {patchInject} from '../../../core/dependency-injection/container-helper.js';
+import {inject, injectable} from 'tsyringe-neo';
+import {ExecutionBuilder} from '../../execution-builder.js';
+import {SubprocessEnvironment} from '../../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../../core/subprocess-command-profile.js';
 
 /**
  * A builder for creating a kind command execution.
  */
-export class KindExecutionBuilder {
+@injectable()
+export class KindExecutionBuilder extends ExecutionBuilder {
   private static readonly NAME_MUST_NOT_BE_NULL: string = 'name must not be null';
   private static readonly VALUE_MUST_NOT_BE_NULL: string = 'value must not be null';
 
@@ -46,21 +52,17 @@ export class KindExecutionBuilder {
   private readonly _environmentVariables: Map<string, string> = new Map();
 
   /**
-   * The working directory to be used when executing the kind command.
-   */
-  private _workingDirectory: string;
-
-  /**
    * Creates a new KindExecutionBuilder instance.
    */
-  public constructor() {
-    const workingDirectoryString: string = process.env.PWD;
-    if (this.kindExecutable) {
-      this._workingDirectory =
-        workingDirectoryString && workingDirectoryString.trim() !== ''
-          ? workingDirectoryString
-          : path.dirname(this.kindExecutable);
-    }
+  public constructor(
+    @inject(InjectTokens.KindInstallationDirectory) private readonly kindInstallationDirectory?: string,
+  ) {
+    super();
+    this.kindInstallationDirectory = patchInject(
+      kindInstallationDirectory,
+      InjectTokens.KindInstallationDirectory,
+      KindExecutionBuilder.name,
+    );
   }
 
   public executable(kindExecutable: string): KindExecutionBuilder {
@@ -68,9 +70,6 @@ export class KindExecutionBuilder {
       throw new Error('kindExecutable must not be null');
     }
     this.kindExecutable = kindExecutable;
-    if (!this._workingDirectory) {
-      this._workingDirectory = path.dirname(this.kindExecutable);
-    }
     return this;
   }
 
@@ -152,19 +151,6 @@ export class KindExecutionBuilder {
   }
 
   /**
-   * Sets the working directory for the kind execution.
-   * @param workingDirectoryPath the path to the working directory
-   * @returns this builder
-   */
-  public workingDirectory(workingDirectoryPath: string): KindExecutionBuilder {
-    if (!workingDirectoryPath) {
-      throw new Error('workingDirectoryPath must not be null');
-    }
-    this._workingDirectory = workingDirectoryPath;
-    return this;
-  }
-
-  /**
    * Adds a flag to the kind execution.
    * @param flag the flag to be added
    * @returns this builder
@@ -183,12 +169,14 @@ export class KindExecutionBuilder {
    */
   public build(): KindExecution {
     const command: string[] = this.buildCommand();
-    const environment: Record<string, string> = {...process.env};
+    const environment: Record<string, string> = SubprocessEnvironment.forCommand(SubprocessCommandProfile.KIND);
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }
 
-    return new KindExecution(command, this._workingDirectory, environment);
+    this.prefixPath(environment, this.kindInstallationDirectory);
+
+    return new KindExecution(command, environment);
   }
 
   /**
@@ -196,7 +184,7 @@ export class KindExecutionBuilder {
    * @returns the command array
    */
   private buildCommand(): string[] {
-    const command: string[] = [`"${this.kindExecutable}"`, ...this._subcommands, ...this._flags];
+    const command: string[] = [`${this.kindExecutable}`, ...this._subcommands, ...this._flags];
 
     for (const [key, value] of this._arguments.entries()) {
       command.push(`--${key}`, value);

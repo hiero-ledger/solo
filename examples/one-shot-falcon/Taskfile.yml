@@ -8,16 +8,24 @@ env:
       else
         echo "npm run solo --"
       fi
-  ONE_SHOT_WITH_BLOCK_NODE: "true"
 
 vars:
   DEPLOYMENT: "falcon-deployment"
   CLUSTER_NAME: "falcon-cluster"
   CONTEXT: "kind-falcon-cluster"
+  TEMP_DIR: "{{ .USER_WORKING_DIR }}/.tmp"
+  KILLED_PORT_FILE: "{{ .TEMP_DIR }}/killed_port.txt"
+  EXPECTED_PORT_COUNT_FILE: "{{ .TEMP_DIR }}/expected_port_count.txt"
+  RELEASE_TAG:
+    sh: |
+      awk -v RS=';' '/HEDERA_PLATFORM_VERSION[[:space:]]*:[[:space:]]*string[[:space:]]*=/{s=$0;v="";while(match(s,/'"'"'[^'"'"']*'"'"'/)){v=substr(s,RSTART+1,RLENGTH-2);s=substr(s,RSTART+RLENGTH)};if(v!="")print v}' \
+        "$(git rev-parse --show-toplevel)/version.ts"
 
 tasks:
   deploy:
     desc: Deploy a complete Hiero network using one-shot falcon deploy
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
     cmds:
       # if using released version of Solo, make sure to run from solo project root directory
       - cmd: |
@@ -36,30 +44,136 @@ tasks:
 
       # Solo one-shot falcon deploy
       - cmd: |
+          RESOLVED=$(mktemp /tmp/falcon-values-XXXXXX)
+          RELEASE_TAG="{{ .RELEASE_TAG }}"
+          sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
+              -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
+            "{{ .USER_WORKING_DIR }}/falcon-values.yaml" > "${RESOLVED}"
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
-          --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
+            --values-file "${RESOLVED}" --num-consensus-nodes 2 --no-rollback
+          rm -f "${RESOLVED}"
 
   deploy-minimal:
     desc: Deploy with consensus and mirror node only (without explorer and relay)
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
     cmds:
       # Solo one-shot falcon deploy with disabled components
       - cmd: |
+          RESOLVED=$(mktemp /tmp/falcon-values-XXXXXX)
+          RELEASE_TAG="{{ .RELEASE_TAG }}"
+          sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
+              -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
+            "{{ .USER_WORKING_DIR }}/falcon-values.yaml" > "${RESOLVED}"
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
-          --deploy-explorer=false --deploy-relay=false
+            --values-file "${RESOLVED}" --num-consensus-nodes 2 \
+            --deploy-explorer=false --deploy-relay=false
+          rm -f "${RESOLVED}"
 
   deploy-consensus-only:
     desc: Deploy consensus nodes only (without mirror, explorer, and relay)
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
     cmds:
       # Solo one-shot falcon deploy with only consensus nodes
       - cmd: |
+          RESOLVED=$(mktemp /tmp/falcon-values-XXXXXX)
+          RELEASE_TAG="{{ .RELEASE_TAG }}"
+          sed -e "s/\${SOLO_RELEASE_TAG_NO_V}/${RELEASE_TAG#v}/g" \
+              -e "s/\${SOLO_RELEASE_TAG}/${RELEASE_TAG}/g" \
+            "{{ .USER_WORKING_DIR }}/falcon-values.yaml" > "${RESOLVED}"
           $SOLO_COMMAND one-shot falcon deploy \
-          --values-file {{ .USER_WORKING_DIR }}/falcon-values.yaml --num-consensus-nodes 2 \
-          --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
+            --values-file "${RESOLVED}" --num-consensus-nodes 2 \
+            --deploy-mirror-node=false --deploy-explorer=false --deploy-relay=false
+          rm -f "${RESOLVED}"
+
+  test-refresh:
+    desc: Kill one port-forward, then run deployment refresh port-forwards
+    cmds:    
+      - cmd: |
+          mkdir -p "{{ .TEMP_DIR }}"
+          node {{ .USER_WORKING_DIR }}/port-forward-status.mjs \
+            --mode summary \
+            --expected-port-count-file "{{ .EXPECTED_PORT_COUNT_FILE }}"
+          echo ""
+
+      - cmd: |
+          echo "==== Killing a random port-forward process ===="
+          node {{ .USER_WORKING_DIR }}/select-random-port-forward.mjs \
+            --kill \
+            --log-file "{{ .TEMP_DIR }}/port-forward-random.log" \
+            --killed-port-file "{{ .KILLED_PORT_FILE }}"
+
+      - cmd: |
+          echo ""
+          echo "==== Port-forward processes after killing one ===="
+          node {{ .USER_WORKING_DIR }}/port-forward-status.mjs --mode summary
+          echo ""
+
+      - cmd: |
+          echo "==== Running deployment refresh command ===="
+          RESOLVED_DEPLOYMENT="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}")"
+          echo "Using deployment: ${RESOLVED_DEPLOYMENT}"
+
+          if ! $SOLO_COMMAND deployment refresh port-forwards --help >/dev/null 2>&1; then
+            if [ "${USE_RELEASED_VERSION}" != "true" ]; then
+              echo "Refresh command not found in current local Solo build. Running task build and retrying..."
+              task build
+            fi
+          fi
+
+          if ! $SOLO_COMMAND deployment refresh port-forwards --help >/dev/null 2>&1; then
+            echo "ERROR: 'deployment refresh port-forwards' is not supported by the current Solo CLI." >&2
+            echo "Use a newer Solo version (or rebuild local Solo) and retry." >&2
+            exit 1
+          fi
+
+          $SOLO_COMMAND deployment refresh port-forwards --deployment "${RESOLVED_DEPLOYMENT}" --dev
+
+      - cmd: |
+          echo ""
+          echo "==== Port-forward processes after refresh ===="
+          node {{ .USER_WORKING_DIR }}/port-forward-status.mjs --mode summary
+          echo ""
+
+  verify:
+    desc: Verify killed port-forward was restored
+    cmds:
+      - cmd: |
+          echo "==== Verifying port-forwards ===="
+          node {{ .USER_WORKING_DIR }}/port-forward-status.mjs \
+            --mode verify \
+            --expected-port-count-file "{{ .EXPECTED_PORT_COUNT_FILE }}" \
+            --killed-port-file "{{ .KILLED_PORT_FILE }}"
+
+          RESOLVED_DEPLOYMENT="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}")"
+          RESOLVED_NAMESPACE="$(node {{ .USER_WORKING_DIR }}/resolve-deployment.mjs "{{ .DEPLOYMENT }}" namespace)"
+          echo "Using deployment: ${RESOLVED_DEPLOYMENT}"
+          echo "Using namespace: ${RESOLVED_NAMESPACE}"
+          export SOLO_DEPLOYMENT="${RESOLVED_DEPLOYMENT}"
+          export SOLO_NAMESPACE="$RESOLVED_NAMESPACE"
+
+          if [ "$(node -p "process.platform")" = "win32" ]; then
+            echo "Skipping solo smoke test on Windows: .github/workflows/script/solo_smoke_test.sh is POSIX shell."
+          elif git rev-parse --show-toplevel >/dev/null 2>&1; then
+            REPO_ROOT="$(git rev-parse --show-toplevel)"
+            echo "Running solo smoke test from repo root: ${REPO_ROOT}"
+            (cd "${REPO_ROOT}" && .github/workflows/script/solo_smoke_test.sh)
+          else
+            echo "Skipping solo smoke test: not running from a git repo checkout (likely release zip)."
+          fi
+
+  test:
+    desc: Run deploy + refresh-recovery verification
+    cmds:
+      - task: deploy
+      - task: test-refresh
+      - task: verify
 
   destroy:
     desc: Destroy the Solo network using one-shot falcon destroy
+    env:
+      ONE_SHOT_WITH_BLOCK_NODE: '{{default "true" .ONE_SHOT_WITH_BLOCK_NODE}}'
     cmds:
       # Solo one-shot falcon destroy
       - cmd: $SOLO_COMMAND one-shot falcon destroy
@@ -68,6 +182,6 @@ tasks:
       - cmd: kind delete cluster -n {{ .CLUSTER_NAME }}
 
   default:
-    desc: Run the default deploy task and test deploy-minimal
+    desc: Run deploy + refresh-recovery verification
     cmds:
-      - task: deploy
+      - task: test

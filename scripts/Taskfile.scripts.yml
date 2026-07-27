@@ -31,8 +31,6 @@ tasks:
     deps:
       - task: "init"
     cmds:
-      - task: "install:kubectl:darwin"
-      - task: "install:kubectl:linux"
       - task: "install"
       - task: "start"
 
@@ -161,37 +159,15 @@ tasks:
       - npm install
       - touch {{ .solo_install_file }}
 
-  install:kubectl:darwin:
-    silent: true
-    internal: true
-    platforms:
-      - darwin
-    status:
-      - command -v kubectl
-    cmds:
-      - brew update
-      - brew install kubernetes-cli
-
-  install:kubectl:linux:
-    silent: true
-    internal: true
-    platforms:
-      - linux
-    status:
-      - command -v kubectl
-    cmds:
-      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/{{ ARCH }}/kubectl"
-      - sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      - rm -rf kubectl
-
   solo:init:
     internal: true
     silent: true
     deps:
       - task: "init"
     status:
-      - test -f {{ .solo_bin_dir }}/helm
-      - test -f {{ .solo_cache_dir }}/profiles/custom-spec.yaml
+      - test -f {{ .solo_bin_dir }}/helm || command -v helm
+      - test -f {{ .solo_bin_dir }}/kubectl || command -v kubectl
+      - test -f {{ .solo_bin_dir }}/kind || command -v kind
       - test -f {{ .solo_cache_dir }}/templates/api-permission.properties
       - test -f {{ .solo_cache_dir }}/templates/application.properties
       - test -f {{ .solo_cache_dir }}/templates/bootstrap.properties
@@ -338,7 +314,8 @@ tasks:
     silent: true
     status:
       - |
-        {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz relay-1
+        PATH="{{ .solo_bin_dir }}:$PATH"
+        helm list -n "${SOLO_NAMESPACE}" | grep -vqz relay-1
     deps:
       - task: "init"
     cmds:
@@ -362,15 +339,6 @@ tasks:
       - echo "Removing solo logs directory..."
       - rm -rf {{ .solo_logs_dir }}
 
-  solo:config:remove:
-    silent: true
-    internal: true
-    status:
-      - test [[ ! -f {{ .solo_user_dir }}/solo.yaml ]]
-    cmds:
-      - echo "Removing solo config..."
-      - rm -rf {{ .solo_user_dir }}/solo.yaml
-
   solo:freeze:restart:
     cmds:
       - SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo -- consensus dev-freeze prepare-upgrade --deployment "${SOLO_DEPLOYMENT}" -q --dev
@@ -383,7 +351,21 @@ tasks:
     status:
       - kind get clusters | grep -q "${SOLO_CLUSTER_NAME}"
     cmds:
-      - kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}"
+      - |
+        KIND_CLUSTER_CONFIG_FILE="{{ .TASKFILE_DIR }}/../.github/workflows/script/kind-config.yaml"
+        KIND_CONFIG_RENDERER="{{ .TASKFILE_DIR }}/../.github/workflows/script/render_kind_config.sh"
+        if [[ -f "${KIND_CLUSTER_CONFIG_FILE}" ]]; then
+          if [[ -x "${KIND_CONFIG_RENDERER}" && -n "${KIND_DOCKER_REGISTRY_MIRRORS:-}" ]]; then
+            RENDERED_KIND_CLUSTER_CONFIG_FILE="$(mktemp -t kind-config-XXXX.yaml)"
+            "${KIND_CONFIG_RENDERER}" "${KIND_CLUSTER_CONFIG_FILE}" "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+            kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}" --config "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+            rm -f "${RENDERED_KIND_CLUSTER_CONFIG_FILE}"
+          else
+            kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}" --config "${KIND_CLUSTER_CONFIG_FILE}"
+          fi
+        else
+          kind create cluster -n "${SOLO_CLUSTER_NAME}" --image "${KIND_IMAGE}"
+        fi
       - sleep 10 # wait for control plane to come up
       - kubectl config set-context kind-${SOLO_CLUSTER_NAME}
 
@@ -419,7 +401,8 @@ tasks:
       - task: "solo:cluster:minio"
     status:
       - |
-        {{.solo_bin_dir}}/helm list --all-namespaces | grep -qz "${SOLO_CLUSTER_RELEASE_NAME}"
+        PATH="{{ .solo_bin_dir }}:$PATH"
+        helm list --all-namespaces | grep -qz "${SOLO_CLUSTER_RELEASE_NAME}"
     cmds:
       - |
         export MINIO_FLAG=$(cat {{ .minio_flag_file }})
@@ -526,7 +509,7 @@ tasks:
         fi
         if [[ "{{ .use_port_forwards }}" == "true" ]];then
           echo "Enable port forwarding for Hedera Explorer & Mirror Node Network"
-          echo "Port forwarding for Hedera Explorer: http://localhost:8080"
+          echo "Port forwarding for Hedera Explorer: http://localhost:38080"
           explorer_svc="$(kubectl get svc -l app.kubernetes.io/component=hiero-explorer -n ${EXPLORER_DEPLOYED_NAME_SPACE} --output json | jq -r '.items[].metadata.name')"
         fi
 
@@ -535,7 +518,8 @@ tasks:
     desc: solo mirror node destroy
     status:
       - |
-        {{.solo_bin_dir}}/helm list -n "${SOLO_NAMESPACE}" | grep -vqz "${MIRROR_RELEASE_NAME}"
+        PATH="{{ .solo_bin_dir }}:$PATH"
+        helm list -n "${SOLO_NAMESPACE}" | grep -vqz "${MIRROR_RELEASE_NAME}"
     deps:
       - task: "init"
     cmds:
@@ -580,7 +564,6 @@ tasks:
       - task: "destroy"
       - task: "clean:cache"
       - task: "clean:logs"
-      - task: "solo:config:remove"
       - task: "clean:tmp"
 
   clean:tmp:
@@ -595,7 +578,8 @@ tasks:
     desc: setup external database PostgreSQL with helm
     cmds:
       - |
-        {{.solo_bin_dir}}/helm install {{.postgres_name}} https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
+        PATH="{{ .solo_bin_dir }}:$PATH"
+        helm install {{.postgres_name}} https://charts.bitnami.com/bitnami/postgresql-12.1.2.tgz \
           --set image.tag=16.4.0 \
           --namespace {{.postgres_database_namespace}} --create-namespace \
           --set global.postgresql.auth.postgresPassword={{.postgres_password}} \

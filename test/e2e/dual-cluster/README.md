@@ -186,26 +186,6 @@ solo-cluster-setup	solo-setup    	1       	2025-02-14 16:05:58.114619 +0000 UTC	
 Switched to context "kind-solo-e2e-c1".
 ```
 
-## Diagnostics
-
-The `./diagnostics/cluster/deploy.sh` deploys a `cluster-diagnostics` deployment (and its pod) with a service that has its external IP exposed.  It is deployed to both clusters, runs Ubuntu, and has most diagnostic software installed.  After ran you can shell into the pod and use the container to run your own troubleshooting commands for verifying network connectivity between the two clusters or DNS resolution, etc.
-
-Calling
-
-```bash
-# from your Solo root directory run:
-$ ./test/e2e/dual-cluster/diagnostics/cluster/deploy.sh
-```
-
-Output:
-
-```bash
-namespace/cluster-diagnostics unchanged
-configmap/cluster-diagnostics-cm unchanged
-service/cluster-diagnostics-svc unchanged
-deployment.apps/cluster-diagnostics unchanged
-```
-
 ## Cleanup
 
 Calling

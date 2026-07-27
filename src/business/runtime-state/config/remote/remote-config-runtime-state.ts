@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../core/errors/solo-errors.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type ObjectMapper} from '../../../../data/mapper/api/object-mapper.js';
-import {ReadRemoteConfigBeforeLoadError} from '../../../errors/read-remote-config-before-load-error.js';
-import {WriteRemoteConfigBeforeLoadError} from '../../../errors/write-remote-config-before-load-error.js';
 import {RemoteConfigSource} from '../../../../data/configuration/impl/remote-config-source.js';
 import {YamlConfigMapStorageBackend} from '../../../../data/backend/impl/yaml-config-map-storage-backend.js';
 import {type ConfigMap} from '../../../../integration/kube/resources/config-map/config-map.js';
 import {LedgerPhase} from '../../../../data/schema/model/remote/ledger-phase.js';
-import {eq, SemVer} from 'semver';
 import {ComponentsDataWrapperApi} from '../../../../core/config/remote/api/components-data-wrapper-api.js';
 import {InjectTokens} from '../../../../core/dependency-injection/inject-tokens.js';
 import {type K8Factory} from '../../../../integration/kube/k8-factory.js';
@@ -33,10 +31,9 @@ import {
 import {NamespaceName} from '../../../../types/namespace/namespace-name.js';
 import {ComponentStateMetadataSchema} from '../../../../data/schema/model/remote/state/component-state-metadata-schema.js';
 import {Templates} from '../../../../core/templates.js';
-import {DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
+import {DeploymentPhase, DEPLOYMENT_PHASE_ORDER} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {getSoloVersion} from '../../../../../version.js';
 import * as constants from '../../../../core/constants.js';
-import {SoloError} from '../../../../core/errors/solo-error.js';
 import {Flags as flags} from '../../../../commands/flags.js';
 import {promptTheUserForDeployment} from '../../../../core/resolvers.js';
 import {ConsensusNode} from '../../../../core/model/consensus-node.js';
@@ -57,7 +54,11 @@ import {UserIdentitySchema} from '../../../../data/schema/model/common/user-iden
 import {Deployment} from '../local/deployment.js';
 import {RemoteConfig} from './remote-config.js';
 import {ComponentIdsSchema} from '../../../../data/schema/model/remote/state/component-ids-schema.js';
-import * as helpers from '../../../../core/helpers.js';
+import {type BaseStateSchema} from '../../../../data/schema/model/remote/state/base-state-schema.js';
+import {Helpers} from '../../../../core/helpers.js';
+import {ResourceNotFoundError} from '../../../../integration/kube/errors/resource-operation-errors.js';
+import {MissingRequiredParametersError} from '../../errors/missing-required-parameters-error.js';
+import {SemanticVersion} from '../../../utils/semantic-version.js';
 
 enum RuntimeStatePhase {
   Loaded = 'loaded',
@@ -65,7 +66,7 @@ enum RuntimeStatePhase {
 }
 
 interface VersionField {
-  value: SemVer;
+  value: SemanticVersion<string>;
 }
 
 @injectable()
@@ -157,13 +158,13 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
   private failIfNotLoaded(): void {
     if (!this.isLoaded()) {
-      throw new ReadRemoteConfigBeforeLoadError('Attempting to read from remote config before loading it');
+      throw new SoloErrors.internal.readRemoteConfigBeforeLoad();
     }
   }
 
   public async persist(): Promise<void> {
     if (!this.isLoaded()) {
-      throw new WriteRemoteConfigBeforeLoadError('Attempting to persist remote config before loading it');
+      throw new SoloErrors.internal.writeRemoteConfigBeforeLoad();
     }
 
     await this.source.persist();
@@ -211,7 +212,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     );
 
     const userIdentity: Readonly<UserIdentitySchema> = this.localConfig.configuration.userIdentity;
-    const cliVersion: SemVer = new SemVer(getSoloVersion());
+    const cliVersion: SemanticVersion<string> = new SemanticVersion<string>(getSoloVersion());
     const command: string = argv._.join(' ');
 
     const cluster: ClusterSchema = new ClusterSchema(
@@ -270,15 +271,23 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     //* add the new nodes to components
     for (const nodeAlias of nodeAliases) {
-      this.configuration.components.addNewComponent(
-        componentFactory.createNewConsensusNodeComponent(
-          Templates.renderComponentIdFromNodeAlias(nodeAlias),
-          clusterReference,
-          namespace,
-          DeploymentPhase.REQUESTED,
-        ),
+      const consensusNodeComponent: ConsensusNodeStateSchema = componentFactory.createNewConsensusNodeComponent(
+        Templates.renderComponentIdFromNodeAlias(nodeAlias),
+        clusterReference,
+        namespace,
+        DeploymentPhase.REQUESTED,
+      );
+
+      const consensusNodeAdded: boolean = this.configuration.components.addNewComponent(
+        consensusNodeComponent,
         ComponentTypes.ConsensusNode,
       );
+
+      if (!consensusNodeAdded) {
+        this.logger.info(
+          `Consensus node with id: ${consensusNodeComponent.metadata.id} already exists, skipping creation`,
+        );
+      }
     }
 
     await this.persist();
@@ -303,14 +312,26 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     return await this.k8Factory.getK8(context).configMaps().read(namespace, name);
   }
 
-  private async getConfigMap(namespace?: NamespaceName, context?: Context): Promise<ConfigMap> {
-    const configMap: ConfigMap = await this.k8Factory
-      .getK8(context)
-      .configMaps()
-      .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+  private async getConfigMap(namespace: NamespaceName, context: Context): Promise<ConfigMap> {
+    if (!namespace || !context) {
+      throw new MissingRequiredParametersError(
+        `Namespace and context are required to get the remote config ConfigMap, received namespace: ${namespace}, context: ${context}`,
+      );
+    }
 
+    let configMap: ConfigMap;
+    try {
+      configMap = await this.k8Factory
+        .getK8(context)
+        .configMaps()
+        .read(namespace, constants.SOLO_REMOTE_CONFIGMAP_NAME);
+    } catch (error) {
+      throw error instanceof ResourceNotFoundError ? error : new SoloErrors.system.kubernetesApiInvalidResponse();
+    }
     if (!configMap) {
-      throw new SoloError(`Remote config ConfigMap not found for namespace: ${namespace}, context: ${context}`);
+      throw new SoloErrors.system.resourceNotFound(
+        `remote config ConfigMap for namespace: ${namespace}, context: ${context}`,
+      );
     }
 
     return configMap;
@@ -327,7 +348,18 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public populateClusterReferences(deploymentName: DeploymentName): Context {
-    const deployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
+    let deployment: Deployment;
+    try {
+      deployment = this.localConfig.configuration.deploymentByName(deploymentName);
+    } catch {
+      // Deployment not in local config — fall back to namespace/context already resolved from remote config scan.
+      const namespaceFromConfig: NamespaceName = this.configManager.getFlag(flags.namespace);
+      if (namespaceFromConfig) {
+        this.namespace = namespaceFromConfig;
+      }
+      return this.configManager.getFlag<Context>(flags.context);
+    }
+
     this.namespace = NamespaceName.of(deployment.namespace);
 
     for (const clusterReference of deployment.clusters) {
@@ -353,6 +385,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   ): Promise<void> {
     await this.setDefaultNamespaceAndDeploymentIfNotSet(argv);
     await this.setDefaultContextIfNotSet();
+
+    // Sync resolved context back to argv so subsequent configManager.update(argv) preserves it.
+    argv[flags.context.name] ||= this.configManager.getFlag<Context>(flags.context);
 
     const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const context: Context = this.populateClusterReferences(deploymentName);
@@ -384,9 +419,15 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private initializeComponentVersions(argv: AnyObject, remoteConfig: RemoteConfigSchema): void {
-    remoteConfig.versions.chart = argv[flags.soloChartVersion.name]
-      ? new SemVer(argv[flags.soloChartVersion.name])
-      : new SemVer(flags.soloChartVersion.definition.defaultValue as string);
+    const chartVersionArgument: string | undefined = argv[flags.soloChartVersion.name] as string | undefined;
+    if (chartVersionArgument) {
+      // Explicit CLI flag always wins.
+      remoteConfig.versions.chart = new SemanticVersion(chartVersionArgument);
+    } else if (!remoteConfig.versions.chart || remoteConfig.versions.chart.equals('0.0.0')) {
+      // Only backfill default when the chart version is not initialized yet.
+      // Preserve previously recorded chart versions for commands that don't accept chart flags.
+      remoteConfig.versions.chart = new SemanticVersion(flags.soloChartVersion.definition.defaultValue as string);
+    }
 
     // set default versions if not set
     const componentTypes: ComponentTypes[] = [
@@ -398,43 +439,46 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     ];
 
     for (const componentType of componentTypes) {
-      const version: SemVer = this.getComponentVersion(componentType);
-      if (eq(version, new SemVer('0.0.0'))) {
+      const version: SemanticVersion<string> = this.getComponentVersion(componentType);
+      if (version.equals('0.0.0')) {
         switch (componentType) {
           case ComponentTypes.BlockNode: {
             this.updateComponentVersion(
               componentType,
-              new SemVer(flags.blockNodeChartVersion.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.blockNodeChartVersion.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.RelayNodes: {
             this.updateComponentVersion(
               componentType,
-              new SemVer(flags.relayReleaseTag.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.relayReleaseTag.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.MirrorNode: {
             this.updateComponentVersion(
               componentType,
-              new SemVer(flags.mirrorNodeVersion.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.mirrorNodeVersion.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.Explorer: {
             this.updateComponentVersion(
               componentType,
-              new SemVer(flags.explorerVersion.definition.defaultValue as string),
+              new SemanticVersion<string>(flags.explorerVersion.definition.defaultValue as string),
             );
             break;
           }
           case ComponentTypes.ConsensusNode: {
-            this.updateComponentVersion(componentType, new SemVer(flags.releaseTag.definition.defaultValue as string));
+            this.updateComponentVersion(
+              componentType,
+              new SemanticVersion<string>(flags.releaseTag.definition.defaultValue as string),
+            );
             break;
           }
           default: {
-            throw new SoloError(`Unsupported component type: ${componentType}`);
+            throw new SoloErrors.internal.remoteConfigUnsupportedComponent(componentType);
           }
         }
       }
@@ -453,26 +497,30 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   private async setDefaultNamespaceAndDeploymentIfNotSet(argv: AnyObject): Promise<void> {
-    const namespaceFromConfig: NamespaceNameAsString = this.configManager.getFlag(flags.namespace);
+    let namespaceFromConfig: NamespaceNameAsString = this.configManager.getFlag(flags.namespace);
     let deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
     const deploymentFromArgv: DeploymentName = argv[flags.deployment.name] as DeploymentName;
+    const namespaceFromArgv: NamespaceNameAsString = argv[flags.namespace.name] as NamespaceNameAsString;
 
-    // Keep config manager in sync when deployment is resolved directly in argv by caller logic.
+    // Keep config manager in sync when deployment/namespace are resolved directly in argv by caller logic.
     if (!deploymentName && deploymentFromArgv) {
       this.configManager.setFlag(flags.deployment, deploymentFromArgv);
       deploymentName = deploymentFromArgv;
+    }
+
+    // Keep config manager in sync when namespace is resolved directly in argv by caller logic.
+    // argv takes precedence over the default namespace that middleware may have set from kubectl context.
+    if (namespaceFromArgv) {
+      this.configManager.setFlag(flags.namespace, namespaceFromArgv);
+      namespaceFromConfig = namespaceFromArgv;
     }
 
     if (namespaceFromConfig && deploymentName) {
       return;
     }
 
-    // TODO: Current quick fix for commands where namespace is not passed
-    let currentDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
-
     if (!deploymentName) {
-      deploymentName = await promptTheUserForDeployment(this.configManager);
-      currentDeployment = this.localConfig.configuration.deploymentByName(deploymentName);
+      deploymentName = await promptTheUserForDeployment(this.configManager, undefined, this.localConfig);
       // TODO: Fix once we have the DataManager,
       //       without this the user will be prompted a second time for the deployment
       // TODO: we should not be mutating argv
@@ -483,9 +531,8 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       this.configManager.setFlag(flags.deployment, deploymentName);
     }
 
-    if (!currentDeployment) {
-      throw new SoloError(`Selected deployment name is not set in local config - ${deploymentName}`);
-    }
+    // TODO: Current quick fix for commands where namespace is not passed
+    const currentDeployment: Deployment = this.localConfig.configuration.deploymentByName(deploymentName);
 
     const namespace: NamespaceNameAsString = currentDeployment.namespace;
 
@@ -507,7 +554,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
     }
 
     if (!context) {
-      throw new SoloError("Context is not passed and default one can't be acquired");
+      throw new SoloErrors.internal.remoteConfigContextUnavailable();
     }
 
     this.logger.warn(`Context not found in flags, setting it to: ${context}`);
@@ -522,7 +569,7 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
    */
   public getConsensusNodes(): ConsensusNode[] {
     if (!this.isLoaded()) {
-      throw new SoloError('Remote configuration is not loaded, and was expected to be loaded');
+      throw new SoloErrors.internal.readRemoteConfigBeforeLoad();
     }
 
     const consensusNodes: ConsensusNode[] = [];
@@ -531,7 +578,9 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
       const cluster: ClusterSchema = this.configuration.clusters.find(
         (cluster: ClusterSchema): boolean => cluster.name === node.metadata.cluster,
       );
-      const context: Context = this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString();
+      const context: Context =
+        this.localConfig.configuration.clusterRefs.get(node.metadata.cluster)?.toString() ??
+        this.configManager.getFlag(flags.context);
       const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(node.metadata.id);
       const nodeId: NodeId = Templates.renderNodeIdFromComponentId(node.metadata.id);
 
@@ -604,10 +653,10 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
   }
 
   public extractContextFromConsensusNodes(nodeAlias: NodeAlias): Optional<string> {
-    return helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
+    return Helpers.extractContextFromConsensusNodes(nodeAlias, this.getConsensusNodes());
   }
 
-  public updateComponentVersion(type: ComponentTypes, version: SemVer): void {
+  public updateComponentVersion(type: ComponentTypes, version: SemanticVersion<string>): void {
     const updateVersionCallback: (versionField: VersionField) => void = (versionField: VersionField): void => {
       versionField.value = version;
     };
@@ -667,13 +716,13 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
         break;
       }
       default: {
-        throw new SoloError(`Unsupported component type: ${componentType}`);
+        throw new SoloErrors.internal.remoteConfigUnsupportedComponent(componentType);
       }
     }
   }
 
-  public getComponentVersion(type: ComponentTypes): SemVer {
-    let version: SemVer;
+  public getComponentVersion(type: ComponentTypes): SemanticVersion<string> {
+    let version: SemanticVersion<string>;
 
     const getVersionCallback: (versionField: VersionField) => void = (versionField: VersionField): void => {
       version = versionField.value;
@@ -681,5 +730,41 @@ export class RemoteConfigRuntimeState implements RemoteConfigRuntimeStateApi {
 
     this.applyCallbackToVersionField(type, getVersionCallback);
     return version;
+  }
+
+  private static readonly SNAPSHOT_COMPONENT_TYPES: readonly ComponentTypes[] = [
+    ComponentTypes.ConsensusNode,
+    ComponentTypes.BlockNode,
+    ComponentTypes.MirrorNode,
+    ComponentTypes.Explorer,
+    ComponentTypes.RelayNodes,
+  ];
+
+  public getComponentPhasesMap(): Map<ComponentTypes, DeploymentPhase> {
+    if (!this.isLoaded()) {
+      return new Map();
+    }
+    const phaseMap: Map<ComponentTypes, DeploymentPhase> = new Map();
+    for (const componentType of RemoteConfigRuntimeState.SNAPSHOT_COMPONENT_TYPES) {
+      const components: BaseStateSchema[] =
+        this.configuration.components.getComponentByType<BaseStateSchema>(componentType);
+      if (components.length === 0) {
+        continue;
+      }
+      const phases: DeploymentPhase[] = components
+        .map((component: BaseStateSchema): DeploymentPhase | undefined => component.metadata?.phase)
+        .filter((phase: DeploymentPhase | undefined): phase is DeploymentPhase => phase !== undefined);
+      if (phases.length === 0) {
+        continue;
+      }
+      let minimumPhase: DeploymentPhase = phases[0];
+      for (const phase of phases) {
+        if (DEPLOYMENT_PHASE_ORDER[phase] < DEPLOYMENT_PHASE_ORDER[minimumPhase]) {
+          minimumPhase = phase;
+        }
+      }
+      phaseMap.set(componentType, minimumPhase);
+    }
+    return phaseMap;
   }
 }

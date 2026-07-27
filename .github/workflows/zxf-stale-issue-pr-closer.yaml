@@ -1,8 +1,9 @@
 name: 'ZXF: Stale Issue/PR Closer'
 
 on:
+  # Run at 00:15 UTC every day, no need to run too frequently
   schedule:
-    - cron: '15 */1 * * *'
+    - cron: '15 0 * * *'
   workflow_dispatch:
 
 defaults:
@@ -21,12 +22,12 @@ jobs:
     runs-on: hiero-solo-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Close Stale Pull Requests
-        uses: actions/stale@b5d41d4e1d5dceea10e7104786b73624c18a190f # v10.2.0
+        uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629 # v10.4.0
         with:
           enable-statistics: true
           delete-branch: true

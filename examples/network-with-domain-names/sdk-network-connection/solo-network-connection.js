@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {AccountBalanceQuery, AccountId, Client, Logger, LogLevel, PrivateKey} from '@hiero-ledger/sdk';
+import {AccountId, AccountInfoQuery, Client, Logger, LogLevel, PrivateKey} from '@hiero-ledger/sdk';
 
 export const TREASURY_ACCOUNT_ID = '0.0.2';
 export const GENESIS_KEY =
@@ -11,7 +11,7 @@ export const GENESIS_KEY =
  * And it is in namespace = solo-e2e
  * we want to run the following commands to open ports
  * $ export SOLO_NAMESPACE=solo-e2e
- * $ kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 50211:50211 &
+ * $ kubectl port-forward svc/haproxy-node1-svc -n "${SOLO_NAMESPACE}" 35211:50211 &
  * $ kubectl port-forward svc/mirror-1-grpc -n "${SOLO_NAMESPACE}" 5600:5600 &
  **/
 
@@ -21,7 +21,7 @@ async function main() {
   const treasuryPrivateKey = PrivateKey.fromStringED25519(GENESIS_KEY);
   const network = {};
 
-  network['127.0.0.1:50211'] = AccountId.fromString('0.0.3');
+  network['127.0.0.1:35211'] = AccountId.fromString('0.0.3');
 
   const mirrorNetwork = '127.0.0.1:5600';
 
@@ -39,10 +39,10 @@ async function main() {
   // check balance
   console.log('checking balance');
   try {
-    const balance = await new AccountBalanceQuery().setAccountId('0.0.2').execute(nodeClient);
+    const accountInfo = await new AccountInfoQuery().setAccountId('0.0.2').execute(nodeClient);
 
     console.log('checking balance...end');
-    console.log(`Account ${treasuryAccountId} balance: ${balance?.hbars}`);
+    console.log(`Account ${treasuryAccountId} balance: ${accountInfo?.balance}`);
     console.log('...end');
   } catch (error) {
     console.log('failure');

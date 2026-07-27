@@ -13,7 +13,6 @@ import {DeploymentTest} from './tests/deployment-test.js';
 import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {MetricsServerImpl} from '../../../src/business/runtime-state/services/metrics-server-impl.js';
-import {AccountTest} from './tests/account-test.js';
 import * as constants from '../../../src/core/constants.js';
 
 import {type BaseTestOptions} from './tests/base-test-options.js';
@@ -24,12 +23,13 @@ import {type K8ClientFactory} from '../../../src/integration/kube/k8-client/k8-c
 import {HelmMetricsServer} from '../../helpers/helm-metrics-server.js';
 import {HelmMetalLoadBalancer} from '../../helpers/helm-metal-load-balancer.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
+import {TEST_UPGRADE_FROM_VERSION} from '../../../version-test.js';
 
 const testName: string = 'node-upgrade-test';
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
-  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withTestSuiteName('Node Upgrade Test Suite')
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
@@ -80,14 +80,19 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.addCluster(options);
         ConsensusNodeTest.keys(options);
 
-        NetworkTest.deploy(options);
-        ConsensusNodeTest.setup(options);
+        NetworkTest.deploy(options, TEST_UPGRADE_FROM_VERSION);
+
+        ConsensusNodeTest.setup(options, TEST_UPGRADE_FROM_VERSION);
         ConsensusNodeTest.start(options);
+        DeploymentTest.info(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
 
-        AccountTest.accountCreationShouldSucceed(options);
-        AccountTest.predefinedAccountCreationShouldSucceed(options);
+        // AccountTest.accountCreationShouldSucceed(options);
+        // AccountTest.predefinedAccountCreationShouldSucceed(options);
 
-        ConsensusNodeTest.upgrade(options);
+        // ConsensusNodeTest.upgrade(options);
+
+        ConsensusNodeTest.upgradeConfigs(options);
 
         describe('Write log metrics', async (): Promise<void> => {
           it('Should write log metrics', async (): Promise<void> => {

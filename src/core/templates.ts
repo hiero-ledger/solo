@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import * as x509 from '@peculiar/x509';
-import {DataValidationError} from './errors/data-validation-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
-import {SoloError} from './errors/solo-error.js';
 import * as constants from './constants.js';
 import {type AccountId} from '@hiero-ledger/sdk';
 import {type IP, type NodeAlias, type NodeAliases, type NodeId} from '../types/aliases.js';
 import {PodName} from '../integration/kube/resources/pod/pod-name.js';
 import {GrpcProxyTlsEnums} from './enumerations.js';
-import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {type NamespaceName} from '../types/namespace/namespace-name.js';
 import {
   type ClusterReferenceName,
   type ComponentId,
   type NamespaceNameAsString,
+  type NodeAliasToAddressMapping,
   type PriorityMapping,
 } from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
 import {type ConsensusNode} from './model/consensus-node.js';
+import {HEDERA_PLATFORM_VERSION} from '../../version.js';
 import {OperatingSystem} from '../business/utils/operating-system.js';
 
 export class Templates {
@@ -39,6 +37,10 @@ export class Templates {
     return `node${number_}`;
   }
 
+  public static renderPostgresPodName(number_: number): PodName {
+    return PodName.of(`solo-shared-resources-postgres-${number_}`);
+  }
+
   public static renderNodeAliasesFromCount(count: number, existingNodesCount: number): NodeAliases {
     const nodeAliases: NodeAliases = [];
     let nodeNumber: number = existingNodesCount + 1;
@@ -49,6 +51,36 @@ export class Templates {
     }
 
     return nodeAliases;
+  }
+
+  public static renderMirrorNodeDatabaseInitScriptUrl(release: string): string {
+    return `https://raw.githubusercontent.com/hiero-ledger/hiero-mirror-node/refs/tags/${release}/importer/src/main/resources/db/scripts/init.sh`;
+  }
+
+  public static renderMirrorNodeIngressControllerUrl(mirrorNamespace: NamespaceNameAsString): string {
+    return `http://${constants.MIRROR_INGRESS_CONTROLLER}-${mirrorNamespace}.${mirrorNamespace}.svc.cluster.local`;
+  }
+
+  public static renderMirrorNodeRestServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+  ): string {
+    return Templates.renderMirrorNodeServiceUrl(mirrorNodeReleaseName, mirrorNamespace, 'rest');
+  }
+
+  public static renderMirrorNodeWeb3ServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+  ): string {
+    return Templates.renderMirrorNodeServiceUrl(mirrorNodeReleaseName, mirrorNamespace, 'web3');
+  }
+
+  private static renderMirrorNodeServiceUrl(
+    mirrorNodeReleaseName: string,
+    mirrorNamespace: NamespaceNameAsString,
+    serviceName: string,
+  ): string {
+    return `http://${mirrorNodeReleaseName}-${serviceName}.${mirrorNamespace}.svc.cluster.local`;
   }
 
   public static renderGossipPemPrivateKeyFile(nodeAlias: NodeAlias): string {
@@ -82,14 +114,14 @@ export class Templates {
   public static extractNodeAliasFromPodName(podName: PodName): NodeAlias {
     const parts: string[] = podName.name.split('-');
     if (parts.length !== 3) {
-      throw new DataValidationError(`pod name is malformed : ${podName.name}`, 3, parts.length);
+      throw new SoloErrors.internal.dataValidation(`pod name is malformed : ${podName.name}`, 3, parts.length);
     }
     return parts[1].trim() as NodeAlias;
   }
 
   public static prepareReleasePrefix(tag: string): string {
     if (!tag) {
-      throw new MissingArgumentError('tag cannot be empty');
+      throw new SoloErrors.validation.missingArgument('tag cannot be empty');
     }
 
     const parsed: string[] = tag.split('.');
@@ -143,7 +175,7 @@ export class Templates {
   public static renderStagingDir(cacheDirectory: string, releaseTagOverride: string): string {
     let releaseTag: string = releaseTagOverride;
     if (!cacheDirectory) {
-      throw new IllegalArgumentError('cacheDirectory cannot be empty');
+      throw new SoloErrors.validation.illegalArgument('cacheDirectory cannot be empty');
     }
 
     if (!releaseTag) {
@@ -152,32 +184,33 @@ export class Templates {
 
     const releasePrefix: string = this.prepareReleasePrefix(releaseTag);
     if (!releasePrefix) {
-      throw new IllegalArgumentError('releasePrefix cannot be empty');
+      throw new SoloErrors.validation.illegalArgument('releasePrefix cannot be empty');
     }
 
     return PathEx.resolve(PathEx.join(cacheDirectory, releasePrefix, 'staging', releaseTag));
   }
 
-  public static installationPath(
-    dep: string,
+  public static localInstallationExecutableForDependency(
+    dependency: string,
     installationDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'bin'),
   ): string {
-    switch (dep) {
+    switch (dependency) {
       case constants.HELM:
       case constants.KIND:
       case constants.PODMAN:
       case constants.VFKIT:
       case constants.GVPROXY:
+      case constants.CRANE:
       case constants.KUBECTL: {
         if (OperatingSystem.isWin32()) {
-          return PathEx.join(installationDirectory, `${dep}.exe`);
+          return PathEx.join(installationDirectory, `${dependency}.exe`);
         }
 
-        return PathEx.join(installationDirectory, dep);
+        return PathEx.join(installationDirectory, dependency);
       }
 
       default: {
-        throw new SoloError(`unknown dep: ${dep}`);
+        throw new SoloErrors.validation.unknownTemplateDependency(dependency);
       }
     }
   }
@@ -197,7 +230,7 @@ export class Templates {
       }
     }
 
-    throw new SoloError(`Can't get node id from node ${nodeAlias}`);
+    throw new SoloErrors.validation.unknownNodeAlias(nodeAlias);
   }
 
   public static renderComponentIdFromNodeId(nodeId: NodeId): ComponentId {
@@ -278,6 +311,56 @@ export class Templates {
     return mapping;
   }
 
+  /**
+   * Parses a comma-separated string into a mapping of node aliases → address/port.
+   *
+   * Accepted input formats:
+   * 1) Explicit alias → address[:port]
+   *    Each entry provides the node alias and the target address, optionally with a port.
+   *    Example: "node1=127.0.0.1:8080,node2=127.0.0.1:8081"
+   *
+   * 2) Explicit alias → address (no port)
+   *    Same as above, but if the port is omitted it defaults to 8080.
+   *    Example: "node1=localhost,node2=localhost:8081"
+   *
+   * 3) Address[:port] only (no aliases)
+   *    Aliases are inferred from the `nodes` array by index order.
+   *    If the port is omitted, it defaults to 8080.
+   *    Example: "localhost,127.0.0.2:8081"
+   *
+   * @param unparsed - Input string describing alias/address[:port] mappings.
+   * @param nodes - Used to infer aliases when not explicitly provided.
+   * @returns Record keyed by NodeAlias with resolved address and port.
+   *
+   * @throws SoloError if an alias cannot be inferred.
+   */
+  public static parseNodeAliasToAddressAndPortMapping(
+    unparsed: string,
+    nodes: ConsensusNode[],
+  ): NodeAliasToAddressMapping {
+    const mapping: NodeAliasToAddressMapping = {};
+
+    if (!unparsed || typeof unparsed !== 'string') {
+      return mapping;
+    }
+
+    for (const [index, data] of unparsed.split(',').entries()) {
+      const [nodeAlias, addressData] = data.includes('=')
+        ? (data.split('=') as [NodeAlias, IP])
+        : [nodes[index]?.name, data];
+
+      if (!nodeAlias) {
+        throw new SoloErrors.validation.nodeAliasInferenceFailed(addressData);
+      }
+
+      const [address, port] = addressData.includes(':') ? addressData.split(':') : [addressData, '8080'];
+
+      mapping[nodeAlias] = {address, port: +port};
+    }
+
+    return mapping;
+  }
+
   public static parseNodeAliasToDomainNameMapping(unparsed: string): Record<NodeAlias, string> {
     const mapping: Record<NodeAlias, string> = {};
 
@@ -285,10 +368,10 @@ export class Templates {
       const [nodeAlias, domainName] = data.split('=') as [NodeAlias, string];
 
       if (!nodeAlias || typeof nodeAlias !== 'string') {
-        throw new SoloError(`Can't parse node alias: ${data}`);
+        throw new SoloErrors.validation.nodeAliasParseFailed(data);
       }
       if (!domainName || typeof domainName !== 'string') {
-        throw new SoloError(`Can't parse domain name: ${data}`);
+        throw new SoloErrors.validation.domainNameParseFailed(data);
       }
 
       mapping[nodeAlias] = domainName;
@@ -369,6 +452,10 @@ export class Templates {
     ];
   }
 
+  public static renderMirrorIngressControllerLabels(): string[] {
+    return [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL];
+  }
+
   public static renderEnvoyProxyLabels(id: ComponentId): string[] {
     const nodeAlias: NodeAlias = Templates.renderNodeAliasFromNumber(id);
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=envoy-proxy'];
@@ -412,6 +499,39 @@ export class Templates {
 
   public static renderNodeLabelsFromNodeAlias(nodeAlias: NodeAlias): string[] {
     return [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
+  }
+
+  public static renderNodeSvcLabelsFromNodeId(nodeId: NodeId): string[] {
+    return [`solo.hedera.com/node-id=${nodeId},solo.hedera.com/type=network-node-svc`];
+  }
+
+  /**
+   * Build label selectors for deployment refresh by component type.
+   */
+  public static renderComponentLabelSelectors(componentType: string, id: ComponentId): string[] {
+    switch (componentType) {
+      case 'ConsensusNode': {
+        return Templates.renderHaProxyLabels(id);
+      }
+      case 'HaProxy': {
+        return Templates.renderHaProxyLabels(id);
+      }
+      case 'BlockNode': {
+        return Templates.renderBlockNodeLabels(id);
+      }
+      case 'MirrorNode': {
+        return Templates.renderMirrorIngressControllerLabels();
+      }
+      case 'RelayNode': {
+        return Templates.renderRelayLabels(id);
+      }
+      case 'Explorer': {
+        return Templates.renderExplorerLabels(id);
+      }
+      default: {
+        return [];
+      }
+    }
   }
 
   public static parseExternalBlockAddress(raw: string): [string, number] {

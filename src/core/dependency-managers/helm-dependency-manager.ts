@@ -6,12 +6,13 @@ import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {BaseDependencyManager} from './base-dependency-manager.js';
+import {SubprocessCommandProfile} from '../subprocess-command-profile.js';
 import {Zippy} from '../zippy.js';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import fs from 'node:fs';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const HELM_RELEASE_BASE_URL: string = 'https://get.helm.sh';
@@ -23,33 +24,23 @@ const HELM_ARTIFACT_TEMPLATE: string = 'helm-%s-%s-%s.%s';
 @injectable()
 export class HelmDependencyManager extends BaseDependencyManager {
   public constructor(
-    @inject(InjectTokens.PackageDownloader) downloader?: PackageDownloader,
-    @inject(InjectTokens.Zippy) private readonly zippy?: Zippy,
-    @inject(InjectTokens.HelmInstallationDir) installationDirectory?: string,
-    @inject(InjectTokens.OsArch) osArch?: string,
-    @inject(InjectTokens.HelmVersion) helmVersion?: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
+    @inject(InjectTokens.HelmInstallationDirectory) installationDirectory: string,
+    @inject(InjectTokens.OsArch) osArch: string,
+    @inject(InjectTokens.HelmVersion) helmVersion: string,
   ) {
-    // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
-      InjectTokens.HelmInstallationDir,
-      HelmDependencyManager.name,
-    );
-    osArch = patchInject(osArch, InjectTokens.OsArch, HelmDependencyManager.name);
-    helmVersion = patchInject(helmVersion, InjectTokens.HelmVersion, HelmDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, HelmDependencyManager.name);
-
-    // Call the base constructor with the Helm-specific parameters
     super(
-      downloader,
-      installationDirectory,
-      osArch,
-      helmVersion || version.HELM_VERSION,
+      patchInject(downloader, InjectTokens.PackageDownloader, HelmDependencyManager.name),
+      patchInject(installationDirectory, InjectTokens.HelmInstallationDirectory, HelmDependencyManager.name),
+      patchInject(osArch, InjectTokens.OsArch, HelmDependencyManager.name),
+      patchInject(helmVersion, InjectTokens.HelmVersion, HelmDependencyManager.name) || version.HELM_VERSION,
       constants.HELM,
       HELM_RELEASE_BASE_URL,
     );
+    // Patch injected values to handle undefined values
 
-    this.zippy = patchInject(zippy, InjectTokens.Zippy, HelmDependencyManager.name);
+    this.zippy = patchInject(this.zippy, InjectTokens.Zippy, HelmDependencyManager.name);
   }
 
   /**
@@ -88,6 +79,12 @@ export class HelmDependencyManager extends BaseDependencyManager {
     if (!fs.existsSync(helmExecutablePath)) {
       const executablePath: string = PathEx.join(temporaryDirectory, this.executableName);
 
+      if (fs.existsSync(executablePath)) {
+        fs.rmSync(executablePath);
+      }
+
+      fs.cpSync(helmExecutablePath, executablePath);
+
       if (!fs.existsSync(executablePath)) {
         throw new Error(`Helm executable not found in extracted archive: ${executablePath}`);
       }
@@ -98,16 +95,23 @@ export class HelmDependencyManager extends BaseDependencyManager {
     return [helmExecutablePath];
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     try {
-      const output: string[] = await this.run(`"${executablePath}" version --short`);
+      // Override KUBECONFIG to prevent loading kubeconfig and triggering authentication
+      // plugins (e.g., Teleport exec credentials) which can hang in non-interactive environments.
+      const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
+      const output: string[] = await this.run(executableWithPath, ['version', '--short'], {
+        commandProfile: SubprocessCommandProfile.HELM,
+        environmentVariablesToAppend: {KUBECONFIG: nullDevice},
+        timeoutMs: 30_000,
+      });
       const parts: string[] = output[0].split('+');
       const versionOnly: string = parts[0];
       this.logger.info(`Helm version: ${versionOnly}`);
       this.logger.debug(`Found ${constants.HELM}:${versionOnly}`);
       return versionOnly;
     } catch (error) {
-      throw new SoloError('Failed to check helm version', error);
+      throw new SoloErrors.system.dependencyVersionCheckFailed('helm', error);
     }
   }
 

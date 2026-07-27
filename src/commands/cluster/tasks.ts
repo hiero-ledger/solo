@@ -5,8 +5,7 @@ import {type AnyListrContext, type ArgvStruct, type ConfigBuilder} from '../../t
 import * as constants from '../../core/constants.js';
 import chalk from 'chalk';
 import {ListrLock} from '../../core/lock/listr-lock.js';
-import {ErrorMessages} from '../../core/error-messages.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {UserBreak} from '../../core/errors/user-break.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type Context, type ReleaseNameData, type SoloListr, type SoloListrTask} from '../../types/index.js';
@@ -26,12 +25,18 @@ import {type ClusterReferenceSetupContext} from './config-interfaces/cluster-ref
 import {type ClusterReferenceResetContext} from './config-interfaces/cluster-reference-reset-context.js';
 import {LocalConfigRuntimeState} from '../../business/runtime-state/config/local/local-config-runtime-state.js';
 import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
+import {type FacadeMap} from '../../business/runtime-state/collection/facade-map.js';
+import {MutableFacadeArray} from '../../business/runtime-state/collection/mutable-facade-array.js';
+import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
+import {DeploymentSchema} from '../../data/schema/model/local/deployment-schema.js';
 import {Lock} from '../../core/lock/lock.js';
 import {RemoteConfigRuntimeState} from '../../business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type OneShotState} from '../../core/one-shot-state.js';
 import * as versions from '../../../version.js';
 import {findMinioOperator} from '../../core/helpers.js';
 import {K8} from '../../integration/kube/k8.js';
+import {HelmChartValues} from '../../integration/helm/model/values.js';
+import {Flags} from '../flags.js';
 
 @injectable()
 export class ClusterCommandTasks {
@@ -57,6 +62,37 @@ export class ClusterCommandTasks {
 
   public findMinioOperator(context: Context): Promise<ReleaseNameData> {
     return findMinioOperator(context, this.k8Factory);
+  }
+
+  public async installMinioOperatorChart(clusterSetupNamespace: NamespaceName, context: Context): Promise<void> {
+    const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
+
+    if (isMinioInstalled) {
+      this.logger.showUserUnlessOneShot(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
+      return;
+    }
+
+    try {
+      await this.chartManager.install(
+        clusterSetupNamespace,
+        constants.MINIO_OPERATOR_RELEASE_NAME,
+        constants.MINIO_OPERATOR_CHART,
+        constants.MINIO_OPERATOR_CHART,
+        versions.MINIO_OPERATOR_VERSION,
+        new HelmChartValues().set('operator.replicaCount', 1),
+        context,
+      );
+
+      this.logger.showUserUnlessOneShot(`✅ MinIO Operator chart installed successfully on context ${context}`);
+    } catch (error) {
+      this.logger.debug('Error installing MinIO Operator chart', error);
+      try {
+        await this.chartManager.uninstall(clusterSetupNamespace, constants.MINIO_OPERATOR_RELEASE_NAME, context);
+      } catch (uninstallError) {
+        this.logger.showUserError(uninstallError);
+      }
+      throw new SoloErrors.deployment.minioInstallFailed(error);
+    }
   }
 
   public connectClusterRef(): SoloListrTask<ClusterReferenceConnectContext> {
@@ -96,7 +132,11 @@ export class ClusterCommandTasks {
           await this.k8Factory.getK8(context).namespaces().list();
         } catch {
           task.title = `${task.title} - ${chalk.red('Cluster connection failed')}`;
-          throw new SoloError(ErrorMessages.INVALID_CONTEXT_FOR_CLUSTER_DETAILED(context, clusterRef));
+          throw new SoloErrors.deployment.contextNotFoundForCluster(
+            clusterRef,
+            Flags.getFormattedFlagKey(Flags.clusterRef),
+            Flags.getFormattedFlagKey(Flags.context),
+          );
         }
       },
     };
@@ -109,7 +149,9 @@ export class ClusterCommandTasks {
         task.title += clusterRef;
 
         if (this.localConfig.configuration.clusterRefs.get(clusterRef)) {
-          this.logger.showUser(chalk.yellow(`Cluster ref ${clusterRef} already exists inside local config`));
+          this.logger.showUserUnlessOneShot(
+            chalk.yellow(`Cluster ref ${clusterRef} already exists inside local config`),
+          );
         }
       },
     };
@@ -118,10 +160,12 @@ export class ClusterCommandTasks {
   /** Show list of installed chart */
   private async showInstalledChartList(clusterSetupNamespace: NamespaceName, context?: string): Promise<void> {
     // TODO convert to logger.addMessageGroup() & logger.addMessageGroupMessage()
-    this.logger.showList(
-      'Installed Charts',
-      await this.chartManager.getInstalledCharts(clusterSetupNamespace, context),
-    );
+    const installedCharts: string[] = await this.chartManager.getInstalledCharts(clusterSetupNamespace, context);
+    if (this.oneShotState.isActive()) {
+      this.logger.showListIfNotEmpty('Installed Charts', installedCharts);
+    } else {
+      this.logger.showList('Installed Charts', installedCharts);
+    }
   }
 
   public initialize(
@@ -135,7 +179,7 @@ export class ClusterCommandTasks {
 
     return {
       title: 'Initialize',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<void> => {
         await this.localConfig.load();
 
         if (loadRemoteConfig) {
@@ -149,13 +193,13 @@ export class ClusterCommandTasks {
   public showClusterList(): SoloListrTask<AnyListrContext> {
     return {
       title: 'List all available clusters',
-      task: async () => {
+      task: async (): Promise<void> => {
         await this.localConfig.load();
 
-        const clusterReferences = this.localConfig.configuration.clusterRefs;
-        const clusterList = [];
+        const clusterReferences: FacadeMap<string, StringFacade, string> = this.localConfig.configuration.clusterRefs;
+        const clusterList: string[] = [];
         for (const [clusterName, clusterContext] of clusterReferences) {
-          clusterList.push(`${clusterName}:${clusterContext}`);
+          clusterList.push(`${clusterName}:${clusterContext.toString()}`);
         }
         this.logger.showList('Cluster references and the respective contexts', clusterList);
       },
@@ -165,21 +209,23 @@ export class ClusterCommandTasks {
   public getClusterInfo(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Get cluster info',
-      task: async (context_, task) => {
-        const clusterReference = context_.config.clusterRef;
-        const clusterReferences = this.localConfig.configuration.clusterRefs;
-        const deployments = this.localConfig.configuration.deployments;
-        const context = clusterReferences.get(clusterReference);
+      task: async (context_, task): Promise<void> => {
+        const clusterReference: string = context_.config.clusterRef;
+        const clusterReferences: FacadeMap<string, StringFacade, string> = this.localConfig.configuration.clusterRefs;
+        const deployments: MutableFacadeArray<Deployment, DeploymentSchema> =
+          this.localConfig.configuration.deployments;
+        const context: StringFacade | undefined = clusterReferences.get(clusterReference);
 
         if (!context) {
           throw new Error(`Cluster "${clusterReference}" not found in the LocalConfig`);
         }
 
-        const deploymentsWithSelectedCluster = Object.entries(deployments)
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          .filter(([_, deployment]) => deployment.clusters.includes(clusterReference))
-          .map(([deploymentName, deployment]) => ({
-            name: deploymentName,
+        const deploymentsWithSelectedCluster: {name: string; namespace: string}[] = [...deployments]
+          .filter((deployment): boolean =>
+            deployment.clusters.some((cluster): boolean => cluster.toString() === clusterReference),
+          )
+          .map((deployment): {name: string; namespace: string} => ({
+            name: deployment.name,
             namespace: deployment.namespace || 'default',
           }));
 
@@ -191,65 +237,42 @@ export class ClusterCommandTasks {
         task.output +=
           deploymentsWithSelectedCluster.length > 0
             ? '\n' +
-              deploymentsWithSelectedCluster.map(dep => `  - ${dep.name} [Namespace: ${dep.namespace}]`).join('\n')
+              deploymentsWithSelectedCluster
+                .map(
+                  (dep: {name: string; namespace: string}): string => `  - ${dep.name} [Namespace: ${dep.namespace}]`,
+                )
+                .join('\n')
             : '\n  - None';
 
-        this.logger.showUser(task.output);
+        this.logger.showUserUnlessOneShot(task.output);
       },
     };
   }
 
-  public installMinioOperator(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+  public installMinioOperator(): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
-        const {exists: isMinioInstalled}: ReleaseNameData = await this.findMinioOperator(context);
-
-        if (isMinioInstalled) {
-          this.logger.showUser(`⏭️  MinIO Operator chart already installed in context ${context}, skipping`);
-          return;
-        }
-
-        try {
-          await this.chartManager.install(
-            clusterSetupNamespace,
-            constants.MINIO_OPERATOR_RELEASE_NAME,
-            constants.MINIO_OPERATOR_CHART,
-            constants.MINIO_OPERATOR_CHART,
-            versions.MINIO_OPERATOR_VERSION,
-            '--set operator.replicaCount=1',
-            context,
-          );
-
-          this.logger.showUser(`✅ MinIO Operator chart installed successfully on context ${context}`);
-        } catch (error) {
-          this.logger.debug('Error installing MinIO Operator chart', error);
-          try {
-            await this.chartManager.uninstall(clusterSetupNamespace, constants.MINIO_OPERATOR_RELEASE_NAME, context);
-          } catch (uninstallError) {
-            this.logger.showUserError(uninstallError);
-          }
-          throw new SoloError('Error installing MinIO Operator chart', error);
-        }
+        await this.installMinioOperatorChart(clusterSetupNamespace, context);
       },
       skip: ({config: {deployMinio}}): boolean => !deployMinio,
     };
   }
 
-  public installPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+  public installPrometheusStack(): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install Prometheus Stack chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
+      task: async (context_): Promise<void> => {
+        const clusterSetupNamespace: NamespaceName = context_.config.clusterSetupNamespace;
 
-        const isPrometheusInstalled = await this.chartManager.isChartInstalled(
+        const isPrometheusInstalled: boolean = await this.chartManager.isChartInstalled(
           clusterSetupNamespace,
           constants.PROMETHEUS_RELEASE_NAME,
           context_.config.context,
         );
 
         if (isPrometheusInstalled) {
-          this.logger.showUser('⏭️  Prometheus Stack chart already installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  Prometheus Stack chart already installed, skipping');
         } else {
           try {
             await this.chartManager.install(
@@ -258,10 +281,10 @@ export class ClusterCommandTasks {
               constants.PROMETHEUS_STACK_CHART,
               constants.PROMETHEUS_STACK_CHART,
               versions.PROMETHEUS_STACK_VERSION,
-              '',
+              new HelmChartValues().file(constants.PROMETHEUS_STACK_VALUES_FILE),
               context_.config.context,
             );
-            this.logger.showUser('✅ Prometheus Stack chart installed successfully');
+            this.logger.showUserUnlessOneShot('✅ Prometheus Stack chart installed successfully');
           } catch (error) {
             this.logger.debug('Error installing Prometheus Stack chart', error);
             try {
@@ -273,103 +296,108 @@ export class ClusterCommandTasks {
             } catch (uninstallError) {
               this.logger.showUserError(uninstallError);
             }
-            throw new SoloError('Error installing Prometheus Stack chart', error);
+            throw new SoloErrors.deployment.prometheusInstallFailed(error);
           }
         }
       },
-      skip: context_ => !context_.config.deployPrometheusStack,
+      skip: (context_: ClusterReferenceSetupContext): boolean => !context_.config.deployPrometheusStack,
     };
   }
 
-  public installGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
+  public installMetricsServer(): SoloListrTask<ClusterReferenceSetupContext> {
     return {
-      title: 'Install Grafana Agent chart',
-      task: async context_ => {
-        const clusterSetupNamespace = context_.config.clusterSetupNamespace;
-
-        const isGrafanaAgentInstalled = await this.chartManager.isChartInstalled(
-          clusterSetupNamespace,
-          constants.GRAFANA_AGENT_RELEASE_NAME,
-          context_.config.context,
+      title: 'Install metrics-server chart',
+      task: async ({config: {context}}): Promise<void> => {
+        const isMetricsServerInstalled: boolean = await this.chartManager.isChartInstalled(
+          constants.METRICS_SERVER_NAMESPACE,
+          constants.METRICS_SERVER_RELEASE_NAME,
+          context,
         );
 
-        if (isGrafanaAgentInstalled) {
-          this.logger.showUser('⏭️  Grafana Agent chart already installed, skipping');
-        } else {
-          try {
-            await this.chartManager.install(
-              clusterSetupNamespace,
-              constants.GRAFANA_AGENT_RELEASE_NAME,
-              constants.GRAFANA_AGENT_CHART,
-              constants.GRAFANA_AGENT_CHART,
-              versions.GRAFANA_AGENT_VERSION,
-              '',
-              context_.config.context,
-            );
-            this.logger.showUser('✅ Grafana Agent chart installed successfully');
-          } catch (error) {
-            this.logger.debug('Error installing Grafana Agent chart', error);
-            try {
-              await this.chartManager.uninstall(
-                clusterSetupNamespace,
-                constants.GRAFANA_AGENT_RELEASE_NAME,
-                context_.config.context,
-              );
-            } catch (uninstallError) {
-              this.logger.showUserError(uninstallError);
-            }
-            throw new SoloError('Error installing Grafana Agent chart', error);
-          }
+        if (isMetricsServerInstalled) {
+          this.logger.showUserUnlessOneShot('⏭️  metrics-server chart already installed, skipping');
+          return;
         }
-      },
-      skip: context_ => !context_.config.deployGrafanaAgent,
-    };
-  }
-
-  public installPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
-    return {
-      title: 'Install pod-monitor-role ClusterRole',
-      task: async context_ => {
-        const k8: K8 = this.k8Factory.getK8(context_.config.context);
 
         try {
-          // Check if ClusterRole already exists using Kubernetes JavaScript API
-          await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
-          this.logger.showUser(
+          await this.chartManager.install(
+            constants.METRICS_SERVER_NAMESPACE,
+            constants.METRICS_SERVER_RELEASE_NAME,
+            constants.METRICS_SERVER_CHART,
+            constants.METRICS_SERVER_CHART,
+            versions.METRICS_SERVER_VERSION,
+            new HelmChartValues().setLiteral('args[0]', '--kubelet-insecure-tls'),
+            context,
+          );
+          this.logger.showUserUnlessOneShot('metrics-server chart installed successfully');
+        } catch (error) {
+          this.logger.debug('Error installing metrics-server chart', error);
+          try {
+            await this.chartManager.uninstall(
+              constants.METRICS_SERVER_NAMESPACE,
+              constants.METRICS_SERVER_RELEASE_NAME,
+              context,
+            );
+          } catch (uninstallError) {
+            this.logger.showUserError(uninstallError);
+          }
+          throw new SoloErrors.deployment.metricsServerInstallFailed(error);
+        }
+      },
+      skip: ({config: {deployMetricsServer}}): boolean => !deployMetricsServer,
+    };
+  }
+
+  public installPodMonitorRole(): SoloListrTask<ClusterReferenceSetupContext> {
+    return {
+      title: 'Install pod-monitor-role ClusterRole',
+      task: async (context_: ClusterReferenceSetupContext): Promise<void> => {
+        const k8: K8 = this.k8Factory.getK8(context_.config.context);
+
+        // Check if ClusterRole already exists using Kubernetes JavaScript API
+        let podMonitorRoleExists: boolean = false;
+        try {
+          podMonitorRoleExists = await k8.rbac().clusterRoleExists(constants.POD_MONITOR_ROLE);
+        } catch (error) {
+          throw new SoloErrors.system.clusterRoleCheckFailed(constants.POD_MONITOR_ROLE, error as Error);
+        }
+        if (podMonitorRoleExists) {
+          this.logger.showUserUnlessOneShot(
             `⏭️  ClusterRole pod-monitor-role already exists in context ${context_.config.context}, skipping`,
           );
-        } catch {
-          // ClusterRole doesn't exist, create it
-          try {
-            await k8.rbac().createClusterRole(
-              constants.POD_MONITOR_ROLE,
-              [
-                {
-                  apiGroups: [''],
-                  resources: ['pods', 'services', 'clusterroles', 'pods/log', 'secrets'],
-                  verbs: ['get', 'list'],
-                },
-                {
-                  apiGroups: [''],
-                  resources: ['pods/exec'],
-                  verbs: ['create'],
-                },
-              ],
-              {'solo.hedera.com/type': 'cluster-role'},
-            );
-            this.logger.showUser(
-              `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
-            );
-          } catch (installError) {
-            this.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
-            throw new SoloError('Error installing pod-monitor-role ClusterRole', installError);
-          }
+          return;
+        }
+
+        // ClusterRole doesn't exist, create it
+        try {
+          await k8.rbac().createClusterRole(
+            constants.POD_MONITOR_ROLE,
+            [
+              {
+                apiGroups: [''],
+                resources: ['pods', 'services', 'clusterroles', 'pods/log', 'secrets'],
+                verbs: ['get', 'list'],
+              },
+              {
+                apiGroups: [''],
+                resources: ['pods/exec'],
+                verbs: ['create'],
+              },
+            ],
+            {'solo.hedera.com/type': 'cluster-role'},
+          );
+          this.logger.showUserUnlessOneShot(
+            `✅ ClusterRole pod-monitor-role installed successfully in context ${context_.config.context}`,
+          );
+        } catch (installError) {
+          this.logger.debug('Error installing pod-monitor-role ClusterRole', installError);
+          throw new SoloErrors.deployment.clusterRoleInstallFailed(installError);
         }
       },
     };
   }
 
-  public uninstallPodMonitorRole(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallPodMonitorRole(): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall pod-monitor-role ClusterRole',
       task: async ({config: {context}}): Promise<void> => {
@@ -379,10 +407,10 @@ export class ClusterCommandTasks {
 
           // ClusterRole exists, delete it
           await this.k8Factory.getK8(context).rbac().deleteClusterRole(constants.POD_MONITOR_ROLE);
-          this.logger.showUser('✅ ClusterRole pod-monitor-role uninstalled successfully');
+          this.logger.showUserUnlessOneShot('✅ ClusterRole pod-monitor-role uninstalled successfully');
         } catch {
           // ClusterRole doesn't exist, skip
-          this.logger.showUser('⏭️  ClusterRole pod-monitor-role not found, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  ClusterRole pod-monitor-role not found, skipping');
         }
       },
     };
@@ -391,31 +419,29 @@ export class ClusterCommandTasks {
   public installClusterChart(argv: ArgvStruct): SoloListrTask<ClusterReferenceSetupContext> {
     return {
       title: 'Install cluster charts',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<SoloListr<ClusterReferenceSetupContext>> => {
         // switch to the correct cluster context first
-        const k8 = this.k8Factory.getK8(context_.config.context);
+        const k8: K8 = this.k8Factory.getK8(context_.config.context);
         k8.contexts().updateCurrent(context_.config.context);
 
         // Always install pod-monitor-role ClusterRole first
-        const subtasks = [this.installPodMonitorRole(argv)];
+        const subtasks: SoloListrTask<ClusterReferenceSetupContext>[] = [this.installPodMonitorRole()];
 
         if (context_.config.deployMinio) {
-          subtasks.push(this.installMinioOperator(argv));
+          subtasks.push(this.installMinioOperator());
         }
 
         if (context_.config.deployPrometheusStack) {
-          subtasks.push(this.installPrometheusStack(argv));
+          subtasks.push(this.installPrometheusStack());
         }
 
-        if (context_.config.deployGrafanaAgent) {
-          subtasks.push(this.installGrafanaAgent(argv));
-        } else {
-          console.log('Skipping Grafana Agent chart installation');
+        if (context_.config.deployMetricsServer) {
+          subtasks.push(this.installMetricsServer());
         }
 
-        const result = await task.newListr(subtasks, {concurrent: false});
+        const result: SoloListr<ClusterReferenceSetupContext> = await task.newListr(subtasks, {concurrent: false});
 
-        if (argv.dev) {
+        if (argv.debug) {
           await this.showInstalledChartList(context_.config.clusterSetupNamespace, context_.config.context);
         }
         return result;
@@ -436,7 +462,7 @@ export class ClusterCommandTasks {
     };
   }
 
-  public uninstallMinioOperator(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallMinioOperator(): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall MinIO Operator chart',
       task: async ({config: {clusterSetupNamespace: namespace, context}}): Promise<void> => {
@@ -445,15 +471,15 @@ export class ClusterCommandTasks {
         if (isMinioInstalled) {
           await this.chartManager.uninstall(namespace, releaseName, context);
 
-          this.logger.showUser('✅ MinIO Operator chart uninstalled successfully');
+          this.logger.showUserUnlessOneShot('✅ MinIO Operator chart uninstalled successfully');
         } else {
-          this.logger.showUser('⏭️  MinIO Operator chart not installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  MinIO Operator chart not installed, skipping');
         }
       },
     };
   }
 
-  public uninstallPrometheusStack(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallPrometheusStack(): SoloListrTask<ClusterReferenceResetContext> {
     return {
       title: 'Uninstall Prometheus Stack chart',
       task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
@@ -465,29 +491,33 @@ export class ClusterCommandTasks {
 
         if (isPrometheusInstalled) {
           await this.chartManager.uninstall(clusterSetupNamespace, constants.PROMETHEUS_RELEASE_NAME, context);
-          this.logger.showUser('✅ Prometheus Stack chart uninstalled successfully');
+          this.logger.showUserUnlessOneShot('✅ Prometheus Stack chart uninstalled successfully');
         } else {
-          this.logger.showUser('⏭️  Prometheus Stack chart not installed, skipping');
+          this.logger.showUserUnlessOneShot('⏭️  Prometheus Stack chart not installed, skipping');
         }
       },
     };
   }
 
-  public uninstallGrafanaAgent(_argv: ArgvStruct): SoloListrTask<ClusterReferenceResetContext> {
+  public uninstallMetricsServer(): SoloListrTask<ClusterReferenceResetContext> {
     return {
-      title: 'Uninstall Grafana Agent chart',
-      task: async ({config: {clusterSetupNamespace, context}}): Promise<void> => {
-        const isGrafanaAgentInstalled: boolean = await this.chartManager.isChartInstalled(
-          clusterSetupNamespace,
-          constants.GRAFANA_AGENT_RELEASE_NAME,
+      title: 'Uninstall metrics-server chart',
+      task: async ({config: {context}}): Promise<void> => {
+        const isMetricsServerInstalled: boolean = await this.chartManager.isChartInstalled(
+          constants.METRICS_SERVER_NAMESPACE,
+          constants.METRICS_SERVER_RELEASE_NAME,
           context,
         );
 
-        if (isGrafanaAgentInstalled) {
-          await this.chartManager.uninstall(clusterSetupNamespace, constants.GRAFANA_AGENT_RELEASE_NAME, context);
-          this.logger.showUser('✅ Grafana Agent chart uninstalled successfully');
+        if (isMetricsServerInstalled) {
+          await this.chartManager.uninstall(
+            constants.METRICS_SERVER_NAMESPACE,
+            constants.METRICS_SERVER_RELEASE_NAME,
+            context,
+          );
+          this.logger.showUserUnlessOneShot('Metrics-server chart uninstalled successfully');
         } else {
-          this.logger.showUser('⏭️  Grafana Agent chart not installed, skipping');
+          this.logger.showUserUnlessOneShot('Metrics-server chart not installed, skipping');
         }
       },
     };
@@ -513,16 +543,16 @@ export class ClusterCommandTasks {
           }
         }
 
-        if (argv.dev) {
+        if (argv.debug) {
           await this.showInstalledChartList(clusterSetupNamespace);
         }
 
         return task.newListr(
           [
-            this.uninstallGrafanaAgent(argv),
-            this.uninstallPrometheusStack(argv),
-            this.uninstallMinioOperator(argv),
-            this.uninstallPodMonitorRole(argv),
+            this.uninstallMetricsServer(),
+            this.uninstallPrometheusStack(),
+            this.uninstallMinioOperator(),
+            this.uninstallPodMonitorRole(),
           ],
           {concurrent: false},
         );

@@ -1,56 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {ShellRunner} from '../shell-runner.js';
-import {type PackageManager} from './package-manager.js';
 import {injectable} from 'tsyringe-neo';
+import {LinuxPackageManager} from './linux-package-manager.js';
 
+/**
+ * Package manager for Debian-based distributions that ship apt-get (Debian, Ubuntu, Mint, ...).
+ */
 @injectable()
-export class AptGetPackageManager extends ShellRunner implements PackageManager {
-  private onSudoRequested: (message: string) => void = (_message: string) => {};
-  private onSudoGranted: (message: string) => void = (_message: string) => {};
-
-  constructor() {
-    super();
+export class AptGetPackageManager extends LinuxPackageManager {
+  protected installCommand(dependencies: string[]): string[] {
+    return ['apt-get', 'install', '-y', ...dependencies];
   }
 
-  public setOnSudoRequested(callback: (message: string) => void): void {
-    this.onSudoRequested = callback;
+  protected uninstallCommand(dependencies: string[]): string[] {
+    return ['apt-get', 'remove', '-y', ...dependencies];
   }
 
-  public setOnSudoGranted(callback: (message: string) => void): void {
-    this.onSudoGranted = callback;
+  protected updateCommand(): string[] {
+    return ['apt-get', 'update'];
   }
 
-  public async installPackages(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, `apt-get install ${dependencies.join(' ')}`);
+  protected upgradeCommand(dependencies: string[]): string[] {
+    return ['apt-get', 'upgrade', '-y', ...dependencies];
   }
 
-  public async uninstallPackages(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, `apt-get remove ${dependencies.join(' ')}`);
-  }
-
-  public async update(): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get update');
-  }
-
-  public async upgrade(dependencies: string[]): Promise<void> {
-    await this.sudoRun(this.onSudoRequested, this.onSudoGranted, `apt-get upgrade ${dependencies.join(' ')}`);
-  }
-
-  public async install(): Promise<boolean> {
-    throw new Error('Method not implemented.');
-  }
-
-  public async uninstall(): Promise<void> {
-    throw new Error('Method not implemented.');
-  }
-
-  public async isAvailable(): Promise<boolean> {
-    try {
-      await this.sudoRun(this.onSudoRequested, this.onSudoGranted, 'apt-get -v');
-      return true;
-    } catch {
-      return false;
-    }
+  protected versionCommand(): string[] {
+    return ['apt-get', '--version'];
   }
 }

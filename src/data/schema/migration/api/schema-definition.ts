@@ -2,7 +2,7 @@
 
 import {type ClassConstructor} from '../../../../business/utils/class-constructor.type.js';
 import {type SchemaMigration} from './schema-migration.js';
-import {type Version} from '../../../../business/utils/version.js';
+import {type SemanticVersion} from '../../../../business/utils/semantic-version.js';
 
 /**
  * Defines a schema which can be used to convert input data into a model instance.
@@ -18,7 +18,7 @@ export interface SchemaDefinition<T> {
    * The current version of the schema. This is used to determine if the input data needs to be migrated before being
    * applied to a model.
    */
-  readonly version: Version<number>;
+  readonly version: SemanticVersion<number>;
 
   /**
    * The class constructor for the model. This is used to create instances of the model from the input data.
@@ -40,7 +40,7 @@ export interface SchemaDefinition<T> {
    *                        otherwise assumed based on the provided plain javascript object.
    * @returns an instance of the model class.
    */
-  transform(data: object, sourceVersion?: Version<number>): Promise<T>;
+  transform(data: object, sourceVersion?: SemanticVersion<number>): Promise<T>;
 
   /**
    * Validates the migrations for the schema. This method should be called during the application startup to ensure that

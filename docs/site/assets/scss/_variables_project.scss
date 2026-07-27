@@ -6,8 +6,9 @@
 // --- 1. CONFIGURATION ---
 // Feature flags and font imports
 
-$enable-dark-mode: false;
+$enable-dark-mode: true;
 $td-enable-google-fonts: true;
+$navbar-height: 90px;
 $td-google-font-name: 'Space Grotesk';
 $td-google-font-family: 'Space+Grotesk:300,400,500,600,700';
 
@@ -56,9 +57,32 @@ $td-google-font-family: 'Space+Grotesk:300,400,500,600,700';
   // Motion
   --transition-duration: 0.2s;
   --transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+}
 
-  // Force light mode
-  color-scheme: light;
+// --- 2b. DARK MODE DESIGN TOKENS ---
+
+[data-bs-theme='dark'] {
+  // Brand Palette (unchanged)
+  --color-primary: #d92d6a;
+  --color-primary-dark: #b81a56;
+  --color-primary-light: #f04880;
+  --color-primary-very-light: #3d1020;
+  --color-secondary: #1ebdc4;
+  --color-gradient-start: #992350;
+  --color-gradient-end: #d92d6a;
+
+  // UI Neutrals (dark)
+  --color-bg-white: #1e1e1e;
+  --color-bg-light: #2a2a2a;
+  --color-border: #3a3a3a;
+  --color-text-dark: #e8e8e8;
+  --color-text-body: #c0c0c0;
+  --color-text-light: #909090;
+
+  // Shape & Elevation (adjusted for dark)
+  --shadow-sm: 0px 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0px 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0px 8px 24px rgba(0, 0, 0, 0.5);
 }
 
 // --- 3. BOOTSTRAP & DOCSY COMPATIBILITY ---
@@ -69,6 +93,14 @@ $td-google-font-family: 'Space+Grotesk:300,400,500,600,700';
   --bs-body-bg: var(--color-bg-white);
   --bs-border-color: var(--color-border);
   --bs-link-color: var(--color-primary);
+}
+
+[data-bs-theme='dark'] {
+  --bs-body-color: var(--color-text-dark);
+  --bs-body-bg: #121212;
+  --bs-border-color: var(--color-border);
+  --bs-link-color: var(--color-primary);
+  color-scheme: dark;
 }
 
 // SCSS Variable Overrides
@@ -153,6 +185,10 @@ small,
   background: var(--color-bg-white);
   width: 300px;
   border-right: 1px solid var(--color-border);
+  position: sticky;
+  top: $navbar-height;
+  height: calc(100vh - #{$navbar-height});
+  overflow-y: auto;
 
   .nav-link {
     font-size: 0.875rem;
@@ -179,6 +215,47 @@ small,
 
 .td-sidebar-toc {
   padding-top: 2.5rem !important;
+  position: sticky;
+  top: $navbar-height;
+  height: calc(100vh - #{$navbar-height});
+  overflow-y: auto;
+}
+
+@media (min-width: 1200px) {
+  .td-main .td-sidebar {
+    position: fixed;
+    top: $navbar-height;
+    left: 0;
+    bottom: 0;
+    width: 300px;
+    z-index: 100;
+    border-right: 1px solid var(--color-border);
+  }
+
+  .td-main .td-sidebar .td-sidebar__inner {
+    position: static;
+    top: auto;
+    height: 100%;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .td-main .td-sidebar-toc {
+    position: fixed;
+    top: $navbar-height;
+    right: 0;
+    bottom: 0;
+    width: 300px;
+    z-index: 90;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .td-main > .row > main.col-xl-8 {
+    margin-left: 300px;
+    margin-right: 300px;
+  }
 }
 
 .tree-root .td-sidebar-nav-active-item {
@@ -375,9 +452,9 @@ td > code {
 // --- 10. NAVBAR OVERRIDES ---
 
 .td-navbar {
-  background-color: #ffffff !important;
+  background-color: var(--color-bg-white) !important;
   box-shadow: none !important;
-  border-bottom: 1px solid #e5e5e5 !important;
+  border-bottom: 1px solid var(--color-border) !important;
   min-height: 90px !important;
   padding: 1rem 0 !important;
   align-items: center;
@@ -404,7 +481,7 @@ td > code {
     align-items: center;
   }
   .navbar-brand__name {
-    color: #000000 !important;
+    color: var(--color-text-dark) !important;
     font-weight: 400 !important;
     font-size: 2rem !important;
     line-height: 1.1;
@@ -413,7 +490,7 @@ td > code {
   }
 
   .nav-link {
-    color: #000000 !important;
+    color: var(--color-text-dark) !important;
     font-weight: 400 !important;
     font-size: 0.9375rem !important;
     text-shadow: none !important;
@@ -436,43 +513,45 @@ td > code {
   }
 
   .td-site-title {
-    color: #000000 !important;
+    color: var(--color-text-dark) !important;
     font-weight: 600 !important;
     text-shadow: none !important;
   }
 
   // Navbar toggle button
   .navbar-toggler {
-    border-color: #e5e5e5 !important;
+    border-color: var(--color-border) !important;
 
     &:focus {
       box-shadow: none !important;
     }
   }
-}
 
-// Maintain light theme in navbar even if Bootstrap detects dark preference
-.td-navbar[data-bs-theme='dark'] {
-  background-color: #ffffff !important;
-  border-bottom: 1px solid #e5e5e5 !important;
-
-  .nav-link {
-    color: #000000 !important;
+  // Dark mode toggle button
+  #darkModeToggle {
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius-sm);
+    color: var(--color-text-dark);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.375rem 0.5rem;
+    transition: all 0.2s ease;
+    font-size: 1rem;
+    line-height: 1;
 
     &:hover {
-      color: var(--color-primary) !important;
+      background: var(--color-bg-light);
+      border-color: var(--color-primary);
+      color: var(--color-primary);
     }
 
-    &.active,
-    &[aria-current='page'] {
-      color: var(--color-primary) !important;
-      border-bottom-color: var(--color-primary) !important;
-      font-weight: 600 !important;
+    &:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(184, 26, 86, 0.25);
     }
-  }
-
-  .td-site-title {
-    color: #000000 !important;
   }
 }
 
@@ -507,12 +586,12 @@ td > code {
   padding: 2rem 0 !important;
   min-height: auto !important;
   margin: 0 !important;
-  width: 100vw !important;
+  width: auto !important;
   position: relative !important;
-  left: 50% !important;
-  right: 50% !important;
-  margin-left: -50vw !important;
-  margin-right: -50vw !important;
+  left: auto !important;
+  right: auto !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 
   * {
     color: #ffffff !important;
@@ -536,6 +615,13 @@ td > code {
   .td-footer__content {
     text-align: center !important;
     max-width: 100% !important;
+  }
+}
+
+@media (min-width: 1200px) {
+  .td-footer {
+    margin-left: 300px !important;
+    margin-right: 300px !important;
   }
 }
 
@@ -665,5 +751,130 @@ td > code {
     background: rgba(255, 255, 255, 0.1) !important;
     border-color: white !important;
     color: white !important;
+  }
+}
+
+// --- 14. DARK MODE COMPONENT OVERRIDES ---
+
+[data-bs-theme='dark'] {
+  // Body & page background
+  body {
+    background-color: #121212;
+    color: var(--color-text-body);
+  }
+
+  // Sidebar
+  .td-sidebar {
+    background: var(--color-bg-white);
+    border-right: 1px solid var(--color-border);
+  }
+
+  // Table of contents
+  .td-sidebar-toc {
+    background: var(--color-bg-white);
+  }
+
+  // Content area
+  .td-main main {
+    background-color: #121212;
+  }
+
+  // Cards
+  .card,
+  .td-card {
+    background: var(--color-bg-white);
+    border-color: var(--color-border);
+  }
+
+  // Inline code
+  p > code,
+  li > code,
+  td > code {
+    background: var(--color-bg-light);
+    color: var(--color-text-dark);
+  }
+
+  // Code blocks generated by Hugo/Chroma still emit inline light backgrounds.
+  // Override them in dark mode so examples match the rest of the theme.
+  .highlight,
+  .highlight pre,
+  .highlight code,
+  pre.chroma,
+  .chroma,
+  .tab-content .tab-pane .highlight,
+  .td-content .highlight {
+    background: var(--color-bg-light) !important;
+    color: var(--color-text-dark) !important;
+    border-color: var(--color-border) !important;
+  }
+
+  .highlight pre,
+  pre.chroma,
+  .chroma {
+    box-shadow: inset 0 0 0 1px var(--color-border);
+  }
+
+  .highlight code,
+  pre.chroma code,
+  .chroma code {
+    background: transparent !important;
+    color: inherit !important;
+  }
+
+  // Features section
+  .features-section {
+    background-color: #121212;
+  }
+
+  // Breadcrumbs
+  .td-breadcrumbs .breadcrumb-item a {
+    color: var(--color-primary);
+  }
+
+  // Search box
+  .td-search__input,
+  input[type='search'] {
+    background-color: var(--color-bg-light);
+    border-color: var(--color-border);
+    color: var(--color-text-dark);
+  }
+
+  // Dropdown menus
+  .dropdown-menu {
+    background-color: var(--color-bg-white);
+    border-color: var(--color-border);
+
+    .dropdown-item {
+      color: var(--color-text-dark);
+
+      &:hover,
+      &:focus {
+        background-color: var(--color-bg-light);
+        color: var(--color-text-dark);
+      }
+    }
+  }
+
+  // Table styles
+  .table {
+    color: var(--color-text-dark);
+
+    td,
+    th {
+      border-color: var(--color-border);
+    }
+  }
+
+  // Alerts / callouts
+  .callout,
+  .alert-callout {
+    background: var(--color-primary-very-light);
+    border-left-color: var(--color-primary);
+  }
+
+  // Off-canvas (mobile nav)
+  .offcanvas,
+  .offcanvas-collapse {
+    background-color: var(--color-bg-white);
   }
 }

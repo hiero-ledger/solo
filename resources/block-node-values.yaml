@@ -1,10 +1,10 @@
 resources:
   requests:
-    cpu: "500m"
-    memory: "1Gi"
-  limits:
     cpu: "1"
-    memory: "1.5Gi"
+    memory: "80Mi"
+  limits:
+    cpu: "2"
+    memory: "160Mi"
 
 blockNode:
   # NOTE: for Block Node logging, see this link:
@@ -21,11 +21,12 @@ blockNode:
   config:
     # The default, but it can be overridden:
     # JAVA_TOOL_OPTIONS: "-Djava.util.logging.config.file=/opt/hiero/block-node/logs/config/logging.properties"
-    JAVA_OPTS: '-Xms1G -Xmx1G  -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
+    JAVA_OPTS: '-Xmx24m -XX:MaxDirectMemorySize=8m -XX:MaxMetaspaceSize=32m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'
     MESSAGING_BLOCK_ITEM_QUEUE_SIZE: "128"
     MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE: "16"
     BACKFILL_FETCH_BATCH_SIZE: "5"
     BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+    SERVER_SOCKET_RECEIVE_BUFFER_SIZE_BYTES: "131072"
   persistence:
     archive:
       size: 1Gi
@@ -44,6 +45,13 @@ blockNode:
     # blockNode.config.BACKFILL_BLOCK_NODE_SOURCES_PATH
     path: "/opt/hiero/block-node/backfill"
     filename: "block-node-sources.json"
+  health:
+    readiness:
+      initialDelaySeconds: 0
+    liveness:
+      initialDelaySeconds: 0
+      periodSeconds: 1
+      failureThreshold: 60
 
 kubepromstack:
   enabled: false

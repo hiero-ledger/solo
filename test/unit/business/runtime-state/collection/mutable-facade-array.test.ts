@@ -58,6 +58,19 @@ describe('MutableFacadeArray', (): void => {
     expect(result).to.be.true;
   });
 
+  it('filter should return elements matching the predicate', (): void => {
+    const stringFacade1: StringFacade = new StringFacade('test1');
+    const stringFacade2: StringFacade = new StringFacade('test2');
+    const stringFacade3: StringFacade = new StringFacade('other');
+    myArray.add(stringFacade1);
+    myArray.add(stringFacade2);
+    myArray.add(stringFacade3);
+    const result: StringFacade[] = myArray.filter((value: StringFacade): boolean =>
+      value.toString().startsWith('test'),
+    );
+    expect(result).to.deep.equal([stringFacade1, stringFacade2]);
+  });
+
   it('map should return an array of mapped values', (): void => {
     const stringFacade1: StringFacade = new StringFacade('test1');
     const stringFacade2: StringFacade = new StringFacade('test2');

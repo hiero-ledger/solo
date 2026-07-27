@@ -7,8 +7,8 @@ export interface ClusterReferenceSetupConfigClass {
   chartDirectory: string;
   clusterSetupNamespace: NamespaceName;
   deployMinio: boolean;
+  deployMetricsServer: boolean;
   deployPrometheusStack: boolean;
-  deployGrafanaAgent: boolean;
   soloChartVersion: string;
   context?: string;
   clusterRef: ClusterReferenceName;

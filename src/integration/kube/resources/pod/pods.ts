@@ -4,6 +4,7 @@ import {type NamespaceName} from '../../../../types/namespace/namespace-name.js'
 import {type PodReference} from './pod-reference.js';
 import {type Pod} from './pod.js';
 import {type ContainerName} from '../container/container-name.js';
+import {type PodMetricsItem} from './pod-metrics-item.js';
 
 export interface Pods {
   /**
@@ -34,8 +35,29 @@ export interface Pods {
    * @param [labels] - pod labels
    * @param [maxAttempts] - maximum attempts to check
    * @param [delay] - delay between checks in milliseconds
+   * @param [createdAfter] - if provided, only pods created strictly after this date are considered
+   * @param [excludeMarkedForDeletion] - if true, pods with deletionTimestamp are ignored
    */
-  waitForReadyStatus(namespace: NamespaceName, labels: string[], maxAttempts?: number, delay?: number): Promise<Pod[]>;
+  waitForReadyStatus(
+    namespace: NamespaceName,
+    labels: string[],
+    maxAttempts?: number,
+    delay?: number,
+    createdAfter?: Date,
+    excludeMarkedForDeletion?: boolean,
+  ): Promise<Pod[]>;
+
+  /**
+   * Wait until a pod with the given reference appears in the Kubernetes API.
+   *
+   * Use this when the exact pod name is known. If the pod must be found by labels,
+   * use {@link waitForReadyStatus}.
+   *
+   * @param podReference - exact reference of the pod to wait for
+   * @param maxAttempts - maximum number of polling attempts (default 20)
+   * @param delay - milliseconds to wait between attempts (default 3000)
+   */
+  waitForPodByReference(podReference: PodReference, maxAttempts?: number, delay?: number): Promise<void>;
 
   /**
    * Check if pod's phase is running
@@ -44,6 +66,8 @@ export interface Pods {
    * @param maxAttempts - maximum attempts to check
    * @param delay - delay between checks in milliseconds
    * @param [podItemPredicate] - pod item predicate
+   * @param [createdAfter] - if provided, only pods created strictly after this date are considered
+   * @param [excludeMarkedForDeletion] - if true, pods with deletionTimestamp are ignored
    */
   waitForRunningPhase(
     namespace: NamespaceName,
@@ -51,7 +75,23 @@ export interface Pods {
     maxAttempts: number,
     delay: number,
     podItemPredicate?: (items: Pod) => boolean,
+    createdAfter?: Date,
+    excludeMarkedForDeletion?: boolean,
   ): Promise<Pod[]>;
+
+  /**
+   * Wait until no pods remain for the given label selector in the namespace.
+   * @param namespace - namespace
+   * @param labels - pod labels
+   * @param maxAttempts - maximum attempts to check
+   * @param delay - delay between checks in milliseconds
+   */
+  waitForPodsToTerminate(
+    namespace: NamespaceName,
+    labels: string[],
+    maxAttempts?: number,
+    delay?: number,
+  ): Promise<void>;
 
   /**
    * List all the pods across all namespaces with the given labels
@@ -80,6 +120,36 @@ export interface Pods {
   ): Promise<Pod>;
 
   /**
+   * Delete a pod by reference
+   * @param podReference - the reference to the pod
+   */
+  delete(podReference: PodReference): Promise<void>;
+
+  /**
+   * Read logs for the given pod across all containers.
+   * @param podReference - the reference to the pod
+   * @param timestamps - include timestamps in output
+   * @param previous - if true, get logs from the previous container instance (if it exists)
+   * @returns logs as a single string
+   */
+  readLogs(podReference: PodReference, timestamps?: boolean, previous?: boolean): Promise<string>;
+
+  /**
+   * Build a describe-like textual report for a pod, including pod details and related events.
+   * @param podReference - the reference to the pod
+   * @returns describe-like output string
+   */
+  readDescribe(podReference: PodReference): Promise<string>;
+
+  /**
+   * Get CPU and memory usage for pods via the Kubernetes Metrics API (equivalent to `kubectl top pod`)
+   * @param namespace - if provided, only get metrics for pods in this namespace; otherwise get metrics for all namespaces
+   * @param labelSelector - if provided, only get metrics for pods matching this label selector
+   * @returns list of pod metrics items with CPU (in millicores) and memory (in mebibytes)
+   */
+  topPods(namespace?: NamespaceName, labelSelector?: string): Promise<PodMetricsItem[]>;
+
+  /**
    * Read logs for the given pod across all containers.
    * @param podReference - the reference to the pod
    * @param timestamps - include timestamps in output
@@ -93,4 +163,6 @@ export interface Pods {
    * @returns describe-like output string
    */
   readDescribe(podReference: PodReference): Promise<string>;
+
+  detectFatalContainerError(pod: Pod): string | undefined;
 }

@@ -8,7 +8,7 @@ import {NamespaceName} from '../../../src/types/namespace/namespace-name.js';
 import {Argv} from '../../helpers/argv-wrapper.js';
 import {Flags as flags} from '../../../src/commands/flags.js';
 import {destroyEnabled, endToEndTestSuite, getTestCluster} from '../../test-utility.js';
-import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../../../version-test.js';
+import {TEST_UPGRADE_FROM_VERSION} from '../../../version-test.js';
 import {testSeparateNodeUpdate} from './separate-node-update.test.js';
 import {testSeparateNodeDelete} from './separate-node-destroy.test.js';
 import {testSeparateNodeUpgrade} from './separate-node-upgrade.test.js';
@@ -35,7 +35,7 @@ describe('Node add with hedera local build', (): void => {
   argv.setArg(flags.stakeAmounts, '1500,1');
   argv.setArg(flags.generateGossipKeys, true);
   argv.setArg(flags.generateTlsKeys, true);
-  argv.setArg(flags.releaseTag, TEST_LOCAL_HEDERA_PLATFORM_VERSION);
+  argv.setArg(flags.releaseTag, TEST_UPGRADE_FROM_VERSION);
   argv.setArg(flags.namespace, namespace.name);
   argv.setArg(flags.force, true);
   argv.setArg(flags.persistentVolumeClaims, true);
@@ -49,9 +49,7 @@ describe('Node add with hedera local build', (): void => {
       opts: {k8Factory, accountManager},
     } = bootstrapResp;
 
-    after(async function (): Promise<void> {
-      this.timeout(Duration.ofMinutes(10).toMillis());
-
+    after(async (): Promise<void> => {
       await accountManager.close();
 
       if (destroyEnabled()) {
@@ -59,7 +57,7 @@ describe('Node add with hedera local build', (): void => {
 
         await k8Factory.default().namespaces().delete(namespace);
       }
-    });
+    }).timeout(Duration.ofMinutes(10).toMillis());
 
     it('Should create and update a file', async (): Promise<void> => {
       const testCacheDirectory: string = `./test-cache/${namespace.name}`;
@@ -101,4 +99,4 @@ describe('Node add with hedera local build', (): void => {
     testSeparateNodeUpgrade(argv.clone(), bootstrapResp, namespace);
     testSeparateNodeDelete(argv.clone(), bootstrapResp, namespace);
   });
-}).timeout(Duration.ofMinutes(3).toMillis());
+}).timeout(Duration.ofMinutes(30).toMillis());

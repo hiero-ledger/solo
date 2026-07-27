@@ -12,12 +12,12 @@ tasks:
   test-setup:
     desc: "Setup for E2E tests that require a single cluster environment"
     cmds:
-      - SOLO_CLUSTER_DUALITY=1 sh {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
+      - SOLO_CLUSTER_DUALITY=1 bash {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
 
   dual-cluster-setup:
     desc: "Setup for E2E tests that require a dual cluster environment"
     cmds:
-      - sh {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
+      - bash {{.TASKFILE_DIR | toSlash}}/test/e2e/dual-cluster/setup-dual-e2e.sh
 
   test:
     desc: "Runs all unit tests with coverage and generates reports in coverage/unit"
@@ -60,6 +60,14 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/integration/**/*.ts'
         {{ .reporter_options_prefix }}-e2e-integration.xml"
 
+  test-install-validation:
+    desc: "Runs the per-distribution system-dependency install validation and generates reports in coverage/install-validation"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha Install Validation Tests\"
+        {{ .reporter_prefix }}='coverage/install-validation'
+        {{ .mocha_bin }} 'test/e2e/integration/core/package-managers/os-package-manager-install.test.ts'
+        {{ .reporter_options_prefix }}-install-validation.xml --timeout 300000"
+
   test-e2e-leases:
     desc: "Runs E2E lease tests with coverage and generates reports in coverage/e2e-leases"
     cmds:
@@ -81,19 +89,7 @@ tasks:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E Standard Tests\"
         {{ .reporter_prefix }}='coverage/e2e-standard' 
-        {{ .mocha_bin }} 'test/e2e/**/*.ts' 
-          --ignore 'test/e2e/integration/**/*.ts' 
-          --ignore 'test/e2e/commands/node*.ts' 
-          --ignore 'test/e2e/commands/separate-node*.ts' 
-          --ignore 'test/e2e/commands/block-node.test.ts' 
-          --ignore 'test/e2e/commands/dual-*.ts'
-          --ignore 'test/e2e/commands/external-*.ts'
-          --ignore 'test/e2e/commands/one-shot-single.test.ts'
-          --ignore 'test/e2e/commands/separate-node-update.test.ts' 
-          --ignore 'test/e2e/commands/separate-node-add.test.ts' 
-          --ignore 'test/e2e/commands/separate-node-destroy.test.ts' 
-          --ignore 'test/e2e/commands/separate-node-upgrade.test.ts' 
-          --ignore 'test/e2e/commands/performance.test.ts' 
+        {{ .mocha_bin }} 'test/e2e/standard/**/*.ts' 
         {{ .reporter_options_prefix }}-e2e-standard.xml --timeout 30000"
 
   test-e2e-node-add-local:
@@ -139,8 +135,9 @@ tasks:
   test-external-database:
     desc: "Runs the external database example test without coverage (used for local development)"
     cmd: |
+        source .github/workflows/script/helper.sh
         if [ -z "$CONSENSUS_NODE_VERSION" ]; then
-          export CONSENSUS_NODE_VERSION=$(awk -F"'" '/HEDERA_PLATFORM_VERSION/ {print $(NF-1); exit}' version.ts)
+          export CONSENSUS_NODE_VERSION=$(extract_version HEDERA_PLATFORM_VERSION version.ts)
         fi
         cd examples/external-database-test
         task default
@@ -159,16 +156,36 @@ tasks:
     cmds:
       - "{{ .test_prefix }}=\"Mocha E2E One Shot Single Test - Minimal Setup\"
         {{ .reporter_prefix }}='coverage/e2e-one-shot-single-minimal'
-        {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts' 
+        {{ .mocha_bin }} 'test/e2e/commands/one-shot-single.test.ts'
         {{ .reporter_options_prefix }}-e2e-one-shot-single-minimal.xml"
+  test-e2e-one-shot-idempotency:
+    desc: "Runs E2E One Shot Idempotency re-run scenario tests with coverage and generates reports in coverage/e2e-one-shot-idempotency"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E One Shot - Idempotency\"
+        {{ .reporter_prefix }}='coverage/e2e-one-shot-idempotency'
+        {{ .mocha_bin }} 'test/e2e/commands/one-shot-idempotency.test.ts'
+        {{ .reporter_options_prefix }}-e2e-one-shot-idempotency.xml"
 
   test-e2e-performance:
     desc: "Runs E2E Performance tests with coverage and generates reports in coverage/e2e-performance"
     cmds:
-      - "{{ .test_prefix }}=\"Mocha E2E Performance Test\"
-        {{ .reporter_prefix }}='coverage/e2e-performance'
-        {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts' 
-        {{ .reporter_options_prefix }}-e2e-performance.xml"
+      - |
+        [ -f testenv.sh ] && . testenv.sh || true
+        {{ .test_prefix }}="Mocha E2E Performance Test" \
+          {{ .reporter_prefix }}='coverage/e2e-performance' \
+          {{ .mocha_bin }} 'test/e2e/commands/performance.test.ts' \
+          {{ .reporter_options_prefix }}-e2e-performance.xml
+
+  test-e2e-small-memory-load:
+    desc: "Runs E2E Small Memory Load test — CN v0.74 with NLG v0.14.0 throttle-protected load"
+    env:
+      CONSENSUS_NODE_VERSION: v0.74.0
+      NETWORK_LOAD_GENERATOR_CHART_VERSION: "0.14.0"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E Small Memory Load Test\"
+        {{ .reporter_prefix }}='coverage/e2e-small-memory-load'
+        {{ .mocha_bin }} 'test/e2e/commands/small-memory-load.test.ts'
+        {{ .reporter_options_prefix }}-e2e-small-memory-load.xml"
 
   test-example-node-create-transaction:
     desc: "Runs the node create transaction example test without coverage (used for local development)"
@@ -190,3 +207,11 @@ tasks:
     cmds:
       - task
       - task destroy
+
+  test-e2e-cache:
+    desc: "Runs E2E Image Cache tests with coverage and generates reports in coverage/e2e-cache"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha E2E Cache Tests\"
+        {{ .reporter_prefix }}='coverage/e2e-cache'
+        {{ .mocha_bin }} 'test/e2e/commands/cache-command.test.ts'
+        {{ .reporter_options_prefix }}-e2e-cache.xml"

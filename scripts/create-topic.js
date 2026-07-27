@@ -23,8 +23,8 @@ const originalError = console.error;
 const RETRY_DELAY_MS = 500; // 0.5 seconds
 const CONSENSUS_DELAY_MS = 4000; // 4 seconds
 const MAX_RETRY_COUNT = 90;
-const MIRROR_NETWORK = '127.0.0.1:8081';
-const NETWORK = '127.0.0.1:50211';
+const MIRROR_NETWORK = '127.0.0.1:38081';
+const NETWORK = '127.0.0.1:35211';
 
 console.log = function (...args) {
   originalLog(`[${new Date().toISOString()}]`, ...args);
@@ -81,7 +81,7 @@ async function initialize() {
     if (process.env.NEW_NODE_ACCOUNT_ID) {
       console.log(`NEW_NODE_ACCOUNT_ID = ${process.env.NEW_NODE_ACCOUNT_ID}`);
       nodeClient.setNetwork({
-        '127.0.0.1:50211': AccountId.fromString(process.env.NEW_NODE_ACCOUNT_ID),
+        '127.0.0.1:35211': AccountId.fromString(process.env.NEW_NODE_ACCOUNT_ID),
       });
     }
 
@@ -188,7 +188,7 @@ async function submitMessageToTopic(context) {
 }
 
 async function queryMirrorNodeApiForTopic(context) {
-  const queryUrl = `http://localhost:8081/api/v1/topics/${context.topicIdString}`;
+  const queryUrl = `http://localhost:38081/api/v1/topics/${context.topicIdString}`;
   let success = false;
 
   let retry = 0;
@@ -218,7 +218,7 @@ async function queryMirrorNodeApiForTopic(context) {
 
 async function queryExplorerApiForTopicMessage(context) {
   // Check submit message result should succeed via mirror node API
-  const queryURL = `http://localhost:8080/api/v1/topics/${context.topicIdString}/messages`;
+  const queryURL = `http://localhost:38080/api/v1/topics/${context.topicIdString}/messages`;
 
   // wait until the transaction reached consensus and retrievable from the mirror node API
   let retry = 0;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../errors/solo-error.js';
+import {SoloErrors} from '../../errors/solo-errors.js';
 import {ComponentTypes} from './enumerations/component-types.js';
 import {BaseStateSchema} from '../../../data/schema/model/remote/state/base-state-schema.js';
 import {isValidEnum} from '../../util/validation-helpers.js';
@@ -9,7 +9,7 @@ import {type ClusterReferenceName, type ComponentId, type PortForwardConfig} fro
 import {type ComponentsDataWrapperApi} from './api/components-data-wrapper-api.js';
 import {type DeploymentStateSchema} from '../../../data/schema/model/remote/deployment-state-schema.js';
 import {type ConsensusNodeStateSchema} from '../../../data/schema/model/remote/state/consensus-node-state-schema.js';
-import {type ComponentIdsStructure} from '../../../data/schema/model/remote/interfaces/components-ids-structure.js';
+import {type ComponentIdsStructure} from '../../../data/schema/model/remote/interfaces/component-ids-structure.js';
 import {type PodReference} from '../../../integration/kube/resources/pod/pod-reference.js';
 import {type K8} from '../../../integration/kube/k8.js';
 import {type SoloLogger} from '../../logging/solo-logger.js';
@@ -26,33 +26,54 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
   /* -------- Modifiers -------- */
 
   /** Used to add new component to their respective group. */
-  public addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean): void {
+  public addNewComponent(
+    component: BaseStateSchema,
+    type: ComponentTypes,
+    isReplace?: boolean,
+    skipIncrement: boolean = false,
+  ): boolean {
     const componentId: ComponentId = component.metadata.id;
 
     if (typeof componentId !== 'number') {
-      throw new SoloError(`Component id is required ${componentId}`);
+      throw new SoloErrors.validation.componentIdRequired(componentId);
     }
 
     if (!(component instanceof BaseStateSchema)) {
-      throw new SoloError('Component must be instance of BaseState', undefined, BaseStateSchema);
+      throw new SoloErrors.internal.dataValidation('component type', 'BaseState', 'unknown');
     }
 
+    let componentAdded: boolean = false;
+
     const addComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
-      if (this.checkComponentExists(components, component) && !isReplace) {
-        throw new SoloError('Component exists', undefined, component);
+      const existingComponentIndex: number = components.findIndex(
+        (existingComponent): boolean => existingComponent.metadata.id === componentId,
+      );
+
+      if (existingComponentIndex !== -1) {
+        if (isReplace) {
+          components[existingComponentIndex] = component;
+        }
+
+        return;
       }
+
       components.push(component);
+      componentAdded = true;
     };
 
     this.applyCallbackToComponentGroup(type, addComponentCallback, componentId);
 
-    // Increment the component id counter for the specified type when adding
-    this.componentIds[type] += 1;
+    if (componentAdded && !skipIncrement) {
+      this.componentIds[type] += 1;
+    }
+
+    return componentAdded;
   }
 
+  // TODO: Remove once unified method is fully utilized
   public changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void {
     if (!this.state.consensusNodes.some((component): boolean => +component.metadata.id === +componentId)) {
-      throw new SoloError(`Consensus node ${componentId} doesn't exist`);
+      throw new SoloErrors.validation.componentNotFound(String(componentId), 'consensus-node', 'read');
     }
 
     const component: ConsensusNodeStateSchema = this.state.consensusNodes.find(
@@ -62,20 +83,38 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     component.metadata.phase = phase;
   }
 
+  public changeComponentPhase(componentId: ComponentId, type: ComponentTypes, phase: DeploymentPhase): void {
+    if (typeof componentId !== 'number') {
+      throw new SoloErrors.validation.componentIdRequired(componentId);
+    }
+
+    const updateComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
+      const component: BaseStateSchema = components.find((component): boolean => component.metadata.id === componentId);
+
+      if (!component) {
+        throw new SoloErrors.validation.componentNotFound(String(componentId), type, 'update');
+      }
+
+      component.metadata.phase = phase;
+    };
+
+    this.applyCallbackToComponentGroup(type, updateComponentCallback, componentId);
+  }
+
   /** Used to remove specific component from their respective group. */
   public removeComponent(componentId: ComponentId, type: ComponentTypes): void {
     if (typeof componentId !== 'number') {
-      throw new SoloError(`Component id is required ${componentId}`);
+      throw new SoloErrors.validation.componentIdRequired(componentId);
     }
 
     if (!isValidEnum(type, ComponentTypes)) {
-      throw new SoloError(`Invalid component type ${type}`);
+      throw new SoloErrors.validation.unknownComponentType(type);
     }
 
     const removeComponentCallback: (components: BaseStateSchema[]) => void = (components): void => {
       const index: number = components.findIndex((component): boolean => component.metadata.id === componentId);
       if (index === -1) {
-        throw new SoloError(`Component ${componentId} of type ${type} not found while attempting to remove`);
+        throw new SoloErrors.validation.componentNotFound(String(componentId), type, 'remove');
       }
 
       components.splice(index, 1);
@@ -93,7 +132,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       component = components.find((component): boolean => component.metadata.id === componentId) as T;
 
       if (!component) {
-        throw new SoloError(`Component ${componentId} of type ${type} not found while attempting to read`);
+        throw new SoloErrors.validation.componentNotFound(String(componentId), type, 'read');
       }
     };
 
@@ -139,7 +178,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     this.applyCallbackToComponentGroup(type, getComponentByIdCallback);
 
     if (!filteredComponent) {
-      throw new SoloError(`Component of type ${type} with id ${id} was not found in remote config`);
+      throw new SoloErrors.validation.componentNotInRemoteConfig(type, String(id));
     }
 
     return filteredComponent;
@@ -190,15 +229,20 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
         break;
       }
 
+      case ComponentTypes.Postgres: {
+        callback(this.state.postgres);
+        break;
+      }
+
+      case ComponentTypes.Redis: {
+        callback(this.state.redis);
+        break;
+      }
+
       default: {
-        throw new SoloError(`Unknown component type ${componentType}, component id: ${componentId}`);
+        throw new SoloErrors.validation.unknownComponentType(componentType, String(componentId));
       }
     }
-  }
-
-  /** checks if component exists in the respective group */
-  private checkComponentExists(components: BaseStateSchema[], newComponent: BaseStateSchema): boolean {
-    return components.some((component): boolean => component.metadata.id === newComponent.metadata.id);
   }
 
   public getNewComponentId(componentType: ComponentTypes): number {
@@ -230,6 +274,8 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     label: string,
     reuse: boolean = false,
     nodeId?: number,
+    persist: boolean = false,
+    externalAddress?: string,
   ): Promise<number> {
     // found component by cluster reference or nodeId
     let component: BaseStateSchema;
@@ -252,8 +298,19 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     } else if (component.metadata.portForwardConfigs) {
       for (const portForwardConfig of component.metadata.portForwardConfigs) {
         if (reuse === true && portForwardConfig.podPort === podPort) {
-          logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
-          return portForwardConfig.localPort;
+          if (portForwardConfig.localPort === localPort) {
+            logger.showUser(`${label} Port forward already enabled at ${portForwardConfig.localPort}`);
+            return portForwardConfig.localPort;
+          }
+          // localPort changed (migration) — kill the old process so portForward() reuse logic
+          // does not find it and return the stale port, then remove the stale config.
+          logger.showUser(`${label} Port forward migrating from ${portForwardConfig.localPort} to ${localPort}`);
+          // eslint-disable-next-line unicorn/no-null
+          await k8Client.pods().readByReference(null).stopPortForward(portForwardConfig.localPort);
+          component.metadata.portForwardConfigs = component.metadata.portForwardConfigs.filter(
+            (c): boolean => !(c.podPort === podPort && c.localPort === portForwardConfig.localPort),
+          );
+          break;
         }
       }
     }
@@ -262,18 +319,16 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     const portForwardPortNumber: number = await k8Client
       .pods()
       .readByReference(podReference)
-      .portForward(localPort, podPort, reuse);
+      .portForward(localPort, podPort, reuse, persist, externalAddress);
 
     logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding enabled');
     logger.addMessageGroupMessage(
       constants.PORT_FORWARDING_MESSAGE_GROUP,
-      `${label} port forward enabled on localhost:${portForwardPortNumber}`,
+      `${label} port forward enabled on ${externalAddress || constants.LOCAL_HOST}:${portForwardPortNumber}`,
     );
 
     if (component !== undefined) {
-      if (component.metadata.portForwardConfigs === undefined) {
-        component.metadata.portForwardConfigs = [];
-      }
+      component.metadata.portForwardConfigs ||= [];
 
       // Check if this exact podPort and localPort pair already exists
       const existingConfig: PortForwardConfig | undefined = component.metadata.portForwardConfigs.find(
@@ -332,7 +387,7 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
     }
 
     if (component === undefined || !component.metadata.portForwardConfigs) {
-      logger.showUser(`No port forward config found for ${label}`);
+      logger.showUserUnlessOneShot(`No port forward config found for ${label}`);
       return;
     }
 
@@ -346,7 +401,8 @@ export class ComponentsDataWrapper implements ComponentsDataWrapperApi {
       return;
     }
 
-    // Stop the port forward - use null pod reference since stopping should work regardless of pod
+    // Stop the port forward - use any pod reference since stopping should work regardless of pod
+    // eslint-disable-next-line unicorn/no-null
     await k8Client.pods().readByReference(null).stopPortForward(localPort);
 
     logger.addMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP, 'Port forwarding stopped');

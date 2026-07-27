@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from '../../../core/errors/solo-error.js';
+import {KubeError} from './kube-error.js';
 
-export class MissingParentResourceReferenceError extends SoloError {
+export class MissingParentResourceReferenceError extends KubeError {
   public static MISSING_PARENT_RESOURCE_REF: string = 'The parent ResourceReference is required.';
 
   /**

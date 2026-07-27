@@ -21,6 +21,7 @@ Maintainers are assigned the following scopes in this repository:
 | Jeromy Cannon | jeromy-cannon | Maintainer |      | jeromy\_at\_hashgraph |       | Hashgraph           |
 | Lenin Mehedy  | leninmehedy   | Maintainer |      |                       |       | Hashgraph           |
 | Nathan Klick  | nathanklick   | Maintainer |      | nathan.hashgraph      |       | Hashgraph           |
+| Jan Milenkov  | jan-milenkov  | Maintainer |      |                       |       |                     |
 
 ## Emeritus Maintainers
 

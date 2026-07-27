@@ -1,0 +1,28 @@
+importer:
+  config:
+    spring:
+      datasource:
+        hikari:
+          minimumIdle: 8
+          maximumPoolSize: 12
+grpc:
+  config:
+    spring:
+      datasource:
+        hikari:
+          minimumIdle: 1
+          maximumPoolSize: 2
+restjava:
+  config:
+    spring:
+      datasource:
+        hikari:
+          minimumIdle: 1
+          maximumPoolSize: 2
+web3:
+  config:
+    spring:
+      datasource:
+        hikari:
+          minimumIdle: 1
+          maximumPoolSize: 2

@@ -1,4 +1,6 @@
 appName: nlg
+image:
+  repository: "swirldslabs.jfrog.io/load-generator-docker/network-load-generator"
 loadGenerator:
   test:
     className: com.hedera.benchmark.DONOTSTART

@@ -2,7 +2,7 @@
 
 import {type SchemaDefinition} from './schema-definition.js';
 import {type SchemaMigration} from './schema-migration.js';
-import {Version} from '../../../../business/utils/version.js';
+import {SemanticVersion} from '../../../../business/utils/semantic-version.js';
 import {type ClassConstructor} from '../../../../business/utils/class-constructor.type.js';
 import {type ObjectMapper} from '../../../mapper/api/object-mapper.js';
 import {SchemaValidationError} from './schema-validation-error.js';
@@ -11,11 +11,11 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
   public abstract get classConstructor(): ClassConstructor<T>;
   public abstract get migrations(): SchemaMigration[];
   public abstract get name(): string;
-  public abstract get version(): Version<number>;
+  public abstract get version(): SemanticVersion<number>;
 
   protected constructor(protected readonly mapper: ObjectMapper) {}
 
-  public async transform(data: object, sourceVersion?: Version<number>): Promise<T> {
+  public async transform(data: object, sourceVersion?: SemanticVersion<number>): Promise<T> {
     if (data === undefined || data === null) {
       return null;
     }
@@ -23,10 +23,10 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     const clone: any = structuredClone(data);
     let dataVersion: number = clone.schemaVersion;
     if (!dataVersion) {
-      dataVersion = sourceVersion ? sourceVersion.value : 0;
+      dataVersion = sourceVersion ? sourceVersion.major : 0;
     }
 
-    const migrated: object = await this.applyMigrations(clone, new Version(dataVersion));
+    const migrated: object = await this.applyMigrations(clone, new SemanticVersion(dataVersion));
     return this.mapper.fromObject(this.classConstructor, migrated);
   }
 
@@ -35,7 +35,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
       return;
     }
     // eslint-disable-next-line unicorn/no-array-sort
-    const versionJumps: number[] = this.migrations.map((value): number => value.version.value).sort();
+    const versionJumps: number[] = this.migrations.map((value): number => value.version.major).sort();
 
     for (let index: number = 1; index < versionJumps.length; index++) {
       if (versionJumps[index] === versionJumps[index - 1]) {
@@ -43,13 +43,13 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
       }
     }
 
-    let currentVersion: Version<number> = this.nextVersionJump(new Version(0));
+    let currentVersion: SemanticVersion<number> = this.nextVersionJump(new SemanticVersion(0));
 
     for (const versionJump of versionJumps) {
-      const v: Version<number> = new Version(versionJump);
+      const v: SemanticVersion<number> = new SemanticVersion(versionJump);
       if (!v.equals(currentVersion)) {
         throw new SchemaValidationError(
-          `Invalid migration version sequence detected; expected version '${v.value}' but got '${currentVersion.value}'`,
+          `Invalid migration version sequence detected; expected version '${v.major}' but got '${currentVersion.major}'`,
         );
       }
 
@@ -59,12 +59,12 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     return;
   }
 
-  protected nextVersionJump(currentVersion: Version<number>): Version<number> {
+  protected nextVersionJump(currentVersion: SemanticVersion<number>): SemanticVersion<number> {
     const targetMigrations: SchemaMigration[] = this.findMigrations(currentVersion);
     if (!targetMigrations || targetMigrations.length === 0) {
       // No migration found for the current version - fail with an error
       throw new SchemaValidationError(
-        `No migration found for version '${currentVersion.value}'; there is a gap in the migration sequence`,
+        `No migration found for version '${currentVersion.major}'; there is a gap in the migration sequence`,
       );
     }
 
@@ -77,7 +77,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
    * M1.1 < range = [0, 4), version = 5 >
    * M2 < range = [6, 7), version = 8 >
    */
-  protected async applyMigrations(data: object, dataVersion: Version<number>): Promise<object> {
+  protected async applyMigrations(data: object, dataVersion: SemanticVersion<number>): Promise<object> {
     let migrations: SchemaMigration[] = this.findMigrations(dataVersion);
 
     while (migrations.length > 0) {
@@ -90,7 +90,7 @@ export abstract class SchemaDefinitionBase<T> implements SchemaDefinition<T> {
     return data;
   }
 
-  protected findMigrations(dataVersion: Version<number>): SchemaMigration[] {
+  protected findMigrations(dataVersion: SemanticVersion<number>): SchemaMigration[] {
     const eligibleMigrations: SchemaMigration[] = this.migrations.filter((value): boolean =>
       value.range.contains(dataVersion),
     );

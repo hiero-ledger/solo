@@ -3,21 +3,14 @@
   "compilerOptions": {
     "isolatedModules": true,
     "target": "ES2022",
-    "lib": [
-      "ES2022",
-      "dom"
-    ],
+    "lib": ["ES2022", "dom"],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "moduleDetection": "force",
     "importsNotUsedAsValues": "remove",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "types": [
-      "node",
-      "mocha",
-      "reflect-metadata"
-    ],
+    "types": ["node", "mocha", "reflect-metadata"],
     "sourceMap": true,
     "outDir": "dist",
     "removeComments": false,
@@ -29,14 +22,7 @@
     "skipLibCheck": true,
     "noImplicitOverride": true
   },
-  "include": [
-    "src",
-    "version.ts",
-    "version-test.ts",
-    "solo.ts",
-    "test",
-    "lint-formatter.ts",
-  ],
+  "include": ["src", "version.ts", "version-test.ts", "solo.ts", "test", "lint-formatter.ts", "scripts/docs/*.ts"],
   "ts-node": {
     "esm": true,
     "experimentalResolver": true,

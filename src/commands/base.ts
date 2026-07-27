@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../core/errors/solo-errors.js';
 import {SoloError} from '../core/errors/solo-error.js';
 import {ShellRunner} from '../core/shell-runner.js';
 import {type LockManager} from '../core/lock/lock-manager.js';
@@ -11,6 +12,7 @@ import {type HelmClient} from '../integration/helm/helm-client.js';
 import {type LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import * as constants from '../core/constants.js';
 import fs from 'node:fs';
+import os from 'node:os';
 import {
   type ClusterReferenceName,
   type ClusterReferences,
@@ -18,10 +20,10 @@ import {
   type Context,
   NamespaceNameAsString,
   Optional,
+  type SoloListrTask,
   type SoloListrTaskWrapper,
 } from '../types/index.js';
 import {Flags as flags, Flags} from './flags.js';
-import {PathEx} from '../business/utils/path-ex.js';
 import {inject} from 'tsyringe-neo';
 import {patchInject} from '../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../core/dependency-injection/inject-tokens.js';
@@ -36,8 +38,26 @@ import {resolveNamespaceFromDeployment} from '../core/resolvers.js';
 import {Templates} from '../core/templates.js';
 import {BaseStateSchema} from '../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentTypes} from '../core/config/remote/enumerations/component-types.js';
+import {NodeCommandTasks} from './node/tasks.js';
+import {SoloConfig} from '../business/runtime-state/config/solo/solo-config.js';
+import {type ConfigProvider} from '../data/configuration/api/config-provider.js';
+import {type DefaultKindClientBuilder} from '../integration/kind/impl/default-kind-client-builder.js';
+import {type KindClient} from '../integration/kind/kind-client.js';
+import {LoadDockerImageOptionsBuilder} from '../integration/kind/model/load-docker-image/load-docker-image-options-builder.js';
+import {checkDockerImageExists} from '../core/helpers.js';
+import {PathEx} from '../business/utils/path-ex.js';
+import {OperatingSystem} from '../business/utils/operating-system.js';
+import {getEnvironmentVariable} from '../core/constants.js';
+
+interface DockerDesktopContainerdCheckResult {
+  readonly containerdSnapshotterEnabled: boolean;
+  readonly settingsFilePath?: string;
+  readonly warningMessage?: string;
+}
 
 export abstract class BaseCommand extends ShellRunner {
+  public readonly soloConfig: SoloConfig;
+
   public constructor(
     @inject(InjectTokens.Helm) protected readonly helm?: HelmClient,
     @inject(InjectTokens.K8Factory) protected readonly k8Factory?: K8Factory,
@@ -51,6 +71,9 @@ export abstract class BaseCommand extends ShellRunner {
     protected readonly taskList?: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
     @inject(InjectTokens.ComponentFactory) protected readonly componentFactory?: ComponentFactoryApi,
     @inject(InjectTokens.OneShotState) protected readonly oneShotState?: OneShotState,
+    @inject(InjectTokens.NodeCommandTasks) protected readonly nodeCommandTasks?: NodeCommandTasks,
+    @inject(InjectTokens.ConfigProvider) private readonly configProvider?: ConfigProvider,
+    @inject(InjectTokens.KindBuilder) protected readonly kindBuilder?: DefaultKindClientBuilder,
   ) {
     super();
 
@@ -65,161 +88,105 @@ export abstract class BaseCommand extends ShellRunner {
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.componentFactory = patchInject(componentFactory, InjectTokens.ComponentFactory, this.constructor.name);
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
+    this.nodeCommandTasks = patchInject(nodeCommandTasks, InjectTokens.NodeCommandTasks, this.constructor.name);
+    this.configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
+    this.kindBuilder = patchInject(kindBuilder, InjectTokens.KindBuilder, this.constructor.name);
+    this.soloConfig = SoloConfig.getConfig(this.configProvider);
   }
 
-  /**
-   * Prepare the values files map for each cluster
-   *
-   * Order of precedence:
-   * 1. Chart's default values file (if chartDirectory is set)
-   * 2. Profile values file
-   * 3. User's values file
-   * @param clusterReferences
-   * @param valuesFileInput - the values file input string
-   * @param chartDirectory - the chart directory
-   * @param profileValuesFile - mapping of clusterRef to the profile values file full path
-   */
-  public static prepareValuesFilesMapMultipleCluster(
-    clusterReferences: ClusterReferences,
-    chartDirectory?: string,
-    profileValuesFile?: Record<ClusterReferenceName, string>,
-    valuesFileInput?: string,
-  ): Record<ClusterReferenceName, string> {
-    // initialize the map with an empty array for each cluster-ref
-    const valuesFiles: Record<ClusterReferenceName, string> = {[Flags.KEY_COMMON]: ''};
-    for (const [clusterReference] of clusterReferences) {
-      valuesFiles[clusterReference] = '';
+  protected async loadRemoteConfigOrWarn(
+    argv: {_: string[]} & Record<string, unknown>,
+    validate: boolean = true,
+    skipConsensusNodesValidation: boolean = true,
+  ): Promise<boolean> {
+    try {
+      await this.remoteConfig.loadAndValidate(argv, validate, skipConsensusNodesValidation);
+      return true;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to load remote config; continuing destroy: ${error instanceof Error ? error.message : error}`,
+      );
+      return false;
     }
-
-    // add the chart's default values file for each cluster-ref if chartDirectory is set
-    // this should be the first in the list of values files as it will be overridden by user's input
-    if (chartDirectory) {
-      const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
-      for (const clusterReference in valuesFiles) {
-        valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
-      }
-    }
-
-    if (profileValuesFile) {
-      for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
-        const valuesArgument: string = ` --values ${file}`;
-
-        if (clusterReference === Flags.KEY_COMMON) {
-          for (const clusterReference_ of Object.keys(valuesFiles)) {
-            valuesFiles[clusterReference_] += valuesArgument;
-          }
-        } else {
-          valuesFiles[clusterReference] += valuesArgument;
-        }
-      }
-    }
-
-    if (valuesFileInput) {
-      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(valuesFileInput);
-      for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf: string = '';
-        for (const file of files) {
-          vf += ` --values ${file}`;
-        }
-
-        if (clusterReference === Flags.KEY_COMMON) {
-          for (const [clusterReference_] of Object.entries(valuesFiles)) {
-            valuesFiles[clusterReference_] += vf;
-          }
-        } else {
-          valuesFiles[clusterReference] += vf;
-        }
-      }
-    }
-
-    if (Object.keys(valuesFiles).length > 1) {
-      // delete the common key if there is another cluster to use
-      delete valuesFiles[Flags.KEY_COMMON];
-    }
-
-    return valuesFiles;
-  }
-
-  /**
-   * Prepare the values files map for each cluster
-   *
-   * Order of precedence:
-   * 1. Chart's default values file (if chartDirectory is set)
-   * 2. Profile values file
-   * 3. User's values file
-   * @param clusterReferences
-   * @param valuesFileInput - the values file input string
-   * @param chartDirectory - the chart directory
-   * @param profileValuesFile - the profile values file full path
-   */
-  public static prepareValuesFilesMap(
-    clusterReferences: ClusterReferences,
-    chartDirectory?: string,
-    profileValuesFile?: string,
-    valuesFileInput?: string,
-  ): Record<ClusterReferenceName, string> {
-    // initialize the map with an empty array for each cluster-ref
-    const valuesFiles: Record<ClusterReferenceName, string> = {
-      [Flags.KEY_COMMON]: '',
-    };
-    for (const [clusterReference] of clusterReferences) {
-      valuesFiles[clusterReference] = '';
-    }
-
-    // add the chart's default values file for each cluster-ref if chartDirectory is set
-    // this should be the first in the list of values files as it will be overridden by user's input
-    if (chartDirectory) {
-      const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
-      for (const clusterReference in valuesFiles) {
-        valuesFiles[clusterReference] += ` --values ${chartValuesFile}`;
-      }
-    }
-
-    if (profileValuesFile) {
-      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(profileValuesFile);
-      for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf: string = '';
-        for (const file of files) {
-          vf += ` --values ${file}`;
-        }
-
-        if (clusterReference === Flags.KEY_COMMON) {
-          for (const [cf] of Object.entries(valuesFiles)) {
-            valuesFiles[cf] += vf;
-          }
-        } else {
-          valuesFiles[clusterReference] += vf;
-        }
-      }
-    }
-
-    if (valuesFileInput) {
-      const parsed: Record<string, Array<string>> = Flags.parseValuesFilesInput(valuesFileInput);
-      for (const [clusterReference, files] of Object.entries(parsed)) {
-        let vf: string = '';
-        for (const file of files) {
-          vf += ` --values ${file}`;
-        }
-
-        if (clusterReference === Flags.KEY_COMMON) {
-          for (const [clusterReference_] of Object.entries(valuesFiles)) {
-            valuesFiles[clusterReference_] += vf;
-          }
-        } else {
-          valuesFiles[clusterReference] += vf;
-        }
-      }
-    }
-
-    if (Object.keys(valuesFiles).length > 1) {
-      // delete the common key if there is another cluster to use
-      delete valuesFiles[Flags.KEY_COMMON];
-    }
-
-    return valuesFiles;
   }
 
   public abstract close(): Promise<void>;
+
+  private static getDockerDesktopSettingsPaths(): string[] {
+    const home: string = os.homedir();
+    const paths: string[] = [
+      PathEx.join(home, '.docker', 'settings-store.json'),
+      PathEx.join(home, '.docker', 'settings.json'),
+    ];
+
+    if (OperatingSystem.isWin32()) {
+      const appData: string = getEnvironmentVariable('APPDATA') ?? PathEx.join(home, 'AppData', 'Roaming');
+      paths.unshift(
+        PathEx.join(appData, 'Docker', 'settings-store.json'),
+        PathEx.join(appData, 'Docker', 'settings.json'),
+      );
+    } else if (OperatingSystem.isDarwin()) {
+      paths.push(PathEx.join(home, 'Library', 'Group Containers', 'group.com.docker', 'settings.json'));
+    }
+
+    return paths;
+  }
+
+  private static checkDockerDesktopContainerdSetting(): DockerDesktopContainerdCheckResult {
+    if (OperatingSystem.isLinux()) {
+      return {containerdSnapshotterEnabled: false};
+    }
+
+    for (const candidatePath of BaseCommand.getDockerDesktopSettingsPaths()) {
+      if (!fs.existsSync(candidatePath)) {
+        continue;
+      }
+
+      let settings: Record<string, unknown>;
+      try {
+        settings = JSON.parse(fs.readFileSync(candidatePath, 'utf8')) as Record<string, unknown>;
+      } catch {
+        continue;
+      }
+
+      if (settings['useContainerdSnapshotter'] === true) {
+        return {
+          containerdSnapshotterEnabled: true,
+          settingsFilePath: candidatePath,
+          warningMessage:
+            'Docker Desktop "Use containerd for pulling and storing images" is enabled. ' +
+            'This setting can cause Kubernetes pods to fail with an ImageInspectError pointing ' +
+            'at /run/containerd/containerd.sock. ' +
+            'To avoid relay and other component deployment failures: ' +
+            'open Docker Desktop > Settings > General > uncheck ' +
+            '"Use containerd for pulling and storing images" > Apply & Restart.',
+        };
+      }
+
+      return {containerdSnapshotterEnabled: false, settingsFilePath: candidatePath};
+    }
+
+    return {containerdSnapshotterEnabled: false};
+  }
+
+  /**
+   * Returns a Listr task that checks whether Docker Desktop's
+   * "Use containerd for pulling and storing images" setting is enabled and emits a
+   * warning when it is. This check is relevant for any Solo command that deploys pods,
+   * since the containerd snapshotter setting can cause ImageInspectError failures.
+   * The task is non-blocking - it warns only and does not halt the command.
+   */
+  protected dockerDesktopPreflightTask(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Pre-flight: check Docker Desktop containerd setting',
+      task: async (): Promise<void> => {
+        const result: DockerDesktopContainerdCheckResult = BaseCommand.checkDockerDesktopContainerdSetting();
+        if (result.containerdSnapshotterEnabled && result.warningMessage) {
+          this.logger.warn(result.warningMessage);
+        }
+      },
+    };
+  }
 
   /**
    * Setup home directories
@@ -242,7 +209,7 @@ export abstract class BaseCommand extends ShellRunner {
         this.logger.debug(`OK: setup directory: ${directoryPath}`);
       }
     } catch (error) {
-      throw new SoloError(`failed to create directory: ${error.message}`, error);
+      throw new SoloErrors.system.directoryCreationFailed(error);
     }
 
     return directories;
@@ -269,7 +236,7 @@ export abstract class BaseCommand extends ShellRunner {
         } else if (clusterReferences.size > 1) {
           // Multiple clusters exist - list them in error message
           const clusterList: string = [...clusterReferences.keys()].join(', ');
-          throw new SoloError(`Multiple clusters found (${clusterList}). Please specify --cluster-ref to select one.`);
+          throw new SoloErrors.validation.multipleClustersFound(clusterList);
         }
       }
     } catch (error) {
@@ -295,9 +262,50 @@ export abstract class BaseCommand extends ShellRunner {
     return resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
   }
 
+  protected kindClusterNameFromContext(clusterContext: string): string {
+    return clusterContext.startsWith('kind-') ? clusterContext.slice('kind-'.length) : clusterContext;
+  }
+
+  protected isLocalImageReference(imageReference: string): boolean {
+    const withoutTag: string = imageReference.includes(':')
+      ? imageReference.slice(0, imageReference.lastIndexOf(':'))
+      : imageReference;
+    const firstSegment: string = withoutTag.split('/', 1)[0];
+    return !firstSegment.includes('.') && !firstSegment.includes(':') && firstSegment !== 'localhost';
+  }
+
+  protected splitImageNameTag(imageReference: string): {name: string; tag: string} {
+    const colonIndex: number = imageReference.lastIndexOf(':');
+    if (colonIndex === -1) {
+      throw new SoloErrors.validation.illegalArgument(
+        `Image reference must include a tag (e.g. name:tag): '${imageReference}'`,
+      );
+    }
+    return {name: imageReference.slice(0, colonIndex), tag: imageReference.slice(colonIndex + 1)};
+  }
+
+  protected isLocalImageAvailableInDocker(componentImage: string): boolean {
+    if (!this.isLocalImageReference(componentImage)) {
+      return false;
+    }
+    const {name, tag} = this.splitImageNameTag(componentImage);
+    return checkDockerImageExists(name, tag);
+  }
+
+  protected async kindLoadComponentImage(componentImage: string, clusterContext: string): Promise<void> {
+    const kindClusterName: string = this.kindClusterNameFromContext(clusterContext);
+    this.logger.debug(`Loading '${componentImage}' into Kind cluster '${kindClusterName}'`);
+    const kindExecutable: string = await this.depManager.getExecutable(constants.KIND);
+    const kindClient: KindClient = await this.kindBuilder.executable(kindExecutable).build();
+    await kindClient.loadDockerImage(
+      componentImage,
+      LoadDockerImageOptionsBuilder.builder().name(kindClusterName).build(),
+    );
+  }
+
   protected async throwIfNamespaceIsMissing(context: Context, namespace: NamespaceName): Promise<void> {
     if (!(await this.k8Factory.getK8(context).namespaces().has(namespace))) {
-      throw new SoloError(`namespace ${namespace} does not exist`);
+      throw new SoloErrors.system.namespaceNotFound(namespace.name);
     }
   }
 

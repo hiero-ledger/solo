@@ -2,14 +2,15 @@
 
 import {type NodeAlias} from '../../../types/aliases.js';
 import {type PrivateKey} from '@hiero-ledger/sdk';
-import {type CheckedNodesConfigClass, type NodeCommonConfigWithNodeAliases} from './node-common-config-class.js';
+import {type CheckedNodesConfigClass} from './checked-nodes-config-class.js';
+import {type NodeCommonConfigWithNodeAliases} from './node-common-config-with-node-aliases.js';
 import {type Client} from '@hiero-ledger/sdk';
 
 export interface NodeUpgradeConfigClass extends NodeCommonConfigWithNodeAliases, CheckedNodesConfigClass {
   app: string;
   cacheDir: string;
   chartDirectory: string;
-  devMode: boolean;
+  debugMode: boolean;
   debugNodeAlias: NodeAlias;
   soloChartVersion: string;
   localBuildPath: string;
@@ -20,8 +21,18 @@ export interface NodeUpgradeConfigClass extends NodeCommonConfigWithNodeAliases,
   keysDir: string;
   nodeClient: Client;
   stagingDir: string;
-  stagingKeysDir: string;
   treasuryKey: PrivateKey;
   curDate: Date;
   upgradeVersion: string;
+
+  // Node Config Flags
+  apiPermissionProperties: string;
+  applicationEnv: string;
+  applicationProperties: string;
+  bootstrapProperties: string;
+  log4j2Xml: string;
+  settingTxt: string;
+
+  // Flags used for chart upgrades
+  valuesFile: string;
 }

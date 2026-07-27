@@ -4,11 +4,16 @@ import {type Options} from '../../request/options.js';
 import {type KindExecutionBuilder} from '../../execution/kind-execution-builder.js';
 
 /**
- * Options for the `kind cluster delete` command.
+ * Options for the `kind load image-archive` command.
  */
 export class LoadImageArchiveOptions implements Options {
   /**
-   * The name of the cluster context name (default "kind")
+   * Path to the image archive to load.
+   */
+  private readonly _archivePath: string;
+
+  /**
+   * The name of the cluster (default "kind")
    */
   private readonly _name: string;
 
@@ -17,7 +22,10 @@ export class LoadImageArchiveOptions implements Options {
    */
   private readonly _nodes: string;
 
-  public constructor(name?: string, nodes?: string) {
+  public constructor(archivePath?: string, name?: string, nodes?: string) {
+    if (archivePath) {
+      this._archivePath = archivePath;
+    }
     if (name) {
       this._name = name;
     }
@@ -31,12 +39,22 @@ export class LoadImageArchiveOptions implements Options {
    * @param builder The KindExecutionBuilder to apply options to.
    */
   public apply(builder: KindExecutionBuilder): void {
+    if (this._archivePath) {
+      builder.positional(this._archivePath);
+    }
     if (this._name) {
       builder.argument('name', this._name);
     }
     if (this._nodes) {
       builder.argument('nodes', this._nodes);
     }
+  }
+
+  /**
+   * The archive path.
+   */
+  public get archivePath(): string {
+    return this._archivePath;
   }
 
   /**

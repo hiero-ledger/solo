@@ -2,64 +2,64 @@
 
 import {type Facade} from '../../facade/facade.js';
 import {type ApplicationVersionsSchema} from '../../../../data/schema/model/common/application-versions-schema.js';
-import {type SemVer} from 'semver';
+import {type SemanticVersion} from '../../../utils/semantic-version.js';
 
 export class ApplicationVersions implements Facade<ApplicationVersionsSchema> {
   public constructor(public readonly encapsulatedObject: ApplicationVersionsSchema) {}
 
-  public get cli(): SemVer {
+  public get cli(): SemanticVersion<string> {
     return this.encapsulatedObject.cli;
   }
 
-  public set cli(cli: SemVer) {
+  public set cli(cli: SemanticVersion<string>) {
     this.encapsulatedObject.cli = cli;
   }
 
-  public get chart(): SemVer {
+  public get chart(): SemanticVersion<string> {
     return this.encapsulatedObject.chart;
   }
 
-  public set chart(chart: SemVer) {
+  public set chart(chart: SemanticVersion<string>) {
     this.encapsulatedObject.chart = chart;
   }
 
-  public get consensusNode(): SemVer {
+  public get consensusNode(): SemanticVersion<string> {
     return this.encapsulatedObject.consensusNode;
   }
 
-  public set consensusNode(consensusNode: SemVer) {
+  public set consensusNode(consensusNode: SemanticVersion<string>) {
     this.encapsulatedObject.consensusNode = consensusNode;
   }
 
-  public get mirrorNodeChart(): SemVer {
+  public get mirrorNodeChart(): SemanticVersion<string> {
     return this.encapsulatedObject.mirrorNodeChart;
   }
 
-  public set mirrorNodeChart(mirrorNodeChart: SemVer) {
+  public set mirrorNodeChart(mirrorNodeChart: SemanticVersion<string>) {
     this.encapsulatedObject.mirrorNodeChart = mirrorNodeChart;
   }
 
-  public get explorerChart(): SemVer {
+  public get explorerChart(): SemanticVersion<string> {
     return this.encapsulatedObject.explorerChart;
   }
 
-  public set explorerChart(explorerChart: SemVer) {
+  public set explorerChart(explorerChart: SemanticVersion<string>) {
     this.encapsulatedObject.explorerChart = explorerChart;
   }
 
-  public get jsonRpcRelayChart(): SemVer {
+  public get jsonRpcRelayChart(): SemanticVersion<string> {
     return this.encapsulatedObject.jsonRpcRelayChart;
   }
 
-  public set jsonRpcRelayChart(jsonRpcRelayChart: SemVer) {
+  public set jsonRpcRelayChart(jsonRpcRelayChart: SemanticVersion<string>) {
     this.encapsulatedObject.jsonRpcRelayChart = jsonRpcRelayChart;
   }
 
-  public get blockNodeChart(): SemVer {
+  public get blockNodeChart(): SemanticVersion<string> {
     return this.encapsulatedObject.blockNodeChart;
   }
 
-  public set blockNodeChart(blockNodeChart: SemVer) {
+  public set blockNodeChart(blockNodeChart: SemanticVersion<string>) {
     this.encapsulatedObject.blockNodeChart = blockNodeChart;
   }
 }

@@ -17,12 +17,11 @@ import {RelayCommandDefinition} from '../../../../src/commands/command-definitio
 import {type NodeAlias} from '../../../../src/types/aliases.js';
 
 export class RelayTest extends BaseCommandTest {
-  private static NODE_ALIASES_UNPARSED: NodeAlias = 'node2';
-
   private static soloRelayDeployArgv(
     testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
+    nodeAliasesUnparsed: string,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = RelayTest;
 
@@ -36,7 +35,7 @@ export class RelayTest extends BaseCommandTest {
       optionFromFlag(Flags.clusterRef),
       clusterReference,
       optionFromFlag(Flags.nodeAliasesUnparsed),
-      RelayTest.NODE_ALIASES_UNPARSED,
+      nodeAliasesUnparsed,
     );
     argvPushGlobalFlags(argv, testName, true, false);
     return argv;
@@ -46,6 +45,7 @@ export class RelayTest extends BaseCommandTest {
     testName: string,
     deployment: DeploymentName,
     clusterReference: ClusterReferenceName,
+    nodeAliasesUnparsed: string,
   ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = RelayTest;
 
@@ -59,12 +59,18 @@ export class RelayTest extends BaseCommandTest {
       optionFromFlag(Flags.clusterRef),
       clusterReference,
       optionFromFlag(Flags.nodeAliasesUnparsed),
-      RelayTest.NODE_ALIASES_UNPARSED,
+      nodeAliasesUnparsed,
       optionFromFlag(Flags.quiet),
-      optionFromFlag(Flags.devMode),
+      optionFromFlag(Flags.debugMode),
     );
     argvPushGlobalFlags(argv, testName, false, true);
     return argv;
+  }
+
+  private static getNodeAliasesUnparsed(consensusNodesCount: number): string {
+    return Array.from({length: consensusNodesCount}, (_, index): NodeAlias => `node${index + 1}` as NodeAlias).join(
+      ',',
+    );
   }
 
   private static async verifyRelayDeployWasSuccessful(contexts: string[], namespace: NamespaceName): Promise<void> {
@@ -75,22 +81,24 @@ export class RelayTest extends BaseCommandTest {
   }
 
   public static add(options: BaseTestOptions): void {
-    const {testName, deployment, namespace, contexts, clusterReferenceNameArray} = options;
-    const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful} = RelayTest;
+    const {testName, deployment, namespace, contexts, clusterReferenceNameArray, consensusNodesCount} = options;
+    const {soloRelayDeployArgv, verifyRelayDeployWasSuccessful, getNodeAliasesUnparsed} = RelayTest;
+    const nodeAliasesUnparsed: string = getNodeAliasesUnparsed(consensusNodesCount);
 
     // TODO: Investigate validations
     it(`${testName}: JSON-RPC relay node add`, async (): Promise<void> => {
-      await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1]));
+      await main(soloRelayDeployArgv(testName, deployment, clusterReferenceNameArray[1], nodeAliasesUnparsed));
       await verifyRelayDeployWasSuccessful(contexts, namespace);
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 
   public static destroy(options: BaseTestOptions): void {
-    const {testName, deployment, clusterReferenceNameArray} = options;
-    const {soloRelayDestroyArgv} = RelayTest;
+    const {testName, deployment, clusterReferenceNameArray, consensusNodesCount} = options;
+    const {soloRelayDestroyArgv, getNodeAliasesUnparsed} = RelayTest;
+    const nodeAliasesUnparsed: string = getNodeAliasesUnparsed(consensusNodesCount);
 
     it(`${testName}: JSON-RPC relay node destroy`, async (): Promise<void> => {
-      await main(soloRelayDestroyArgv(testName, deployment, clusterReferenceNameArray[1]));
+      await main(soloRelayDestroyArgv(testName, deployment, clusterReferenceNameArray[1], nodeAliasesUnparsed));
     }).timeout(Duration.ofMinutes(5).toMillis());
   }
 }

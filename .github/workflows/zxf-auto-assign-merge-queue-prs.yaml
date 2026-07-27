@@ -23,12 +23,12 @@ jobs:
     runs-on: hiero-solo-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
       - name: Auto-Assign PRs to Merge Queue
-        uses: step-security/auto-assign-action@9c6e66c3089ac6c299bc221667525fbf81bd9498 # v2.0.0
+        uses: step-security/auto-assign-action@9bf0ed34ed655f58718443237d3d9a4fead49f00 # v2.0.2
         with:
           repo-token: ${{ secrets.GH_ACCESS_TOKEN }}
           configuration-path: '.github/auto_assign.yaml'

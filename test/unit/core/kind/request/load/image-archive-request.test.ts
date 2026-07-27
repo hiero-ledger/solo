@@ -6,23 +6,23 @@ import {LoadImageArchiveRequest} from '../../../../../../src/integration/kind/re
 import {type KindExecutionBuilder} from '../../../../../../src/integration/kind/execution/kind-execution-builder.js';
 import {type LoadImageArchiveOptions} from '../../../../../../src/integration/kind/model/load-image-archive/load-image-archive-options.js';
 
-describe('LoadImageArchiveRequest', () => {
+describe('LoadImageArchiveRequest', (): void => {
   let builder: KindExecutionBuilder;
   let request: LoadImageArchiveRequest;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     // Create a stub for the builder
     builder = {
       subcommands: Sinon.stub().returnsThis(),
     } as unknown as KindExecutionBuilder;
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     Sinon.restore();
   });
 
-  describe('apply', () => {
-    it('should add load image-archive subcommands to the builder', () => {
+  describe('apply', (): void => {
+    it('should add load image-archive subcommands to the builder', (): void => {
       // Create request with null options
       request = new LoadImageArchiveRequest(null as unknown as LoadImageArchiveOptions);
 
@@ -33,9 +33,9 @@ describe('LoadImageArchiveRequest', () => {
       expect(builder.subcommands).to.have.been.calledOnceWith('load', 'image-archive');
     });
 
-    it('should delegate to options.apply when options are provided', () => {
+    it('should delegate to options.apply when options are provided', (): void => {
       // Create mock options with a stub for apply method
-      const options = {apply: Sinon.stub()} as unknown as LoadImageArchiveOptions;
+      const options: LoadImageArchiveOptions = {apply: Sinon.stub()} as unknown as LoadImageArchiveOptions;
 
       // Create request with options
       request = new LoadImageArchiveRequest(options);

@@ -6,9 +6,10 @@ import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../dependency-injection/container-helper.js';
 import {InjectTokens} from '../dependency-injection/inject-tokens.js';
 import {BaseDependencyManager} from './base-dependency-manager.js';
+import {SubprocessCommandProfile} from '../subprocess-command-profile.js';
 import {PackageDownloader} from '../package-downloader.js';
-import util from 'node:util';
-import {SoloError} from '../errors/solo-error.js';
+import {format} from 'node:util';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const KUBECTL_RELEASE_BASE_URL: string = 'https://dl.k8s.io/release';
@@ -18,27 +19,18 @@ const KUBECTL_WINDOWS_ARTIFACT_TEMPLATE: string = '%s/bin/%s/%s/kubectl.exe';
 @injectable()
 export class KubectlDependencyManager extends BaseDependencyManager {
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.KubectlInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.KubectlInstallationDirectory) installationDirectory: string,
     @inject(InjectTokens.OsArch) osArch: string,
-    @inject(InjectTokens.KubectlVersion) protected readonly kubectlVersion: string,
+    @inject(InjectTokens.KubectlVersion) kubectlVersion: string,
   ) {
-    // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
-      InjectTokens.KubectlInstallationDir,
-      KubectlDependencyManager.name,
-    );
-    osArch = patchInject(osArch, InjectTokens.OsArch, KubectlDependencyManager.name);
-    kubectlVersion = patchInject(kubectlVersion, InjectTokens.KubectlVersion, KubectlDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, KubectlDependencyManager.name);
-
     // Call the base constructor with the Kubectl-specific parameters
     super(
-      downloader,
-      installationDirectory,
-      osArch,
-      kubectlVersion || version.KUBECTL_VERSION,
+      patchInject(downloader, InjectTokens.PackageDownloader, KubectlDependencyManager.name),
+      patchInject(installationDirectory, InjectTokens.KubectlInstallationDirectory, KubectlDependencyManager.name),
+      patchInject(osArch, InjectTokens.OsArch, KubectlDependencyManager.name),
+      patchInject(kubectlVersion, InjectTokens.KubectlVersion, KubectlDependencyManager.name) ||
+        version.KUBECTL_VERSION,
       constants.KUBECTL,
       KUBECTL_RELEASE_BASE_URL,
     );
@@ -48,7 +40,7 @@ export class KubectlDependencyManager extends BaseDependencyManager {
    * Get the Kubectl artifact name based on version, OS, and architecture
    */
   protected getArtifactName(): string {
-    return util.format(
+    return format(
       OperatingSystem.isWin32() ? KUBECTL_WINDOWS_ARTIFACT_TEMPLATE : KUBECTL_ARTIFACT_TEMPLATE,
       this.getRequiredVersion(),
       OperatingSystem.getFormattedPlatform(),
@@ -56,9 +48,18 @@ export class KubectlDependencyManager extends BaseDependencyManager {
     );
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     try {
-      const output: string[] = await this.run(`"${executablePath}" version --client`);
+      // Override KUBECONFIG to prevent loading kubeconfig and triggering authentication
+      // plugins (e.g., Teleport exec credentials) which can hang in non-interactive environments.
+      // Using the null device ensures kubectl only reports the client version without any
+      // server or credential-related operations.
+      const nullDevice: string = OperatingSystem.isWin32() ? 'nul' : '/dev/null';
+      const output: string[] = await this.run(executableWithPath, ['version', '--client'], {
+        commandProfile: SubprocessCommandProfile.KUBECTL,
+        environmentVariablesToAppend: {KUBECONFIG: nullDevice},
+        timeoutMs: 30_000,
+      });
       this.logger.debug(`Raw kubectl version output: ${output.join('\n')}`);
       if (output.length > 0) {
         for (const line of output) {
@@ -72,10 +73,10 @@ export class KubectlDependencyManager extends BaseDependencyManager {
           }
         }
       }
-    } catch (error: any) {
-      throw new SoloError('Failed to check kubectl version', error);
+    } catch (error) {
+      throw new SoloErrors.system.dependencyVersionCheckFailed('kubectl', error);
     }
-    throw new SoloError('Failed to check kubectl version');
+    throw new SoloErrors.system.dependencyVersionCheckFailed('kubectl');
   }
 
   protected getDownloadURL(): string {
@@ -86,9 +87,8 @@ export class KubectlDependencyManager extends BaseDependencyManager {
    * Handle any post-download processing before copying to destination
    * Child classes can override this for custom extraction or processing
    */
-  protected async processDownloadedPackage(packageFilePath: string, _temporaryDirectory: string): Promise<string[]> {
-    // Default implementation - just return the downloaded file path
-    // Child classes can override for extraction or other processing
+  protected async processDownloadedPackage(packageFilePath: string): Promise<string[]> {
+    // For kubectl, the downloaded file is the executable itself, so we can return it directly
     return [packageFilePath];
   }
 

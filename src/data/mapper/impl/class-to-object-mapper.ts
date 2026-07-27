@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type ObjectMapper} from '../api/object-mapper.js';
 import {type ClassConstructor} from '../../../business/utils/class-constructor.type.js';
 import {instanceToPlain, plainToInstance} from 'class-transformer';
@@ -9,7 +10,6 @@ import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js'
 import {type KeyFormatter} from '../../key/key-formatter.js';
 import {FlatKeyMapper} from './flat-key-mapper.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
-import {IllegalArgumentError} from '../../../business/errors/illegal-argument-error.js';
 import {type Primitive} from '../../../business/utils/primitive.js';
 import {type PrimitiveArray} from '../../../business/utils/primitive-array.js';
 
@@ -63,11 +63,11 @@ export class ClassToObjectMapper implements ObjectMapper {
 
   public applyPropertyValue(object: object, key: string, value: Primitive | PrimitiveArray | object | object[]): void {
     if (!object) {
-      throw new IllegalArgumentError('obj must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('obj must not be null or undefined');
     }
 
     if (!key) {
-      throw new IllegalArgumentError('key must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('key must not be null or undefined');
     }
 
     const normalizedKey: string = this.formatter.normalize(key);

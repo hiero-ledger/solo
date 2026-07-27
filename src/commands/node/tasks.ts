@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type AccountManager} from '../../core/account-manager.js';
 import {type ConfigManager} from '../../core/config-manager.js';
 import {type OneShotState} from '../../core/one-shot-state.js';
@@ -8,17 +9,24 @@ import {type ProfileManager} from '../../core/profile-manager.js';
 import {type PlatformInstaller} from '../../core/platform-installer.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type ChartManager} from '../../core/chart-manager.js';
+import {HelmChartValues} from '../../integration/helm/model/values.js';
 import {type CertificateManager} from '../../core/certificate-manager.js';
 import {type HelmClient} from '../../integration/helm/helm-client.js';
 import {ReleaseItem} from '../../integration/helm/model/release/release-item.js';
 import {Zippy} from '../../core/zippy.js';
 import * as constants from '../../core/constants.js';
-import {DEFAULT_NETWORK_NODE_NAME, HEDERA_HAPI_PATH, HEDERA_NODE_DEFAULT_STAKE_AMOUNT} from '../../core/constants.js';
+import {
+  CHECK_WRAPS_DIRECTORY_BACKOFF_MS,
+  CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS,
+  DEFAULT_NETWORK_NODE_NAME,
+  HEDERA_HAPI_PATH,
+  HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
+} from '../../core/constants.js';
 import {Templates} from '../../core/templates.js';
 import {
-  AccountBalance,
-  AccountBalanceQuery,
   AccountId,
+  type AccountInfo,
+  AccountInfoQuery,
   AccountUpdateTransaction,
   type Client,
   FileAppendTransaction,
@@ -37,27 +45,32 @@ import {
   TransactionReceipt,
   TransactionResponse,
 } from '@hiero-ledger/sdk';
-import {SoloError} from '../../core/errors/solo-error.js';
-import {MissingArgumentError} from '../../core/errors/missing-argument-error.js';
-import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import {execSync} from 'node:child_process';
-import * as helpers from '../../core/helpers.js';
+import {execFileSync} from 'node:child_process';
+import find from 'find-process';
+import type FindConfig from 'find-process';
+import type ProcessInfo from 'find-process';
 import {
-  addDebugOptions,
-  addRootImageValues,
+  createAndCopyBlockNodeJsonFileForConsensusNode,
   entityId,
   extractContextFromConsensusNodes,
+  parseNodeAliases,
   prepareEndpoints,
   renameAndCopyFile,
+  parseIpAddressToUint8Array,
+  resolveGossipFqdnRestricted,
   showVersionBanner,
   sleep,
   splitFlagInput,
 } from '../../core/helpers.js';
 import chalk from 'chalk';
 import {Flags as flags} from '../flags.js';
-import * as versions from '../../../version.js';
+import {
+  HEDERA_PLATFORM_VERSION,
+  MINIMUM_SOLO_CHART_VERSION,
+  needsConfigTxtForConsensusVersion,
+} from '../../../version.js';
 import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
 import {type SoloLogger} from '../../core/logging/solo-logger.js';
@@ -75,6 +88,7 @@ import {
 import {PodName} from '../../integration/kube/resources/pod/pod-name.js';
 import {NodeStatusCodes, NodeStatusEnums, NodeSubcommandType} from '../../core/enumerations.js';
 import {type Lock} from '../../core/lock/lock.js';
+import {type LeaseWrapper} from './lease-wrapper.js';
 import {ListrLock} from '../../core/lock/listr-lock.js';
 import {Duration} from '../../core/time/duration.js';
 import {type NodeAddConfigClass} from './config-interfaces/node-add-config-class.js';
@@ -94,9 +108,9 @@ import {
   type ComponentId,
   type Context,
   type DeploymentName,
+  type NodeAliasToAddressMapping,
   type Optional,
   type PriorityMapping,
-  PrivateKeyAndCertificateObject,
   type Realm,
   type Shard,
   type SoloListr,
@@ -109,14 +123,11 @@ import {type K8} from '../../integration/kube/k8.js';
 import {Base64} from 'js-base64';
 import {SecretType} from '../../integration/kube/resources/secret/secret-type.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {BaseCommand} from '../base.js';
-import {
-  HEDERA_PLATFORM_VERSION,
-  MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS,
-  needsConfigTxtForConsensusVersion,
-} from '../../../version.js';
-import {ShellRunner} from '../../core/shell-runner.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {SubprocessEnvironment} from '../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
+import {helmValuesHelper} from '../../core/helm-values-helper.js';
+import {type GitClient} from '../../integration/git/git-client.js';
 import {type NodeDestroyConfigClass} from './config-interfaces/node-destroy-config-class.js';
 import {type NodeRefreshConfigClass} from './config-interfaces/node-refresh-config-class.js';
 import {type NodeUpdateConfigClass} from './config-interfaces/node-update-config-class.js';
@@ -134,7 +145,8 @@ import {type NodeSetupContext} from './config-interfaces/node-setup-context.js';
 import {type NodeKeysContext} from './config-interfaces/node-keys-context.js';
 import {type NodeKeysConfigClass} from './config-interfaces/node-keys-config-class.js';
 import {type NodeStartConfigClass} from './config-interfaces/node-start-config-class.js';
-import {type CheckedNodesConfigClass, type CheckedNodesContext} from './config-interfaces/node-common-config-class.js';
+import {type CheckedNodesConfigClass} from './config-interfaces/checked-nodes-config-class.js';
+import {type CheckedNodesContext} from './config-interfaces/checked-nodes-context.js';
 import {type NetworkNodeServices} from '../../core/network-node-services.js';
 import {ComponentTypes} from '../../core/config/remote/enumerations/component-types.js';
 import {DeploymentPhase} from '../../data/schema/model/remote/deployment-phase.js';
@@ -144,10 +156,9 @@ import {type LocalConfigRuntimeState} from '../../business/runtime-state/config/
 import {ClusterSchema} from '../../data/schema/model/common/cluster-schema.js';
 import {LockManager} from '../../core/lock/lock-manager.js';
 import {type NodeServiceMapping} from '../../types/mappings/node-service-mapping.js';
-import {lt, SemVer} from 'semver';
 import {Pod} from '../../integration/kube/resources/pod/pod.js';
 import {type Container} from '../../integration/kube/resources/container/container.js';
-import {Version} from '../../business/utils/version.js';
+import {SemanticVersion} from '../../business/utils/semantic-version.js';
 import {DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
 import {type BaseStateSchema} from '../../data/schema/model/remote/state/base-state-schema.js';
 import {ComponentStateMetadataSchema} from '../../data/schema/model/remote/state/component-state-metadata-schema.js';
@@ -158,19 +169,36 @@ import {Service} from '../../integration/kube/resources/service/service.js';
 import {Address} from '../../business/address/address.js';
 import {Contexts} from '../../integration/kube/resources/context/contexts.js';
 import {K8Helper} from '../../business/utils/k8-helper.js';
-import {NetworkCommand} from '../network.js';
 import {Secret} from '../../integration/kube/resources/secret/secret.js';
 import {NodeUpgradeConfigClass} from './config-interfaces/node-upgrade-config-class.js';
 import {NodeCollectJfrLogsContext} from './config-interfaces/node-collect-jfr-logs-context.js';
 import {NodeCollectJfrLogsConfigClass} from './config-interfaces/node-collect-jfr-logs-config-class.js';
 import {PackageDownloader} from '../../core/package-downloader.js';
+import {DefaultHelmClient} from '../../integration/helm/impl/default-helm-client.js';
+import {CommandFlag} from '../../types/flag-types.js';
+import {ConsensusNodePathTemplates} from '../../core/consensus-node-path-templates.js';
+import {type ConfigProvider} from '../../data/configuration/api/config-provider.js';
+import {SoloConfig} from '../../business/runtime-state/config/solo/solo-config.js';
+import {type Wraps} from '../../business/runtime-state/config/solo/wraps.js';
+import {DiagnosticsAnalyzer} from '../util/diagnostics-analyzer.js';
+import {NodesStartedEvent} from '../../core/events/event-types/nodes-started-event.js';
+import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
+import {Listr} from 'listr2';
+import {HaProxyStateSchema} from '../../data/schema/model/remote/state/ha-proxy-state-schema.js';
+import {ContainerName} from '../../integration/kube/resources/container/container-name.js';
+
+const localBuildPathFilter: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
+  return !(path.includes('data/keys') || path.includes('data/config') || path.includes('data/upgrade'));
+};
+
+const NETWORK_PROXY_INITIAL_READY_ATTEMPTS: number = 15;
 
 const {gray, cyan, red, green, yellow} = chalk;
 
-export type LeaseWrapper = {lease: Lock};
-
 @injectable()
 export class NodeCommandTasks {
+  private readonly soloConfig: SoloConfig;
+
   public constructor(
     @inject(InjectTokens.SoloLogger) private readonly logger: SoloLogger,
     @inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager,
@@ -187,6 +215,9 @@ export class NodeCommandTasks {
     @inject(InjectTokens.OneShotState) private readonly oneShotState: OneShotState,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PackageDownloader) private readonly downloader: PackageDownloader,
+    @inject(InjectTokens.GitClient) private readonly gitClient: GitClient,
+    @inject(InjectTokens.ConfigProvider) configProvider: ConfigProvider,
+    @inject(InjectTokens.SoloEventBus) private readonly eventBus: SoloEventBus,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
@@ -202,6 +233,10 @@ export class NodeCommandTasks {
     this.oneShotState = patchInject(oneShotState, InjectTokens.OneShotState, this.constructor.name);
     this.zippy = patchInject(zippy, InjectTokens.Zippy, this.constructor.name);
     this.downloader = patchInject(downloader, InjectTokens.PackageDownloader, this.constructor.name);
+    this.gitClient = patchInject(gitClient, InjectTokens.GitClient, this.constructor.name);
+    this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
+    configProvider = patchInject(configProvider, InjectTokens.ConfigProvider, this.constructor.name);
+    this.soloConfig = SoloConfig.getConfig(configProvider);
   }
 
   private getFileUpgradeId(deploymentName: DeploymentName): FileId {
@@ -210,7 +245,7 @@ export class NodeCommandTasks {
     return FileId.fromString(entityId(shard, realm, constants.UPGRADE_FILE_ID_NUM));
   }
 
-  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion: string): Promise<string> {
+  private async _prepareUpgradeZip(stagingDirectory: string, upgradeVersion?: string): Promise<string> {
     // we build a mock upgrade.zip file as we really don't need to upgrade the network
     // also the platform zip file is ~80Mb in size requiring a lot of transactions since the max
     // transaction size is 6Kb and in practice we need to send the file as 4Kb chunks.
@@ -222,8 +257,8 @@ export class NodeCommandTasks {
     }
 
     // bump field hedera.config.version or use the version passed in
-    const fileBytes: Buffer<ArrayBuffer> = fs.readFileSync(
-      PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'),
+    const fileBytes: Buffer = fs.readFileSync(
+      PathEx.joinWithRealPath(stagingDirectory, 'templates', constants.APPLICATION_PROPERTIES),
     );
     const lines: string[] = fileBytes.toString().split('\n');
     const newLines: string[] = [];
@@ -238,7 +273,7 @@ export class NodeCommandTasks {
         newLines.push(line);
       }
     }
-    fs.writeFileSync(PathEx.join(upgradeConfigDirectory, 'application.properties'), newLines.join('\n'));
+    fs.writeFileSync(PathEx.join(upgradeConfigDirectory, constants.APPLICATION_PROPERTIES), newLines.join('\n'));
 
     return await zipper.zip(
       PathEx.join(stagingDirectory, 'mock-upgrade'),
@@ -252,7 +287,7 @@ export class NodeCommandTasks {
     deploymentName: DeploymentName,
   ): Promise<string> {
     // get byte value of the zip file
-    const zipBytes: Buffer<ArrayBuffer> = fs.readFileSync(upgradeZipFile);
+    const zipBytes: Buffer = fs.readFileSync(upgradeZipFile);
     const zipHash: string = crypto.createHash('sha384').update(zipBytes).digest('hex');
     this.logger.debug(
       `loaded upgrade zip file [ zipHash = ${zipHash} zipBytes.length = ${zipBytes.length}, zipPath = ${upgradeZipFile}]`,
@@ -266,14 +301,14 @@ export class NodeCommandTasks {
         const zipBytesChunk: Uint8Array<ArrayBuffer> = new Uint8Array(
           zipBytes.subarray(start, start + constants.UPGRADE_FILE_CHUNK_SIZE),
         );
-        let fileTransaction: any = null;
+        let fileTransaction: FileUpdateTransaction | FileAppendTransaction | undefined = undefined;
 
         fileTransaction =
           start === 0
             ? new FileUpdateTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk)
             : new FileAppendTransaction().setFileId(this.getFileUpgradeId(deploymentName)).setContents(zipBytesChunk);
-        const resp: any = await fileTransaction.execute(nodeClient);
-        const receipt: any = await resp.getReceipt(nodeClient);
+        const resp: TransactionResponse = await fileTransaction.execute(nodeClient);
+        const receipt: TransactionReceipt = await resp.getReceipt(nodeClient);
         this.logger.debug(
           `updated file ${this.getFileUpgradeId(deploymentName)} [chunkSize= ${zipBytesChunk.length}, txReceipt = ${receipt.toString()}]`,
         );
@@ -284,7 +319,7 @@ export class NodeCommandTasks {
 
       return zipHash;
     } catch (error) {
-      throw new SoloError(`failed to upload build.zip file: ${error.message}`, error);
+      throw new SoloErrors.component.nodeBuildUploadFailed(error);
     }
   }
 
@@ -294,25 +329,64 @@ export class NodeCommandTasks {
     configManager: ConfigManager,
     localDataLibraryBuildPath: string,
   ): Promise<void> {
-    const filterFunction: (path: string | string[]) => boolean = (path: string | string[]): boolean => {
-      return !(path.includes('data/keys') || path.includes('data/config'));
-    };
-
-    await k8
+    const container: Container = k8
       .containers()
-      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-      .copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, filterFunction);
+      .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER));
+
+    await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
+
+    // Remove existing jars before copying to prevent mixed-version classpath (issue #3848)
+    await container.execContainer([
+      'bash',
+      '-c',
+      `rm -rf ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ${constants.HEDERA_HAPI_PATH}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`,
+    ]);
+
+    await container.copyTo(localDataLibraryBuildPath, `${constants.HEDERA_HAPI_PATH}`, localBuildPathFilter);
+    await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand()]);
+
+    const upgradeDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`;
+    if (await container.hasDir(upgradeDirectory)) {
+      await container.execContainer([
+        'bash',
+        '-c',
+        `rm -rf ${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}/*.jar ${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}/*.jar`,
+      ]);
+      await container.copyTo(localDataLibraryBuildPath, upgradeDirectory, localBuildPathFilter);
+      await container.execContainer(['bash', '-c', this.buildNormalizeHederaJarPermissionsCommand(upgradeDirectory)]);
+    }
+
+    await container.execContainer(['sync', constants.HEDERA_HAPI_PATH]);
+
     if (configManager.getFlag<string>(flags.appConfig)) {
       const testJsonFiles: string[] = configManager.getFlag<string>(flags.appConfig)!.split(',');
       for (const jsonFile of testJsonFiles) {
         if (fs.existsSync(jsonFile)) {
-          await k8
-            .containers()
-            .readByRef(ContainerReference.of(podReference, constants.ROOT_CONTAINER))
-            .copyTo(jsonFile, `${constants.HEDERA_HAPI_PATH}`);
+          await container.copyTo(jsonFile, `${constants.HEDERA_HAPI_PATH}`);
         }
       }
     }
+  }
+
+  private async validateNodePvcsForLocalBuildPath(namespace: NamespaceName, contexts: string[]): Promise<void> {
+    await Promise.all(
+      contexts.map(async (context): Promise<void> => {
+        const pvcs: string[] = await this.k8Factory
+          .getK8(context)
+          .pvcs()
+          .list(namespace, ['solo.hedera.com/type=node-pvc']);
+
+        if (pvcs.length === 0) {
+          this.logger.showUser(
+            chalk.yellow(
+              'Warning: Custom JARs provided via --local-build-path require node PVCs to persist across pod restarts. ' +
+                'To prevent losing data after node restarts redeploy the consensus network with ' +
+                '`consensus network deploy --pvcs true` and run `consensus node setup` again.',
+            ),
+          );
+        }
+      }),
+    );
   }
 
   private _uploadPlatformSoftware(
@@ -343,26 +417,44 @@ export class NodeCommandTasks {
 
     for (const nodeAlias of nodeAliases) {
       const podReference: PodReference = podReferences[nodeAlias];
-      const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+      const context: string = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
       localDataLibraryBuildPath = buildPathMap.has(nodeAlias)
         ? buildPathMap.get(nodeAlias)
         : defaultDataLibraryBuildPath;
 
       if (!fs.existsSync(localDataLibraryBuildPath)) {
-        throw new SoloError(`local build path does not exist: ${localDataLibraryBuildPath}`);
+        throw new SoloErrors.validation.localBuildPathNotFound(localDataLibraryBuildPath);
       }
+
+      // The local build path points to the `data` directory itself (containing apps/ and lib/).
+      // Validate that it contains jar files in each subdirectory to catch incorrect paths early.
+      const applicationsSubdirectory: string = PathEx.join(localDataLibraryBuildPath, 'apps');
+      const librarySubdirectory: string = PathEx.join(localDataLibraryBuildPath, 'lib');
+      if (!fs.existsSync(applicationsSubdirectory) || !fs.existsSync(librarySubdirectory)) {
+        throw new SoloErrors.validation.localBuildMissingSubdirectories(localDataLibraryBuildPath);
+      }
+      const applicationsJarFiles: string[] = fs
+        .readdirSync(applicationsSubdirectory)
+        .filter((file: string): boolean => file.endsWith('.jar'));
+      if (applicationsJarFiles.length === 0) {
+        throw new SoloErrors.validation.localBuildNoJarFiles(applicationsSubdirectory);
+      }
+      const libraryJarFiles: string[] = fs
+        .readdirSync(librarySubdirectory)
+        .filter((file: string): boolean => file.endsWith('.jar'));
+      if (libraryJarFiles.length === 0) {
+        throw new SoloErrors.validation.localBuildNoJarFiles(librarySubdirectory);
+      }
+
       const k8: K8 = this.k8Factory.getK8(context);
 
       subTasks.push({
         title: `Copy local build to Node: ${chalk.yellow(nodeAlias)} from ${localDataLibraryBuildPath}`,
         task: async (): Promise<void> => {
-          const shellRunner: ShellRunner = new ShellRunner();
           try {
-            const retrievedReleaseTag: string[] = await shellRunner.run(
-              `git -C ${localDataLibraryBuildPath} describe --tags --abbrev=0`,
-            );
+            const retrievedReleaseTag: string = await this.gitClient.describeTag(localDataLibraryBuildPath);
             const expectedReleaseTag: string = releaseTag || HEDERA_PLATFORM_VERSION;
-            if (retrievedReleaseTag.join('\n') !== expectedReleaseTag) {
+            if (retrievedReleaseTag !== expectedReleaseTag) {
               this.logger.showUser(
                 chalk.cyan(
                   `Checkout version ${retrievedReleaseTag} does not match the release version ${expectedReleaseTag}`,
@@ -381,19 +473,17 @@ export class NodeCommandTasks {
           }
 
           // retry copying the build to the node to handle edge cases during performance testing
-          let storedError: Error | null = null;
-          let index: number = 0;
-          for (; index < constants.LOCAL_BUILD_COPY_RETRY; index++) {
-            storedError = null;
+          for (let retryIndex: number = 0; retryIndex < constants.LOCAL_BUILD_COPY_RETRY; retryIndex++) {
             try {
               // filter the data/config and data/keys to avoid failures due to config and secret mounts
               await this.copyLocalBuildPathToNode(k8, podReference, this.configManager, localDataLibraryBuildPath);
+              break;
             } catch (error) {
-              storedError = error;
+              // max attempts reached
+              if (retryIndex === constants.LOCAL_BUILD_COPY_RETRY - 1) {
+                throw new SoloErrors.component.nodeBuildCopyFailed(error);
+              }
             }
-          }
-          if (storedError) {
-            throw new SoloError(`Error in copying local build to node: ${storedError.message}`, storedError);
           }
         },
       });
@@ -408,22 +498,24 @@ export class NodeCommandTasks {
     });
   }
 
-  private _fetchPlatformSoftware(
+  private async _fetchPlatformSoftware(
     nodeAliases: NodeAliases,
     podReferences: Record<NodeAlias, PodReference>,
     releaseTag: string,
     task: SoloListrTaskWrapper<AnyListrContext>,
     platformInstaller: PlatformInstaller,
     consensusNodes: ConsensusNode[],
-  ): SoloListr<AnyListrContext> {
+    stagingDirectory: string,
+  ): Promise<SoloListr<AnyListrContext>> {
     const subTasks: SoloListrTask<AnyListrContext>[] = [];
+    const [zipPath, checksumPath] = await platformInstaller.getPlatformRelease(stagingDirectory, releaseTag);
     for (const nodeAlias of nodeAliases) {
-      const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+      const context: string = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
       const podReference: PodReference = podReferences[nodeAlias];
       subTasks.push({
         title: `Update node: ${chalk.yellow(nodeAlias)} [ platformVersion = ${releaseTag}, context = ${context} ]`,
         task: async (): Promise<void> => {
-          await platformInstaller.fetchPlatform(podReference, releaseTag, context);
+          await platformInstaller.fetchPlatform(podReference, releaseTag, zipPath, checksumPath, context);
         },
       });
     }
@@ -445,7 +537,7 @@ export class NodeCommandTasks {
   ): SoloListr<AnyListrContext> {
     const {
       config: {namespace},
-    }: any = context_;
+    } = context_;
 
     const enableDebugger: boolean = context_.config.debugNodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
     const debugNodeAlias: NodeAlias | undefined = context_.config.debugNodeAlias;
@@ -463,10 +555,7 @@ export class NodeCommandTasks {
         const isDebugNode: boolean = debugNodeAlias === nodeAlias && status !== NodeStatusCodes.FREEZE_COMPLETE;
         const reminder: string = isDebugNode ? 'Please attach JVM debugger now.' : '';
         const title: string = `Check network pod: ${chalk.yellow(nodeAlias)} ${chalk.red(reminder)}`;
-        const context: string = helpers.extractContextFromConsensusNodes(
-          nodeAlias,
-          this.remoteConfig.getConsensusNodes(),
-        );
+        const context: string = extractContextFromConsensusNodes(nodeAlias, this.remoteConfig.getConsensusNodes());
 
         return {
           title,
@@ -478,7 +567,7 @@ export class NodeCommandTasks {
               });
             }
 
-            context_.config.podRefs[nodeAlias] = await this._checkNetworkNodeActiveness(
+            context_.config.podRefs[nodeAlias] = await this.checkNetworkNodeActiveness(
               namespace,
               nodeAlias,
               task,
@@ -494,15 +583,17 @@ export class NodeCommandTasks {
       },
     );
 
+    const runSequentially: boolean = enableDebugger || status === NodeStatusCodes.ACTIVE;
+
     return task.newListr(subTasks, {
-      concurrent: !enableDebugger, // Run sequentially when debugging to avoid multiple prompts
+      concurrent: !runSequentially, // ACTIVE checks include SDK readiness through shared AccountManager state.
       rendererOptions: {
         collapseSubtasks: false,
       },
     });
   }
 
-  private async _checkNetworkNodeActiveness(
+  public async checkNetworkNodeActiveness(
     namespace: NamespaceName,
     nodeAlias: NodeAlias,
     task: SoloListrTaskWrapper<AnyListrContext>,
@@ -520,7 +611,7 @@ export class NodeCommandTasks {
     const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
 
     if (typeof context !== 'string' || context.trim().length === 0) {
-      context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+      context = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
     }
 
     let attempt: number = 0;
@@ -534,25 +625,27 @@ export class NodeCommandTasks {
       }, timeout);
 
       try {
-        const response: string = await container.resolve(NetworkNodes).getNetworkNodePodStatus(podReference, context);
+        const response: string = await container
+          .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
+          .getNetworkNodePodStatus(podReference, context);
 
         if (!response) {
           task.title = `${title} - status ${chalk.yellow('UNKNOWN')}, attempt ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           clearTimeout(timeoutId);
-          throw new SoloError('empty response'); // Guard
+          throw new SoloErrors.component.nodeStatusEmptyResponse();
         }
 
-        const statusLine: string = response
+        const statusLine: string | undefined = response
           .split('\n')
           .find((line: string): boolean => line.startsWith('platform_PlatformStatus'));
 
         if (!statusLine) {
           task.title = `${title} - status ${chalk.yellow('STARTING')}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
           clearTimeout(timeoutId);
-          throw new SoloError('missing status line'); // Guard
+          throw new SoloErrors.component.nodeStatusMissingLine();
         }
 
-        const statusNumber: number = Number.parseInt(statusLine.split(' ').pop());
+        const statusNumber: number = Number.parseInt(statusLine.split(' ').pop() || '');
 
         if (statusNumber === status) {
           task.title = `${title} - status ${chalk.green(NodeStatusEnums[status])}, attempt: ${chalk.blueBright(`${attempt}/${maxAttempts}`)}`;
@@ -578,15 +671,64 @@ export class NodeCommandTasks {
     }
 
     if (!success) {
-      throw new SoloError(
-        `node '${nodeAlias}' is not ${NodeStatusEnums[status]}` +
-          `[ attempt = ${chalk.blueBright(`${attempt}/${maxAttempts}`)} ]`,
-      );
+      throw new SoloErrors.component.nodeNotReady(nodeAlias, NodeStatusEnums[status], attempt, maxAttempts);
     }
 
-    await sleep(Duration.ofSeconds(2)); // delaying prevents - gRPC service error
+    if (status === NodeStatusCodes.ACTIVE) {
+      await this.waitForGrpcReadiness(namespace, nodeAlias, task, title);
+    }
 
     return podReference;
+  }
+
+  private async waitForGrpcReadiness(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    task: SoloListrTaskWrapper<AnyListrContext>,
+    title: string,
+  ): Promise<void> {
+    const deployment: DeploymentName = this.configManager.getFlag(flags.deployment);
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+
+    let attempt: number = 0;
+    let consecutiveSuccesses: number = 0;
+
+    while (attempt < constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS) {
+      try {
+        await this.accountManager.refreshNodeClient(namespace, clusterReferences, deployment, true, {
+          type: 'only',
+          nodeAlias,
+        });
+        consecutiveSuccesses++;
+
+        task.title =
+          `${title} - gRPC readiness ${chalk.green(`${consecutiveSuccesses}/${constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES}`)}, ` +
+          `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
+
+        if (consecutiveSuccesses >= constants.NETWORK_NODE_GRPC_READINESS_REQUIRED_SUCCESSES) {
+          return;
+        }
+      } catch (error) {
+        consecutiveSuccesses = 0;
+
+        this.logger.debug(
+          `${title} : Error in checking gRPC readiness for node '${nodeAlias}': ` +
+            `attempt: ${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}: ${JSON.stringify(error)}`,
+        );
+
+        task.title =
+          `${title} - gRPC readiness ${chalk.yellow('WAITING')}, ` +
+          `attempt: ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)}`;
+      }
+
+      attempt++;
+      await sleep(Duration.ofMillis(constants.NETWORK_NODE_GRPC_READINESS_DELAY));
+    }
+
+    this.logger.showUser(
+      `node '${nodeAlias}' failed gRPC readiness check ` +
+        `[ attempt = ${chalk.blueBright(`${attempt}/${constants.NETWORK_NODE_GRPC_READINESS_MAX_ATTEMPTS}`)} ]`,
+    );
   }
 
   /** Return task for check if node proxies are ready */
@@ -600,23 +742,51 @@ export class NodeCommandTasks {
       subTasks.push({
         title: `Check proxy for node: ${chalk.yellow(nodeAlias)}`,
         task: async (context_): Promise<void> => {
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+          const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           const k8: K8 = this.k8Factory.getK8(context);
-          await k8
-            .pods()
-            .waitForReadyStatus(
-              context_.config.namespace,
-              [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'],
-              constants.NETWORK_PROXY_MAX_ATTEMPTS,
-              constants.NETWORK_PROXY_DELAY,
-            );
+          const labels: string[] = [`app=haproxy-${nodeAlias}`, 'solo.hedera.com/type=haproxy'];
+
+          try {
+            await k8
+              .pods()
+              .waitForReadyStatus(
+                context_.config.namespace,
+                labels,
+                NETWORK_PROXY_INITIAL_READY_ATTEMPTS,
+                constants.NETWORK_PROXY_DELAY,
+              );
+          } catch {
+            // HAProxy can remain unready when it starts before its consensus-node backend is available.
+            // Recreate only the affected proxy after the node has had time to start, then wait for the
+            // replacement rather than spending the full readiness timeout polling a stuck pod.
+            const replacementCreatedAfter: Date = new Date();
+            const pods: Pod[] = await k8.pods().list(context_.config.namespace, labels);
+
+            this.logger.warn(`HAProxy for node '${nodeAlias}' is not ready; recreating ${pods.length} pod(s)`);
+            for (const pod of pods) {
+              if (pod.podReference) {
+                await k8.pods().delete(pod.podReference);
+              }
+            }
+
+            await k8
+              .pods()
+              .waitForReadyStatus(
+                context_.config.namespace,
+                labels,
+                constants.NETWORK_PROXY_MAX_ATTEMPTS,
+                constants.NETWORK_PROXY_DELAY,
+                replacementCreatedAfter,
+                true,
+              );
+          }
         },
       });
     }
 
     // set up the sub-tasks
     return task.newListr(subTasks, {
-      concurrent: false,
+      concurrent: true,
       rendererOptions: {
         collapseSubtasks: false,
       },
@@ -630,12 +800,11 @@ export class NodeCommandTasks {
   private _generateGossipKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
     return {
       title: 'Generate gossip keys',
-      task: (context_, task): any => {
-        const config: any = context_.config;
+      task: ({config}, task): SoloListr<AnyListrContext> => {
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks: SoloListrTask<any>[] = this.keyManager.taskGenerateGossipKeys(
+        const subTasks: SoloListrTask<NodeKeysContext | NodeAddContext>[] = this.keyManager.taskGenerateGossipKeys(
           nodeAliases,
           config.keysDir,
           config.curDate,
@@ -654,12 +823,12 @@ export class NodeCommandTasks {
   private _generateGrpcTlsKeys(generateMultiple: boolean): SoloListrTask<NodeKeysContext | NodeAddContext> {
     return {
       title: 'Generate gRPC TLS Keys',
-      task: (context_, task): any => {
-        const config: any = context_.config;
+      task: (context_, task): SoloListr<NodeKeysContext | NodeAddContext> => {
+        const config: NodeAddConfigClass | NodeKeysConfigClass = context_.config;
         const nodeAliases: NodeAlias[] = generateMultiple
           ? (config as NodeKeysConfigClass).nodeAliases
           : [(config as NodeAddConfigClass).nodeAlias];
-        const subTasks: SoloListrTask<any>[] = this.keyManager.taskGenerateTLSKeys(
+        const subTasks: SoloListrTask<AnyListrContext>[] = this.keyManager.taskGenerateTLSKeys(
           nodeAliases,
           config.keysDir,
           config.curDate,
@@ -674,13 +843,13 @@ export class NodeCommandTasks {
   public copyGrpcTlsCertificates(): SoloListrTask<NodeAddContext> {
     return {
       title: 'Copy gRPC TLS Certificates',
-      task: (context_, task): any =>
+      task: ({config}, task): SoloListr<AnyListrContext> =>
         this.certificateManager.buildCopyTlsCertificatesTasks(
           task,
-          context_.config.grpcTlsCertificatePath,
-          context_.config.grpcWebTlsCertificatePath,
-          context_.config.grpcTlsKeyPath,
-          context_.config.grpcWebTlsKeyPath,
+          config.grpcTlsCertificatePath,
+          config.grpcWebTlsCertificatePath,
+          config.grpcTlsKeyPath,
+          config.grpcWebTlsKeyPath,
         ),
       skip: (context_): boolean =>
         !context_.config.grpcTlsCertificatePath && !context_.config.grpcWebTlsCertificatePath,
@@ -693,63 +862,73 @@ export class NodeCommandTasks {
     nodeAlias: NodeAlias,
     stakeAmount: number = HEDERA_NODE_DEFAULT_STAKE_AMOUNT,
   ): Promise<void> {
+    const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
+    await this.accountManager.loadNodeClient(
+      namespace,
+      this.remoteConfig.getClusterRefs(),
+      deploymentName,
+      this.configManager.getFlag<boolean>(flags.forcePortForward),
+    );
+    const client: Client = this.accountManager._nodeClient;
+    const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
+      namespace,
+      deploymentName,
+    );
+
+    const treasuryPrivateKey: PrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
+    const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
+    client.setOperator(treasuryAccountId, treasuryPrivateKey);
+
+    // check balance
+    let treasuryAccountInfo: AccountInfo;
     try {
-      const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
-      await this.accountManager.loadNodeClient(
-        namespace,
-        this.remoteConfig.getClusterRefs(),
-        deploymentName,
-        this.configManager.getFlag<boolean>(flags.forcePortForward),
-      );
-      const client: Client = this.accountManager._nodeClient;
-      const treasuryKey: AccountIdWithKeyPairObject = await this.accountManager.getTreasuryAccountKeys(
-        namespace,
-        deploymentName,
-      );
-
-      const treasuryPrivateKey: PrivateKey = PrivateKey.fromStringED25519(treasuryKey.privateKey);
-      const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
-      client.setOperator(treasuryAccountId, treasuryPrivateKey);
-
-      // check balance
-      const treasuryBalance: AccountBalance = await new AccountBalanceQuery()
-        .setAccountId(treasuryAccountId)
-        .execute(client);
-
-      this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryBalance.hbars}`);
-
-      // get some initial balance
-      await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
-
-      // check balance
-      const balance: AccountBalance = await new AccountBalanceQuery().setAccountId(accountId).execute(client);
-      this.logger.debug(`Account ${accountId} balance: ${balance.hbars}`);
-
-      // Create the transaction
-      const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
-        .setAccountId(accountId)
-        .setStakedNodeId(Templates.nodeIdFromNodeAlias(nodeAlias))
-        .freezeWith(client);
-
-      // Sign the transaction with the account's private key
-      const signTransaction: AccountUpdateTransaction = await transaction.sign(treasuryPrivateKey);
-
-      const transactionResponse: TransactionResponse = await signTransaction.execute(client);
-
-      const receipt: TransactionReceipt = await transactionResponse.getReceipt(client);
-
-      this.logger.debug(`The transaction consensus status is ${receipt.status}`);
+      treasuryAccountInfo = await new AccountInfoQuery().setAccountId(treasuryAccountId).execute(client);
     } catch (error) {
-      throw new SoloError(`Error in adding stake: ${error.message}`, error);
+      throw new SoloErrors.component.accountBalanceQueryFailed(treasuryAccountId, error);
     }
+
+    this.logger.debug(`Account ${treasuryAccountId} balance: ${treasuryAccountInfo.balance}`);
+
+    // get some initial balance
+    await this.accountManager.transferAmount(treasuryAccountId, accountId, stakeAmount);
+
+    // check balance
+    let accountInfo: AccountInfo;
+    try {
+      accountInfo = await new AccountInfoQuery().setAccountId(accountId).execute(client);
+    } catch (error) {
+      throw new SoloErrors.component.accountBalanceQueryFailed(accountId, error);
+    }
+    this.logger.debug(`Account ${accountId} balance: ${accountInfo.balance}`);
+
+    // Create the transaction
+    const transaction: AccountUpdateTransaction = new AccountUpdateTransaction()
+      .setAccountId(accountId)
+      .setStakedNodeId(Templates.nodeIdFromNodeAlias(nodeAlias))
+      .freezeWith(client);
+
+    // Sign the transaction with the account's private key
+    const signTransaction: AccountUpdateTransaction = await transaction.sign(treasuryPrivateKey);
+
+    let transactionResponse: TransactionResponse;
+    let receipt: TransactionReceipt;
+    try {
+      transactionResponse = await signTransaction.execute(client);
+      receipt = await transactionResponse.getReceipt(client);
+    } catch (error) {
+      throw new SoloErrors.component.nodeStakeTransactionError(error);
+    }
+
+    this.logger.debug(`The transaction consensus status is ${receipt.status}`);
   }
 
-  public prepareUpgradeZip(): SoloListrTask<any> {
+  public prepareUpgradeZip(): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare upgrade zip file for node upgrade process',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
-        const {upgradeZipFile, deployment}: any = context_.config;
+        const config: NodeAddConfigClass | NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass =
+          context_.config;
+        const {upgradeZipFile, deployment} = context_.config;
         if (upgradeZipFile) {
           context_.upgradeZipFile = upgradeZipFile;
           this.logger.debug(`Using upgrade zip file: ${context_.upgradeZipFile}`);
@@ -761,7 +940,7 @@ export class NodeCommandTasks {
           const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
           const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-          const context: string = helpers.extractContextFromConsensusNodes(
+          const context: string = extractContextFromConsensusNodes(
             (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
             context_.config.consensusNodes,
           );
@@ -773,9 +952,14 @@ export class NodeCommandTasks {
             .getK8(context)
             .containers()
             .readByRef(containerReference)
-            .copyFrom(`${constants.HEDERA_HAPI_PATH}/data/config/application.properties`, templatesDirectory);
+            .copyFrom(
+              `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`,
+              templatesDirectory,
+            );
 
-          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, config.upgradeVersion);
+          const upgradeVersion: string | undefined =
+            'upgradeVersion' in config ? (config.upgradeVersion as string) : undefined;
+          context_.upgradeZipFile = await this._prepareUpgradeZip(config.stagingDir, upgradeVersion);
         }
         context_.upgradeZipHash = await this._uploadUpgradeZip(context_.upgradeZipFile, config.nodeClient, deployment);
       },
@@ -789,7 +973,7 @@ export class NodeCommandTasks {
         const config: NodeUpdateConfigClass | NodeUpgradeConfigClass | NodeDestroyConfigClass = context_.config;
         if ((context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias) {
           try {
-            const context: string = helpers.extractContextFromConsensusNodes(
+            const context: string = extractContextFromConsensusNodes(
               (context_ as NodeUpdateContext | NodeDestroyContext).config.nodeAlias,
               context_.config.consensusNodes,
             );
@@ -842,41 +1026,51 @@ export class NodeCommandTasks {
     return {
       title: 'Send prepare upgrade transaction',
       task: async (context_): Promise<void> => {
-        const {upgradeZipHash}: any = context_;
-        const {nodeClient, freezeAdminPrivateKey, deployment}: any = context_.config;
+        const {upgradeZipHash} = context_;
+        const {nodeClient, freezeAdminPrivateKey, deployment} = context_.config;
+        const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+        const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
+
+        // query the balance
+        let accountInfo: AccountInfo;
         try {
-          const freezeAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-          const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deployment);
+          accountInfo = await new AccountInfoQuery().setAccountId(freezeAccountId).execute(nodeClient);
+        } catch (error) {
+          throw new SoloErrors.component.accountBalanceQueryFailed(freezeAccountId, error);
+        }
 
-          // query the balance
-          const balance: any = await new AccountBalanceQuery().setAccountId(freezeAccountId).execute(nodeClient);
-          this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
+        this.logger.debug(`Freeze admin account balance: ${accountInfo.balance}`);
 
-          // transfer some tiny amount to the freeze admin account
-          await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
+        // transfer some tiny amount to the freeze admin account
+        await this.accountManager.transferAmount(treasuryAccountId, freezeAccountId, 100_000);
 
-          // set operator of freeze transaction as freeze admin account
-          nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
+        // set operator of freeze transaction as freeze admin account
+        nodeClient.setOperator(freezeAccountId, freezeAdminPrivateKey);
 
-          const prepareUpgradeTransaction: TransactionResponse = await new FreezeTransaction()
+        let prepareUpgradeTransaction: TransactionResponse;
+        let prepareUpgradeReceipt: TransactionReceipt;
+        try {
+          prepareUpgradeTransaction = await new FreezeTransaction()
             .setFreezeType(FreezeType.PrepareUpgrade)
             .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
+          prepareUpgradeReceipt = await prepareUpgradeTransaction.getReceipt(nodeClient);
+        } catch (error) {
+          throw new SoloErrors.component.nodePrepareUpgradeTransactionError(error);
+        }
 
-          const prepareUpgradeReceipt: TransactionReceipt = await prepareUpgradeTransaction.getReceipt(nodeClient);
+        this.logger.debug(
+          `sent prepare upgrade transaction [id: ${prepareUpgradeTransaction.transactionId.toString()}]`,
+          prepareUpgradeReceipt.status.toString(),
+        );
 
-          this.logger.debug(
-            `sent prepare upgrade transaction [id: ${prepareUpgradeTransaction.transactionId.toString()}]`,
+        if (prepareUpgradeReceipt.status !== Status.Success) {
+          throw new SoloErrors.component.nodeTransactionFailed(
+            'Prepare upgrade',
             prepareUpgradeReceipt.status.toString(),
           );
-
-          if (prepareUpgradeReceipt.status !== Status.Success) {
-            throw new SoloError(`Prepare upgrade transaction failed: ${prepareUpgradeReceipt.status}`);
-          }
-        } catch (error) {
-          throw new SoloError(`Error in prepare upgrade: ${error.message}`, error);
         }
       },
     };
@@ -888,41 +1082,46 @@ export class NodeCommandTasks {
     return {
       title: 'Send freeze upgrade transaction',
       task: async (context_): Promise<void> => {
-        const {upgradeZipHash}: any = context_;
-        const {freezeAdminPrivateKey, nodeClient, deployment}: any = context_.config;
+        const {upgradeZipHash} = context_;
+        const {freezeAdminPrivateKey, nodeClient, deployment} = context_.config;
+        const futureDate: Date = new Date();
+        this.logger.debug(`Current time: ${futureDate}`);
+
+        futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
+        this.logger.debug(`Freeze time: ${futureDate}`);
+
+        const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+
+        // query the balance
+        let accountInfo: AccountInfo;
         try {
-          const futureDate: Date = new Date();
-          this.logger.debug(`Current time: ${futureDate}`);
+          accountInfo = await new AccountInfoQuery().setAccountId(freezeAdminAccountId).execute(nodeClient);
+        } catch (error) {
+          throw new SoloErrors.component.accountBalanceQueryFailed(freezeAdminAccountId, error);
+        }
 
-          futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
-          this.logger.debug(`Freeze time: ${futureDate}`);
+        this.logger.debug(`Freeze admin account balance: ${accountInfo.balance}`);
 
-          const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-
-          // query the balance
-          const balance: AccountBalance = await new AccountBalanceQuery()
-            .setAccountId(freezeAdminAccountId)
-            .execute(nodeClient);
-
-          this.logger.debug(`Freeze admin account balance: ${balance.hbars}`);
-
-          nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeUpgradeTx: TransactionResponse = await new FreezeTransaction()
+        nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
+        let freezeUpgradeReceipt: TransactionReceipt;
+        let freezeUpgradeTx: TransactionResponse;
+        try {
+          freezeUpgradeTx = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeUpgrade)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .setFileId(this.getFileUpgradeId(deployment))
             .setFileHash(upgradeZipHash)
             .freezeWith(nodeClient)
             .execute(nodeClient);
-
-          const freezeUpgradeReceipt: TransactionReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
-          this.logger.debug(
-            `Upgrade frozen with transaction id: ${freezeUpgradeTx.transactionId.toString()}`,
-            freezeUpgradeReceipt.status.toString(),
-          );
+          freezeUpgradeReceipt = await freezeUpgradeTx.getReceipt(nodeClient);
         } catch (error) {
-          throw new SoloError(`Error in freeze upgrade: ${error.message}`, error);
+          throw new SoloErrors.component.nodeFreezeUpgradeTransactionError(error);
         }
+
+        this.logger.debug(
+          `Upgrade frozen with transaction id: ${freezeUpgradeTx.transactionId.toString()}`,
+          freezeUpgradeReceipt.status.toString(),
+        );
       },
     };
   }
@@ -931,36 +1130,37 @@ export class NodeCommandTasks {
     return {
       title: 'Send freeze only transaction',
       task: async (context_): Promise<void> => {
-        const {freezeAdminPrivateKey, deployment, namespace}: any = context_.config;
+        const {freezeAdminPrivateKey, deployment, namespace} = context_.config;
+        const nodeClient: Client = await this.accountManager.loadNodeClient(
+          namespace,
+          this.remoteConfig.getClusterRefs(),
+          deployment,
+        );
+        const futureDate: Date = new Date();
+        this.logger.debug(`Current time: ${futureDate}`);
+
+        futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
+        this.logger.debug(`Freeze time: ${futureDate}`);
+
+        const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
+        nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
+        let freezeOnlyTransaction: TransactionResponse;
+        let freezeOnlyReceipt: TransactionReceipt;
         try {
-          const nodeClient = await this.accountManager.loadNodeClient(
-            namespace,
-            this.remoteConfig.getClusterRefs(),
-            deployment,
-          );
-          const futureDate = new Date();
-          this.logger.debug(`Current time: ${futureDate}`);
-
-          futureDate.setTime(futureDate.getTime() + 5000); // 5 seconds in the future
-          this.logger.debug(`Freeze time: ${futureDate}`);
-
-          const freezeAdminAccountId: AccountId = this.accountManager.getFreezeAccountId(deployment);
-          nodeClient.setOperator(freezeAdminAccountId, freezeAdminPrivateKey);
-          const freezeOnlyTransaction: any = await new FreezeTransaction()
+          freezeOnlyTransaction = await new FreezeTransaction()
             .setFreezeType(FreezeType.FreezeOnly)
             .setStartTimestamp(Timestamp.fromDate(futureDate))
             .freezeWith(nodeClient)
             .execute(nodeClient);
-
-          const freezeOnlyReceipt: any = await freezeOnlyTransaction.getReceipt(nodeClient);
-
-          this.logger.debug(
-            `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
-            freezeOnlyReceipt.status.toString(),
-          );
+          freezeOnlyReceipt = await freezeOnlyTransaction.getReceipt(nodeClient);
         } catch (error) {
-          throw new SoloError(`Error in sending freeze transaction: ${error.message}`, error);
+          throw new SoloErrors.component.nodeFreezeTransactionError(error);
         }
+
+        this.logger.debug(
+          `sent prepare transaction [id: ${freezeOnlyTransaction.transactionId.toString()}]`,
+          freezeOnlyReceipt.status.toString(),
+        );
       },
     };
   }
@@ -986,12 +1186,13 @@ export class NodeCommandTasks {
         const podReference: PodReference = PodReference.of(namespace, nodeFullyQualifiedPodName);
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
 
-        const context: Context = helpers.extractContextFromConsensusNodes(targetNodeAlias, consensusNodes);
+        const context: Context = extractContextFromConsensusNodes(targetNodeAlias, consensusNodes);
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-        const consensusVersion: SemVer | undefined = this.remoteConfig.configuration?.versions?.consensusNode;
-        const releaseTag: string = consensusVersion?.version || consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
+        const consensusVersion: SemanticVersion<string> | undefined =
+          this.remoteConfig.configuration?.versions?.consensusNode;
+        const releaseTag: string = consensusVersion?.toString() || HEDERA_PLATFORM_VERSION;
         const needsConfigTxt: boolean = needsConfigTxtForConsensusVersion(releaseTag);
         const configSource: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/config.txt`;
         if (needsConfigTxt && (await k8Container.hasFile(configSource))) {
@@ -1022,12 +1223,12 @@ export class NodeCommandTasks {
           await k8Container.copyFrom(`${keyDirectory}/${signedKeyFile.name}`, `${keysDir}`);
         }
 
-        const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`;
+        const applicationPropertiesSourceDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/${constants.APPLICATION_PROPERTIES}`;
 
         await ((await k8Container.hasFile(applicationPropertiesSourceDirectory))
           ? k8Container.copyFrom(applicationPropertiesSourceDirectory, `${stagingDir}/templates`)
           : k8Container.copyFrom(
-              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/application.properties`,
+              `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/config/${constants.APPLICATION_PROPERTIES}`,
               `${stagingDir}/templates`,
             ));
       },
@@ -1041,15 +1242,17 @@ export class NodeCommandTasks {
         const {consensusNodes, namespace, stagingDir, nodeAliases}: NodeUpgradeConfigClass = context_.config;
 
         const nodeAlias: NodeAlias = nodeAliases[0];
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+        const context: string = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
 
         const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(namespace, nodeAlias);
+
+        fs.mkdirSync(stagingDir, {recursive: true});
 
         // found all files under ${constants.HEDERA_HAPI_PATH}/data/upgrade/current/
         const upgradeDirectories: string[] = [
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current`,
           `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/apps`,
-          `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/libs`,
+          `${constants.HEDERA_HAPI_PATH}/data/upgrade/current/data/lib`,
         ];
 
         for (const upgradeDirectory of upgradeDirectories) {
@@ -1079,7 +1282,7 @@ export class NodeCommandTasks {
     task: SoloListrTaskWrapper<CheckedNodesContext>,
     nodeAliases: NodeAliases,
     maxAttempts?: number,
-  ): any {
+  ): SoloListr<CheckedNodesContext> {
     context_.config.podRefs = {};
     const consensusNodes: ConsensusNode[] = context_.config.consensusNodes;
 
@@ -1090,7 +1293,7 @@ export class NodeCommandTasks {
         title: `Check network pod: ${chalk.yellow(nodeAlias)}`,
         task: async ({config}): Promise<void> => {
           try {
-            const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, consensusNodes);
+            const context: Context = extractContextFromConsensusNodes(nodeAlias, consensusNodes);
 
             config.podRefs[nodeAlias] = await this.checkNetworkNodePod(
               config.namespace,
@@ -1144,16 +1347,21 @@ export class NodeCommandTasks {
 
       return podReference;
     } catch (error) {
-      throw new SoloError(`no pod found for nodeAlias: ${nodeAlias}`, error);
+      throw new SoloErrors.system.podNotFound(nodeAlias, error);
     }
   }
 
-  public loadConfiguration(argv: ArgvStruct, leaseWrapper: LeaseWrapper, leaseManager: LockManager) {
+  public loadConfiguration(
+    argv: ArgvStruct,
+    leaseWrapper: LeaseWrapper,
+    leaseManager: LockManager,
+    validateRemoteConfig: boolean = true,
+  ) {
     return {
       title: 'Load configuration',
       task: async () => {
         await this.localConfig.load();
-        await this.remoteConfig.loadAndValidate(argv);
+        await this.remoteConfig.loadAndValidate(argv, validateRemoteConfig);
         if (!this.oneShotState.isActive()) {
           leaseWrapper.lease = await leaseManager.create();
         }
@@ -1161,76 +1369,108 @@ export class NodeCommandTasks {
     };
   }
 
+  /**
+   * Resolve the active node aliases and their service map for the given namespace/deployment.
+   * Nodes whose accountId equals {@link constants.IGNORED_NODE_ACCOUNT_ID} are excluded.
+   *
+   * Shared by {@link getExistingNodeAliases} (non-task callers) and
+   * {@link identifyExistingNodes} (Listr task) to avoid duplicating the
+   * `getNodeServiceMap` + filter loop in both places.
+   */
+  private async resolveExistingNodes(
+    namespace: NamespaceName,
+    deployment: DeploymentName,
+  ): Promise<{existingNodeAliases: NodeAliases; serviceMap: NodeServiceMapping}> {
+    const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
+    const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
+      namespace,
+      clusterReferences,
+      deployment,
+    );
+    const existingNodeAliases: NodeAliases = [];
+    for (const networkNodeServices of serviceMap.values()) {
+      if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
+        continue;
+      }
+      existingNodeAliases.push(networkNodeServices.nodeAlias);
+    }
+    return {existingNodeAliases, serviceMap};
+  }
+
+  public async getExistingNodeAliases(namespace: NamespaceName, deployment: DeploymentName): Promise<NodeAliases> {
+    const {existingNodeAliases} = await this.resolveExistingNodes(namespace, deployment);
+    return existingNodeAliases;
+  }
+
   public identifyExistingNodes(): SoloListrTask<CheckedNodesContext> {
     return {
       title: 'Identify existing network nodes',
       task: async (context_, task): Promise<any> => {
         const config: CheckedNodesConfigClass = context_.config;
-        config.existingNodeAliases = [];
-        const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
-        config.serviceMap = await this.accountManager.getNodeServiceMap(
-          config.namespace,
-          clusterReferences,
-          config.deployment,
-        );
-        for (const networkNodeServices of config.serviceMap.values()) {
-          if (networkNodeServices.accountId === constants.IGNORED_NODE_ACCOUNT_ID) {
-            continue;
-          }
-          config.existingNodeAliases.push(networkNodeServices.nodeAlias);
-        }
+        ({existingNodeAliases: config.existingNodeAliases, serviceMap: config.serviceMap} =
+          await this.resolveExistingNodes(config.namespace, config.deployment));
         config.allNodeAliases = [...config.existingNodeAliases];
         return this.taskCheckNetworkNodePods(context_, task, config.existingNodeAliases);
       },
     };
   }
-
   public uploadStateFiles(skip: SkipCheck | boolean, stateFileDirectory?: string) {
     return {
       title: 'Upload state files network nodes',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
-
-        // Get the source node ID from the first consensus node (the state file's original node)
-        const sourceNodeId: any = config.consensusNodes[0].nodeId;
+        const config: NodeAddConfigClass & {stateFile?: string} = context_.config;
 
         for (const nodeAlias of context_.config.nodeAliases) {
-          const kubeContext: Optional<string> = helpers.extractContextFromConsensusNodes(
-            nodeAlias,
-            config.consensusNodes,
-          );
+          const kubeContext: Optional<string> = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+
           if (!kubeContext) {
-            throw new SoloError(`Unable to determine Kubernetes context for node ${nodeAlias}`);
+            throw new SoloErrors.system.kubeContextNotFound(nodeAlias);
           }
+
           const k8: K8 = this.k8Factory.getK8(kubeContext);
-          const podReference: any = context_.config.podRefs[nodeAlias];
+          const podReference: PodReference = context_.config.podRefs[nodeAlias];
           const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-          const consensusNode: any = config.consensusNodes.find((node): boolean => node.name === nodeAlias);
+          const consensusNode: ConsensusNode = config.consensusNodes.find((node): boolean => node.name === nodeAlias);
+
           if (!consensusNode) {
-            throw new SoloError(`Consensus node not found for alias: ${nodeAlias}`);
+            throw new SoloErrors.system.consensusNodeNotInConfig(nodeAlias);
           }
-          const clusterReference: any = consensusNode.cluster ?? kubeContext;
-          const targetNodeId: any = consensusNode.nodeId;
-          const container: Container = await k8.containers().readByRef(containerReference);
+
+          const clusterReference: ClusterReferenceName = consensusNode.cluster ?? kubeContext;
+          const targetNodeId: NodeId = consensusNode.nodeId;
+          const container: Container = k8.containers().readByRef(containerReference);
 
           // Determine the state file to use
           let zipFile: string;
-          if (
-            stateFileDirectory &&
-            fs.existsSync(stateFileDirectory) &&
-            fs.statSync(stateFileDirectory).isDirectory()
-          ) {
-            // It's a directory - find the state file for this specific pod
-            const podName: any = podReference.name.name;
+          let stateInputPath: string = stateFileDirectory || config.stateFile;
+
+          if (!stateInputPath || !fs.existsSync(stateInputPath)) {
+            throw new SoloErrors.validation.stateFilePathNotFound(stateInputPath);
+          }
+
+          stateInputPath = PathEx.resolve(stateInputPath);
+
+          // sourceNodeId tracks which node's state directory is inside the zip so the
+          // rename-state-node-id script can move it to the right place.
+          let sourceNodeId: NodeId;
+
+          if (fs.statSync(stateInputPath).isDirectory()) {
+            // Directory restore: each pod has its own zip that was captured from that same
+            // pod.  The zip therefore already contains the correct node-ID directory for the
+            // target pod, so no rename is required.
+            sourceNodeId = targetNodeId;
+
+            const podName: string = podReference.name.name;
             const statesDirectory: string = PathEx.join(
-              stateFileDirectory,
+              stateInputPath,
               'states',
               clusterReference,
               config.namespace.name,
             );
+
             if (!fs.existsSync(statesDirectory)) {
               this.logger.showUserError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
-              throw new SoloError(`No states directory found for node ${nodeAlias} at ${statesDirectory}`);
+              throw new SoloErrors.system.statesDirectoryNotFound(nodeAlias, statesDirectory);
             }
 
             const stateFiles: string[] = fs
@@ -1246,8 +1486,27 @@ export class NodeCommandTasks {
             zipFile = PathEx.join(statesDirectory, stateFiles[0]);
             this.logger.info(`Using state file for node ${nodeAlias}: ${stateFiles[0]}`);
           } else {
-            // It's a single file or use default from config
-            zipFile = stateFileDirectory || config.stateFile;
+            // Single-file restore (e.g. node add): the zip is from the first consensus node
+            // and needs to be renamed to match each target node.
+            sourceNodeId = config.consensusNodes[0].nodeId;
+            zipFile = stateInputPath;
+          }
+
+          if (!zipFile.endsWith('.zip')) {
+            throw new SoloErrors.validation.invalidStateFileFormat(zipFile);
+          }
+
+          if (!fs.existsSync(zipFile) || !fs.statSync(zipFile).isFile()) {
+            throw new SoloErrors.validation.stateFileNotFound(zipFile);
+          }
+
+          const zipFileName: string = PathEx.basename(zipFile);
+
+          // The zip filename is later passed to `unzip` inside the container.
+          // Keep the accepted filename format intentionally small so user input cannot
+          // be interpreted as command options, path traversal, shell syntax, or nested paths.
+          if (zipFileName.startsWith('-') || !/^[a-zA-Z0-9._-]+$/.test(zipFileName)) {
+            throw new SoloErrors.validation.invalidStateZipFileName(zipFileName);
           }
 
           this.logger.debug(`Uploading state files to pod ${podReference.name}`);
@@ -1256,11 +1515,13 @@ export class NodeCommandTasks {
           this.logger.info(
             `Deleting the previous state files in pod ${podReference.name} directory ${constants.HEDERA_HAPI_PATH}/data/saved`,
           );
+
           await container.execContainer(['bash', '-c', `rm -rf ${constants.HEDERA_HAPI_PATH}/data/saved/*`]);
+
           await container.execContainer([
             'unzip',
             '-o',
-            `${constants.HEDERA_HAPI_PATH}/data/${path.basename(zipFile)}`,
+            `${constants.HEDERA_HAPI_PATH}/data/${zipFileName}`,
             '-d',
             `${constants.HEDERA_HAPI_PATH}/data/saved`,
           ]);
@@ -1270,6 +1531,7 @@ export class NodeCommandTasks {
           // Unlike tar which preserves UID/GID metadata, zip format doesn't store Unix ownership info.
           // The chown is required so the hedera process can access the extracted state files.
           this.logger.info(`Fixing ownership of extracted state files in pod ${podReference.name}`);
+
           await container.execContainer([
             'bash',
             '-c',
@@ -1278,12 +1540,13 @@ export class NodeCommandTasks {
 
           // Clean up old rounds - keep only the latest/biggest round
           this.logger.info(`Cleaning up old rounds in pod ${podReference.name}, keeping only the latest round`);
-          const cleanupScriptName = path.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
-          const cleanupScriptDestination = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+
+          const cleanupScriptName: string = PathEx.basename(constants.CLEANUP_STATE_ROUNDS_SCRIPT);
+          const cleanupScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${cleanupScriptName}`;
+
           await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
           await container.copyTo(constants.CLEANUP_STATE_ROUNDS_SCRIPT, constants.HEDERA_USER_HOME_DIR);
           await container.execContainer(['chmod', '+x', cleanupScriptDestination]);
-          await sleep(Duration.ofSeconds(1));
           await container.execContainer([cleanupScriptDestination, constants.HEDERA_HAPI_PATH]);
 
           // Rename node ID directories to match the target node
@@ -1291,12 +1554,14 @@ export class NodeCommandTasks {
             this.logger.info(
               `Renaming node ID directories in pod ${podReference.name} from ${sourceNodeId} to ${targetNodeId}`,
             );
-            const renameScriptName: string = path.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
+
+            const renameScriptName: string = PathEx.basename(constants.RENAME_STATE_NODE_ID_SCRIPT);
             const renameScriptDestination: string = `${constants.HEDERA_USER_HOME_DIR}/${renameScriptName}`;
+
             await container.execContainer(['mkdir', '-p', constants.HEDERA_USER_HOME_DIR]);
             await container.copyTo(constants.RENAME_STATE_NODE_ID_SCRIPT, constants.HEDERA_USER_HOME_DIR);
             await container.execContainer(['chmod', '+x', renameScriptDestination]);
-            await sleep(Duration.ofSeconds(1));
+
             await container.execContainer([
               renameScriptDestination,
               constants.HEDERA_HAPI_PATH,
@@ -1304,6 +1569,12 @@ export class NodeCommandTasks {
               targetNodeId.toString(),
             ]);
           }
+
+          await container.execContainer([
+            'bash',
+            '-c',
+            `chown -R hedera:hedera ${constants.HEDERA_HAPI_PATH}/data/saved`,
+          ]);
         }
       },
       skip,
@@ -1326,41 +1597,55 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Fetch platform software into network nodes',
-      task: (context_, task) => {
+      task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
         const {podRefs, localBuildPath} = context_.config;
         let {releaseTag} = context_.config;
 
         if (releaseTag) {
-          releaseTag = Version.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
+          releaseTag = SemanticVersion.getValidSemanticVersion(releaseTag, true, 'Consensus release tag');
         }
 
         if ('upgradeVersion' in context_.config) {
-          if (!context_.config.upgradeVersion) {
+          if (context_.config.upgradeVersion) {
+            releaseTag = context_.config.upgradeVersion;
+          } else if (!localBuildPath) {
             this.logger.info('Skip, no need to update the platform software');
-            return Promise.resolve();
+            return;
           }
-          releaseTag = context_.config.upgradeVersion;
         }
 
         context_.config.releaseTag = releaseTag;
 
-        return localBuildPath === ''
-          ? this._fetchPlatformSoftware(
-              context_.config[aliasesField],
-              podRefs,
-              releaseTag,
-              task,
-              this.platformInstaller,
-              context_.config.consensusNodes,
-            )
-          : this._uploadPlatformSoftware(
-              context_.config[aliasesField],
-              podRefs,
-              task,
-              localBuildPath,
-              context_.config.consensusNodes,
-              releaseTag,
-            );
+        if (!localBuildPath) {
+          return this._fetchPlatformSoftware(
+            context_.config[aliasesField],
+            podRefs,
+            releaseTag,
+            task,
+            this.platformInstaller,
+            context_.config.consensusNodes,
+            context_.config.stagingDir,
+          );
+        }
+
+        const nodeAliases: NodeAliases = context_.config[aliasesField] as NodeAliases;
+        const uniqueContexts: Context[] = [
+          ...new Set(
+            nodeAliases.map((nodeAlias: NodeAlias): Context =>
+              extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes),
+            ),
+          ),
+        ];
+        await this.validateNodePvcsForLocalBuildPath(context_.config.namespace, uniqueContexts);
+
+        return this._uploadPlatformSoftware(
+          nodeAliases,
+          podRefs,
+          task,
+          localBuildPath,
+          context_.config.consensusNodes,
+          releaseTag,
+        );
       },
     };
   }
@@ -1397,7 +1682,7 @@ export class NodeCommandTasks {
         task,
       ): Promise<SoloListr<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeRefreshContext>> => {
         if (!config.nodeAliases || config.nodeAliases.length === 0) {
-          config.nodeAliases = helpers.parseNodeAliases(
+          config.nodeAliases = parseNodeAliases(
             config.nodeAliasesUnparsed,
             this.remoteConfig.getConsensusNodes(),
             this.configManager,
@@ -1407,7 +1692,6 @@ export class NodeCommandTasks {
           await this.generateGenesisNetworkJson(
             config.namespace,
             config.consensusNodes,
-            config.keysDir,
             config.stagingDir,
             config.domainNamesMapping,
           );
@@ -1419,7 +1703,7 @@ export class NodeCommandTasks {
           [];
 
         for (const nodeAlias of config[nodeAliasesProperty]) {
-          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const context: Context = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
           subTasks.push({
             title: `Node: ${chalk.yellow(nodeAlias)}`,
@@ -1436,17 +1720,9 @@ export class NodeCommandTasks {
   public setupNetworkNodeFolders(): SoloListrTask<NodeSetupContext> {
     return {
       title: 'setup network node folders',
-      skip: (): boolean => {
-        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
-        const versionRequirement: SemVer = new SemVer('0.63.0');
-        return lt(currentVersion, versionRequirement);
-      },
       task: async (context_): Promise<void> => {
         for (const consensusNode of context_.config.consensusNodes) {
-          const context: string = helpers.extractContextFromConsensusNodes(
-            consensusNode.name,
-            context_.config.consensusNodes,
-          );
+          const context: string = extractContextFromConsensusNodes(consensusNode.name, context_.config.consensusNodes);
           const podReference: PodReference = await this.k8Factory
             .getK8(context)
             .pods()
@@ -1463,12 +1739,12 @@ export class NodeCommandTasks {
             .containers()
             .readByRef(rootContainer);
 
-          await container.execContainer('chmod 777 /opt/hgcapp/services-hedera/HapiApp2.0/data');
+          await container.execContainer('chmod 750 /opt/hgcapp/services-hedera/HapiApp2.0/data');
 
           // save consensus node version in remote config
           this.remoteConfig.updateComponentVersion(
             ComponentTypes.ConsensusNode,
-            new SemVer(context_.config.releaseTag),
+            new SemanticVersion<string>(context_.config.releaseTag),
           );
           await this.remoteConfig.persist();
         }
@@ -1485,7 +1761,59 @@ export class NodeCommandTasks {
     };
   }
 
-  public setGrpcWebEndpoint(nodeAliasesProperty: string): SoloListrTask<NodeStartContext> {
+  public waitForTss(): SoloListrTask<NodeStartContext> {
+    return {
+      title: 'Wait for TSS',
+      skip: (): boolean => !this.remoteConfig.configuration.state.tssEnabled,
+      task: async ({config}, task): Promise<SoloListr<NodeStartContext>> => {
+        const subTasks: SoloListrTask<NodeStartContext>[] = [];
+
+        for (const node of config.consensusNodes) {
+          subTasks.push({
+            title: `Waiting for node: ${node.name}`,
+            task: async (_, task): Promise<void> => {
+              const maxAttempts: number = this.soloConfig.tss.readyMaxAttempts;
+              let attempt: number = 0;
+              let success: boolean = false;
+
+              while (!success && attempt < maxAttempts) {
+                attempt++;
+
+                task.title = `Waiting for node: ${chalk.cyan(node.name)}, attempt ${chalk.cyan(`${attempt}/${maxAttempts}`)}`;
+
+                const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+                  NamespaceName.of(node.namespace),
+                  node.name,
+                );
+
+                const hgcaaLogPath: string = `${constants.HEDERA_HAPI_PATH}/output/hgcaa.log`;
+
+                const output: string = await container.execContainer(['cat', hgcaaLogPath]);
+
+                if (output.includes('TSS protocol ready to sign blocks')) {
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.timeoutAfterReadySeconds));
+                  success = true;
+                } else {
+                  await sleep(Duration.ofSeconds(this.soloConfig.tss.readyBackoffSeconds));
+                }
+              }
+
+              if (!success) {
+                throw new SoloErrors.component.nodeNotReady(node.name, 'TSS Ready', maxAttempts, maxAttempts);
+              }
+            },
+          });
+        }
+
+        return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
+  public setGrpcWebEndpoint(
+    nodeAliasesProperty: string,
+    subcommandType: NodeSubcommandType,
+  ): SoloListrTask<NodeStartContext> {
     return {
       title: 'set gRPC Web endpoint',
       skip: ({config: {app}}): boolean => {
@@ -1493,18 +1821,25 @@ export class NodeCommandTasks {
         if (app !== constants.HEDERA_APP_NAME) {
           return true;
         }
-
-        const currentVersion: SemVer = this.remoteConfig.configuration.versions.consensusNode;
-        const versionRequirement: SemVer = new SemVer(MINIMUM_HIERO_PLATFORM_VERSION_FOR_GRPC_WEB_ENDPOINTS);
-        return lt(currentVersion, versionRequirement);
+        // skip if caller opted out (e.g. restore flow where endpoint is already correct
+        // in the restored state and re-sending triggers the CN v0.74 CHECKING bug)
+        if (this.configManager.getFlag<boolean>(flags.skipGrpcWebEndpoint)) {
+          return true;
+        }
+        return false;
       },
       task: async ({config}): Promise<void> => {
-        const {namespace, deployment, adminKey}: any = config;
+        const {namespace, deployment, adminKey} = config;
 
         const serviceMap: NodeServiceMapping = await this.accountManager.getNodeServiceMap(
           namespace,
           this.remoteConfig.getClusterRefs(),
           deployment,
+        );
+
+        const grpcWebEndpoints: NodeAliasToAddressMapping = Templates.parseNodeAliasToAddressAndPortMapping(
+          config.grpcWebEndpoints,
+          this.remoteConfig.getConsensusNodes(),
         );
 
         for (const nodeAlias of config[nodeAliasesProperty]) {
@@ -1522,43 +1857,80 @@ export class NodeCommandTasks {
             deployment,
           );
 
-          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint().setPort(grpcProxyPort);
+          const grpcWebProxyEndpoint: ServiceEndpoint = new ServiceEndpoint();
 
-          if (networkNodeService.envoyProxyLoadBalancerIp) {
+          let endpoint: {address: string; port: number};
+
+          if (subcommandType === NodeSubcommandType.ADD && (config as any).grpcWebEndpoint) {
+            const grpcWebEndpoint: string = (config as any).grpcWebEndpoint;
+
+            const [address, port] = grpcWebEndpoint.includes(':')
+              ? grpcWebEndpoint.split(':')
+              : [grpcWebEndpoint, constants.GRPC_WEB_PORT];
+
+            endpoint = {address, port: +port};
+          } else if (subcommandType === NodeSubcommandType.START) {
+            endpoint = grpcWebEndpoints[nodeAlias];
+          }
+
+          if (endpoint) {
+            grpcWebProxyEndpoint.setDomainName(endpoint.address).setPort(endpoint.port);
+          } else if (networkNodeService.envoyProxyLoadBalancerIp) {
             const svc: Service[] = await this.k8Factory
               .getK8(networkNodeService.context)
               .services()
-              .list(config.namespace, [
-                `solo.hedera.com/node-id=${networkNodeService.nodeId},solo.hedera.com/type=network-node-svc`,
-              ]);
+              .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(networkNodeService.nodeId));
 
-            grpcWebProxyEndpoint.setDomainName(
-              Templates.renderSvcFullyQualifiedDomainName(svc[0].metadata.name, namespace.name, cluster.dnsBaseDomain),
-            );
+            grpcWebProxyEndpoint
+              .setDomainName(
+                Templates.renderSvcFullyQualifiedDomainName(
+                  svc[0].metadata.name,
+                  namespace.name,
+                  cluster.dnsBaseDomain,
+                ),
+              )
+              .setPort(grpcProxyPort);
           } else {
-            grpcWebProxyEndpoint.setDomainName(
-              Templates.renderSvcFullyQualifiedDomainName(
-                networkNodeService.envoyProxyName,
-                namespace.name,
-                cluster.dnsBaseDomain,
-              ),
-            );
+            grpcWebProxyEndpoint
+              .setDomainName(
+                Templates.renderSvcFullyQualifiedDomainName(
+                  networkNodeService.envoyProxyName,
+                  namespace.name,
+                  cluster.dnsBaseDomain,
+                ),
+              )
+              .setPort(grpcProxyPort);
           }
+
+          // Publish a routable IP for the gRPC endpoint so pinger avoids the bootstrap FQDN, which hangs on Windows Kind.
+          const grpcIpAddress: string =
+            networkNodeService.nodeServiceLoadBalancerIp || networkNodeService.nodeServiceClusterIp;
+          const grpcServiceEndpoint: ServiceEndpoint = new ServiceEndpoint({
+            port: networkNodeService.nodeServiceGrpcPort,
+            ipAddressV4: parseIpAddressToUint8Array(grpcIpAddress),
+          });
 
           let updateTransaction: NodeUpdateTransaction = new NodeUpdateTransaction()
             .setNodeId(Long.fromString(networkNodeService.nodeId.toString()))
             .setGrpcWebProxyEndpoint(grpcWebProxyEndpoint)
+            .setServiceEndpoints([grpcServiceEndpoint])
             .freezeWith(nodeClient);
 
           if (adminKey) {
             updateTransaction = await updateTransaction.sign(adminKey);
           }
 
-          const transactionResponse: TransactionResponse = await updateTransaction.execute(nodeClient);
-          const updateTransactionReceipt: TransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+          let transactionResponse: TransactionResponse;
+          let updateTransactionReceipt: TransactionReceipt;
+          try {
+            transactionResponse = await updateTransaction.execute(nodeClient);
+            updateTransactionReceipt = await transactionResponse.getReceipt(nodeClient);
+          } catch (error) {
+            throw new SoloErrors.component.nodeUpdateTransactionError(error);
+          }
 
           if (updateTransactionReceipt.status !== Status.Success) {
-            throw new SoloError('Failed to set gRPC web proxy endpoint');
+            throw new SoloErrors.system.grpcProxyEndpointFailed();
           }
         }
       },
@@ -1596,7 +1968,6 @@ export class NodeCommandTasks {
   private async generateGenesisNetworkJson(
     namespace: NamespaceName,
     consensusNodes: ConsensusNode[],
-    keysDirectory: string,
     stagingDirectory: string,
     domainNamesMapping?: Record<NodeAlias, string>,
   ): Promise<void> {
@@ -1610,12 +1981,13 @@ export class NodeCommandTasks {
     let adminPublicKeys: string[] = [];
     adminPublicKeys = this.configManager.getFlag(flags.adminPublicKeys)
       ? splitFlagInput(this.configManager.getFlag(flags.adminPublicKeys))
-      : (Array.from({length: consensusNodes.length}).fill(constants.GENESIS_PUBLIC_KEY.toString()) as string[]);
+      : (Array.from({length: consensusNodes.length}, (): string =>
+          constants.GENESIS_PUBLIC_KEY.toString(),
+        ) as string[]);
     const genesisNetworkData: GenesisNetworkDataConstructor = await GenesisNetworkDataConstructor.initialize(
       consensusNodes,
       this.keyManager,
       this.accountManager,
-      keysDirectory,
       networkNodeServiceMap,
       adminPublicKeys,
       domainNamesMapping,
@@ -1625,38 +1997,28 @@ export class NodeCommandTasks {
     fs.writeFileSync(genesisNetworkJson, genesisNetworkData.toJSON());
   }
 
-  public prepareStagingDirectory(nodeAliasesProperty: string): AnyListrContext {
+  public prepareStagingDirectory(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Prepare staging directory',
-      task: (context_, task): any => {
-        const config: any = context_.config;
-        const nodeAliases: any = config[nodeAliasesProperty];
-        const subTasks: (
-          | {title: string; task: (context_) => Promise<void>}
-          | {
-              title: string;
-              task: () => Promise<void>;
-            }
-          | {title: string; task: () => Promise<void>}
-        )[] = [
+      task: ({config}, task): SoloListr<AnyListrContext> => {
+        const nodeAliases: NodeAliases = config[nodeAliasesProperty];
+        const subTasks: SoloListrTask<AnyListrContext>[] = [
           {
             title: 'Create and populate staging directory',
-            task: async (context_): Promise<void> => {
-              const config: any = context_.config;
-              const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
+            task: async ({config}): Promise<void> => {
+              const deploymentName: DeploymentName = this.configManager.getFlag(flags.deployment);
               const applicationPropertiesPath: string = PathEx.joinWithRealPath(
                 config.cacheDir,
                 'templates',
-                'application.properties',
+                constants.APPLICATION_PROPERTIES,
               );
 
               const consensusNodes: ConsensusNode[] = this.remoteConfig.getConsensusNodes();
               const yamlRoot: AnyObject = {};
-              const emptyDomainNamesMapping: Record<string, IP> = {};
 
               const stagingDirectory: string = Templates.renderStagingDir(
                 this.configManager.getFlag(flags.cacheDir),
-                this.configManager.getFlag(flags.releaseTag),
+                this.configManager.getFlag(flags.consensusNodeVersion),
               );
 
               if (!fs.existsSync(stagingDirectory)) {
@@ -1664,28 +2026,9 @@ export class NodeCommandTasks {
                   consensusNodes,
                   nodeAliases,
                   yamlRoot,
-                  emptyDomainNamesMapping,
                   deploymentName,
                   applicationPropertiesPath,
                 );
-              }
-            },
-          },
-          {
-            title: 'Copy Gossip keys to staging',
-            task: async (): Promise<void> => {
-              this.keyManager.copyGossipKeysToStaging(config.keysDir, config.stagingKeysDir, nodeAliases);
-            },
-          },
-          {
-            title: 'Copy gRPC TLS keys to staging',
-            task: async (): Promise<void> => {
-              for (const nodeAlias of nodeAliases) {
-                const tlsKeyFiles: PrivateKeyAndCertificateObject = this.keyManager.prepareTlsKeyFilePaths(
-                  nodeAlias,
-                  config.keysDir,
-                );
-                this.keyManager.copyNodeKeysToStaging(tlsKeyFiles, config.stagingKeysDir);
               }
             },
           },
@@ -1695,35 +2038,46 @@ export class NodeCommandTasks {
     };
   }
 
-  public startNodes(nodeAliasesProperty: string): {title: 'Starting nodes'; task: (context_, task) => any} {
+  public startNodes(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Starting nodes',
       task: (context_, task): any => {
         const config: any = context_.config;
-        const nodeAliases: any = config[nodeAliasesProperty];
-        const subTasks: any[] = [];
+        const nodeAliases: NodeAliases = config[nodeAliasesProperty];
+        const subTasks: SoloListrTask<AnyListrContext>[] = [];
 
         for (const nodeAlias of nodeAliases) {
           subTasks.push({
             title: `Start node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
-              const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+              const labels: string[] = [`solo.hedera.com/node-name=${nodeAlias}`, 'solo.hedera.com/type=network-node'];
+              await this.k8Factory
+                .getK8(context)
+                .pods()
+                .waitForReadyStatus(config.namespace, labels, 120, 1000, undefined, true);
+
+              const startCommand: string = this.buildStartNetworkNodeCommand();
 
               const container: Container = await new K8Helper(context).getConsensusNodeRootContainer(
                 config.namespace,
                 nodeAlias,
               );
-              await (constants.ENABLE_S6_IMAGE
-                ? container.execContainer([
-                    'bash',
-                    '-c',
-                    '/command/s6-svc -d /run/service/network-node && /command/s6-svc -u /run/service/network-node',
-                  ])
-                : container.execContainer([
-                    'bash',
-                    '-c',
-                    'systemctl stop network-node || true && systemctl enable --now network-node',
-                  ]));
+              if (config.localBuildPath) {
+                await container.execContainer(['bash', '-c', this.buildRefreshLiveLocalBuildJarsCommand()]);
+              }
+              for (const directory of [constants.HEDERA_DATA_APPS_DIR, constants.HEDERA_DATA_LIB_DIR]) {
+                const directoryPath: string = `${constants.HEDERA_HAPI_PATH}/${directory}`;
+                const output: string = await container.execContainer([
+                  'bash',
+                  '-c',
+                  `ls "${directoryPath}"/*.jar 2>/dev/null | wc -l`,
+                ]);
+                if (Number.parseInt(output.trim(), 10) === 0) {
+                  throw new SoloErrors.validation.nodeJarFilesNotInContainer(nodeAlias, directoryPath);
+                }
+              }
+              await container.execContainer(['bash', '-c', startCommand]);
             },
           });
         }
@@ -1734,16 +2088,87 @@ export class NodeCommandTasks {
     };
   }
 
-  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): {
-    title: 'Enable port forwarding for debug port and/or GRPC port';
-    task: (context_) => Promise<void>;
-    skip: (context_) => boolean;
-  } {
+  private buildRefreshLiveLocalBuildJarsCommand(): string {
+    const hapiPath: string = constants.HEDERA_HAPI_PATH;
+    const applicationDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const libraryDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_LIB_DIR}`;
+    const applicationJar: string = `${applicationDirectory}/${constants.HEDERA_APP_NAME}`;
+    const upgradeDirectory: string = `${hapiPath}/data/upgrade/current`;
+    const upgradeApplicationDirectory: string = `${upgradeDirectory}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const upgradeLibraryDirectory: string = `${upgradeDirectory}/${constants.HEDERA_DATA_LIB_DIR}`;
+    const upgradeApplicationJar: string = `${upgradeApplicationDirectory}/${constants.HEDERA_APP_NAME}`;
+
+    return [
+      `if [ -f "${upgradeApplicationJar}" ]; then`,
+      `  rm -f "${applicationDirectory}"/*.jar "${libraryDirectory}"/*.jar`,
+      `  cp -f "${upgradeApplicationDirectory}"/*.jar "${applicationDirectory}/"`,
+      `  cp -f "${upgradeLibraryDirectory}"/*.jar "${libraryDirectory}/"`,
+      this.buildNormalizeHederaJarPermissionsCommand(),
+      `  sync "${hapiPath}"`,
+      'fi',
+      `test -f "${applicationJar}" || { echo "missing ${applicationJar}" >&2; exit 1; }`,
+      `/command/s6-setuidgid hedera unzip -l "${applicationJar}" "com/hedera/node/app/ServicesMain.class" | grep -q "com/hedera/node/app/ServicesMain.class" || { echo "missing ServicesMain in ${applicationJar}" >&2; exit 1; }`,
+    ].join('\n');
+  }
+
+  private buildNormalizeHederaJarPermissionsCommand(hapiPath: string = constants.HEDERA_HAPI_PATH): string {
+    const applicationDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_APPS_DIR}`;
+    const libraryDirectory: string = `${hapiPath}/${constants.HEDERA_DATA_LIB_DIR}`;
+
+    return [
+      `chown -R hedera:hedera "${applicationDirectory}" "${libraryDirectory}"`,
+      `chmod -R u+rwX,g+rX,o+rX "${applicationDirectory}" "${libraryDirectory}"`,
+    ].join('\n');
+  }
+
+  /**
+   * Build the command used by `consensus node start` to restart the network-node service.
+   * Delegate lifecycle handling entirely to solo-container so Solo stays orchestration-only.
+   */
+  private buildStartNetworkNodeCommand(): string {
+    const lifecycleHelperPath: string = '/command/network-node-lifecycle';
+    return [
+      // Fail fast when the helper is missing so callers immediately know the image
+      // does not satisfy Solo's lifecycle contract.
+      `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
+      [
+        "if ps -ef | grep -q '[c]om.hedera.node.app.ServicesMain'",
+        "then curl -sf http://localhost:9999/metrics | grep 'platform_PlatformStatus' | grep -q ' 2[.]0$' && true < /dev/tcp/127.0.0.1/50211",
+        'else false',
+        'fi',
+      ].join('\n'),
+      // ACTIVE nodes only need the autostart marker restored; the full helper start
+      // path deliberately forces a down/up cycle for transitional or frozen nodes.
+      `if [ $? -eq 0 ]; then "${lifecycleHelperPath}" enable-autostart; exit 0; fi`,
+      // A JVM can remain alive with only background threads after the main platform
+      // exits. Clear any non-ready process before asking the helper to start it.
+      `"${lifecycleHelperPath}" stop-and-disable-autostart`,
+      // The helper owns both service control and autostart marker semantics.
+      `"${lifecycleHelperPath}" start-and-enable-autostart`,
+    ].join('\n');
+  }
+
+  /**
+   * Build the command used by `consensus node stop` to stop the network-node service.
+   * Delegate lifecycle handling entirely to solo-container so Solo stays orchestration-only.
+   */
+  private buildStopNetworkNodeCommand(): string {
+    const lifecycleHelperPath: string = '/command/network-node-lifecycle';
+    return [
+      `test -x "${lifecycleHelperPath}" || { echo "missing ${lifecycleHelperPath}; update solo-container image" >&2; exit 1; }`,
+      // Keep Solo orchestration-only: hard-stop and escalation logic must stay in
+      // solo-container's /command/network-node-lifecycle helper.
+      `"${lifecycleHelperPath}" stop-and-disable-autostart`,
+    ].join('\n');
+  }
+
+  public enablePortForwarding(enablePortForwardHaProxy: boolean = false): SoloListrTask<AnyListrContext> {
     return {
       title: 'Enable port forwarding for debug port and/or GRPC port',
       task: async ({config}): Promise<void> => {
+        const externalAddress: string = this.configManager.getFlag<string>(flags.externalAddress);
         const nodeAlias: NodeAlias = config.debugNodeAlias || config.consensusNodes[0].name;
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+        const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
 
         if (config.debugNodeAlias) {
           const pod: Pod = await new K8Helper(context).getConsensusNodePod(config.namespace, nodeAlias);
@@ -1751,7 +2176,7 @@ export class NodeCommandTasks {
           this.logger.showUser('Enable port forwarding for JVM debugger');
           this.logger.debug(`Enable port forwarding for JVM debugger on pod ${pod.podReference.name}`);
 
-          await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true);
+          await pod.portForward(constants.JVM_DEBUG_PORT, constants.JVM_DEBUG_PORT, true, true, externalAddress);
         }
 
         if (config.forcePortForward && enablePortForwardHaProxy) {
@@ -1761,21 +2186,41 @@ export class NodeCommandTasks {
             .list(config.namespace, ['solo.hedera.com/node-id=0', 'solo.hedera.com/type=haproxy']);
 
           if (pods.length === 0) {
-            throw new SoloError(`No HAProxy pod found for node alias: ${nodeAlias}`);
+            throw new SoloErrors.system.haproxyPodsNotFound();
           }
 
-          await this.remoteConfig.configuration.components.managePortForward(
-            undefined,
-            pods[0].podReference,
-            constants.GRPC_PORT, // Pod port
-            constants.GRPC_PORT, // Local port
-            this.k8Factory.getK8(config.clusterContext),
-            this.logger,
-            ComponentTypes.ConsensusNode,
-            'Consensus Node gRPC',
-            config.isChartInstalled, // Reuse existing port if chart is already installed
-            Templates.nodeIdFromNodeAlias(nodeAlias),
-          );
+          for (const pod of pods) {
+            const podReference: PodReference = pod.podReference;
+            const nodeIdLabel: string | undefined = pod.labels?.['solo.hedera.com/node-id'];
+            let nodeId: number;
+
+            if (nodeIdLabel !== undefined && Number.isInteger(Number(nodeIdLabel))) {
+              nodeId = Number(nodeIdLabel);
+            } else {
+              const podName: string = podReference.name.toString();
+              const match: RegExpMatchArray | null = podName.match(/^haproxy-(node\d+)-/);
+              if (!match) {
+                this.logger.warn(`Skipping HAProxy pod with unknown node alias format: ${podName}`);
+                continue;
+              }
+              nodeId = Templates.nodeIdFromNodeAlias(match[1] as NodeAlias);
+            }
+
+            await this.remoteConfig.configuration.components.managePortForward(
+              undefined,
+              podReference,
+              constants.GRPC_PORT, // Pod port
+              constants.GRPC_LOCAL_PORT + nodeId, // Local port offset by node id (node1=base, node2=base+1, ...)
+              this.k8Factory.getK8(context),
+              this.logger,
+              ComponentTypes.HaProxy,
+              'Consensus Node gRPC',
+              config.isChartInstalled, // Reuse existing port if chart is already installed
+              nodeId,
+              true, // persist: auto-restart on failure using persist-port-forward.js
+              externalAddress,
+            );
+          }
           await this.remoteConfig.persist();
         }
       },
@@ -1786,16 +2231,16 @@ export class NodeCommandTasks {
   public checkAllNodesAreActive(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check all nodes are ACTIVE',
-      task: async (context_, task) => {
+      task: async (context_, task): Promise<SoloListr<AnyListrContext>> => {
         return this._checkNodeActivenessTask(context_, task, context_.config[nodeAliasesProperty]);
       },
     };
   }
 
-  public checkAllNodesAreFrozen(nodeAliasesProperty: string) {
+  public checkAllNodesAreFrozen(nodeAliasesProperty: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Check all nodes are FROZEN',
-      task: (context_, task) => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         return this._checkNodeActivenessTask(
           context_,
           task,
@@ -1809,14 +2254,47 @@ export class NodeCommandTasks {
   public checkNodeProxiesAreActive(): SoloListrTask<NodeStartContext | NodeRefreshContext | NodeRestartContext> {
     return {
       title: 'Check node proxies are ACTIVE',
-      task: (context_, task) => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         // this is more reliable than checking the nodes logs for ACTIVE, as the
         // logs will have a lot of white noise from being behind
         return this._checkNodesProxiesTask(task, context_.config.nodeAliases) as SoloListr<AnyListrContext>;
       }, // NodeStartConfigClass NodeRefreshContext
-      skip: async (context_): Promise<boolean> =>
-        (context_.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== '' &&
-        (context_.config as NodeStartConfigClass | NodeRefreshConfigClass).app !== constants.HEDERA_APP_NAME,
+      skip: async (context_): Promise<boolean> => {
+        const app: string = (context_.config as NodeStartConfigClass | NodeRefreshConfigClass).app;
+        return app && app !== constants.HEDERA_APP_NAME;
+      },
+    };
+  }
+
+  /**
+   * Returns a task that checks node activeness and proxy readiness in parallel, reducing total
+   * start time by running both independent checks concurrently instead of sequentially.
+   */
+  public checkNodesAndProxiesAreActive(
+    nodeAliasesProperty: string,
+  ): SoloListrTask<NodeStartContext | NodeRefreshContext | NodeRestartContext> {
+    return {
+      title: 'Check nodes are ACTIVE and proxies are ready',
+      task: (context_, task): SoloListr<AnyListrContext> => {
+        const subTasks: SoloListrTask<AnyListrContext>[] = [
+          {
+            title: 'Check all nodes are ACTIVE',
+            task: async (context__, t): Promise<SoloListr<AnyListrContext>> =>
+              this._checkNodeActivenessTask(context__, t, context__.config[nodeAliasesProperty]),
+          },
+          {
+            title: 'Check node proxies are ACTIVE',
+            task: (context__, t): SoloListr<AnyListrContext> =>
+              this._checkNodesProxiesTask(t, context__.config[nodeAliasesProperty]) as SoloListr<AnyListrContext>,
+            skip: (context__): boolean => {
+              const app: string = (context__.config as NodeStartConfigClass | NodeRefreshConfigClass).app;
+              return app && app !== constants.HEDERA_APP_NAME;
+            },
+          },
+        ];
+
+        return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
+      },
     };
   }
 
@@ -1825,7 +2303,7 @@ export class NodeCommandTasks {
   > {
     return {
       title: 'Check all node proxies are ACTIVE',
-      task: (context_, task) => {
+      task: (context_, task): SoloListr<AnyListrContext> => {
         // this is more reliable than checking the nodes logs for ACTIVE, as the
         // logs will have a lot of white noise from being behind
         return this._checkNodesProxiesTask(task, context_.config.allNodeAliases) as SoloListr<AnyListrContext>;
@@ -1839,12 +2317,12 @@ export class NodeCommandTasks {
   ): SoloListrTask<T> {
     return {
       title: 'Trigger stake weight calculate',
-      task: async context_ => {
-        const config = context_.config;
+      task: async (context_): Promise<void> => {
+        const config: AnyObject = context_.config;
         this.logger.info(
-          'sleep 60 seconds for the handler to be able to trigger the network node stake weight recalculate',
+          `Waiting ${constants.TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS} seconds for the handler to be able to trigger the network node stake weight recalculate`,
         );
-        await sleep(Duration.ofSeconds(60));
+        await sleep(Duration.ofSeconds(constants.TRIGGER_STAKE_WEIGHT_CALCULATE_WAIT_SECONDS));
         const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
         const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
           config.allNodeAliases,
@@ -1875,12 +2353,13 @@ export class NodeCommandTasks {
         config.nodeClient = await this.accountManager.refreshNodeClient(
           config.namespace,
           this.remoteConfig.getClusterRefs(),
-          skipNodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
+          undefined,
+          {type: 'all', skipNodeAlias},
         );
 
         // send some write transactions to invoke the handler that will trigger the stake weight recalculate
-        const treasuryAccountId = this.accountManager.getTreasuryAccountId(deploymentName);
+        const treasuryAccountId: AccountId = this.accountManager.getTreasuryAccountId(deploymentName);
         for (const nodeAlias of accountMap.keys()) {
           const accountId: string = accountMap.get(nodeAlias);
           config.nodeClient.setOperator(treasuryAccountId, config.treasuryKey);
@@ -1894,7 +2373,7 @@ export class NodeCommandTasks {
     return {
       title: 'Add node stakes',
       task: (context_, task): SoloListr<NodeStartContext> | void => {
-        if (context_.config.app === '' || context_.config.app === constants.HEDERA_APP_NAME) {
+        if (!context_.config.app || context_.config.app === constants.HEDERA_APP_NAME) {
           const subTasks: SoloListrTask<NodeStartContext>[] = [];
 
           const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
@@ -1902,10 +2381,11 @@ export class NodeCommandTasks {
             context_.config.nodeAliases,
             deploymentName,
           );
-          // @ts-expect-error - TS2339: Property stakeAmount does not exist on type NodeStartConfigClass
           // TODO: 'ctx.config.stakeAmount' is never initialized in the config
-          const stakeAmountParsed = context_.config.stakeAmount ? splitFlagInput(context_.config.stakeAmount) : [];
-          let nodeIndex = 0;
+          const stakeAmountConfig: string | undefined = (context_.config as AnyObject).stakeAmount as
+            string | undefined;
+          const stakeAmountParsed: string[] = stakeAmountConfig ? splitFlagInput(stakeAmountConfig) : [];
+          let nodeIndex: number = 0;
           for (const nodeAlias of context_.config.nodeAliases) {
             const accountId: string = accountMap.get(nodeAlias);
             const stakeAmount: string | number =
@@ -1936,18 +2416,27 @@ export class NodeCommandTasks {
         await this.accountManager.refreshNodeClient(
           context_.config.namespace,
           this.remoteConfig.getClusterRefs(),
-          context_.config.nodeAlias,
           this.configManager.getFlag<DeploymentName>(flags.deployment),
           this.configManager.getFlag<boolean>(flags.forcePortForward),
+          {type: 'all', skipNodeAlias: context_.config.nodeAlias},
         );
         await this._addStake(context_.config.namespace, context_.newNode.accountId, context_.config.nodeAlias);
       },
     };
   }
 
+  public emitNodeStartedEvent(): SoloListrTask<NodeAddContext> {
+    return {
+      title: 'Emit node started event',
+      task: async (context_: NodeAddContext): Promise<void> => {
+        this.eventBus.emit(new NodesStartedEvent(context_.config.deployment));
+      },
+    };
+  }
+
   public stopNodes(
     nodeAliasesProperty: string,
-  ): SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDestroyContext> {
+  ): SoloListrTask<NodeStopContext | NodeFreezeContext | NodeDestroyContext | NodeUpgradeContext> {
     return {
       title: 'Stopping nodes',
       task: async (context_, task): Promise<any> => {
@@ -1961,22 +2450,14 @@ export class NodeCommandTasks {
               podReference,
               constants.ROOT_CONTAINER,
             );
-            const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+            const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
             subTasks.push({
               title: `Stop node: ${chalk.yellow(nodeAlias)}`,
               task: async () => {
-                const container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
+                const container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
 
-                if (constants.ENABLE_S6_IMAGE) {
-                  await container.execContainer(['bash', '-c', '/command/s6-svc -d /run/service/network-node']);
-
-                  // Wait for graceful shutdown
-                  await new Promise(resolve => setTimeout(resolve, 3000));
-                } else {
-                  // systemd stop (legacy)
-                  await container.execContainer(['bash', '-c', 'systemctl disable --now network-node']);
-                }
+                await container.execContainer(['bash', '-c', this.buildStopNetworkNodeCommand()]);
               },
             });
           }
@@ -2009,7 +2490,7 @@ export class NodeCommandTasks {
         for (const nodeAlias of config.nodeAliases) {
           const podReference: PodReference = config.podRefs[nodeAlias];
           const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+          const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
 
           subTasks.push({
             title: `Node: ${chalk.yellow(nodeAlias)}`,
@@ -2033,35 +2514,276 @@ export class NodeCommandTasks {
     };
   }
 
-  public getNodeLogsAndConfigs(): SoloListrTask<
-    NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext
-  > {
+  public getNodeLogsAndConfigs(
+    excludeSensitiveData?: boolean,
+    outputDirectory?: string,
+  ): SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext | NodeUpgradeContext> {
     return {
       title: 'Get consensus node logs and configs',
       task: async ({config: {namespace, contexts}}): Promise<void> => {
-        await container.resolve<NetworkNodes>(NetworkNodes).getLogs(namespace, contexts);
+        await container
+          .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
+          .getLogs(namespace, contexts, outputDirectory, excludeSensitiveData);
       },
     };
   }
 
-  public getHelmChartValues(): SoloListrTask<AnyListrContext> {
+  private isDefaultFlagValue(flag: CommandFlag): boolean {
+    const value: string | boolean | number = this.configManager.getFlag(flag);
+    const defaultValue: string | boolean | number = flags.allFlagsMap.get(flag.name).definition.defaultValue;
+    return value === defaultValue;
+  }
+
+  public upgradeNodeConfigurationFilesWithChart(): SoloListrTask<NodeUpgradeContext> {
+    return {
+      title: 'Update node configuration files',
+      task: async ({config}, task): Promise<Listr<NodeConnectionsContext, any, any> | void> => {
+        if (![...flags.nodeConfigFileFlags.values()].some((flag): boolean => !this.isDefaultFlagValue(flag))) {
+          task.skip(
+            `${task.title} ${chalk.yellow('[SKIPPING]')} ` +
+              chalk.grey('no consensus node configuration files to be updated'),
+          );
+
+          return;
+        }
+
+        const stagingDirectory: string = Templates.renderStagingDir(
+          this.configManager.getFlag(flags.cacheDir),
+          this.configManager.getFlag(flags.consensusNodeVersion),
+        );
+
+        for (const flag of flags.nodeConfigFileFlags.values()) {
+          if (this.isDefaultFlagValue(flag)) {
+            continue;
+          }
+
+          const sourceFilePath: string = this.configManager.getFlagFile(flag);
+          const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
+          const sourceAbsoluteFilePath: string = PathEx.resolve(currentWorkingDirectory, sourceFilePath);
+          if (!fs.existsSync(sourceAbsoluteFilePath)) {
+            throw new SoloErrors.validation.configFileNotFound(flag.name, sourceAbsoluteFilePath, sourceFilePath);
+          }
+
+          const destinationFileName: string = PathEx.basename(flag.definition.defaultValue as string);
+          const destinationPath: string = PathEx.join(stagingDirectory, 'templates', destinationFileName);
+          this.logger.debug(`Copying configuration file to staging: ${sourceAbsoluteFilePath} -> ${destinationPath}`);
+
+          fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
+        }
+
+        const yamlRoot: AnyObject = {};
+
+        if (!this.isDefaultFlagValue(flags.log4j2Xml)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.log4j2Xml',
+            'log4j2.xml',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.settingTxt)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.settingsTxt',
+            'settings.txt',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.applicationProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.applicationProperties',
+            constants.APPLICATION_PROPERTIES,
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.apiPermissionProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.apiPermissionsProperties',
+            'api-permission.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.bootstrapProperties)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.bootstrapProperties',
+            'bootstrap.properties',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        if (!this.isDefaultFlagValue(flags.applicationEnv)) {
+          this.profileManager.resourcesForNetworkUpgrade(
+            'hedera.configMaps.applicationEnv',
+            'application.env',
+            stagingDirectory,
+            yamlRoot,
+          );
+        }
+
+        for (const node of config.consensusNodes) {
+          const container: Container = await new K8Helper(node.context).getConsensusNodeRootContainer(
+            NamespaceName.of(node.namespace),
+            node.name,
+          );
+
+          if (!this.isDefaultFlagValue(flags.log4j2Xml)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'log4j2.xml');
+            const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
+
+            await container.copyTo(sourcePath, destinationPath);
+            await container.execContainer([
+              'bash',
+              '-c',
+              `chown hedera:hedera ${destinationPath}/log4j2.xml 2>/dev/null || true`,
+            ]);
+          }
+
+          if (!this.isDefaultFlagValue(flags.settingTxt)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', 'settings.txt');
+            const destinationPath: string = ConsensusNodePathTemplates.HEDERA_HAPI_PATH;
+
+            await container.copyTo(sourcePath, destinationPath);
+            await container.execContainer([
+              'bash',
+              '-c',
+              `chown hedera:hedera ${destinationPath}/settings.txt 2>/dev/null || true`,
+            ]);
+          }
+
+          if (!this.isDefaultFlagValue(flags.applicationProperties)) {
+            const sourcePath: string = PathEx.join(stagingDirectory, 'templates', constants.APPLICATION_PROPERTIES);
+            const destinationPath: string = ConsensusNodePathTemplates.DATA_CONFIG;
+
+            await container.copyTo(sourcePath, destinationPath);
+            await container.execContainer([
+              'bash',
+              '-c',
+              `chown hedera:hedera ${destinationPath}/${constants.APPLICATION_PROPERTIES} 2>/dev/null || true`,
+            ]);
+          }
+        }
+
+        const profileValuesFile: Record<ClusterReferenceName, string> = {};
+
+        const clusterReferences: ClusterReferenceName[] = [];
+
+        for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
+          clusterReferences.push(clusterReference);
+
+          const cachedValuesFile: string = PathEx.join(config.cacheDir, `solo-${clusterReference}.yaml`);
+
+          profileValuesFile[clusterReference] = await this.profileManager.writeToYaml(cachedValuesFile, yamlRoot);
+        }
+
+        const valuesFiles: Record<ClusterReferenceName, HelmChartValues> = this.prepareHelmChartValuesFilesMap(
+          this.remoteConfig.getClusterRefs(),
+          config.chartDirectory,
+          profileValuesFile,
+          config.valuesFile,
+        ).chartValuesMap;
+
+        // `helm upgrade` triggers a rolling restart of the node pods when there is a change to items from the
+        // StatefulSet's pod template spec, which only includes application.env from the possible configuration files
+        // that can be updated in this task.
+        const skipRecreate: boolean = config.applicationEnv === flags.applicationEnv.definition.defaultValue;
+        const upgradeTimestamp: Date = new Date();
+        const subTasks: SoloListrTask<NodeConnectionsContext>[] = [
+          {
+            title: 'Update all charts',
+            task: async (): Promise<void> => {
+              await Promise.all(
+                clusterReferences.map(async (clusterReference: string): Promise<void> => {
+                  const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
+
+                  config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
+                    config.soloChartVersion,
+                    false,
+                    'Solo chart version',
+                    MINIMUM_SOLO_CHART_VERSION,
+                  );
+
+                  await this.chartManager.upgrade(
+                    config.namespace,
+                    constants.SOLO_DEPLOYMENT_CHART,
+                    constants.SOLO_DEPLOYMENT_CHART,
+                    config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
+                    config.soloChartVersion,
+                    valuesFiles[clusterReference],
+                    context,
+                    true,
+                  );
+
+                  showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
+                }),
+              );
+            },
+          },
+          {
+            title: 'Check node pods are running',
+            skip: (): boolean => skipRecreate,
+            task: (_, task): SoloListr<NodeConnectionsContext> => {
+              const waitSubTasks: SoloListrTask<NodeConnectionsContext>[] = [];
+              for (const node of config.consensusNodes) {
+                waitSubTasks.push({
+                  title: `Check Node: ${chalk.yellow(node.name)}, Cluster: ${chalk.yellow(node.cluster)}`,
+                  task: async (): Promise<void> => {
+                    await this.k8Factory
+                      .getK8(node.context)
+                      .pods()
+                      .waitForReadyStatus(
+                        NamespaceName.of(node.namespace),
+                        [`solo.hedera.com/node-name=${node.name}`, 'solo.hedera.com/type=network-node'],
+                        constants.PODS_RUNNING_MAX_ATTEMPTS,
+                        constants.PODS_RUNNING_DELAY,
+                        upgradeTimestamp,
+                      );
+                  },
+                });
+              }
+
+              return task.newListr(waitSubTasks, {
+                concurrent: true,
+                rendererOptions: {
+                  collapseSubtasks: false,
+                },
+              });
+            },
+          },
+        ];
+
+        return task.newListr(subTasks, {concurrent: false, rendererOptions: {collapseSubtasks: false}});
+      },
+    };
+  }
+
+  public getHelmChartValues(outputDirectory?: string): SoloListrTask<AnyListrContext> {
     return {
       title: 'Get Helm chart values from all releases',
       task: async (): Promise<void> => {
         const contexts: Contexts = this.k8Factory.default().contexts();
-        const helmClient: HelmClient = container.resolve<HelmClient>(InjectTokens.Helm);
-        const outputDirectory: string = PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
+        const helmClient: HelmClient = new DefaultHelmClient();
+        container.registerInstance(InjectTokens.Helm, helmClient);
+        const helmChartValuesDirectory: string = outputDirectory
+          ? PathEx.join(outputDirectory, 'helm-chart-values')
+          : PathEx.join(constants.SOLO_LOGS_DIR, 'helm-chart-values');
 
         try {
-          if (!fs.existsSync(outputDirectory)) {
-            fs.mkdirSync(outputDirectory, {recursive: true});
+          if (!fs.existsSync(helmChartValuesDirectory)) {
+            fs.mkdirSync(helmChartValuesDirectory, {recursive: true});
           }
         } catch (error) {
-          this.logger.warn(`Failed to create output directory ${outputDirectory}: ${error}`);
+          this.logger.warn(`Failed to create output directory ${helmChartValuesDirectory}: ${error}`);
           return;
         }
 
-        this.logger.info(`Helm chart values will be saved to: ${outputDirectory}`);
+        this.logger.info(`Helm chart values will be saved to: ${helmChartValuesDirectory}`);
 
         const contextList: string[] = contexts.list();
         this.logger.info(`Processing Helm releases for contexts: ${contextList.join(', ')}`);
@@ -2080,7 +2802,7 @@ export class NodeCommandTasks {
             this.logger.info(`Found ${releases.length} Helm release(s) in context ${context}`);
 
             // Create directory for this context
-            const contextDirectory: string = PathEx.join(outputDirectory, context);
+            const contextDirectory: string = PathEx.join(helmChartValuesDirectory, context);
             try {
               if (!fs.existsSync(contextDirectory)) {
                 fs.mkdirSync(contextDirectory, {recursive: true});
@@ -2094,13 +2816,24 @@ export class NodeCommandTasks {
               try {
                 this.logger.info(`Getting values for release: ${release.name} in namespace: ${release.namespace}`);
 
-                const getAllCommand: string = `helm get all ${release.name} -n ${release.namespace} --kube-context ${context}`;
-                const output: string = execSync(getAllCommand, {
-                  encoding: 'utf8',
-                  cwd: process.cwd(),
-                  shell: '/bin/bash',
-                  maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-                }).toString();
+                // Use "helm get values --all" (user-supplied + chart defaults only).
+                // Do NOT use "helm get all": it also outputs the full rendered K8s manifests
+                // which include Secret resources (base64-encoded credentials, TLS keys, etc.)
+                // and pod specs that may embed plaintext passwords from chart values.
+                // Use an explicit argument array with no shell so release/namespace/context cannot
+                // be interpreted by a shell (shell injection). helm is resolved via the prepended PATH.
+                const output: string = execFileSync(
+                  'helm',
+                  ['get', 'values', release.name, '-n', release.namespace, '--kube-context', context, '--all'],
+                  {
+                    encoding: 'utf8',
+                    cwd: process.cwd(),
+                    maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+                    env: SubprocessEnvironment.forCommand(SubprocessCommandProfile.HELM, {
+                      PATH: `${container.resolve(InjectTokens.HelmInstallationDirectory)}${PathEx.delimiter}${process.env.PATH}`,
+                    }),
+                  },
+                ).toString();
 
                 const valuesFile: string = PathEx.join(contextDirectory, `${release.name}.yaml`);
                 try {
@@ -2121,7 +2854,7 @@ export class NodeCommandTasks {
           }
         }
 
-        this.logger.showUser(`Helm chart values saved to ${outputDirectory}`);
+        this.logger.showUser(`Helm chart values saved to ${helmChartValuesDirectory}`);
       },
     };
   }
@@ -2147,8 +2880,9 @@ export class NodeCommandTasks {
   private async getComponentData(
     schema: BaseStateSchema,
     componentDisplayName: ComponentDisplayName,
+    haProxyState?: HaProxyStateSchema,
   ): Promise<ComponentData> {
-    const metadata: ComponentStateMetadataSchema = schema.metadata;
+    const metadata: ComponentStateMetadataSchema = haProxyState ? haProxyState.metadata : schema.metadata;
 
     const clusterSchema: Readonly<ClusterSchema> = this.remoteConfig.configuration.clusters.find(
       (cluster: Readonly<ClusterSchema>): boolean => cluster.name === metadata.cluster,
@@ -2172,20 +2906,23 @@ export class NodeCommandTasks {
   private extractDataFromGroup(
     states: BaseStateSchema[],
     componentDisplayName: ComponentDisplayName,
+    haProxyStates: HaProxyStateSchema[] = [],
   ): Promise<ComponentData>[] {
-    return states.map(
-      (state: BaseStateSchema): Promise<ComponentData> => this.getComponentData(state, componentDisplayName),
+    return states.map((state: BaseStateSchema): Promise<ComponentData> =>
+      this.getComponentData(
+        state,
+        componentDisplayName,
+        haProxyStates.find(
+          (haProxyState: HaProxyStateSchema): boolean => haProxyState.metadata.id === state.metadata.id,
+        ),
+      ),
     );
   }
 
-  private validateComponentData({
-    portForwards,
-    namespace,
-    clusterReference,
-    contextName,
-    componentId,
-    componentDisplayName,
-  }: ComponentData): SoloListrTask<NodeConnectionsContext> {
+  private validateComponentData(
+    {portForwards, namespace, clusterReference, contextName, componentId, componentDisplayName}: ComponentData,
+    check: boolean = false,
+  ): SoloListrTask<NodeConnectionsContext> {
     return {
       title: cyan(componentDisplayName),
       task: (_, task): SoloListr<NodeConnectionsContext> | void => {
@@ -2212,11 +2949,14 @@ export class NodeCommandTasks {
             task: async (_, task): Promise<void> => {
               task.title += '\n\t' + gray('Local port') + ' ' + yellow(`[${localPort}]`) + ' - ';
 
-              task.title += (await this.checkLocalPort(localPort))
-                ? green('Successfully pinged')
-                : red('Failed to ping');
+              const isReachable: boolean = await this.checkLocalPort(localPort);
+              task.title += isReachable ? green('Successfully pinged') : red('Failed to ping');
 
               task.title += '\n\t' + gray('Pod port') + ' ' + yellow(`[${podPort}]`);
+
+              if (check && !isReachable) {
+                throw new SoloErrors.system.portForwardMissing(componentDisplayName, componentId, localPort, podPort);
+              }
             },
           });
         }
@@ -2230,7 +2970,7 @@ export class NodeCommandTasks {
     return {
       title: 'Test create account',
       task: async ({config}, task): Promise<void> => {
-        const {namespace, deployment, context}: any = config;
+        const {namespace, deployment, context} = config;
 
         await this.accountManager.loadNodeClient(namespace, this.remoteConfig.getClusterRefs(), deployment);
 
@@ -2257,7 +2997,7 @@ export class NodeCommandTasks {
         config.componentsData = await Promise.all([
           ...this.extractDataFromGroup(state.mirrorNodes, 'Mirror node'),
           ...this.extractDataFromGroup(state.relayNodes, 'Relay node'),
-          ...this.extractDataFromGroup(state.consensusNodes, 'Consensus node'),
+          ...this.extractDataFromGroup(state.consensusNodes, 'Consensus node', state.haProxies),
           ...this.extractDataFromGroup(state.explorers, 'Explorer node'),
           ...this.extractDataFromGroup(state.blockNodes, 'Block node'),
         ]);
@@ -2265,14 +3005,14 @@ export class NodeCommandTasks {
     };
   }
 
-  public validateLocalPorts(): SoloListrTask<AnyListrContext> {
+  public validateLocalPorts(): SoloListrTask<NodeConnectionsContext> {
     return {
       title: 'Test local ports',
-      task: async ({config: {componentsData}}, task): Promise<SoloListr<AnyListrContext>> => {
-        const subTasks: SoloListrTask<AnyListrContext>[] = [];
+      task: async ({config: {check, componentsData}}, task): Promise<SoloListr<NodeConnectionsContext>> => {
+        const subTasks: SoloListrTask<NodeConnectionsContext>[] = [];
 
         for (const componentData of componentsData) {
-          subTasks.push(this.validateComponentData(componentData));
+          subTasks.push(this.validateComponentData(componentData, check));
         }
 
         return task.newListr(subTasks, {concurrent: true, rendererOptions: {collapseSubtasks: false}});
@@ -2346,7 +3086,7 @@ export class NodeCommandTasks {
           textData += gray('Latest block number: ') + yellow(blockNumber) + '\n';
 
           // Get Account balance
-          const accountEvmAddress: string = `0x${newAccount.accountAlias.split('.')[2]}`;
+          const accountEvmAddress: string = `0x${newAccount.accountAlias.split('.', 3)[2]}`;
           const balanceHex: string = await rpc('eth_getBalance', [accountEvmAddress, 'latest']);
           const balance: number = Number.parseInt(balanceHex, 16);
           textData += gray('Account balance: ') + yellow(`${balance} wei`) + '\n';
@@ -2407,9 +3147,9 @@ export class NodeCommandTasks {
       title: 'Get node states',
       task: async (context_): Promise<void> => {
         for (const nodeAlias of context_.config.nodeAliases) {
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
+          const context: string = extractContextFromConsensusNodes(nodeAlias, context_.config.consensusNodes);
           await container
-            .resolve<NetworkNodes>(NetworkNodes)
+            .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
             .getStatesFromPod(context_.config.namespace, nodeAlias, context);
         }
       },
@@ -2421,7 +3161,7 @@ export class NodeCommandTasks {
       title: 'Check that PVCs are enabled',
       task: async (context_): Promise<void> => {
         if (!this.configManager.getFlag(flags.persistentVolumeClaims)) {
-          throw new SoloError('PVCs flag are not enabled. Please enable PVCs before adding a node');
+          throw new SoloErrors.validation.pvcFlagNotEnabled();
         }
 
         // Create an array of promises
@@ -2434,9 +3174,7 @@ export class NodeCommandTasks {
 
           this.logger.info(`Found ${pvcs.length} PVCs in namespace ${context_.config.namespace}: ${pvcs.join(', ')}`);
           if (pvcs.length === 0) {
-            throw new SoloError(
-              'No PVCs found in the namespace. Please ensure PVCs are enabled during network deployment.',
-            );
+            throw new SoloErrors.system.noPvcFound(String(context_.config.namespace));
           }
           return pvcs;
         });
@@ -2533,17 +3271,19 @@ export class NodeCommandTasks {
     return {
       title: 'Prepare gossip endpoints',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
+        const config: NodeAddConfigClass = context_.config;
+
         let endpoints: string[] = [];
         if (config.gossipEndpoints) {
           endpoints = splitFlagInput(config.gossipEndpoints);
         } else {
-          const context: string = helpers.extractContextFromConsensusNodes(
+          const context: string = extractContextFromConsensusNodes(
             config.consensusNodes[0].name,
             context_.config.consensusNodes,
           );
 
           const k8: K8 = this.k8Factory.getK8(context);
+          const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(config, k8);
 
           const externalEndpointAddress: Address = await Address.getExternalAddress(
             new ConsensusNode(
@@ -2560,10 +3300,11 @@ export class NodeCommandTasks {
             ),
             k8,
             +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT,
+            gossipFqdnRestricted,
           );
 
           endpoints = [
-            `${helpers.getInternalAddress(config.releaseTag, config.namespace, config.nodeAlias)}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
+            `${constants.LOCAL_HOST}:${constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT}`,
             `${externalEndpointAddress.formattedAddress()}`,
           ];
         }
@@ -2575,6 +3316,16 @@ export class NodeCommandTasks {
         );
       },
     };
+  }
+
+  private async getGossipFqdnRestricted(config: NodeAddConfigClass, k8: K8): Promise<boolean> {
+    return await resolveGossipFqdnRestricted({
+      k8,
+      namespace: config.namespace,
+      stagingDir: config.stagingDir,
+      cacheDir: constants.SOLO_CACHE_DIR,
+      resourcesDir: constants.RESOURCES_DIR,
+    });
   }
 
   public refreshNodeList(): SoloListrTask<NodeDestroyContext> {
@@ -2596,14 +3347,14 @@ export class NodeCommandTasks {
     return {
       title: 'Prepare grpc service endpoints',
       task: (context_): void => {
-        const config: any = context_.config;
-        let endpoints: any[] = [];
+        const config: NodeAddConfigClass = context_.config;
+        let endpoints: string[] = [];
 
         if (config.grpcEndpoints) {
           endpoints = splitFlagInput(config.grpcEndpoints);
         } else {
           if (config.endpointType !== constants.ENDPOINT_TYPE_FQDN) {
-            throw new SoloError(`--grpc-endpoints must be set if --endpoint-type is: ${constants.ENDPOINT_TYPE_IP}`);
+            throw new SoloErrors.validation.grpcEndpointsRequired(constants.ENDPOINT_TYPE_IP);
           }
 
           endpoints = [
@@ -2626,102 +3377,110 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: any = context_.config;
 
-        const nodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
         this.logger.info(`nodeId: ${nodeId}, config.newAccountNumber: ${config.newAccountNumber}`);
 
         if (config.existingNodeAliases.length > 1) {
           config.nodeClient = await this.accountManager.refreshNodeClient(
             config.namespace,
             this.remoteConfig.getClusterRefs(),
-            config.nodeAlias,
             this.configManager.getFlag<DeploymentName>(flags.deployment),
+            undefined,
+            {type: 'all', skipNodeAlias: config.nodeAlias},
           );
         }
 
+        let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
+
+        if (config.tlsPublicKey && config.tlsPrivateKey) {
+          this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
+          const tlsCertDer: Uint8Array<ArrayBuffer> = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
+          const tlsCertHash: Buffer = crypto.createHash('sha384').update(tlsCertDer).digest();
+          nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
+
+          const publicKeyFile: string = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
+          const privateKeyFile: string = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
+          renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir);
+          renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir);
+        }
+
+        if (config.gossipPublicKey && config.gossipPrivateKey) {
+          this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
+          const signingCertDer: Uint8Array = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
+          nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
+
+          const publicKeyFile: string = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
+          const privateKeyFile: string = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
+          renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir);
+          renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir);
+        }
+
+        if (config.newAccountNumber) {
+          nodeUpdateTx = nodeUpdateTx.setAccountId(config.newAccountNumber);
+        }
+
+        let parsedNewKey: PrivateKey;
+        if (config.newAdminKey) {
+          parsedNewKey = PrivateKey.fromStringED25519(config.newAdminKey.toString());
+          nodeUpdateTx = nodeUpdateTx.setAdminKey(parsedNewKey.publicKey);
+        }
+        nodeUpdateTx = nodeUpdateTx.freezeWith(config.nodeClient);
+
+        // config.adminKey contains the original key, needed to sign the transaction
+        if (config.newAdminKey) {
+          nodeUpdateTx = await nodeUpdateTx.sign(parsedNewKey);
+        }
+
+        // also sign with new account's key if account is being updated
+        if (config.newAccountNumber) {
+          const accountKeys: AccountIdWithKeyPairObject = await this.accountManager.getAccountKeysFromSecret(
+            config.newAccountNumber,
+            config.namespace,
+          );
+          nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
+        }
+
+        const signedTx: NodeUpdateTransaction = await nodeUpdateTx.sign(config.adminKey);
+
+        let txResp: TransactionResponse;
+        let nodeUpdateReceipt: TransactionReceipt;
         try {
-          let nodeUpdateTx: any = new NodeUpdateTransaction().setNodeId(new Long(nodeId));
-
-          if (config.tlsPublicKey && config.tlsPrivateKey) {
-            this.logger.info(`config.tlsPublicKey: ${config.tlsPublicKey}`);
-            const tlsCertDer = this.keyManager.getDerFromPemCertificate(config.tlsPublicKey);
-            const tlsCertHash = crypto.createHash('sha384').update(tlsCertDer).digest();
-            nodeUpdateTx = nodeUpdateTx.setCertificateHash(tlsCertHash);
-
-            const publicKeyFile = Templates.renderTLSPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile = Templates.renderTLSPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.tlsPublicKey, publicKeyFile, config.keysDir, this.logger);
-            renameAndCopyFile(config.tlsPrivateKey, privateKeyFile, config.keysDir, this.logger);
-          }
-
-          if (config.gossipPublicKey && config.gossipPrivateKey) {
-            this.logger.info(`config.gossipPublicKey: ${config.gossipPublicKey}`);
-            const signingCertDer = this.keyManager.getDerFromPemCertificate(config.gossipPublicKey);
-            nodeUpdateTx = nodeUpdateTx.setGossipCaCertificate(signingCertDer);
-
-            const publicKeyFile = Templates.renderGossipPemPublicKeyFile(config.nodeAlias);
-            const privateKeyFile = Templates.renderGossipPemPrivateKeyFile(config.nodeAlias);
-            renameAndCopyFile(config.gossipPublicKey, publicKeyFile, config.keysDir, this.logger);
-            renameAndCopyFile(config.gossipPrivateKey, privateKeyFile, config.keysDir, this.logger);
-          }
-
-          if (config.newAccountNumber) {
-            nodeUpdateTx = nodeUpdateTx.setAccountId(config.newAccountNumber);
-          }
-
-          let parsedNewKey: PrivateKey;
-          if (config.newAdminKey) {
-            parsedNewKey = PrivateKey.fromStringED25519(config.newAdminKey.toString());
-            nodeUpdateTx = nodeUpdateTx.setAdminKey(parsedNewKey.publicKey);
-          }
-          nodeUpdateTx = nodeUpdateTx.freezeWith(config.nodeClient);
-
-          // config.adminKey contains the original key, needed to sign the transaction
-          if (config.newAdminKey) {
-            nodeUpdateTx = await nodeUpdateTx.sign(parsedNewKey);
-          }
-
-          // also sign with new account's key if account is being updated
-          if (config.newAccountNumber) {
-            const accountKeys = await this.accountManager.getAccountKeysFromSecret(
-              config.newAccountNumber,
-              config.namespace,
-            );
-            nodeUpdateTx = await nodeUpdateTx.sign(PrivateKey.fromStringED25519(accountKeys.privateKey));
-          }
-          const signedTx = await nodeUpdateTx.sign(config.adminKey);
-          const txResp = await signedTx.execute(config.nodeClient);
-          const nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
-          this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
-
-          // If admin key was updated, save the new key to k8s secret
-          if (config.newAdminKey) {
-            const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
-            const data: {privateKey: string; publicKey: string} = {
-              privateKey: Base64.encode(parsedNewKey.toString()),
-              publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
-            };
-
-            const isAdminKeySecretCreated: boolean = await this.k8Factory
-              .getK8(context)
-              .secrets()
-              .createOrReplace(
-                config.namespace,
-                Templates.renderNodeAdminKeyName(config.nodeAlias),
-                SecretType.OPAQUE,
-                data,
-                {
-                  'solo.hedera.com/node-admin-key': 'true',
-                },
-              );
-
-            if (!isAdminKeySecretCreated) {
-              throw new SoloError(`failed to create admin key secret for node '${config.nodeAlias}'`);
-            }
-
-            this.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
-          }
+          txResp = await signedTx.execute(config.nodeClient);
+          nodeUpdateReceipt = await txResp.getReceipt(config.nodeClient);
         } catch (error) {
-          throw new SoloError(`Error updating node to network: ${error.message}`, error);
+          throw new SoloErrors.component.nodeUpdateTransactionError(error);
+        }
+
+        this.logger.debug(`NodeUpdateReceipt: ${nodeUpdateReceipt.toString()}`);
+
+        // If admin key was updated, save the new key to k8s secret
+        if (config.newAdminKey) {
+          const context: string = extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+          const data: {privateKey: string; publicKey: string} = {
+            privateKey: Base64.encode(parsedNewKey.toString()),
+            publicKey: Base64.encode(parsedNewKey.publicKey.toString()),
+          };
+
+          const isAdminKeySecretCreated: boolean = await this.k8Factory
+            .getK8(context)
+            .secrets()
+            .createOrReplace(
+              config.namespace,
+              Templates.renderNodeAdminKeyName(config.nodeAlias),
+              SecretType.OPAQUE,
+              data,
+              {
+                'solo.hedera.com/node-admin-key': 'true',
+              },
+            );
+
+          if (!isAdminKeySecretCreated) {
+            throw new SoloErrors.system.k8sSecretCreateFailed(
+              `failed to create admin key secret for node '${config.nodeAlias}'`,
+            );
+          }
+
+          this.logger.debug(`Updated admin key secret for node ${config.nodeAlias}`);
         }
       },
     };
@@ -2734,39 +3493,77 @@ export class NodeCommandTasks {
       title: 'Copy node keys to secrets',
       task: (context_, task): any => {
         const subTasks: any[] = this.platformInstaller.copyNodeKeys(
-          context_.config.stagingDir,
+          context_.config.keysDir,
           nodeListOverride ? context_.config[nodeListOverride] : context_.config.consensusNodes,
           context_.config.contexts,
         );
 
-        // set up the sub-tasks for copying node keys to staging directory
+        // set up the sub-tasks for copying node keys to secrets
         return task.newListr(subTasks, constants.LISTR_DEFAULT_OPTIONS.WITH_CONCURRENCY);
       },
     };
   }
 
-  public addWrapsLib(): SoloListrTask<NodeAddContext> {
+  public removeCachedKeys(): SoloListrTask<NodeUpdateContext | NodeAddContext> {
+    return {
+      title: 'Remove cached keys',
+      // copyNodeKeysToSecrets already uploaded the keys to the cluster secrets, and later commands re-read them
+      // from those secrets, so delete the on-disk copies to avoid leaving private keys in SOLO_CACHE_DIR. Kept
+      // when --debug is enabled. Runs last so every task that consumes keysDir has already read it.
+      skip: (): boolean | string =>
+        this.configManager.getFlag<boolean>(flags.debugMode) ? '--debug enabled, keeping cached keys on disk' : false,
+      task: ({config: {keysDir}}): void => {
+        if (keysDir && fs.existsSync(keysDir)) {
+          fs.rmSync(keysDir, {recursive: true, force: true});
+        }
+      },
+    };
+  }
+
+  public addWrapsLib(): SoloListrTask<NodeAddContext | NodeUpdateContext> {
     return {
       title: 'Copy wraps lib over',
       skip: (): boolean => !this.remoteConfig.configuration.state.wrapsEnabled,
       task: async ({config}): Promise<void> => {
-        await this.downloader.fetchPackage(
-          constants.WRAPS_LIB_DOWNLOAD_URL,
-          'unusued', // doesn't check checksum
-          constants.SOLO_CACHE_DIR,
-          false,
-          '',
-          false,
-        );
+        const wraps: Wraps = this.soloConfig.tss.wraps;
+        const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, wraps.directoryName);
+        const wrapsKeyPath: string = this.configManager.getFlag<string>(flags.wrapsKeyPath);
 
-        const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${constants.WRAPS_DIRECTORY_NAME}.tar.gz`);
-        const extractedDirectory: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+        if (wrapsKeyPath) {
+          // Use user-provided local directory containing WRAPs proving key files
+          if (!fs.existsSync(wrapsKeyPath)) {
+            throw new SoloErrors.validation.wrapsKeyPathNotFound(wrapsKeyPath);
+          }
 
-        // Create extraction dir
-        fs.mkdirSync(extractedDirectory);
+          if (!fs.existsSync(extractedDirectory)) {
+            fs.mkdirSync(extractedDirectory, {recursive: true});
+          }
 
-        // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
-        this.zippy.untar(tarFilePath, constants.SOLO_CACHE_DIR);
+          const allowedFiles: Set<string> = wraps.allowedKeyFileSet;
+
+          for (const file of fs.readdirSync(wrapsKeyPath)) {
+            if (allowedFiles.has(file)) {
+              fs.copyFileSync(PathEx.join(wrapsKeyPath, file), PathEx.join(extractedDirectory, file));
+            }
+          }
+        } else {
+          await this.downloader.fetchPackage(
+            wraps.libraryDownloadUrl,
+            'unusued', // doesn't check checksum
+            constants.SOLO_CACHE_DIR,
+            false,
+            '',
+            false,
+          );
+
+          const tarFilePath: string = PathEx.join(constants.SOLO_CACHE_DIR, `${wraps.directoryName}.tar.gz`);
+
+          // Create extraction dir
+          fs.mkdirSync(extractedDirectory);
+
+          // Extract wraps-v0.2.0.tar.gz -> wraps-v0.2.0
+          this.zippy.untar(tarFilePath, constants.SOLO_CACHE_DIR);
+        }
 
         for (const consensusNode of config.consensusNodes) {
           const rootContainer: Container = await new K8Helper(consensusNode.context).getConsensusNodeRootContainer(
@@ -2774,17 +3571,31 @@ export class NodeCommandTasks {
             consensusNode.name,
           );
 
-          const targetPath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
-          const sourcePath: string = PathEx.join(constants.SOLO_CACHE_DIR, constants.WRAPS_DIRECTORY_NAME);
+          const targetWrapsPath: string = `${constants.HEDERA_HAPI_PATH}/data/keys/${wraps.directoryName}`;
 
-          const targetBasePath: string = PathEx.join(constants.HEDERA_HAPI_PATH);
-          const targetWrapsPath: string = PathEx.join(targetBasePath, constants.WRAPS_DIRECTORY_NAME);
+          const attempts: number = CHECK_WRAPS_DIRECTORY_MAX_ATTEMPTS;
+          let attempt: number = 0;
+          let found: boolean = false;
+          while (attempt < attempts) {
+            try {
+              if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+                found = true;
+                break;
+              }
+            } catch {
+              this.logger.info(
+                `Attempt ${attempt}/${attempts}: WRAPs directory not found in node ${consensusNode.name}. Retrying...`,
+              );
+              await sleep(Duration.ofMillis(CHECK_WRAPS_DIRECTORY_BACKOFF_MS));
+              attempt++;
+            }
+          }
 
-          if (await rootContainer.execContainer(`test -d "${targetWrapsPath}"`)) {
+          if (found) {
             continue;
           }
 
-          await rootContainer.copyTo(sourcePath, targetPath);
+          await rootContainer.copyTo(extractedDirectory, `${constants.HEDERA_HAPI_PATH}/data/keys`);
         }
       },
     };
@@ -2804,9 +3615,9 @@ export class NodeCommandTasks {
         const clusterReferences: ClusterReferences = this.remoteConfig.getClusterRefs();
 
         // Make sure valuesArgMap is initialized with empty strings
-        const valuesArgumentMap: Record<ClusterReferenceName, string> = {};
+        const nodeChartValuesMap: Record<ClusterReferenceName, HelmChartValues> = {};
         for (const [clusterReference] of clusterReferences) {
-          valuesArgumentMap[clusterReference] = '';
+          nodeChartValuesMap[clusterReference] = new HelmChartValues();
         }
 
         config.serviceMap ||= await this.accountManager.getNodeServiceMap(
@@ -2842,9 +3653,9 @@ export class NodeCommandTasks {
 
         switch (transactionType) {
           case NodeSubcommandType.UPDATE: {
-            this.prepareValuesArgForNodeUpdate(
+            this.prepareHelmChartValuesForNodeUpdate(
               consensusNodes,
-              valuesArgumentMap,
+              nodeChartValuesMap,
               config.serviceMap,
               clusterNodeIndexMap,
               (config as NodeUpdateConfigClass).newAccountNumber,
@@ -2853,9 +3664,9 @@ export class NodeCommandTasks {
             break;
           }
           case NodeSubcommandType.DESTROY: {
-            this.prepareValuesArgForNodeDestroy(
+            this.prepareHelmChartValuesForNodeDestroy(
               consensusNodes,
-              valuesArgumentMap,
+              nodeChartValuesMap,
               config.nodeAlias,
               config.serviceMap,
               clusterReferences,
@@ -2863,9 +3674,9 @@ export class NodeCommandTasks {
             break;
           }
           case NodeSubcommandType.ADD: {
-            this.prepareValuesArgForNodeAdd(
+            this.prepareHelmChartValuesForNodeAdd(
               consensusNodes,
-              valuesArgumentMap,
+              nodeChartValuesMap,
               config.serviceMap,
               clusterNodeIndexMap,
               (config as NodeAddConfigClass).clusterRef,
@@ -2884,42 +3695,113 @@ export class NodeCommandTasks {
           ? PathEx.joinWithRealPath(config.stagingDir, 'config.txt')
           : undefined;
         const profileValuesFile: string = await this.profileManager.prepareValuesForNodeTransaction(
-          PathEx.joinWithRealPath(config.stagingDir, 'templates', 'application.properties'),
+          PathEx.joinWithRealPath(config.stagingDir, 'templates', constants.APPLICATION_PROPERTIES),
           configTxtPath,
         );
 
+        const valuesFilesMap: Record<ClusterReferenceName, HelmChartValues> = {};
+        const valueFilePathsMap: Record<ClusterReferenceName, string[]> = {};
+        for (const [clusterReference] of clusterReferences) {
+          valuesFilesMap[clusterReference] = new HelmChartValues();
+          valueFilePathsMap[clusterReference] = [];
+        }
+
         if (profileValuesFile) {
-          const valuesFiles: Record<ClusterReferenceName, string> = BaseCommand.prepareValuesFilesMap(
+          const preparedValuesFiles: {
+            chartValuesMap: Record<ClusterReferenceName, HelmChartValues>;
+            valueFilePathsMap: Record<ClusterReferenceName, string[]>;
+          } = this.prepareHelmChartValuesFilesMap(
             clusterReferences,
             undefined, // do not trigger of adding default value file for chart upgrade due to consensus node add or destroy
-            profileValuesFile,
+            {[flags.KEY_COMMON]: profileValuesFile},
             (config as any).valuesFile,
           );
 
-          for (const clusterReference of Object.keys(valuesFiles)) {
-            valuesArgumentMap[clusterReference] += valuesFiles[clusterReference];
+          for (const clusterReference of Object.keys(preparedValuesFiles.chartValuesMap)) {
+            valuesFilesMap[clusterReference] = preparedValuesFiles.chartValuesMap[clusterReference];
+            valueFilePathsMap[clusterReference] = preparedValuesFiles.valueFilePathsMap[clusterReference];
             this.logger.debug(`Prepared helm chart values for cluster-ref: ${clusterReference}`, {
-              valuesArg: valuesArgumentMap,
+              valueArguments: valuesFilesMap[clusterReference].toArguments(),
             });
           }
         }
-        // Add Debug options
-        const consensusNode: ConsensusNode = consensusNodes.find(
-          (node): boolean => node.name === config.debugNodeAlias,
-        );
-        const clusterReference: string = consensusNode
-          ? consensusNode.cluster
-          : this.k8Factory.default().clusters().readCurrent();
 
-        valuesArgumentMap[clusterReference] = addDebugOptions(
-          valuesArgumentMap[clusterReference],
-          config.debugNodeAlias,
-          this.remoteConfig.configuration.state.wrapsEnabled ? 1 : 0,
-        );
+        // Generate extraEnv values file for wraps, debug, and custom environment variables
+        // This replaces the old --set extraEnv approach to prevent Helm replacement issues
+        const needsExtraEnvironment: boolean =
+          this.remoteConfig.configuration.state.wrapsEnabled || !!config.debugNodeAlias;
+
+        if (needsExtraEnvironment) {
+          for (const [clusterReference] of clusterReferences) {
+            // Collect extraEnv entries already present in the values files applied to this
+            // cluster so that the generated file can include them and avoid Helm array
+            // replacement silently dropping env vars set by user-provided values files.
+            // Always include the chart's own defaults file so default JAVA_OPTS/heap vars
+            // are preserved when no per-node override exists in the user-provided files.
+            const existingValuesFilePaths: string[] = [constants.SOLO_DEPLOYMENT_VALUES_FILE];
+            const userValueFilePaths: string[] = valuesFilesMap[clusterReference]?.userValueFilePaths() ?? [];
+            for (const filePath of valueFilePathsMap[clusterReference] ?? []) {
+              if (!existingValuesFilePaths.includes(filePath)) {
+                existingValuesFilePaths.push(filePath);
+              }
+            }
+
+            const clusterLocalNodeIndices: Record<NodeId, number> | undefined = clusterNodeIndexMap[clusterReference];
+            const indexedConsensusNodes: Array<ConsensusNode | undefined> = [];
+            const unindexedConsensusNodes: ConsensusNode[] = [];
+            for (const consensusNode of consensusNodes) {
+              const nodeIndex: number | undefined = clusterLocalNodeIndices?.[consensusNode.nodeId];
+              if (nodeIndex === undefined) {
+                unindexedConsensusNodes.push(consensusNode);
+                continue;
+              }
+              indexedConsensusNodes[nodeIndex] = consensusNode;
+            }
+            const clusterConsensusNodes: ConsensusNode[] = [
+              ...indexedConsensusNodes.filter((node): node is ConsensusNode => node !== undefined),
+              ...unindexedConsensusNodes,
+            ];
+            const extraEnvironmentWarnings: string[] = helmValuesHelper.describeUserProvidedExtraEnvironmentWarnings(
+              userValueFilePaths,
+              clusterConsensusNodes,
+              {
+                wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
+                tss: this.soloConfig.tss,
+                debugNodeAlias: config.debugNodeAlias,
+                useJavaMainClass: false,
+              },
+            );
+            for (const warning of extraEnvironmentWarnings) {
+              this.logger.showUserUnlessOneShot(chalk.yellow(warning));
+            }
+
+            const extraEnvironmentValuesFile: string = helmValuesHelper.generateExtraEnvironmentValuesFile(
+              clusterConsensusNodes,
+              {
+                wrapsEnabled: this.remoteConfig.configuration.state.wrapsEnabled,
+                tss: this.soloConfig.tss,
+                debugNodeAlias: config.debugNodeAlias,
+                useJavaMainClass: false,
+                baseExtraEnvironmentVariables: helmValuesHelper.extractExtraEnvironmentFromValuesFiles(
+                  existingValuesFilePaths,
+                  clusterConsensusNodes,
+                ),
+              },
+              constants.SOLO_CACHE_DIR,
+            );
+            // Place the generated extraEnv file last (after user files) so that Solo-injected
+            // env vars like TSS_LIB_WRAPS_ARTIFACTS_PATH are not wiped out by a user-provided
+            // values file that also defines hedera.nodes[*].root.extraEnv. The generated file
+            // already merges the user's extraEnv entries via baseExtraEnvironmentVariables.
+            valuesFilesMap[clusterReference].userFile(extraEnvironmentValuesFile);
+          }
+        }
 
         const clusterReferencesList: ClusterReferenceName[] = [];
         for (const [clusterReference] of clusterReferences) {
-          clusterReferencesList.push(clusterReference);
+          if (!clusterReferencesList.includes(clusterReference)) {
+            clusterReferencesList.push(clusterReference);
+          }
         }
 
         // Update all charts
@@ -2927,19 +3809,25 @@ export class NodeCommandTasks {
           clusterReferencesList.map(async (clusterReference: string): Promise<void> => {
             const context: Context = this.localConfig.configuration.clusterRefs.get(clusterReference).toString();
 
-            config.soloChartVersion = Version.getValidSemanticVersion(
+            config.soloChartVersion = SemanticVersion.getValidSemanticVersion(
               config.soloChartVersion,
               false,
               'Solo chart version',
+              MINIMUM_SOLO_CHART_VERSION,
             );
+            const chartValues: HelmChartValues = nodeChartValuesMap[clusterReference]
+              .clone()
+              .add(valuesFilesMap[clusterReference]);
+
             await this.chartManager.upgrade(
               config.namespace,
               constants.SOLO_DEPLOYMENT_CHART,
               constants.SOLO_DEPLOYMENT_CHART,
               config.chartDirectory || constants.SOLO_TESTING_CHART_URL,
               config.soloChartVersion,
-              valuesArgumentMap[clusterReference],
+              chartValues,
               context,
+              true,
             );
             showVersionBanner(this.logger, constants.SOLO_DEPLOYMENT_CHART, config.soloChartVersion, 'Upgraded');
           }),
@@ -2950,13 +3838,108 @@ export class NodeCommandTasks {
   }
 
   /**
+   * Prepare the values files map for each cluster
+   * @param clusterReferences
+   * @param chartDirectory
+   * @param profileValuesFile
+   * @param valuesFileInput
+   */
+  private prepareHelmChartValuesFilesMap(
+    clusterReferences: ClusterReferences,
+    chartDirectory?: string,
+    profileValuesFile?: Record<string, string>,
+    valuesFileInput?: string,
+  ): {
+    chartValuesMap: Record<ClusterReferenceName, HelmChartValues>;
+    valueFilePathsMap: Record<ClusterReferenceName, string[]>;
+  } {
+    // initialize the map with an empty array for each cluster-ref
+    const chartValuesMap: Record<string, HelmChartValues> = {[flags.KEY_COMMON]: new HelmChartValues()};
+    const valueFilePathsMap: Record<string, string[]> = {[flags.KEY_COMMON]: []};
+    for (const [clusterReference] of clusterReferences) {
+      chartValuesMap[clusterReference] = new HelmChartValues();
+      valueFilePathsMap[clusterReference] = [];
+    }
+
+    // add the chart's default values file for each cluster-ref if chartDirectory is set
+    // this should be the first in the list of values files as it will be overridden by user's input
+    if (chartDirectory) {
+      const chartValuesFile: string = PathEx.join(chartDirectory, 'solo-deployment', 'values.yaml');
+      for (const clusterReference in chartValuesMap) {
+        HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, chartValuesFile);
+      }
+    }
+
+    if (profileValuesFile) {
+      for (const [clusterReference, file] of Object.entries(profileValuesFile)) {
+        if (clusterReference === flags.KEY_COMMON) {
+          for (const clusterReference_ of Object.keys(chartValuesMap)) {
+            HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+          }
+        } else {
+          HelmChartValues.addFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
+        }
+      }
+    }
+
+    if (valuesFileInput) {
+      const parsed: Record<string, string[]> = flags.parseValuesFilesInput(valuesFileInput);
+      for (const [clusterReference, files] of Object.entries(parsed)) {
+        if (clusterReference === flags.KEY_COMMON) {
+          for (const clusterReference_ of Object.keys(chartValuesMap)) {
+            for (const file of files) {
+              HelmChartValues.addUserFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference_, file);
+            }
+          }
+        } else {
+          for (const file of files) {
+            HelmChartValues.addUserFileForCluster(chartValuesMap, valueFilePathsMap, clusterReference, file);
+          }
+        }
+      }
+    }
+
+    if (Object.keys(chartValuesMap).length > 1) {
+      // delete the common key if there is another cluster to use
+      delete chartValuesMap[flags.KEY_COMMON];
+      delete valueFilePathsMap[flags.KEY_COMMON];
+    }
+
+    return {
+      chartValuesMap: chartValuesMap as Record<ClusterReferenceName, HelmChartValues>,
+      valueFilePathsMap: valueFilePathsMap as Record<ClusterReferenceName, string[]>,
+    };
+  }
+
+  /**
+   * Append root.image registry/repository/tag settings for a given node path to Helm chart values.
+   * @param chartValues - existing chart values
+   * @param nodePath - base node path, e.g. `hedera.nodes[0]`
+   * @param registry - image registry
+   * @param repository - image repository
+   * @param tag - image tag
+   */
+  private addRootImageValues(
+    chartValues: HelmChartValues,
+    nodePath: string,
+    registry: string,
+    repository: string,
+    tag: string,
+  ): void {
+    chartValues
+      .setLiteral(`${nodePath}.root.image.registry`, registry)
+      .setLiteral(`${nodePath}.root.image.tag`, tag)
+      .setLiteral(`${nodePath}.root.image.repository`, repository);
+  }
+
+  /**
    * Builds the values args for update:
    * - Updates the selected node
    * - Keep the rest the same
    */
-  private prepareValuesArgForNodeUpdate(
+  private prepareHelmChartValuesForNodeUpdate(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReferenceName, string>,
+    chartValuesMap: Record<ClusterReferenceName, HelmChartValues>,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
     newAccountNumber: string,
@@ -2965,33 +3948,21 @@ export class NodeCommandTasks {
     for (const consensusNode of consensusNodes) {
       const clusterReference: string = consensusNode.cluster;
       const index: number = clusterNodeIndexMap[clusterReference][consensusNode.nodeId];
+      const chartValues: HelmChartValues = chartValuesMap[clusterReference];
 
-      valuesArgumentMap[clusterReference] +=
-        newAccountNumber && consensusNode.name === nodeAlias
-          ? ` --set "hedera.nodes[${index}].accountId=${newAccountNumber}"` +
-            ` --set "hedera.nodes[${index}].name=${nodeAlias}"` +
-            ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`
-          : ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(consensusNode.name).accountId}"` +
-            ` --set "hedera.nodes[${index}].name=${consensusNode.name}"` +
-            ` --set "hedera.nodes[${index}].nodeId=${consensusNode.nodeId}"`;
-
-      if (constants.ENABLE_S6_IMAGE) {
-        valuesArgumentMap[clusterReference] = addRootImageValues(
-          valuesArgumentMap[clusterReference],
-          `hedera.nodes[${index}]`,
-          constants.S6_NODE_IMAGE_REGISTRY,
-          constants.S6_NODE_IMAGE_REPOSITORY,
-          versions.S6_NODE_IMAGE_VERSION,
-        );
+      if (newAccountNumber && consensusNode.name === nodeAlias) {
+        chartValues
+          .set(`hedera.nodes[${index}].accountId`, newAccountNumber)
+          .set(`hedera.nodes[${index}].name`, nodeAlias)
+          .set(`hedera.nodes[${index}].nodeId`, consensusNode.nodeId);
+      } else {
+        chartValues
+          .set(`hedera.nodes[${index}].accountId`, serviceMap.get(consensusNode.name).accountId)
+          .set(`hedera.nodes[${index}].name`, consensusNode.name)
+          .set(`hedera.nodes[${index}].nodeId`, consensusNode.nodeId);
       }
-      if (this.remoteConfig.configuration.state.wrapsEnabled) {
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
 
-        const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
-
-        valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-      }
+      // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
     }
   }
 
@@ -3000,9 +3971,9 @@ export class NodeCommandTasks {
    * - Adds the new node
    * - Keeps the rest the same
    */
-  private prepareValuesArgForNodeAdd(
+  private prepareHelmChartValuesForNodeAdd(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReferenceName, string>,
+    chartValuesMap: Record<ClusterReferenceName, HelmChartValues>,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterNodeIndexMap: Record<ClusterReferenceName, Record<NodeId, /* index in the chart -> */ number>>,
     clusterReference: ClusterReferenceName,
@@ -3022,46 +3993,28 @@ export class NodeCommandTasks {
         continue;
       }
       const index: number = clusterNodeIndexMap[node.cluster][node.nodeId];
+      const chartValues: HelmChartValues = chartValuesMap[node.cluster];
 
-      valuesArgumentMap[node.cluster] +=
-        ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
-        ` --set "hedera.nodes[${index}].name=${node.name}"` +
-        ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
-
-      if (constants.ENABLE_S6_IMAGE) {
-        valuesArgumentMap[node.cluster] = addRootImageValues(
-          valuesArgumentMap[node.cluster],
-          `hedera.nodes[${index}]`,
-          constants.S6_NODE_IMAGE_REGISTRY,
-          constants.S6_NODE_IMAGE_REPOSITORY,
-          versions.S6_NODE_IMAGE_VERSION,
-        );
-      }
+      chartValues
+        .set(`hedera.nodes[${index}].accountId`, serviceMap.get(node.name).accountId)
+        .set(`hedera.nodes[${index}].name`, node.name)
+        .set(`hedera.nodes[${index}].nodeId`, node.nodeId);
     }
 
     // Add new node
     const index: number = clusterNodeIndexMap[clusterReference][nodeId];
-    valuesArgumentMap[clusterReference] +=
-      ` --set "hedera.nodes[${index}].accountId=${newNode.accountId}"` +
-      ` --set "hedera.nodes[${index}].name=${newNode.name}"` +
-      ` --set "hedera.nodes[${index}].nodeId=${nodeId}" `;
-
-    if (constants.ENABLE_S6_IMAGE) {
-      valuesArgumentMap[clusterReference] = addRootImageValues(
-        valuesArgumentMap[clusterReference],
-        `hedera.nodes[${index}]`,
-        constants.S6_NODE_IMAGE_REGISTRY,
-        constants.S6_NODE_IMAGE_REPOSITORY,
-        versions.S6_NODE_IMAGE_VERSION,
-      );
-    }
+    const chartValues: HelmChartValues = chartValuesMap[clusterReference];
+    chartValues
+      .set(`hedera.nodes[${index}].accountId`, newNode.accountId)
+      .set(`hedera.nodes[${index}].name`, newNode.name)
+      .set(`hedera.nodes[${index}].nodeId`, nodeId);
 
     // Set static IPs for HAProxy
     if (config.haproxyIps) {
       config.haproxyIpsParsed = Templates.parseNodeAliasToIpMapping(config.haproxyIps);
       const ip: string = config.haproxyIpsParsed?.[nodeAlias];
       if (ip) {
-        valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].haproxyStaticIP=${ip}"`;
+        chartValues.set(`hedera.nodes[${index}].haproxyStaticIP`, ip);
       }
     }
 
@@ -3070,18 +4023,11 @@ export class NodeCommandTasks {
       config.envoyIpsParsed = Templates.parseNodeAliasToIpMapping(config.envoyIps);
       const ip: string = config.envoyIpsParsed?.[nodeAlias];
       if (ip) {
-        valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].envoyProxyStaticIP=${ip}"`;
+        chartValues.set(`hedera.nodes[${index}].envoyProxyStaticIP`, ip);
       }
     }
 
-    if (this.remoteConfig.configuration.state.wrapsEnabled) {
-      valuesArgumentMap[clusterReference] +=
-        ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-      const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
-
-      valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-    }
+    // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
   }
 
   /**
@@ -3089,9 +4035,9 @@ export class NodeCommandTasks {
    * - Remove the specified node
    * - Keeps the rest the same
    */
-  private prepareValuesArgForNodeDestroy(
+  private prepareHelmChartValuesForNodeDestroy(
     consensusNodes: ConsensusNode[],
-    valuesArgumentMap: Record<ClusterReferenceName, string>,
+    chartValuesMap: Record<ClusterReferenceName, HelmChartValues>,
     nodeAlias: NodeAlias,
     serviceMap: Map<NodeAlias, NetworkNodeServices>,
     clusterReferences: ClusterReferences,
@@ -3111,28 +4057,13 @@ export class NodeCommandTasks {
         }
 
         // For nodes that are not being deleted
-        valuesArgumentMap[clusterReference] +=
-          ` --set "hedera.nodes[${index}].accountId=${serviceMap.get(node.name).accountId}"` +
-          ` --set "hedera.nodes[${index}].name=${node.name}"` +
-          ` --set "hedera.nodes[${index}].nodeId=${node.nodeId}"`;
+        const chartValues: HelmChartValues = chartValuesMap[clusterReference];
+        chartValues
+          .set(`hedera.nodes[${index}].accountId`, serviceMap.get(node.name).accountId)
+          .set(`hedera.nodes[${index}].name`, node.name)
+          .set(`hedera.nodes[${index}].nodeId`, node.nodeId);
 
-        if (constants.ENABLE_S6_IMAGE) {
-          valuesArgumentMap[clusterReference] = addRootImageValues(
-            valuesArgumentMap[clusterReference],
-            `hedera.nodes[${index}]`,
-            constants.S6_NODE_IMAGE_REGISTRY,
-            constants.S6_NODE_IMAGE_REPOSITORY,
-            versions.S6_NODE_IMAGE_VERSION,
-          );
-        }
-        if (this.remoteConfig.configuration.state.wrapsEnabled) {
-          valuesArgumentMap[clusterReference] +=
-            ` --set "hedera.nodes[${index}].root.extraEnv[0].name=TSS_LIB_WRAPS_ARTIFACTS_PATH"`;
-
-          const path: string = PathEx.join(constants.HEDERA_HAPI_PATH, constants.TSS_LIB_WRAPS_ARTIFACTS_FOLDER_NAME);
-
-          valuesArgumentMap[clusterReference] += ` --set "hedera.nodes[${index}].root.extraEnv[0].value=${path}"`;
-        }
+        // TSS wraps extraEnv is handled via generateExtraEnvironmentValuesFile()
 
         index++;
       }
@@ -3152,9 +4083,7 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const outputDirectory: string = argv[flags.outputDir.name];
         if (!outputDirectory) {
-          throw new SoloError(
-            `Path to export context data not specified. Please set a value for --${flags.outputDir.name}`,
-          );
+          throw new SoloErrors.validation.outputDirectoryNotSpecified();
         }
 
         if (!fs.existsSync(outputDirectory)) {
@@ -3176,11 +4105,12 @@ export class NodeCommandTasks {
       task: (context_): void => {
         const inputDirectory: string = argv[flags.inputDir.name];
         if (!inputDirectory) {
-          throw new SoloError(`Path to context data not specified. Please set a value for --${flags.inputDir.name}`);
+          throw new SoloErrors.validation.inputDirectoryNotSpecified();
         }
 
-        // @ts-expect-error - TS2345
-        const contextData: any = JSON.parse(fs.readFileSync(PathEx.joinWithRealPath(inputDirectory, targetFile)));
+        const contextData: any = JSON.parse(
+          fs.readFileSync(PathEx.joinWithRealPath(inputDirectory, targetFile), 'utf8'),
+        );
         parser(context_, contextData);
       },
     };
@@ -3196,6 +4126,30 @@ export class NodeCommandTasks {
           if (!config.allNodeAliases.includes(service.nodeAlias)) {
             continue;
           }
+
+          // Remove the autostart flag file BEFORE killing the pod so that when the
+          // pod restarts the network-node-autostart oneshot does NOT fire prematurely
+          // (i.e. before new config files are staged by later tasks).  startNodes()
+          // will re-create the flag file when it is safe to start the platform.
+          try {
+            const podReference: PodReference = PodReference.of(config.namespace, service.nodePodName);
+            const containerReference: ContainerReference = ContainerReference.of(
+              podReference,
+              constants.ROOT_CONTAINER,
+            );
+            await this.k8Factory
+              .getK8(service.context)
+              .containers()
+              .readByRef(containerReference)
+              .execContainer([
+                'bash',
+                '-c',
+                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
+              ]);
+          } catch {
+            // Best-effort: container may already be restarting; the kill below will follow
+          }
+
           await this.k8Factory
             .getK8(service.context)
             .pods()
@@ -3236,6 +4190,30 @@ export class NodeCommandTasks {
         );
 
         for (const service of config.serviceMap.values()) {
+          // Disable the network-node autostart BEFORE killing the pod so the restarted
+          // pod does not auto-launch the JVM while fetchPlatformSoftware is still
+          // rm-ing and re-copying jars under data/lib (HederaNode.jar has an explicit
+          // Class-Path manifest; a JVM that lazy-loads a jar mid-rm crashes with
+          // NoSuchFileException). startNodes() re-enables autostart after the upload.
+          try {
+            const podReference: PodReference = PodReference.of(config.namespace, service.nodePodName);
+            const containerReference: ContainerReference = ContainerReference.of(
+              podReference,
+              constants.ROOT_CONTAINER,
+            );
+            await this.k8Factory
+              .getK8(service.context)
+              .containers()
+              .readByRef(containerReference)
+              .execContainer([
+                'bash',
+                '-c',
+                'test -x "/command/network-node-lifecycle" && "/command/network-node-lifecycle" disable-autostart',
+              ]);
+          } catch {
+            // Best-effort: container may already be restarting; the kill below will follow
+          }
+
           await this.k8Factory
             .getK8(service.context)
             .pods()
@@ -3266,7 +4244,7 @@ export class NodeCommandTasks {
         const subTasks: SoloListrTask<NodeUpdateContext | NodeAddContext | NodeDestroyContext>[] = [];
 
         for (const nodeAlias of config.allNodeAliases) {
-          const context: Context = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+          const context: Context = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
           subTasks.push({
             title: `Check Node: ${chalk.yellow(nodeAlias)}`,
             task: async (): Promise<void> => {
@@ -3302,7 +4280,7 @@ export class NodeCommandTasks {
     return {
       title: 'Download last state from an existing node',
       task: async ({config}): Promise<void> => {
-        const {consensusNodes, namespace, stagingDir}: any = config;
+        const {consensusNodes, namespace, stagingDir} = config;
 
         // TODO: currently only supports downloading from the first existing node
         const node: ConsensusNode = consensusNodes[0];
@@ -3337,16 +4315,16 @@ export class NodeCommandTasks {
     return {
       title: 'Upload last saved state to new network node',
       task: async (context_): Promise<void> => {
-        const config: any = context_.config;
-        const nodeAlias: any = config.nodeAlias || config.nodeAliases[0];
+        const config: NodeAddConfigClass = context_.config;
+        const nodeAlias: NodeAlias = config.nodeAlias || config.nodeAliases[0];
         const newNodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(nodeAlias);
         const podReference: PodReference = PodReference.of(config.namespace, newNodeFullyQualifiedPodName);
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const nodeId: number = Templates.nodeIdFromNodeAlias(nodeAlias);
-        const savedStateDirectory: any = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(nodeAlias);
+        const savedStateDirectory: string = config.lastStateZipPath.match(/\/(\d+)\.zip$/)[1];
         const savedStatePath: string = `${constants.HEDERA_HAPI_PATH}/data/saved/com.hedera.services.ServicesMain/${nodeId}/123/${savedStateDirectory}`;
 
-        const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+        const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
         const k8: K8 = this.k8Factory.getK8(context);
 
         const container: Container = k8.containers().readByRef(containerReference);
@@ -3363,16 +4341,21 @@ export class NodeCommandTasks {
           context,
         );
 
-        const extractCommand: string = `unzip ${path.basename(config.lastStateZipPath)}`;
+        const extractCommand: string = `unzip ${PathEx.basename(config.lastStateZipPath)}`;
+
+        const normalizePreconsensusEventsCommand: string = [
+          `cd ${savedStatePath}`,
+          extractCommand,
+          `if [ -d preconsensus-events/0 ] && [ "${nodeId}" != "0" ]; then ` +
+            `rm -rf preconsensus-events/${nodeId} && mv preconsensus-events/0 preconsensus-events/${nodeId}; ` +
+            'fi',
+          `rm -f ${PathEx.basename(config.lastStateZipPath)}`,
+        ].join(' && ');
 
         await k8
           .containers()
           .readByRef(containerReference)
-          .execContainer([
-            'bash',
-            '-c',
-            `cd ${savedStatePath} && ${extractCommand} && mv preconsensus-events/0 preconsensus-events/${nodeId} && rm -f ${path.basename(config.lastStateZipPath)}`,
-          ]);
+          .execContainer(['bash', '-c', normalizePreconsensusEventsCommand]);
       },
     };
   }
@@ -3383,45 +4366,48 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeDestroyConfigClass = context_.config;
 
+        const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
+        const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
+          config.existingNodeAliases,
+          deploymentName,
+        );
+        const deleteAccountId: string = accountMap.get(config.nodeAlias);
+        this.logger.debug(`Deleting node: ${config.nodeAlias} with account: ${deleteAccountId}`);
+
+        const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
+
+        const nodeDeleteTransaction: NodeDeleteTransaction = new NodeDeleteTransaction()
+          .setNodeId(new Long(nodeId))
+          .freezeWith(config.nodeClient);
+
+        let signedTransaction: NodeDeleteTransaction;
+        let transactionResponse: TransactionResponse;
+        let nodeDeleteReceipt: TransactionReceipt;
         try {
-          const deploymentName: string = this.configManager.getFlag<DeploymentName>(flags.deployment);
-          const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
-            config.existingNodeAliases,
-            deploymentName,
-          );
-          const deleteAccountId: string = accountMap.get(config.nodeAlias);
-          this.logger.debug(`Deleting node: ${config.nodeAlias} with account: ${deleteAccountId}`);
-
-          const nodeId: NodeId = Templates.nodeIdFromNodeAlias(config.nodeAlias);
-
-          const nodeDeleteTransaction: NodeDeleteTransaction = new NodeDeleteTransaction()
-            .setNodeId(new Long(nodeId))
-            .freezeWith(config.nodeClient);
-
-          const signedTransaction: NodeDeleteTransaction = await nodeDeleteTransaction.sign(config.adminKey);
-          const transactionResponse: TransactionResponse = await signedTransaction.execute(config.nodeClient);
-          const nodeDeleteReceipt: TransactionReceipt = await transactionResponse.getReceipt(config.nodeClient);
-
-          this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
-
-          if (nodeDeleteReceipt.status !== Status.Success) {
-            throw new SoloError(`Node delete transaction failed with status: ${nodeDeleteReceipt.status}.`);
-          }
-
-          // Delete admin key secret from k8s after successful node deletion
-          try {
-            const context: string = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
-            await this.k8Factory
-              .getK8(context)
-              .secrets()
-              .delete(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias));
-            this.logger.debug(`Deleted admin key secret for node ${config.nodeAlias} from k8s`);
-          } catch (deleteError) {
-            // Log but don't fail the delete operation if secret doesn't exist or can't be deleted
-            this.logger.debug(`Could not delete admin key secret for ${config.nodeAlias}: ${deleteError.message}`);
-          }
+          signedTransaction = await nodeDeleteTransaction.sign(config.adminKey);
+          transactionResponse = await signedTransaction.execute(config.nodeClient);
+          nodeDeleteReceipt = await transactionResponse.getReceipt(config.nodeClient);
         } catch (error) {
-          throw new SoloError(`Error deleting node from network: ${error.message}`, error);
+          throw new SoloErrors.component.nodeDeleteTransactionError(error);
+        }
+
+        this.logger.debug(`NodeDeleteReceipt: ${nodeDeleteReceipt.toString()}`);
+
+        if (nodeDeleteReceipt.status !== Status.Success) {
+          throw new SoloErrors.component.nodeTransactionFailed('Node delete', nodeDeleteReceipt.status.toString());
+        }
+
+        // Delete admin key secret from k8s after successful node deletion
+        try {
+          const context: string = extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+          await this.k8Factory
+            .getK8(context)
+            .secrets()
+            .delete(config.namespace, Templates.renderNodeAdminKeyName(config.nodeAlias));
+          this.logger.debug(`Deleted admin key secret for node ${config.nodeAlias} from k8s`);
+        } catch (deleteError) {
+          // Log but don't fail the delete operation if secret doesn't exist or can't be deleted
+          this.logger.debug(`Could not delete admin key secret for ${config.nodeAlias}: ${deleteError.message}`);
         }
       },
     };
@@ -3433,46 +4419,49 @@ export class NodeCommandTasks {
       task: async (context_): Promise<void> => {
         const config: NodeAddConfigClass = context_.config;
 
+        const nodeCreateTransaction: NodeCreateTransaction = new NodeCreateTransaction()
+          .setAccountId(context_.newNode.accountId)
+          .setGossipEndpoints(context_.gossipEndpoints)
+          .setServiceEndpoints(context_.grpcServiceEndpoints)
+          .setGossipCaCertificate(context_.signingCertDer)
+          .setCertificateHash(context_.tlsCertHash)
+          .setAdminKey(context_.adminKey.publicKey)
+          .freezeWith(config.nodeClient);
+
+        let signedTransaction: NodeCreateTransaction;
+        let txResp: TransactionResponse;
+        let nodeCreateReceipt: TransactionReceipt;
         try {
-          const nodeCreateTransaction: NodeCreateTransaction = new NodeCreateTransaction()
-            .setAccountId(context_.newNode.accountId)
-            .setGossipEndpoints(context_.gossipEndpoints)
-            .setServiceEndpoints(context_.grpcServiceEndpoints)
-            .setGossipCaCertificate(context_.signingCertDer)
-            .setCertificateHash(context_.tlsCertHash)
-            .setAdminKey(context_.adminKey.publicKey)
-            .freezeWith(config.nodeClient);
-
-          const signedTransaction: NodeCreateTransaction = await nodeCreateTransaction.sign(context_.adminKey);
-          const txResp: TransactionResponse = await signedTransaction.execute(config.nodeClient);
-          const nodeCreateReceipt: TransactionReceipt = await txResp.getReceipt(config.nodeClient);
-
-          this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
-
-          if (nodeCreateReceipt.status !== Status.Success) {
-            throw new SoloError(`Node Create Transaction failed: ${nodeCreateReceipt.status}`);
-          }
-
-          // Save admin key to k8s secret after successful node creation
-          // nodeAlias was set in determineNewNodeAccountNumber step
-          const nodeAlias: NodeAlias = config.nodeAlias;
-          const context: string = helpers.extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
-          const data: {privateKey: string; publicKey: string} = {
-            privateKey: Base64.encode(context_.adminKey.toString()),
-            publicKey: Base64.encode(context_.adminKey.publicKey.toString()),
-          };
-
-          await this.k8Factory
-            .getK8(context)
-            .secrets()
-            .createOrReplace(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
-              'solo.hedera.com/node-admin-key': 'true',
-            });
-
-          this.logger.debug(`Saved admin key for node ${nodeAlias} to k8s secret`);
+          signedTransaction = await nodeCreateTransaction.sign(context_.adminKey);
+          txResp = await signedTransaction.execute(config.nodeClient);
+          nodeCreateReceipt = await txResp.getReceipt(config.nodeClient);
         } catch (error) {
-          throw new SoloError(`Error adding node to network: ${error.message}`, error);
+          throw new SoloErrors.component.nodeCreateTransactionError(error);
         }
+
+        this.logger.debug(`NodeCreateReceipt: ${nodeCreateReceipt.toString()}`);
+
+        if (nodeCreateReceipt.status !== Status.Success) {
+          throw new SoloErrors.component.nodeTransactionFailed('Node Create', nodeCreateReceipt.status.toString());
+        }
+
+        // Save admin key to k8s secret after successful node creation
+        // nodeAlias was set in determineNewNodeAccountNumber step
+        const nodeAlias: NodeAlias = config.nodeAlias;
+        const context: string = extractContextFromConsensusNodes(nodeAlias, config.consensusNodes);
+        const data: {privateKey: string; publicKey: string} = {
+          privateKey: Base64.encode(context_.adminKey.toString()),
+          publicKey: Base64.encode(context_.adminKey.publicKey.toString()),
+        };
+
+        await this.k8Factory
+          .getK8(context)
+          .secrets()
+          .createOrReplace(config.namespace, Templates.renderNodeAdminKeyName(nodeAlias), SecretType.OPAQUE, data, {
+            'solo.hedera.com/node-admin-key': 'true',
+          });
+
+        this.logger.debug(`Saved admin key for node ${nodeAlias} to k8s secret`);
       },
     };
   }
@@ -3480,8 +4469,9 @@ export class NodeCommandTasks {
   public initialize(
     argv: ArgvStruct,
     configInit: ConfigBuilder,
-    lease: Lock | null,
+    lease?: Lock,
     shouldLoadNodeClient: boolean = true,
+    validateRemoteConfig: boolean = true,
   ): SoloListrTask<AnyListrContext> {
     const {required, optional} = argv;
     argv.flags = [...required, ...optional];
@@ -3490,9 +4480,9 @@ export class NodeCommandTasks {
       title: 'Initialize',
       task: async (context_, task): Promise<SoloListr<AnyListrContext> | void> => {
         await this.localConfig.load();
-        await this.remoteConfig.loadAndValidate(argv);
+        await this.remoteConfig.loadAndValidate(argv, validateRemoteConfig);
 
-        if (argv[flags.devMode.name]) {
+        if (argv[flags.debugMode.name]) {
           this.logger.setDevMode(true);
         }
 
@@ -3510,14 +4500,14 @@ export class NodeCommandTasks {
 
         await this.configManager.executePrompt(task, flagsToPrompt);
 
-        const config: any = await configInit(argv, context_, task, shouldLoadNodeClient);
+        const config: AnyListrContext = await configInit(argv, context_, task, shouldLoadNodeClient);
         context_.config = config;
         config.consensusNodes = this.remoteConfig.getConsensusNodes();
         config.contexts = this.remoteConfig.getContexts();
 
         for (const flag of required) {
           if (config[flag.constName] === undefined) {
-            throw new MissingArgumentError(`No value set for required flag: ${flag.name}`, flag.name);
+            throw new SoloErrors.validation.missingArgument(`No value set for required flag: ${flag.name}`);
           }
         }
 
@@ -3627,7 +4617,13 @@ export class NodeCommandTasks {
         this.remoteConfig.configuration.state.externalBlockNodes.length === 0,
       task: async (): Promise<void> => {
         for (const node of this.remoteConfig.getConsensusNodes()) {
-          await NetworkCommand.createAndCopyBlockNodeJsonFileForConsensusNode(node, this.logger, this.k8Factory);
+          await createAndCopyBlockNodeJsonFileForConsensusNode(
+            node,
+            this.logger,
+            this.k8Factory,
+            false,
+            this.remoteConfig.configuration.versions.consensusNode,
+          );
         }
       },
     };
@@ -3646,6 +4642,7 @@ export class NodeCommandTasks {
         const componentLabelConfigs: Array<{name: string; labels: string[]}> = [
           {name: 'consensus node', labels: ['solo.hedera.com/type=network-node']},
           {name: 'mirror importer', labels: [constants.SOLO_MIRROR_IMPORTER_NAME_LABEL]},
+          {name: 'mirror pinger', labels: [constants.SOLO_MIRROR_PINGER_NAME_LABEL]},
           {name: 'mirror grpc', labels: [constants.SOLO_MIRROR_GRPC_NAME_LABEL]},
           {name: 'mirror monitor', labels: [constants.SOLO_MIRROR_MONITOR_NAME_LABEL]},
           {name: 'mirror rest', labels: [constants.SOLO_MIRROR_REST_NAME_LABEL]},
@@ -3657,11 +4654,12 @@ export class NodeCommandTasks {
           {name: 'explorer', labels: [constants.SOLO_EXPLORER_LABEL]},
           {name: 'block node', labels: [constants.SOLO_BLOCK_NODE_NAME_LABEL]},
           {name: 'ingress controller', labels: [constants.SOLO_INGRESS_CONTROLLER_NAME_LABEL]},
+          {name: 'network load generator', labels: constants.NETWORK_LOAD_GENERATOR_POD_LABELS},
         ];
 
         // Create output directory structure - use custom dir if provided, otherwise use default
         const outputDirectory: string = customOutputDirectory
-          ? path.resolve(customOutputDirectory)
+          ? PathEx.resolve(customOutputDirectory)
           : PathEx.join(constants.SOLO_LOGS_DIR, 'hiero-components-logs');
         if (!fs.existsSync(outputDirectory)) {
           fs.mkdirSync(outputDirectory, {recursive: true});
@@ -3708,6 +4706,81 @@ export class NodeCommandTasks {
     };
   }
 
+  public analyzeCollectedDiagnostics(
+    customOutputDirectory: string = '',
+    namespaceName?: string,
+  ): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Analyze collected logs for common failures',
+      task: async (context_): Promise<void> => {
+        try {
+          const resolvedNamespace: string | undefined = namespaceName ?? context_?.config?.namespace?.name;
+          new DiagnosticsAnalyzer(this.logger).analyze(customOutputDirectory, resolvedNamespace);
+        } catch (error) {
+          this.logger.warn(`Failed to analyze collected diagnostics: ${(error as Error).message}`);
+        }
+      },
+    };
+  }
+
+  public reportActivePortForwards(): SoloListrTask<AnyListrContext> {
+    return {
+      title: 'Report active port-forward processes',
+      task: async (): Promise<void> => {
+        try {
+          const activeProcesses: ProcessInfo[] = await this.findActivePortForwardProcesses();
+          if (activeProcesses.length === 0) {
+            this.logger.showUser('No active port-forward processes found.');
+          } else {
+            this.logger.showUser(`Active port-forward processes (${activeProcesses.length}):`);
+            for (const processInfo of activeProcesses) {
+              this.logger.showUser(`  [PID ${processInfo.pid}] ${processInfo.cmd}`);
+            }
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to list port-forward processes: ${(error as Error).message}`);
+        }
+      },
+    };
+  }
+
+  private async findActivePortForwardProcesses(): Promise<ProcessInfo[]> {
+    const processNames: string[] = [
+      'port-forward',
+      constants.KUBECTL,
+      `${constants.KUBECTL}.exe`,
+      'node',
+      'node.exe',
+      'tsx',
+      'tsx.cmd',
+      'powershell',
+      'powershell.exe',
+    ];
+    const findConfig: FindConfig = {
+      skipSelf: true,
+    };
+
+    const matches: ProcessInfo[][] = await Promise.all(
+      processNames.map(async (processName): Promise<ProcessInfo[]> =>
+        find('name', processName, findConfig).catch((): ProcessInfo[] => []),
+      ),
+    );
+
+    const uniqueByPid: Map<number, ProcessInfo> = new Map<number, ProcessInfo>();
+    for (const processInfo of matches.flat()) {
+      if (!processInfo?.cmd?.includes('port-forward')) {
+        continue;
+      }
+      if (processInfo.cmd.includes('persist-port-forward')) {
+        continue;
+      }
+      uniqueByPid.set(processInfo.pid, processInfo);
+    }
+
+    // eslint-disable-next-line unicorn/no-array-sort
+    return [...uniqueByPid.values()].sort((a: ProcessInfo, b: ProcessInfo): number => a.pid - b.pid);
+  }
+
   private async downloadPodLogs(
     podInfo: {pod: Pod; context: string; namespace: NamespaceName},
     outputDirectory: string,
@@ -3734,6 +4807,17 @@ export class NodeCommandTasks {
       fs.writeFileSync(logFile, logs, 'utf8');
       this.logger.info(`Saved logs to ${logFile}`);
 
+      // Fetch previous logs via K8 client API (cross-platform, no kubectl shell dependency).
+      const logFile1: string = PathEx.join(podLogDirectory, `${podName}-1.log`);
+      this.logger.info(`Downloading previous logs for pod ${podName}...`);
+      try {
+        const logs1: string = await k8.pods().readLogs(podReference, true, true);
+        fs.writeFileSync(logFile1, logs1, 'utf8');
+        this.logger.info(`Saved logs to ${logFile1}`);
+      } catch {
+        this.logger.info(`No previous logs found for pod ${podName}`);
+      }
+
       // Save pod describe-like output (pod + events) for troubleshooting pod states/restarts/events.
       const describeFile: string = PathEx.join(podLogDirectory, `${podName}.describe.txt`);
       const describeOutput: string = await k8.pods().readDescribe(podReference);
@@ -3757,7 +4841,10 @@ export class NodeCommandTasks {
 
     try {
       const k8: K8 = this.k8Factory.getK8(context);
-      const containerReference: ContainerReference = ContainerReference.of(pod.podReference, constants.ROOT_CONTAINER);
+      const containerReference: ContainerReference = ContainerReference.of(
+        pod.podReference,
+        ContainerName.of(constants.BLOCK_NODE_IMAGE_NAME),
+      );
       const container: Container = k8.containers().readByRef(containerReference);
 
       // Create directory for block node log files
@@ -3766,7 +4853,25 @@ export class NodeCommandTasks {
         fs.mkdirSync(blockNodeLogDirectory, {recursive: true});
       }
 
-      await container.copyFrom('/opt/hiero/block-node/logs/*.log', blockNodeLogDirectory);
+      const blockNodeLogsDirectory: string = '/opt/hiero/block-node/logs';
+      if (!(await container.hasDir(blockNodeLogsDirectory))) {
+        this.logger.info(`Block node logs directory not found for ${podName}: ${blockNodeLogsDirectory}`);
+        return;
+      }
+
+      const directoryEntries: TDirectoryData[] = await container.listDir(blockNodeLogsDirectory);
+      const logFiles: TDirectoryData[] = directoryEntries.filter(
+        (entry: TDirectoryData): boolean => !entry.directory && entry.name.endsWith('.log'),
+      );
+
+      if (logFiles.length === 0) {
+        this.logger.info(`No block node .log files found for ${podName} in ${blockNodeLogsDirectory}`);
+        return;
+      }
+
+      for (const logFile of logFiles) {
+        await container.copyFrom(`${blockNodeLogsDirectory}/${logFile.name}`, blockNodeLogDirectory);
+      }
     } catch (error) {
       this.logger.error(`Failed to download block node log files from ${podName}: ${error}`);
     }
@@ -3775,13 +4880,16 @@ export class NodeCommandTasks {
   public downloadJavaFlightRecorderLogs(): SoloListrTask<NodeCollectJfrLogsContext> {
     return {
       title: 'Download Java Flight Recorder logs from node pod',
-      task: async (context_: NodeCollectJfrLogsContext): Promise<void> => {
+      task: async (
+        context_: NodeCollectJfrLogsContext,
+        task: SoloListrTaskWrapper<NodeCollectJfrLogsContext>,
+      ): Promise<void> => {
         this.logger.info(`Downloading Java Flight Recorder logs from node ${context_.config.nodeAlias}...`);
         const config: NodeCollectJfrLogsConfigClass = context_.config;
         const nodeFullyQualifiedPodName: PodName = Templates.renderNetworkPodName(config.nodeAlias);
         const podReference: PodReference = PodReference.of(config.namespace, nodeFullyQualifiedPodName);
         const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
-        const context: Context = helpers.extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
+        const context: Context = extractContextFromConsensusNodes(config.nodeAlias, config.consensusNodes);
 
         const k8Container: Container = this.k8Factory.getK8(context).containers().readByRef(containerReference);
         let pid: string;
@@ -3791,23 +4899,42 @@ export class NodeCommandTasks {
           const servicesMainProcess: string = resultLines.find((line: string): boolean =>
             line.includes('com.hedera.node.app.ServicesMain'),
           );
-          pid = servicesMainProcess.trim().split(' ')[0];
+          pid = servicesMainProcess.trim().split(' ', 1)[0];
         } catch (error) {
-          throw new SoloError(`Failed to get process list from node pod ${nodeFullyQualifiedPodName}`, error);
+          throw new SoloErrors.component.nodeJfrExecutionFailed(
+            'Failed to get process list',
+            nodeFullyQualifiedPodName.toString(),
+            error,
+          );
         }
 
         if (!pid) {
-          throw new SoloError(`Could not find process ID for ServicesMain in node pod ${nodeFullyQualifiedPodName}`);
+          throw new SoloErrors.component.nodeJfrPidNotFound(nodeFullyQualifiedPodName.toString());
         }
 
         const recordingFilePath: string = `${HEDERA_HAPI_PATH}/output/recording.jfr`;
+        let dumpResult: string;
         try {
-          const result: string = await k8Container.execContainer(
-            `jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`,
-          );
-          this.logger.info(`JFR dump command output: ${result}`);
+          dumpResult = await k8Container.execContainer(`jcmd ${pid} JFR.dump name=1 filename=${recordingFilePath}`);
+          this.logger.info(`JFR dump command output: ${dumpResult}`);
         } catch (error) {
-          throw new SoloError(`Failed to create JFR recording on node pod ${nodeFullyQualifiedPodName}`, error);
+          throw new SoloErrors.component.nodeJfrExecutionFailed(
+            'Failed to create JFR recording',
+            nodeFullyQualifiedPodName.toString(),
+            error,
+          );
+        }
+
+        // jcmd exits 0 even when no JFR recording is active and just prints an
+        // informational message. Detect that case and skip the task gracefully
+        // rather than failing the subsequent copy — performance-test runs
+        // without JFR enabled should not fail at teardown.
+        const jfrNotEnabledPattern: RegExp = /Could not find any recording|No recording (?:with|named)|No recordings/i;
+        if (jfrNotEnabledPattern.test(dumpResult)) {
+          const reason: string = `Java Flight Recorder is not enabled on node pod ${nodeFullyQualifiedPodName}`;
+          this.logger.warn(reason);
+          task.skip(`${task.title} ${chalk.yellow('[SKIPPING]')} ${chalk.grey(reason)}`);
+          return;
         }
 
         try {
@@ -3818,8 +4945,9 @@ export class NodeCommandTasks {
           fs.renameSync(PathEx.joinWithRealPath(localJfrLogsDirectory, 'recording.jfr'), targetPath);
           this.logger.showUser(`Downloaded Java Flight Recorder logs to ${targetPath}`);
         } catch (error) {
-          throw new SoloError(
-            `Failed to copy JFR recording from node pod ${nodeFullyQualifiedPodName} to local machine`,
+          throw new SoloErrors.component.nodeJfrExecutionFailed(
+            'Failed to copy JFR recording',
+            nodeFullyQualifiedPodName.toString(),
             error,
           );
         }

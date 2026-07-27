@@ -5,6 +5,7 @@ import {type MetricsServer} from '../api/metrics-server.js';
 import {NamespaceName} from '../../../types/namespace/namespace-name.js';
 import {type Context} from '../../../types/index.js';
 import {ShellRunner} from '../../../core/shell-runner.js';
+import {SubprocessCommandProfile} from '../../../core/subprocess-command-profile.js';
 import {PodName} from '../../../integration/kube/resources/pod/pod-name.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
@@ -20,6 +21,8 @@ import {PodReference} from '../../../integration/kube/resources/pod/pod-referenc
 import {RemoteConfigRuntimeState} from '../config/remote/remote-config-runtime-state.js';
 import {container} from 'tsyringe-neo';
 import {Duration} from '../../../core/time/duration.js';
+import path from 'node:path';
+import {type PodMetricsItem} from '../../../integration/kube/resources/pod/pod-metrics-item.js';
 
 @injectable()
 export class MetricsServerImpl implements MetricsServer {
@@ -27,10 +30,25 @@ export class MetricsServerImpl implements MetricsServer {
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
     @inject(InjectTokens.K8Factory) private readonly k8Factory?: K8Factory,
     @inject(InjectTokens.IgnorePodMetrics) private readonly ignorePodMetrics?: string[],
+    @inject(InjectTokens.KubectlInstallationDirectory) protected readonly installationDirectory?: string,
   ) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.k8Factory = patchInject(k8Factory, InjectTokens.K8Factory, this.constructor.name);
     this.ignorePodMetrics = patchInject(ignorePodMetrics, InjectTokens.IgnorePodMetrics, this.constructor.name);
+    this.installationDirectory = patchInject(
+      installationDirectory,
+      InjectTokens.KubectlInstallationDirectory,
+      this.constructor.name,
+    );
+  }
+
+  /** True when the pod hosts the mirror node postgres DB (shared-resources, embedded, or legacy topology). */
+  public static isMirrorNodePostgresPodName(podName: string): boolean {
+    return (
+      podName.startsWith('solo-shared-resources-postgres') ||
+      (podName.startsWith('mirror-') && podName.includes('postgres')) ||
+      podName.startsWith('my-postgresql')
+    );
   }
 
   public async getMetrics(
@@ -64,38 +82,23 @@ export class MetricsServerImpl implements MetricsServer {
     attempt: number = 1,
   ): Promise<ClusterMetrics> {
     let podMetrics: PodMetrics[] = [];
-    const namespaceParameter: string = namespaceLookup ? `-n ${namespaceLookup.name}` : '-A';
-    const contextParameter: string = context ? `--context ${context}` : '';
-    const labelSelectorParameter: string = labelSelector ? `-l='${labelSelector}'` : '';
-    const cmd: string = `kubectl top pod ${namespaceParameter} --no-headers=true ${contextParameter} ${labelSelectorParameter}`;
+    let clusterNamespace: string = '';
+    let mirrorNodePostgresPodName: string = undefined;
+    let mirrorNodePostgresNamespace: string = undefined;
     try {
-      const results: string[] = await new ShellRunner().run(cmd, [], true, false);
-      const joinedResults: string = results.join('\n');
-      let namespace: string;
-      let podName: string;
-      let cpuInMillicores: number;
-      let memoryInMebibytes: number;
-      let index: number = 0;
-      let clusterNamespace: string = '';
-      let mirrorNodePostgresPodName: string = undefined;
-      let mirrorNodePostgresNamespace: string = undefined;
-      const resultArray: string[] = joinedResults
-        .trim()
-        .split(/\r?\n|\n| +/)
-        .filter((c): boolean => c !== '');
-      while (index < resultArray.length) {
-        namespace = resultArray[index++];
-        podName = resultArray[index++];
-        cpuInMillicores = +resultArray[index++].split('m')[0];
-        memoryInMebibytes = +resultArray[index++].split('Mi')[0];
-        podMetrics.push(
-          new PodMetrics(NamespaceName.of(namespace), PodName.of(podName), cpuInMillicores, memoryInMebibytes),
-        );
+      const podMetricItems: PodMetricsItem[] = await this.k8Factory
+        .getK8(context && context !== 'default' ? context : undefined)
+        .pods()
+        .topPods(namespaceLookup, labelSelector);
+      for (const item of podMetricItems) {
+        const podName: string = item.podName.name;
+        const namespace: string = item.namespace.name;
+        podMetrics.push(new PodMetrics(item.namespace, item.podName, item.cpuInMillicores, item.memoryInMebibytes));
         if (podName.startsWith('network-node1-0')) {
           clusterNamespace = namespace;
         }
-        // Capture both internal mirror node postgres and external postgres pods
-        if ((podName.startsWith('mirror-') && podName.includes('postgres')) || podName.startsWith('my-postgresql')) {
+        // Capture the mirror node postgres pod across shared-resources, embedded, and legacy topologies.
+        if (MetricsServerImpl.isMirrorNodePostgresPodName(podName)) {
           mirrorNodePostgresPodName = podName;
           mirrorNodePostgresNamespace = namespace;
         }
@@ -118,15 +121,19 @@ export class MetricsServerImpl implements MetricsServer {
         mirrorNodePostgresNamespace ? NamespaceName.of(mirrorNodePostgresNamespace) : undefined,
       );
     } catch (error) {
-      if (error.message.includes('Metrics API not available')) {
+      if (
+        error.message.includes('Metrics API not available') ||
+        error.message.includes('service unavailable') ||
+        error.message.includes('Error occurred in metrics request')
+      ) {
         if (attempt <= 3) {
           const backOffSeconds: number = 5;
           this.logger.debug(
             `Metrics API not available, retrying attempt ${attempt} after ${backOffSeconds} seconds...`,
             error,
           );
-          await new Promise(
-            (resolve): NodeJS.Timeout => setTimeout(resolve, Duration.ofSeconds(backOffSeconds).toMillis()),
+          await new Promise((resolve): NodeJS.Timeout =>
+            setTimeout(resolve, Duration.ofSeconds(backOffSeconds).toMillis()),
           );
           return this.getClusterMetrics(namespaceLookup, labelSelector, context, attempt + 1);
         } else {
@@ -163,11 +170,12 @@ export class MetricsServerImpl implements MetricsServer {
         clusterMetric.postgresPodName,
       );
       namespace = clusterMetric.namespace?.name ? clusterMetric.namespace : namespace;
-    }
-
-    const remoteConfigRuntimeState: RemoteConfigRuntimeState = container.resolve(InjectTokens.RemoteConfigRuntimeState);
-    if (namespace && namespace.name) {
-      await remoteConfigRuntimeState.load(namespace);
+      const remoteConfigRuntimeState: RemoteConfigRuntimeState = container.resolve(
+        InjectTokens.RemoteConfigRuntimeState,
+      );
+      if (namespace && namespace.name) {
+        await remoteConfigRuntimeState.load(namespace, clusterMetric.context);
+      }
     }
 
     return new AggregatedMetrics(
@@ -232,11 +240,23 @@ export class MetricsServerImpl implements MetricsServer {
     if (!namespace) {
       return 0;
     }
-    const contextParameter: string = context && context !== 'default' ? `--context ${context}` : '';
-    const cmd: string = `kubectl get pod network-node1-0 -n ${namespace.name} --no-headers ${contextParameter} | awk '{print $5}'`;
-    const results: string[] = await new ShellRunner().run(cmd, [], true, false);
+    const kubectlArguments: string[] = ['get', 'pod', 'network-node1-0', '-n', namespace.name, '--no-headers'];
+    if (context && context !== 'default') {
+      kubectlArguments.push('--context', context);
+    }
+    const results: string[] = await new ShellRunner().run('kubectl', kubectlArguments, {
+      verbose: true,
+      commandProfile: SubprocessCommandProfile.KUBECTL,
+      environmentVariablesToAppend: {
+        PATH: `${this.installationDirectory}${path.delimiter}${process.env.PATH}`,
+      },
+    });
     if (results?.length > 0) {
-      return Number.parseInt(results[0].split('m')[0]);
+      const columns: string[] = results[0].trim().split(/\s+/);
+      const cpuColumn: string | undefined = columns[4];
+      if (cpuColumn) {
+        return Number.parseInt(cpuColumn.split('m', 1)[0]);
+      }
     }
     return 0;
   }
@@ -246,7 +266,10 @@ export class MetricsServerImpl implements MetricsServer {
     context: Context,
     postgresPodName: PodName,
   ): Promise<number> {
-    if (!namespace) {
+    if (!namespace || !postgresPodName) {
+      this.logger.debug(
+        `getNetworkTransactions skipped: namespace=${namespace?.name}, postgresPodName=${postgresPodName}`,
+      );
       return 0;
     }
 
@@ -262,7 +285,7 @@ export class MetricsServerImpl implements MetricsServer {
         ]);
       return Number.parseInt(result.trim());
     } catch (error) {
-      this.logger.debug(`error looking up transactions: ${error.message}`, error);
+      this.logger.warn(`error looking up transactions: ${error.message}`, error);
     }
     return 0;
   }

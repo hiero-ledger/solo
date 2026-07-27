@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type SemVer} from 'semver';
 import {type KindCluster} from './model/kind-cluster.js';
 import {type ClusterCreateResponse} from './model/create-cluster/cluster-create-response.js';
 import {type ClusterDeleteResponse} from './model/delete-cluster/cluster-delete-response.js';
@@ -18,6 +17,7 @@ import {type LoadDockerImageOptions} from './model/load-docker-image/load-docker
 import {type LoadDockerImageResponse} from './model/load-docker-image/load-docker-image-response.js';
 import {type LoadImageArchiveOptions} from './model/load-image-archive/load-image-archive-options.js';
 import {type LoadImageArchiveResponse} from './model/load-image-archive/load-image-archive-response.js';
+import {type SemanticVersion} from '../../business/utils/semantic-version.js';
 
 /**
  * The KindClient is a bridge between TypeScript and the Kind CLI.
@@ -28,7 +28,7 @@ export interface KindClient {
    *
    * @returns the version of the Kind CLI that is being used by this client.
    */
-  version(): Promise<SemVer>;
+  version(): Promise<SemanticVersion<string>>;
 
   /**
    * Executes the Kind CLI cluster create sub-command.
@@ -108,8 +108,8 @@ export interface KindClient {
   /**
    * Loads an image archive into the Kind cluster.
    *
-   * @param imageName the name of the images to load from the archive.
+   * @param archivePath the path to the image archive to load.
    * @param options the options to use for loading the image archive
    */
-  loadImageArchive(imageName: string, options?: LoadImageArchiveOptions): Promise<LoadImageArchiveResponse>;
+  loadImageArchive(archivePath: string, options?: LoadImageArchiveOptions): Promise<LoadImageArchiveResponse>;
 }

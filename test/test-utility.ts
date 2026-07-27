@@ -16,10 +16,10 @@ import {type NodeCommand} from '../src/commands/node/index.js';
 import {type DependencyManager} from '../src/core/dependency-managers/index.js';
 import {sleep} from '../src/core/helpers.js';
 import {
-  type AccountBalance,
-  AccountBalanceQuery,
   AccountCreateTransaction,
   type AccountId,
+  type AccountInfo,
+  AccountInfoQuery,
   Hbar,
   HbarUnit,
   PrivateKey,
@@ -58,9 +58,7 @@ import {type CommandInvoker} from './helpers/command-invoker.js';
 import {PathEx} from '../src/business/utils/path-ex.js';
 import {type HelmClient} from '../src/integration/helm/helm-client.js';
 import {type NodeServiceMapping} from '../src/types/mappings/node-service-mapping.js';
-import {TEST_LOCAL_HEDERA_PLATFORM_VERSION} from '../version-test.js';
 import {HEDERA_PLATFORM_VERSION} from '../version.js';
-import {gte as semVersionGte} from 'semver';
 import {type LocalConfigRuntimeState} from '../src/business/runtime-state/config/local/local-config-runtime-state.js';
 import {type InstanceOverrides} from '../src/core/dependency-injection/container-init.js';
 import {type RemoteConfigRuntimeStateApi} from '../src/business/runtime-state/api/remote-config-runtime-state-api.js';
@@ -71,6 +69,9 @@ import {ClusterReferenceTest} from './e2e/commands/tests/cluster-reference-test.
 import {ConsensusNodeTest} from './e2e/commands/tests/consensus-node-test.js';
 import {DeploymentTest} from './e2e/commands/tests/deployment-test.js';
 import {type ComponentFactoryApi} from '../src/core/config/remote/api/component-factory-api.js';
+import {InitTest} from './e2e/commands/tests/init-test.js';
+import {type BaseTestOptions} from './e2e/commands/tests/base-test-options.js';
+import {SemanticVersion} from '../src/business/utils/semantic-version.js';
 
 export const BASE_TEST_DIR: string = PathEx.join('test', 'data', 'tmp');
 
@@ -120,8 +121,8 @@ export function startNodesTest(testName: string, argv: Argv): void {
     const deployment: string = argv.getArg<string>(flags.deployment);
     const cacheDirectory: string = argv.getArg<string>(flags.cacheDir);
     const localBuildPath: string = argv.getArg<string>(flags.localBuildPath);
-    const app = argv.getArg<string>(flags.app);
-    const appConfig = argv.getArg<string>(flags.appConfig);
+    const app: string = argv.getArg<string>(flags.app);
+    const appConfig: string = argv.getArg<string>(flags.appConfig);
     await main(ConsensusNodeTest.soloConsensusNodeSetup(deployment, cacheDirectory, localBuildPath, app, appConfig));
   }).timeout(Duration.ofMinutes(4).toMillis());
 
@@ -289,7 +290,7 @@ export function endToEndTestSuite(
     containerOverrides,
     deployNetwork,
   }: Cmd & {startNodes?: boolean; deployNetwork?: boolean},
-  testsCallBack: (bootstrapResp: BootstrapResponse) => void = (): void => {},
+  testsCallback: (bootstrapResp: BootstrapResponse) => void = (): void => {},
 ): void {
   const testLogger: SoloLogger = getTestLogger();
   const testNamespace: NamespaceName = getTestNamespace(argv);
@@ -321,24 +322,24 @@ export function endToEndTestSuite(
       await localConfig.load();
     });
 
+    // eslint-disable-next-line unicorn/no-this-outside-of-class
     this.bail(true); // stop on first failure, nothing else will matter if network doesn't come up correctly
 
     describe(`Bootstrap network for test [release ${argv.getArg(flags.releaseTag)}]`, (): void => {
-      before((): void => {
+      before(async (): Promise<void> => {
         testLogger.showUser(`------------------------- START: bootstrap (${testName}) ----------------------------`);
+        InitTest.init({} as BaseTestOptions);
       });
 
       // TODO: add rest of prerequisites for setup
 
-      after(async function (): Promise<void> {
-        this.timeout(Duration.ofMinutes(5).toMillis());
-
+      after(async (): Promise<void> => {
         // Use shared diagnostic log collection helper
         const deployment: string = argv.getArg(flags.deployment) as string;
         await BaseCommandTest.collectDiagnosticLogs(testName, testLogger, deployment);
 
         testLogger.showUser(`------------------------- END: bootstrap (${testName}) ----------------------------`);
-      });
+      }).timeout(Duration.ofMinutes(5).toMillis());
 
       it('should cleanup previous deployment', async (): Promise<void> => {
         if (await k8Factory.default().namespaces().has(namespace)) {
@@ -404,7 +405,7 @@ export function endToEndTestSuite(
     });
 
     describe(testName, (): void => {
-      testsCallBack(bootstrapResp);
+      testsCallback(bootstrapResp);
     });
   });
 }
@@ -417,21 +418,22 @@ export async function queryBalance(
   skipNodeAlias?: NodeAlias,
 ): Promise<void> {
   const argv: Argv = Argv.getDefaultArgv(namespace);
-  expect(accountManager._nodeClient).to.be.null;
+  expect(accountManager._nodeClient).to.be.undefined;
 
   await accountManager.refreshNodeClient(
     namespace,
     remoteConfig.getClusterRefs(),
-    skipNodeAlias,
     argv.getArg<DeploymentName>(flags.deployment),
+    undefined,
+    {type: 'all', skipNodeAlias},
   );
-  expect(accountManager._nodeClient).to.not.be.null;
+  expect(accountManager._nodeClient).to.not.be.undefined;
 
-  const balance: AccountBalance = await new AccountBalanceQuery()
+  const accountInfo: AccountInfo = await new AccountInfoQuery()
     .setAccountId(accountManager._nodeClient.getOperator().accountId)
     .execute(accountManager._nodeClient);
 
-  expect(balance.hbars).to.not.be.null;
+  expect(accountInfo.balance).to.not.be.null;
   await sleep(Duration.ofSeconds(1));
 }
 
@@ -459,13 +461,13 @@ export async function createAccount(
   await accountManager.refreshNodeClient(
     namespace,
     remoteConfig.getClusterRefs(),
-    skipNodeAlias,
     argv.getArg<DeploymentName>(flags.deployment),
+    undefined,
+    {type: 'all', skipNodeAlias},
   );
-  expect(accountManager._nodeClient).not.to.be.null;
+  expect(accountManager._nodeClient).not.to.be.undefined;
   const privateKey: PrivateKey = PrivateKey.generate();
   const amount: number = 100;
-
   const newAccount: TransactionResponse = await new AccountCreateTransaction()
     .setKey(privateKey)
     .setInitialBalance(Hbar.from(amount, HbarUnit.Hbar))
@@ -514,13 +516,13 @@ export async function getNodeAliasesPrivateKeysHash(
   k8Factory: K8Factory,
   destinationDirectory: string,
 ): Promise<Map<NodeAlias, Map<string, string>>> {
-  const dataKeysDirectory = `${constants.HEDERA_HAPI_PATH}/data/keys`;
-  const tlsKeysDirectory = constants.HEDERA_HAPI_PATH;
-  const nodeKeyHashMap = new Map<NodeAlias, Map<string, string>>();
+  const dataKeysDirectory: string = `${constants.HEDERA_HAPI_PATH}/data/keys`;
+  const tlsKeysDirectory: string = constants.HEDERA_HAPI_PATH;
+  const nodeKeyHashMap: Map<NodeAlias, Map<string, string>> = new Map<NodeAlias, Map<string, string>>();
   for (const networkNodeServices of networkNodeServicesMap.values()) {
-    const keyHashMap = new Map<string, string>();
-    const nodeAlias = networkNodeServices.nodeAlias;
-    const uniqueNodeDestinationDirectory = PathEx.join(destinationDirectory, nodeAlias);
+    const keyHashMap: Map<string, string> = new Map<string, string>();
+    const nodeAlias: NodeAlias = networkNodeServices.nodeAlias;
+    const uniqueNodeDestinationDirectory: string = PathEx.join(destinationDirectory, nodeAlias);
     if (!fs.existsSync(uniqueNodeDestinationDirectory)) {
       fs.mkdirSync(uniqueNodeDestinationDirectory, {recursive: true});
     }
@@ -563,12 +565,12 @@ async function addKeyHashToMap(
       ContainerReference.of(PodReference.of(namespace, Templates.renderNetworkPodName(nodeAlias)), ROOT_CONTAINER),
     )
     .copyFrom(PathEx.join(keyDirectory, privateKeyFileName), uniqueNodeDestinationDirectory);
-  const keyBytes = fs.readFileSync(PathEx.joinWithRealPath(uniqueNodeDestinationDirectory, privateKeyFileName));
-  const keyString = keyBytes.toString();
+  const keyBytes: Buffer = fs.readFileSync(PathEx.joinWithRealPath(uniqueNodeDestinationDirectory, privateKeyFileName));
+  const keyString: string = keyBytes.toString();
   keyHashMap.set(privateKeyFileName, crypto.createHash('sha256').update(keyString).digest('base64'));
 }
 
-export const testLocalConfigData = {
+export const testLocalConfigData: Record<string, unknown> = {
   userIdentity: {
     name: 'john',
     host: 'doe',
@@ -603,11 +605,7 @@ export const testLocalConfigData = {
 export {HEDERA_PLATFORM_VERSION as HEDERA_PLATFORM_VERSION_TAG} from '../version.js';
 
 export function hederaPlatformSupportsNonZeroRealms(): boolean {
-  return semVersionGte(HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
-}
-
-export function localHederaPlatformSupportsNonZeroRealms(): boolean {
-  return semVersionGte(TEST_LOCAL_HEDERA_PLATFORM_VERSION.slice(1), '0.61.4');
+  return new SemanticVersion<string>(HEDERA_PLATFORM_VERSION).greaterThanOrEqual('0.61.4');
 }
 
 export function destroyEnabled(): boolean {

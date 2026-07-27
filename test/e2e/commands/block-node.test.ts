@@ -19,6 +19,7 @@ import {DeploymentTest} from './tests/deployment-test.js';
 import {ConsensusNodeTest} from './tests/consensus-node-test.js';
 import {NetworkTest} from './tests/network-test.js';
 import {BlockNodeTest} from './tests/block-node-test.js';
+import {MirrorNodeTest} from './tests/mirror-node-test.js';
 import {sleep} from '../../../src/core/helpers.js';
 import {type EndToEndTestSuite} from '../end-to-end-test-suite.js';
 
@@ -26,12 +27,13 @@ const testName: string = 'block-node-test';
 
 const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
   .withTestName(testName)
-  .withTestSuiteName('Dual Cluster Full E2E Test Suite')
+  .withTestSuiteName('Block Node Test Suite')
   .withNamespace(testName)
   .withDeployment(`${testName}-deployment`)
   .withClusterCount(1)
   .withConsensusNodesCount(2)
   .withLoadBalancerEnabled(false)
+  .withWrapsEnabled(true)
   .withPinger(false)
   .withRealm(0)
   .withShard(0)
@@ -61,7 +63,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         after(async (): Promise<void> => {
           await preDestroy(endToEndTestSuite);
-        });
+        }).timeout(Duration.ofMinutes(10).toMillis());
 
         beforeEach(async (): Promise<void> => {
           testLogger.info(`${testName}: resetting containers for each test`);
@@ -76,6 +78,7 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
         DeploymentTest.create(options);
         DeploymentTest.addCluster(options);
         DeploymentTest.listDeployments(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
         ConsensusNodeTest.keys(options);
 
         BlockNodeTest.add(options);
@@ -86,7 +89,16 @@ const endToEndTestSuite: EndToEndTestSuite = new EndToEndTestSuiteBuilder()
 
         BlockNodeTest.testBlockNode(options, 1);
 
+        // Verify WRAPs/TSS is operational: deploy a mirror node (with pinger enabled so the network
+        // keeps receiving transactions) and confirm TSS-signed blocks keep being produced by the
+        // network and ingested by the mirror node. This is a single-cluster suite, so the mirror
+        // node deploys to cluster reference index 0.
+        MirrorNodeTest.add({...options, pinger: true}, 0);
+        MirrorNodeTest.verifyBlocksAreBeingProduced(options);
+
         BlockNodeTest.add(options, ['node2']);
+        DeploymentTest.info(options);
+        DeploymentTest.verifyDeploymentConfigInfo(options);
 
         BlockNodeTest.verifyBlockNodesJson(options, 'node1', [1], [2], {});
         BlockNodeTest.verifyBlockNodesJson(options, 'node2', [2], [], {});

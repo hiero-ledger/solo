@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {join} from 'node:path';
 import {HelmExecution} from './helm-execution.js';
 import {inject, injectable} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
-import {Templates} from '../../../core/templates.js';
 import * as constants from '../../../core/constants.js';
+import {ExecutionBuilder} from '../../execution-builder.js';
+import {type ExternalCommandInvocation} from '../../../core/execution/external-command-invocation.js';
+import {SubprocessEnvironment} from '../../../core/subprocess-environment.js';
+import {SubprocessCommandProfile} from '../../../core/subprocess-command-profile.js';
 
 @injectable()
 /**
  * A builder for creating a helm command execution.
  */
-export class HelmExecutionBuilder {
+export class HelmExecutionBuilder extends ExecutionBuilder {
   private static readonly NAME_MUST_NOT_BE_NULL: string = 'name must not be null';
   private static readonly VALUE_MUST_NOT_BE_NULL: string = 'value must not be null';
 
@@ -52,29 +54,29 @@ export class HelmExecutionBuilder {
    */
   private readonly _environmentVariables: Map<string, string> = new Map();
 
-  /**
-   * The working directory to be used when executing the helm command.
-   */
-  private _workingDirectory: string;
+  private readonly _orderedArguments: string[] = [];
 
   /**
    * Creates a new HelmExecutionBuilder instance.
    */
-  public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
+  public constructor(
+    @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
+    @inject(InjectTokens.HelmInstallationDirectory) private readonly helmInstallationDirectory?: string,
+  ) {
+    super();
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+    this.helmInstallationDirectory = patchInject(
+      helmInstallationDirectory,
+      InjectTokens.HelmInstallationDirectory,
+      this.constructor.name,
+    );
 
     try {
-      this.helmExecutable = Templates.installationPath(constants.HELM);
+      this.helmExecutable = constants.HELM;
     } catch (error) {
       this.logger?.error('Failed to find helm executable:', error);
       throw new Error('Failed to find helm executable. Please ensure helm is installed and in your PATH.');
     }
-
-    const workingDirectoryString: string = process.env.PWD;
-    this._workingDirectory =
-      workingDirectoryString && workingDirectoryString.trim() !== ''
-        ? workingDirectoryString
-        : join(this.helmExecutable, '..');
   }
 
   /**
@@ -86,6 +88,7 @@ export class HelmExecutionBuilder {
     if (!commands) {
       throw new Error('commands must not be null');
     }
+
     this._subcommands.push(...commands);
     return this;
   }
@@ -100,10 +103,17 @@ export class HelmExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
+
     if (!value) {
       throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
+
     this._arguments.set(name, value);
+    return this;
+  }
+
+  public arguments(...arguments_: string[]): HelmExecutionBuilder {
+    this._orderedArguments.push(...arguments_);
     return this;
   }
 
@@ -117,9 +127,11 @@ export class HelmExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
+
     if (!value) {
       throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
+
     this._optionsWithMultipleValues.push({key: name, value});
     return this;
   }
@@ -133,6 +145,7 @@ export class HelmExecutionBuilder {
     if (!value) {
       throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
+
     this._positionals.push(value);
     return this;
   }
@@ -147,23 +160,12 @@ export class HelmExecutionBuilder {
     if (!name) {
       throw new Error(HelmExecutionBuilder.NAME_MUST_NOT_BE_NULL);
     }
+
     if (!value) {
       throw new Error(HelmExecutionBuilder.VALUE_MUST_NOT_BE_NULL);
     }
-    this._environmentVariables.set(name, value);
-    return this;
-  }
 
-  /**
-   * Sets the working directory for the helm execution.
-   * @param workingDirectoryPath the path to the working directory
-   * @returns this builder
-   */
-  public workingDirectory(workingDirectoryPath: string): HelmExecutionBuilder {
-    if (!workingDirectoryPath) {
-      throw new Error('workingDirectoryPath must not be null');
-    }
-    this._workingDirectory = workingDirectoryPath;
+    this._environmentVariables.set(name, value);
     return this;
   }
 
@@ -176,6 +178,7 @@ export class HelmExecutionBuilder {
     if (!flag) {
       throw new Error('flag must not be null');
     }
+
     this._flags.push(flag);
     return this;
   }
@@ -185,36 +188,50 @@ export class HelmExecutionBuilder {
    * @returns the HelmExecution instance
    */
   public build(): HelmExecution {
-    const command: string[] = this.buildCommand();
-    const environment: Record<string, string> = {...process.env};
+    const invocation: ExternalCommandInvocation = this.buildCommand();
+    const environment: Record<string, string> = SubprocessEnvironment.forCommand(SubprocessCommandProfile.HELM);
+
     for (const [key, value] of this._environmentVariables.entries()) {
       environment[key] = value;
     }
 
-    return new HelmExecution(command, this._workingDirectory, environment, this.logger);
+    this.prefixPath(environment, this.helmInstallationDirectory);
+
+    return new HelmExecution(
+      {
+        ...invocation,
+        environmentVariables: environment,
+      },
+      this.logger,
+    );
   }
 
   /**
    * Builds the command array for the helm execution.
    * @returns the command array
    */
-  private buildCommand(): string[] {
-    const command: string[] = [this.helmExecutable, ...this._subcommands, ...this._flags];
+  private buildCommand(): ExternalCommandInvocation {
+    const commandArguments: string[] = [...this._subcommands, ...this._flags];
 
     for (const [key, value] of this._arguments.entries()) {
-      command.push(`--${key}`, value);
+      commandArguments.push(`--${key}`, value);
     }
 
     for (const entry of this._optionsWithMultipleValues) {
       for (const value of entry.value) {
-        command.push(`--${entry.key}`, value);
+        commandArguments.push(`--${entry.key}`, value);
       }
     }
 
-    command.push(...this._positionals);
+    commandArguments.push(...this._orderedArguments, ...this._positionals);
 
-    this.logger.debug(`Helm command: helm ${command.slice(1).join(' ')}`);
+    const redactedCommand: string[] = HelmExecution.redactCommand([this.helmExecutable, ...commandArguments]);
 
-    return command;
+    this.logger.debug(`Helm command: ${redactedCommand.join(' ')}`);
+
+    return {
+      commandPathOrName: this.helmExecutable,
+      commandArguments,
+    };
   }
 }

@@ -12,6 +12,7 @@ import {container} from 'tsyringe-neo';
 import {expect} from 'chai';
 import {type BaseTestOptions} from './base-test-options.js';
 import {ClusterReferenceCommandDefinition} from '../../../../src/commands/command-definitions/cluster-reference-command-definition.js';
+import {negatedOptionFromFlag} from '../../../../src/commands/command-helpers.js';
 
 export class ClusterReferenceTest extends BaseCommandTest {
   public static soloClusterReferenceConnectArgv(
@@ -76,12 +77,14 @@ export class ClusterReferenceTest extends BaseCommandTest {
       ClusterReferenceCommandDefinition.CONFIG_SETUP,
       optionFromFlag(Flags.clusterRef),
       clusterReference,
+      negatedOptionFromFlag(Flags.deployMinio),
     );
 
     if (clusterSetupNamespace) {
       argv.push(optionFromFlag(Flags.clusterSetupNamespace), clusterSetupNamespace);
     }
 
+    argv.push(negatedOptionFromFlag(Flags.deployMinio));
     argvPushGlobalFlags(argv, testName, false, true);
     return argv;
   }
@@ -110,9 +113,9 @@ export class ClusterReferenceTest extends BaseCommandTest {
       ClusterReferenceCommandDefinition.CONFIG_SETUP,
       optionFromFlag(Flags.clusterSetupNamespace),
       clusterSetupNamespace,
+      negatedOptionFromFlag(Flags.deployMinio),
     );
-
-    argvPushGlobalFlags(argv, testName, true);
+    argvPushGlobalFlags(argv, testName, false);
     return argv;
   }
 

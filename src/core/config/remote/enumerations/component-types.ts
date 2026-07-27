@@ -13,4 +13,6 @@ export enum ComponentTypes {
   RelayNodes = 'relayNodes',
   Cli = 'cli',
   Chart = 'chart',
+  Postgres = 'postgres',
+  Redis = 'redis',
 }

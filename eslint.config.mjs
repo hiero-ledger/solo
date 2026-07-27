@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {basename} from 'node:path';
 import globals from 'globals';
 import eslintJs from '@eslint/js';
 import nodePlugin from 'eslint-plugin-n';
@@ -10,6 +11,90 @@ import headers from 'eslint-plugin-headers';
 import tsdoc from 'eslint-plugin-tsdoc';
 import unusedImports from 'eslint-plugin-unused-imports';
 import eslintPluginUnicorn from 'eslint-plugin-unicorn';
+
+// Local rules enforcing Solo conventions that no off-the-shelf plugin covers.
+// See docs/contributing/typescript-code-style.md §3.4.5 and §10.3.1.
+const soloLocalPlugin = {
+  rules: {
+    // Behavior (resolvers, orchestrators, computations) must be grouped on a class as static
+    // methods rather than exported as free functions. Pure data (constants, types, simple
+    // factories) may still be exported — this rule only targets functions.
+    'no-exported-function': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description: 'Disallow exported functions — group behavior on a class with static methods (§10.3.1).',
+        },
+        schema: [],
+        messages: {
+          noExportedFunction:
+            'No exported functions — group behavior on a class with static methods. ' +
+            'See docs/contributing/typescript-code-style.md §10.3.1. ' +
+            'Pure data (constants, types) may be exported; helpers used by one class become private static members.',
+        },
+      },
+      create(context) {
+        return {
+          'ExportNamedDeclaration > FunctionDeclaration'(node) {
+            context.report({node, messageId: 'noExportedFunction'});
+          },
+          'ExportNamedDeclaration > VariableDeclaration > VariableDeclarator'(node) {
+            const initializerType = node.init?.type;
+            if (initializerType === 'ArrowFunctionExpression' || initializerType === 'FunctionExpression') {
+              context.report({node, messageId: 'noExportedFunction'});
+            }
+          },
+        };
+      },
+    },
+
+    // Each exported interface must be in its own file named in kebab-case matching the
+    // interface name — §3.5. No off-the-shelf rule covers name-matching; unicorn/filename-case
+    // enforces kebab-case style but not that the filename matches the interface name.
+    'exported-interface-in-own-file': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description:
+            'Each exported interface must be in its own file named in kebab-case matching the interface name (§3.5).',
+        },
+        schema: [],
+        messages: {
+          filenameMismatch:
+            'Exported interface "{{interfaceName}}" must be in its own file named ' +
+            '"{{expectedFilename}}.ts" — move it or rename the file (§3.5).',
+        },
+      },
+      create(context) {
+        function toKebabCase(name) {
+          return name
+            .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+            .replace(/([a-z\d])([A-Z])/g, '$1-$2')
+            .toLowerCase();
+        }
+
+        return {
+          'ExportNamedDeclaration > TSInterfaceDeclaration'(node) {
+            const filename = context.filename;
+            if (!filename || filename.endsWith('.d.ts')) return;
+
+            const interfaceName = node.id.name;
+            const expectedFilename = toKebabCase(interfaceName);
+            const actualFilename = basename(filename, '.ts');
+
+            if (actualFilename !== expectedFilename) {
+              context.report({
+                node: node.id,
+                messageId: 'filenameMismatch',
+                data: {interfaceName, expectedFilename},
+              });
+            }
+          },
+        };
+      },
+    },
+  },
+};
 
 export default [
   eslintJs.configs.recommended,
@@ -24,7 +109,9 @@ export default [
     ignores: [
       '.git/**/*', // Git files
       '.github/**/*', // GitHub files
+      '!.github/**/*.ts', // ...except TypeScript files
       '.idea/**/*', // IDE files
+      '.claude/**/*', // Claude AI files
       'coverage/**/*', // Coverage files
       'docs/**/*', // Documentation files
       'examples/**/*', // Example files
@@ -94,7 +181,7 @@ export default [
       'n/hashbang': [
         'error',
         {
-          additionalExecutables: ['solo.ts'],
+          additionalExecutables: ['solo.ts', '.github/workflows/script/jdwp-tester.ts'],
         },
       ],
       'n/no-unpublished-import': [
@@ -161,15 +248,15 @@ export default [
           fixStyle: 'inline-type-imports',
         },
       ],
-      '@typescript-eslint/no-explicit-any': 'warn', // TODO remove (771 errors)
+      '@typescript-eslint/no-explicit-any': 'warn', // TODO remove (406 errors)
       '@typescript-eslint/no-this-alias': [
         'error',
         {
           allowedNames: ['self'], // TODO remove (59 errors)
         },
       ],
-      '@typescript-eslint/no-unused-vars': 'warn', // TODO remove (83 errors)
-      'n/no-process-exit': 'warn', // TODO remove (38 errors)
+      '@typescript-eslint/no-unused-vars': 'warn', // TODO remove (6 errors)
+      'n/no-process-exit': 'warn', // TODO remove (1 errors)
       // Enforce `import {type X} from 'path';` over `import type {X} from 'path';`,
       // but allow `import type * as <name> from 'path';`
       'no-restricted-syntax': [
@@ -179,10 +266,10 @@ export default [
           message: "Use `import {type X} from 'path';` instead of `import type {X} from 'path';`.",
         },
       ],
-      '@typescript-eslint/explicit-member-accessibility': 'warn',
+      '@typescript-eslint/explicit-member-accessibility': 'warn', // TODO remove (47 error)
       'unused-imports/no-unused-imports': 'error',
       'unused-imports/no-unused-vars': [
-        'warn',
+        'error',
         {
           vars: 'all',
           varsIgnorePattern: '^_',
@@ -209,15 +296,11 @@ export default [
           ignore: ['.*\\.d\\.ts$'], // Ignore TypeScript declaration files if needed
         },
       ],
-      'unicorn/no-null': 'warn', // TODO error
-      'unicorn/text-encoding-identifier-case': 'warn', // TODO error
-      'unicorn/catch-error-name': 'warn', // TODO error
-      'unicorn/no-this-assignment': 'warn', // TODO error
-      'unicorn/consistent-function-scoping': 'warn', // TODO error
-      'unicorn/error-message': 'warn', // TODO error
-      'unicorn/import-style': 'warn', // TODO error
-      'unicorn/prefer-optional-catch-binding': 'warn', // TODO error
-      'unicorn/no-array-push-push': 'warn', // TODO error
+      'unicorn/no-null': 'warn', // TODO error (104 errors)
+      'unicorn/consistent-function-scoping': 'warn', // TODO error (2 errors)
+      'unicorn/error-message': 'warn', // TODO error (1 error)
+      'unicorn/import-style': 'warn', // TODO error (8 errors)
+      'unicorn/better-dom-traversing': 'off', // TODO seems to be misidentifying some of our custom classes as Arrays
     },
   },
   {
@@ -226,6 +309,60 @@ export default [
     rules: {
       'no-invalid-this': ['error', {}],
       '@typescript-eslint/no-unused-expressions': 'error',
+    },
+  },
+  {
+    // No exported functions in source code — see §10.3.1.
+    // One exported interface per file, filename matches interface name in kebab-case — see §3.5.
+    files: ['src/**/*.ts'],
+    plugins: {solo: soloLocalPlugin},
+    rules: {
+      'solo/no-exported-function': 'error',
+      'solo/exported-interface-in-own-file': 'error',
+    },
+  },
+  {
+    // Enforce getEnvironmentVariable() over process.env[...] bracket notation in src/.
+    // Bracket-notation reads bypass the utility and the env.md documentation requirement.
+    // See CLAUDE.md "Environment Variable Access".
+    // constants.ts is excluded because it defines getEnvironmentVariable() and legitimately
+    // accesses process.env[name] internally.
+    files: ['src/**/*.ts'],
+    ignores: ['src/core/constants.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        // Re-state the global import-type check here because this block overrides
+        // no-restricted-syntax for src/ files; @typescript-eslint/consistent-type-imports
+        // already enforces the same thing at error level, so this is belt-and-suspenders.
+        {
+          selector: "ImportDeclaration[importKind='type'] ImportSpecifier",
+          message: "Use `import {type X} from 'path';` instead of `import type {X} from 'path';`.",
+        },
+        {
+          selector:
+            'MemberExpression[computed=true][object.type="MemberExpression"][object.object.name="process"][object.property.name="env"]',
+          message:
+            'Use getEnvironmentVariable() from src/core/constants.ts instead of process.env[...]. ' +
+            'Bracket-notation access bypasses the project utility and the env.md documentation requirement (see CLAUDE.md).',
+        },
+      ],
+    },
+  },
+  {
+    // @kubernetes/client-node types must not leak outside src/integration/kube.
+    // Use Solo domain types (Pod, ContainerStatus, etc.) in all other layers.
+    files: ['**/*.ts'],
+    ignores: ['src/integration/kube/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          name: '@kubernetes/client-node',
+          message:
+            '@kubernetes/client-node types must stay within src/integration/kube — use the Solo domain types (Pod, ContainerStatus, etc.) instead.',
+        },
+      ],
     },
   },
 ];

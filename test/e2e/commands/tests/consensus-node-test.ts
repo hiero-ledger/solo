@@ -2,7 +2,9 @@
 
 import {BaseCommandTest} from './base-command-test.js';
 import {main} from '../../../../src/index.js';
+import {type AnyListrContext} from '../../../../src/types/aliases.js';
 import {
+  type Context,
   type ClusterReferenceName,
   type ClusterReferences,
   type DeploymentName,
@@ -38,12 +40,15 @@ import {
   type TransactionResponse,
 } from '@hiero-ledger/sdk';
 import {type BaseTestOptions} from './base-test-options.js';
+
+import {KeysTest} from './keys-test.js';
 import {ConsensusCommandDefinition} from '../../../../src/commands/command-definitions/consensus-command-definition.js';
 import {DeploymentCommandDefinition} from '../../../../src/commands/command-definitions/deployment-command-definition.js';
-import {KeysTest} from './keys-test.js';
 import {sleep} from '../../../../src/core/helpers.js';
 import {NodeCommandTasks} from '../../../../src/commands/node/tasks.js';
+
 import {it} from 'mocha';
+
 import {
   createAccount,
   queryBalance,
@@ -53,10 +58,11 @@ import {
 } from '../../../test-utility.js';
 import {type RemoteConfigRuntimeState} from '../../../../src/business/runtime-state/config/remote/remote-config-runtime-state.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
-import {TEST_UPGRADE_VERSION} from '../../../../version-test.js';
+import {TEST_UPGRADE_FROM_VERSION, TEST_UPGRADE_TO_VERSION} from '../../../../version-test.js';
+import {SemanticVersion} from '../../../../src/business/utils/semantic-version.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {Zippy} from '../../../../src/core/zippy.js';
-import {NetworkNodes} from '../../../../src/core/network-nodes.js';
+import {type NetworkNodes} from '../../../../src/core/network-nodes.js';
 import {NodeStatusCodes} from '../../../../src/core/enumerations.js';
 import {type LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
 
@@ -94,12 +100,12 @@ export class ConsensusNodeTest extends BaseCommandTest {
       deployment,
     );
     if (enableLocalBuildPathTesting) {
-      argv.push(
-        optionFromFlag(Flags.localBuildPath),
-        localBuildPath,
-        optionFromFlag(Flags.releaseTag),
-        localBuildReleaseTag,
-      );
+      argv.push(optionFromFlag(Flags.localBuildPath), localBuildPath);
+    }
+
+    // Allow version-pinned setup in E2E tests even when local-build mode is off.
+    if (localBuildReleaseTag) {
+      argv.push(optionFromFlag(Flags.releaseTag), localBuildReleaseTag);
     }
     argvPushGlobalFlags(argv, testName, true);
     return argv;
@@ -244,7 +250,11 @@ export class ConsensusNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  private static soloConsensusNodeUpgradeArgv(options: BaseTestOptions, zipFile?: string): string[] {
+  private static soloConsensusNodeUpgradeArgv(
+    options: BaseTestOptions,
+    zipFile?: string,
+    applicationPropertiesPath?: string,
+  ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
     const {testName, deployment} = options;
 
@@ -258,11 +268,15 @@ export class ConsensusNodeTest extends BaseCommandTest {
       optionFromFlag(flags.quiet),
       optionFromFlag(flags.force),
       optionFromFlag(flags.upgradeVersion),
-      TEST_UPGRADE_VERSION,
+      TEST_UPGRADE_TO_VERSION,
     );
 
     if (zipFile) {
       argv.push(optionFromFlag(flags.upgradeZipFile), zipFile);
+    }
+
+    if (applicationPropertiesPath) {
+      argv.push(optionFromFlag(flags.applicationProperties), applicationPropertiesPath);
     }
 
     argvPushGlobalFlags(argv, testName, true, true);
@@ -316,7 +330,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     argv.push(
       DeploymentCommandDefinition.COMMAND_NAME,
       DeploymentCommandDefinition.DIAGNOSTICS_SUBCOMMAND_NAME,
-      DeploymentCommandDefinition.DIAGNOSTIC_CONNECTIONS,
+      DeploymentCommandDefinition.DIAGNOSTICS_CONNECTIONS,
       optionFromFlag(Flags.deployment),
       deployment,
       optionFromFlag(flags.quiet),
@@ -377,7 +391,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static setup(options: BaseTestOptions): void {
+  public static setup(options: BaseTestOptions, version?: string): void {
     const {
       testName,
       deployment,
@@ -397,7 +411,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
           deployment,
           enableLocalBuildPathTesting,
           localBuildPath,
-          localBuildReleaseTag,
+          version ?? localBuildReleaseTag,
         ),
       );
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
@@ -450,7 +464,46 @@ export class ConsensusNodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
-  private static soloNodeStartArgv(testName: string, deployment: DeploymentName, nodeAliases?: string): string[] {
+  public static readonly alphaClusterGrpcWebAddress: string = 'localhost';
+  public static readonly betaClusterGrpcWebAddress: string = 'remote.cluster.address';
+  public static readonly baseGrpcWebPort: number = 4444;
+
+  // Legacy aliases kept for external references
+  public static readonly firstNodeCustomGrpcWebEndpointAddress: string = ConsensusNodeTest.alphaClusterGrpcWebAddress;
+  public static readonly firstNodeCustomGrpcWebEndpointPort: number = ConsensusNodeTest.baseGrpcWebPort;
+  public static readonly secondNodeCustomGrpcWebEndpointAddress: string = ConsensusNodeTest.betaClusterGrpcWebAddress;
+  public static readonly secondNodeCustomGrpcWebEndpointPort: number = ConsensusNodeTest.baseGrpcWebPort + 1;
+
+  // Returns the 0-based cluster index (0=alpha, 1=beta) for a 1-based node number
+  // given N total nodes spread across 2 clusters (ceil(N/2) in alpha, floor(N/2) in beta).
+  public static clusterIndexForNodeNumber(nodeNumber: number, totalNodes: number): number {
+    return nodeNumber <= Math.ceil(totalNodes / 2) ? 0 : 1;
+  }
+
+  // Generates the --grpc-web-endpoints value for all N nodes.
+  // Alpha nodes get alphaClusterGrpcWebAddress and beta nodes get betaClusterGrpcWebAddress.
+  // Each node gets a unique port starting at baseGrpcWebPort.
+  public static grpcWebEndpointsForNodes(consensusNodesCount: number): string {
+    const alphaCount: number = Math.ceil(consensusNodesCount / 2);
+    const endpoints: string[] = [];
+    for (let index: number = 1; index <= consensusNodesCount; index++) {
+      const address: string =
+        index <= alphaCount
+          ? ConsensusNodeTest.alphaClusterGrpcWebAddress
+          : ConsensusNodeTest.betaClusterGrpcWebAddress;
+      const port: number = ConsensusNodeTest.baseGrpcWebPort + index - 1;
+      endpoints.push(`node${index}=${address}:${port}`);
+    }
+    return endpoints.join(',');
+  }
+
+  private static soloNodeStartArgv(
+    testName: string,
+    deployment: DeploymentName,
+    consensusNodesCount: number,
+    nodeAliases?: string,
+    setCustomGrpcWebAddress?: boolean,
+  ): string[] {
     const {newArgv, argvPushGlobalFlags, optionFromFlag} = ConsensusNodeTest;
 
     const argv: string[] = newArgv();
@@ -465,6 +518,14 @@ export class ConsensusNodeTest extends BaseCommandTest {
       argv.push(optionFromFlag(Flags.nodeAliasesUnparsed), nodeAliases);
     }
     argvPushGlobalFlags(argv, testName);
+
+    if (setCustomGrpcWebAddress) {
+      argv.push(
+        optionFromFlag(flags.grpcWebEndpoints),
+        ConsensusNodeTest.grpcWebEndpointsForNodes(consensusNodesCount),
+      );
+    }
+
     return argv;
   }
 
@@ -494,8 +555,8 @@ export class ConsensusNodeTest extends BaseCommandTest {
   ): Promise<string> {
     const accountManager: AccountManager = container.resolve<AccountManager>(InjectTokens.AccountManager);
     try {
-      await accountManager.refreshNodeClient(namespace, clusterReferences, undefined, deployment);
-      expect(accountManager._nodeClient).not.to.be.null;
+      await accountManager.refreshNodeClient(namespace, clusterReferences, deployment);
+      expect(accountManager._nodeClient).not.to.be.undefined;
       const privateKey: PrivateKey = PrivateKey.generate();
       const amount: number = 777;
 
@@ -527,13 +588,13 @@ export class ConsensusNodeTest extends BaseCommandTest {
     }
   }
 
-  public static start(options: BaseTestOptions): void {
+  public static start(options: BaseTestOptions, setCustomGrpcWebAddress: boolean = false): void {
     const {testName, deployment, namespace, contexts, createdAccountIds, clusterReferences, consensusNodesCount} =
       options;
     const {soloNodeStartArgv, verifyAccountCreateWasSuccessful} = ConsensusNodeTest;
 
     it(`${testName}: consensus node start`, async (): Promise<void> => {
-      await main(soloNodeStartArgv(testName, deployment));
+      await main(soloNodeStartArgv(testName, deployment, consensusNodesCount, undefined, setCustomGrpcWebAddress));
 
       const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
 
@@ -625,8 +686,8 @@ export class ConsensusNodeTest extends BaseCommandTest {
         await containerReference.copyFrom(`${HEDERA_HAPI_PATH}/VERSION`, temporaryDirectory);
         const versionFile: string = fs.readFileSync(`${temporaryDirectory}/VERSION`, 'utf8');
 
-        const versionLine: string = versionFile.split('\n')[0].trim();
-        expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_VERSION.replace('v', '')}`);
+        const versionLine: string = versionFile.split('\n', 1)[0].trim();
+        expect(versionLine).to.equal(`VERSION=${TEST_UPGRADE_TO_VERSION.replace('v', '')}`);
       }
 
       {
@@ -644,9 +705,12 @@ export class ConsensusNodeTest extends BaseCommandTest {
           .default()
           .containers()
           .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
-        await container.copyFrom(`${HEDERA_HAPI_PATH}/data/config/application.properties`, temporaryDirectory);
+        await container.copyFrom(
+          `${HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`,
+          temporaryDirectory,
+        );
 
-        const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, 'application.properties');
+        const applicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
         const applicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
         const updatedContent: string = applicationProperties.replaceAll(
           'contracts.chainId=298',
@@ -663,7 +727,10 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
         const modifiedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
 
-        await container.copyFrom(`${HEDERA_HAPI_PATH}/data/upgrade/current/application.properties`, temporaryDirectory);
+        await container.copyFrom(
+          `${HEDERA_HAPI_PATH}/data/upgrade/current/${constants.APPLICATION_PROPERTIES}`,
+          temporaryDirectory,
+        );
         const upgradedApplicationProperties: string = fs.readFileSync(applicationPropertiesPath, 'utf8');
 
         expect(modifiedApplicationProperties).to.equal(upgradedApplicationProperties);
@@ -672,7 +739,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       {
         const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
         const response: string = await container
-          .resolve<NetworkNodes>(NetworkNodes)
+          .resolve<NetworkNodes>(InjectTokens.NetworkNodes)
           .getNetworkNodePodStatus(PodReference.of(namespace, pods[0].podReference.name));
 
         expect(response).to.not.be.undefined;
@@ -704,6 +771,59 @@ export class ConsensusNodeTest extends BaseCommandTest {
     }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
+  public static upgradeConfigs(options: BaseTestOptions): void {
+    const {testName, namespace, contexts} = options;
+    const {soloConsensusNodeUpgradeArgv} = ConsensusNodeTest;
+    const temporaryDirectory: string = getTemporaryDirectory();
+
+    it(`${testName}: consensus node upgrade [upgrade configs]`, async (): Promise<void> => {
+      const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
+        InjectTokens.LocalConfigRuntimeState,
+      );
+      await localConfig.load();
+
+      const remoteConfig: RemoteConfigRuntimeState = container.resolve<RemoteConfigRuntimeState>(
+        InjectTokens.RemoteConfigRuntimeState,
+      );
+      await remoteConfig.load(namespace, contexts[0]);
+
+      const k8Factory: K8Factory = container.resolve<K8Factory>(InjectTokens.K8Factory);
+
+      const pods: Pod[] = await k8Factory.default().pods().list(namespace, ['solo.hedera.com/type=network-node']);
+
+      const containerReference: Container = k8Factory
+        .default()
+        .containers()
+        .readByRef(ContainerReference.of(PodReference.of(namespace, pods[0].podReference.name), ROOT_CONTAINER));
+
+      const applicationPropertiesFilePath: string = `${constants.HEDERA_HAPI_PATH}/data/config/${constants.APPLICATION_PROPERTIES}`;
+
+      // prepare temporary application.properties to utilize for argv
+      await containerReference.copyFrom(applicationPropertiesFilePath, temporaryDirectory);
+
+      const testApplicationPropertiesPath: string = PathEx.join(temporaryDirectory, constants.APPLICATION_PROPERTIES);
+
+      const applicationProperties: string = fs.readFileSync(testApplicationPropertiesPath, 'utf8');
+
+      const updatedContent: string = applicationProperties.replaceAll('contracts.chainId=298', 'contracts.chainId=299');
+
+      fs.writeFileSync(testApplicationPropertiesPath, updatedContent);
+
+      // Set the consensus node version in remote config to TEST_UPGRADE_FROM_VERSION
+      // so the downgrade guard allows upgrading to TEST_UPGRADE_TO_VERSION (which must be newer).
+      remoteConfig.configuration.versions.consensusNode = new SemanticVersion<string>(TEST_UPGRADE_FROM_VERSION);
+      await remoteConfig.persist();
+
+      await main(soloConsensusNodeUpgradeArgv(options, undefined, testApplicationPropertiesPath));
+
+      await containerReference.copyFrom(applicationPropertiesFilePath, temporaryDirectory);
+
+      const upgradedApplicationProperties: string = fs.readFileSync(testApplicationPropertiesPath, 'utf8');
+
+      expect(updatedContent).to.equal(upgradedApplicationProperties);
+    }).timeout(Duration.ofMinutes(10).toMillis());
+  }
+
   public static destroy(options: BaseTestOptions): void {
     const {testName} = options;
     const {soloConsensusNodeDestroyArgv} = ConsensusNodeTest;
@@ -721,7 +841,11 @@ export class ConsensusNodeTest extends BaseCommandTest {
     await sleep(Duration.ofSeconds(15)); // sleep to wait for node to finish starting
   }
 
-  private static async verifyPodShouldBeRunning(namespace: NamespaceName, nodeAlias: NodeAlias): Promise<void> {
+  private static async verifyPodShouldBeRunning(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    context?: Context,
+  ): Promise<void> {
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
       InjectTokens.LocalConfigRuntimeState,
     );
@@ -731,7 +855,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
       InjectTokens.RemoteConfigRuntimeState,
     );
 
-    await remoteConfig.load(namespace);
+    await remoteConfig.load(namespace, context);
 
     const podName: string = await container
       .resolve(NodeCommandTasks)
@@ -742,7 +866,11 @@ export class ConsensusNodeTest extends BaseCommandTest {
     expect(podName).to.equal(`network-${nodeAlias}-0`);
   }
 
-  private static async verifyPodShouldNotBeActive(namespace: NamespaceName, nodeAlias: NodeAlias): Promise<void> {
+  private static async verifyPodShouldNotBeActive(
+    namespace: NamespaceName,
+    nodeAlias: NodeAlias,
+    context: Context,
+  ): Promise<void> {
     const localConfig: LocalConfigRuntimeState = container.resolve<LocalConfigRuntimeState>(
       InjectTokens.LocalConfigRuntimeState,
     );
@@ -752,25 +880,32 @@ export class ConsensusNodeTest extends BaseCommandTest {
       InjectTokens.RemoteConfigRuntimeState,
     );
 
-    await remoteConfig.load(namespace);
+    await remoteConfig.load(namespace, context);
 
     await expect(
       container
         .resolve(NodeCommandTasks)
-        // @ts-expect-error - TS2341: to access private property
-        ._checkNetworkNodeActiveness(namespace, nodeAlias, {title: ''} as SoloListrTaskWrapper<any>, '', undefined, 15),
+        .checkNetworkNodeActiveness(
+          namespace,
+          nodeAlias,
+          {title: ''} as SoloListrTaskWrapper<AnyListrContext>,
+          '',
+          undefined,
+          15,
+        ),
     ).to.be.rejected;
   }
 
   public static PemKill(options: BaseTestOptions): void {
-    const {namespace, testName, testLogger} = options;
-    const {checkNetwork, soloConsensusNodeStopArgv, refresh, verifyPodShouldBeRunning, verifyPodShouldNotBeActive} =
-      ConsensusNodeTest;
+    const {namespace, testName, testLogger, consensusNodesCount} = options;
+    const {checkNetwork, soloConsensusNodeStopArgv, refresh, verifyPodShouldBeRunning} = ConsensusNodeTest;
 
     const nodeAlias: NodeAlias = 'node2';
 
     it(`${testName}: perform PEM kill`, async (): Promise<void> => {
-      const context: ClusterReferenceName = [...options.clusterReferences.values()][1];
+      // Determine which cluster node2 belongs to based on the distribution formula.
+      const clusterIndex: number = ConsensusNodeTest.clusterIndexForNodeNumber(2, consensusNodesCount);
+      const context: ClusterReferenceName = [...options.clusterReferences.values()][clusterIndex];
 
       const pods: Pod[] = await container
         .resolve<K8Factory>(InjectTokens.K8Factory)
@@ -788,9 +923,10 @@ export class ConsensusNodeTest extends BaseCommandTest {
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
 
-      await verifyPodShouldBeRunning(namespace, nodeAlias);
-      await verifyPodShouldNotBeActive(namespace, nodeAlias);
-      // stop the node to shut off the auto-restart
+      await verifyPodShouldBeRunning(namespace, nodeAlias, context);
+      // With autostart enabled (0.44.0+), killing a pod causes the platform to
+      // auto-restart via the network-node-autostart oneshot when the pod comes back.
+      // Stop it explicitly so we can do a controlled Solo-managed refresh below.
       await main(soloConsensusNodeStopArgv(options, nodeAlias));
 
       await sleep(Duration.ofSeconds(20)); // give time for node to stop and update its logs
@@ -802,7 +938,7 @@ export class ConsensusNodeTest extends BaseCommandTest {
   }
 
   public static PemStop(options: BaseTestOptions): void {
-    const {namespace, testName, testLogger, consensusNodesCount, deployment} = options;
+    const {namespace, testName, testLogger, consensusNodesCount, deployment, contexts} = options;
     const {
       checkNetwork,
       refresh,
@@ -819,17 +955,18 @@ export class ConsensusNodeTest extends BaseCommandTest {
 
       await sleep(Duration.ofSeconds(30)); // give time for node to stop and update its logs
 
-      for (const nodeAlias of Templates.renderNodeAliasesFromCount(consensusNodesCount, 0)) {
-        await verifyPodShouldBeRunning(namespace, nodeAlias);
-        await verifyPodShouldNotBeActive(namespace, nodeAlias);
-      }
+      // Only check the stopped node's status on its own cluster context.
+      // With N >= 3 nodes the remaining nodes retain quorum and stay ACTIVE.
+      const clusterIndex: number = ConsensusNodeTest.clusterIndexForNodeNumber(2, consensusNodesCount);
+      const node2Context: string | undefined = contexts ? contexts[clusterIndex] : undefined;
+      await verifyPodShouldBeRunning(namespace, nodeAlias, node2Context);
+      await verifyPodShouldNotBeActive(namespace, nodeAlias, node2Context);
 
       await refresh(options);
 
       await checkNetwork(testName, namespace, testLogger);
 
-      await main(soloNodeStartArgv(testName, deployment));
-
+      await main(soloNodeStartArgv(testName, deployment, consensusNodesCount, undefined, false));
       testLogger.showUser('Sleeping for 20 seconds');
       await sleep(Duration.ofSeconds(20));
     }).timeout(Duration.ofMinutes(10).toMillis());

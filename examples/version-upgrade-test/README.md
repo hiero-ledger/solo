@@ -88,9 +88,9 @@ task verify-functionality
 
 The example includes setup of port forwarding for easy access to services:
 
-* Explorer: http://localhost:8080
-* Relay: http://localhost:7546
-* Mirror Node: http://localhost:8081
+* Explorer: http://localhost:38080
+* Relay: http://localhost:37546
+* Mirror Node: http://localhost:38081
 
 ## Verification Steps
 
@@ -163,8 +163,8 @@ If API verification fails, ensure port forwarding is active and services are rea
 ps aux | grep port-forward
 
 # Test connectivity manually
-curl http://localhost:8080/api/v1/accounts
-curl -X POST http://localhost:7546 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}'
+curl http://localhost:38080/api/v1/accounts
+curl -X POST http://localhost:37546 -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}'
 ```
 
 ## Configuration

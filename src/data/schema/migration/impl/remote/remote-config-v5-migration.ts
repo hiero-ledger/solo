@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {type SchemaMigration} from '../../api/schema-migration.js';
 import {VersionRange} from '../../../../../business/utils/version-range.js';
-import {Version} from '../../../../../business/utils/version.js';
+import {SemanticVersion} from '../../../../../business/utils/semantic-version.js';
 
-import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
 import {type RemoteConfigStructure} from '../../../model/remote/interfaces/remote-config-structure.js';
 import {type DeploymentStateStructure} from '../../../model/remote/interfaces/deployment-state-structure.js';
 
@@ -13,14 +13,14 @@ export class RemoteConfigV5Migration implements SchemaMigration {
     return VersionRange.fromIntegerVersion(4);
   }
 
-  public get version(): Version<number> {
-    return new Version(5);
+  public get version(): SemanticVersion<number> {
+    return new SemanticVersion(5);
   }
 
   public async migrate(source: object): Promise<object> {
     if (!source) {
       // We should never pass null or undefined to this method, if this happens we should throw an error
-      throw new IllegalArgumentError('source must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('source must not be null or undefined');
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,7 +30,7 @@ export class RemoteConfigV5Migration implements SchemaMigration {
     state.tssEnabled = false;
 
     // Set the schema version to the new version
-    clone.schemaVersion = this.version.value;
+    clone.schemaVersion = this.version.major;
 
     return clone;
   }

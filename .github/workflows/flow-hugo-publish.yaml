@@ -41,10 +41,8 @@ permissions:
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
-  group: pr-pages-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 # Default to bash
@@ -62,7 +60,7 @@ jobs:
       versioned-release: ${{ steps.set-inputs.outputs.versioned_release }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
@@ -136,6 +134,16 @@ jobs:
 
   # ------- Hugo Build and Publish for Version Tag and Main Branch -------
 
+  # Generate CLI help and command output docs artifacts for versioned releases
+  docs-automation:
+    name: Docs Automation
+    if: ${{ needs.setup.outputs.versioned-release == 'true' && !cancelled() && !failure() }}
+    uses: ./.github/workflows/zxc-docs-automation.yaml
+    needs:
+      - setup
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
   # Do a Hugo build for the docs site for a version tag
   hugo-docs-build:
     name: Hugo Docs Build
@@ -172,6 +180,7 @@ jobs:
     needs:
       - setup
       - hugo-docs-build-main
+      - docs-automation
     with:
       docs-build-label: ${{ needs.setup.outputs.docs-build-label }}
       attach-docs-enabled: true

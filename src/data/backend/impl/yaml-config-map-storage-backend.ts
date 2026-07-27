@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import yaml from 'yaml';
 import {ConfigMapStorageBackend} from './config-map-storage-backend.js';
 import {type ObjectStorageBackend} from '../api/object-storage-backend.js';
 import {StorageBackendError} from '../api/storage-backend-error.js';
-import {IllegalArgumentError} from '../../../core/errors/illegal-argument-error.js';
 import {type ConfigMap} from '../../../integration/kube/resources/config-map/config-map.js';
 
 /**
@@ -31,7 +31,7 @@ export class YamlConfigMapStorageBackend extends ConfigMapStorageBackend impleme
 
   public async writeObject(key: string, data: object): Promise<void> {
     if (!data) {
-      throw new IllegalArgumentError('data must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('data must not be null or undefined');
     }
 
     try {

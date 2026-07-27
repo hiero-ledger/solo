@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type StorageBackend} from '../api/storage-backend.js';
 import {StorageOperation} from '../api/storage-operation.js';
 import {UnsupportedStorageOperationError} from '../api/unsupported-storage-operation-error.js';
 import {StorageBackendError} from '../api/storage-backend-error.js';
-import {IllegalArgumentError} from '../../../core/errors/illegal-argument-error.js';
 import {Prefix} from '../../key/prefix.js';
 import {EnvironmentKeyFormatter} from '../../key/environment-key-formatter.js';
 import {StringEx} from '../../../business/utils/string-ex.js';
@@ -74,7 +74,7 @@ export class EnvironmentStorageBackend implements StorageBackend {
 
   public async readBytes(key: string): Promise<Buffer> {
     if (StringEx.isEmpty(key)) {
-      throw new IllegalArgumentError('key must not be null, undefined, or empty');
+      throw new SoloErrors.validation.illegalArgument('key must not be null, undefined, or empty');
     }
 
     const normalizedKey: string = Prefix.add(key, this.prefix, EnvironmentKeyFormatter.instance());
@@ -89,6 +89,22 @@ export class EnvironmentStorageBackend implements StorageBackend {
     }
 
     return Buffer.from(value, 'utf8');
+  }
+
+  /**
+   * Reads a fixed/legacy environment variable by its exact name,
+   * without applying the `SOLO_` prefix or key formatting.
+   * Returns undefined when the variable is missing or blank.
+   * Used to resolve environment variable aliases.
+   */
+  public readRawValue(name: string): string | undefined {
+    let environment: NodeJS.ProcessEnv = process.env;
+    if (!environment) {
+      environment = {};
+    }
+
+    const value: string | undefined = environment[name];
+    return value && value.trim() !== '' ? value : undefined;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

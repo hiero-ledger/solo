@@ -5,7 +5,7 @@ import {type ComponentTypes} from '../enumerations/component-types.js';
 import {type DeploymentPhase} from '../../../../data/schema/model/remote/deployment-phase.js';
 import {type ClusterReferenceName, type ComponentId} from '../../../../types/index.js';
 import {type DeploymentStateSchema} from '../../../../data/schema/model/remote/deployment-state-schema.js';
-import {type ComponentIdsStructure} from '../../../../data/schema/model/remote/interfaces/components-ids-structure.js';
+import {type ComponentIdsStructure} from '../../../../data/schema/model/remote/interfaces/component-ids-structure.js';
 import {type PodReference} from '../../../../integration/kube/resources/pod/pod-reference.js';
 import {type K8} from '../../../../integration/kube/k8.js';
 import {type SoloLogger} from '../../../logging/solo-logger.js';
@@ -14,9 +14,23 @@ export interface ComponentsDataWrapperApi {
   state: DeploymentStateSchema;
   componentIds: ComponentIdsStructure;
 
-  addNewComponent(component: BaseStateSchema, type: ComponentTypes, isReplace?: boolean): void;
+  /**
+   * When running in one-shot mode, component id increment is skipped
+   * @param component
+   * @param type
+   * @param isReplace
+   * @param skipIncrement
+   */
+  addNewComponent(
+    component: BaseStateSchema,
+    type: ComponentTypes,
+    isReplace?: boolean,
+    skipIncrement?: boolean,
+  ): boolean;
 
   changeNodePhase(componentId: ComponentId, phase: DeploymentPhase): void;
+
+  changeComponentPhase(componentId: ComponentId, type: ComponentTypes, phase: DeploymentPhase): void;
 
   removeComponent(componentId: ComponentId, type: ComponentTypes): void;
 
@@ -44,6 +58,8 @@ export interface ComponentsDataWrapperApi {
     label: string,
     reuse?: boolean,
     nodeId?: number,
+    persist?: boolean,
+    externalAddress?: string,
   ): Promise<number>;
 
   stopPortForwards(

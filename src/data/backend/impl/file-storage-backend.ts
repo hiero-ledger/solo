@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../core/errors/solo-errors.js';
 import {type StorageBackend} from '../api/storage-backend.js';
 import {StorageOperation} from '../api/storage-operation.js';
 import {type Stats, statSync, lstatSync, readdirSync, writeFileSync, unlinkSync} from 'node:fs';
 import {StorageBackendError} from '../api/storage-backend-error.js';
-import {IllegalArgumentError} from '../../../core/errors/illegal-argument-error.js';
 import {readFileSync} from 'node:fs';
 import {PathEx} from '../../../business/utils/path-ex.js';
 
@@ -25,7 +25,7 @@ export class FileStorageBackend implements StorageBackend {
    */
   public constructor(public readonly basePath: string) {
     if (!basePath || basePath.trim().length === 0) {
-      throw new IllegalArgumentError('basePath must not be null, undefined or empty');
+      throw new SoloErrors.validation.illegalArgument('basePath must not be null, undefined or empty');
     }
 
     let stats: Stats;
@@ -70,7 +70,7 @@ export class FileStorageBackend implements StorageBackend {
 
   public async readBytes(key: string): Promise<Buffer> {
     if (!key || key.trim().length === 0) {
-      throw new IllegalArgumentError('key must not be null, undefined or empty');
+      throw new SoloErrors.validation.illegalArgument('key must not be null, undefined or empty');
     }
 
     const filePath: string = PathEx.join(this.basePath, key);
@@ -83,11 +83,11 @@ export class FileStorageBackend implements StorageBackend {
 
   public async writeBytes(key: string, data: Buffer): Promise<void> {
     if (!key || key.trim().length === 0) {
-      throw new IllegalArgumentError('key must not be null, undefined or empty');
+      throw new SoloErrors.validation.illegalArgument('key must not be null, undefined or empty');
     }
 
     if (!data) {
-      throw new IllegalArgumentError('data must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('data must not be null or undefined');
     }
 
     const filePath: string = PathEx.join(this.basePath, key);
@@ -100,7 +100,7 @@ export class FileStorageBackend implements StorageBackend {
 
   public async delete(key: string): Promise<void> {
     if (!key || key.trim().length === 0) {
-      throw new IllegalArgumentError('key must not be null, undefined or empty');
+      throw new SoloErrors.validation.illegalArgument('key must not be null, undefined or empty');
     }
 
     const filePath: string = PathEx.join(this.basePath, key);

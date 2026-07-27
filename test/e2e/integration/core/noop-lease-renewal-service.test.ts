@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {type Lock, type LockRenewalService} from '../../../../src/core/lock/lock.js';
+import {type Lock} from '../../../../src/core/lock/lock.js';
+import {type LockRenewalService} from '../../../../src/core/lock/lock-renewal-service.js';
 import {Duration} from '../../../../src/core/time/duration.js';
 
 export class NoopLeaseRenewalService implements LockRenewalService {
@@ -17,11 +18,13 @@ export class NoopLeaseRenewalService implements LockRenewalService {
     return _scheduleId > 0;
   }
 
-  public async schedule(_lease: Lock): Promise<number> {
+  public async schedule(lease: Lock): Promise<number> {
+    void lease;
     return Atomics.add(this.counter, 0, 1);
   }
 
-  public async cancel(_scheduleId: number): Promise<boolean> {
+  public async cancel(scheduleId: number): Promise<boolean> {
+    void scheduleId;
     return true;
   }
 
@@ -29,7 +32,8 @@ export class NoopLeaseRenewalService implements LockRenewalService {
     return new Map<number, boolean>();
   }
 
-  public calculateRenewalDelay(_lease: Lock): Duration {
+  public calculateRenewalDelay(lease: Lock): Duration {
+    void lease;
     return Duration.ofSeconds(10);
   }
 }

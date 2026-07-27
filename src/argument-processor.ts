@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {SoloError} from './core/errors/solo-error.js';
 import {SilentBreak} from './core/errors/silent-break.js';
 import {Flags as flags} from './commands/flags.js';
 import {type Middlewares} from './core/middlewares.js';
@@ -10,16 +9,18 @@ import {container} from 'tsyringe-neo';
 import {type SoloLogger} from './core/logging/solo-logger.js';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
+import {type AnyObject} from './types/aliases.js';
 
 export class ArgumentProcessor {
-  public static process(argv: string[]): any {
+  public static async process(argv: string[]): Promise<AnyObject> {
     const logger: SoloLogger = container.resolve<SoloLogger>(InjectTokens.SoloLogger);
     const middlewares: Middlewares = container.resolve(InjectTokens.Middlewares);
     const helpRenderer: HelpRenderer = container.resolve(InjectTokens.HelpRenderer);
-    const commands: any = container.resolve(InjectTokens.Commands);
+    const commands: AnyObject = container.resolve(InjectTokens.Commands);
+    const rawArguments: string[] = hideBin(argv);
 
     logger.debug('Initializing commands');
-    const rootCmd: any = yargs(hideBin(argv))
+    const rootCmd: AnyObject = yargs(rawArguments)
       .scriptName('')
       .usage('Usage:\n  solo <command> [options]')
       .alias('h', 'help')
@@ -31,8 +32,9 @@ export class ArgumentProcessor {
 
     rootCmd.middleware(
       [
+        middlewares.detectLocalSoloPackages(),
         middlewares.printCustomHelp(rootCmd),
-        middlewares.setLoggerDevFlag(),
+        middlewares.setLoggerDebugFlag(),
         // @ts-expect-error - TS2322: To assign middlewares
         middlewares.processArgumentsAndDisplayHeader(),
         middlewares.initSystemFiles(),
@@ -43,45 +45,47 @@ export class ArgumentProcessor {
     // Expand the terminal width to the maximum available
     rootCmd.wrap(rootCmd.terminalWidth());
 
-    rootCmd.fail((message, error): void => {
+    rootCmd.fail((message): void => {
       if (message) {
-        if (
-          message.includes('Unknown argument') ||
-          message.includes('Missing required argument') ||
-          message.toLowerCase().includes('select')
-        ) {
-          if (message.toLowerCase().includes('select')) {
-            // Show what subcommands are available then exit normally
-            rootCmd.showHelp((output): void => {
-              helpRenderer.render(rootCmd, output);
-            });
-            // Use SilentBreak to exit cleanly without error display
-            throw new SilentBreak('No subcommand provided, help displayed');
-          }
+        const usedHelpShorthand: boolean =
+          rawArguments.includes('help') && !rawArguments.includes('--help') && !rawArguments.includes('-h');
+        const usedHelpFlag: boolean = rawArguments.includes('--help') || rawArguments.includes('-h');
 
-          // For unknown/missing arguments, show message and help
-          logger.showUser(message);
+        if (usedHelpShorthand || usedHelpFlag) {
           rootCmd.showHelp((output): void => {
             helpRenderer.render(rootCmd, output);
           });
+          throw new SilentBreak('Help displayed');
+        }
 
-          // Throw error to propagate through async call chains if given unknown argument
-          if (!rootCmd.parsed.argv.help) {
-            // Set exit code but don't exit immediately - allows I/O buffers to flush
-            process.exitCode = 1;
-            throw new SoloError(message, error);
-          }
-        } else {
-          logger.showUserError(new SoloError(`Error running Solo CLI, failure occurred: ${message ?? ''}`));
-          throw new SoloError(message, error);
+        if (message.toLowerCase().includes('select')) {
+          // Show what subcommands are available then exit normally
+          rootCmd.showHelp((output): void => {
+            helpRenderer.render(rootCmd, output);
+          });
+          // Use SilentBreak to exit cleanly without error display
+          throw new SilentBreak('No subcommand provided, help displayed');
+        }
+
+        // Any other yargs failure is a CLI usage error: show it with the usage help, without an internal error report
+        logger.showUser(message);
+        rootCmd.showHelp((output): void => {
+          helpRenderer.render(rootCmd, output);
+        });
+
+        // Throw to propagate through async call chains when given an invalid argument
+        if (!rootCmd.parsed.argv.help) {
+          // Set exit code but don't exit immediately - allows I/O buffers to flush
+          process.exitCode = 1;
+          throw new SilentBreak(message);
         }
       }
     });
 
     logger.debug('Setting up flags');
     // set root level flags
-    flags.setOptionalCommandFlags(rootCmd, flags.devMode, flags.forcePortForward);
+    flags.setOptionalCommandFlags(rootCmd, flags.debugMode, flags.forcePortForward);
     logger.debug('Parsing root command (executing the commands)');
-    return rootCmd.parse();
+    return await rootCmd.parseAsync();
   }
 }

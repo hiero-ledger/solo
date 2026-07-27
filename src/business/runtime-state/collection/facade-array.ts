@@ -23,6 +23,8 @@ export interface FacadeArray<T extends Facade<B>, B> {
 
   some(predicate: (value: T) => boolean): boolean;
 
+  filter(predicate: (value: T) => boolean): T[];
+
   map<U>(callback: (value: T) => U): U[];
 
   remove(value: T): void;

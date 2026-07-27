@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {type KindClient} from '../kind-client.js';
-import {lt, SemVer} from 'semver';
 import {GetClustersRequest} from '../request/get/get-clusters-request.js';
 import {KindCluster} from '../model/kind-cluster.js';
 import {type KindRequest} from '../request/kind-request.js';
@@ -50,33 +49,41 @@ import {inject} from 'tsyringe-neo';
 import {InjectTokens} from '../../../core/dependency-injection/inject-tokens.js';
 import {type SoloLogger} from '../../../core/logging/solo-logger.js';
 import {patchInject} from '../../../core/dependency-injection/container-helper.js';
+import path from 'node:path';
+import {SemanticVersion} from '../../../business/utils/semantic-version.js';
 
 type BiFunction<T, U, R> = (t: T, u: U) => R;
 
 export class DefaultKindClient implements KindClient {
-  private static minimumVersion: SemVer = new SemVer(KIND_VERSION);
+  private static minimumVersion: SemanticVersion<string> = new SemanticVersion<string>(KIND_VERSION);
 
   public constructor(
     private readonly executable: string,
     @inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger,
+    @inject(InjectTokens.KindInstallationDirectory) private readonly installationDirectory?: string,
   ) {
     if (!executable || !executable.trim()) {
       throw new Error('executable must not be blank');
     }
     this.executable = executable;
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+    this.installationDirectory = patchInject(
+      installationDirectory,
+      InjectTokens.KindInstallationDirectory,
+      this.constructor.name,
+    );
   }
 
   public async checkVersion(): Promise<void> {
-    const version: SemVer = await this.version();
-    if (lt(version, DefaultKindClient.minimumVersion)) {
+    const version: SemanticVersion<string> = await this.version();
+    if (version.lessThan(DefaultKindClient.minimumVersion)) {
       throw new KindVersionRequirementException(
         `The Kind CLI version ${version} is lower than the minimum required version ${DefaultKindClient.minimumVersion}.`,
       );
     }
   }
 
-  public async version(): Promise<SemVer> {
+  public async version(): Promise<SemanticVersion<string>> {
     const request: VersionRequest = new VersionRequest();
     const builder: KindExecutionBuilder = new KindExecutionBuilder();
     builder.executable(this.executable);
@@ -91,9 +98,9 @@ export class DefaultKindClient implements KindClient {
       throw new TypeError('Unexpected response type');
     }
 
-    const semver: SemVer = result.getVersion();
+    const semver: SemanticVersion<string> = result.getVersion();
 
-    this.logger?.info?.(`kind version: ${semver.version ?? semver.toString()}`);
+    this.logger?.info?.(`kind version: ${semver.toString()}`);
 
     return semver;
   }
@@ -144,11 +151,23 @@ export class DefaultKindClient implements KindClient {
   }
 
   public async loadImageArchive(
-    imageName: string,
+    archivePath: string,
     options?: LoadImageArchiveOptions,
   ): Promise<LoadImageArchiveResponse> {
-    const builder: LoadImageArchiveOptionsBuilder = LoadImageArchiveOptionsBuilder.from(options).name(imageName);
-    return this.executeAsync(new LoadImageArchiveRequest(builder.build()), LoadImageArchiveResponse);
+    const builder: LoadImageArchiveOptionsBuilder =
+      LoadImageArchiveOptionsBuilder.from(options).archivePath(archivePath);
+
+    await this.executeCall(new LoadImageArchiveRequest(builder.build()));
+    return new LoadImageArchiveResponse();
+  }
+
+  private async executeCall<T extends KindRequest>(request: T): Promise<void> {
+    const builder: KindExecutionBuilder = new KindExecutionBuilder();
+    builder.executable(this.executable);
+    builder.environmentVariable('PATH', `${this.installationDirectory}${path.delimiter}${process.env.PATH}`);
+    request.apply(builder);
+    const execution: KindExecution = builder.build();
+    await execution.call();
   }
 
   /**
@@ -197,6 +216,7 @@ export class DefaultKindClient implements KindClient {
 
     const builder: KindExecutionBuilder = new KindExecutionBuilder();
     builder.executable(this.executable);
+    builder.environmentVariable('PATH', `${this.installationDirectory}${path.delimiter}${process.env.PATH}`);
     request.apply(builder);
     const execution: KindExecution = builder.build();
     return responseFunction(execution, responseClass);

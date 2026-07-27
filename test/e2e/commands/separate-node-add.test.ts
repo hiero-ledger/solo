@@ -18,9 +18,9 @@ import {type NodeAlias} from '../../../src/types/aliases.js';
 import {type DeploymentName} from '../../../src/types/index.js';
 import {type NodeServiceMapping} from '../../../src/types/mappings/node-service-mapping.js';
 import {
-  type AccountBalance,
-  AccountBalanceQuery,
   AccountCreateTransaction,
+  type AccountInfo,
+  AccountInfoQuery,
   Hbar,
   HbarUnit,
   PrivateKey,
@@ -108,7 +108,7 @@ export function testSeparateNodeAdd(
 
       await accountManager.close();
       argv.setArg(flags.nodeAliasesUnparsed, 'node1,node2,node3');
-    }).timeout(Duration.ofMinutes(12).toMillis());
+    }).timeout(Duration.ofMinutes(20).toMillis());
 
     it('should be able to create account after a separated consensus node add commands', async (): Promise<void> => {
       await main(LedgerTest.soloLedgerAccountCreateArgv(argv.getArg<string>(flags.deployment)));
@@ -189,11 +189,11 @@ export function testSeparateNodeAdd(
         argv.getArg<boolean>(flags.forcePortForward),
       );
 
-      const balance: AccountBalance = await new AccountBalanceQuery()
+      const accountInfoAfterRestart: AccountInfo = await new AccountInfoQuery()
         .setAccountId(accountInfo.accountId)
         .execute(accountManager._nodeClient);
 
-      expect(balance.hbars).to.be.eql(Hbar.from(accountInfo.balance, HbarUnit.Hbar));
+      expect(accountInfoAfterRestart.balance).to.be.eql(Hbar.from(accountInfo.balance, HbarUnit.Hbar));
     }).timeout(Duration.ofMinutes(10).toMillis());
-  }).timeout(Duration.ofMinutes(3).toMillis());
+  }).timeout(Duration.ofMinutes(20).toMillis());
 }

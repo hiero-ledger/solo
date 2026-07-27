@@ -10,12 +10,14 @@ import {type ClusterReferenceName, type ComponentId, type DeploymentName} from '
 import {type Pod} from '../../../../src/integration/kube/resources/pod/pod.js';
 import * as constants from '../../../../src/core/constants.js';
 import {expect} from 'chai';
-import {exec, type ExecException, type ExecOptions} from 'node:child_process';
+import {exec, type ExecException, type ExecOptionsWithStringEncoding} from 'node:child_process';
 import {promisify} from 'node:util';
 import {type NodeAlias, type NodeAliases} from '../../../../src/types/aliases.js';
 import {HEDERA_HAPI_PATH} from '../../../../src/core/constants.js';
 import {type Container} from '../../../../src/integration/kube/resources/container/container.js';
 import {K8Helper} from '../../../../src/business/utils/k8-helper.js';
+import {sleep} from '../../../../src/core/helpers.js';
+import {OperatingSystem} from '../../../../src/business/utils/operating-system.js';
 
 export class BlockNodeTest extends BaseCommandTest {
   private static soloBlockNodeDeployArgv(
@@ -111,7 +113,7 @@ export class BlockNodeTest extends BaseCommandTest {
       clusterReference,
       optionFromFlag(Flags.force),
       optionFromFlag(Flags.quiet),
-      optionFromFlag(Flags.devMode),
+      optionFromFlag(Flags.debugMode),
     );
 
     argvPushGlobalFlags(argv, testName, false, true);
@@ -137,7 +139,7 @@ export class BlockNodeTest extends BaseCommandTest {
       clusterReference,
       optionFromFlag(Flags.force),
       optionFromFlag(Flags.quiet),
-      optionFromFlag(Flags.devMode),
+      optionFromFlag(Flags.debugMode),
     );
 
     if (id !== undefined) {
@@ -148,23 +150,25 @@ export class BlockNodeTest extends BaseCommandTest {
     return argv;
   }
 
-  public static add(options: BaseTestOptions, nodeAliases?: NodeAliases): void {
+  public static add(options: BaseTestOptions, nodeAliases?: NodeAliases, clusterIndex: number = 0): void {
     const {testName, deployment, clusterReferenceNameArray, localBuildReleaseTag, enableLocalBuildPathTesting} =
       options;
     const {soloBlockNodeDeployArgv} = BlockNodeTest;
+    const clusterReference: string = clusterReferenceNameArray[clusterIndex];
 
-    it(`${testName}: block node add`, async (): Promise<void> => {
+    it(`${testName}: block node add on ${clusterReference}`, async (): Promise<void> => {
       await main(
         soloBlockNodeDeployArgv(
           testName,
           deployment,
-          clusterReferenceNameArray[0],
+          clusterReference,
           enableLocalBuildPathTesting,
           localBuildReleaseTag,
           nodeAliases,
         ),
       );
-    }).timeout(Duration.ofMinutes(5).toMillis());
+      // Block node add can exceed 5 minutes on CI when image/chart pulls are slow.
+    }).timeout(Duration.ofMinutes(10).toMillis());
   }
 
   public static addExternal(options: BaseTestOptions, address: string, nodeAliases?: NodeAliases): void {
@@ -202,26 +206,37 @@ export class BlockNodeTest extends BaseCommandTest {
 
     const execAsync: (
       command: string,
-      options?: ExecOptions,
+      options?: ExecOptionsWithStringEncoding,
     ) => Promise<{stdout: string; stderr: string; error?: ExecException}> = promisify(exec);
 
     it(`${testName}: test block node connection for block node ${blockNodeId}`, async (): Promise<void> => {
       const pod: Pod = await new K8Helper(contexts[0]).getBlockNodePod(namespace, blockNodeId);
 
       const srv: number = await pod.portForward(constants.BLOCK_NODE_PORT, constants.BLOCK_NODE_PORT);
-      const commandOptions: ExecOptions = {cwd: './test/data', maxBuffer: 50 * 1024 * 1024, encoding: 'utf8'};
 
-      // Make script executable
-      await execAsync('chmod +x ./get-block.sh', commandOptions);
+      // Sleep to allow the port-forward to be established before attempting to connect
+      await sleep(Duration.ofSeconds(5));
 
-      // Execute script
-      const scriptStd: {stdout: string; stderr: string} = await execAsync('./get-block.sh 1', commandOptions);
+      const commandOptions: ExecOptionsWithStringEncoding = {
+        cwd: './test/data',
+        maxBuffer: 50 * 1024 * 1024,
+        encoding: 'utf8',
+      };
+
+      // Make script executable (no-op on Windows; chmod is not available)
+      if (!OperatingSystem.isWin32()) {
+        await execAsync('chmod +x ./get-block.sh', commandOptions);
+      }
+
+      // Execute script (use bash explicitly on Windows since .sh files have no default handler)
+      const scriptCommand: string = OperatingSystem.isWin32() ? 'bash ./get-block.sh 1' : './get-block.sh 1';
+      const scriptStd: {stdout: string; stderr: string} = await execAsync(scriptCommand, commandOptions);
 
       expect(scriptStd.stderr).to.equal('');
       expect(scriptStd.stdout).to.include('"status": "SUCCESS"');
 
       await pod.stopPortForward(srv);
-    });
+    }).timeout(Duration.ofMinutes(2).toMillis());
   }
 
   public static verifyBlockNodesJson(

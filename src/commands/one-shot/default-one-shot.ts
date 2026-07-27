@@ -1,73 +1,94 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {Listr, ListrRendererValue} from 'listr2';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import * as constants from '../../core/constants.js';
 import {BaseCommand} from '../base.js';
-import {Flags as flags, Flags} from '../flags.js';
-import {type AnyListrContext, AnyObject, type ArgvStruct} from '../../types/aliases.js';
-import {type Realm, type Shard, type SoloListrTask, SoloListrTaskWrapper} from '../../types/index.js';
-import {type CommandFlag, type CommandFlags} from '../../types/flag-types.js';
+import {Flags as flags} from '../flags.js';
+import {AnyListrContext, type ArgvStruct, type NodeAlias} from '../../types/aliases.js';
+import {SoloListrTaskWrapper, type DeploymentName, type Optional, type SoloListr} from '../../types/index.js';
+import {CommandFlag, type CommandFlags} from '../../types/flag-types.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {v4 as uuid4} from 'uuid';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
-import {StringEx} from '../../business/utils/string-ex.js';
-import {OneShotCommand} from './one-shot.js';
+import {type OneShotCommand} from './one-shot-command.js';
 import {OneShotSingleDeployConfigClass} from './one-shot-single-deploy-config-class.js';
-import {OneShotSingleDeployContext} from './one-shot-single-deploy-context.js';
-import {OneShotSingleDestroyConfigClass} from './one-shot-single-destroy-config-class.js';
+import {type OneShotVersionsObject} from './one-shot-versions-object.js';
 import * as version from '../../../version.js';
+import {EdgeVersionFetcher} from '../../core/edge-version-fetcher.js';
+import {type EdgeVersionsObject} from '../../core/edge-versions-object.js';
 import {confirm as confirmPrompt} from '@inquirer/prompts';
-import {ClusterReferenceCommandDefinition} from '../command-definitions/cluster-reference-command-definition.js';
-import {DeploymentCommandDefinition} from '../command-definitions/deployment-command-definition.js';
-import {ConsensusCommandDefinition} from '../command-definitions/consensus-command-definition.js';
-import {KeysCommandDefinition} from '../command-definitions/keys-command-definition.js';
-import {MirrorCommandDefinition} from '../command-definitions/mirror-command-definition.js';
-import {ExplorerCommandDefinition} from '../command-definitions/explorer-command-definition.js';
-import {RelayCommandDefinition} from '../command-definitions/relay-command-definition.js';
+import {type FalconPrepareConfig} from './falcon-prepare-config.js';
+import {type FalconOverrideValue, type FalconPrepareSpec} from './falcon-prepare-spec.js';
+import {FalconPrepareSpecLoader} from './falcon-prepare-spec-loader.js';
+import {FALCON_DEPLOY_COMMAND, FALCON_PREPARE_COMMAND} from './one-shot-command-paths.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
-import {type AccountManager} from '../../core/account-manager.js';
-import {
-  CreatedPredefinedAccount,
-  PREDEFINED_ACCOUNT_GROUPS,
-  PredefinedAccount,
-  predefinedEcdsaAccounts,
-  predefinedEcdsaAccountsWithAlias,
-  predefinedEd25519Accounts,
-  SystemAccount,
-} from './predefined-accounts.js';
-import {AccountId, HbarUnit, PublicKey} from '@hiero-ledger/sdk';
-import * as helpers from '../../core/helpers.js';
-import {createDirectoryIfNotExists, entityId, remoteConfigsToDeploymentsTable} from '../../core/helpers.js';
-import {Duration} from '../../core/time/duration.js';
-import {resolveNamespaceFromDeployment} from '../../core/resolvers.js';
+import {UserInput} from '../../core/user-input.js';
 import fs from 'node:fs';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import yaml from 'yaml';
-import {BlockCommandDefinition} from '../command-definitions/block-command-definition.js';
-import {argvPushGlobalFlags, invokeSoloCommand, newArgv, optionFromFlag} from '../command-helpers.js';
+import {NetworkCommand} from '../network.js';
+import {MirrorNodeCommand} from '../mirror-node.js';
+import {RelayCommand} from '../relay.js';
+import {ExplorerCommand} from '../explorer.js';
+import {BlockNodeCommand} from '../block-node.js';
+import {SETUP_FLAGS as NODE_SETUP_FLAGS, START_FLAGS as NODE_START_FLAGS} from '../node/flags.js';
+import {negatedOptionFromFlag, optionFromFlag, soloCommand} from '../command-helpers.js';
 import {ConfigMap} from '../../integration/kube/resources/config-map/config-map.js';
+import {type K8} from '../../integration/kube/k8.js';
 import {Templates} from '../../core/templates.js';
-import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
 import {type Lock} from '../../core/lock/lock.js';
-import {ListrLock} from '../../core/lock/listr-lock.js';
+import {type SoloEventBus} from '../../core/events/solo-event-bus.js';
+import {type OneShotDeployOrchestrator} from './orchestrator/deploy/one-shot-deploy-orchestrator.js';
+import {type OneShotDestroyOrchestrator} from './orchestrator/destroy/one-shot-destroy-orchestrator.js';
+import {type OrchestratorPipeline} from './orchestrator/orchestrator-pipeline.js';
+import {type OneShotSingleDestroyContext} from './one-shot-single-destroy-context.js';
+import {Deployment} from '../../business/runtime-state/config/local/deployment.js';
+import {StringFacade} from '../../business/runtime-state/facade/string-facade.js';
+import {type DeploymentStateSchema} from '../../data/schema/model/remote/deployment-state-schema.js';
+import {OneShotInfoContext} from './one-shot-info-context.js';
+import {type ApplicationVersionsSchema} from '../../data/schema/model/common/application-versions-schema.js';
+import path from 'node:path';
+import {ListrInquirerPromptAdapter} from '@listr2/prompt-adapter-inquirer';
+import {K8Helper} from '../../business/utils/k8-helper.js';
 
 @injectable()
 export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand {
-  private static readonly SINGLE_DEPLOY_CONFIGS_NAME: string = 'singleAddConfigs';
-
-  private static readonly SINGLE_DESTROY_CONFIGS_NAME: string = 'singleDestroyConfigs';
+  private _isRollback: boolean = false;
 
   public static readonly DEPLOY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet, flags.numberOfConsensusNodes, flags.force, flags.deployment, flags.minimalSetup],
+    optional: [
+      flags.quiet,
+      flags.force,
+      flags.deployment,
+      flags.namespace,
+      flags.clusterRef,
+      flags.minimalSetup,
+      flags.rollback,
+      flags.parallelDeploy,
+      flags.externalAddress,
+      flags.edgeEnabled,
+      flags.consensusNodeVersion,
+      flags.mirrorNodeVersion,
+      flags.relayReleaseTag,
+      flags.relayVersion,
+      flags.explorerVersion,
+      flags.blockNodeChartVersion,
+      flags.blockNodeVersion,
+      flags.deployMetricsServer,
+    ],
+  };
+
+  public static readonly MULTI_DEPLOY_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [...DefaultOneShotCommand.DEPLOY_FLAGS_LIST.optional, flags.numberOfConsensusNodes],
   };
 
   public static readonly DESTROY_FLAGS_LIST: CommandFlags = {
     required: [],
-    optional: [flags.quiet],
+    optional: [flags.quiet, flags.deployment],
   };
 
   public static readonly FALCON_DEPLOY_FLAGS_LIST: CommandFlags = {
@@ -77,9 +98,24 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       flags.force,
       flags.valuesFile,
       flags.numberOfConsensusNodes,
+      flags.deployment,
+      flags.namespace,
+      flags.clusterRef,
       flags.deployMirrorNode,
       flags.deployExplorer,
       flags.deployRelay,
+      flags.deployMetricsServer,
+      flags.rollback,
+      flags.parallelDeploy,
+      flags.externalAddress,
+      flags.consensusNodeVersion,
+      flags.mirrorNodeVersion,
+      flags.relayReleaseTag,
+      flags.relayVersion,
+      flags.explorerVersion,
+      flags.blockNodeChartVersion,
+      flags.blockNodeVersion,
+      flags.edgeEnabled,
     ],
   };
 
@@ -93,25 +129,47 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     optional: [flags.quiet, flags.deployment],
   };
 
-  public constructor(@inject(InjectTokens.AccountManager) private readonly accountManager: AccountManager) {
-    super();
-    this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
-  }
+  public static readonly FALCON_PREPARE_FLAGS_LIST: CommandFlags = {
+    required: [],
+    optional: [
+      flags.outputValuesFile,
+      flags.quiet,
+      flags.numberOfConsensusNodes,
+      flags.releaseTag,
+      flags.relayReleaseTag,
+      flags.soloChartVersion,
+      flags.mirrorNodeVersion,
+      flags.blockNodeChartVersion,
+      flags.explorerVersion,
+      flags.loadBalancerEnabled,
+      flags.forcePortForward,
+      flags.localBuildPath,
+      flags.debugNodeAlias,
+    ],
+  };
 
-  /**
-   * Appends non-empty config entries to the argv array as CLI flags.
-   * @param argv - The argument array to append to
-   * @param configSection - The config object to extract key-value pairs from
-   */
-  private appendConfigToArgv(argv: string[], configSection: AnyObject): void {
-    if (!configSection) {
-      return;
-    }
-    for (const [key, value] of Object.entries(configSection)) {
-      if (value !== undefined && value !== null && value !== StringEx.EMPTY) {
-        argv.push(`${key}`, value.toString());
-      }
-    }
+  private static readonly FALCON_PREPARE_CONFIGS_NAME: string = 'falconPrepareConfigs';
+
+  public constructor(
+    @inject(InjectTokens.OneShotDeployOrchestrator)
+    private readonly deployOrchestrator: OneShotDeployOrchestrator,
+    @inject(InjectTokens.OneShotDestroyOrchestrator)
+    private readonly destroyOrchestrator: OneShotDestroyOrchestrator,
+    @inject(InjectTokens.SoloEventBus)
+    private readonly eventBus: SoloEventBus,
+  ) {
+    super();
+    this.deployOrchestrator = patchInject(
+      deployOrchestrator,
+      InjectTokens.OneShotDeployOrchestrator,
+      this.constructor.name,
+    );
+    this.destroyOrchestrator = patchInject(
+      destroyOrchestrator,
+      InjectTokens.OneShotDestroyOrchestrator,
+      this.constructor.name,
+    );
+    this.eventBus = patchInject(eventBus, InjectTokens.SoloEventBus, this.constructor.name);
   }
 
   public async deploy(argv: ArgvStruct): Promise<boolean> {
@@ -122,500 +180,104 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     return this.deployInternal(argv, DefaultOneShotCommand.FALCON_DEPLOY_FLAGS_LIST);
   }
 
-  private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
-    let config: OneShotSingleDeployConfigClass | undefined = undefined;
-    let oneShotLease: Lock | undefined;
-
-    const tasks: Listr<OneShotSingleDeployContext, ListrRendererValue, ListrRendererValue> =
-      this.taskList.newOneShotSingleDeployTaskList(
-        [
-          {
-            title: 'Initialize',
-            task: async (
-              context_: OneShotSingleDeployContext,
-              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-            ): Promise<void> => {
-              this.configManager.update(argv);
-              this.oneShotState.activate();
-
-              // Pre-set component version flags in configManager so they are available
-              // for all sub-commands during concurrent execution
-              this.configManager.setFlag(Flags.explorerVersion, version.EXPLORER_VERSION);
-              this.configManager.setFlag(Flags.mirrorNodeVersion, version.MIRROR_NODE_VERSION);
-              this.configManager.setFlag(Flags.relayReleaseTag, version.HEDERA_JSON_RPC_RELAY_VERSION);
-              this.configManager.setFlag(Flags.soloChartVersion, version.SOLO_CHART_VERSION);
-
-              flags.disablePrompts(flagsList.optional);
-
-              const allFlags: CommandFlag[] = [...flagsList.required, ...flagsList.optional];
-
-              await this.configManager.executePrompt(task, allFlags);
-
-              context_.config = this.configManager.getConfig(
-                DefaultOneShotCommand.SINGLE_DEPLOY_CONFIGS_NAME,
-                allFlags,
-              ) as OneShotSingleDeployConfigClass;
-              config = context_.config;
-
-              const uniquePostfix: string = uuid4().slice(-8);
-
-              // Initialize component config sections to empty objects to prevent undefined errors
-              config.consensusNodeConfiguration = {};
-              config.mirrorNodeConfiguration = {};
-              config.blockNodeConfiguration = {};
-              config.explorerNodeConfiguration = {};
-              config.relayNodeConfiguration = {};
-              config.networkConfiguration = {};
-              config.setupConfiguration = {};
-
-              // if valuesFile is set, read the yaml file and save flags to different config sections to be used
-              // later for consensus node, mirror node, block node, explorer node, relay node
-              if (config.valuesFile) {
-                const valuesFileContent: string = fs.readFileSync(context_.config.valuesFile, 'utf8');
-                const profileItems: Record<string, AnyObject> = yaml.parse(valuesFileContent) as Record<
-                  string,
-                  AnyObject
-                >;
-
-                // Override with values from file if they exist
-                if (profileItems.network) {
-                  config.networkConfiguration = profileItems.network;
-                }
-                if (profileItems.setup) {
-                  config.setupConfiguration = profileItems.setup;
-                }
-                if (profileItems.consensusNode) {
-                  config.consensusNodeConfiguration = profileItems.consensusNode;
-                }
-                if (profileItems.mirrorNode) {
-                  config.mirrorNodeConfiguration = profileItems.mirrorNode;
-                }
-                if (profileItems.blockNode) {
-                  config.blockNodeConfiguration = profileItems.blockNode;
-                }
-                if (profileItems.explorerNode) {
-                  config.explorerNodeConfiguration = profileItems.explorerNode;
-                }
-                if (profileItems.relayNode) {
-                  config.relayNodeConfiguration = profileItems.relayNode;
-                }
-              }
-              config.clusterRef = config.clusterRef || `solo-${uniquePostfix}`;
-              config.context = config.context || this.k8Factory.default().contexts().readCurrent();
-              config.deployment = config.deployment || `solo-deployment-${uniquePostfix}`;
-              config.namespace = config.namespace || NamespaceName.of(`solo-${uniquePostfix}`);
-              this.configManager.setFlag(flags.namespace, config.namespace);
-              config.numberOfConsensusNodes = config.numberOfConsensusNodes || 1;
-              config.force = argv.force;
-
-              // Initialize deployment toggles with defaults if not specified
-              config.deployMirrorNode = config.deployMirrorNode === undefined ? true : config.deployMirrorNode;
-              config.deployExplorer = config.deployExplorer === undefined ? true : config.deployExplorer;
-              config.deployRelay = config.deployRelay === undefined ? true : config.deployRelay;
-
-              context_.createdAccounts = [];
-
-              this.logger.debug(`quiet: ${config.quiet}`);
-
-              return;
-            },
-          },
-          {
-            title: 'Acquire deployment lock',
-            task: async (
-              context_: OneShotSingleDeployContext,
-              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-            ): Promise<Listr<OneShotSingleDeployContext>> => {
-              oneShotLease = await this.leaseManager.create();
-              return ListrLock.newAcquireLockTask(oneShotLease, task);
-            },
-          },
-          {
-            title: 'Check for other deployments',
-            task: async (
-              context_: OneShotSingleDeployContext,
-              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-            ): Promise<void> => {
-              const existingRemoteConfigs: ConfigMap[] = await this.k8Factory
-                .default()
-                .configMaps()
-                .listForAllNamespaces(Templates.renderConfigMapRemoteConfigLabels());
-              if (existingRemoteConfigs.length > 0) {
-                const existingDeploymentsTable: string[] = remoteConfigsToDeploymentsTable(existingRemoteConfigs);
-                const promptOptions: {default: boolean; message: string} = {
-                  default: false,
-                  message:
-                    '⚠️ Warning: Existing solo deployment detected in cluster.\n\n' +
-                    existingDeploymentsTable.join('\n') +
-                    '\n\nCreating another deployment will require additional' +
-                    ' CPU and memory resources. Do you want to proceed and create another deployment?',
-                };
-                const proceed: boolean = await task
-                  .prompt(ListrInquirerPromptAdapter)
-                  .run(confirmPrompt, promptOptions);
-                if (!proceed) {
-                  throw new SoloError('Aborted by user');
-                }
-              }
-            },
-            skip: (context_: OneShotSingleDeployContext): boolean =>
-              context_.config.force === true || context_.config.quiet === true,
-          },
-          invokeSoloCommand(
-            `solo ${ClusterReferenceCommandDefinition.CONNECT_COMMAND}`,
-            ClusterReferenceCommandDefinition.CONNECT_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...ClusterReferenceCommandDefinition.CONNECT_COMMAND.split(' '),
-                optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-                optionFromFlag(Flags.context),
-                config.context,
-              );
-              return argvPushGlobalFlags(argv);
-            },
-            this.taskList,
-          ),
-          invokeSoloCommand(
-            `solo ${DeploymentCommandDefinition.CREATE_COMMAND}`,
-            DeploymentCommandDefinition.CREATE_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...DeploymentCommandDefinition.CREATE_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-                optionFromFlag(Flags.namespace),
-                config.namespace.name,
-              );
-              return argvPushGlobalFlags(argv);
-            },
-            this.taskList,
-          ),
-          invokeSoloCommand(
-            `solo ${DeploymentCommandDefinition.ATTACH_COMMAND}`,
-            DeploymentCommandDefinition.ATTACH_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...DeploymentCommandDefinition.ATTACH_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-                optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-                optionFromFlag(Flags.numberOfConsensusNodes),
-                config.numberOfConsensusNodes.toString(),
-              );
-              return argvPushGlobalFlags(argv);
-            },
-            this.taskList,
-          ),
-          invokeSoloCommand(
-            `solo ${ClusterReferenceCommandDefinition.SETUP_COMMAND}`,
-            ClusterReferenceCommandDefinition.SETUP_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...ClusterReferenceCommandDefinition.SETUP_COMMAND.split(' '),
-                optionFromFlag(Flags.clusterRef),
-                config.clusterRef,
-              );
-              return argvPushGlobalFlags(argv);
-            },
-            this.taskList,
-          ),
-          invokeSoloCommand(
-            `solo ${KeysCommandDefinition.KEYS_COMMAND}`,
-            KeysCommandDefinition.KEYS_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...KeysCommandDefinition.KEYS_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-                optionFromFlag(Flags.generateGossipKeys),
-                'true',
-                optionFromFlag(Flags.generateTlsKeys),
-              );
-              return argvPushGlobalFlags(argv, config.cacheDir);
-            },
-            this.taskList,
-          ),
-          invokeSoloCommand(
-            `solo ${BlockCommandDefinition.ADD_COMMAND}`,
-            BlockCommandDefinition.ADD_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...BlockCommandDefinition.ADD_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-              );
-              return argvPushGlobalFlags(argv);
-            },
-            this.taskList,
-            (): boolean => constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true',
-          ),
-          invokeSoloCommand(
-            `solo ${ConsensusCommandDefinition.DEPLOY_COMMAND}`,
-            ConsensusCommandDefinition.DEPLOY_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...ConsensusCommandDefinition.DEPLOY_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-              );
-              if (config.networkConfiguration) {
-                this.appendConfigToArgv(argv, config.networkConfiguration);
-              }
-              return argvPushGlobalFlags(argv, config.cacheDir);
-            },
-            this.taskList,
-          ),
-          invokeSoloCommand(
-            `solo ${ConsensusCommandDefinition.SETUP_COMMAND}`,
-            ConsensusCommandDefinition.SETUP_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...ConsensusCommandDefinition.SETUP_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-              );
-              this.appendConfigToArgv(argv, config.setupConfiguration);
-              return argvPushGlobalFlags(argv, config.cacheDir);
-            },
-            this.taskList,
-          ),
-          invokeSoloCommand(
-            `solo ${ConsensusCommandDefinition.START_COMMAND}`,
-            ConsensusCommandDefinition.START_COMMAND,
-            (): string[] => {
-              const argv: string[] = newArgv();
-              argv.push(
-                ...ConsensusCommandDefinition.START_COMMAND.split(' '),
-                optionFromFlag(Flags.deployment),
-                config.deployment,
-              );
-              this.appendConfigToArgv(argv, config.consensusNodeConfiguration);
-              return argvPushGlobalFlags(argv);
-            },
-            this.taskList,
-          ),
-          {
-            title: 'Deploy components and create accounts',
-            task: async (
-              context_: OneShotSingleDeployContext,
-              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-            ): Promise<Listr<OneShotSingleDeployContext>> => {
-              return task.newListr(
-                [
-                  // Pipeline A: mirror → (explorer || relay)
-                  {
-                    title: 'Deploy mirror node and extensions',
-                    task: async (
-                      context_: OneShotSingleDeployContext,
-                      task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                    ): Promise<Listr<OneShotSingleDeployContext>> => {
-                      return task.newListr(
-                        [
-                          invokeSoloCommand(
-                            `solo ${MirrorCommandDefinition.ADD_COMMAND}`,
-                            MirrorCommandDefinition.ADD_COMMAND,
-                            (): string[] => {
-                              const argv: string[] = newArgv();
-                              argv.push(
-                                ...MirrorCommandDefinition.ADD_COMMAND.split(' '),
-                                optionFromFlag(Flags.deployment),
-                                config.deployment,
-                                optionFromFlag(Flags.clusterRef),
-                                config.clusterRef,
-                                optionFromFlag(Flags.pinger),
-                                optionFromFlag(Flags.enableIngress),
-                              );
-                              this.appendConfigToArgv(argv, config.mirrorNodeConfiguration);
-                              return argvPushGlobalFlags(argv, config.cacheDir);
-                            },
-                            this.taskList,
-                            (): boolean => !config.deployMirrorNode,
-                          ),
-                          {
-                            title: 'Extended setup',
-                            task: async (
-                              context_: OneShotSingleDeployContext,
-                              task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                            ): Promise<Listr<OneShotSingleDeployContext>> => {
-                              const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
-                                invokeSoloCommand(
-                                  `solo ${ExplorerCommandDefinition.ADD_COMMAND}`,
-                                  ExplorerCommandDefinition.ADD_COMMAND,
-                                  (): string[] => {
-                                    const argv: string[] = newArgv();
-                                    argv.push(
-                                      ...ExplorerCommandDefinition.ADD_COMMAND.split(' '),
-                                      optionFromFlag(Flags.deployment),
-                                      config.deployment,
-                                      optionFromFlag(Flags.clusterRef),
-                                      config.clusterRef,
-                                      optionFromFlag(Flags.explorerVersion),
-                                      version.EXPLORER_VERSION,
-                                    );
-                                    this.appendConfigToArgv(argv, config.explorerNodeConfiguration);
-                                    return argvPushGlobalFlags(argv, config.cacheDir);
-                                  },
-                                  this.taskList,
-                                  (): boolean => !config.deployExplorer,
-                                ),
-                                invokeSoloCommand(
-                                  `solo ${RelayCommandDefinition.ADD_COMMAND}`,
-                                  RelayCommandDefinition.ADD_COMMAND,
-                                  (): string[] => {
-                                    const argv: string[] = newArgv();
-                                    argv.push(
-                                      ...RelayCommandDefinition.ADD_COMMAND.split(' '),
-                                      optionFromFlag(Flags.deployment),
-                                      config.deployment,
-                                      optionFromFlag(Flags.clusterRef),
-                                      config.clusterRef,
-                                      optionFromFlag(Flags.nodeAliasesUnparsed),
-                                      'node1',
-                                    );
-                                    this.appendConfigToArgv(argv, config.relayNodeConfiguration);
-                                    return argvPushGlobalFlags(argv);
-                                  },
-                                  this.taskList,
-                                  (): boolean => !config.deployRelay,
-                                ),
-                              ];
-
-                              return task.newListr(subTasks, {
-                                concurrent: true,
-                                rendererOptions: {
-                                  collapseSubtasks: false,
-                                },
-                              });
-                            },
-                            skip: (): boolean => config.minimalSetup,
-                          },
-                        ],
-                        {
-                          concurrent: false,
-                          rendererOptions: {
-                            collapseSubtasks: false,
-                          },
-                        },
-                      );
-                    },
-                  },
-                  // Pipeline B: create accounts (concurrent with Pipeline A)
-                  {
-                    title: 'Create Accounts',
-                    skip: (): boolean => config.predefinedAccounts === false,
-                    task: async (
-                      context_: OneShotSingleDeployContext,
-                      task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                    ): Promise<Listr<OneShotSingleDeployContext>> => {
-                      await this.localConfig.load();
-                      await this.remoteConfig.loadAndValidate(argv);
-                      const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [];
-
-                      const accountsToCreate: PredefinedAccount[] = [
-                        ...predefinedEcdsaAccounts,
-                        ...predefinedEcdsaAccountsWithAlias,
-                        ...predefinedEd25519Accounts,
-                      ];
-
-                      await this.accountManager.loadNodeClient(
-                        config.namespace,
-                        this.remoteConfig.getClusterRefs(),
-                        context_.config.deployment,
-                      );
-
-                      for (const [index, account] of accountsToCreate.entries()) {
-                        // inject index to avoid closure issues
-                        ((index: number, account: PredefinedAccount): void => {
-                          subTasks.push({
-                            title: `Creating Account ${index}`,
-                            task: async (
-                              context_: OneShotSingleDeployContext,
-                              subTask: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-                            ): Promise<void> => {
-                              await helpers.sleep(Duration.ofMillis(100 * index));
-
-                              const createdAccount: {
-                                accountId: string;
-                                privateKey: string;
-                                publicKey: string;
-                                balance: number;
-                                accountAlias?: string;
-                              } = await this.accountManager.createNewAccount(
-                                context_.config.namespace,
-                                account.privateKey,
-                                account.balance.to(HbarUnit.Hbar).toNumber(),
-                                account.alias,
-                                context_.config.context,
-                              );
-
-                              context_.createdAccounts.push({
-                                accountId: AccountId.fromString(createdAccount.accountId),
-                                data: account,
-                                alias: createdAccount.accountAlias,
-                                publicKey: createdAccount.publicKey,
-                              });
-
-                              subTask.title = `Account created: ${createdAccount.accountId.toString()}`;
-                            },
-                          });
-                        })(index, account);
-                      }
-
-                      return task.newListr(subTasks, {
-                        concurrent: true,
-                        rendererOptions: {
-                          collapseSubtasks: false,
-                        },
-                      });
-                    },
-                  },
-                ],
-                {
-                  concurrent: true,
-                  rendererOptions: {
-                    collapseSubtasks: false,
-                  },
-                },
-              );
-            },
-          },
-          {
-            title: 'Finish',
-            task: async (context_: OneShotSingleDeployContext): Promise<void> => {
-              const outputDirectory: string = this.getOneShotOutputDirectory(context_.config.deployment);
-              this.showOneShotUserNotes(context_, false, PathEx.join(outputDirectory, 'notes'));
-              this.showVersions(PathEx.join(outputDirectory, 'versions'));
-              this.showPortForwards(PathEx.join(outputDirectory, 'forwards'));
-              this.showAccounts(context_.createdAccounts, context_, PathEx.join(outputDirectory, 'accounts.json'));
-              this.cacheDeploymentName(context_, PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt'));
-
-              return;
-            },
-          },
-        ],
-        constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+  private async performRollback(
+    deployError: Error,
+    config: OneShotSingleDeployConfigClass | undefined,
+  ): Promise<never> {
+    if (!config) {
+      throw new SoloErrors.component.oneShotDeployFailed(
+        `Deploy failed: ${deployError.message}. Rollback skipped: no resources created.`,
+        deployError,
       );
+    }
 
+    if (config.rollback === false) {
+      this.logger.warn('Automatic rollback skipped (--no-rollback flag provided)');
+      this.logger.warn('To clean up: solo one-shot single destroy');
+      this.logger.warn(`Or: kubectl delete ns ${config.namespace.name}`);
+      throw new SoloErrors.component.oneShotDeployFailed(
+        `Deploy failed: ${deployError.message}. Rollback skipped (--no-rollback).`,
+        deployError,
+      );
+    }
+
+    this.logger.warn(
+      `Deploy failed. Starting automatic rollback for deployment '${config.deployment}' in namespace '${config.namespace.name}'...`,
+    );
+
+    const destroyArgv: ArgvStruct = {
+      _: [],
+      deployment: config.deployment,
+      clusterRef: config.clusterRef,
+      namespace: config.namespace.name,
+      context: config.context,
+      quiet: true,
+    };
+
+    this._isRollback = true;
     try {
-      await tasks.run();
-    } catch (error) {
-      throw new SoloError(`Error deploying Solo in one-shot mode: ${error.message}`, error);
+      await this.destroyInternal(destroyArgv, DefaultOneShotCommand.DESTROY_FLAGS_LIST);
+    } catch (rollbackError) {
+      this.logger.error(`Rollback failed for deployment '${config.deployment}': ${rollbackError.message}`);
+      throw new SoloErrors.component.oneShotDeployFailed(
+        `Deploy failed: ${deployError.message}. Rollback also failed: ${rollbackError.message}`,
+        deployError,
+      );
     } finally {
+      // Safety net: ensure namespace is always deleted during rollback, even if destroyInternal
+      // failed or skipped namespace cleanup (e.g. due to skipAll, helm uninstall failure, etc.)
+      try {
+        const k8: K8 = this.k8Factory.getK8(config.context);
+        if (await k8.namespaces().has(config.namespace)) {
+          const shouldDeleteNamespace: boolean = await new K8Helper(config.context).isNamespaceOwnedBySolo(
+            config.namespace,
+          );
+
+          if (shouldDeleteNamespace) {
+            this.logger.warn(`Rollback cleanup: deleting namespace '${config.namespace.name}'`);
+            await k8.namespaces().delete(config.namespace);
+          } else {
+            this.logger.warn(`Rollback cleanup: skipping namespace '${config.namespace.name}', not created by solo`);
+          }
+        }
+      } catch (cleanupError) {
+        this.logger.warn(
+          `Failed to delete namespace '${config.namespace.name}' during rollback cleanup: ${cleanupError.message}`,
+        );
+      }
+
+      this._isRollback = false;
+    }
+
+    this.logger.info(`Rollback complete. Cache preserved at: ${config.cacheDir}`);
+    throw new SoloErrors.component.oneShotDeployFailed(
+      `Deploy failed: ${deployError.message}. Rollback completed successfully.`,
+      deployError,
+    );
+  }
+
+  private async deployInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
+    const leaseReference: {value?: Lock} = {};
+    const configReference: {value?: OneShotSingleDeployConfigClass} = {};
+    const deferUserOutput: boolean = argv[flags.parallelDeploy.name] !== false;
+    if (deferUserOutput) {
+      this.logger.beginDeferredUserOutput();
+    }
+    this.eventBus.reset();
+    try {
+      await this.deployOrchestrator.buildDeployPipeline(argv, flagsList, leaseReference, configReference).run();
+    } catch (error) {
+      const rootError: Error = this.eventBus.abortReason() ?? error;
+      await this.performRollback(rootError, configReference.value);
+    } finally {
+      if (deferUserOutput) {
+        this.logger.flushDeferredUserOutput();
+      }
       this.oneShotState.deactivate();
       const cleanupPromises: Promise<void>[] = [];
-      if (oneShotLease) {
+      if (leaseReference.value) {
         cleanupPromises.push(
-          oneShotLease.release().catch((error): void => {
+          leaseReference.value.release(true).catch((error): void => {
             this.logger.error('Error releasing one-shot lease:', error);
           }),
         );
@@ -630,233 +292,11 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       );
       await Promise.all(cleanupPromises);
     }
-
     return true;
   }
 
-  private showOneShotUserNotes(
-    context_: OneShotSingleDeployContext,
-    isMultiple: boolean = false,
-    outputFile?: string,
-  ): void {
-    const messageGroupKey: string = isMultiple ? 'one-shot-multiple-user-notes' : 'one-shot-user-notes';
-    const title: string = isMultiple ? 'One Shot Multiple User Notes' : 'One Shot User Notes';
-
-    this.logger.addMessageGroup(messageGroupKey, title);
-    const data = [
-      `Cluster Reference: ${context_.config.clusterRef}`,
-      `Deployment Name: ${context_.config.deployment}`,
-      `Namespace Name: ${context_.config.namespace.name}`,
-    ];
-
-    for (const line of data) {
-      this.logger.addMessageGroupMessage(messageGroupKey, line);
-    }
-
-    if (isMultiple) {
-      this.logger.addMessageGroupMessage(
-        messageGroupKey,
-        `Number of Consensus Nodes: ${context_.config.numberOfConsensusNodes}`,
-      );
-    }
-
-    this.logger.addMessageGroupMessage(
-      messageGroupKey,
-      'To quickly delete the deployed resources, run the following command:\n' +
-        `kubectl delete ns ${context_.config.namespace.name}`,
-    );
-
-    this.logger.showMessageGroup(messageGroupKey);
-
-    if (outputFile) {
-      const fileData: string = data.join('\n') + '\n';
-      createDirectoryIfNotExists(outputFile);
-      fs.writeFileSync(outputFile, fileData);
-      this.logger.showUser(chalk.green(`✅ User notes saved to file: ${outputFile}`));
-    }
-  }
-
-  private showVersions(outputFile?: string): void {
-    const messageGroupKey: string = 'versions-used';
-    this.logger.addMessageGroup(messageGroupKey, 'Versions Used');
-
-    const data = [
-      `Solo Chart Version: ${version.SOLO_CHART_VERSION}`,
-      `Consensus Node Version: ${version.HEDERA_PLATFORM_VERSION}`,
-      `Mirror Node Version: ${version.MIRROR_NODE_VERSION}`,
-      `Explorer Version: ${version.EXPLORER_VERSION}`,
-      `JSON RPC Relay Version: ${version.HEDERA_JSON_RPC_RELAY_VERSION}`,
-    ];
-
-    for (const line of data) {
-      this.logger.addMessageGroupMessage(messageGroupKey, line);
-    }
-
-    this.logger.showMessageGroup(messageGroupKey);
-    if (outputFile) {
-      const fileData: string = data.join('\n') + '\n';
-      createDirectoryIfNotExists(outputFile);
-      fs.writeFileSync(outputFile, fileData);
-      this.logger.showUser(chalk.green(`✅ Versions used saved to file: ${outputFile}`));
-    }
-  }
-
-  private cacheDeploymentName(context: OneShotSingleDeployContext, outputFile: string): void {
-    fs.writeFileSync(outputFile, context.config.deployment);
-    this.logger.showUser(chalk.green(`✅ Deployment name (${context.config.deployment}) saved to file: ${outputFile}`));
-  }
-
   private getOneShotOutputDirectory(deploymentName: string): string {
-    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${deploymentName}`);
-  }
-
-  private showAccounts(
-    createdAccounts: CreatedPredefinedAccount[] = [],
-    context: OneShotSingleDeployContext,
-    outputFile?: string,
-  ): void {
-    if (createdAccounts.length > 0) {
-      createdAccounts.sort((a: CreatedPredefinedAccount, b: CreatedPredefinedAccount): number =>
-        a.accountId.compare(b.accountId),
-      );
-
-      const ecdsaAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
-        (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA,
-      );
-      const aliasAccounts: CreatedPredefinedAccount[] = createdAccounts.filter(
-        (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS,
-      );
-      const ed25519Accounts: CreatedPredefinedAccount[] = createdAccounts.filter(
-        (account: CreatedPredefinedAccount): boolean => account.data.group === PREDEFINED_ACCOUNT_GROUPS.ED25519,
-      );
-
-      const systemAccountsGroupKey: string = 'system-accounts';
-      const messageGroupKey: string = 'accounts-created';
-      const ecdsaGroupKey: string = 'accounts-created-ecdsa';
-      const ecdsaAliasGroupKey: string = 'accounts-created-ecdsa-alias';
-      const ed25519GroupKey: string = 'accounts-created-ed25519';
-
-      const realm: Realm = this.localConfig.configuration.realmForDeployment(context.config.deployment);
-      const shard: Shard = this.localConfig.configuration.shardForDeployment(context.config.deployment);
-      const operatorAccountData: SystemAccount = {
-        name: 'Operator',
-        accountId: entityId(shard, realm, 2),
-        publicKey: constants.GENESIS_PUBLIC_KEY,
-      };
-
-      if (constants.GENESIS_KEY === constants.DEFAULT_GENESIS_KEY) {
-        operatorAccountData.privateKey = constants.DEFAULT_GENESIS_KEY;
-      }
-
-      const systemAccounts: SystemAccount[] = [operatorAccountData];
-
-      if (systemAccounts.length > 0) {
-        this.logger.addMessageGroup(systemAccountsGroupKey, 'System Accounts');
-
-        for (const account of systemAccounts) {
-          let message: string = `${account.name} Account ID: ${account.accountId.toString()}, Public Key: ${account.publicKey.toString()}`;
-          if (account.privateKey) {
-            message += `, Private Key: ${account.privateKey}`;
-          }
-          this.logger.addMessageGroupMessage(systemAccountsGroupKey, message);
-        }
-
-        this.logger.showMessageGroup(systemAccountsGroupKey);
-      }
-
-      this.logger.addMessageGroup(messageGroupKey, 'Created Accounts');
-      this.logger.addMessageGroup(ecdsaGroupKey, 'ECDSA Accounts (Not EVM compatible, See ECDSA Alias Accounts above)');
-      this.logger.addMessageGroup(ecdsaAliasGroupKey, 'ECDSA Alias Accounts (EVM compatible)');
-      this.logger.addMessageGroup(ed25519GroupKey, 'ED25519 Accounts');
-
-      if (aliasAccounts.length > 0) {
-        for (const account of aliasAccounts) {
-          this.logger.addMessageGroupMessage(
-            ecdsaAliasGroupKey,
-            `Account ID: ${account.accountId.toString()}, Public address: ${account.alias}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
-          );
-        }
-
-        this.logger.showMessageGroup(ecdsaAliasGroupKey);
-      }
-
-      if (ed25519Accounts.length > 0) {
-        for (const account of ed25519Accounts) {
-          this.logger.addMessageGroupMessage(
-            ed25519GroupKey,
-            `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
-          );
-        }
-
-        this.logger.showMessageGroup(ed25519GroupKey);
-      }
-
-      if (ecdsaAccounts.length > 0) {
-        for (const account of ecdsaAccounts) {
-          this.logger.addMessageGroupMessage(
-            ecdsaGroupKey,
-            `Account ID: ${account.accountId.toString()}, Private Key: 0x${account.data.privateKey.toStringRaw()}, Balance: ${account.data.balance.toString()}`,
-          );
-        }
-
-        this.logger.showMessageGroup(ecdsaGroupKey);
-      }
-
-      if (outputFile) {
-        createDirectoryIfNotExists(outputFile);
-
-        // Format account data in the same way as it appears in the console output
-        const formattedCreatedAccounts = createdAccounts.map(account => {
-          const formattedAccount = {
-            accountId: account.accountId.toString(),
-            privateKey: `0x${account.data.privateKey.toStringRaw()}`,
-            publicKey: `0x${PublicKey.fromString(account.publicKey).toStringRaw()}`,
-            balance: account.data.balance.toString(),
-            group: account.data.group,
-          };
-
-          // Add alias field for ECDSA_ALIAS accounts
-          if (account.data.group === PREDEFINED_ACCOUNT_GROUPS.ECDSA_ALIAS && account.alias) {
-            formattedAccount['publicAddress'] = account.alias;
-          }
-
-          return formattedAccount;
-        });
-
-        // Format system accounts data
-        const formattedSystemAccounts = systemAccounts.map(account => ({
-          name: account.name,
-          accountId: account.accountId.toString(),
-          publicKey: account.publicKey.toString(),
-          privateKey: account.privateKey,
-        }));
-
-        // Create the structured output with both systemAccounts and createdAccounts
-        const outputData = {
-          systemAccounts: formattedSystemAccounts,
-          createdAccounts: formattedCreatedAccounts,
-        };
-
-        fs.writeFileSync(outputFile, JSON.stringify(outputData, undefined, 2));
-        this.logger.showUser(chalk.green(`✅ Created accounts saved to file in JSON format: ${outputFile}`));
-      }
-
-      this.logger.showUser(
-        'For more information on public and private keys see: https://docs.hedera.com/hedera/core-concepts/keys-and-signatures',
-      );
-    }
-  }
-
-  private showPortForwards(outputFile?: string): void {
-    this.logger.showMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
-
-    if (outputFile) {
-      const messages: string[] = this.logger.getMessageGroup(constants.PORT_FORWARDING_MESSAGE_GROUP);
-      const fileData: string = messages.join('\n') + '\n';
-      createDirectoryIfNotExists(outputFile);
-      fs.writeFileSync(outputFile, fileData);
-      this.logger.showUser(chalk.green(`✅ Port forwarding info saved to file: ${outputFile}`));
-    }
+    return PathEx.join(constants.SOLO_HOME_DIR, `one-shot-${UserInput.safeFilenameComponent(deploymentName)}`);
   }
 
   public async destroy(argv: ArgvStruct): Promise<boolean> {
@@ -868,262 +308,36 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
   }
 
   private async destroyInternal(argv: ArgvStruct, flagsList: CommandFlags): Promise<boolean> {
-    let config: OneShotSingleDestroyConfigClass;
-    let oneShotLease: Lock | undefined;
+    const leaseReference: {value?: Lock} = {};
+    const runningNested: boolean = this.oneShotState.isActive();
+    const commandName: string = argv._.slice(0, 3).join(' ');
+    const pipeline: OrchestratorPipeline<OneShotSingleDestroyContext> = this.destroyOrchestrator.buildDestroyPipeline(
+      argv,
+      flagsList,
+      leaseReference,
+      runningNested,
+    );
+    const tasks: SoloListr<OneShotSingleDestroyContext> = this.taskList.newTaskList(
+      pipeline.tasks,
+      pipeline.defaultOptions,
+      undefined,
+      commandName,
+    );
 
-    // don't make remote config call if deployment is not set or it will fail
-    let hasExplorers: boolean = false;
-    let hasRelays: boolean = false;
-
-    const taskArray = [
-      {
-        title: 'Initialize',
-        task: async (context_, task): Promise<void> => {
-          this.configManager.update(argv);
-          this.oneShotState.activate();
-
-          flags.disablePrompts(flagsList.optional);
-
-          const allFlags: CommandFlag[] = [...flagsList.required, ...flagsList.optional];
-
-          await this.configManager.executePrompt(task, allFlags);
-
-          context_.config = this.configManager.getConfig(
-            DefaultOneShotCommand.SINGLE_DESTROY_CONFIGS_NAME,
-            allFlags,
-          ) as OneShotSingleDestroyConfigClass;
-
-          config = context_.config;
-
-          await this.localConfig.load();
-
-          config.cacheDir ??= constants.SOLO_CACHE_DIR;
-
-          config.clusterRef ??= this.localConfig.configuration.clusterRefs.keys().next().value;
-
-          config.context ??= this.localConfig.configuration.clusterRefs.get(config.clusterRef)?.toString();
-
-          if (!config.deployment) {
-            if (this.localConfig.configuration.deployments.length === 0) {
-              this.logger.showUser('No deployments found in local config, have they already been deleted?');
-              return;
-            }
-            config.deployment = this.localConfig.configuration.deployments.get(0).name;
-            this.configManager.setFlag(flags.deployment, config.deployment);
-          }
-
-          config.namespace ??= await resolveNamespaceFromDeployment(this.localConfig, this.configManager, task);
-          await this.remoteConfig.loadAndValidate(argv);
-
-          hasExplorers = this.remoteConfig.configuration.components.state.explorers.length > 0;
-          hasRelays = this.remoteConfig.configuration.components.state.relayNodes.length > 0;
-        },
-      },
-      {
-        title: 'Acquire deployment lock',
-        task: async (context_, task): Promise<Listr<AnyListrContext>> => {
-          oneShotLease = await this.leaseManager.create();
-          return ListrLock.newAcquireLockTask(oneShotLease, task);
-        },
-      },
-      {
-        title: 'Destroy extended setup',
-        task: async (
-          context_: OneShotSingleDeployContext,
-          task: SoloListrTaskWrapper<OneShotSingleDeployContext>,
-        ): Promise<Listr<OneShotSingleDeployContext>> => {
-          const subTasks: SoloListrTask<OneShotSingleDeployContext>[] = [
-            invokeSoloCommand(
-              `solo ${ExplorerCommandDefinition.DESTROY_COMMAND}`,
-              ExplorerCommandDefinition.DESTROY_COMMAND,
-              (): string[] => {
-                const argv: string[] = newArgv();
-                argv.push(
-                  ...ExplorerCommandDefinition.DESTROY_COMMAND.split(' '),
-                  optionFromFlag(flags.clusterRef),
-                  config.clusterRef,
-                  optionFromFlag(flags.deployment),
-                  config.deployment,
-                  optionFromFlag(flags.quiet),
-                  optionFromFlag(flags.force),
-                );
-                return argvPushGlobalFlags(argv);
-              },
-              this.taskList,
-              (): boolean => {
-                return !hasExplorers;
-              },
-            ),
-            invokeSoloCommand(
-              `solo ${RelayCommandDefinition.DESTROY_COMMAND}`,
-              RelayCommandDefinition.DESTROY_COMMAND,
-              (): string[] => {
-                const argv: string[] = newArgv();
-                argv.push(
-                  ...RelayCommandDefinition.DESTROY_COMMAND.split(' '),
-                  optionFromFlag(flags.clusterRef),
-                  config.clusterRef,
-                  optionFromFlag(flags.deployment),
-                  config.deployment,
-                  optionFromFlag(flags.nodeAliasesUnparsed),
-                  'node1',
-                  optionFromFlag(flags.quiet),
-                );
-                return argvPushGlobalFlags(argv);
-              },
-              this.taskList,
-              (): boolean => {
-                return !hasRelays;
-              },
-            ),
-          ];
-
-          // set up the sub-tasks
-          return task.newListr(subTasks, {
-            concurrent: true,
-            rendererOptions: {
-              collapseSubtasks: false,
-            },
-          });
-        },
-        skip: (): boolean => {
-          if (!config.deployment) {
-            return true;
-          }
-          return !hasExplorers && !hasRelays;
-        },
-      },
-      invokeSoloCommand(
-        `solo ${MirrorCommandDefinition.DESTROY_COMMAND}`,
-        MirrorCommandDefinition.DESTROY_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...MirrorCommandDefinition.DESTROY_COMMAND.split(' '),
-            optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            optionFromFlag(flags.deployment),
-            config.deployment,
-            optionFromFlag(flags.quiet),
-            optionFromFlag(flags.force),
-            optionFromFlag(flags.devMode),
-          );
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-        (): boolean => !config.deployment || this.remoteConfig.configuration.components.state.mirrorNodes.length === 0,
-      ),
-      invokeSoloCommand(
-        `solo ${BlockCommandDefinition.DESTROY_COMMAND}`,
-        BlockCommandDefinition.DESTROY_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...BlockCommandDefinition.DESTROY_COMMAND.split(' '),
-            optionFromFlag(Flags.deployment),
-            config.deployment,
-            optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            optionFromFlag(flags.quiet),
-          );
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-        (): boolean =>
-          !config.deployment ||
-          constants.ONE_SHOT_WITH_BLOCK_NODE.toLowerCase() !== 'true' ||
-          this.remoteConfig.configuration.components.state.blockNodes.length === 0,
-      ),
-      invokeSoloCommand(
-        `solo ${ConsensusCommandDefinition.DESTROY_COMMAND}`,
-        ConsensusCommandDefinition.DESTROY_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...ConsensusCommandDefinition.DESTROY_COMMAND.split(' '),
-            optionFromFlag(flags.deployment),
-            config.deployment,
-            optionFromFlag(flags.quiet),
-            optionFromFlag(flags.force),
-            optionFromFlag(flags.deletePvcs),
-            optionFromFlag(flags.deleteSecrets),
-            optionFromFlag(flags.enableTimeout),
-          );
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-        (): boolean => !config.deployment,
-      ),
-      invokeSoloCommand(
-        `solo ${ClusterReferenceCommandDefinition.RESET_COMMAND}`,
-        ClusterReferenceCommandDefinition.RESET_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...ClusterReferenceCommandDefinition.RESET_COMMAND.split(' '),
-            optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            optionFromFlag(flags.quiet),
-            optionFromFlag(flags.force),
-          );
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-        (): boolean => !config.deployment,
-      ),
-      invokeSoloCommand(
-        `solo ${ClusterReferenceCommandDefinition.DISCONNECT_COMMAND}`,
-        ClusterReferenceCommandDefinition.DISCONNECT_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...ClusterReferenceCommandDefinition.DISCONNECT_COMMAND.split(' '),
-            optionFromFlag(flags.clusterRef),
-            config.clusterRef,
-            optionFromFlag(flags.quiet),
-          );
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-        (): boolean => !config.deployment,
-      ),
-      invokeSoloCommand(
-        `solo ${DeploymentCommandDefinition.DELETE_COMMAND}`,
-        DeploymentCommandDefinition.DELETE_COMMAND,
-        (): string[] => {
-          const argv: string[] = newArgv();
-          argv.push(
-            ...DeploymentCommandDefinition.DELETE_COMMAND.split(' '),
-            optionFromFlag(flags.deployment),
-            config.deployment,
-            optionFromFlag(flags.quiet),
-          );
-          return argvPushGlobalFlags(argv);
-        },
-        this.taskList,
-        (): boolean => !config.deployment,
-      ),
-      {
-        title: 'Delete cache folder',
-        task: async (): Promise<void> => {
-          fs.rmSync(config.cacheDir, {recursive: true, force: true});
-        },
-      },
-      {title: 'Finish', task: async (): Promise<void> => {}},
-    ];
-
-    const tasks = this.taskList.newOneShotSingleDestroyTaskList(taskArray, constants.LISTR_DEFAULT_OPTIONS.DEFAULT);
+    if (!tasks.isRoot()) {
+      return true;
+    }
 
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error destroying Solo in one-shot mode: ${error.message}`, error);
+      throw new SoloErrors.component.oneShotDestroyFailed(error);
     } finally {
       this.oneShotState.deactivate();
       const cleanupPromises: Promise<void>[] = [];
-      if (oneShotLease) {
+      if (leaseReference.value) {
         cleanupPromises.push(
-          oneShotLease.release().catch((error): void => {
+          leaseReference.value.release(true).catch((error): void => {
             this.logger.error('Error releasing one-shot lease:', error);
           }),
         );
@@ -1136,66 +350,34 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
       );
       await Promise.all(cleanupPromises);
     }
-
     return true;
   }
 
-  public async info(_argv: ArgvStruct): Promise<boolean> {
-    const tasks = new Listr(
+  public async info(): Promise<boolean> {
+    const tasks: SoloListr<OneShotInfoContext> = new Listr(
       [
         {
-          title: 'Check for cached deployment',
-          task: async (context_, _task): Promise<void> => {
-            const deploymentFromFlag = this.configManager.getFlag(flags.deployment);
+          title: 'Determine deployment name',
+          task: async (context_): Promise<void> => {
+            const deploymentFromFlag: DeploymentName = this.configManager.getFlag(flags.deployment);
             if (deploymentFromFlag) {
               context_.deploymentName = deploymentFromFlag;
               this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(deploymentFromFlag)} (from flag)`));
               return;
             }
 
-            const cacheFile = PathEx.join(constants.SOLO_CACHE_DIR, 'last-one-shot-deployment.txt');
-
-            if (fs.existsSync(cacheFile)) {
-              const deploymentName = fs.readFileSync(cacheFile, 'utf8').trim();
-              if (deploymentName) {
-                context_.deploymentName = deploymentName;
-                this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(deploymentName)} (from cache)`));
-                return;
-              }
-            }
-
-            await this.localConfig.load();
-            const deployments = this.localConfig.configuration.deployments;
-            if (deployments.length === 1) {
-              context_.deploymentName = deployments[0].name;
-              this.logger.showUser(
-                chalk.cyan(`\nDeployment Name: ${chalk.bold(context_.deploymentName)} (single local deployment)`),
-              );
-              return;
-            }
-
-            if (deployments.length > 1) {
-              const deploymentNames = deployments.map(d => d.name).join(', ');
-              throw new SoloError(
-                'No cached deployment found and multiple local deployments exist.\n' +
-                  `Please specify ${optionFromFlag(flags.deployment)}.\n` +
-                  `Available deployments: ${deploymentNames}`,
-              );
-            }
-
-            throw new SoloError(
-              'No cached deployment found. Please run a one-shot deployment first or pass ' +
-                `${optionFromFlag(flags.deployment)}.\n` +
-                `Expected cache file: ${cacheFile}`,
-            );
+            context_.deploymentName = constants.ONE_SHOT_DEPLOYMENT_NAME;
+            this.logger.showUser(chalk.cyan(`\nDeployment Name: ${chalk.bold(context_.deploymentName)} (default)`));
           },
         },
         {
           title: 'Load local configuration',
-          task: async (context_, _task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             await this.localConfig.load();
 
-            const deployment = this.localConfig.configuration.deployments.find(d => d.name === context_.deploymentName);
+            const deployment: Deployment = this.localConfig.configuration.deployments.find(
+              (d): boolean => d.name === context_.deploymentName,
+            );
 
             if (!deployment) {
               this.logger.showUser(
@@ -1211,7 +393,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             this.logger.showUser(chalk.cyan(`\nNamespace: ${chalk.bold(deployment.namespace)}`));
 
             if (deployment.clusters && deployment.clusters.length > 0) {
-              const clusterNames = deployment.clusters.map(c => c.toString()).join(', ');
+              const clusterNames: string = deployment.clusters.map((c): string => c.toString()).join(', ');
               this.logger.showUser(chalk.cyan(`Clusters: ${chalk.bold(clusterNames)}`));
             }
           },
@@ -1224,14 +406,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return;
             }
 
-            const deployment = context_.deployment;
+            const deployment: Deployment = context_.deployment;
             if (!deployment.clusters || deployment.clusters.length === 0) {
               this.logger.showUser(chalk.yellow('\n⚠️  No clusters attached to this deployment.'));
               return;
             }
 
-            const clusterReference = deployment.clusters.get(0).toString();
-            const clusterContext = this.localConfig.configuration.clusterRefs.get(clusterReference);
+            const clusterReference: string = deployment.clusters.get(0).toString();
+            const clusterContext: StringFacade | undefined =
+              this.localConfig.configuration.clusterRefs.get(clusterReference);
 
             if (!clusterContext) {
               this.logger.showUser(
@@ -1242,8 +425,8 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
 
             try {
               this.k8Factory.default().contexts().updateCurrent(clusterContext.toString());
-              const namespaces = await this.k8Factory.default().namespaces().list();
-              const targetNamespace = namespaces.find(ns => ns.name === deployment.namespace);
+              const namespaces: NamespaceName[] = await this.k8Factory.default().namespaces().list();
+              const targetNamespace: NamespaceName = namespaces.find((ns): boolean => ns.name === deployment.namespace);
 
               if (!targetNamespace) {
                 this.logger.showUser(
@@ -1271,13 +454,15 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
               return;
             }
 
-            const deployment = context_.deployment;
+            const deployment: Deployment = context_.deployment;
 
             try {
-              const namespaceName = NamespaceName.of(deployment.namespace);
-              const configMaps = await this.k8Factory.default().configMaps().list(namespaceName, []);
+              const namespaceName: NamespaceName = NamespaceName.of(deployment.namespace);
+              const configMaps: ConfigMap[] = await this.k8Factory.default().configMaps().list(namespaceName, []);
 
-              const remoteConfigMap = configMaps.find(cm => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME);
+              const remoteConfigMap: Optional<ConfigMap> = configMaps.find(
+                (cm): boolean => cm.name === constants.SOLO_REMOTE_CONFIGMAP_NAME,
+              );
 
               if (!remoteConfigMap) {
                 this.logger.showUser(
@@ -1289,8 +474,7 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 return;
               }
 
-              const remoteConfigData = yaml.parse(remoteConfigMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
-              context_.remoteConfig = remoteConfigData;
+              context_.remoteConfig = yaml.parse(remoteConfigMap.data[constants.SOLO_REMOTE_CONFIGMAP_DATA_KEY]);
             } catch (error) {
               this.logger.showUser(chalk.yellow(`\n⚠️  Unable to fetch remote configuration: ${error.message}`));
             }
@@ -1298,26 +482,31 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
         },
         {
           title: 'Display deployment information',
-          task: async (context_, _task): Promise<void> => {
+          task: async (context_): Promise<void> => {
             this.logger.showUser(chalk.cyan('\n=== Deployment Components ==='));
+
+            const versions: ApplicationVersionsSchema = context_.remoteConfig.versions;
 
             // Show versions
             this.logger.showUser(chalk.cyan('\nVersions:'));
-            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(version.SOLO_CHART_VERSION)}`);
-            this.logger.showUser(`  Consensus Node Version: ${chalk.bold(version.HEDERA_PLATFORM_VERSION)}`);
-            this.logger.showUser(`  Mirror Node Version: ${chalk.bold(version.MIRROR_NODE_VERSION)}`);
-            this.logger.showUser(`  Explorer Version: ${chalk.bold(version.EXPLORER_VERSION)}`);
-            this.logger.showUser(`  JSON RPC Relay Version: ${chalk.bold(version.HEDERA_JSON_RPC_RELAY_VERSION)}`);
-            this.logger.showUser(`  Block Node Version: ${chalk.bold(version.BLOCK_NODE_VERSION)}`);
+            this.logger.showUser(`  Solo Chart Version: ${chalk.bold(versions.chart?.toString())}`);
+            this.logger.showUser(`  Consensus Node Version: ${chalk.bold(versions.consensusNode?.toString())}`);
+            this.logger.showUser(`  Mirror Node Version: ${chalk.bold(versions.mirrorNodeChart?.toString())}`);
+            this.logger.showUser(`  Explorer Version: ${chalk.bold(versions.explorerChart?.toString())}`);
+            this.logger.showUser(`  JSON RPC Relay Version: ${chalk.bold(versions.jsonRpcRelayChart?.toString())}`);
+            this.logger.showUser(`  Block Node Version: ${chalk.bold(versions.blockNodeChart?.toString())}`);
 
             if (context_.remoteConfig) {
-              const components = context_.remoteConfig.components?.state;
+              const components: DeploymentStateSchema = context_.remoteConfig.state;
 
               if (components) {
                 this.logger.showUser(chalk.cyan('\nDeployed Components:'));
 
                 if (components.consensusNodes && components.consensusNodes.length > 0) {
-                  const nodeNames = components.consensusNodes.map(n => n.name).join(', ');
+                  const nodeNames: string = components.consensusNodes
+                    .map((n): NodeAlias => Templates.renderNodeAliasFromNumber(n.metadata.id))
+                    .join(', ');
+
                   this.logger.showUser(
                     `  ${chalk.green('✓')} Consensus Nodes: ${chalk.bold(components.consensusNodes.length)} (${nodeNames})`,
                   );
@@ -1344,6 +533,14 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
                 if (components.explorers && components.explorers.length > 0) {
                   this.logger.showUser(`  ${chalk.green('✓')} Explorers: ${chalk.bold(components.explorers.length)}`);
                 }
+
+                if (components.postgres && components.postgres.length > 0) {
+                  this.logger.showUser(`  ${chalk.green('✓')} Postgres: ${chalk.bold(components.postgres.length)}`);
+                }
+
+                if (components.redis && components.redis.length > 0) {
+                  this.logger.showUser(`  ${chalk.green('✓')} Redis: ${chalk.bold(components.redis.length)}`);
+                }
               }
             } else {
               this.logger.showUser(
@@ -1352,17 +549,17 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
             }
 
             // Show information about where files are stored
-            const outputDirectory = this.getOneShotOutputDirectory(context_.deploymentName);
+            const outputDirectory: string = this.getOneShotOutputDirectory(context_.deploymentName);
 
             this.logger.showUser(chalk.cyan('\n=== Deployment Files ==='));
 
             if (fs.existsSync(outputDirectory)) {
               this.logger.showUser(`Output directory: ${chalk.bold(outputDirectory)}`);
 
-              const notesFile = PathEx.join(outputDirectory, 'notes');
-              const versionsFile = PathEx.join(outputDirectory, 'versions');
-              const forwardsFile = PathEx.join(outputDirectory, 'forwards');
-              const accountsFile = PathEx.join(outputDirectory, 'accounts.json');
+              const notesFile: string = PathEx.join(outputDirectory, 'notes');
+              const versionsFile: string = PathEx.join(outputDirectory, 'versions');
+              const forwardsFile: string = PathEx.join(outputDirectory, 'forwards');
+              const accountsFile: string = PathEx.join(outputDirectory, 'accounts.json');
 
               if (fs.existsSync(notesFile)) {
                 this.logger.showUser(`  ${chalk.green('✓')} Notes: ${notesFile}`);
@@ -1390,10 +587,277 @@ export class DefaultOneShotCommand extends BaseCommand implements OneShotCommand
     try {
       await tasks.run();
     } catch (error) {
-      throw new SoloError(`Error retrieving deployment information: ${error.message}`, error);
+      throw new SoloErrors.component.oneShotDeploymentInfoRetrievalFailed(error);
     }
 
     return true;
+  }
+
+  private async resolveOneShotComponentVersions(useEdge: boolean): Promise<OneShotVersionsObject> {
+    if (!useEdge) {
+      return {
+        soloChart: version.SOLO_CHART_VERSION,
+        consensus: version.HEDERA_PLATFORM_VERSION,
+        mirror: version.MIRROR_NODE_VERSION,
+        explorer: version.EXPLORER_VERSION,
+        relay: version.HEDERA_JSON_RPC_RELAY_VERSION,
+        blockNode: version.BLOCK_NODE_VERSION,
+      };
+    }
+
+    const edgeVersions: OneShotVersionsObject = {
+      soloChart: version.SOLO_CHART_EDGE_VERSION,
+      consensus: version.HEDERA_PLATFORM_EDGE_VERSION,
+      mirror: version.MIRROR_NODE_EDGE_VERSION,
+      explorer: version.EXPLORER_EDGE_VERSION,
+      relay: version.HEDERA_JSON_RPC_RELAY_EDGE_VERSION,
+      blockNode: version.BLOCK_NODE_EDGE_VERSION,
+    };
+
+    const resolvedComponentVersions: EdgeVersionsObject = await EdgeVersionFetcher.resolveEdgeVersions({
+      consensus: edgeVersions.consensus,
+      mirror: edgeVersions.mirror,
+      blockNode: edgeVersions.blockNode,
+      explorer: edgeVersions.explorer,
+      relay: edgeVersions.relay,
+    });
+
+    return {
+      soloChart: edgeVersions.soloChart,
+      consensus: resolvedComponentVersions.consensus,
+      mirror: resolvedComponentVersions.mirror,
+      explorer: resolvedComponentVersions.explorer,
+      relay: resolvedComponentVersions.relay,
+      blockNode: resolvedComponentVersions.blockNode,
+    };
+  }
+
+  public async prepareFalcon(argv: ArgvStruct): Promise<boolean> {
+    this.configManager.update(argv);
+
+    const configuredOutputPath: string = this.configManager.getFlag(flags.outputValuesFile);
+    const resolvedOutputPath: string = path.isAbsolute(configuredOutputPath)
+      ? configuredOutputPath
+      : PathEx.resolve(process.env.INIT_CWD || process.cwd(), configuredOutputPath);
+
+    const quiet: boolean = this.configManager.getFlag(flags.quiet);
+
+    let config: FalconPrepareConfig;
+
+    const tasks: Listr<AnyListrContext, ListrRendererValue, ListrRendererValue> = new Listr(
+      [
+        {
+          title: 'Configure deployment options',
+          task: async (_context: AnyListrContext, task: SoloListrTaskWrapper<AnyListrContext>): Promise<void> => {
+            const allFlags: CommandFlag[] = [
+              ...DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST.required,
+              ...DefaultOneShotCommand.FALCON_PREPARE_FLAGS_LIST.optional,
+            ];
+
+            await this.configManager.executePrompt(task, allFlags);
+
+            config = this.configManager.getConfig(DefaultOneShotCommand.FALCON_PREPARE_CONFIGS_NAME, allFlags, [
+              'enableDevChartMode',
+              'enableMirrorIngress',
+              'outputPath',
+            ]) as FalconPrepareConfig;
+
+            config.enableMirrorIngress = true;
+            config.outputPath = resolvedOutputPath;
+
+            await this.runFalconPreparePrompts(FalconPrepareSpecLoader.load(), config, task, quiet);
+          },
+        },
+        {
+          title: 'Generate values file',
+          task: async (): Promise<void> => {
+            const yamlContent: string = DefaultOneShotCommand.generateFalconValuesYaml(config);
+            fs.writeFileSync(config.outputPath, yamlContent);
+            this.logger.showUser(chalk.green(`\nFalcon values file generated: ${config.outputPath}`));
+            this.logger.showUser(
+              `\nTo deploy, run:\n  ${soloCommand(FALCON_DEPLOY_COMMAND, optionFromFlag(flags.valuesFile), config.outputPath)}`,
+            );
+          },
+        },
+      ],
+      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
+    );
+
+    try {
+      await tasks.run();
+    } catch (error) {
+      throw new SoloErrors.component.falconValuesPreparationFailed(error);
+    }
+
+    return true;
+  }
+
+  /**
+   * Registry mapping a spec `flagsFrom` key to the command flag-list it enumerates. Class
+   * references cannot live in the YAML spec, so this is the one piece of the generation that stays
+   * in code.
+   */
+  private static readonly FALCON_FLAG_LISTS: ReadonlyMap<string, CommandFlags> = new Map<string, CommandFlags>([
+    ['network.deploy', NetworkCommand.DEPLOY_FLAGS_LIST],
+    ['node.setup', NODE_SETUP_FLAGS],
+    ['node.start', NODE_START_FLAGS],
+    ['mirror.deploy', MirrorNodeCommand.DEPLOY_FLAGS_LIST],
+    ['relay.deploy', RelayCommand.DEPLOY_FLAGS_LIST],
+    ['block.add', BlockNodeCommand.ADD_FLAGS_LIST],
+    ['explorer.deploy', ExplorerCommand.DEPLOY_FLAGS_LIST],
+  ]);
+
+  /**
+   * Resolves a spec override value against the wizard answers and flag defaults. See the override
+   * value grammar documented in `resources/one-shot-falcon-prepare.yaml`.
+   */
+  private static resolveFalconValue(
+    raw: FalconOverrideValue,
+    flag: CommandFlag,
+    config: FalconPrepareConfig,
+  ): FalconOverrideValue {
+    if (typeof raw !== 'string') {
+      return raw;
+    }
+    if (raw === '${default}') {
+      return flag.definition.defaultValue as FalconOverrideValue;
+    }
+    const configReference: RegExpExecArray | null = /^\$\{config\.([A-Za-z0-9_]+)\}$/.exec(raw);
+    if (configReference) {
+      const configKey: string = configReference[1];
+      if (!Object.hasOwn(config, configKey)) {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unknown config key '${configKey}' referenced in falcon prepare spec`),
+        );
+      }
+      return (config as unknown as Record<string, FalconOverrideValue>)[configKey];
+    }
+    return raw;
+  }
+
+  private static buildFalconSection(
+    section: FalconPrepareSpec['sections'][number],
+    blockedFlags: ReadonlySet<string>,
+    config: FalconPrepareConfig,
+  ): Record<string, FalconOverrideValue> {
+    const flagList: CommandFlags | undefined = DefaultOneShotCommand.FALCON_FLAG_LISTS.get(section.flagsFrom);
+    if (!flagList) {
+      throw new SoloErrors.component.falconValuesPreparationFailed(
+        new Error(`Unknown falcon prepare flagsFrom '${section.flagsFrom}' for section '${section.name}'`),
+      );
+    }
+
+    // Fail fast on override keys that are not real flag names: a typo (e.g. `dev` instead of
+    // `debug`) would otherwise be silently dropped, leaving the flag at its empty default.
+    for (const overrideKey of Object.keys(section.overrides ?? {})) {
+      if (!flags.allFlagsMap.has(overrideKey)) {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unknown flag '${overrideKey}' in overrides for section '${section.name}'`),
+        );
+      }
+    }
+
+    const built: Record<string, FalconOverrideValue> = {};
+    for (const flag of flagList.optional) {
+      if (blockedFlags.has(flag.name)) {
+        continue;
+      }
+      built[optionFromFlag(flag)] =
+        section.overrides && Object.hasOwn(section.overrides, flag.name)
+          ? DefaultOneShotCommand.resolveFalconValue(section.overrides[flag.name], flag, config)
+          : '';
+    }
+
+    // Keys forced in regardless of the flag-list (legacy version keys kept for backward
+    // compatibility with existing templates, tests, and user-edited values files).
+    for (const [flagName, raw] of Object.entries(section.extraKeys ?? {})) {
+      const flag: CommandFlag | undefined = flags.allFlagsMap.get(flagName);
+      if (!flag) {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unknown flag '${flagName}' in extraKeys for section '${section.name}'`),
+        );
+      }
+      built[optionFromFlag(flag)] = DefaultOneShotCommand.resolveFalconValue(raw, flag, config);
+    }
+
+    return built;
+  }
+
+  public static generateFalconValuesYaml(config: FalconPrepareConfig): string {
+    const spec: FalconPrepareSpec = FalconPrepareSpecLoader.load();
+    const blockedFlags: ReadonlySet<string> = new Set(spec.blockedFlags);
+
+    const valuesObject: Record<string, Record<string, FalconOverrideValue>> = {};
+    for (const section of spec.sections) {
+      valuesObject[section.name] = DefaultOneShotCommand.buildFalconSection(section, blockedFlags, config);
+    }
+
+    const header: string =
+      '# One-Shot Falcon Deployment Configuration\n' +
+      `# Generated by: ${soloCommand(FALCON_PREPARE_COMMAND)}\n` +
+      '# This file configures all components of the Hiero network deployment\n' +
+      `#\n# Consensus nodes: ${config.numberOfConsensusNodes}\n` +
+      '#\n# Usage:\n' +
+      `#   ${soloCommand(FALCON_DEPLOY_COMMAND, optionFromFlag(flags.valuesFile), config.outputPath)}\n` +
+      '#\n# To disable optional components, pass CLI flags:\n' +
+      `#   ${negatedOptionFromFlag(flags.deployMirrorNode)}\n` +
+      `#   ${negatedOptionFromFlag(flags.deployExplorer)}\n` +
+      `#   ${negatedOptionFromFlag(flags.deployRelay)}\n\n`;
+
+    return header + yaml.stringify(valuesObject, {lineWidth: 0});
+  }
+
+  /**
+   * Runs the spec-defined interactive prompt workflow, writing each answer into `config`. In quiet
+   * mode a step that opts in via `skipWhenQuiet` is replaced by its `quietValue` instead of prompting.
+   */
+  private async runFalconPreparePrompts(
+    spec: FalconPrepareSpec,
+    config: FalconPrepareConfig,
+    task: SoloListrTaskWrapper<AnyListrContext>,
+    quiet: boolean,
+  ): Promise<void> {
+    const target: Record<string, unknown> = config as unknown as Record<string, unknown>;
+    for (const prompt of spec.prompts) {
+      if (prompt.type !== 'confirm') {
+        throw new SoloErrors.component.falconValuesPreparationFailed(
+          new Error(`Unsupported falcon prepare prompt type '${prompt.type}' for '${prompt.configKey}'`),
+        );
+      }
+
+      if (quiet && prompt.skipWhenQuiet) {
+        target[prompt.configKey] = prompt.quietValue ?? false;
+        continue;
+      }
+
+      const answer: boolean = await task.prompt(ListrInquirerPromptAdapter).run(confirmPrompt, {
+        message: prompt.message,
+        default: prompt.default,
+      });
+      target[prompt.configKey] = answer;
+
+      if (answer && prompt.onTrue) {
+        const followUpFlags: CommandFlag[] = prompt.onTrue.promptFlags.map((name: string): CommandFlag => {
+          const flag: CommandFlag | undefined = flags.allFlagsMap.get(name);
+          if (!flag) {
+            throw new SoloErrors.component.falconValuesPreparationFailed(
+              new Error(`Unknown flag '${name}' in promptFlags for prompt '${prompt.configKey}'`),
+            );
+          }
+          return flag;
+        });
+        await this.configManager.executePrompt(task, followUpFlags);
+        for (const entry of prompt.onTrue.setConfig) {
+          const flag: CommandFlag | undefined = flags.allFlagsMap.get(entry.flag);
+          if (!flag) {
+            throw new SoloErrors.component.falconValuesPreparationFailed(
+              new Error(`Unknown flag '${entry.flag}' in setConfig for prompt '${prompt.configKey}'`),
+            );
+          }
+          target[entry.configKey] = this.configManager.getFlag(flag);
+        }
+      }
+    }
   }
 
   public async close(): Promise<void> {} // no-op

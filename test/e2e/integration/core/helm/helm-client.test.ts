@@ -2,7 +2,6 @@
 
 import {expect} from 'chai';
 import {before, describe, it} from 'mocha';
-import {SemanticVersion} from '../../../../../src/integration/helm/base/api/version/semantic-version.js';
 import {type HelmClient} from '../../../../../src/integration/helm/helm-client.js';
 import {HelmExecutionException} from '../../../../../src/integration/helm/helm-execution-exception.js';
 import {Chart} from '../../../../../src/integration/helm/model/chart.js';
@@ -25,8 +24,18 @@ import {type AddRepoOptions} from '../../../../../src/integration/helm/model/add
 import {type Release} from '../../../../../src/integration/helm/model/chart/release.js';
 import {type ReleaseItem} from '../../../../../src/integration/helm/model/release/release-item.js';
 import {type TestChartOptions} from '../../../../../src/integration/helm/model/test/test-chart-options.js';
+import * as constants from '../../../../../src/core/constants.js';
+import path from 'node:path';
+import {
+  type HelmDependencyManager,
+  type KubectlDependencyManager,
+} from '../../../../../src/core/dependency-managers/index.js';
+import {resetForTest} from '../../../../test-container.js';
+import {getTemporaryDirectory} from '../../../../test-utility.js';
+import {SemanticVersion} from '../../../../../src/business/utils/semantic-version.js';
 
-const exec: (command: string) => Promise<{stdout: string; stderr: string} | ExecException> = promisify(execCallback);
+const exec: (command: string, options: unknown) => Promise<{stdout: string; stderr: string} | ExecException> =
+  promisify(execCallback);
 
 describe('HelmClient Tests', (): void => {
   const TEST_CHARTS_DIR: string = '/Users/jeffrey/solo-charts/charts/solo-deployment';
@@ -41,12 +50,18 @@ describe('HelmClient Tests', (): void => {
 
   let helmClient: HelmClient;
 
-  before(async function (): Promise<void> {
-    this.timeout(120_000); // 2 minutes timeout for cluster creation
+  before(async (): Promise<void> => {
+    resetForTest();
+    const helmDependencyManager: HelmDependencyManager = container.resolve(InjectTokens.HelmDependencyManager);
+    const kubectlDependencyManager: KubectlDependencyManager = container.resolve(InjectTokens.KubectlDependencyManager);
 
     try {
+      await helmDependencyManager.install(getTemporaryDirectory());
+      await kubectlDependencyManager.install(getTemporaryDirectory());
       console.log(`Creating namespace ${NAMESPACE}...`);
-      await exec(`kubectl create namespace ${NAMESPACE}`);
+      await exec(`kubectl create namespace ${NAMESPACE}`, {
+        env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+      });
       console.log(`Namespace ${NAMESPACE} created successfully`);
 
       // Initialize helm client
@@ -60,20 +75,20 @@ describe('HelmClient Tests', (): void => {
       console.error('Error during setup:', error);
       throw error;
     }
-  });
+  }).timeout(Duration.ofMinutes(3).toMillis());
 
-  after(async function (): Promise<void> {
-    this.timeout(Duration.ofMinutes(2).toMillis()); // 2 minutes timeout for cleanup
-
+  after(async (): Promise<void> => {
     try {
       console.log(`Deleting namespace ${NAMESPACE}...`);
-      await exec(`kubectl delete namespace ${NAMESPACE}`);
+      await exec(`kubectl delete namespace ${NAMESPACE}`, {
+        env: {...process.env, PATH: `${constants.SOLO_HOME_DIR}/bin${path.delimiter}${process.env.PATH}`},
+      });
       console.log(`Namespace ${NAMESPACE} deleted successfully`);
     } catch (error) {
       console.error('Error during cleanup:', error);
       // Don't throw the error during cleanup to not mask test failures
     }
-  });
+  }).timeout(Duration.ofMinutes(2).toMillis());
 
   const removeRepoIfPresent: (client: HelmClient, repo: Repository) => Promise<void> = async (
     client: HelmClient,
@@ -96,7 +111,7 @@ describe('HelmClient Tests', (): void => {
   };
 
   it('Version Command Executes Successfully', async (): Promise<void> => {
-    const helmVersion: SemanticVersion = await helmClient.version();
+    const helmVersion: SemanticVersion<string> = await helmClient.version();
     expect(helmVersion).to.not.be.null;
     expect(helmVersion).to.not.equal(SemanticVersion.ZERO);
 
@@ -164,8 +179,7 @@ describe('HelmClient Tests', (): void => {
       .that.contain(expectedMessage);
   });
 
-  it('Install Chart Executes Successfully', async function (): Promise<void> {
-    this.timeout(INSTALL_TIMEOUT * 1000);
+  it('Install Chart Executes Successfully', async (): Promise<void> => {
     await addRepoIfMissing(helmClient, HAPROXYTECH_REPOSITORY);
 
     try {
@@ -217,7 +231,7 @@ describe('HelmClient Tests', (): void => {
         // Suppress uninstall errors
       }
     }
-  });
+  }).timeout(INSTALL_TIMEOUT * 1000);
 
   it('List Releases with Kube Context', async (): Promise<void> => {
     await addRepoIfMissing(helmClient, HAPROXYTECH_REPOSITORY);
@@ -481,14 +495,12 @@ describe('HelmClient Tests', (): void => {
       ];
     };
 
-  describe('Parameterized Chart Installation with Options Executes Successfully', function (): void {
-    this.timeout(INSTALL_TIMEOUT * 1000);
-
+  describe('Parameterized Chart Installation with Options Executes Successfully', (): void => {
     for (const parameters of getChartInstallOptionsTestParameters()) {
       it(parameters.name, async (): Promise<void> => {
         await addRepoIfMissing(helmClient, HAPROXYTECH_REPOSITORY);
         await testChartInstallWithCleanup(parameters.options);
       });
     }
-  });
+  }).timeout(INSTALL_TIMEOUT * 1000);
 });

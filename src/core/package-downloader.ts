@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import {pipeline as streamPipeline} from 'node:stream/promises';
 import got from 'got';
 import path from 'node:path';
-import {DataValidationError} from './errors/data-validation-error.js';
-import {SoloError} from './errors/solo-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
-import {ResourceNotFoundError} from './errors/resource-not-found-error.js';
 import * as https from 'node:https';
 import * as http from 'node:http';
 import {Templates} from './templates.js';
@@ -22,11 +18,46 @@ import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {ReadStream} from 'node:fs';
 import {Hash} from 'node:crypto';
 import {ClientRequest} from 'node:http';
+import {Duration} from './time/duration.js';
+
+const URL_EXISTS_TIMEOUT_ENV: string = 'PACKAGE_DOWNLOADER_URL_EXISTS_TIMEOUT_MS';
+const DOWNLOAD_CONNECT_TIMEOUT_ENV: string = 'PACKAGE_DOWNLOADER_DOWNLOAD_CONNECT_TIMEOUT_MS';
+const DOWNLOAD_RESPONSE_TIMEOUT_ENV: string = 'PACKAGE_DOWNLOADER_DOWNLOAD_RESPONSE_TIMEOUT_MS';
+const DEFAULT_URL_EXISTS_TIMEOUT: Duration = Duration.ofSeconds(5);
+const DEFAULT_DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration.ofSeconds(10);
+const DEFAULT_DOWNLOAD_RESPONSE_TIMEOUT: Duration = Duration.ofMinutes(2);
 
 @injectable()
 export class PackageDownloader {
   public constructor(@inject(InjectTokens.SoloLogger) public readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
+  }
+
+  private resolveTimeout(name: string, fallback: Duration): Duration {
+    const configuredValue: string | undefined = constants.getEnvironmentVariable(name);
+    if (!configuredValue) {
+      return fallback;
+    }
+
+    const milliseconds: number = Number(configuredValue);
+    if (!Number.isFinite(milliseconds) || milliseconds <= 0) {
+      this.logger.warn(`Invalid ${name} value '${configuredValue}', using default ${fallback.toMillis()}ms.`);
+      return fallback;
+    }
+
+    return Duration.ofMillis(milliseconds);
+  }
+
+  private getUrlExistsTimeout(): Duration {
+    return this.resolveTimeout(URL_EXISTS_TIMEOUT_ENV, DEFAULT_URL_EXISTS_TIMEOUT);
+  }
+
+  private getDownloadConnectTimeout(): Duration {
+    return this.resolveTimeout(DOWNLOAD_CONNECT_TIMEOUT_ENV, DEFAULT_DOWNLOAD_CONNECT_TIMEOUT);
+  }
+
+  private getDownloadResponseTimeout(): Duration {
+    return this.resolveTimeout(DOWNLOAD_RESPONSE_TIMEOUT_ENV, DEFAULT_DOWNLOAD_RESPONSE_TIMEOUT);
   }
 
   private isValidURL(url: string): boolean {
@@ -44,10 +75,11 @@ export class PackageDownloader {
       try {
         this.logger.debug(`Checking URL: ${url}`);
         // attempt to send a HEAD request to check URL exists
+        const timeout: number = this.getUrlExistsTimeout().toMillis();
 
         const request: ClientRequest = url.startsWith('http://')
-          ? http.request(url, {method: 'HEAD', timeout: 100, headers: {Connection: 'close'}})
-          : https.request(url, {method: 'HEAD', timeout: 100, headers: {Connection: 'close'}});
+          ? http.request(url, {method: 'HEAD', timeout, headers: {Connection: 'close'}})
+          : https.request(url, {method: 'HEAD', timeout, headers: {Connection: 'close'}});
 
         request.on('response', (response): void => {
           const statusCode: number = response.statusCode;
@@ -88,27 +120,38 @@ export class PackageDownloader {
    */
   public async fetchFile(url: string, destinationPath: string): Promise<string> {
     if (!url) {
-      throw new IllegalArgumentError('package URL is required', url);
+      throw new SoloErrors.validation.illegalArgument('package URL is required', url);
     }
 
     if (!destinationPath) {
-      throw new IllegalArgumentError('destination path is required', destinationPath);
+      throw new SoloErrors.validation.illegalArgument('destination path is required', destinationPath);
     }
 
     if (!this.isValidURL(url)) {
-      throw new IllegalArgumentError(`package URL '${url}' is invalid`, url);
+      throw new SoloErrors.validation.illegalArgument(`package URL '${url}' is invalid`, url);
     }
 
     if (!(await this.urlExists(url))) {
-      throw new ResourceNotFoundError(`package URL '${url}' does not exist`, url);
+      throw new SoloErrors.system.resourceNotFound(url);
     }
 
     try {
-      await streamPipeline(got.stream(url, {followRedirect: true}), fs.createWriteStream(destinationPath));
+      const connectTimeout: number = this.getDownloadConnectTimeout().toMillis();
+      const responseTimeout: number = this.getDownloadResponseTimeout().toMillis();
+      await streamPipeline(
+        got.stream(url, {
+          followRedirect: true,
+          timeout: {
+            connect: connectTimeout,
+            response: responseTimeout,
+          },
+        }),
+        fs.createWriteStream(destinationPath),
+      );
 
       return destinationPath;
     } catch (error) {
-      throw new SoloError(`Error fetching file ${url}: ${error.message}`, error);
+      throw new SoloErrors.system.packageDownloadFailed(url, error);
     }
   }
 
@@ -126,7 +169,7 @@ export class PackageDownloader {
         const checksum: Hash = crypto.createHash(algo);
         const s: ReadStream = fs.createReadStream(filePath);
         s.on('data', (d): void => {
-          checksum.update(d as crypto.BinaryLike);
+          checksum.update(d);
         });
         s.on('end', (): void => {
           const d: string = checksum.digest('hex');
@@ -138,7 +181,7 @@ export class PackageDownloader {
           reject(error);
         });
       } catch (error) {
-        reject(new SoloError('failed to compute checksum', error, {filePath, algo}));
+        reject(new SoloErrors.system.packageDownloadFailed(filePath, error));
       }
     });
   }
@@ -157,7 +200,7 @@ export class PackageDownloader {
   private async verifyChecksum(sourceFile: string, checksum: string, algo: string = 'sha256'): Promise<void> {
     const computed: string = await this.computeFileHash(sourceFile, algo);
     if (checksum !== computed) {
-      throw new DataValidationError('checksum', checksum, computed);
+      throw new SoloErrors.internal.dataValidation('checksum', checksum, computed);
     }
   }
 
@@ -210,9 +253,9 @@ export class PackageDownloader {
           // Then read its contents
           const checksumData: string = fs.readFileSync(checksumFile).toString();
           if (!checksumData) {
-            throw new SoloError(`unable to read checksum file: ${checksumFile}`);
+            throw new SoloErrors.system.checksumReadFailed(checksumFile);
           }
-          checksum = checksumData.split(' ')[0];
+          checksum = checksumData.split(' ', 1)[0];
         } else {
           checksum = checksumDataOrURL;
         }
@@ -233,7 +276,7 @@ export class PackageDownloader {
         fs.rmSync(packageFile);
       }
 
-      throw new SoloError(error.message, error);
+      throw new SoloErrors.system.packageDownloadFailed(packageURL, error);
     }
   }
 
@@ -249,17 +292,16 @@ export class PackageDownloader {
    */
   public async fetchPlatform(tag: string, destinationDirectory: string, force: boolean = false): Promise<string> {
     if (!tag) {
-      throw new MissingArgumentError('tag is required');
+      throw new SoloErrors.validation.missingArgument('tag is required');
     }
     if (!destinationDirectory) {
-      throw new MissingArgumentError('destination directory path is required');
+      throw new SoloErrors.validation.missingArgument('destination directory path is required');
     }
 
     const releaseDirectory: string = Templates.prepareReleasePrefix(tag);
-    const downloadDirectory: string = `${destinationDirectory}/${releaseDirectory}`;
     const packageURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.zip`;
     const checksumURL: string = `${constants.HEDERA_BUILDS_URL}/node/software/${releaseDirectory}/build-${tag}.sha384`;
 
-    return await this.fetchPackage(packageURL, checksumURL, downloadDirectory, true, 'sha384', force);
+    return await this.fetchPackage(packageURL, checksumURL, destinationDirectory, true, 'sha384', force);
   }
 }

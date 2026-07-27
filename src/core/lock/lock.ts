@@ -3,7 +3,7 @@
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {type LockHolder} from './lock-holder.js';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
-import {type Duration} from '../time/duration.js';
+import {type LockRenewalService} from './lock-renewal-service.js';
 
 export interface Lock {
   readonly k8Factory: K8Factory;
@@ -51,9 +51,10 @@ export interface Lock {
    * Releases the lock. If the lock is expired or held by the same process, it deletes the lock.
    * If the lock is held by another process, then an exception is thrown.
    *
+   * @param immediate - If true, the safe sleep period is skipped and the lock is released immediately
    * @throws LeaseRelinquishmentError - If the lock is already acquired by another process or an error occurs during relinquishment.
    */
-  release(): Promise<void>;
+  release(immediate?: boolean): Promise<void>;
 
   /**
    * Attempts to relock the lock, by calling the relock method. If an exception is thrown, it is caught and false is returned.
@@ -77,40 +78,4 @@ export interface Lock {
    * @returns true if the lock is expired; otherwise, false.
    */
   isExpired(): Promise<boolean>;
-}
-
-export interface LockRenewalService {
-  /**
-   * Determines if a lease renewal is scheduled.
-   * @param scheduleId - the unique identifier of the scheduled lease renewal.
-   * @returns true if the lease renewal is scheduled; false otherwise.
-   */
-  isScheduled(scheduleId: number): Promise<boolean>;
-
-  /**
-   * Schedules a lease renewal.
-   * @param lease - the lease to be renewed.
-   * @returns the unique identifier of the scheduled lease renewal.
-   */
-  schedule(lease: Lock): Promise<number>;
-
-  /**
-   * Cancels a scheduled lease renewal.
-   * @param scheduleId - the unique identifier of the scheduled lease renewal.
-   * @returns true if the lease renewal was successfully cancelled; false otherwise.
-   */
-  cancel(scheduleId: number): Promise<boolean>;
-
-  /**
-   * Cancels all scheduled lease renewals.
-   * @returns a map of the unique identifiers of the scheduled lease renewals and their cancellation status.
-   */
-  cancelAll(): Promise<Map<number, boolean>>;
-
-  /**
-   * Calculates the delay before the next lease renewal.
-   * @param lease - the lease to be renewed.
-   * @returns the delay in milliseconds.
-   */
-  calculateRenewalDelay(lease: Lock): Duration;
 }

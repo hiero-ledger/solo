@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from './errors/solo-errors.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import {SoloError} from './errors/solo-error.js';
-import {IllegalArgumentError} from './errors/illegal-argument-error.js';
-import {MissingArgumentError} from './errors/missing-argument-error.js';
 import * as yaml from 'yaml';
 import dot from 'dot-object';
-import {parse, SemVer} from 'semver';
 import {readFile, writeFile} from 'node:fs/promises';
 
 import {Flags as flags} from '../commands/flags.js';
 import {Templates} from './templates.js';
 import * as constants from './constants.js';
 import {type ConfigManager} from './config-manager.js';
-import * as helpers from './helpers.js';
+import {Helpers} from './helpers.js';
 import {type SoloLogger} from './logging/solo-logger.js';
 import {type AnyObject, type DirectoryPath, type NodeAlias, type NodeAliases, type Path} from '../types/aliases.js';
 import {type Optional} from '../types/index.js';
@@ -23,8 +20,14 @@ import {patchInject} from './dependency-injection/container-helper.js';
 import {InjectTokens} from './dependency-injection/inject-tokens.js';
 import {type ConsensusNode} from './model/consensus-node.js';
 import {type K8Factory} from '../integration/kube/k8-factory.js';
+import {type K8} from '../integration/kube/k8.js';
+import {ContainerReference} from '../integration/kube/resources/container/container-reference.js';
+import {type Pod} from '../integration/kube/resources/pod/pod.js';
+import {type PodReference} from '../integration/kube/resources/pod/pod-reference.js';
+import {type Container} from '../integration/kube/resources/container/container.js';
 import {type ClusterReferenceName, DeploymentName, Realm, Shard} from './../types/index.js';
 import {PathEx} from '../business/utils/path-ex.js';
+import {FilePermissions} from '../business/utils/file-permissions.js';
 import {AccountManager} from './account-manager.js';
 import {LocalConfigRuntimeState} from '../business/runtime-state/config/local/local-config-runtime-state.js';
 import {type RemoteConfigRuntimeStateApi} from '../business/runtime-state/api/remote-config-runtime-state-api.js';
@@ -33,7 +36,9 @@ import {BlockNodesJsonWrapper} from './block-nodes-json-wrapper.js';
 import {NamespaceName} from '../types/namespace/namespace-name.js';
 import {Address} from '../business/address/address.js';
 import * as versions from '../../version.js';
-import semver from 'semver/preload.js';
+import {Numbers} from '../business/utils/numbers.js';
+import {SemanticVersion} from '../business/utils/semantic-version.js';
+import {type ProfileManagerStagingOptions} from './profile-manager-staging-options.js';
 
 @injectable()
 export class ProfileManager {
@@ -44,9 +49,6 @@ export class ProfileManager {
   private readonly remoteConfig: RemoteConfigRuntimeStateApi;
   private readonly accountManager: AccountManager;
   private readonly localConfig: LocalConfigRuntimeState;
-
-  private profiles: Map<string, AnyObject>;
-  private profileFile: Optional<string>;
 
   public constructor(
     @inject(InjectTokens.SoloLogger) logger?: SoloLogger,
@@ -64,70 +66,6 @@ export class ProfileManager {
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
     this.accountManager = patchInject(accountManager, InjectTokens.AccountManager, this.constructor.name);
     this.localConfig = patchInject(localConfig, InjectTokens.LocalConfigRuntimeState, this.constructor.name);
-
-    this.profiles = new Map();
-  }
-
-  /**
-   * Load profiles from a profile file and populate the profiles map.
-   *
-   * @param [forceReload = false] - forces the profiles map to override even if it exists.
-   * @returns reference to the populated profiles map.
-   *
-   * @throws {IllegalArgumentError} if the profile file is not found.
-   */
-  loadProfiles(forceReload = false): Map<string, AnyObject> {
-    const profileFile = this.configManager.getFlagFile(flags.profileFile);
-    if (!profileFile) {
-      throw new MissingArgumentError('profileFile is required');
-    }
-
-    // return the cached value as quickly as possible
-    if (this.profiles && this.profileFile === profileFile && !forceReload) {
-      return this.profiles;
-    }
-
-    if (!fs.existsSync(profileFile)) {
-      throw new IllegalArgumentError(`profileFile does not exist: ${profileFile}`);
-    }
-
-    // load profile file
-    this.profiles = new Map();
-    const yamlData = fs.readFileSync(profileFile, 'utf8');
-    const profileItems = yaml.parse(yamlData) as Record<string, AnyObject>;
-
-    // add profiles
-    for (const key in profileItems) {
-      let profile = profileItems[key];
-      profile = profile || {};
-      this.profiles.set(key, profile);
-    }
-
-    this.profileFile = profileFile;
-    return this.profiles;
-  }
-
-  /**
-   * Get profile from the profiles map, loads them on demand if they are not loaded already.
-   *
-   * @param profileName - profile name (key in the map).
-   * @returns the profile.
-   *
-   * @throws {IllegalArgumentError} if profiles can't be loaded or the profile name is not found in the map.
-   */
-  getProfile(profileName: string): AnyObject {
-    if (!profileName) {
-      throw new MissingArgumentError('profileName is required');
-    }
-    if (!this.profiles || this.profiles.size <= 0) {
-      this.loadProfiles();
-    }
-
-    if (!this.profiles || !this.profiles.has(profileName)) {
-      throw new IllegalArgumentError(`Profile does not exists with name: ${profileName}`);
-    }
-
-    return this.profiles.get(profileName) as AnyObject;
   }
 
   /**
@@ -137,27 +75,27 @@ export class ProfileManager {
    * @param yamlRoot - root of the YAML object
    * @returns
    */
-  _setValue(itemPath: string, value: any, yamlRoot: AnyObject): AnyObject {
+  public _setValue(itemPath: string, value: unknown, yamlRoot: AnyObject): AnyObject {
     // find the location where to set the value in the YAML
     const itemPathParts: string[] = itemPath.split('.');
-    let parent = yamlRoot;
-    let current = parent;
-    let previousItemPath = '';
-    for (let itemPathPart of itemPathParts) {
-      if (helpers.isNumeric(itemPathPart)) {
-        // @ts-ignore
-        itemPathPart = Number.parseInt(itemPathPart); // numeric path part can only be array index i.e., an integer
+    let parent: AnyObject = yamlRoot;
+    let current: AnyObject = parent;
+    let previousItemPath: string | number = '';
+    for (const itemPathPart of itemPathParts) {
+      if (Numbers.isNumeric(itemPathPart)) {
+        const itemPathIndex: number = Number.parseInt(itemPathPart, 10); // numeric path part can only be array index
         if (!Array.isArray(parent[previousItemPath])) {
           parent[previousItemPath] = [];
         }
 
-        if (!parent[previousItemPath][itemPathPart]) {
-          parent[previousItemPath][itemPathPart] = {};
+        const parentArray: AnyObject[] = parent[previousItemPath] as AnyObject[];
+        if (!parentArray[itemPathIndex]) {
+          parentArray[itemPathIndex] = {};
         }
 
-        parent = parent[previousItemPath];
-        previousItemPath = itemPathPart;
-        current = parent[itemPathPart];
+        parent = parentArray as unknown as AnyObject;
+        previousItemPath = itemPathIndex;
+        current = parent[itemPathIndex] as AnyObject;
       } else {
         if (!current[itemPathPart]) {
           current[itemPathPart] = {};
@@ -179,17 +117,17 @@ export class ProfileManager {
    * @param items - the element object
    * @param yamlRoot - root of the YAML object to update
    */
-  _setChartItems(itemPath: string, items: any, yamlRoot: AnyObject) {
+  public _setChartItems(itemPath: string, items: AnyObject | undefined, yamlRoot: AnyObject): void {
     if (!items) {
       return;
     }
 
-    const dotItems = dot.dot(items);
+    const dotItems: AnyObject = dot.dot(items) as AnyObject;
 
     for (const key in dotItems) {
-      let itemKey = key;
+      let itemKey: string = key;
 
-      // if it is an array key like extraEnv[0].JAVA_OPTS, convert it into a dot separated key as extraEnv.0.JAVA_OPTS
+      // if it is an array key like extraEnvironment[0].JAVA_OPTS, convert it into a dot separated key as extraEnvironment.0.JAVA_OPTS
       if (key.includes('[')) {
         itemKey = key.replace('[', '.').replace(']', '');
       }
@@ -206,9 +144,9 @@ export class ProfileManager {
     consensusNodes: ConsensusNode[],
     nodeAliases: NodeAliases,
     yamlRoot: AnyObject,
-    domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
+    stagingOptions?: Partial<ProfileManagerStagingOptions>,
   ): Promise<void> {
     const accountMap: Map<NodeAlias, string> = this.accountManager.getNodeAccountMap(
       consensusNodes.map((node): NodeAlias => node.name),
@@ -222,28 +160,32 @@ export class ProfileManager {
       this._setValue(`hedera.nodes.${nodeIndex}.accountId`, accountMap.get(nodeAlias), yamlRoot);
     }
 
+    // Resolve once and keep immutable for this invocation to prevent races from global flag mutation
+    // while a parallel command is generating staging/config artifacts.
+    const resolvedStagingOptions: ProfileManagerStagingOptions = this.resolveStagingOptions(stagingOptions);
     const stagingDirectory: string = Templates.renderStagingDir(
-      this.configManager.getFlag(flags.cacheDir),
-      this.configManager.getFlag(flags.releaseTag),
+      resolvedStagingOptions.cacheDir,
+      resolvedStagingOptions.releaseTag,
     );
 
     if (!fs.existsSync(stagingDirectory)) {
       fs.mkdirSync(stagingDirectory, {recursive: true});
     }
 
-    const releaseTag: string = this.configManager.getFlag(flags.releaseTag);
-    const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(releaseTag);
+    const needsConfigTxt: boolean = versions.needsConfigTxtForConsensusVersion(resolvedStagingOptions.releaseTag);
     let configTxtPath: Optional<string>;
     if (needsConfigTxt) {
+      const gossipFqdnRestricted: boolean = await this.getGossipFqdnRestricted(
+        consensusNodes,
+        applicationPropertiesPath,
+      );
       configTxtPath = await this.prepareConfigTxt(
         accountMap,
         consensusNodes,
         stagingDirectory,
-        releaseTag,
-        domainNamesMapping,
-        this.configManager.getFlag(flags.app),
-        this.configManager.getFlag(flags.chainId),
-        this.configManager.getFlag(flags.loadBalancerEnabled),
+        resolvedStagingOptions.appName,
+        resolvedStagingOptions.chainId,
+        gossipFqdnRestricted,
       );
     }
 
@@ -255,23 +197,65 @@ export class ProfileManager {
     );
 
     await this.updateApplicationPropertiesForBlockNode(applicationPropertiesPath);
+    await this.updateApplicationPropertiesWithChainId(applicationPropertiesPath, resolvedStagingOptions.chainId);
 
     for (const flag of flags.nodeConfigFileFlags.values()) {
       const sourceFilePath: string = this.configManager.getFlagFile(flag);
       const currentWorkingDirectory: string = process.env.INIT_CWD || process.cwd();
       const sourceAbsoluteFilePath: string = PathEx.resolve(currentWorkingDirectory, sourceFilePath);
       if (!fs.existsSync(sourceAbsoluteFilePath)) {
-        throw new SoloError(
-          `Configuration file does not exist for: ${flag.name}, absolute path: ${sourceAbsoluteFilePath}, path: ${sourceFilePath}`,
-        );
+        throw new SoloErrors.validation.configFileNotFound(flag.name, sourceAbsoluteFilePath, sourceFilePath);
       }
 
       const destinationFileName: string = path.basename(flag.definition.defaultValue as string);
       const destinationPath: string = PathEx.join(stagingDirectory, 'templates', destinationFileName);
       this.logger.debug(`Copying configuration file to staging: ${sourceAbsoluteFilePath} -> ${destinationPath}`);
 
-      fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
+      // For application.properties: when the user provides a custom file (flag value differs
+      // from the default relative path), use the user's file as the base and then apply
+      // Solo's required overrides (realm, shard, block-node settings) on top.
+      // This preserves all user-defined properties while ensuring Solo's critical settings win.
+      const flagValue: string | undefined = this.configManager.getFlag<string>(flags.applicationProperties);
+      const isUserSuppliedApplicationProperties: boolean =
+        flag.name === flags.applicationProperties.name &&
+        !!flagValue &&
+        flagValue !== (flags.applicationProperties.definition.defaultValue as string);
+
+      if (isUserSuppliedApplicationProperties) {
+        if (await this.isApplicationPropertiesOverwriteEnabled(sourceAbsoluteFilePath)) {
+          this.logger.debug(
+            `Detected '${constants.APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER}' in '${sourceAbsoluteFilePath}', ` +
+              'using user application.properties as full overwrite',
+          );
+          fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
+        } else {
+          // Base: Solo's updated default (realm/shard/block-node settings already applied).
+          // Apply user's properties as key-level overrides: existing keys are updated,
+          // new keys are appended.  This avoids duplicates while preserving all Solo defaults
+          // that the user did not explicitly override.
+          fs.cpSync(applicationPropertiesPath, destinationPath, {force: true});
+          await this.mergeApplicationProperties(destinationPath, sourceAbsoluteFilePath);
+
+          // Re-apply Solo-required settings so merged user values cannot override
+          // critical deployment behavior (realm/shard/chainId/block-node settings).
+          await this.updateApplicationPropertiesWithRealmAndShard(
+            destinationPath,
+            this.localConfig.configuration.realmForDeployment(deploymentName),
+            this.localConfig.configuration.shardForDeployment(deploymentName),
+          );
+          await this.updateApplicationPropertiesForBlockNode(destinationPath);
+          await this.updateApplicationPropertiesWithChainId(destinationPath, resolvedStagingOptions.chainId);
+        }
+      } else {
+        fs.cpSync(sourceAbsoluteFilePath, destinationPath, {force: true});
+      }
     }
+
+    // Files staged via cpSync inherit the (wider) source mode and bypass the process umask.
+    FilePermissions.restrictTreeToOwner(PathEx.join(stagingDirectory, 'templates'));
+
+    const bootstrapPropertiesPath: string = PathEx.join(stagingDirectory, 'templates', 'bootstrap.properties');
+    await this.updateBoostrapPropertiesWithChainId(bootstrapPropertiesPath, resolvedStagingOptions.chainId);
 
     if (configTxtPath) {
       this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
@@ -288,7 +272,7 @@ export class ProfileManager {
     );
     this._setFileContentsAsValue(
       'hedera.configMaps.applicationProperties',
-      PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.properties'),
+      PathEx.joinWithRealPath(stagingDirectory, 'templates', constants.APPLICATION_PROPERTIES),
       yamlRoot,
     );
     this._setFileContentsAsValue(
@@ -302,9 +286,10 @@ export class ProfileManager {
       yamlRoot,
     );
 
+    const applicationEnvironmentPath: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
     this._setFileContentsAsValue(
       'hedera.configMaps.applicationEnv',
-      PathEx.joinWithRealPath(stagingDirectory, 'templates', 'application.env'),
+      PathEx.resolve(applicationEnvironmentPath),
       yamlRoot,
     );
 
@@ -343,137 +328,63 @@ export class ProfileManager {
     }
   }
 
-  public async resourcesForConsensusPod(
-    profile: AnyObject,
-    consensusNodes: ConsensusNode[],
-    nodeAliases: NodeAliases,
+  /**
+   * Parse a KEY=VALUE env file and override defaults.root.extraEnvironment in the Helm values
+   * so that pod-level environment variables match the application.env content.
+   */
+  private applyApplicationEnvToExtraEnv(applicationEnvironmentPath: string, yamlRoot: AnyObject): void {
+    if (!fs.existsSync(applicationEnvironmentPath)) {
+      return;
+    }
+
+    const extraEnvironment: AnyObject[] = [];
+    for (const line of fs.readFileSync(applicationEnvironmentPath, 'utf8').split('\n')) {
+      const trimmed: string = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const equalsIndex: number = trimmed.indexOf('=');
+      if (equalsIndex > 0) {
+        extraEnvironment.push({name: trimmed.slice(0, equalsIndex), value: trimmed.slice(equalsIndex + 1)});
+      }
+    }
+
+    if (extraEnvironment.length > 0) {
+      this._setChartItems('defaults.root', {extraEnv: extraEnvironment}, yamlRoot);
+    }
+  }
+
+  public resourcesForNetworkUpgrade(
+    itemPath: string,
+    fileName: string,
+    stagingDirectory: string,
     yamlRoot: AnyObject,
-    domainNamesMapping: Record<NodeAlias, string>,
-    deploymentName: DeploymentName,
-    applicationPropertiesPath: string,
-    jfrFile: string = '',
-  ): Promise<AnyObject> {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
+  ): void {
+    const filePath: string = PathEx.join(stagingDirectory, 'templates', fileName);
 
-    await this.prepareStagingDirectory(
-      consensusNodes,
-      nodeAliases,
-      yamlRoot,
-      domainNamesMapping,
-      deploymentName,
-      applicationPropertiesPath,
-    );
-
-    if (profile.consensus) {
-      if (
-        jfrFile !== '' &&
-        profile.consensus.root &&
-        profile.consensus.root.extraEnv &&
-        Array.isArray(profile.consensus.root.extraEnv)
-      ) {
-        const javaOption: AnyObject = profile.consensus.root.extraEnv.find(
-          (environmentObject: AnyObject): boolean => environmentObject.name === 'JAVA_OPTS',
-        );
-
-        if (javaOption) {
-          javaOption.value +=
-            ' -XX:StartFlightRecording=dumponexit=true,' +
-            `settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile},` +
-            `filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
-        }
-      }
-
-      // set default for consensus pod
-      this._setChartItems('defaults.root', profile.consensus.root, yamlRoot);
-
-      // set sidecar resources
-      for (const sidecar of constants.HEDERA_NODE_SIDECARS) {
-        this._setChartItems(`defaults.sidecars.${sidecar}`, profile.consensus[sidecar], yamlRoot);
-      }
-    }
-
-    return yamlRoot;
-  }
-
-  private resourcesForHaProxyPod(profile: AnyObject, yamlRoot: AnyObject) {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
-    if (!profile.haproxy) {
-      return;
-    } // use chart defaults
-
-    return this._setChartItems('defaults.haproxy', profile.haproxy, yamlRoot);
-  }
-
-  private resourcesForEnvoyProxyPod(profile: AnyObject, yamlRoot: AnyObject) {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
-    if (!profile.envoyProxy) {
-      return;
-    } // use chart defaults
-    return this._setChartItems('defaults.envoyProxy', profile.envoyProxy, yamlRoot);
-  }
-
-  private resourcesForHederaExplorerPod(profile: AnyObject, yamlRoot: AnyObject) {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
-    if (!profile.explorer) {
+    if (!fs.existsSync(filePath)) {
       return;
     }
-    return this._setChartItems('', profile.explorer, yamlRoot);
-  }
 
-  private resourcesForMinioTenantPod(profile: AnyObject, yamlRoot: AnyObject) {
-    if (!profile) {
-      throw new MissingArgumentError('profile is required');
-    }
-    // @ts-ignore
-    if (!profile.minio || !profile.minio.tenant) {
-      return {};
-    } // use chart defaults
-
-    for (const poolIndex in profile.minio.tenant.pools) {
-      const pool = profile.minio.tenant.pools[poolIndex];
-      for (const property in pool) {
-        if (property !== 'resources') {
-          this._setValue(`minio-server.tenant.pools.${poolIndex}.${property}`, pool[property], yamlRoot);
-        }
-      }
-
-      this._setChartItems(`minio-server.tenant.pools.${poolIndex}`, pool, yamlRoot);
-    }
-
-    return yamlRoot;
+    this._setFileContentsAsValue(itemPath, filePath, yamlRoot);
   }
 
   /**
    * Prepare a values file for Solo Helm chart
-   * @param profileName - resource profile name
    * @param consensusNodes - the list of consensus nodes
-   * @param domainNamesMapping
    * @param deploymentName
    * @param applicationPropertiesPath
-   * @param jfrFile - the name of the custom JFR settings file to use for recording
+   * @param jfrFile - the name of the custom JFR settings file to use for recording (basename only)
+   * @param stagingOptions
    * @returns mapping of cluster-ref to the full path to the values file
    */
   public async prepareValuesForSoloChart(
-    profileName: string,
     consensusNodes: ConsensusNode[],
-    domainNamesMapping: Record<NodeAlias, string>,
     deploymentName: DeploymentName,
     applicationPropertiesPath: string,
     jfrFile: string = '',
+    stagingOptions?: Partial<ProfileManagerStagingOptions>,
   ): Promise<Record<ClusterReferenceName, string>> {
-    if (!profileName) {
-      throw new MissingArgumentError('profileName is required');
-    }
-    const profile: AnyObject = this.getProfile(profileName);
-
     const filesMapping: Record<ClusterReferenceName, string> = {};
 
     for (const [clusterReference] of this.remoteConfig.getClusterRefs()) {
@@ -484,40 +395,146 @@ export class ProfileManager {
       // generate the YAML
       const yamlRoot: AnyObject = {};
 
-      await this.resourcesForConsensusPod(
-        profile,
+      await this.prepareStagingDirectory(
         consensusNodes,
         nodeAliases,
         yamlRoot,
-        domainNamesMapping,
         deploymentName,
         applicationPropertiesPath,
-        jfrFile,
+        stagingOptions,
       );
-      this.resourcesForHaProxyPod(profile, yamlRoot);
-      this.resourcesForEnvoyProxyPod(profile, yamlRoot);
-      this.resourcesForMinioTenantPod(profile, yamlRoot);
 
-      const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${profileName}-${clusterReference}.yaml`);
+      // If a JFR settings file is provided, read the defaults from solo-values.yaml,
+      // find the JAVA_OPTS entry in defaults.root.extraEnv, and append the
+      // -XX:StartFlightRecording flags so that the recorder starts automatically
+      // when the consensus node JVM launches.
+      if (jfrFile !== '') {
+        const soloValuesYaml: AnyObject = yaml.parse(
+          fs.readFileSync(constants.SOLO_DEPLOYMENT_VALUES_FILE, 'utf8'),
+        ) as AnyObject;
+        const extraEnvironment: AnyObject[] = (soloValuesYaml?.defaults?.root?.extraEnv as AnyObject[]) ?? [];
+        const javaOption: AnyObject | undefined = extraEnvironment.find(
+          (environmentObject: AnyObject): boolean => environmentObject.name === 'JAVA_OPTS',
+        );
+        if (javaOption) {
+          javaOption.value +=
+            ' -XX:StartFlightRecording=dumponexit=true' +
+            `,settings=${constants.HEDERA_HAPI_PATH}/data/config/${jfrFile}` +
+            `,filename=${constants.HEDERA_HAPI_PATH}/output/recording.jfr`;
+        } else {
+          this.logger.warn(
+            `JAVA_OPTS not found in ${constants.SOLO_DEPLOYMENT_VALUES_FILE}; JFR settings file '${jfrFile}' will not be applied`,
+          );
+        }
+        this._setChartItems('defaults.root', soloValuesYaml.defaults.root, yamlRoot);
+      }
+
+      // Override defaults.root.extraEnv with values from the staged application.env file.
+      // This must run AFTER the JFR block above, which overwrites defaults.root from solo-values.yaml.
+      const stagingDirectory: string = Templates.renderStagingDir(
+        this.configManager.getFlag(flags.cacheDir),
+        this.configManager.getFlag(flags.consensusNodeVersion),
+      );
+      const applicationEnvironmentPath: string = PathEx.join(stagingDirectory, 'templates', 'application.env');
+      this.applyApplicationEnvToExtraEnv(applicationEnvironmentPath, yamlRoot);
+
+      const cachedValuesFile: string = PathEx.join(this.cacheDir, `solo-${clusterReference}.yaml`);
       filesMapping[clusterReference] = await this.writeToYaml(cachedValuesFile, yamlRoot);
     }
 
     return filesMapping;
   }
 
-  private async bumpHederaConfigVersion(applicationPropertiesPath: string) {
+  private resolveStagingOptions(options?: Partial<ProfileManagerStagingOptions>): ProfileManagerStagingOptions {
+    // Fallbacks preserve compatibility for call sites that do not pass explicit options yet.
+    // Newer call sites should pass command-scoped values to avoid cross-command interference.
+    return {
+      cacheDir: options?.cacheDir ?? this.configManager.getFlag(flags.cacheDir),
+      releaseTag: options?.releaseTag ?? this.configManager.getFlag(flags.consensusNodeVersion),
+      appName: options?.appName ?? this.configManager.getFlag(flags.app),
+      chainId: options?.chainId ?? this.configManager.getFlag(flags.chainId),
+    };
+  }
+
+  private async bumpHederaConfigVersion(applicationPropertiesPath: string): Promise<void> {
     const fileContents: string = await readFile(applicationPropertiesPath, 'utf8');
     const lines: string[] = fileContents.split('\n');
 
     for (const line of lines) {
       if (line.startsWith('hedera.config.version=')) {
-        const version = Number.parseInt(line.split('=')[1]) + 1;
+        const version: number = Number.parseInt(line.split('=', 2)[1], 10) + 1;
         lines[lines.indexOf(line)] = `hedera.config.version=${version}`;
         break;
       }
     }
 
     await writeFile(applicationPropertiesPath, lines.join('\n'));
+  }
+
+  /**
+   * Merge a user-supplied application.properties into the existing staging file.
+   * Solo's defaults (already written to stagingPath) are the base; for each key in the
+   * user's file the existing line is replaced in-place.  Keys not present in the base
+   * are appended at the end.  This avoids duplicate entries while preserving every
+   * Solo default the user did not explicitly override.
+   */
+  private async mergeApplicationProperties(stagingPath: string, userFilePath: string): Promise<void> {
+    this.logger.debug(`Merging user application.properties '${userFilePath}' into staging '${stagingPath}'`);
+    const stagingContent: string = await readFile(stagingPath, 'utf8');
+    const userContent: string = await readFile(userFilePath, 'utf8');
+
+    // Parse user file into key→value map (comments and blank lines are skipped)
+    const userProperties: Map<string, string> = new Map<string, string>();
+    for (const line of userContent.split('\n')) {
+      const trimmed: string = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const equalsIndex: number = trimmed.indexOf('=');
+      if (equalsIndex > 0) {
+        userProperties.set(trimmed.slice(0, equalsIndex).trim(), trimmed.slice(equalsIndex + 1));
+      }
+    }
+
+    // Walk staging lines, replacing values for keys the user supplied
+    const appliedKeys: Set<string> = new Set<string>();
+    const resultLines: string[] = [];
+    for (const line of stagingContent.split('\n')) {
+      const trimmed: string = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        resultLines.push(line);
+        continue;
+      }
+      const equalsIndex: number = trimmed.indexOf('=');
+      if (equalsIndex > 0) {
+        const key: string = trimmed.slice(0, equalsIndex).trim();
+        if (userProperties.has(key)) {
+          resultLines.push(`${key}=${userProperties.get(key)}`);
+          appliedKeys.add(key);
+        } else {
+          resultLines.push(line);
+        }
+      } else {
+        resultLines.push(line);
+      }
+    }
+
+    // Append keys from user's file that were not present in Solo's default
+    for (const [key, value] of userProperties) {
+      if (!appliedKeys.has(key)) {
+        resultLines.push(`${key}=${value}`);
+      }
+    }
+
+    await writeFile(stagingPath, resultLines.join('\n'));
+  }
+
+  private async isApplicationPropertiesOverwriteEnabled(userFilePath: string): Promise<boolean> {
+    const userContent: string = await readFile(userFilePath, 'utf8');
+    return userContent.split('\n').some((line: string): boolean => {
+      const trimmed: string = line.trim();
+      return trimmed.startsWith('#') && trimmed.includes(constants.APPLICATION_PROPERTIES_ENABLE_OVERWRITE_MARKER);
+    });
   }
 
   private async updateApplicationPropertiesForBlockNode(applicationPropertiesPath: string): Promise<void> {
@@ -531,7 +548,11 @@ export class ProfileManager {
       fileText.split('\n'),
     );
 
-    const streamMode: string = constants.BLOCK_STREAM_STREAM_MODE;
+    const streamMode: string = Helpers.resolveBlockStreamModeForConsensusVersion(
+      Helpers.parseBlockStreamMode(lines.join('\n')),
+      this.remoteConfig.configuration.versions.consensusNode,
+      hasDeployedBlockNodes,
+    );
     const writerMode: string = constants.BLOCK_STREAM_WRITER_MODE;
 
     let streamModeUpdated: boolean = false;
@@ -555,14 +576,51 @@ export class ProfileManager {
       lines.push(`blockStream.writerMode=${writerMode}`);
     }
 
+    // streamMode=BOTH sends both native blocks (BLOCK_HEADER) and Wrapped Record Blocks
+    // (ROUND_HEADER) to the block node.  The block node silently drops ROUND_HEADER items
+    // because they fail its hasBlockHeader() check, creating gaps that permanently stall the
+    // mirror importer on NOT_AVAILABLE.  Set this here so the CN pod reads it at first startup;
+    // the post-start ConfigMap update in createAndCopyBlockNodeJsonFileForConsensusNode is too
+    // late because the JVM has already cached its configuration by then.
+    Helpers.ensureWrappedRecordBlocksDisabled(lines, streamMode);
+
     await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
+  }
+
+  private async updateApplicationPropertiesWithChainId(
+    applicationPropertiesPath: string,
+    chainId: string,
+  ): Promise<void> {
+    const fileText: string = await readFile(applicationPropertiesPath, 'utf8');
+    const lines: string[] = fileText.split('\n');
+
+    for (const line of lines) {
+      if (line.startsWith('contracts.chainId=')) {
+        lines[lines.indexOf(line)] = `contracts.chainId=${chainId}`;
+      }
+    }
+
+    await writeFile(applicationPropertiesPath, lines.join('\n') + '\n');
+  }
+
+  private async updateBoostrapPropertiesWithChainId(bootstrapPropertiesPath: string, chainId: string): Promise<void> {
+    const fileText: string = await readFile(bootstrapPropertiesPath, 'utf8');
+    const lines: string[] = fileText.split('\n');
+
+    for (const line of lines) {
+      if (line.startsWith('contracts.chainId=')) {
+        lines[lines.indexOf(line)] = `contracts.chainId=${chainId}`;
+      }
+    }
+
+    await writeFile(bootstrapPropertiesPath, lines.join('\n') + '\n');
   }
 
   private async updateApplicationPropertiesWithRealmAndShard(
     applicationPropertiesPath: string,
     realm: Realm,
     shard: Shard,
-  ) {
+  ): Promise<void> {
     const fileContents: string = await readFile(applicationPropertiesPath, 'utf8');
     const lines: string[] = fileContents.split('\n');
 
@@ -587,7 +645,7 @@ export class ProfileManager {
       lines.push(`hedera.shard=${shard}`);
     }
 
-    let releaseTag: SemVer = new SemVer(versions.HEDERA_PLATFORM_VERSION);
+    let releaseTag: SemanticVersion<string> = new SemanticVersion<string>(versions.HEDERA_PLATFORM_VERSION);
     try {
       releaseTag = this.remoteConfig.configuration.versions.consensusNode;
     } catch {
@@ -601,8 +659,8 @@ export class ProfileManager {
       // Guard
     }
 
-    if (!semver.lt(releaseTag, versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
-      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true');
+    if (!releaseTag.lessThan(versions.MINIMUM_HIERO_PLATFORM_VERSION_FOR_TSS) && tssEnabled) {
+      lines.push('tss.hintsEnabled=true', 'tss.historyEnabled=true', 'tss.forceMockSignatures=false');
 
       if (this.remoteConfig.configuration.state.wrapsEnabled) {
         lines.push('tss.wrapsEnabled=true');
@@ -616,49 +674,14 @@ export class ProfileManager {
     applicationPropertiesPath: string,
     configTxtPath?: string,
   ): Promise<string> {
-    const yamlRoot = {};
+    const yamlRoot: AnyObject = {};
     if (configTxtPath) {
       this._setFileContentsAsValue('hedera.configMaps.configTxt', configTxtPath, yamlRoot);
     }
     await this.bumpHederaConfigVersion(applicationPropertiesPath);
     this._setFileContentsAsValue('hedera.configMaps.applicationProperties', applicationPropertiesPath, yamlRoot);
 
-    const cachedValuesFile = PathEx.join(this.cacheDir, 'solo-node-transaction.yaml');
-    return this.writeToYaml(cachedValuesFile, yamlRoot);
-  }
-
-  /**
-   * Prepare a values file for rpc-relay Helm chart
-   * @param profileName - resource profile name
-   * @returns return the full path to the values file
-   */
-  public async prepareValuesForRpcRelayChart(profileName: string) {
-    if (!profileName) {
-      throw new MissingArgumentError('profileName is required');
-    }
-    const profile = this.getProfile(profileName) as AnyObject;
-    if (!profile.rpcRelay) {
-      return '';
-    } // use chart defaults
-
-    // generate the YAML
-    const yamlRoot = {};
-    this._setChartItems('', profile.rpcRelay, yamlRoot);
-
-    const cachedValuesFile = PathEx.join(this.cacheDir, `rpcRelay-${profileName}.yaml`);
-    return this.writeToYaml(cachedValuesFile, yamlRoot);
-  }
-
-  public async prepareValuesHederaExplorerChart(profileName: string) {
-    if (!profileName) {
-      throw new MissingArgumentError('profileName is required');
-    }
-    const profile = this.getProfile(profileName) as AnyObject;
-    // generate the YAML
-    const yamlRoot = {};
-    this.resourcesForHederaExplorerPod(profile, yamlRoot);
-
-    const cachedValuesFile = PathEx.join(this.cacheDir, `explorer-${profileName}.yaml`);
+    const cachedValuesFile: string = PathEx.join(this.cacheDir, 'solo-node-transaction.yaml');
     return this.writeToYaml(cachedValuesFile, yamlRoot);
   }
 
@@ -668,9 +691,9 @@ export class ProfileManager {
    * @param cachedValuesFile - the target file to write the YAML root to.
    * @param yamlRoot - object to turn into YAML and write to file.
    */
-  private async writeToYaml(cachedValuesFile: Path, yamlRoot: AnyObject) {
-    return await new Promise<string>((resolve, reject) => {
-      fs.writeFile(cachedValuesFile, yaml.stringify(yamlRoot), error => {
+  public async writeToYaml(cachedValuesFile: Path, yamlRoot: AnyObject): Promise<string> {
+    return await new Promise<string>((resolve, reject): void => {
+      fs.writeFile(cachedValuesFile, yaml.stringify(yamlRoot), (error): void => {
         if (error) {
           reject(error);
         }
@@ -681,116 +704,174 @@ export class ProfileManager {
   }
 
   /**
-   * Prepare a values file for mirror node Helm chart
-   * @param profileName - resource profile name
-   * @returns the full path to the values file
-   */
-  public async prepareValuesForMirrorNodeChart(profileName: string) {
-    if (!profileName) {
-      throw new MissingArgumentError('profileName is required');
-    }
-    const profile = this.getProfile(profileName) as AnyObject;
-    if (!profile.mirror) {
-      return '';
-    } // use chart defaults
-
-    // generate the YAML
-    const yamlRoot = {};
-    if (profile.mirror.postgresql) {
-      if (profile.mirror.postgresql.persistence) {
-        this._setValue('postgresql.persistence.size', profile.mirror.postgresql.persistence.size, yamlRoot);
-      }
-
-      this._setChartItems('postgresql.postgresql', profile.mirror.postgresql.postgresql, yamlRoot);
-    }
-
-    this._setChartItems('importer', profile.mirror.importer, yamlRoot);
-    this._setChartItems('rest', profile.mirror.rest, yamlRoot);
-    this._setChartItems('web3', profile.mirror.web3, yamlRoot);
-    this._setChartItems('grpc', profile.mirror.grpc, yamlRoot);
-    this._setChartItems('monitor', profile.mirror.monitor, yamlRoot);
-
-    const cachedValuesFile = PathEx.join(this.cacheDir, `mirror-${profileName}.yaml`);
-    return this.writeToYaml(cachedValuesFile, yamlRoot);
-  }
-
-  /**
    * Writes the contents of a file as a value for the given nested item path in the YAML object
    * @param itemPath - nested item path in the YAML object to store the file contents
    * @param valueFilePath - path to the file whose contents will be stored in the YAML object
    * @param yamlRoot - root of the YAML object
    */
-  private _setFileContentsAsValue(itemPath: string, valueFilePath: string, yamlRoot: AnyObject) {
-    const fileContents = fs.readFileSync(valueFilePath, 'utf8');
+  private _setFileContentsAsValue(itemPath: string, valueFilePath: string, yamlRoot: AnyObject): void {
+    const fileContents: string = fs.readFileSync(valueFilePath, 'utf8');
     this._setValue(itemPath, fileContents, yamlRoot);
+  }
+
+  /**
+   * Extracts gossip endpoints from saved state (network.json) if it exists
+   * @param consensusNode - the consensus node to check
+   * @param nodeSeq - the node sequence number (index in roster)
+   * @returns the saved endpoint address or undefined if no saved state exists or IP is no longer valid
+   * @private
+   */
+  private async extractSavedEndpoint(consensusNode: ConsensusNode, nodeSeq: number): Promise<Address | undefined> {
+    try {
+      const k8: K8 = this.k8Factory.getK8(consensusNode.context);
+      const networkJsonPath: string = `${constants.HEDERA_HAPI_PATH}/output/network.json`;
+
+      // Check if network.json exists in the pod
+      const pods: Pod[] = await k8
+        .pods()
+        .list(NamespaceName.of(consensusNode.namespace), [`app=network-${consensusNode.name}`]);
+      if (pods.length === 0) {
+        return undefined;
+      }
+
+      const pod: Pod | undefined = pods.find((candidate: Pod): boolean => Boolean(candidate?.podReference)) ?? pods[0];
+      const podReference: PodReference | null | undefined = pod?.podReference;
+      if (!podReference) {
+        return undefined;
+      }
+
+      // Get container reference
+      const containerReference: ContainerReference = ContainerReference.of(podReference, constants.ROOT_CONTAINER);
+      const container: Container = k8.containers().readByRef(containerReference);
+
+      // Try to read network.json from the pod
+      const networkJsonContent: string = await container.execContainer(['cat', networkJsonPath]);
+
+      if (!networkJsonContent || networkJsonContent.includes('No such file')) {
+        return undefined;
+      }
+
+      const networkJson: Record<string, unknown> = JSON.parse(networkJsonContent);
+      const nodeMetadata: unknown = networkJson?.nodeMetadata?.[nodeSeq];
+      const rosterEntry: {gossipEndpoint?: Array<Record<string, unknown>>} | undefined = (
+        nodeMetadata as {rosterEntry?: {gossipEndpoint?: Array<Record<string, unknown>>}} | undefined
+      )?.rosterEntry;
+      const gossipEndpointRaw: Record<string, unknown> | undefined = rosterEntry?.gossipEndpoint?.[0];
+      const port: number = (gossipEndpointRaw?.port as number) || 0;
+      const domainName: string | undefined =
+        typeof gossipEndpointRaw?.domainName === 'string' ? gossipEndpointRaw.domainName : undefined;
+      const ipAddressV4: string | undefined =
+        typeof gossipEndpointRaw?.ipAddressV4 === 'string' ? gossipEndpointRaw.ipAddressV4 : undefined;
+
+      if (!gossipEndpointRaw) {
+        return undefined;
+      }
+
+      // Check if endpoint uses domain name (FQDN)
+      if (domainName) {
+        this.logger.info(`Found saved endpoint for ${consensusNode.name}: ${domainName}:${port} (FQDN)`);
+        return new Address(port, domainName);
+      }
+
+      // Check if endpoint uses IP address
+      if (ipAddressV4) {
+        // Decode base64 IP address
+        const base64Ip: string = ipAddressV4 as string;
+        const ipBytes: Buffer = Buffer.from(base64Ip, 'base64');
+        const ipAddress: string = [...ipBytes].join('.');
+
+        // Validate the saved IP still belongs to this node service.
+        const serviceName: string = `network-${consensusNode.name}-svc`;
+        const service:
+          {spec?: {clusterIP?: string}; status?: {loadBalancer?: {ingress?: Array<{ip?: string}>}}} | undefined =
+          await k8.services().read(NamespaceName.of(consensusNode.namespace), serviceName);
+        const serviceIpAddresses: string[] = [
+          ...(service?.status?.loadBalancer?.ingress ?? [])
+            .map((ingress: {ip?: string}): string | undefined => ingress.ip)
+            .filter(Boolean),
+          ...(service?.spec?.clusterIP && service.spec.clusterIP !== 'None' ? [service.spec.clusterIP] : []),
+        ];
+        if (!serviceIpAddresses.includes(ipAddress)) {
+          this.logger.warn(
+            `Saved endpoint ${ipAddress}:${port} for ${consensusNode.name} does not match current ${serviceName} IPs ${serviceIpAddresses.join(',') || 'undefined'}, falling back to current service address`,
+          );
+          return undefined;
+        }
+
+        this.logger.info(`Found saved endpoint for ${consensusNode.name}: ${ipAddress}:${port} (IP)`);
+        return new Address(port, ipAddress);
+      }
+
+      return undefined;
+    } catch (error: Error | unknown) {
+      // If anything fails, return undefined to fall back to getExternalAddress
+      this.logger.debug(
+        `Could not extract saved endpoint for ${consensusNode.name}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+      return undefined;
+    }
   }
 
   /**
    * Prepares config.txt file for the node
    * @param nodeAccountMap - the map of node aliases to account IDs
    * @param consensusNodes - the list of consensus nodes
-   * @param destPath - path to the destination directory to write the config.txt file
-   * @param releaseTagOverride - release tag override
-   * @param domainNamesMapping
+   * @param destinationPath
    * @param [appName] - the app name (default: HederaNode.jar)
    * @param [chainId] - chain ID (298 for local network)
-   * @param [loadBalancerEnabled] - whether the load balancer is enabled (flag is not set by default)
+   * @param [gossipFqdnRestricted] - whether gossip FQDN is restricted
    * @returns the config.txt file path
    */
-  async prepareConfigTxt(
+  public async prepareConfigTxt(
     nodeAccountMap: Map<NodeAlias, string>,
     consensusNodes: ConsensusNode[],
     destinationPath: string,
-    releaseTagOverride: string,
-    domainNamesMapping: Record<NodeAlias, string>,
-    appName = constants.HEDERA_APP_NAME,
-    chainId = constants.HEDERA_CHAIN_ID,
-    _loadBalancerEnabled: boolean = false,
-  ) {
-    let releaseTag = releaseTagOverride;
+    appName: string = constants.HEDERA_APP_NAME,
+    chainId: string = constants.HEDERA_CHAIN_ID,
+    gossipFqdnRestricted: boolean = true,
+  ): Promise<string> {
     if (!nodeAccountMap || nodeAccountMap.size === 0) {
-      throw new MissingArgumentError('nodeAccountMap the map of node IDs to account IDs is required');
-    }
-
-    if (!releaseTag) {
-      releaseTag = versions.HEDERA_PLATFORM_VERSION;
+      throw new SoloErrors.validation.missingArgument('nodeAccountMap the map of node IDs to account IDs is required');
     }
 
     if (!fs.existsSync(destinationPath)) {
-      throw new IllegalArgumentError(`config destPath does not exist: ${destinationPath}`, destinationPath);
+      throw new SoloErrors.validation.illegalArgument(
+        `config destPath does not exist: ${destinationPath}`,
+        destinationPath,
+      );
     }
 
-    const configFilePath = PathEx.join(destinationPath, 'config.txt');
+    const configFilePath: string = PathEx.join(destinationPath, 'config.txt');
     if (fs.existsSync(configFilePath)) {
       fs.unlinkSync(configFilePath);
     }
 
     // init variables
-    const internalPort = +constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT;
-    const externalPort = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
-    const nodeStakeAmount = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
-
-    // @ts-expect-error - TS2353: Object literal may only specify known properties, and includePrerelease does not exist in type Options
-    const releaseVersion = parse(releaseTag, {includePrerelease: true}) as SemVer;
+    const internalPort: number = +constants.HEDERA_NODE_INTERNAL_GOSSIP_PORT;
+    const externalPort: number = +constants.HEDERA_NODE_EXTERNAL_GOSSIP_PORT;
+    const nodeStakeAmount: number = constants.HEDERA_NODE_DEFAULT_STAKE_AMOUNT;
 
     try {
       const configLines: string[] = [`swirld, ${chainId}`, `app, ${appName}`];
 
-      let nodeSeq = 0;
+      let nodeSeq: number = 0;
       for (const consensusNode of consensusNodes) {
-        const internalIP: string = helpers.getInternalAddress(
-          releaseVersion,
-          NamespaceName.of(consensusNode.namespace),
-          consensusNode.name as NodeAlias,
-        );
+        const internalIP: string = constants.LOCAL_HOST;
 
-        const address: Address = await Address.getExternalAddress(
-          consensusNode,
-          this.k8Factory.getK8(consensusNode.context),
-          externalPort,
-        );
+        // First try to extract endpoint from saved state (migration scenario)
+        let address: Address | undefined = await this.extractSavedEndpoint(consensusNode, nodeSeq);
 
-        const account = nodeAccountMap.get(consensusNode.name as NodeAlias);
+        // If no saved state, get current external address
+        if (!address) {
+          address = await Address.getExternalAddress(
+            consensusNode,
+            this.k8Factory.getK8(consensusNode.context),
+            externalPort,
+            gossipFqdnRestricted,
+          );
+        }
+
+        const account: string | undefined = nodeAccountMap.get(consensusNode.name as NodeAlias);
 
         configLines.push(
           `address, ${nodeSeq}, ${nodeSeq}, ${consensusNode.name}, ${nodeStakeAmount}, ${internalIP}, ${internalPort}, ${address.hostString()}, ${address.port}, ${account}`,
@@ -799,18 +880,26 @@ export class ProfileManager {
         nodeSeq += 1;
       }
 
-      // TODO: remove once we no longer need less than v0.56
-      if (releaseVersion.minor >= 41 && releaseVersion.minor < 56) {
-        configLines.push(`nextNodeId, ${nodeSeq}`);
-      }
-
       fs.writeFileSync(configFilePath, configLines.join('\n'));
       return configFilePath;
     } catch (error: Error | unknown) {
-      throw new SoloError(
-        `failed to generate config.txt, ${error instanceof Error ? (error as Error).message : 'unknown error'}`,
-        error,
+      throw new SoloErrors.component.genesisDataGenerationFailed(
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
+  }
+
+  private async getGossipFqdnRestricted(
+    consensusNodes: ConsensusNode[],
+    applicationPropertiesPath: string,
+  ): Promise<boolean> {
+    const firstNode: ConsensusNode | undefined = consensusNodes[0];
+    return await Helpers.resolveGossipFqdnRestricted({
+      k8: firstNode ? this.k8Factory.getK8(firstNode.context) : undefined,
+      namespace: firstNode ? NamespaceName.of(firstNode.namespace) : undefined,
+      applicationPropertiesPath,
+      cacheDir: constants.SOLO_CACHE_DIR,
+      resourcesDir: constants.RESOURCES_DIR,
+    });
   }
 }

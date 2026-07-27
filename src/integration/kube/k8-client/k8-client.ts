@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as k8s from '@kubernetes/client-node';
-import {SoloError} from '../../../core/errors/solo-error.js';
 import {type K8} from '../k8.js';
 import {type Namespaces} from '../../../types/namespace/namespaces.js';
 import {K8ClientClusters} from './resources/cluster/k8-client-clusters.js';
@@ -30,12 +29,14 @@ import {K8ClientIngresses} from './resources/ingress/k8-client-ingresses.js';
 import {type Crds} from '../resources/crd/crds.js';
 import {K8ClientCrds} from './resources/crd/k8-client-crds.js';
 import {KubeConfig} from '@kubernetes/client-node';
+import {K8ClientApiFactory} from './k8-client-api-factory.js';
 import {MissingActiveClusterError} from '../errors/missing-active-cluster-error.js';
 import {MissingActiveContextError} from '../errors/missing-active-context-error.js';
 import {type Optional} from '../../../types/index.js';
 import {K8ClientManifests} from './resources/manifest/k8-client-manifests.js';
 import {type Rbacs} from '../resources/rbac/rbacs.js';
 import {K8ClientRbacs} from './resources/rbac/k8-client-rbacs.js';
+import {NoKubeConfigContextError} from '../../../business/runtime-state/errors/no-kube-config-context-error.js';
 
 /**
  * A kubernetes API wrapper class providing custom functionalities required by solo
@@ -70,11 +71,11 @@ export class K8Client implements K8 {
   /**
    * Create a new k8Factory client for the given context, if context is undefined it will use the current context in kubeconfig
    * @param context - The context to create the k8Factory client for
-   * @param kubectlExecutable - Path to executable of kubectl
+   * @param kubectlInstallationDirectory - Path to executable of kubectl
    */
   public constructor(
     private readonly context: string,
-    private readonly kubectlExecutable: string,
+    private readonly kubectlInstallationDirectory: string,
   ) {
     this.init(this.context);
   }
@@ -91,19 +92,19 @@ export class K8Client implements K8 {
       throw new MissingActiveClusterError();
     }
 
-    this.kubeClient = this.kubeConfig.makeApiClient(k8s.CoreV1Api);
-    this.networkingApi = this.kubeConfig.makeApiClient(k8s.NetworkingV1Api);
-    this.coordinationApiClient = this.kubeConfig.makeApiClient(k8s.CoordinationV1Api);
-    this.extensionApi = this.kubeConfig.makeApiClient(k8s.ApiextensionsV1Api);
-    this.rbacApi = this.kubeConfig.makeApiClient(k8s.RbacAuthorizationV1Api);
-    this.k8sObjectApi = this.kubeConfig.makeApiClient(k8s.KubernetesObjectApi);
+    this.kubeClient = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.CoreV1Api);
+    this.networkingApi = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.NetworkingV1Api);
+    this.coordinationApiClient = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.CoordinationV1Api);
+    this.extensionApi = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.ApiextensionsV1Api);
+    this.rbacApi = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.RbacAuthorizationV1Api);
+    this.k8sObjectApi = K8ClientApiFactory.makeApiClient(this.kubeConfig, k8s.KubernetesObjectApi);
 
     this.k8Clusters = new K8ClientClusters(this.kubeConfig);
     this.k8ConfigMaps = new K8ClientConfigMaps(this.kubeClient);
     this.k8Contexts = new K8ClientContexts(this.kubeConfig);
     this.k8Services = new K8ClientServices(this.kubeClient);
-    this.k8Pods = new K8ClientPods(this.kubeClient, this.kubeConfig, this.kubectlExecutable);
-    this.k8Containers = new K8ClientContainers(this.kubeConfig, this.k8Pods, this.kubectlExecutable);
+    this.k8Pods = new K8ClientPods(this.kubeClient, this.kubeConfig, this.kubectlInstallationDirectory);
+    this.k8Containers = new K8ClientContainers(this.kubeConfig, this.k8Pods, this.kubectlInstallationDirectory);
     this.k8Pvcs = new K8ClientPvcs(this.kubeClient);
     this.k8Leases = new K8ClientLeases(this.coordinationApiClient);
     this.k8Namespaces = new K8ClientNamespaces(this.kubeClient);
@@ -124,16 +125,24 @@ export class K8Client implements K8 {
       kubeConfig.loadFromDefault();
       if (context) {
         if (!kubeConfig.getContextObject(context)) {
-          throw new SoloError(`No kube config context found with name ${context}`);
+          throw new NoKubeConfigContextError(`No kube config context found with name ${context}`);
         }
         kubeConfig.setCurrentContext(context);
       }
     } catch (error) {
-      //* Try loading from cluster if loading from default fails
-      try {
-        kubeConfig.loadFromCluster();
-      } catch (fromClusterError) {
-        throw new SoloError('Failed to load Kubernetes configuration from cluster', fromClusterError, error);
+      if (process.env.KUBERNETES_SERVICE_HOST) {
+        //* Try loading from cluster if loading from default fails
+        try {
+          kubeConfig.loadFromCluster();
+        } catch (fromClusterError) {
+          throw new NoKubeConfigContextError(
+            'Failed to load Kubernetes configuration from cluster',
+            fromClusterError,
+            error,
+          );
+        }
+      } else {
+        throw new NoKubeConfigContextError('Failed to load Kubernetes configuration from default location', error);
       }
     }
 
@@ -201,6 +210,6 @@ export class K8Client implements K8 {
   }
 
   public getKubectlExecutablePath(): string {
-    return this.kubectlExecutable;
+    return this.kubectlInstallationDirectory;
   }
 }

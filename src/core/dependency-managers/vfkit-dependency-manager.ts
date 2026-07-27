@@ -9,7 +9,9 @@ import {BaseDependencyManager} from './base-dependency-manager.js';
 import {PackageDownloader} from '../package-downloader.js';
 import util from 'node:util';
 import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {GitHubRelease, GitHubReleaseAsset, ReleaseInfo} from '../../types/index.js';
+import {GitHubApiClient} from '../github-api-client.js';
 import {OperatingSystem} from '../../business/utils/operating-system.js';
 
 const VFKIT_RELEASES_LIST_URL: string = 'https://api.github.com/repos/crc-org/vfkit/releases';
@@ -22,23 +24,23 @@ export class VfkitDependencyManager extends BaseDependencyManager {
   protected artifactVersion: string;
 
   public constructor(
-    @inject(InjectTokens.PackageDownloader) protected override readonly downloader: PackageDownloader,
-    @inject(InjectTokens.PodmanDependenciesInstallationDir) protected override readonly installationDirectory: string,
+    @inject(InjectTokens.PackageDownloader) downloader: PackageDownloader,
+    @inject(InjectTokens.PodmanDependenciesInstallationDirectory) installationDirectory: string,
     @inject(InjectTokens.OsArch) osArch: string,
-    @inject(InjectTokens.VfkitVersion) protected readonly vfkitVersion: string,
+    @inject(InjectTokens.VfkitVersion) vfkitVersion: string,
   ) {
-    // Patch injected values to handle undefined values
-    installationDirectory = patchInject(
-      installationDirectory,
-      InjectTokens.PodmanDependenciesInstallationDir,
-      VfkitDependencyManager.name,
+    super(
+      patchInject(downloader, InjectTokens.PackageDownloader, VfkitDependencyManager.name),
+      patchInject(
+        installationDirectory,
+        InjectTokens.PodmanDependenciesInstallationDirectory,
+        VfkitDependencyManager.name,
+      ),
+      patchInject(osArch, InjectTokens.OsArch, VfkitDependencyManager.name),
+      patchInject(vfkitVersion, InjectTokens.VfkitVersion, VfkitDependencyManager.name) || version.VFKIT_VERSION,
+      constants.VFKIT,
+      '',
     );
-    osArch = patchInject(osArch, InjectTokens.OsArch, VfkitDependencyManager.name);
-    vfkitVersion = patchInject(vfkitVersion, InjectTokens.VfkitVersion, VfkitDependencyManager.name);
-    downloader = patchInject(downloader, InjectTokens.PackageDownloader, VfkitDependencyManager.name);
-
-    // Call the base constructor with the vfkit-specific parameters
-    super(downloader, installationDirectory, osArch, vfkitVersion || version.VFKIT_VERSION, constants.VFKIT, '');
   }
 
   public override getVerifyChecksum(): boolean {
@@ -57,22 +59,22 @@ export class VfkitDependencyManager extends BaseDependencyManager {
     );
   }
 
-  public async getVersion(executablePath: string): Promise<string> {
+  public async getVersion(executableWithPath: string): Promise<string> {
     // The retry logic is to handle potential transient issues with the command execution
     // The command `vfkit --version` was sometimes observed to return an empty output in the CI environment
     const maxAttempts: number = 3;
     for (let attempt: number = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const output: string[] = await this.run(`${executablePath} --version`);
+        const output: string[] = await this.run(executableWithPath, ['--version']);
         if (output.length > 0) {
           const match: RegExpMatchArray | null = output[0].trim().match(/(\d+\.\d+\.\d+)/);
           return match[1];
         }
       } catch (error: any) {
-        throw new SoloError('Failed to check vfkit version', error);
+        throw new SoloErrors.system.dependencyVersionCheckFailed('vfkit', error);
       }
     }
-    throw new SoloError('Failed to check vfkit version');
+    throw new SoloErrors.system.dependencyVersionCheckFailed('vfkit');
   }
 
   /**
@@ -81,24 +83,11 @@ export class VfkitDependencyManager extends BaseDependencyManager {
    */
   private async fetchReleaseInfo(tagName: string): Promise<ReleaseInfo> {
     try {
-      // Make a GET request to GitHub API using fetch
-      const response = await fetch(VFKIT_RELEASES_LIST_URL, {
-        method: 'GET', // Changed from HEAD to GET to retrieve the body
-        headers: {
-          'User-Agent': constants.SOLO_USER_AGENT_HEADER,
-          Accept: 'application/vnd.github.v3+json', // Explicitly request GitHub API v3 format
-        },
-      });
-
-      if (!response.ok) {
-        throw new SoloError(`GitHub API request failed with status ${response.status}`);
-      }
-
-      // Parse the JSON response
+      const response: Response = await GitHubApiClient.get(VFKIT_RELEASES_LIST_URL);
       const releases: GitHubRelease[] = await response.json();
 
       if (!releases || releases.length === 0) {
-        throw new SoloError('No releases found');
+        throw new SoloErrors.system.gitHubReleasesNotFound();
       }
 
       // Get the latest release
@@ -112,7 +101,7 @@ export class VfkitDependencyManager extends BaseDependencyManager {
       const matchingAsset: GitHubReleaseAsset = release.assets.find(asset => asset.name.includes(assetName));
 
       if (!matchingAsset) {
-        throw new SoloError(`No matching asset found for ${OperatingSystem.getFormattedPlatform()}-${arch}`);
+        throw new SoloErrors.system.gitHubReleaseAssetNotFound(OperatingSystem.getFormattedPlatform(), arch);
       }
 
       const checksum: string =
@@ -134,7 +123,7 @@ export class VfkitDependencyManager extends BaseDependencyManager {
       if (error instanceof SoloError) {
         throw error;
       }
-      throw new SoloError('Failed to parse GitHub API response', error);
+      throw new SoloErrors.system.githubApiResponseParseFailed(VFKIT_RELEASES_LIST_URL, error);
     }
   }
 

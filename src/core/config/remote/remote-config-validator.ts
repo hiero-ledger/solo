@@ -3,6 +3,7 @@
 import {inject, injectable} from 'tsyringe-neo';
 import {patchInject} from '../../dependency-injection/container-helper.js';
 import {InjectTokens} from '../../dependency-injection/inject-tokens.js';
+import {SoloErrors} from '../../errors/solo-errors.js';
 import {SoloError} from '../../errors/solo-error.js';
 import {Templates} from '../../templates.js';
 import {RemoteConfigValidatorApi} from './api/remote-config-validator-api.js';
@@ -43,6 +44,13 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     );
   }
 
+  // This skips components that are requested, because they are not yet deployed.
+  // This is needed to avoid errors during the deployment of the requested components.
+  // Especially during one-shot deployments.
+  private static componentSkipConditionCallback(component: BaseStateSchema): boolean {
+    return component.metadata.phase === DeploymentPhase.REQUESTED;
+  }
+
   public static componentValidationsMapping: Record<
     string,
     {
@@ -56,6 +64,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Relay Nodes',
       getLabelsCallback: Templates.renderRelayLabels,
       legacyReleaseName: constants.JSON_RPC_RELAY_RELEASE_NAME,
+      skipCondition: RemoteConfigValidator.componentSkipConditionCallback,
     },
     haProxies: {
       displayName: 'HaProxy',
@@ -65,6 +74,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Mirror Node',
       getLabelsCallback: Templates.renderMirrorNodeLabels,
       legacyReleaseName: constants.MIRROR_NODE_RELEASE_NAME,
+      skipCondition: RemoteConfigValidator.componentSkipConditionCallback,
     },
     envoyProxies: {
       displayName: 'Envoy Proxy',
@@ -74,6 +84,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Explorer',
       getLabelsCallback: Templates.renderExplorerLabels,
       legacyReleaseName: 'hiero-explorer',
+      skipCondition: RemoteConfigValidator.componentSkipConditionCallback,
     },
     consensusNodes: {
       displayName: 'Consensus Node',
@@ -84,6 +95,7 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
       displayName: 'Block Node',
       getLabelsCallback: Templates.renderBlockNodeLabels,
       legacyReleaseName: `${constants.BLOCK_NODE_RELEASE_NAME}-0`,
+      skipCondition: RemoteConfigValidator.componentSkipConditionCallback,
     },
   };
 
@@ -176,10 +188,10 @@ export class RemoteConfigValidator implements RemoteConfigValidatorApi {
     error: Error | unknown,
     labels?: string[],
   ): SoloError {
-    return new SoloError(
+    return new SoloErrors.internal.dataValidation(
       RemoteConfigValidator.buildValidationErrorMessage(displayName, component, labels),
-      error,
       component,
+      error,
     );
   }
 

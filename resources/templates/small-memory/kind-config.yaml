@@ -1,0 +1,24 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          extraArgs:
+            watch-cache: "false"
+    extraMounts:
+      - hostPath: ./resources/templates/small-memory/patches
+        containerPath: /patches
+kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    patches:
+      directory: /patches
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
+      endpoint = ["https://mirror.gcr.io", "https://hub.mirror.docker.lat.ope.eng.hashgraph.io", "https://registry-1.docker.io"]
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry-1.docker.io"]
+      endpoint = ["https://mirror.gcr.io", "https://hub.mirror.docker.lat.ope.eng.hashgraph.io", "https://registry-1.docker.io"]

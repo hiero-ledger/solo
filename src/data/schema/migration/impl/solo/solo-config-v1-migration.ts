@@ -1,24 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import {SoloErrors} from '../../../../../core/errors/solo-errors.js';
 import {type SchemaMigration} from '../../api/schema-migration.js';
 import {VersionRange} from '../../../../../business/utils/version-range.js';
-import {Version} from '../../../../../business/utils/version.js';
-import {IllegalArgumentError} from '../../../../../business/errors/illegal-argument-error.js';
+import {SemanticVersion} from '../../../../../business/utils/semantic-version.js';
 import {InvalidSchemaVersionError} from '../../api/invalid-schema-version-error.js';
+import {type TssSchema} from '../../../model/solo/tss-schema.js';
+import {type HelmChartSchema} from '../../../model/common/helm-chart-schema.js';
 
 export class SoloConfigV1Migration implements SchemaMigration {
   public get range(): VersionRange<number> {
     return VersionRange.fromIntegerVersion(0);
   }
 
-  public get version(): Version<number> {
-    return new Version(1);
+  public get version(): SemanticVersion<number> {
+    return new SemanticVersion(1);
   }
 
   public migrate(source: object): Promise<object> {
     if (!source) {
       // We should never pass null or undefined to this method, if this happens we should throw an error
-      throw new IllegalArgumentError('source must not be null or undefined');
+      throw new SoloErrors.validation.illegalArgument('source must not be null or undefined');
     }
 
     const clone: any = structuredClone(source);
@@ -30,28 +32,35 @@ export class SoloConfigV1Migration implements SchemaMigration {
     }
 
     // Set the schema version to the new version
-    clone.schemaVersion = this.version.value;
+    clone.schemaVersion = this.version.major;
 
-    if (!clone.helmChart) {
-      clone.helmChart = this.getNewHelmChartObject();
-    }
-
-    if (!clone.ingressControllerHelmChart) {
-      clone.ingressControllerHelmChart = this.getNewHelmChartObject();
-    }
-
-    if (!clone.clusterSetupHelmChart) {
-      clone.clusterSetupHelmChart = this.getNewHelmChartObject();
-    }
-
-    if (!clone.certManagerHelmChart) {
-      clone.certManagerHelmChart = this.getNewHelmChartObject();
-    }
+    clone.helmChart ||= this.getNewHelmChartObject();
+    clone.ingressControllerHelmChart ||= this.getNewHelmChartObject();
+    clone.clusterSetupHelmChart ||= this.getNewHelmChartObject();
+    clone.certManagerHelmChart ||= this.getNewHelmChartObject();
+    clone.tss ||= this.getNewTssObject();
 
     return clone;
   }
 
-  private getNewHelmChartObject(): object {
+  private getNewTssObject(): TssSchema {
+    return {
+      messageSizeSoftLimitBytes: 4_194_304,
+      messageSizeHardLimitBytes: 37_748_736,
+      timeoutAfterReadySeconds: 10,
+      readyMaxAttempts: 60,
+      readyBackoffSeconds: 3,
+      wraps: {
+        artifactsFolderName: 'data/keys/wraps-v1.0.0',
+        directoryName: 'wraps-v1.0.0',
+        allowedKeyFiles: 'decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin',
+        // IMPORTANT: libraryDownloadUrl must be kept consistent with directoryName.
+        libraryDownloadUrl: 'https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz',
+      },
+    };
+  }
+
+  private getNewHelmChartObject(): HelmChartSchema {
     return {
       name: undefined,
       namespace: undefined,

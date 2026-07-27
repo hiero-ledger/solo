@@ -25,6 +25,26 @@ importer:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 1000m
+      memory: 2000Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  # Importer startup includes the first-run Flyway schema build; 300 matches mirror-node-values.yaml
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 300
   envFrom:
     - secretRef:
         name: mirror-passwords
@@ -64,7 +84,28 @@ grpc:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 1000Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
 postgresql:
+  persistence:
+    size: 10Gi
   postgresql:
     nodeSelector: {}
     tolerations:
@@ -76,6 +117,13 @@ postgresql:
         operator: "Equal"
         value: "network"
         effect: "NoSchedule"
+    resources:
+      requests:
+        cpu: 0
+        memory: 0
+      limits:
+        cpu: 1000m
+        memory: 1000Mi
   pgpool:
     replicaCount: 0
 rest:
@@ -89,6 +137,25 @@ rest:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 500Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
   monitor:
     enabled: false
   redis:
@@ -106,6 +173,25 @@ restjava:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 500Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
 web3:
   nodeSelector: {}
   tolerations:
@@ -117,6 +203,25 @@ web3:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 1000m
+      memory: 1000Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
 
 # config for subchart hedera-mirror/monitor
 # Sets up a Pinger service that periodically submits CRYPTO_TRANSFER transactions
@@ -132,6 +237,13 @@ monitor:
       operator: "Equal"
       value: "network"
       effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 1000Mi
   envFrom:
     - secretRef:
         name: mirror-passwords
@@ -168,3 +280,7 @@ monitor:
                 enabled: true
                 samplePercent: 1
           network: OTHER
+  readinessProbe:
+    failureThreshold: 60
+    initialDelaySeconds: 0
+    timeoutSeconds: 1

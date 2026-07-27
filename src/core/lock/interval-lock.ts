@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-import {MissingArgumentError} from '../errors/missing-argument-error.js';
-import {SoloError} from '../errors/solo-error.js';
+import {SoloErrors} from '../errors/solo-errors.js';
 import {type K8Factory} from '../../integration/kube/k8-factory.js';
 import {LockHolder} from './lock-holder.js';
-import {DEFAULT_LEASE_DURATION} from '../constants.js';
+import {DEFAULT_LEASE_DURATION, DEFAULT_SOLO_NAMESPACE_LABELS} from '../constants.js';
 import {sleep} from '../helpers.js';
 import {Duration} from '../time/duration.js';
-import {type Lock, type LockRenewalService} from './lock.js';
+import {type Lock} from './lock.js';
+import {type LockRenewalService} from './lock-renewal-service.js';
 import {StatusCodes} from 'http-status-codes';
 import {type NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type Lease} from '../../integration/kube/resources/lease/lease.js';
@@ -39,7 +39,7 @@ export class IntervalLock implements Lock {
   private readonly _durationSeconds: number;
 
   /** The identifier of the scheduled lease renewal. */
-  private _scheduleId: number | null = null;
+  private _scheduleId: number | null = undefined;
 
   /**
    * @param k8Factory - Injected kubernetes K8Factory need by the methods to create, renew, and delete leases.
@@ -58,16 +58,16 @@ export class IntervalLock implements Lock {
     durationSeconds: number | null = null,
   ) {
     if (!k8Factory) {
-      throw new MissingArgumentError('k8Factory is required');
+      throw new SoloErrors.validation.missingArgument('k8Factory is required');
     }
     if (!renewalService) {
-      throw new MissingArgumentError('renewalService is required');
+      throw new SoloErrors.validation.missingArgument('renewalService is required');
     }
     if (!lockHolder) {
-      throw new MissingArgumentError('_lockHolder is required');
+      throw new SoloErrors.validation.missingArgument('_lockHolder is required');
     }
     if (!namespace) {
-      throw new MissingArgumentError('_namespace is required');
+      throw new SoloErrors.validation.missingArgument('_namespace is required');
     }
 
     this._lockHolder = lockHolder;
@@ -84,14 +84,14 @@ export class IntervalLock implements Lock {
   /**
    * The name of the lease.
    */
-  get leaseName(): string {
+  public get leaseName(): string {
     return this._leaseName;
   }
 
   /**
    * The holder of the lock.
    */
-  get lockHolder(): LockHolder {
+  public get lockHolder(): LockHolder {
     return this._lockHolder;
   }
 
@@ -99,7 +99,7 @@ export class IntervalLock implements Lock {
    * The namespace in which the lease is to be acquired. By default, the namespace is used as the lease name.
    * The defaults assume there is only a single deployment in a given namespace.
    */
-  get namespace(): NamespaceName {
+  public get namespace(): NamespaceName {
     return this._namespace;
   }
 
@@ -107,14 +107,14 @@ export class IntervalLock implements Lock {
    * The duration in seconds for which the lease is held before being considered expired. By default, the duration
    * is set to 20 seconds. It is recommended to renew the lease at 50% of the duration to prevent unexpected expiration.
    */
-  get durationSeconds(): number {
+  public get durationSeconds(): number {
     return this._durationSeconds;
   }
 
   /**
    * The identifier of the scheduled lease renewal task.
    */
-  get scheduleId(): number | null {
+  public get scheduleId(): number | null {
     return this._scheduleId;
   }
 
@@ -170,7 +170,7 @@ export class IntervalLock implements Lock {
 
     const otherHolder: LockHolder = LockHolder.fromJson(lease.holderIdentity);
 
-    if (this.heldBySameMachineIdentity(lease) && !otherHolder.isProcessAlive()) {
+    if (this.heldBySameMachineIdentity(lease) && otherHolder.isProcessLost()) {
       try {
         return await this.transferLease(lease);
       } catch (error) {
@@ -262,9 +262,10 @@ export class IntervalLock implements Lock {
    * Releases the lock. If the lock is expired or held by the same process, it deletes the lock.
    * If the lock is held by another process, then an exception is thrown.
    *
+   * @param immediate - If true, the safe sleep period is skipped
    * @throws LockRelinquishmentError - If the lock is already acquired by another process or an error occurs during relinquishment.
    */
-  async release(): Promise<void> {
+  async release(immediate: boolean = false): Promise<void> {
     let lease: Lease;
     try {
       lease = await this.retrieveLease();
@@ -278,9 +279,11 @@ export class IntervalLock implements Lock {
 
     if (this.scheduleId) {
       await this.renewalService.cancel(this.scheduleId);
-      // Needed to ensure any pending renewals are truly cancelled before proceeding to delete the LeaseService.
-      // This is required because clearInterval() is not guaranteed to abort any pending interval.
-      await sleep(this.renewalService.calculateRenewalDelay(this));
+      if (!immediate) {
+        // Needed to ensure any pending renewals are truly cancelled before proceeding to delete the LeaseService.
+        // This is required because clearInterval() is not guaranteed to abort any pending interval.
+        await sleep(this.renewalService.calculateRenewalDelay(this));
+      }
     }
 
     this.scheduleId = null;
@@ -324,7 +327,7 @@ export class IntervalLock implements Lock {
    * @returns true if the lock is acquired and not expired; otherwise, false.
    */
   async isAcquired(): Promise<boolean> {
-    const lease = await this.retrieveLease();
+    const lease: Lease | undefined = await this.retrieveLease();
     return !!lease && !IntervalLock.checkExpiration(lease) && this.heldBySameProcess(lease);
   }
 
@@ -335,7 +338,7 @@ export class IntervalLock implements Lock {
    * @returns true if the lock is expired; otherwise, false.
    */
   async isExpired(): Promise<boolean> {
-    const lease = await this.retrieveLease();
+    const lease: Lease | undefined = await this.retrieveLease();
     return !!lease && IntervalLock.checkExpiration(lease);
   }
 
@@ -348,24 +351,16 @@ export class IntervalLock implements Lock {
   private async retrieveLease(): Promise<Lease> {
     try {
       return await this.k8Factory.default().leases().read(this.namespace, this.leaseName);
-    } catch (error: any) {
-      if (!(error instanceof SoloError)) {
-        throw new LockAcquisitionError(
-          `failed to read the lease named '${this.leaseName}' in the ` +
-            `'${this.namespace}' namespace, caused by: ${error.message}`,
-          error,
-        );
+    } catch (error) {
+      if (IntervalLock.hasStatusCode(error, StatusCodes.NOT_FOUND)) {
+        return null;
       }
-
-      if (error.statusCode !== StatusCodes.NOT_FOUND) {
-        throw new LockAcquisitionError(
-          'failed to read existing leases, unexpected server response of ' + `'${error.meta.statusCode}' received`,
-          error,
-        );
-      }
+      throw new LockAcquisitionError(
+        `failed to read the lease named '${this.leaseName}' in the ` +
+          `'${this.namespace}' namespace, caused by: ${error.message}`,
+        error,
+      );
     }
-
-    return null;
   }
 
   /**
@@ -377,24 +372,88 @@ export class IntervalLock implements Lock {
     try {
       if (!(await this.k8Factory.default().namespaces().has(this.namespace))) {
         // handles the condition for creating a lease on cluster setup which may not have a namespace created yet
-        await this.k8Factory.default().namespaces().create(this.namespace);
+        await this.k8Factory.default().namespaces().create(this.namespace, DEFAULT_SOLO_NAMESPACE_LABELS);
       }
-      await (lease
-        ? this.k8Factory.default().leases().renew(this.namespace, this.leaseName, lease)
-        : this.k8Factory
-            .default()
-            .leases()
-            .create(this.namespace, this.leaseName, this.lockHolder.toJson(), this.durationSeconds));
+      if (lease) {
+        try {
+          await this.k8Factory.default().leases().renew(this.namespace, this.leaseName, lease);
+        } catch (error) {
+          if (!(await this.shouldIgnoreRenewConflict(error))) {
+            throw error;
+          }
+        }
+      } else {
+        await this.k8Factory
+          .default()
+          .leases()
+          .create(this.namespace, this.leaseName, this.lockHolder.toJson(), this.durationSeconds);
+      }
 
       if (!this.scheduleId) {
         this.scheduleId = await this.renewalService.schedule(this);
       }
     } catch (error) {
+      if (this.scheduleId && IntervalLock.hasStatusCode(error, StatusCodes.FORBIDDEN)) {
+        // A 403 during renewal most likely means the namespace is being terminated.
+        // Cancel the renewal schedule and return gracefully instead of propagating the error.
+        container
+          .resolve<SoloLogger>(InjectTokens.SoloLogger)
+          .info(
+            `lease '${this.leaseName}' renewal forbidden in namespace '${this.namespace}'; namespace may be terminating, stopping renewal`,
+          );
+        await this.renewalService.cancel(this.scheduleId);
+        this.scheduleId = null;
+        return;
+      }
       throw new LockAcquisitionError(
         `failed to create or renew the lease named '${this.leaseName}' in the ` + `'${this.namespace}' namespace`,
         error,
       );
     }
+  }
+
+  /**
+   * Determines if a renew conflict can be safely ignored.
+   *
+   * @param error - the renew error to evaluate.
+   * @returns true if the conflict should be ignored; otherwise, false.
+   */
+  private async shouldIgnoreRenewConflict(error: unknown): Promise<boolean> {
+    if (!IntervalLock.hasStatusCode(error, StatusCodes.CONFLICT)) {
+      return false;
+    }
+
+    const latestLease: Lease = await this.retrieveLease();
+    return !!latestLease && this.heldBySameProcess(latestLease);
+  }
+
+  /**
+   * Determines whether an error or any nested cause contains the specified status code.
+   *
+   * @param error - the error to inspect.
+   * @param statusCode - the status code to match.
+   * @returns true if the status code is found in the error chain; otherwise, false.
+   */
+  private static hasStatusCode(error: unknown, statusCode: number): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const typedError: {
+      statusCode?: number;
+      code?: number;
+      meta?: {
+        statusCode?: number;
+      };
+      cause?: unknown;
+    } = error;
+
+    return (
+      typedError.statusCode === statusCode ||
+      typedError.code === statusCode ||
+      typedError.meta?.statusCode === statusCode ||
+      IntervalLock.hasStatusCode(typedError.cause, statusCode)
+    );
   }
 
   /**
@@ -438,11 +497,11 @@ export class IntervalLock implements Lock {
    * @returns true if the lease has expired; otherwise, false.
    */
   private static checkExpiration(lease: Lease): boolean {
-    const now = Duration.ofMillis(Date.now());
-    const durationSec = lease.durationSeconds || DEFAULT_LEASE_DURATION;
-    const lastRenewalTime = lease.renewTime || lease.acquireTime;
-    const lastRenewal = Duration.ofMillis(new Date(lastRenewalTime).valueOf());
-    const deltaSec = now.minus(lastRenewal).seconds;
+    const now: Duration = Duration.ofMillis(Date.now());
+    const durationSec: number = lease.durationSeconds || DEFAULT_LEASE_DURATION;
+    const lastRenewalTime: Date = new Date(lease.renewTime || lease.acquireTime);
+    const lastRenewal: Duration = Duration.ofMillis(new Date(lastRenewalTime).valueOf());
+    const deltaSec: number = now.minus(lastRenewal).seconds;
     return deltaSec > durationSec;
   }
 

@@ -132,8 +132,9 @@ Saved state files are stored in `./saved-states/` with the following structure:
 
 ```
 saved-states/
-├── network-node1-0-state.zip  # Used for all nodes during restore
-├── network-node2-0-state.zip  # Downloaded but not used during restore
+├── state-restore-namespace/
+│   ├── network-node1-0-state.zip
+│   └── network-node2-0-state.zip
 └── database-dump.sql          # PostgreSQL database export
 ```
 
@@ -141,7 +142,7 @@ saved-states/
 
 * State files are named using the pod naming convention: `network-<node-alias>-0-state.zip`
 * During save: All node state files are downloaded
-* During restore: Only the first node's state file is used for all nodes (node IDs are automatically renamed)
+* During restore: A per-node restore input directory is built and passed to `solo consensus node start --state-file`
 
 The example also includes:
 
@@ -170,13 +171,14 @@ The `init.sh` script sets up the PostgreSQL database with:
 
 1. **Database Recreation**: Deploys fresh PostgreSQL and runs `init.sh` to create database structure (database, schemas, roles, users, extensions)
 2. **Database Restore**: Imports database dump which drops and recreates tables with all data
-3. **Network Recreation**: Creates new network with identical configuration
-4. **State Upload**: Uploads the first node's state file to all nodes using `solo consensus node start --state-file`
+3. **Stable Service Validation**: Verifies per-node service DNS names are resolvable (`network-<node>-svc.<namespace>.svc.cluster.local`)
+4. **Restore Input Build**: Builds `./saved-states/restore-input/states/<cluster-ref>/<namespace>/` and copies each node's state zip
+5. **State Upload and Start**: Starts all nodes together with `solo consensus node start --state-file ./saved-states/restore-input`
    * State files are extracted to `data/saved/`
    * Cleanup: Only the latest/biggest round is kept, older rounds are automatically deleted to save disk space
    * Node ID Renaming: Directory paths containing node IDs are automatically renamed to match each target node
-5. **Mirror Node**: Deploys mirror node connected to restored database and seeds initial data
-6. **Verification**: Checks that restored state matches original
+6. **Mirror Node**: Deploys mirror node connected to restored database and seeds initial data
+7. **Verification**: Checks that restored state matches original
 
 ## Notes
 
@@ -185,9 +187,8 @@ The `init.sh` script sets up the PostgreSQL database with:
 * External PostgreSQL database provides data persistence and queryability
 * State restoration maintains transaction history and account balances
 * Mirror node will resume from the restored state point
-* **Simplified State Restore**: Uses the first node's state file for all nodes with automatic processing:
-  * Old rounds are cleaned up first - only the latest round number is kept to optimize disk usage
-  * Node ID directories are then automatically renamed to match each target node
+* **Per-node State Restore**: Uses each node's own state zip and starts all nodes together on the existing network pods
+* Stable per-node service names are validated before restore start
 * Database dump includes all mirror node data (transactions, accounts, etc.)
 
 ### View Logs

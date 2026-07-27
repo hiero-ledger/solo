@@ -1,11 +1,15 @@
 #!/bin/bash
-# This script fetch the build.zip file and checksum file from builds.hedera.com and then extract it into HapiApp2 directory
+# This script extracts the platform build zip into the HapiApp2 directory.
+# The build zip and checksum file are expected to already exist in HEDERA_USER_HOME_DIR,
+# uploaded by the solo CLI before this script is invoked.
 # Usage extract-platform <release-version>
 # e.g. extract-platform v0.42.5
 set -o pipefail
 
 readonly HAPI_DIR=/opt/hgcapp/services-hedera/HapiApp2.0
 readonly LOG_FILE="${HAPI_DIR}/output/extract-platform.log"
+readonly MAIN_CLASS_PATTERN='[c]om.hedera.node.app.ServicesMain'
+readonly NETWORK_NODE_SERVICE_DIR='/run/service/network-node'
 
 function log() {
   local message="${1}"
@@ -18,45 +22,67 @@ function log() {
   printf "%s - %s\n" "$(date '+%Y-%m-%d %H:%M:%S')" "${message}" | tee -a "${LOG_FILE}"
 }
 
+function running_services_main_pids() {
+  ps -eo pid,args | awk "/${MAIN_CLASS_PATTERN}/{print \$1}"
+}
+
+function ensure_services_main_stopped() {
+  local pids
+  pids="$(running_services_main_pids)"
+  if [[ -z "${pids}" ]]; then
+    return 0
+  fi
+
+  log "ServicesMain JVM detected before extraction; stopping network-node to avoid deleting jars under a live process"
+
+  if [[ -x /command/network-node-lifecycle ]]; then
+    /command/network-node-lifecycle stop > >(tee -a "${LOG_FILE}") 2>&1 || true
+  fi
+
+  # Force the service down at supervisor level so an emergency kill is not
+  # immediately restarted by s6 while extraction is in progress.
+  if [[ -d "${NETWORK_NODE_SERVICE_DIR}" ]] && [[ -x /command/s6-svc ]]; then
+    /command/s6-svc -d "${NETWORK_NODE_SERVICE_DIR}" > >(tee -a "${LOG_FILE}") 2>&1 || true
+  fi
+
+  pids="$(running_services_main_pids)"
+  if [[ -n "${pids}" ]]; then
+    kill -TERM ${pids} > >(tee -a "${LOG_FILE}") 2>&1 || true
+    sleep 5
+  fi
+
+  pids="$(running_services_main_pids)"
+  if [[ -n "${pids}" ]]; then
+    kill -KILL ${pids} > >(tee -a "${LOG_FILE}") 2>&1 || true
+    sleep 2
+  fi
+
+  pids="$(running_services_main_pids)"
+  if [[ -n "${pids}" ]]; then
+    log "Failed to stop ServicesMain JVM before extraction; refusing to continue"
+    return 1
+  fi
+
+  return 0
+}
+
 readonly tag="${1}"
 if [[ -z "${tag}" ]]; then
   echo "Release tag is required (e.g. v0.42.5)"
   exit 1
 fi
 
-RELEASE_DIR="$(awk -F'.' '{print $1"."$2}' <<<"${tag}")"
-readonly RELEASE_DIR
 readonly HEDERA_USER_HOME_DIR=/home/hedera
-readonly HEDERA_BUILDS_URL='https://builds.hedera.com'
 readonly BUILD_ZIP_FILE="${HEDERA_USER_HOME_DIR}/build-${tag}.zip"
-readonly BUILD_ZIP_URL="${HEDERA_BUILDS_URL}/node/software/${RELEASE_DIR}/build-${tag}.zip"
 readonly CHECKSUM_FILE="${HEDERA_USER_HOME_DIR}/build-${tag}.sha384"
-readonly CHECKSUM_URL="${HEDERA_BUILDS_URL}/node/software/${RELEASE_DIR}/build-${tag}.sha384"
 
 log "extract-platform.sh: begin................................"
 
-# download
-log "Checking if ${BUILD_ZIP_FILE} exists..."
-if [[ ! -f "${BUILD_ZIP_FILE}" ]]; then
-  log "Downloading ${BUILD_ZIP_URL}..."
-  curl -sSf "${BUILD_ZIP_URL}" -o "${BUILD_ZIP_FILE}" > >(tee -a "${LOG_FILE}") 2>&1
-  ec="${?}"
-  if [[ "${ec}" -ne 0 ]]; then
-    log "Failed to download ${BUILD_ZIP_URL}. Error code: ${ec}"
-    exit 1
-  fi
-fi
-
-log "Checking if ${CHECKSUM_FILE} exists..."
-
-if [[ ! -f "${CHECKSUM_FILE}" ]]; then
-  log "Downloading ${CHECKSUM_URL}..."
-  curl -sSf "${CHECKSUM_URL}" -o "${CHECKSUM_FILE}" > >(tee -a "${LOG_FILE}") 2>&1
-  ec="${?}"
-  if [[ "${ec}" -ne 0 ]]; then
-    log "Failed to download ${CHECKSUM_URL}. Error code: ${ec}"
-    exit 1
-  fi
+ensure_services_main_stopped
+ec="${?}"
+if [[ "${ec}" -ne 0 ]]; then
+  log "Pre-extraction stop check failed. Aborting extraction."
+  exit 1
 fi
 
 # shellcheck disable=SC2164

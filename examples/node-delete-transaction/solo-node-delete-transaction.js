@@ -11,9 +11,9 @@ async function main() {
   const treasuryPrivateKey = PrivateKey.fromStringED25519(GENESIS_KEY);
   const network = {};
 
-  network['127.0.0.1:50211'] = AccountId.fromString('0.0.3');
+  network['127.0.0.1:35211'] = AccountId.fromString('0.0.3');
 
-  const mirrorNetwork = '127.0.0.1:8081';
+  const mirrorNetwork = '127.0.0.1:38081';
 
   // scheduleNetworkUpdate is set to false, because the ports 50212/50211 are hardcoded in JS SDK that will not work when running locally or in a pipeline
   console.log(`${logPrefix} creating client`);

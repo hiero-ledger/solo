@@ -1,9 +1,8 @@
-
 # Solo
 
-[![NPM Version](https://img.shields.io/npm/v/%40hashgraph%2Fsolo?logo=npm)](https://www.npmjs.com/package/@hashgraph/solo)
+[![NPM Version](https://img.shields.io/npm/v/@hiero-ledger/solo?logo=npm)](https://www.npmjs.com/package/@hiero-ledger/solo)
 [![GitHub License](https://img.shields.io/github/license/hiero-ledger/solo?logo=apache\&logoColor=red)](LICENSE)
-![node-lts](https://img.shields.io/node/v-lts/%40hashgraph%2Fsolo)
+![node-lts](https://img.shields.io/node/v-lts/@hiero-ledger/solo)
 [![Build Application](https://github.com/hiero-ledger/solo/actions/workflows/flow-build-application.yaml/badge.svg)](https://github.com/hiero-ledger/solo/actions/workflows/flow-build-application.yaml)
 [![Codacy Grade](https://app.codacy.com/project/badge/Grade/78539e1c1b4b4d4d97277e7eeeab9d09)](https://app.codacy.com/gh/hiero-ledger/solo/dashboard?utm_source=gh\&utm_medium=referral\&utm_content=\&utm_campaign=Badge_grade)
 [![Codacy Coverage](https://app.codacy.com/project/badge/Coverage/78539e1c1b4b4d4d97277e7eeeab9d09)](https://app.codacy.com/gh/hiero-ledger/solo/dashboard?utm_source=gh\&utm_medium=referral\&utm_content=\&utm_campaign=Badge_coverage)
@@ -15,47 +14,28 @@ An opinionated CLI tool to deploy and manage standalone test networks.
 
 ## Releases
 
-Solo releases are supported for one month after their release date. Upgrade to the latest version to benefit from new features and improvements. Every quarter a version is designated as LTS (Long-Term Support) and supported for three months.
+Solo releases are supported for one month after their release date. LTS (Long-Term Support) versions are supported for three months. Upgrade to the latest version to benefit from new features and improvements. 
 
 ### Current Releases
 
-| Solo Version | Node.js             | Kind       | Solo Chart | Hedera       | Kubernetes | Kubectl    | Helm    | k9s        | Docker Resources               | Release Date | End of Support |
-|--------------|---------------------|------------|------------|--------------|------------|------------|---------|------------|--------------------------------|--------------|----------------|
-| 0.59.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.62.0    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-27   | 2026-03-27     |
-| 0.58.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.62.0    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-25   | 2026-05-25     |
-| 0.57.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.60.2    | v0.71.0      | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-19   | 2026-03-19     |
-| 0.56.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.60.2    | v0.68.7-rc.1 | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-12   | 2026-05-12     |
-| 0.55.0       | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.60.2    | v0.68.7-rc.1 | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-02-05   | 2026-03-05     |
-| 0.54.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.29.0 | v0.59.0    | v0.68.6+     | >= v1.32.2 | >= v1.32.2 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2026-01-27   | 2026-04-27     |
-| 0.52.0 (LTS) | >= 22.0.0 (lts/jod) | >= v0.26.0 | v0.58.1    | v0.67.2+     | >= v1.27.3 | >= v1.27.3 | v3.14.2 | >= v0.27.4 | Memory >= 12GB, CPU cores >= 6 | 2025-12-11   | 2026-03-11     |
+| Solo Version | Node.js             | Consensus Node | Kubernetes | Docker Resources               | Release Date | End of Support |
+|--------------|---------------------|----------------|------------|--------------------------------|--------------|----------------|
+| 0.83.0       | >= 22.0.0 (lts/jod) | v0.74.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-07-21   | 2026-08-21     |
+| 0.82.0 (LTS) | >= 22.0.0 (lts/jod) | v0.74.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-07-14   | 2026-10-14     |
+| 0.81.0       | >= 22.0.0 (lts/jod) | v0.74.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-07-07   | 2026-08-07     |
+| 0.80.0 (LTS) | >= 22.0.0 (lts/jod) | v0.74.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-06-30   | 2026-09-30     |
+| 0.79.0       | >= 22.0.0 (lts/jod) | v0.74.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-06-23   | 2026-07-23     |
+| 0.78.0 (LTS) | >= 22.0.0 (lts/jod) | v0.74.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-06-16   | 2026-09-16     |
+| 0.76.0 (LTS) | >= 22.0.0 (lts/jod) | v0.73.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-06-02   | 2026-09-02     |
+| 0.74.0 (LTS) | >= 22.0.0 (lts/jod) | v0.73.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-26   | 2026-08-26     |
+| 0.72.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-05-05   | 2026-08-05     |
+| 0.70.0 (LTS) | >= 22.0.0 (lts/jod) | v0.71.0        | >= v1.32.2 | Memory >= 12GB, CPU cores >= 6 | 2026-04-28   | 2026-07-28     |
 
-To see a list of legacy releases, please check the [legacy versions documentation page](docs/legacy-versions.md).
-
-### Hardware Requirements
-
-Docker Desktop (or Docker Engine / Podman on Linux) with at least **12GB of memory** and **6 CPU cores**.
-
-![Docker Desktop Settings](images/docker-desktop.png)
-
-## Installation
-
-Install Solo via Homebrew (macOS, Linux, WSL2):
-
-```bash
-brew install hiero-ledger/tools/solo
-```
-
-Or via npm (requires Node.js >= 22.0.0):
-
-```bash
-npm install -g @hashgraph/solo@latest
-```
-
-For detailed platform-specific instructions, see the [Solo User Guide](https://solo.hiero.org/main/docs/step-by-step-guide/).
+To see a list of legacy releases, please check the [legacy versions documentation page](legacy-versions.md).
 
 ## Documentation
-If you have installed solo we recommend starting your docs journey at the one-shot network deployment command you can find here:
-[solo docs](https://solo.hiero.org/main/docs/step-by-step-guide/#one-shot-deployment))
+
+Our documentation is available here: [solo.hiero.org](https://solo.hiero.org/)
 
 ## Contributing
 

@@ -18,7 +18,23 @@ name: "Test Migration Process"
 
 on:
   workflow_dispatch:
+    inputs:
+      from-solo-version:
+        description: 'Solo version to use before migration'
+        required: false
+        type: string
+      to-consensus-node-version:
+        description: 'Consensus node release tag to use after migration'
+        required: false
+        type: string
   workflow_call:
+    inputs:
+      from-solo-version:
+        required: false
+        type: string
+      to-consensus-node-version:
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -27,41 +43,56 @@ on:
       - opened
       - reopened
       - synchronize
+      - ready_for_review
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 defaults:
   run:
     shell: bash
 
 permissions:
   contents: read
-  actions: read
+  actions: write
+
+env:
+  STEP_TIMEOUT_MINUTES: '5'
+  KIND_DOCKER_REGISTRY_MIRRORS: ${{ vars.KIND_DOCKER_REGISTRY_MIRRORS }}
 
 jobs:
   test-migration-process:
     name: Migrate Solo from Prior to Current Version
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     timeout-minutes: 60
     runs-on: hiero-solo-linux-large
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
 
       - name: Setup Node
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           node-version: 22
           cache: npm
 
       - name: Setup Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: "v3.12.3" # helm version
 
       - name: Setup Kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -71,24 +102,56 @@ jobs:
           wait: 120s
 
       - name: Install Kubectl
-        uses: step-security/setup-kubectl@fa3574e17195eaed56b1e9d9095c58d0aee24f03 # pinned to v4.0.1
+        uses: step-security/setup-kubectl@b256bc71248a59f1e3a278fc75a65646d6a8a1c4 # pinned to v5.1.0
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           version: 'v1.27.3'
         id: install
 
-      - name: Get Latest Version
+      - name: Resolve Input Versions
         id: get-version
-        run: |
-          LATEST_VERSION=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
-          echo "Latest Version: ${LATEST_VERSION}"
-          echo "version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
+        uses: step-security/retry@38808b4332b98bb36ca031abff0c100231608288 # v4.0.0
+        with:
+          max_attempts: 3
+          timeout_minutes: 5
+          command: |
+            source .github/workflows/script/helper.sh
+            FROM_INPUT="${{ inputs.from-solo-version }}"
+            TO_CN_INPUT="${{ inputs.to-consensus-node-version }}"
 
-      - name: Launch Network with Prior Release ${{ steps.get-version.outputs.version }}
+            if [[ -z "${FROM_INPUT}" ]]; then
+              FROM_INPUT=$(curl -s https://registry.npmjs.org/@hashgraph/solo/latest | jq -r '.version')
+            fi
+
+            if [[ -z "${TO_CN_INPUT}" ]]; then
+              TO_CN_INPUT=$(extract_version TEST_UPGRADE_TO_VERSION version-test.ts)
+            fi
+
+            if [[ -z "${TO_CN_INPUT}" ]]; then
+              echo "Failed to resolve to-consensus-node-version input or TEST_UPGRADE_TO_VERSION from version-test.ts"
+              exit 1
+            fi
+
+            echo "From Solo Version: ${FROM_INPUT}"
+            echo "To Consensus Node Version: ${TO_CN_INPUT}"
+            echo "from_solo_version=${FROM_INPUT}" >> $GITHUB_OUTPUT
+            echo "to_consensus_node_version=${TO_CN_INPUT}" >> $GITHUB_OUTPUT
+
+      - name: Restore Solo Image Cache
+        id: solo-image-cache
+        if: ${{ !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: restore
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
+      - name: Launch Network with Prior Release ${{ steps.get-version.outputs.from_solo_version }}
         timeout-minutes: 60
         run: |
+          export PATH=~/.solo/bin:${PATH}
           echo "Configure APT to use main Ubuntu archive (disable mirror rotation)..."
           sudo sed -i 's|http://[a-z.]*.ubuntu.com|http://archive.ubuntu.com|g' /etc/apt/sources.list
-          
+
           echo "Install yq..."
           YQ_VERSION="v4.44.1"
           YQ_BINARY="yq_linux_amd64"
@@ -96,18 +159,58 @@ jobs:
           sudo chmod +x /tmp/yq
           sudo mv /tmp/yq /usr/local/bin/yq
           yq --version
-          
+
           npm install
-          task build
-          .github/workflows/script/launch_network.sh ${{ steps.get-version.outputs.version }} || RC=$? || true
+          task build:compile
+
+          # Run the script in the background and trap SIGTERM/SIGINT so that a workflow
+          # cancellation (e.g. triggered by a new commit on this PR) terminates the
+          # launch immediately rather than waiting up to 60 minutes for it to finish
+          # on its own.
+          SCRIPT_PID=""
+          RC=0
+
+          cleanup() {
+            if [[ -n "${SCRIPT_PID}" ]]; then
+              echo "Received cancellation signal, stopping launch_network.sh (PID ${SCRIPT_PID})..."
+              kill "${SCRIPT_PID}" 2>/dev/null || true
+              wait "${SCRIPT_PID}" 2>/dev/null || true
+            fi
+            exit 1
+          }
+          trap cleanup SIGTERM SIGINT
+
+          .github/workflows/script/launch_network.sh \
+            "${{ steps.get-version.outputs.from_solo_version }}" \
+            "${{ steps.get-version.outputs.to_consensus_node_version }}" &
+          SCRIPT_PID=$!
+          wait "${SCRIPT_PID}" || RC=$?
+          SCRIPT_PID=""
+          trap - SIGTERM SIGINT
+
           if [[ "$RC" != "0" ]]; then
-            echo "Failed to launch network with release version ${{ steps.get-version.outputs.version }}"
+            echo "Failed to launch network with release version ${{ steps.get-version.outputs.from_solo_version }}"
             exit $RC
           fi
 
+      - name: Save Solo Image Cache
+        if: ${{ github.event_name != 'pull_request' && steps.solo-image-cache.outputs.cache-hit != 'true' && !cancelled() && !failure() }}
+        uses: ./.github/actions/solo-image-cache
+        with:
+          operation: save
+          key-suffix: ${{ hashFiles('version.ts', 'version-test.ts', 'resources/config/solo-cache-images-target.yaml') }}
+
+      - name: Collect Deployment Diagnostics Logs
+        if: ${{ !cancelled() && always() }}
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+        run: |
+          export PATH=~/.solo/bin:${PATH}
+          npm run solo-test -- deployment diagnostics logs -q --dev || true
+
       - name: Upload Logs to GitHub
-        if: ${{ always() }}
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: ${{ !cancelled() && always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
         with:
           name: solo-logs
           path: ~/.solo/logs/*

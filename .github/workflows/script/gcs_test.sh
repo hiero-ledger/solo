@@ -1,6 +1,7 @@
 #!/bin/bash
 set -eo pipefail
 
+export PATH=~/.solo/bin:${PATH}
 source .github/workflows/script/helper.sh
 
 rm -rf ~/.solo/* || true
@@ -117,6 +118,7 @@ SOLO_NAMESPACE=solo-e2e
 SOLO_CLUSTER_SETUP_NAMESPACE=solo-setup
 SOLO_DEPLOYMENT=solo-e2e
 
+npm run solo-test -- init --dev
 kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
 if [ "${storageType}" == "minio_only" ]; then
@@ -131,9 +133,15 @@ else
   # get current script base directory
   script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
   echo "script_dir: ${script_dir}"
+  kind_config_to_use="${script_dir}/kind-config.yaml"
+  if [[ -n "${KIND_DOCKER_REGISTRY_MIRRORS:-}" && -x "${script_dir}/render_kind_config.sh" ]]; then
+    rendered_kind_config="$(mktemp -t kind-config-XXXX.yaml)"
+    "${script_dir}/render_kind_config.sh" "${script_dir}/kind-config.yaml" "${rendered_kind_config}"
+    kind_config_to_use="${rendered_kind_config}"
+    trap 'rm -f "${rendered_kind_config}"' EXIT
+  fi
   # Use custom kind config file to expose ports used by explorer ingress controller NodePort configuration
-  kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${script_dir}"/kind-config.yaml
-  npm run solo-test -- init --dev
+  kind create cluster -n "${SOLO_CLUSTER_NAME}" --config "${kind_config_to_use}"
   npm run solo-test -- cluster-ref config setup \
     -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
   npm run solo-test -- cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
@@ -181,7 +189,7 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
   curl -sSL "https://github.com/fullstorydev/grpcurl/releases/download/v1.9.3/grpcurl_1.9.3_linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin
 fi
 
-grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:8081 com.hedera.mirror.api.proto.NetworkService/getNodes
+grpcurl -plaintext -d '{"file_id": {"fileNum": 102}, "limit": 0}' localhost:38081 com.hedera.mirror.api.proto.NetworkService/getNodes
 
 npm run solo-test -- consensus node stop -i node1 --deployment "${SOLO_DEPLOYMENT}"
 

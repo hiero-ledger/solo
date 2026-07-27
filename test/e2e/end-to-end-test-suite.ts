@@ -9,6 +9,7 @@ import {container} from 'tsyringe-neo';
 import {Suite} from 'mocha';
 import {type BaseTestOptions} from './commands/tests/base-test-options.js';
 import {BaseCommandTest} from './commands/tests/base-command-test.js';
+import * as constants from '../../src/core/constants.js';
 
 export class EndToEndTestSuite extends Suite {
   private readonly endToEndTestSuiteInstance: EndToEndTestSuite;
@@ -34,6 +35,7 @@ export class EndToEndTestSuite extends Suite {
     public readonly clusterCount: number,
     public readonly consensusNodesCount: number,
     public readonly loadBalancerEnabled: boolean,
+    public readonly wrapsEnabled: boolean,
     public readonly pinger: boolean,
     public readonly realm: number = 0,
     public readonly shard: number = 0,
@@ -43,11 +45,12 @@ export class EndToEndTestSuite extends Suite {
     public readonly collectDiagnosticLogs: boolean = true,
     public readonly apiPermissionProperties: string = 'api-permission.properties',
     public readonly applicationEnvironment: string = 'application.env',
-    public readonly applicationProperties: string = 'application.properties',
+    public readonly applicationProperties: string = constants.APPLICATION_PROPERTIES,
     public readonly bootstrapProperties: string = 'bootstrap.properties',
     public readonly logXml: string = 'log4j2.xml',
     public readonly settingsTxt: string = 'settings.txt',
     public readonly javaFlightRecorderConfiguration: string = '',
+    public readonly chainId: number = 0,
     public readonly testSuiteCallback: (
       options: BaseTestOptions,
       preDestroy?: (endToEndTestSuiteInstance: EndToEndTestSuite) => Promise<void>,
@@ -67,7 +70,9 @@ export class EndToEndTestSuite extends Suite {
       this.clusterReferenceNameArray.push(testClusterReferenceNames[0]);
     } else if (clusterCount === 2) {
       this.clusterReferences.set(testClusterReferenceNames[0], testClusterName);
-      const secondContext: string = `${testClusterName.replace(soloTestClusterName.includes('-c1') ? '-c1' : '-c2', soloTestClusterName.includes('-c1') ? '-c2' : '-c1')}`;
+      const secondContext: string = testClusterName.includes('-c1')
+        ? testClusterName.replace('-c1', '-c2')
+        : testClusterName.replace('-c2', '-c1');
       this.clusterReferences.set(testClusterReferenceNames[1], secondContext);
       this.clusterReferenceNameArray.push(testClusterReferenceNames[0], testClusterReferenceNames[1]);
       this.contexts = [testClusterName, secondContext];
@@ -98,6 +103,7 @@ export class EndToEndTestSuite extends Suite {
       createdAccountIds: this.createdAccountIds,
       consensusNodesCount: this.consensusNodesCount,
       loadBalancerEnabled: this.loadBalancerEnabled,
+      wrapsEnabled: this.wrapsEnabled,
       pinger: this.pinger,
       realm: this.realm,
       shard: this.shard,
@@ -111,12 +117,14 @@ export class EndToEndTestSuite extends Suite {
       logXml: this.logXml,
       settingsTxt: this.settingsTxt,
       javaFlightRecorderConfiguration: this.javaFlightRecorderConfiguration,
+      chainId: this.chainId,
     } as BaseTestOptions;
   }
 
   public runTestSuite(): void {
     const endToEndTestSuiteInstance: EndToEndTestSuite = this.endToEndTestSuiteInstance;
     describe(endToEndTestSuiteInstance.testSuiteName, function endToEndTestSuiteCallback(): void {
+      // eslint-disable-next-line unicorn/no-this-outside-of-class
       this.bail(true);
 
       endToEndTestSuiteInstance.testSuiteCallback(endToEndTestSuiteInstance.options, EndToEndTestSuite.preDestroy);

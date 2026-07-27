@@ -37,7 +37,8 @@ export class SimpleObjectStorageBackend implements ObjectStorageBackend {
     return Promise.resolve();
   }
 
-  public isSupported(operation: StorageOperation): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public isSupported(_operation: StorageOperation): boolean {
     return true;
   }
 }

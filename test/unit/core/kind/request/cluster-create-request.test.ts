@@ -6,12 +6,12 @@ import {ClusterCreateRequest} from '../../../../../src/integration/kind/request/
 import {KindExecutionBuilder} from '../../../../../src/integration/kind/execution/kind-execution-builder.js';
 import {type ClusterCreateOptions} from '../../../../../src/integration/kind/model/create-cluster/cluster-create-options.js';
 
-describe('ClusterCreateRequest', () => {
+describe('ClusterCreateRequest', (): void => {
   let builder: KindExecutionBuilder;
   let options: ClusterCreateOptions;
   let request: ClusterCreateRequest;
 
-  beforeEach(() => {
+  beforeEach((): void => {
     // Create mock objects
     builder = Sinon.createStubInstance(KindExecutionBuilder) as unknown as KindExecutionBuilder;
     // Restore the chaining behavior for builder methods
@@ -24,30 +24,30 @@ describe('ClusterCreateRequest', () => {
     request = new ClusterCreateRequest(options);
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     Sinon.restore();
   });
 
-  describe('constructor', () => {
-    it('should create an instance with valid options', () => {
+  describe('constructor', (): void => {
+    it('should create an instance with valid options', (): void => {
       expect(request).to.be.instanceOf(ClusterCreateRequest);
     });
 
-    it('should throw an error if options are null', () => {
-      expect(() => new ClusterCreateRequest(null as unknown as ClusterCreateOptions)).to.throw(
+    it('should throw an error if options are null', (): void => {
+      expect((): ClusterCreateRequest => new ClusterCreateRequest(null as unknown as ClusterCreateOptions)).to.throw(
         'options must not be null',
       );
     });
   });
 
-  describe('apply', () => {
-    it('should add correct subcommands to the builder', () => {
+  describe('apply', (): void => {
+    it('should add correct subcommands to the builder', (): void => {
       request.apply(builder);
 
       expect(builder.subcommands).to.have.been.calledOnceWith('create', 'cluster');
     });
 
-    it('should delegate to options.apply', () => {
+    it('should delegate to options.apply', (): void => {
       request.apply(builder);
 
       expect(options.apply).to.have.been.calledOnceWith(builder);

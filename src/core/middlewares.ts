@@ -21,7 +21,8 @@ import {type TaskList} from './task-list/task-list.js';
 import {Listr, ListrContext, ListrRendererValue} from 'listr2';
 import {type InitCommand} from '../commands/init/init.js';
 import {InitContext} from '../commands/init/init-context.js';
-import {SoloError} from './errors/solo-error.js';
+import {SoloErrors} from './errors/solo-errors.js';
+import {NpmClient} from '../integration/npm/npm-client.js';
 
 @injectable()
 export class Middlewares {
@@ -35,6 +36,7 @@ export class Middlewares {
     @inject(InjectTokens.TaskList)
     private readonly taskList: TaskList<ListrContext, ListrRendererValue, ListrRendererValue>,
     @inject(InjectTokens.InitCommand) private readonly initCommand: InitCommand,
+    @inject(InjectTokens.NpmClient) private readonly npmClient: NpmClient,
   ) {
     this.configManager = patchInject(configManager, InjectTokens.ConfigManager, this.constructor.name);
     this.remoteConfig = patchInject(remoteConfig, InjectTokens.RemoteConfigRuntimeState, this.constructor.name);
@@ -44,6 +46,7 @@ export class Middlewares {
     this.helpRenderer = patchInject(helpRenderer, InjectTokens.HelpRenderer, this.constructor.name);
     this.taskList = patchInject(taskList, InjectTokens.TaskList, this.constructor.name);
     this.initCommand = patchInject(initCommand, InjectTokens.InitCommand, this.constructor.name);
+    this.npmClient = patchInject(npmClient, InjectTokens.NpmClient, this.constructor.name);
   }
 
   public initSystemFiles(): (argv: ArgvStruct) => AnyObject {
@@ -55,7 +58,7 @@ export class Middlewares {
         try {
           await tasks.run();
         } catch (error: Error | any) {
-          throw new SoloError('Error initiating Solo system files', error);
+          throw new SoloErrors.system.initSystemFilesFailed(error);
         }
       }
 
@@ -63,11 +66,11 @@ export class Middlewares {
     };
   }
 
-  public printCustomHelp(rootCmd: any): (argv: any) => void {
+  public printCustomHelp(rootCmd: any): (argv: ArgvStruct) => void {
     /**
      * @param argv - listr Argv
      */
-    return (argv: any): void => {
+    return (argv: ArgvStruct): void => {
       if (!argv['help']) {
         return;
       }
@@ -79,16 +82,75 @@ export class Middlewares {
     };
   }
 
-  public setLoggerDevFlag(): (argv: ArgvStruct) => AnyObject {
+  public setLoggerDebugFlag(): (argv: ArgvStruct) => AnyObject {
     const logger: SoloLogger = this.logger;
 
     /**
      * @param argv - listr Argv
      */
-    return (argv: any): AnyObject => {
-      if (argv.dev) {
-        logger.debug('Setting logger dev flag');
-        logger.setDevMode(argv.dev);
+    return (argv: ArgvStruct): AnyObject => {
+      // `--dev` is the deprecated alias of `--debug` (yargs mirrors the value onto both keys), so
+      // detect the literal token in the raw process arguments to warn only when the user typed it.
+      // TODO(#1560): remove this deprecation warning when the `dev` alias is dropped from `flags.debugMode`.
+      if (process.argv.includes('--dev')) {
+        logger.showUser(
+          chalk.yellow(
+            'Warning: `--dev` is deprecated and will be removed in a future release; use `--debug` instead.',
+          ),
+        );
+      }
+
+      if (argv.debug) {
+        logger.debug('Setting logger debug flag');
+        logger.setDevMode(argv.debug);
+      }
+
+      return argv;
+    };
+  }
+
+  public detectLocalSoloPackages(): (argv: ArgvStruct) => AnyObject {
+    const SOLO_PACKAGES_TO_UNLINK: string[] = ['@hashgraph/solo', '@hiero-ledger/solo'];
+
+    /**
+     * @param argv - listr Argv
+     */
+    return async (argv: ArgvStruct): Promise<AnyObject> => {
+      try {
+        const listResult: string[] = await this.npmClient.listGlobal();
+        const foundLinkedPackages: string[] = [];
+
+        for (const item of listResult) {
+          // Check if any of the globally linked packages match the SOLO_PACKAGES_TO_UNLINK
+          // and unlink them if they point to a local directory (indicated by '->' in the npm list output)
+          const matchesSoloPackages: string[] = SOLO_PACKAGES_TO_UNLINK.filter(
+            (soloPackage: string): boolean => item.includes(soloPackage) && item.includes('->'),
+          );
+          for (const packageName of matchesSoloPackages) {
+            try {
+              const logMessage: string = `Warning: Found locally linked installation of ${packageName}.`;
+              this.logger.showUser(chalk.yellow(logMessage));
+              this.logger.info(logMessage);
+              foundLinkedPackages.push(packageName);
+            } catch {
+              this.logger.error(
+                new SoloErrors.system.initSystemFilesFailed(
+                  new Error(
+                    `Failed to parse npm list output line "${item}". Please check for any globally linked Solo packages and unlink them manually using "npm unlink -g <package-name>".`,
+                  ),
+                ),
+              );
+            }
+          }
+        }
+      } catch {
+        this.logger.warn(
+          new SoloErrors.system.initSystemFilesFailed(
+            new Error(
+              'Failed to detect globally linked Solo packages. Please check for any globally linked Solo packages and unlink them manually using "npm unlink -g <package-name>".',
+            ),
+          ),
+        );
       }
 
       return argv;

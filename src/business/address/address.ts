@@ -2,11 +2,12 @@
 
 import {ipV4ToBase64, isIpV4Address} from '../../core/helpers.js';
 import {type ConsensusNode} from '../../core/model/consensus-node.js';
-import {SoloError} from '../../core/errors/solo-error.js';
+import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {type K8} from '../../integration/kube/k8.js';
 import {NamespaceName} from '../../types/namespace/namespace-name.js';
 import {type Service} from '../../integration/kube/resources/service/service.js';
 import {type LoadBalancerIngress} from '../../integration/kube/resources/load-balancer-ingress.js';
+import {Templates} from '../../core/templates.js';
 
 export class Address {
   public constructor(
@@ -71,27 +72,32 @@ export class Address {
     }
   }
 
-  public static async getExternalAddress(consensusNode: ConsensusNode, k8: K8, port: number): Promise<Address> {
-    return Address.resolveLoadBalancerAddress(consensusNode, k8, port);
+  public static async getExternalAddress(
+    consensusNode: ConsensusNode,
+    k8: K8,
+    port: number,
+    gossipFqdnRestricted: boolean = true,
+  ): Promise<Address> {
+    return Address.resolveLoadBalancerAddress(consensusNode, k8, port, gossipFqdnRestricted);
   }
 
   private static async resolveLoadBalancerAddress(
     consensusNode: ConsensusNode,
     k8: K8,
     port: number,
+    gossipFqdnRestricted: boolean,
   ): Promise<Address> {
     const namespace: NamespaceName = NamespaceName.of(consensusNode.namespace);
-
     try {
       const serviceList: Service[] = await k8
         .services()
-        .list(namespace, [`solo.hedera.com/node-id=${consensusNode.nodeId},solo.hedera.com/type=network-node-svc`]);
+        .list(namespace, Templates.renderNodeSvcLabelsFromNodeId(consensusNode.nodeId));
 
       if (serviceList && serviceList.length > 0) {
         const svc: Service = serviceList[0];
 
         if (!svc.metadata.name.startsWith('network-node')) {
-          throw new SoloError(`Service found is not a network node service: ${svc.metadata.name}`);
+          throw new SoloErrors.validation.serviceTypeMismatch(svc.metadata.name);
         }
 
         if (
@@ -107,6 +113,17 @@ export class Address {
               return new Address(port, ingress.ip);
             }
           }
+        }
+
+        // If gossip FQDN is allowed by node config, keep using the service FQDN fallback.
+        if (!gossipFqdnRestricted) {
+          return new Address(port, consensusNode.fullyQualifiedDomainName);
+        }
+
+        // When gossip FQDN is restricted and no LoadBalancer IP is available
+        // (e.g., Kind/NodePort), use cluster IP to avoid CN validation failure.
+        if (svc.spec?.clusterIP && svc.spec.clusterIP !== 'None') {
+          return new Address(port, svc.spec.clusterIP);
         }
       }
     } catch {

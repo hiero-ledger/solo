@@ -2,7 +2,7 @@
 
 import {expect} from 'chai';
 import {LocalConfigRuntimeState} from '../../../../src/business/runtime-state/config/local/local-config-runtime-state.js';
-import {DeploymentNotFoundError} from '../../../../src/business/errors/deployment-not-found-error.js';
+import {DeploymentNotFoundError} from '../../../../src/core/errors/classes/deployment/deployment-not-found-error.js';
 import {getTemporaryDirectory} from '../../../test-utility.js';
 import fs from 'node:fs';
 import {PathEx} from '../../../../src/business/utils/path-ex.js';
@@ -11,7 +11,7 @@ import {type Deployment} from '../../../../src/business/runtime-state/config/loc
 import {type FacadeArray} from '../../../../src/business/runtime-state/collection/facade-array.js';
 import {type DeploymentSchema} from '../../../../src/data/schema/model/local/deployment-schema.js';
 
-describe('LocalConfigRuntimeState', () => {
+describe('LocalConfigRuntimeState', (): void => {
   let runtimeState: LocalConfigRuntimeState;
   let basePath: string;
   const testFileName: string = 'local-config.yaml';

@@ -1,5 +1,5 @@
 export default {
-  plugins: [
+plugins: [
     ['remark-frontmatter', 'yaml', '-'],
     'remark-preset-lint-consistent',
     'remark-preset-lint-recommended',

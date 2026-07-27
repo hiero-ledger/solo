@@ -2,11 +2,16 @@
 
 PROTO_DIR=$(dirname "$(realpath $0)")/proto
 
-if [ "$(uname -s)" == "Linux" ]; then
-  tar --warning=no-unknown-keyword -xzf proto.zip -C proto
-else
-  tar -xzf proto.zip -C proto
-fi
+# Use --warning=no-unknown-keyword (GNU tar) on Linux and Windows (Git Bash/MINGW/MSYS).
+# macOS ships BSD tar which does not support --warning, so skip it there.
+case "$(uname -s)" in
+  Darwin*)
+    tar -xzf proto.zip -C proto
+    ;;
+  *)
+    tar --warning=no-unknown-keyword -xzf proto.zip -C proto
+    ;;
+esac
 RC=$?
 if [[ $RC -ne 0 ]]; then
   echo "Failed to extract proto files: ${RC}"
