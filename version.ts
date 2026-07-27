@@ -79,6 +79,9 @@ export const NETWORK_LOAD_GENERATOR_CHART_VERSION_AFTER_CN_72: string = '0.14.0'
 export const MINIMUM_CN_VERSION_FOR_SMALL_MEMORY: string = 'v0.72.0-0';
 export const MINIMUM_CN_VERSION_FOR_STATE_ON_DISK: string = 'v0.73.0-0';
 export const MINIMUM_SOLO_CHART_VERSION: string = '0.64.0';
+// Block node >= v0.39.0 serves health endpoints from a dedicated port (BLOCK_NODE_HEALTH_PORT)
+// rather than the gRPC port. The '-0' suffix makes pre-releases (e.g. v0.39.0-rc1) satisfy the check.
+export const MINIMUM_HIERO_BLOCK_NODE_VERSION_FOR_DEDICATED_HEALTH_PORT: string = 'v0.39.0-0';
 export function needsConfigTxtForConsensusVersion(releaseTag?: string): boolean {
   const versionTag: SemanticVersion<string> = new SemanticVersion(releaseTag || HEDERA_PLATFORM_VERSION);
   return versionTag.lessThanOrEqual(LAST_HIERO_CONSENSUS_NODE_VERSION_NEED_CONFIG_TXT);
