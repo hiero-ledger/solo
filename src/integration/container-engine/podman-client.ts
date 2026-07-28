@@ -8,6 +8,8 @@ import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {type ContainerEngineCommand} from './container-engine-command.js';
 import * as constants from '../../core/constants.js';
 import {PathEx} from '../../business/utils/path-ex.js';
+import {PodmanDependencyManager} from '../../core/dependency-managers/podman-dependency-manager.js';
+import {SubprocessCommandProfile} from '../../core/subprocess-command-profile.js';
 
 @injectable()
 export class PodmanClient {
@@ -17,6 +19,9 @@ export class PodmanClient {
   public constructor(@inject(InjectTokens.SoloLogger) private readonly logger?: SoloLogger) {
     this.logger = patchInject(logger, InjectTokens.SoloLogger, this.constructor.name);
     this.shellRunner = new ShellRunner(this.logger);
+    // Later solo invocations (image loads, cluster teardown) must keep rootful podman on the
+    // solo-owned container configuration generated during cluster bootstrap.
+    PodmanDependencyManager.applyPersistedContainerConfiguration();
   }
 
   public async getKindContainerCommand(nodeName: string): Promise<ContainerEngineCommand | undefined> {
@@ -48,6 +53,7 @@ export class PodmanClient {
         'env',
         `KIND_EXPERIMENTAL_PROVIDER=${constants.PODMAN}`,
         `PATH=${pathEnvironment}`,
+        ...PodmanDependencyManager.containerConfigEnvironmentArguments(),
         kindExecutable,
         ...kindArguments,
       ]);
@@ -55,6 +61,7 @@ export class PodmanClient {
     }
 
     await this.shellRunner.run(kindExecutable, kindArguments, {
+      commandProfile: SubprocessCommandProfile.KIND,
       environmentVariablesToAppend: {
         KIND_EXPERIMENTAL_PROVIDER: constants.PODMAN,
         PATH: pathEnvironment,
@@ -70,9 +77,17 @@ export class PodmanClient {
   }
 
   private static sudoPodmanCommand(): ContainerEngineCommand {
+    // sudo resets both PATH (secure_path drops the brew bin directory holding podman) and the
+    // container configuration variables, so pass them back explicitly through `env`.
     return {
       executable: 'sudo',
-      argumentsPrefix: ['-n', constants.PODMAN],
+      argumentsPrefix: [
+        '-n',
+        'env',
+        `PATH=${process.env.PATH || ''}`,
+        ...PodmanDependencyManager.containerConfigEnvironmentArguments(),
+        constants.PODMAN,
+      ],
     };
   }
 
@@ -99,6 +114,7 @@ export class PodmanClient {
   private async containerExists(command: ContainerEngineCommand, nodeName: string): Promise<boolean> {
     try {
       await this.shellRunner.run(command.executable, [...command.argumentsPrefix, 'container', 'exists', nodeName], {
+        commandProfile: SubprocessCommandProfile.CONTAINER_ENGINE,
         timeoutMs: PodmanClient.CONTAINER_ENGINE_PROBE_TIMEOUT_MS,
       });
       return true;

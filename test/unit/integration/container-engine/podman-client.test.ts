@@ -7,16 +7,23 @@ import {ShellRunner} from '../../../../src/core/shell-runner.js';
 import {type SoloLogger} from '../../../../src/core/logging/solo-logger.js';
 import {PodmanClient} from '../../../../src/integration/container-engine/podman-client.js';
 import {type ContainerEngineCommand} from '../../../../src/integration/container-engine/container-engine-command.js';
+import {PodmanDependencyManager} from '../../../../src/core/dependency-managers/podman-dependency-manager.js';
 
 describe('PodmanClient', (): void => {
   let previousKindProvider: string | undefined;
   let sandbox: SinonSandbox;
   let shellRunnerRunStub: SinonStub;
+  let containerConfigArgumentsStub: SinonStub;
 
   beforeEach((): void => {
     previousKindProvider = process.env.KIND_EXPERIMENTAL_PROVIDER;
     sandbox = sinon.createSandbox();
     shellRunnerRunStub = sandbox.stub(ShellRunner.prototype, 'run');
+    // Pin the host-dependent container configuration lookups so command shapes are deterministic.
+    sandbox.stub(PodmanDependencyManager, 'applyPersistedContainerConfiguration');
+    containerConfigArgumentsStub = sandbox
+      .stub(PodmanDependencyManager, 'containerConfigEnvironmentArguments')
+      .returns([]);
   });
 
   afterEach((): void => {
@@ -52,7 +59,7 @@ describe('PodmanClient', (): void => {
     shellRunnerRunStub
       .withArgs(
         'sudo',
-        PodmanClientTestBuilder.containerExistsArguments('kind-control-plane', ['-n', 'podman']),
+        PodmanClientTestBuilder.containerExistsArguments('kind-control-plane', PodmanClientTestBuilder.sudoPrefix()),
         sinon.match.object,
       )
       .resolves([]);
@@ -62,8 +69,32 @@ describe('PodmanClient', (): void => {
 
     expect(command).to.deep.equal({
       executable: 'sudo',
-      argumentsPrefix: ['-n', 'podman'],
+      argumentsPrefix: PodmanClientTestBuilder.sudoPrefix(),
     });
+  });
+
+  it('passes the solo-owned container configuration to rootful podman probes', async (): Promise<void> => {
+    delete process.env.KIND_EXPERIMENTAL_PROVIDER;
+    const configurationArguments: string[] = ['CONTAINERS_CONF=/solo/config/containers.conf'];
+    containerConfigArgumentsStub.returns(configurationArguments);
+    shellRunnerRunStub
+      .withArgs('podman', PodmanClientTestBuilder.containerExistsArguments('kind-control-plane'), sinon.match.object)
+      .rejects(new Error('missing rootless container'));
+    shellRunnerRunStub
+      .withArgs(
+        'sudo',
+        PodmanClientTestBuilder.containerExistsArguments(
+          'kind-control-plane',
+          PodmanClientTestBuilder.sudoPrefix(configurationArguments),
+        ),
+        sinon.match.object,
+      )
+      .resolves([]);
+
+    const client: PodmanClient = PodmanClientTestBuilder.build();
+    const command: ContainerEngineCommand | undefined = await client.getKindContainerCommand('kind-control-plane');
+
+    expect(command?.argumentsPrefix).to.include('CONTAINERS_CONF=/solo/config/containers.conf');
   });
 
   it('uses podman when the kind provider environment variable is set to podman', async (): Promise<void> => {
@@ -141,6 +172,10 @@ class PodmanClientTestBuilder {
     return new PodmanClient({} as SoloLogger);
   }
 
+  public static sudoPrefix(configurationArguments: readonly string[] = []): string[] {
+    return ['-n', 'env', `PATH=${process.env.PATH || ''}`, ...configurationArguments, 'podman'];
+  }
+
   public static containerExistsArguments(nodeName: string, prefix: readonly string[] = []): string[] {
     return [...prefix, 'container', 'exists', nodeName];
   }
@@ -171,7 +206,7 @@ class PodmanClientTestBuilder {
     shellRunnerRunStub
       .withArgs(
         'sudo',
-        PodmanClientTestBuilder.containerExistsArguments(nodeName, ['-n', 'podman']),
+        PodmanClientTestBuilder.containerExistsArguments(nodeName, PodmanClientTestBuilder.sudoPrefix()),
         sinon.match.object,
       )
       .rejects(new Error('missing rootful podman container'));

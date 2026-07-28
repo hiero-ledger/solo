@@ -33,6 +33,8 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     @inject(InjectTokens.PodmanVersion) podmanVersion: string,
     @inject(InjectTokens.Zippy) private readonly zippy: Zippy,
     @inject(InjectTokens.PodmanDependenciesInstallationDirectory) protected readonly helpersDirectory: string,
+    @inject(InjectTokens.HomeDirectory) private readonly soloHomeDirectory: string,
+    @inject(InjectTokens.CacheDir) private readonly cacheDirectory: string,
   ) {
     super(
       patchInject(downloader, InjectTokens.PackageDownloader, PodmanDependencyManager.name),
@@ -49,6 +51,12 @@ export class PodmanDependencyManager extends BaseDependencyManager {
       InjectTokens.PodmanDependenciesInstallationDirectory,
       PodmanDependencyManager.name,
     );
+    this.soloHomeDirectory = patchInject(
+      this.soloHomeDirectory,
+      InjectTokens.HomeDirectory,
+      PodmanDependencyManager.name,
+    );
+    this.cacheDirectory = patchInject(this.cacheDirectory, InjectTokens.CacheDir, PodmanDependencyManager.name);
   }
 
   /**
@@ -210,21 +218,95 @@ export class PodmanDependencyManager extends BaseDependencyManager {
     return this.checksum;
   }
 
+  /** Container configuration env variables and the file {@link setupConfig} persists for each. */
+  private static readonly CONTAINER_CONFIG_FILE_BY_VARIABLE: Record<string, string> = {
+    CONTAINERS_CONF: 'containers.conf',
+    CONTAINERS_REGISTRIES_CONF: 'registries.conf',
+  };
+
   /**
-   * Create a custom containers.conf file for Podman and set the CONTAINERS_CONF env variable
-   * @private
+   * Points the container configuration env variables at the files a previous {@link setupConfig}
+   * run persisted under the solo home directory. The generated configuration outlives the process
+   * that wrote it, and rootful podman must keep using it in later solo invocations (cluster
+   * destroy, image loads) — otherwise those fall back to the stale system stack the configuration
+   * exists to avoid. Variables already set in the environment are left untouched.
    */
-  public override async setupConfig(): Promise<void> {
+  public static applyPersistedContainerConfiguration(homeDirectory: string = constants.SOLO_HOME_DIR): void {
+    if (!OperatingSystem.isLinux()) {
+      return;
+    }
+    for (const [variableName, fileName] of Object.entries(PodmanDependencyManager.CONTAINER_CONFIG_FILE_BY_VARIABLE)) {
+      if (constants.getEnvironmentVariable(variableName)) {
+        continue;
+      }
+      const persistedPath: string = PathEx.join(homeDirectory, 'config', fileName);
+      if (fs.existsSync(persistedPath)) {
+        // eslint-disable-next-line no-restricted-syntax
+        process.env[variableName] = persistedPath;
+      }
+    }
+  }
+
+  /**
+   * `NAME=value` pairs for the container configuration env variables set by {@link setupConfig},
+   * in the shape `sudo env` expects. Sudo starts from a fresh environment, so rootful podman (and
+   * kind, which spawns it) only sees the solo-owned configuration when these are passed explicitly.
+   */
+  public static containerConfigEnvironmentArguments(homeDirectory: string = constants.SOLO_HOME_DIR): string[] {
+    PodmanDependencyManager.applyPersistedContainerConfiguration(homeDirectory);
+    const arguments_: string[] = [];
+    for (const variableName of Object.keys(PodmanDependencyManager.CONTAINER_CONFIG_FILE_BY_VARIABLE)) {
+      const value: string = constants.getEnvironmentVariable(variableName);
+      if (value) {
+        arguments_.push(`${variableName}=${value}`);
+      }
+    }
+    return arguments_;
+  }
+
+  /**
+   * Create custom containers.conf (and, for rootful Linux, registries.conf) files for Podman and
+   * point the CONTAINERS_CONF / CONTAINERS_REGISTRIES_CONF env variables at them.
+   *
+   * @param runtimeBinaryDirectory - directory holding the podman runtime stack (crun, conmon);
+   *   required in {@link PodmanMode.ROOTFUL} mode, where it is the Homebrew bin directory
+   */
+  public override async setupConfig(runtimeBinaryDirectory?: string): Promise<void> {
     // Create the containers.conf file from the template
-    const configDirectory = PathEx.join(constants.SOLO_HOME_DIR, 'config');
+    const configDirectory: string = PathEx.join(this.soloHomeDirectory, 'config');
     if (!fs.existsSync(configDirectory)) {
       fs.mkdirSync(configDirectory, {recursive: true});
     }
 
-    const templatesDirectory: string = PathEx.join(constants.SOLO_HOME_DIR, 'cache', 'templates');
-    const templatePath: string = PathEx.join(templatesDirectory, 'podman', 'containers.conf');
+    const templatesDirectory: string = PathEx.join(this.cacheDirectory, 'templates');
     const destinationPath: string = PathEx.join(configDirectory, 'containers.conf');
 
+    if (this.mode === PodmanMode.ROOTFUL) {
+      if (!runtimeBinaryDirectory) {
+        throw new SoloErrors.validation.missingArgument(
+          'runtimeBinaryDirectory is required to configure rootful podman',
+        );
+      }
+
+      const templatePath: string = PathEx.join(templatesDirectory, 'podman', 'containers-rootful.conf');
+      const configContent: string = fs
+        .readFileSync(templatePath, 'utf8')
+        .replaceAll('$CRUN_PATH', PathEx.join(runtimeBinaryDirectory, 'crun'))
+        .replaceAll('$CONMON_PATH', PathEx.join(runtimeBinaryDirectory, 'conmon'))
+        .replaceAll('$PODMAN_BINARY_DIR', runtimeBinaryDirectory)
+        .replaceAll('$HELPER_BINARIES_DIR', this.helpersDirectory);
+      fs.writeFileSync(destinationPath, configContent, 'utf8');
+
+      const registriesTemplatePath: string = PathEx.join(templatesDirectory, 'podman', 'registries.conf');
+      const registriesDestinationPath: string = PathEx.join(configDirectory, 'registries.conf');
+      fs.copyFileSync(registriesTemplatePath, registriesDestinationPath);
+
+      process.env.CONTAINERS_CONF = destinationPath;
+      process.env.CONTAINERS_REGISTRIES_CONF = registriesDestinationPath;
+      return;
+    }
+
+    const templatePath: string = PathEx.join(templatesDirectory, 'podman', 'containers.conf');
     let configContent: string = fs.readFileSync(templatePath, 'utf8');
     configContent = configContent.replace('$HELPER_BINARIES_DIR', this.helpersDirectory.replaceAll('\\', '/'));
     fs.writeFileSync(destinationPath, configContent, 'utf8');

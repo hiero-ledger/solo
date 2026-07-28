@@ -146,6 +146,13 @@ export class ClusterTaskManager extends ShellRunner {
         },
       } as SoloListrTask<InitContext>,
       {
+        title: 'Configure podman container runtime...',
+        task: async (_context: InitContext, task: SoloListrTaskWrapper<InitContext>): Promise<void> => {
+          void _context;
+          await this.configureBrewPodmanRuntime(task);
+        },
+      } as SoloListrTask<InitContext>,
+      {
         title: 'Creating local cluster...',
         task: async (_context: InitContext, task: SoloListrTaskWrapper<InitContext>): Promise<void> => {
           void _context;
@@ -167,6 +174,7 @@ export class ClusterTaskManager extends ShellRunner {
             [
               'KIND_EXPERIMENTAL_PROVIDER=podman',
               `PATH=${kindRuntimePath}`,
+              ...PodmanDependencyManager.containerConfigEnvironmentArguments(),
               'kind',
               'create',
               'cluster',
@@ -260,6 +268,94 @@ export class ClusterTaskManager extends ShellRunner {
         },
       } as SoloListrTask<InitContext>,
     ];
+  }
+
+  /**
+   * Installs the network helpers Homebrew does not package (netavark, aardvark-dns), generates the
+   * solo-owned container configuration for the brew podman, and probes the assembled stack. A host
+   * whose podman is not Homebrew-managed is left untouched — its container stack is presumed
+   * self-consistent, and only the brew podman suffers version skew against a stale system stack
+   * under /etc/containers.
+   */
+  private async configureBrewPodmanRuntime(task: SoloListrTaskWrapper<InitContext>): Promise<void> {
+    const podmanBinaryDirectory: string | undefined = await this.resolveBrewPodmanBinaryDirectory();
+    if (!podmanBinaryDirectory) {
+      this.logger.info('podman is not Homebrew-managed; leaving the host container configuration untouched');
+      return;
+    }
+
+    for (const helper of [constants.NETAVARK, constants.AARDVARK_DNS]) {
+      await this.depManager.checkDependency(helper);
+    }
+
+    for (const runtimeBinary of ['crun', 'conmon']) {
+      const binaryPath: string = path.join(podmanBinaryDirectory, runtimeBinary);
+      if (!fs.existsSync(binaryPath)) {
+        throw new SoloErrors.system.podmanRuntimeConfigurationFailed(
+          `${runtimeBinary} was not found at ${binaryPath}; the Homebrew podman installation appears incomplete`,
+        );
+      }
+    }
+
+    await this.podmanDependencyManager.setupConfig(podmanBinaryDirectory);
+
+    // kind runs podman as root, so probe as root with the generated configuration: `podman info`
+    // fails fast on an unloadable configuration and on unresolvable runtime/network helpers.
+    const {onSudoGranted, onSudoRequested} = this.sudoCallbacks(task);
+    try {
+      await this.sudoRun(
+        onSudoRequested,
+        onSudoGranted,
+        'env',
+        [
+          `PATH=${podmanBinaryDirectory}${path.delimiter}${process.env.PATH}`,
+          ...PodmanDependencyManager.containerConfigEnvironmentArguments(),
+          'podman',
+          'info',
+        ],
+        false,
+        false,
+        {},
+        SubprocessCommandProfile.CONTAINER_ENGINE,
+      );
+    } catch (error) {
+      throw new SoloErrors.system.podmanRuntimeConfigurationFailed(
+        'podman rejected the generated container configuration',
+        error,
+      );
+    }
+  }
+
+  /**
+   * Resolves the directory of the podman binary when — and only when — it is Homebrew-managed
+   * (resolves from inside the brew prefix); returns undefined for a distribution podman or when
+   * podman/brew are absent.
+   */
+  private async resolveBrewPodmanBinaryDirectory(): Promise<string | undefined> {
+    let podmanPath: string;
+    try {
+      const whichPodman: string[] = await this.run('which', ['podman']);
+      podmanPath = whichPodman.join('').trim();
+    } catch {
+      // podman is not on the PATH, so there is no brew installation to configure
+      return undefined;
+    }
+    if (!podmanPath) {
+      return undefined;
+    }
+
+    try {
+      const brewPrefixOutput: string[] = await this.run('brew', ['--prefix'], {
+        commandProfile: SubprocessCommandProfile.BREW,
+      });
+      const brewPrefix: string = brewPrefixOutput.join('').trim();
+      if (brewPrefix && podmanPath.startsWith(`${brewPrefix}${path.sep}`)) {
+        return path.dirname(podmanPath);
+      }
+    } catch {
+      // brew is unavailable, so the podman on the PATH cannot be Homebrew-managed
+    }
+    return undefined;
   }
 
   public async installationTasks(

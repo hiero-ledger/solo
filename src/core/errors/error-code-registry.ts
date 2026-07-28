@@ -289,6 +289,7 @@ export const ErrorCodeRegistry: Record<string, string> = {
   UNSUPPORTED_LINUX_DISTRIBUTION: 'SOLO-5074',
   BLOCK_NODES_JSON_EMPTY: 'SOLO-5075',
   HELM_CHART_PULL_NO_ARCHIVE: 'SOLO-5076',
+  PODMAN_RUNTIME_CONFIGURATION_FAILED: 'SOLO-5077',
 
   // 9xxx - Internal: Unexpected bugs, unimplemented paths
   TIMEOUT: 'SOLO-9001',
