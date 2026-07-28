@@ -16,8 +16,6 @@ import {Deprecations} from '../../src/core/deprecations.js';
 import {type RegisteredDeprecation} from '../../src/types/registered-deprecation.js';
 import {type AnyObject} from '../../src/types/aliases.js';
 
-const ISSUE_URL_PREFIX: string = 'https://github.com/hiero-ledger/solo/issues';
-
 const __dirname: string = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot: string = path.resolve(__dirname, '../../');
 process.chdir(projectRoot);
@@ -200,22 +198,21 @@ function renderDeprecatedFeaturesSection(): string {
     .map((entry: RegisteredDeprecation): string => {
       const removeBy: string = Deprecations.resolveRemoveBy(entry.deprecation);
       const replacement: string = entry.deprecation.replacement ? `\`${entry.deprecation.replacement}\`` : '—';
-      const issue: string = `[#${entry.deprecation.removalIssue}](${ISSUE_URL_PREFIX}/${entry.deprecation.removalIssue})`;
       const scope: string[] | undefined = Deprecations.commandScope(entry.deprecation);
       // A flag deprecated only for certain commands stays supported everywhere else — say so in the table.
       const feature: string = scope
         ? `\`${entry.feature}\` (only for ${scope.map((command: string): string => `\`${command}\``).join(', ')})`
         : `\`${entry.feature}\``;
-      return `| ${feature} | ${entry.kind} | v${entry.deprecation.since} | v${removeBy} | ${replacement} | ${issue} |`;
+      return `| ${feature} | ${entry.kind} | v${entry.deprecation.since} | v${removeBy} | ${replacement} |`;
     })
     .join('\n');
 
   return `## Deprecated Features
 
-Deprecated flags are also marked inline in the help output below as \`[deprecated: ...]\`, and deprecated commands as \`[DEPRECATED: ...]\`.
+Deprecated flags are also marked inline in the help output below as \`[deprecated]\`, and deprecated commands as \`[DEPRECATED: ...]\`. The version window and replacement for each are listed in the table.
 
-| Feature | Kind | Deprecated since | Planned removal | Replacement | Tracking issue |
-| ------- | ---- | ---------------- | --------------- | ----------- | -------------- |
+| Feature | Type | Deprecated since | Planned removal | Replacement |
+| ------- | ---- | ---------------- | --------------- | ----------- |
 ${rows}
 
 `;
