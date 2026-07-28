@@ -68,6 +68,14 @@ tasks:
         {{ .mocha_bin }} 'test/e2e/integration/core/package-managers/os-package-manager-install.test.ts'
         {{ .reporter_options_prefix }}-install-validation.xml --timeout 300000"
 
+  test-podman-runtime-validation:
+    desc: "Runs the Homebrew/podman container-runtime validation and generates reports in coverage/podman-runtime-validation"
+    cmds:
+      - "{{ .test_prefix }}=\"Mocha Podman Runtime Validation Tests\"
+        {{ .reporter_prefix }}='coverage/podman-runtime-validation'
+        {{ .mocha_bin }} 'test/e2e/integration/core/package-managers/brew-podman-install.test.ts'
+        {{ .reporter_options_prefix }}-podman-runtime-validation.xml --timeout 600000"
+
   test-e2e-leases:
     desc: "Runs E2E lease tests with coverage and generates reports in coverage/e2e-leases"
     cmds:
