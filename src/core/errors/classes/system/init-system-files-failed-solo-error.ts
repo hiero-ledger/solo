@@ -22,7 +22,7 @@ export class InitSystemFilesFailedSoloError extends SoloError {
           'Check solo logs: tail -n 100 ~/.solo/logs/solo.log\n' +
           'Verify write permissions for the Solo home directory (~/.solo)\n' +
           'Check available disk space\n' +
-          'Re-run initialization: solo init',
+          'Re-run the solo command; Solo re-creates its system files on every run',
       },
       cause,
     );

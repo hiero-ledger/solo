@@ -35,7 +35,7 @@ tasks:
       - task: "start"
 
   install:
-    desc: solo init, solo cluster-ref config create, solo keys consensus generate, solo consensus network deploy
+    desc: solo cluster-ref config create, solo keys consensus generate, solo consensus network deploy
     deps:
       - task: "init"
     cmds:

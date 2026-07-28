@@ -3,27 +3,26 @@
 import {BaseCommand} from '../base.js';
 import fs from 'node:fs';
 import * as constants from '../../core/constants.js';
-import {SoloErrors} from '../../core/errors/solo-errors.js';
 import {Flags as flags} from '../flags.js';
 import chalk from 'chalk';
 import {PathEx} from '../../business/utils/path-ex.js';
 import {FilePermissions} from '../../business/utils/file-permissions.js';
 import {inject, injectable} from 'tsyringe-neo';
-import {type CommandDefinition, type InitDependenciesOptions, type SoloListrTask} from '../../types/index.js';
+import {type InitDependenciesOptions, type SoloListrTask} from '../../types/index.js';
 import {InitConfig} from './init-config.js';
 import {InitContext} from './init-context.js';
-import {Listr, ListrRendererValue} from 'listr2';
 import {InjectTokens} from '../../core/dependency-injection/inject-tokens.js';
 import {patchInject} from '../../core/dependency-injection/container-helper.js';
 import {ClusterTaskManager} from '../../core/cluster-task-manager.js';
 
 /**
- * Defines the core functionalities of 'init' command
+ * One-time local environment setup: Solo's home/cache directories, the packaged templates, and the
+ * external dependencies (podman, helm, kubectl, ...). Every command runs the system-file tasks through
+ * {@link Middlewares.initSystemFiles}, and the dependency tasks are pulled in by
+ * {@link CommandBuilder}; there is no longer a user-facing command for it.
  */
 @injectable()
 export class InitCommand extends BaseCommand {
-  public static readonly COMMAND_NAME: string = 'init';
-  public static readonly INIT_COMMAND_NAME: string = InitCommand.COMMAND_NAME;
   private static hasShownDevSystemFileLists: boolean = false;
 
   public constructor(
@@ -103,7 +102,7 @@ export class InitCommand extends BaseCommand {
             this.logger.showUser(
               chalk.grey(
                 `Note: solo stores various artifacts (config, logs, keys etc.) in its home directory: ${constants.SOLO_HOME_DIR}\n` +
-                  "If a full reset is needed, delete the directory or relevant sub-directories before running 'solo init'.",
+                  'If a full reset is needed, delete the directory or relevant sub-directories before re-running solo.',
               ),
             );
             this.logger.showUser(
@@ -154,70 +153,6 @@ export class InitCommand extends BaseCommand {
     }
 
     return tasks;
-  }
-
-  /** Executes the init CLI command */
-  public initTasks(argv: any): Listr<InitContext, ListrRendererValue, ListrRendererValue> {
-    return this.taskList.newTaskList(
-      [
-        ...this.setupSystemFilesTasks(argv),
-        ...this.installDependenciesTasks({
-          deps: [...constants.BASE_DEPENDENCIES],
-          createCluster: false,
-        }),
-      ],
-      constants.LISTR_DEFAULT_OPTIONS.DEFAULT,
-      undefined,
-      InitCommand.INIT_COMMAND_NAME,
-    );
-  }
-
-  public async init(argv: any): Promise<boolean> {
-    const tasks: Listr<InitContext, ListrRendererValue, ListrRendererValue> = this.initTasks(argv);
-
-    this.logger.showUser(
-      chalk.grey('**********************************************************************************'),
-    );
-    this.logger.showUser(chalk.grey("'solo init' is now deprecated, you don't need to run it anymore."));
-    this.logger.showUser(
-      chalk.grey('**********************************************************************************\n'),
-    );
-
-    if (tasks.isRoot()) {
-      try {
-        await tasks.run();
-      } catch (error: Error | any) {
-        throw new SoloErrors.deployment.initFailed(error);
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Return Yargs command definition for 'init' command
-   * @returns A object representing the Yargs command definition
-   */
-  public getCommandDefinition(): CommandDefinition {
-    return {
-      command: InitCommand.COMMAND_NAME,
-      desc: 'Initialize local environment',
-      builder: (y: any): void => {
-        // set the quiet flag even though it isn't used for consistency across all commands
-        flags.setOptionalCommandFlags(y, flags.cacheDir, flags.quiet, flags.username);
-      },
-      handler: async (argv: any): Promise<void> => {
-        await this.init(argv)
-          .then((r: boolean): void => {
-            if (!r) {
-              throw new SoloErrors.deployment.initFailed();
-            }
-          })
-          .catch(error => {
-            throw new SoloErrors.deployment.initFailed(error);
-          });
-      },
-    };
   }
 
   public close(): Promise<void> {

@@ -9,7 +9,7 @@ import {ErrorCodeRegistry} from '../../error-code-registry.js';
  * resolved path (`~/.solo/local-config.yaml`, or `$SOLO_HOME/local-config.yaml` when
  * `SOLO_HOME` is set). The local config records cluster references, deployments, and the
  * active user context, so most commands load it before doing any work. The file is missing
- * because `solo init` has not yet run on this machine, because `SOLO_HOME` points at a
+ * because no solo command has created it on this machine yet, because `SOLO_HOME` points at a
  * different directory than the one the file was created in, or because it was manually moved
  * or deleted.
  */
