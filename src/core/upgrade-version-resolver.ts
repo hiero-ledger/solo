@@ -4,18 +4,6 @@ import {type SemanticVersion} from '../business/utils/semantic-version.js';
 import {type ConfigManager} from './config-manager.js';
 import {type CommandFlag} from '../types/flag-types.js';
 
-/**
- * Resolves the version to use for a component helm upgrade.
- *
- * Applies the following precedence:
- *   1. the version the user explicitly supplied on the command line;
- *   2. the version currently recorded for the component in remote config (when present);
- *   3. the built-in default from version.ts.
- *
- * Without this, an upgrade that omits the version flag silently retargets the component to the
- * CLI's built-in default rather than the version that is actually deployed, forcing operators to
- * restate the version on every upgrade.
- */
 export class UpgradeVersionResolver {
   /**
    * @param userSuppliedVersion - the flag value when the user explicitly supplied it, otherwise undefined
@@ -40,7 +28,7 @@ export class UpgradeVersionResolver {
 
   /**
    * Convenience wrapper around {@link resolve} that determines whether the version was
-   * user-supplied itself, instead of leaving that check to the call site.
+   * user-supplied or resolved from as a default flag value
    *
    * @param configManager - used to check whether the user explicitly supplied any of `versionFlags`
    * @param versionFlags - all flags that can carry the version (e.g. relay's version and release-tag aliases)
