@@ -12,6 +12,23 @@
 
 An opinionated CLI tool to deploy and manage standalone test networks.
 
+## Homebrew Deprecation Notice
+
+**Warning: Homebrew support for Solo is being removed.** The Solo Homebrew formula will stop being updated after **August 31, 2026**; releases published after that date will only be available from npm.
+
+Install and upgrade Solo with npm instead:
+
+```bash
+npm install -g @hiero-ledger/solo
+```
+
+If Solo is currently installed with Homebrew, switch over with:
+
+```bash
+brew uninstall solo
+npm install -g @hiero-ledger/solo
+```
+
 ## Releases
 
 Solo releases are supported for one month after their release date. LTS (Long-Term Support) versions are supported for three months. Upgrade to the latest version to benefit from new features and improvements. 
