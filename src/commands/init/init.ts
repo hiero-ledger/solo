@@ -29,8 +29,8 @@ export class InitCommand extends BaseCommand {
   public static readonly INIT_COMMAND_NAME: string = InitCommand.COMMAND_NAME;
   private static hasShownDevSystemFileLists: boolean = false;
   private static readonly DEPRECATION: Deprecation = {
-    since: '0.84.0',
-    removalIssue: 5181,
+    since: '0.85.0',
+    removalIssue: 5389,
     reason: 'Running it is no longer required.',
   };
 

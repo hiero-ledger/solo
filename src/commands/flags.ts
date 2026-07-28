@@ -544,7 +544,7 @@ export class Flags {
       alias: 't',
       defaultValue: version.HEDERA_PLATFORM_VERSION,
       type: 'string',
-      deprecated: {since: '0.84.0', removalIssue: 5181, replacement: '--consensus-node-version'},
+      deprecated: {since: '0.85.0', removalIssue: 5387, replacement: '--consensus-node-version'},
     },
     prompt: async function promptReleaseTag(
       task: SoloListrTaskWrapper<AnyListrContext>,
@@ -579,7 +579,7 @@ export class Flags {
       describe: 'Overrides the Docker image tag (e.g. 0.36.0-SNAPSHOT).',
       defaultValue: '',
       type: 'string',
-      deprecated: {since: '0.84.0', removalIssue: 5181, replacement: '--component-image'},
+      deprecated: {since: '0.85.0', removalIssue: 5385, replacement: '--component-image'},
     },
     prompt: undefined,
   };
@@ -606,7 +606,7 @@ export class Flags {
       describe: 'Relay release tag (e.g. v0.48.0)',
       defaultValue: version.HEDERA_JSON_RPC_RELAY_VERSION,
       type: 'string',
-      deprecated: {since: '0.84.0', removalIssue: 5181, replacement: '--relay-version'},
+      deprecated: {since: '0.85.0', removalIssue: 5386, replacement: '--relay-version'},
     },
     prompt: async function promptRelayReleaseTag(
       task: SoloListrTaskWrapper<AnyListrContext>,
@@ -1305,7 +1305,7 @@ export class Flags {
       describe: 'Block node chart version',
       defaultValue: version.BLOCK_NODE_VERSION,
       type: 'string',
-      deprecated: {since: '0.84.0', removalIssue: 5181, replacement: '--block-node-version'},
+      deprecated: {since: '0.85.0', removalIssue: 5388, replacement: '--block-node-version'},
     },
     prompt: async function promptBlockNodeChartVersion(
       task: SoloListrTaskWrapper<AnyListrContext>,
