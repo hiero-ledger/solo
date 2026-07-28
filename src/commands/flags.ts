@@ -1274,29 +1274,6 @@ export class Flags {
     },
   };
 
-  public static readonly blockNodeChartVersion: CommandFlag = {
-    constName: 'chartVersion',
-    name: 'chart-version',
-    definition: {
-      describe: 'DEPRECATED: use --block-node-version',
-      defaultValue: version.BLOCK_NODE_VERSION,
-      type: 'string',
-    },
-    prompt: async function promptBlockNodeChartVersion(
-      task: SoloListrTaskWrapper<AnyListrContext>,
-      input: string,
-    ): Promise<string> {
-      return await Flags.promptText(
-        task,
-        input,
-        Flags.blockNodeChartVersion.definition.defaultValue as string,
-        'Enter block node chart version: ',
-        undefined,
-        Flags.blockNodeChartVersion.name,
-      );
-    },
-  };
-
   public static readonly priorityMapping: CommandFlag = {
     constName: 'priorityMapping',
     name: 'priority-mapping',
@@ -3178,10 +3155,22 @@ export class Flags {
     name: 'block-node-version',
     definition: {
       describe: 'Block node version to deploy for (e.g. v0.31.0 or 0.31.0). ',
-      defaultValue: '',
+      defaultValue: version.BLOCK_NODE_VERSION,
       type: 'string',
     },
-    prompt: undefined,
+    prompt: async function promptBlockNodeVersion(
+      task: SoloListrTaskWrapper<AnyListrContext>,
+      input: string,
+    ): Promise<string> {
+      return await Flags.promptText(
+        task,
+        input,
+        Flags.blockNodeVersion.definition.defaultValue as string,
+        'Enter block node version: ',
+        undefined,
+        Flags.blockNodeVersion.name,
+      );
+    },
   };
 
   // ------------------ Edge ---------------- //
@@ -3355,7 +3344,6 @@ export class Flags {
     Flags.dnsConsensusNodePattern,
     Flags.domainName,
     Flags.domainNames,
-    Flags.blockNodeChartVersion,
     Flags.blockNodeVersion,
     Flags.blockNodeTssOverlay,
     Flags.blockNodeMessageSizeSoftLimitBytes,
