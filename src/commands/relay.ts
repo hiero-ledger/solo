@@ -174,8 +174,6 @@ export class RelayCommand extends BaseCommand {
       flags.operatorId,
       flags.operatorKey,
       flags.quiet,
-      // Keep legacy flag visible as a separate deprecated option.
-      flags.relayReleaseTag,
       flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
@@ -204,8 +202,6 @@ export class RelayCommand extends BaseCommand {
       flags.operatorId,
       flags.operatorKey,
       flags.quiet,
-      // Keep legacy flag visible as a separate deprecated option.
-      flags.relayReleaseTag,
       flags.relayVersion,
       flags.componentImage,
       flags.replicaCount,
