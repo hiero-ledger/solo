@@ -23,6 +23,7 @@ vars:
 
   # State Save Configuration
   STATE_SAVE_DIR: "{{ .USER_WORKING_DIR }}/saved-states"
+  MIRROR_PASSWORDS_SECRET_FILE: "{{ .STATE_SAVE_DIR }}/mirror-passwords-secret.json"
 
   # External Database Configuration (Optional)
   POSTGRES_USERNAME: "postgres"
@@ -204,6 +205,17 @@ tasks:
           env PGPASSWORD={{ .POSTGRES_PASSWORD }} pg_dump -U {{ .POSTGRES_USERNAME }} \
           --clean --if-exists \
           {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} > {{ .STATE_SAVE_DIR }}/database-dump.sql
+      - cmd: echo "Saving mirror passwords secret..."
+      - cmd: |
+          kubectl get secret mirror-passwords -n {{ .NAMESPACE }} -o json | \
+          jq 'del(
+            .metadata.annotations."kubectl.kubernetes.io/last-applied-configuration",
+            .metadata.creationTimestamp,
+            .metadata.managedFields,
+            .metadata.resourceVersion,
+            .metadata.uid
+          )' > {{ .MIRROR_PASSWORDS_SECRET_FILE }}
+      - cmd: echo "✅ Mirror passwords secret exported to {{ .MIRROR_PASSWORDS_SECRET_FILE }}"
       - cmd: echo "✅ Database exported to {{ .STATE_SAVE_DIR }}/database-dump.sql"
       - cmd: echo "✅ Network state and database saved to {{ .STATE_SAVE_DIR }}"
       - cmd: ls -lh {{ .STATE_SAVE_DIR }}
@@ -218,6 +230,7 @@ tasks:
       - task: init-solo
       - task: deploy-external-database
       - task: deploy-network-with-state
+      - task: restore-mirror-passwords-secret
       - task: restore-database
       - task: deploy-mirror-external
       - task: verify-state
@@ -269,6 +282,39 @@ tasks:
     cmds:
       - cmd: echo "Restoring database from dump..."
       - cmd: |
+          if [ -f {{ .MIRROR_PASSWORDS_SECRET_FILE }} ]; then
+            echo "Recreating mirror database roles from saved credentials..."
+            jq -r '.data | keys[]' {{ .MIRROR_PASSWORDS_SECRET_FILE }} | while read -r key; do
+              case "${key}" in
+                *USERNAME)
+                  password_key="${key%USERNAME}PASSWORD"
+                  username="$(jq -r --arg key "${key}" '.data[$key] | @base64d' {{ .MIRROR_PASSWORDS_SECRET_FILE }})"
+                  password="$(jq -r --arg key "${password_key}" '.data[$key] // empty | @base64d' {{ .MIRROR_PASSWORDS_SECRET_FILE }})"
+
+                  case "${username}" in
+                    postgres|readonly|readonlyuser|readwrite|temporary_admin|"")
+                      continue
+                      ;;
+                  esac
+
+                  if [ -z "${password}" ]; then
+                    continue
+                  fi
+
+                  username_sql="$(printf "%s" "${username}" | sed 's/"/""/g')"
+                  role_name_sql="$(printf "%s" "${username}" | sed "s/'/''/g")"
+                  password_sql="$(printf "%s" "${password}" | sed "s/'/''/g")"
+
+                  kubectl exec {{ .POSTGRES_CONTAINER_NAME }} -n {{ .POSTGRES_DATABASE_NAMESPACE }} -- \
+                    env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} -d postgres \
+                    -v ON_ERROR_STOP=1 \
+                    -c "DO \$\$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role_name_sql}') THEN ALTER ROLE \"${username_sql}\" WITH LOGIN PASSWORD '${password_sql}'; ELSE CREATE ROLE \"${username_sql}\" WITH LOGIN PASSWORD '${password_sql}'; END IF; END \$\$;"
+                  echo "✅ Reconciled role ${username}"
+                  ;;
+              esac
+            done
+          fi
+      - cmd: |
           kubectl cp {{ .STATE_SAVE_DIR }}/database-dump.sql \
           {{ .POSTGRES_CONTAINER_NAME }}:/tmp/database-dump.sql -n {{ .POSTGRES_DATABASE_NAMESPACE }}
       - cmd: |
@@ -276,6 +322,17 @@ tasks:
           env PGPASSWORD={{ .POSTGRES_PASSWORD }} psql -U {{ .POSTGRES_USERNAME }} \
           -d {{ .POSTGRES_MIRROR_NODE_DATABASE_NAME }} -f /tmp/database-dump.sql
       - cmd: echo "✅ Database restored"
+
+  restore-mirror-passwords-secret:
+    desc: Restore saved mirror database credential secret
+    cmds:
+      - cmd: |
+          if [ ! -f {{ .MIRROR_PASSWORDS_SECRET_FILE }} ]; then
+            echo "⚠️  Saved mirror-passwords secret not found: {{ .MIRROR_PASSWORDS_SECRET_FILE }}"
+            exit 1
+          fi
+      - cmd: kubectl apply -f {{ .MIRROR_PASSWORDS_SECRET_FILE }}
+      - cmd: echo "✅ Restored mirror-passwords secret"
 
   # ==================== Verification ====================
 
